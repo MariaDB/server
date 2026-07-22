@@ -10,7 +10,6 @@ SET sql_log_bin= 0;
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 INSERT INTO t1 VALUES (1, 2);
 SET sql_log_bin= 1;
-CHANGE MASTER TO master_use_gtid= current_pos;
 Contents on slave before:
 SELECT * FROM t1 ORDER BY a;
 a	b

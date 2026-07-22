@@ -1,0 +1,15 @@
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-30716 Wrong casefolding in xxx_unicode_520_ci for U+0700..U+07FF
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci;
+--source include/ctype_unicode_casefold_bmp.inc
+--source include/ctype_unicode_casefold_supplementary.inc
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

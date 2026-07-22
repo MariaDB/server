@@ -239,7 +239,7 @@ public:
         /*
           Now find out how many different keys we will get (for now we
           ignore the fact that we have "keypart_i=const" restriction for
-          some key components, that may make us think think that loose
+          some key components, that may make us think that loose
           scan will produce more distinct records than it actually will)
         */
         ulong rpc;

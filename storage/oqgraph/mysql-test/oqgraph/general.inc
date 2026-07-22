@@ -100,7 +100,6 @@ SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 6
 
 # The following returns a result that makes no sense...
 #-- what happens when we combined orig and dest?
-#-- Bug https://bugs.launchpad.net/oqgraph/+bug/1195778
 #SELECT * FROM graph where latch='' and origid = 1;
 #SELECT * FROM graph where latch='' and destid = 2;
 #SELECT * FROM graph where latch='' and origid=1 and destid = 2;
@@ -658,7 +657,6 @@ TRUNCATE TABLE graph_base;
 DROP TABLE graph_base;
 DROP TABLE graph;
 
-#-- Reminder - the basic spec is at http://openquery.com/graph/doc
 #--    Query edges stored in graph engine (latch=NULL)
 #--    SELECT * FROM foo;
 #--    Results:

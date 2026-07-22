@@ -959,10 +959,10 @@ BtrBulk::pageCommit(
 /** Log free check */
 inline void BtrBulk::logFreeCheck()
 {
-	if (log_sys.check_flush_or_checkpoint()) {
+	if (log_sys.check_for_checkpoint()) {
 		release();
 
-		log_check_margins();
+		log_free_check();
 
 		latch();
 	}

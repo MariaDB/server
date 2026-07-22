@@ -322,7 +322,7 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
 
   bool add() override;
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   void setup_hybrid(THD *thd, Item *item);
   double val_real() override;
   longlong val_int() override;
@@ -564,7 +564,7 @@ class Item_sum_percent_rank: public Item_sum_double,
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -655,7 +655,7 @@ class Item_sum_cume_dist: public Item_sum_double,
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -685,11 +685,17 @@ class Item_sum_ntile : public Item_sum_int,
 
   longlong val_int() override
   {
-    if (get_row_count() == 0)
+    if (partition_row_count_ == 0)
     {
       null_value= true;
       return 0;
     }
+    /*
+      The current row count in the partition should not exceed the
+      total row count of the partition
+    */
+    DBUG_ASSERT(current_row_count_ <= partition_row_count_);
+    DBUG_ASSERT(current_row_count_ > 0);
 
     longlong num_quantiles= get_num_quantiles();
 
@@ -701,9 +707,14 @@ class Item_sum_ntile : public Item_sum_int,
     }
     n_old_val_= static_cast<ulonglong>(num_quantiles);
     null_value= false;
-    ulonglong quantile_size = get_row_count() / num_quantiles;
-    ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles;
+    ulonglong quantile_size = partition_row_count_ / num_quantiles;
+    ulonglong extra_rows = partition_row_count_ - quantile_size * num_quantiles;
 
+    /*
+      Say there are n extra rows i.e. extra_rows == n, then each of
+      these n rows is placed in the first n tiles, effectively
+      incrementing the size of the first n tiles by 1.
+    */
     if (current_row_count_ <= extra_rows * (quantile_size + 1))
       return (current_row_count_ - 1) / (quantile_size + 1) + 1;
 
@@ -897,7 +908,7 @@ public:
   const Type_handler *type_handler() const override
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -1037,7 +1048,7 @@ public:
   }
   void update_field() override {}
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -1086,13 +1097,19 @@ public:
     : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false)
+  {
+    with_flags|= item_with_t::WINDOW_FUNC;
+  }
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
     : Item_func_or_sum(thd, (Item *) win_func), 
       window_name(NULL), window_spec(win_spec), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false)
+  {
+    with_flags|= item_with_t::WINDOW_FUNC;
+  }
 
   Item_sum *window_func() const { return (Item_sum *) args[0]; }
 
@@ -1391,7 +1408,7 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags) override;
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     Type_std_attributes::set(window_func());
     return FALSE;

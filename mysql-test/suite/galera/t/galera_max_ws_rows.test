@@ -1,0 +1,104 @@
+--source include/galera_cluster.inc
+
+#
+# MDEV-28750 Assertion `trans_safe || !updated || thd->transaction->stmt.modified_non_trans_table' failed in virtual bool multi_update::send_eof()
+#
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1 SET t1.a=t1.a * 2;
+UPDATE ti AS t1 SET t1.a=t1.a * 2;
+UPDATE tm AS t1 SET t1.a=t1.a * 2;
+--error ER_WARNING_NOT_COMPLETE_ROLLBACK
+UPDATE ti AS t1 SET t1.a=t1.a * 2;
+SHOW WARNINGS;
+COMMIT;
+SELECT * FROM ti;
+SELECT * from tm;
+DROP TABLE ti,tm;
+
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+SET sql_mode=only_full_group_by;
+INSERT INTO ti VALUES (1,2,4);
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+COMMIT;
+SELECT * FROM ti;
+SELECT * from tm;
+DROP TABLE ti,tm;
+
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+SET sql_mode=only_full_group_by;
+INSERT INTO ti VALUES (1,2,4);
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_max_ws_rows=2;
+--error ER_WRONG_ARGUMENTS
+set GLOBAL wsrep_max_ws_size=2047;
+COMMIT;
+SELECT * FROM ti;
+SELECT * from tm;
+DROP TABLE ti,tm;
+
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=InnoDB;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+--error ER_ERROR_DURING_COMMIT
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+COMMIT;
+SELECT * FROM ti;
+SELECT * from tm;
+DROP TABLE ti,tm;
+
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=0;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+COMMIT;
+SELECT * FROM ti;
+SELECT * from tm;
+DROP TABLE ti,tm;
+
+#
+# MDEV-25548 Assertion `transactional_table || !changed || thd->transaction.stmt.modified_non_trans_table' failed.
+#
+CREATE TABLE t1 (col INT);
+INSERT INTO t1 VALUES (0xF4AB);
+CREATE TEMPORARY TABLE t1 (c1 INT) ENGINE=mrg_myisam UNION=(t1) insert_method=FIRST;
+SET GLOBAL wsrep_max_ws_rows=1;
+DROP TABLES t1;
+INSERT INTO t1 VALUES (6373);
+CREATE TABLE t2 ENGINE=heap SELECT * FROM t1;
+
+DROP TABLE t1, t2;
+
+SET default_storage_engine="HEAP";
+CREATE TABLE t1 (f1 BIGINT);
+SET GLOBAL wsrep_max_ws_rows = 1;
+INSERT INTO t1 VALUES (NOW()),(NOW()),(NOW());
+SELECT COUNT(*) AS EXPECT_3 FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT) ENGINE=MyISAM DEFAULT CHARSET=utf8 SELECT 1 as i;
+DROP TABLE t1;
+
+SET GLOBAL wsrep_max_ws_rows=0;

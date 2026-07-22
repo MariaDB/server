@@ -1,0 +1,56 @@
+#
+# MDEV-22186 : Add innodb_buffer_pool_in_core_dump option to trim buffer pool from core file
+#
+
+--source include/not_windows.inc
+--source include/linux.inc
+--source include/have_innodb.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+# Disable test on sanitizer builds (MSAN and ASAN) because sanitizers
+# introduce additional VMAs marked with the `dd` (VM_DONTDUMP) flag
+# in /proc/<pid>/smaps, which  breaks the assumptions in
+# include/check_core_dump_trim.inc.
+--source include/not_msan.inc
+--source include/not_asan.inc
+
+set @old_innodb_buffer_pool_in_core_dump = @@innodb_buffer_pool_in_core_dump;
+
+--echo #
+--echo # Confirm innodb_buffer_pool_in_core_dump works
+--echo #
+SELECT @@global.innodb_buffer_pool_in_core_dump;
+--source include/check_core_dump_trim.inc
+
+--echo #
+--echo # Confirm dynamicity of innodb_buffer_pool_in_core_dump
+--echo #
+SET GLOBAL innodb_buffer_pool_in_core_dump = ON;
+--source include/check_core_dump_trim.inc
+
+SET GLOBAL innodb_buffer_pool_in_core_dump = OFF;
+--source include/check_core_dump_trim.inc
+
+SET GLOBAL innodb_buffer_pool_in_core_dump = ON;
+--source include/check_core_dump_trim.inc
+
+SET GLOBAL innodb_buffer_pool_in_core_dump = OFF;
+--source include/check_core_dump_trim.inc
+
+--echo #
+--echo # Confirm innodb_pool_in_core_dump works even
+--echo # after resizing of buffer pool.
+--echo #
+
+set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
+
+set global innodb_buffer_pool_size = 64*1024*1024;
+--source include/check_core_dump_trim.inc
+
+set global innodb_buffer_pool_size = 96*1024*1024;
+--source include/check_core_dump_trim.inc
+
+set global innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
+set global innodb_buffer_pool_in_core_dump = @old_innodb_buffer_pool_in_core_dump;
+--echo # End of 10.11 tests

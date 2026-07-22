@@ -169,3 +169,4 @@ connect con1,localhost,root,foo,,,;
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
 set global event_scheduler=OFF;
+# restart

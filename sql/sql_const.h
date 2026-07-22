@@ -167,7 +167,20 @@
   Feel free to raise this by the smallest amount you can to get the
   "execution_constants" test to pass.
 */
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+/*
+  Note, rather than trying to micro adjust these every time
+  slightly different test fails, potentially on slightly different
+  compiler, look at adjusting the test. For example main.sp-error
+  at Bug#15192.
+*/
+#if defined(__clang__) && __has_feature(memory_sanitizer) && !defined(DBUG_OFF)
+#define STACK_MIN_SIZE          44000
+#else
 #define STACK_MIN_SIZE          16000   // Abort if less stack during eval.
+#endif
 
 #define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks

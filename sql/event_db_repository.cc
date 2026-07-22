@@ -150,12 +150,12 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb") }
   },
   {

@@ -14,11 +14,9 @@ GRANT ALL PRIVILEGES ON *.* TO bar@localhost;
 REVOKE CONNECTION ADMIN, SUPER ON *.* FROM bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-SELECT user FROM information_schema.processlist ORDER BY user;
+SELECT user FROM information_schema.processlist WHERE id=$id;
 user
-bar
 foo
-root
 KILL ID;
 ERROR HY000: You are not owner of thread ID
 disconnect foo;
@@ -35,11 +33,9 @@ CREATE USER bar@localhost;
 GRANT PROCESS, CONNECTION ADMIN ON *.* TO bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-SELECT user FROM information_schema.processlist ORDER BY user;
+SELECT user FROM information_schema.processlist WHERE id=$id;
 user
-bar
 foo
-root
 KILL ID;
 connection default;
 disconnect foo;
@@ -55,11 +51,9 @@ CREATE USER bar@localhost;
 GRANT PROCESS, SUPER ON *.* TO bar@localhost;
 connect  foo,localhost,foo,,;
 connect  bar,localhost,bar,,;
-SELECT user FROM information_schema.processlist ORDER BY user;
+SELECT user FROM information_schema.processlist WHERE id=$id;
 user
-bar
 foo
-root
 KILL ID;
 connection default;
 disconnect foo;

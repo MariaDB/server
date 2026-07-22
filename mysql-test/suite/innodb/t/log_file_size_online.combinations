@@ -1,0 +1,11 @@
+[encrypted]
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/logkey.txt
+--innodb-encrypt-log=ON
+--innodb-log-file-size=5M
+
+[slow]
+--innodb-flush-sync=OFF
+--innodb-encrypt-log=OFF
+--innodb-log-file-size=5M

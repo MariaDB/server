@@ -30,7 +30,7 @@ typedef struct {
 
 static ds_ctxt_t *stdout_init(const char *root);
 static ds_file_t *stdout_open(ds_ctxt_t *ctxt, const char *path,
-			     MY_STAT *mystat);
+			const MY_STAT *mystat, bool rewrite);
 static int stdout_write(ds_file_t *file, const uchar *buf, size_t len);
 static int stdout_close(ds_file_t *file);
 static void stdout_deinit(ds_ctxt_t *ctxt);
@@ -39,8 +39,11 @@ datasink_t datasink_stdout = {
 	&stdout_init,
 	&stdout_open,
 	&stdout_write,
+	nullptr,
 	&stdout_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&stdout_deinit
 };
 
@@ -61,8 +64,9 @@ static
 ds_file_t *
 stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 	    const char *path __attribute__((unused)),
-	    MY_STAT *mystat __attribute__((unused)))
+	    const MY_STAT *mystat __attribute__((unused)), bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_stdout_file_t 	*stdout_file;
 	ds_file_t		*file;
 	size_t			pathlen;
@@ -80,6 +84,7 @@ stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 #endif
 
 	stdout_file->fd = my_fileno(stdout);
+	posix_fadvise(stdout_file->fd, 0, 0, POSIX_FADV_DONTNEED);
 
 	file->path = (char *) stdout_file + sizeof(ds_stdout_file_t);
 	memcpy(file->path, fullpath, pathlen);
@@ -95,12 +100,11 @@ stdout_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	File fd = ((ds_stdout_file_t *) file->ptr)->fd;
 
-	if (!my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
-		posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
-		return 0;
+	if (my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
+		return 1;
 	}
 
-	return 1;
+	return 0;
 }
 
 static

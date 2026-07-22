@@ -34,12 +34,15 @@ create server s1 foreign data wrapper foo options(user 'a');
 alter server s1 options(host 'server.example.org');
 rename table mysql.servers to mysql.servers_save;
 create table mysql.servers (x int);
---error ER_FOREIGN_SERVER_DOESNT_EXIST
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
 alter server s1 options(host 'server.example.org');
---error ER_CANT_FIND_SYSTEM_REC
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+drop server s1;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
 create server s2 foreign data wrapper foo options(user 'a');
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
+flush privileges;
 drop server s1;
 
 --echo #
@@ -52,3 +55,81 @@ FLUSH PRIVILEGES;
 drop server s1;
 # Restore the table back to original engine, to not disrupt following tests.
 ALTER TABLE mysql.servers ENGINE=Aria;
+
+--echo #
+--echo # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+--echo # MDEV-37777 upgrade from MySQL 5.7 regression, mysql.servers invalid structure
+--echo #
+
+--echo # no crash:
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column owner;
+insert into mysql.servers values(0,0,0,0,0,0,0,0);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+drop table mysql.servers;
+
+--echo # w/o PK
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop primary key;
+insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+drop table mysql.servers;
+
+--echo # upgrade is ok
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers add column Options text;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+
+--echo # MySQL 5.7 (MDEV-37777)
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers modify Host char(64) not null, modify Owner char(64) not null;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+
+--echo # plugin
+create table mysql.plugin_save like mysql.plugin;
+alter table mysql.plugin drop column dl;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+install soname "ha_example";
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+uninstall soname "ha_example";
+drop table mysql.plugin;
+create table mysql.plugin like mysql.plugin_save;
+alter table mysql.plugin drop primary key;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+install soname "ha_example";
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+uninstall soname "ha_example";
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
+
+
+--echo #
+--echo # MDEV-36230 SIGSEGV in store_server_fields on CREATE SERVER
+--echo #
+--echo ## Error code depends on length of long
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
+select * from mysql.servers;
+--error ER_DATA_OUT_OF_RANGE
+ALTER SERVER s OPTIONS (PORT 4294967295);
+select * from mysql.servers;
+drop server s;
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
+--error ER_PARSE_ERROR
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
+
+--echo # End of 10.11 tests

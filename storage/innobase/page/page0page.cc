@@ -2000,6 +2000,8 @@ func_exit:
 	return(ret);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Check the consistency of an index page.
 @param[in]	page	index page
 @param[in]	index	B-tree or R-tree index
@@ -2436,6 +2438,8 @@ next_free:
 	return(ret);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */
@@ -2486,7 +2490,7 @@ page_find_rec_with_heap_no(
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
-const rec_t *page_find_rec_max_not_deleted(const page_t *page)
+const rec_t *page_find_rec_last_not_deleted(const page_t *page)
 {
   ut_ad(page_is_leaf(page));
 

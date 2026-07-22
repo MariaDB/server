@@ -135,7 +135,8 @@ int PFS_digest_row::make_row(PFS_statements_digest_stat* pfs)
       Calculate digest from MD5 HASH collected to be shown as
       DIGEST in this row.
     */
-    MD5_HASH_TO_STRING(pfs->m_digest_storage.m_md5, m_digest);
+    MD5_HASH_TO_STRING(pfs->m_digest_storage.m_md5, m_digest,
+                       sizeof(m_digest));
     m_digest_length= MD5_HASH_TO_STRING_LENGTH;
 
     /*
@@ -353,7 +354,7 @@ int PFS_index_row::make_row(PFS_table_share *pfs,
   {
     if (table_index < MAX_INDEXES)
     {
-      m_index_name_length= sprintf(m_index_name, "(index %d)", table_index);
+      m_index_name_length= snprintf(m_index_name, sizeof(m_index_name), "(index %d)", table_index);
     }
     else
     {

@@ -45,6 +45,7 @@ alter table mysql.event
   change column body  body longtext character set utf8 collate utf8_bin;
 --echo "Now we restart the server"
 
+call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
 --source include/restart_mysqld.inc
 
 use events_test;

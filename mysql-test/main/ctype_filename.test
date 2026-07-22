@@ -185,3 +185,27 @@ DROP TABLE t;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-28481 SIGSEGV in Lex_charset_collation_st::find_bin_collation
+--echo #
+
+SET SESSION collation_server=filename;
+CREATE DATABASE db1;
+USE db1;
+--error ER_UNKNOWN_COLLATION
+CREATE TABLE t (c CHAR BINARY);
+DROP DATABASE db1;
+USE test;
+SET NAMES latin1;
+
+--error ER_UNKNOWN_COLLATION
+CREATE TABLE t1 (c CHAR BINARY) CHARACTER SET filename;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

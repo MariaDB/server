@@ -103,7 +103,7 @@ my_bool maria_page_crc_check(uchar *page,
       the CRC will be corrected at next write)
     */
     if (no_crc_val == MARIA_NO_CRC_BITMAP_PAGE &&
-        crc == 0 && _ma_check_if_zero(page, data_length))
+        crc == 0 && !_ma_check_if_zero(page, data_length))
     {
       DBUG_PRINT("warning", ("Found bitmap page that was not initialized"));
       DBUG_RETURN(0);

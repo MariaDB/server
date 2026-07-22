@@ -1683,7 +1683,7 @@ DROP TABLE t1, t2;
 --echo # MDEV-8630 Datetime value dropped in "INSERT ... SELECT ... ON DUPLICATE KEY"
 --echo #
 SET NAMES utf8;
-CREATE TABLE t1 (id2 int, ts timestamp);
+CREATE TABLE t1 (id2 int, ts timestamp not null);
 INSERT INTO t1 VALUES (1,'2012-06-11 15:17:34'),(2,'2012-06-11 15:18:24');
 CREATE TABLE t2 AS SELECT
   COALESCE(ts, 0) AS c0,
@@ -2504,7 +2504,7 @@ DROP TABLE t1;
 --echo #
 
 SET NAMES utf8 COLLATE utf8_unicode_ci;
-SELECT uuid()>'';
+SELECT sys_guid()>'';
 
 
 --echo #
@@ -2538,4 +2538,42 @@ select strcmp(_utf8mb3'' collate utf8mb3_nopad_bin, _utf8mb3 0x0001050001) as c1
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-28118 Wrong collation of `CAST(.. AS CHAR COLLATE DEFAULT)`
+--echo #
+
+SET NAMES utf8mb3 COLLATE utf8mb3_bin;
+SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT)) AS c1;
+CREATE TABLE t1 AS SELECT CAST('a' AS CHAR COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28119 Wrong column collation on MODIFY + CONVERT
+--echo #
+
+CREATE TABLE t1 (a CHAR);
+ALTER TABLE t1
+  MODIFY a CHAR COLLATE DEFAULT,
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR);
+ALTER TABLE t1
+  MODIFY a CHAR BINARY,
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.9 tests
 --echo #

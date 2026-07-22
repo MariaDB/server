@@ -9,6 +9,7 @@ alter table t1 encryption_key_id=2;
 show create table t1;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 alter table t1 encryption_key_id=3;
+show warnings;
 show create table t1;
 alter table t1 encryption_key_id=33;
 show create table t1;

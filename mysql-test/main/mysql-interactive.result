@@ -24,3 +24,41 @@ MariaDB [(none)]> select 1;
 
 MariaDB [(none)]> exit
 Bye
+# End of 10.4 tests
+#
+# MDEV-36701 command line client doesn't check session_track information
+#
+create database db1;
+use db1;
+drop database db1;
+create database db1;
+execute immediate "use db1";
+execute immediate "drop database db1";
+exit
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is X
+Server version: Y
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]> create database db1;
+Query OK, 1 row affected
+
+MariaDB [(none)]> use db1;
+Database changed
+MariaDB [db1]> drop database db1;
+Query OK, 0 rows affected
+
+MariaDB [(none)]> create database db1;
+Query OK, 1 row affected
+
+MariaDB [(none)]> execute immediate "use db1";
+Query OK, 0 rows affected
+
+MariaDB [db1]> execute immediate "drop database db1";
+Query OK, 0 rows affected
+
+MariaDB [(none)]> exit
+Bye
+# End of 10.11 tests

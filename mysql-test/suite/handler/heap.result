@@ -1640,7 +1640,7 @@ a	b
 1	10
 insert into t1 values (7,50);
 HANDLER t1 READ b NEXT;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 READ b FIRST;
 a	b
 1	10
@@ -1648,7 +1648,7 @@ connection con1;
 insert into t1 values (7,50);
 connection default;
 HANDLER t1 READ b NEXT;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 READ FIRST;
 a	b
 2	20
@@ -1669,7 +1669,7 @@ connection con1;
 delete from t1;
 connection default;
 HANDLER t1 READ NEXT LIMIT 2;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 CLOSE;
 DROP TABLE t1;
 disconnect con1;

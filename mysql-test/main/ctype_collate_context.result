@@ -1,0 +1,3818 @@
+CREATE TABLE t0 (a VARCHAR(64));
+INSERT INTO t0 VALUES
+('CHARACTER SET DEFAULT'),
+('CHARACTER SET latin1'),
+('CHARACTER SET utf8mb4'),
+('COLLATE DEFAULT'),
+('COLLATE utf8mb4_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE latin1_bin'),
+('COLLATE uca1400_ai_ci'),
+('COLLATE uca1400_as_ci');
+CREATE TABLE clauses
+(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+cl1 VARCHAR(64) NOT NULL,
+cl2 VARCHAR(64) NOT NULL,
+cl3 VARCHAR(64) NOT NULL,
+clause_count INT GENERATED ALWAYS AS ((cl1<>'') + (cl2<>'') + (cl3<>'')),
+clauses TEXT GENERATED ALWAYS AS (CONCAT(cl1,
+IF(cl2='','',' '), cl2,
+IF(cl3='','',' '), cl3))
+);
+INSERT INTO clauses (cl1, cl2, cl3)
+SELECT '' AS cl1, '' AS cl2, '' AS cl3;
+INSERT INTO clauses (cl1, cl2, cl3)
+SELECT t0.a AS cl1, '' AS cl2, '' AS cl3
+FROM t0;
+INSERT INTO clauses (cl1, cl2, cl3)
+SELECT t0.a AS cl1, t2.a AS cl2, '' AS cl3
+FROM t0 t0, t0 t2;
+INSERT INTO clauses (cl1, cl2, cl3)
+SELECT t0.a AS cl1, t2.a AS cl2, t3.a AS cl3
+FROM t0 t0, t0 t2, t0 t3;
+DROP TABLE t0;
+CREATE TABLE results_template
+(
+id INT NOT NULL PRIMARY KEY,
+result TEXT NOT NULL
+);
+CREATE PROCEDURE diff_result_tables_stat(table1 VARCHAR(64),
+table2 VARCHAR(64),
+cond VARCHAR(128))
+BEGIN
+DECLARE query_counts TEXT DEFAULT
+'SELECT '
+    ' COUNT(*),'
+    ' SUM(t1.result=t2.result),'
+    ' SUM(t1.result<>t2.result) '
+    'FROM table1 t1 JOIN table2 t2 USING (id)/*$(WHERE)*/';
+SET query_counts=REPLACE(query_counts, 'table1', table1);
+SET query_counts=REPLACE(query_counts, 'table2', table2);
+IF (cond<>'')
+THEN
+SET query_counts=REPLACE(query_counts, '/*$(WHERE)*/', CONCAT('WHERE ',cond));
+END IF;
+EXECUTE IMMEDIATE query_counts;
+END;
+$$
+CREATE PROCEDURE diff_result_tables_records(table1 VARCHAR(64),
+table2 VARCHAR(64),
+cond VARCHAR(128))
+BEGIN
+DECLARE query_records TEXT DEFAULT
+'SELECT '
+    ' '''' AS ``,'
+    ' clauses.clauses AS attrs,'
+    ' t1.result AS `aaa`,'
+    ' t2.result AS `bbb` '
+    ' FROM table1 t1'
+    ' JOIN table2 t2 USING (id)'
+    ' JOIN clauses USING (id) '
+    ' WHERE t1.result<>t2.result /*$(COND)*/ ORDER BY t1.id';
+SET query_records=REPLACE(query_records, 'table1', table1);
+SET query_records=REPLACE(query_records, 'table2', table2);
+IF (cond<>'')
+THEN
+SET query_records=REPLACE(query_records, '/*$(COND)*/', CONCAT('AND ',cond));
+END IF;
+EXECUTE IMMEDIATE query_records;
+END;
+$$
+CREATE PROCEDURE diff_result_tables(table1 VARCHAR(64),
+table2 VARCHAR(64),
+cond VARCHAR(128))
+BEGIN
+CALL diff_result_tables_stat(table1, table2, cond);
+CALL diff_result_tables_records(table1, table2, cond);
+END;
+$$
+CREATE PROCEDURE exec(query_bootstrap TEXT,
+query_pattern TEXT,
+query_cleanup TEXT,
+id INT,
+clauses TEXT)
+BEGIN
+DECLARE query TEXT DEFAULT REPLACE(query_pattern, '/*CSCL*/',clauses);
+DECLARE result TEXT DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR
+1064,  /*ER_PARSE_ERROR*/
+1302,  /*ER_CONFLICTING_DECLARATIONS*/
+1253   /*ER_COLLATION_CHARSET_MISMATCH*/
+BEGIN
+GET DIAGNOSTICS CONDITION 1 result=MESSAGE_TEXT;
+SET result=CONCAT('ERROR: ', result);
+END;
+IF query_bootstrap<>''
+  THEN
+EXECUTE IMMEDIATE query_bootstrap;
+END IF;
+EXECUTE IMMEDIATE query;
+IF result IS NULL
+THEN
+IF query_pattern LIKE '%DATABASE%'
+    THEN
+SET result=(SELECT CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME,
+' COLLATE ', DEFAULT_COLLATION_NAME)
+FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='db1');
+ELSE
+SET result=(SELECT CONCAT('CHARACTER SET ', SUBSTRING_INDEX(TABLE_COLLATION,'_',1),
+' COLLATE ', TABLE_COLLATION)
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test1');
+END IF;
+END IF;
+INSERT INTO results (id, result) VALUES (id, result);
+IF query_cleanup<>''
+  THEN
+EXECUTE IMMEDIATE query_cleanup;
+END IF;
+END;
+$$
+CREATE PROCEDURE show_results(query TEXT, clause_count_arg INT)
+BEGIN
+SELECT '' AS ``, CONCAT(clause_count_arg, ' clauses') AS `TEST:`;
+SELECT '' AS ``, COUNT(*) AS `TOTAL`
+  FROM results JOIN clauses USING (id)
+WHERE clauses.clause_count=clause_count_arg;
+-- Display erroneous results
+SELECT '' AS ``, COUNT(*) AS `ERROR`
+  FROM results JOIN clauses USING (id)
+WHERE clauses.clause_count=clause_count_arg
+AND result RLIKE '^ERROR';
+SELECT '' AS ``, query, clauses AS attrs, result
+FROM results JOIN clauses USING (id)
+WHERE clauses.clause_count=clause_count_arg
+AND result RLIKE '^ERROR' ORDER BY id;
+-- Display successfull results
+SELECT '' AS ``, COUNT(*) AS `OK`
+  FROM results JOIN clauses USING (id)
+WHERE clauses.clause_count=clause_count_arg
+AND result NOT RLIKE '^ERROR';
+SELECT '' AS ``, query, clauses AS attrs, result
+FROM results JOIN clauses USING (id)
+WHERE clauses.clause_count=clause_count_arg
+AND result NOT RLIKE '^ERROR' ORDER BY id;
+END;
+$$
+CREATE PROCEDURE run(query_bootstrap TEXT,
+query TEXT,
+query_cleanup TEXT,
+clause_count_arg INT)
+BEGIN
+FOR rec IN (SELECT * FROM clauses WHERE clause_count=clause_count_arg)
+DO
+CALL exec(query_bootstrap, query, query_cleanup, rec.id, rec.clauses);
+END FOR;
+END;
+$$
+CREATE PROCEDURE run_all(query_bootstrap TEXT, query TEXT, query_cleanup TEXT)
+BEGIN
+DECLARE msg TEXT;
+DECLARE count_results INT;
+DECLARE count_clauses INT;
+FOR i IN 0..3
+DO
+CALL run(query_bootstrap, query, query_cleanup, i);
+END FOR;
+SET count_clauses=(SELECT COUNT(*) FROM clauses);
+SET count_results=(SELECT COUNT(*) FROM results);
+IF (count_results<>count_clauses)
+THEN
+SET msg=CONCAT('Got ', count_results,' rows in `results`; ',
+'Expected ', count_clauses, ' rows');
+SIGNAL SQLSTATE '45000'
+      SET MYSQL_ERRNO=30001,
+MESSAGE_TEXT=msg;
+END IF;
+END;
+$$
+CREATE PROCEDURE show_results_all(query TEXT)
+BEGIN
+FOR i IN 0..3
+DO
+CALL show_results(query, i);
+END FOR;
+END;
+$$
+#
+# Running CREATE DATABASE tests
+# Displaying all results
+#
+SET @@collation_server=utf8mb4_unicode_ci;
+CREATE TABLE results LIKE results_template;
+CALL run_all('','CREATE DATABASE db1 /*CSCL*/', 'DROP DATABASE IF EXISTS db1');
+CALL show_results_all('CREATE DATABASE');
+	
+TEST:	0 clauses
+	
+TOTAL	1
+	
+ERROR	0
+	
+OK	1
+	
+query	CREATE DATABASE
+attrs	
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+	
+TEST:	1 clauses
+	
+TOTAL	9
+	
+ERROR	0
+	
+OK	9
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+TEST:	2 clauses
+	
+TOTAL	81
+	
+ERROR	46
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+OK	35
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+TEST:	3 clauses
+	
+TOTAL	729
+	
+ERROR	612
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci CHARACTER SET latin1
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE DEFAULT
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE DEFAULT
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE utf8mb4_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE latin1_swedish_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT (utf8mb4)'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET DEFAULT (utf8mb4)' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE latin1_bin
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE latin1_bin
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE uca1400_ai_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET utf8mb4' and 'CHARACTER SET latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET latin1 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE DEFAULT COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE DEFAULT'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE utf8mb4_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE utf8mb4_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_swedish_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_swedish_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE latin1_bin COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE latin1_bin'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_ai_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_as_ci' and 'COLLATE uca1400_ai_ci'
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: COLLATION 'uca1400_as_ci' is not valid for CHARACTER SET 'latin1'
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE DEFAULT' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE utf8mb4_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE latin1_bin' and 'COLLATE uca1400_as_ci'
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	ERROR: Conflicting declarations: 'COLLATE uca1400_ai_ci' and 'COLLATE uca1400_as_ci'
+	
+OK	117
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE utf8mb4_bin COLLATE utf8mb4_bin COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE DEFAULT COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE DEFAULT COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 CHARACTER SET latin1 COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin CHARACTER SET latin1 COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET latin1 COLLATE latin1_bin COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	COLLATE latin1_bin COLLATE latin1_bin COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET DEFAULT COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci CHARACTER SET utf8mb4 COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET DEFAULT COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	CHARACTER SET utf8mb4 COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+	
+query	CREATE DATABASE
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+ALTER TABLE results RENAME TO results_create_db;
+#
+# Running ALTER DATABASE tests
+#
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE DATABASE db1 CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+'ALTER DATABASE db1 COMMENT '''' /*CSCL*/',
+'DROP DATABASE db1');
+ALTER TABLE results RENAME TO results_alter_db;
+# Displaying results that differ in CREATE DATABASE and ALTER DATABASE
+# Only queries with no clauses or with COLLATE DEFAULT alone
+# (without any other COLLATE or CHARACTER SET clauses)
+# should differ:
+# CREATE DATABASE db1 COMMENT '' [COLLATE DEFAULT]; -- means @@collation_server
+# ALTER DATABASE db1 COMMENT '' COLLATE DEFAULT; -- means "the default collation of the current character set of db1"
+# ALTER DATABASE db1 COMMENT ''; -- means "keep the current db1 collation"
+CALL diff_result_tables('results_create_db', 'results_alter_db', '');
+COUNT(*)	820
+SUM(t1.result=t2.result)	810
+SUM(t1.result<>t2.result)	10
+	
+attrs	
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci
+	
+attrs	COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+	
+attrs	COLLATE DEFAULT COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+	
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+#
+# Running CREATE TABLE tests
+#
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE results LIKE results_template;
+CALL run_all('',
+'CREATE TABLE test1.t1 (a int) /*CSCL*/',
+'DROP TABLE IF EXISTS test1.t1');
+ALTER TABLE results RENAME TO results_create_table;
+# Expect no difference to CREATE DATABASE
+CALL diff_result_tables('results_create_db', 'results_create_table', '');
+COUNT(*)	820
+SUM(t1.result=t2.result)	820
+SUM(t1.result<>t2.result)	0
+DROP DATABASE test1;
+#
+# Running ALTER TABLE tests
+#
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE TABLE test1.t1(a INT) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+'ALTER TABLE test1.t1 COMMENT '''' /*CSCL*/',
+'DROP TABLE test1.t1');
+ALTER TABLE results RENAME TO results_alter_table;
+# Only queries with no clauses or with COLLATE DEFAULT alone
+# (without any other COLLATE or CHARACTER SET clauses)
+# should differ:
+# CREATE TABLE test1.t1 COMMENT '' [COLLATE DEFAULT]; -- means "the default collation of the database test1"
+# ALTER TABLE test1.t1 COMMENT '' COLLATE DEFAULT; -- means "the default collation of the current character set of test1.t1"
+# ALTER TABLE test1.t1 COMMENT ''; -- means "keep the current collation of test.t1"
+CALL diff_result_tables('results_create_table', 'results_alter_table', '');
+COUNT(*)	820
+SUM(t1.result=t2.result)	810
+SUM(t1.result<>t2.result)	10
+	
+attrs	
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci
+	
+attrs	COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+	
+attrs	COLLATE DEFAULT COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+	
+attrs	COLLATE DEFAULT COLLATE DEFAULT COLLATE DEFAULT
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
+	
+attrs	COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci COLLATE uca1400_ai_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+	
+attrs	COLLATE uca1400_as_ci COLLATE uca1400_as_ci COLLATE uca1400_as_ci
+aaa	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci
+bbb	CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_as_ci
+DROP DATABASE test1;
+#
+# Running ALTER TABLE CONVERT TO tests
+#
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE TABLE test1.t1(a INT) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+'ALTER TABLE test1.t1 CONVERT TO /*CSCL*/',
+'DROP TABLE test1.t1');
+ALTER TABLE results RENAME TO results_convert_table;
+# CONVERT TO COLLATE (without CHARACTER SET) is not supported yet
+CALL diff_result_tables_stat('results_alter_table', 'results_convert_table','');
+COUNT(*)	820
+SUM(t1.result=t2.result)	66
+SUM(t1.result<>t2.result)	754
+# Everything that did not fail on syntax error
+# should give equal results with ALTER TABLE DEFAULT CHARACTER SET
+# Expect 0 non-equal results:
+CALL diff_result_tables('results_alter_table', 'results_convert_table',
+'t2.result NOT RLIKE ''SQL syntax''');
+COUNT(*)	66
+SUM(t1.result=t2.result)	66
+SUM(t1.result<>t2.result)	0
+DROP DATABASE test1;
+DROP PROCEDURE show_results_all;
+DROP PROCEDURE run_all;
+DROP PROCEDURE show_results;
+DROP PROCEDURE exec;
+DROP PROCEDURE run;
+DROP PROCEDURE diff_result_tables;
+DROP PROCEDURE diff_result_tables_stat;
+DROP PROCEDURE diff_result_tables_records;
+DROP TABLE clauses;
+DROP TABLE results_template;
+DROP TABLE results_create_db;
+DROP TABLE results_alter_db;
+DROP TABLE results_create_table;
+DROP TABLE results_alter_table;
+DROP TABLE results_convert_table;
+#
+# MDEV-30003 Assertion failure upon 2nd execution of SP trying to set collation on non-existing database
+#
+CREATE PROCEDURE p() ALTER SCHEMA db DEFAULT COLLATE = utf8_bin;
+CALL p;
+ERROR HY000: Can't create/write to file '<dir>db.opt' (Errcode: 2 "No such file or directory")
+CALL p;
+ERROR HY000: Can't create/write to file '<dir>db.opt' (Errcode: 2 "No such file or directory")
+DROP PROCEDURE p;
+CREATE DATABASE db1;
+CREATE PROCEDURE p() CREATE DATABASE db1 COLLATE DEFAULT;
+CALL p;
+ERROR HY000: Can't create database 'db1'; database exists
+CALL p;
+ERROR HY000: Can't create database 'db1'; database exists
+DROP DATABASE db1;
+DROP PROCEDURE p;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p() CREATE TABLE t1 (a INT) COLLATE DEFAULT;
+CALL p;
+ERROR 42S01: Table 't1' already exists
+CALL p;
+ERROR 42S01: Table 't1' already exists
+DROP TABLE t1;
+DROP PROCEDURE p;
+#
+# End of 10.9 tests
+#
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+#
+SET NAMES utf8mb4;
+#
+# A context collation and an explicit NULL
+#
+SELECT NULL COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT NULL COLLATE uca1400_ai_ci AS c1';
+ERROR HY000: 'NULL' is not allowed in this context
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE uca1400_ai_ci AS c1';
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and a parameter bound to NULL
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING NULL;
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING CONCAT(NULL);
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING NULL COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING CONCAT(NULL) COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and CONVERT(NULL USING ...)
+#
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+EXECUTE stmt USING CONVERT(NULL USING binary);
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'binary'
+EXECUTE stmt USING CONVERT(NULL USING latin1);
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+#
+# A context collation and an expression with a parameter
+# whose character does not get resolved when bound to a not-NULL value
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT LEFT(NULL,?) COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING NULL;
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and an expression with a parameter
+# whose character set gets resolved when bound to a not-NULL value
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _binary'test';
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'binary'
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test' COLLATE utf8mb4_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _latin1'test' COLLATE latin1_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#

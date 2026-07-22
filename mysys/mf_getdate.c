@@ -35,7 +35,7 @@
 */
 
 
-void get_date(register char * to, int flag, time_t date)
+void get_date(register char * to, size_t to_len, int flag, time_t date)
 {
    reg2 struct tm *start_time;
    time_t skr;
@@ -57,26 +57,33 @@ void get_date(register char * to, int flag, time_t date)
      start_time= localtime(&skr);
 #endif
    if (flag & GETDATE_SHORT_DATE)
-     sprintf(to,"%02d%02d%02d",
-	     start_time->tm_year % 100,
-	     start_time->tm_mon+1,
-	     start_time->tm_mday);
+     snprintf(to, to_len, "%02d%02d%02d",
+	      start_time->tm_year % 100,
+	      start_time->tm_mon+1,
+	      start_time->tm_mday);
    else
-     sprintf(to, ((flag & GETDATE_FIXEDLENGTH) ?
-		  "%4d-%02d-%02d" : "%d-%02d-%02d"),
-	     start_time->tm_year+1900,
-	     start_time->tm_mon+1,
-	     start_time->tm_mday);
+     snprintf(to, to_len,
+	      ((flag & GETDATE_FIXEDLENGTH) ?
+	       "%4d-%02d-%02d" : "%d-%02d-%02d"),
+	      start_time->tm_year+1900,
+	      start_time->tm_mon+1,
+	      start_time->tm_mday);
    if (flag & GETDATE_DATE_TIME)
-     sprintf(strend(to),
-	     ((flag & GETDATE_FIXEDLENGTH) ?
-	      " %02d:%02d:%02d" : " %2d:%02d:%02d"),
-	     start_time->tm_hour,
-	     start_time->tm_min,
-	     start_time->tm_sec);
+   {
+     size_t l= strlen(to);
+     snprintf(to + l, to_len - l,
+	      ((flag & GETDATE_FIXEDLENGTH) ?
+	       " %02d:%02d:%02d" : " %2d:%02d:%02d"),
+	      start_time->tm_hour,
+	      start_time->tm_min,
+	      start_time->tm_sec);
+   }
    else if (flag & GETDATE_HHMMSSTIME)
-     sprintf(strend(to),"%02d%02d%02d",
-	     start_time->tm_hour,
-	     start_time->tm_min,
-	     start_time->tm_sec);
+   {
+     size_t l= strlen(to);
+     snprintf(to + l, to_len - l, "%02d%02d%02d",
+	      start_time->tm_hour,
+	      start_time->tm_min,
+	      start_time->tm_sec);
+   }
 } /* get_date */

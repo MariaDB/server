@@ -142,6 +142,13 @@ int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
 int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
                             uchar *s, uchar *e);
 
+void my_ci_set_strength(struct charset_info_st *cs, uint strength);
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags);
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs);
+uint my_casefold_multiply_2(CHARSET_INFO *cs);
+
+
 /* Some common character set names */
 extern const char charset_name_latin2[];
 #define charset_name_latin2_length 6

@@ -31,7 +31,6 @@ SHOW DATABASES LIKE 'mysql';
 Database (mysql)
 SHOW DATABASES LIKE 'test';
 Database (test)
-test
 connection default;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;

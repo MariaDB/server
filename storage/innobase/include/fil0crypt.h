@@ -89,10 +89,13 @@ struct fil_space_rotate_state_t
 	uint32_t max_offset;	/*!< max offset needing to be rotated */
 	uint  min_key_version_found; /*!< min key version found but not
 				     rotated */
-	lsn_t end_lsn;		/*!< max lsn created when rotating this
-				space */
 	bool starting;		/*!< initial write of IV */
 	bool flushing;		/*!< space is being flushed at end of rotate */
+	bool aborted;		/*!< a rotation thread bailed out of its
+				claimed batch (e.g., on IOPS exhaustion or
+				shutdown). */
+	lsn_t end_lsn;		/*!< max lsn created when rotating this
+				space */
 };
 
 #ifndef UNIV_INNOCHECKSUM
@@ -291,20 +294,20 @@ byte* fil_space_encrypt(
 
 /** Decrypt a page.
 @param]in]	space_id		space id
+@param[in]	fsp_flags		Tablespace flags
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
-@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @retval DB_SUCCESS on success
 @retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
-	ulint			space_id,
+	uint32_t		space_id,
+	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	ulint			fsp_flags,
 	byte*			src_frame);
 
 /******************************************************************

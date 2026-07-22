@@ -185,7 +185,8 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf); /*!< in: buffer where to sprintf */
+	char*	buf, /*!< in: buffer where to sprintf */
+	size_t	buf_size); /*!< in: size of the buffer */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
@@ -290,6 +291,16 @@ operator<<(
 	lhs.setf(ff);
 	return(lhs);
 }
+
+/** This is a wrapper class, used to print any number in IEC style */
+struct bytes_iec {
+  explicit bytes_iec(unsigned long long t): m_val(t) {}
+  double get_double() const { return static_cast<double>(m_val); }
+  const unsigned long long m_val;
+};
+
+/** Like hex operator above, except for bytes_iec */
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs);
 
 /** The class logger is the base class of all the error log related classes.
 It contains a std::ostringstream object.  The main purpose of this class is

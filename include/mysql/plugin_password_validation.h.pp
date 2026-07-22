@@ -671,6 +671,7 @@ struct st_mariadb_password_validation
 {
   int interface_version;
   int (*validate_password)(const MYSQL_CONST_LEX_STRING *username,
-                           const MYSQL_CONST_LEX_STRING *password);
+                           const MYSQL_CONST_LEX_STRING *password,
+                           const MYSQL_CONST_LEX_STRING *hostname);
 };
 }

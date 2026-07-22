@@ -2,6 +2,14 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
+connection node_1;
+select @@innodb_undo_tablespaces;
+@@innodb_undo_tablespaces
+0
+connection node_2;
+select @@innodb_undo_tablespaces;
+@@innodb_undo_tablespaces
+3
 Performing State Transfer on a server that has been shut down cleanly and restarted
 connection node_1;
 CREATE TABLE t1 (id int not null primary key,f1 CHAR(255)) ENGINE=InnoDB;
@@ -516,5 +524,17 @@ COUNT(*) = 0
 1
 DROP TABLE t1;
 COMMIT;
+connection node_2;
+Shutting down server ...
+connection node_1;
+connection node_2;
+Starting server ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+connection node_2;
+select @@innodb_undo_tablespaces;
+@@innodb_undo_tablespaces
+3
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=3 because previous shutdown was not with innodb_fast_shutdown=0");
 disconnect node_2;
 disconnect node_1;

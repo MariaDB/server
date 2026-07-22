@@ -64,7 +64,7 @@ struct Listener
   }
 
   /**
-    if not NULL, this handle can be be used in WaitForSingle/MultipleObject(s).
+    if not NULL, this handle can be used in WaitForSingle/MultipleObject(s).
     This handle will be closed when object is destroyed.
 
     If NULL, the completion notification happens in threadpool.
@@ -595,11 +595,8 @@ void network_init_win()
 
 void handle_connections_win()
 {
-  int n_waits;
-
   create_shutdown_event();
   wait_events.push_back(hEventShutdown);
-  n_waits= 1;
 
   for (size_t i= 0; i < all_listeners.size(); i++)
   {

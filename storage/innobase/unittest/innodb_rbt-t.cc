@@ -6,7 +6,7 @@ const size_t alloc_max_retries= 0;
 void os_thread_sleep(ulint) { abort(); }
 void ut_dbg_assertion_failed(const char *, const char *, unsigned)
 { abort(); }
-namespace ib { fatal_or_error::~fatal_or_error() { abort(); } }
+namespace ib { fatal_or_error::~fatal_or_error() { IF_WIN(__debugbreak(),abort()); } }
 #ifdef UNIV_PFS_MEMORY
 PSI_memory_key mem_key_other, mem_key_std;
 PSI_memory_key ut_new_get_key_by_file(uint32_t) { return mem_key_std; }

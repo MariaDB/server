@@ -258,7 +258,7 @@ static File open_error_msg_file(const char *file_name, const char *language,
     goto err;
   error_pos=2;
   if (head[0] != (uchar) 254 || head[1] != (uchar) 254 ||
-      head[2] != 2 || head[3] != 4)
+      head[2] != 2 || head[3] != 5)
     goto err; /* purecov: inspected */
 
   ret->text_length= uint4korr(head+6);

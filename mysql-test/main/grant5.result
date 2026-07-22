@@ -448,11 +448,11 @@ disconnect con1;
 connection default;
 drop database db;
 drop user foo;
-call mtr.add_suppression('mysql.host table is damaged');
+call mtr.add_suppression('mysql\\.host');
 create table mysql.host (c1 int);
 insert mysql.host values (1);
 flush privileges;
-ERROR HY000: Fatal error: mysql.host table is damaged or in unsupported 3.20 format
+ERROR HY000: Cannot load from mysql.host. The table is probably corrupted
 drop table mysql.host;
 #
 # MDEV-30826 Invalid data on mysql.host segfaults the server after an upgrade to 10.4
@@ -496,3 +496,25 @@ CREATE USER `u2`@`localhost` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168
 drop user u1@localhost;
 drop user u2@localhost;
 # End of 10.6 tests
+#
+# MDEV-37256: The permission check of LOAD INDEX INTO CACHE and CACHE INDEX is broken
+#
+create table t1 (c int primary key);
+insert t1 values (1),(2);
+create user foo@localhost;
+connect foo,localhost,foo;
+use test;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test'
+cache index test.t1 in default;
+ERROR 42000: CACHE INDEX command denied to user 'foo'@'localhost' for table `test`.`t1`
+load index into cache test.t1 key (primary);
+ERROR 42000: LOAD INDEX INTO CACHE command denied to user 'foo'@'localhost' for table `test`.`t1`
+cache index test.t2 in default;
+ERROR 42000: CACHE INDEX command denied to user 'foo'@'localhost' for table `test`.`t2`
+load index into cache test.t2 key (i2);
+ERROR 42000: LOAD INDEX INTO CACHE command denied to user 'foo'@'localhost' for table `test`.`t2`
+disconnect foo;
+connection default;
+drop table t1;
+drop user foo@localhost;
+# End of 10.11 tests

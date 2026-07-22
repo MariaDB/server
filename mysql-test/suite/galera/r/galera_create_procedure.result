@@ -2,6 +2,7 @@ connection node_2;
 connection node_1;
 connection node_1;
 CREATE USER 'user1';
+GRANT ALL ON test.* to 'user1';
 CREATE TABLE t1 (f1 INTEGER);
 CREATE
 DEFINER = 'user1'

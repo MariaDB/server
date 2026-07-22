@@ -209,7 +209,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       sql_print_warning("Neither --relay-log nor --relay-log-index were used;"
                         " so replication "
                         "may break when this MariaDB server acts as a "
-                        "replica and has its hostname changed. Please "
+                        "slave and has its hostname changed. Please "
                         "use '--log-basename=#' or '--relay-log=%s' to avoid "
                         "this problem.", ln);
       name_warning_sent= 1;
@@ -321,7 +321,8 @@ Failed to open the existing relay log info file '%s' (errno %d)",
       }
     }
 
-    int relay_log_pos, master_log_pos, lines;
+    ulonglong relay_log_pos, master_log_pos;
+    int lines;
     char *first_non_digit;
 
     /*
@@ -374,12 +375,12 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     else
       DBUG_PRINT("info", ("relay_log_info file is in old format."));
 
-    if (init_intvar_from_file(&relay_log_pos,
+    if (init_ulonglongvar_from_file(&relay_log_pos,
                               &info_file, BIN_LOG_HEADER_SIZE) ||
         init_strvar_from_file(group_master_log_name,
                               sizeof(group_master_log_name),
                               &info_file, "") ||
-        init_intvar_from_file(&master_log_pos, &info_file, 0) ||
+        init_ulonglongvar_from_file(&master_log_pos, &info_file, 0) ||
         (lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY &&
          init_intvar_from_file(&sql_delay, &info_file, 0)))
     {
@@ -1632,7 +1633,8 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       goto end;
     }
 
-    if ((rec= my_hash_search(hash, (const uchar *)&domain_id, 0)))
+    if ((rec= my_hash_search(hash, (const uchar *)&domain_id,
+                             sizeof(domain_id))))
     {
       entry= (struct gtid_pos_element *)rec;
       if (entry->sub_id >= sub_id)
@@ -2003,7 +2005,7 @@ end:
   if (table)
   {
     ha_commit_trans(thd, FALSE);
-    ha_commit_trans(thd, TRUE);
+    trans_commit(thd);
     close_thread_tables(thd);
     thd->release_transactional_locks();
   }
@@ -2151,16 +2153,24 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  gtid_ev_flags_extra= 0;
+  gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
+  rpt= NULL;
+  start_alter_ev= NULL;
+  direct_commit_alter= false;
   commit_orderer.reinit();
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
   : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
+    gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
+    reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
+    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2168,7 +2178,6 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
                    MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL);
 }
-
 
 rpl_group_info::~rpl_group_info()
 {
@@ -2194,6 +2203,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->current_gtid.seq_no= gev->seq_no;
   rgi->commit_id= gev->commit_id;
   rgi->gtid_pending= true;
+  rgi->sa_info= NULL;
   return 0;
 }
 

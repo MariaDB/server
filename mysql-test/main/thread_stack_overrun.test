@@ -1,0 +1,17 @@
+--echo #
+--echo # MDEV-37781 ASAN build crashes with low thread stack
+--echo #
+
+--source include/not_embedded.inc
+
+# Expression like 1+1+...+1  recurses once per term in fix_fields().
+# As each recursion level consumes at least one byte of stack, we use
+# @@global.thread_stack terms to have a guaranteed stack overrun
+# on any platform, no matter the frame size.
+
+--replace_regex /[0-9]+ bytes used of a [0-9]+ byte stack, and [0-9]+ bytes needed/# bytes used of a # byte stack, and # bytes needed/
+
+--error ER_STACK_OVERRUN_NEED_MORE
+EXECUTE IMMEDIATE CONCAT('SELECT 1', REPEAT('+1', @@global.thread_stack));
+
+--echo # End of 10.11 tests

@@ -116,7 +116,7 @@ typedef struct st_handler_check_param
   int (*fix_record)(struct st_myisam_info *info, uchar *record, int keynum);
 
   mysql_mutex_t print_msg_mutex;
-  my_bool need_print_msg_lock;
+  my_bool need_print_msg_lock, status_reporting;
   myf malloc_flags;
 } HA_CHECK;
 

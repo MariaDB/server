@@ -483,8 +483,6 @@ static my_bool _ma_ck_write_btree_with_log(MARIA_HA *info, MARIA_KEY *key,
   my_bool transactional= share->now_transactional;
   DBUG_ENTER("_ma_ck_write_btree_with_log");
   
-  LINT_INIT_STRUCT(org_key);
-
   if (transactional)
   {
     /* Save original value as the key may change */
@@ -856,7 +854,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   page_store_size(share, anc_page);
 
   /*
-    Check if the new key fits totally into the the page
+    Check if the new key fits totally into the page
     (anc_buff is big enough to contain a full page + one key)
   */
   if (a_length <= share->max_index_block_size)

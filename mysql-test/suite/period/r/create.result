@@ -16,8 +16,8 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `id` int(11) NOT NULL,
-  `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `s` timestamp(6) NOT NULL,
+  `e` timestamp(6) NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci

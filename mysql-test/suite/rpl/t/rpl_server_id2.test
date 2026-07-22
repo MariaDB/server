@@ -2,7 +2,12 @@
 # from itself, if running with --replicate-same-server-id.
 
 source include/master-slave.inc;
+
 connection slave;
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 create table t1 (n int);
 reset master;
 # replicate ourselves

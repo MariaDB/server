@@ -1,0 +1,102 @@
+#
+# MDEV-12914: Engine for temporary tables which are implicitly
+#             created as RocksDB is substitued siliently with MyIsam
+SET default_tmp_storage_engine = engine_doesnt_exist;
+ERROR 42000: Unknown storage engine 'engine_doesnt_exist'
+SET default_tmp_storage_engine = rocksdb;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+SET default_tmp_storage_engine = CONCAT('rocks','db');
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+CREATE TABLE t1 (i int) ENGINE = RocksDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TEMPORARY TABLE t2 LIKE t1;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+DROP TABLE t1;
+SET default_storage_engine = DEFAULT;
+SET default_tmp_storage_engine = DEFAULT;
+CREATE TABLE t1 (t int);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TEMPORARY TABLE t2 LIKE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1, t2;
+SET default_storage_engine = rocksdb;
+SET default_tmp_storage_engine = default;
+CREATE TABLE t1 (t int);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TEMPORARY TABLE t2 LIKE t1;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+CREATE TEMPORARY TABLE t2 (t int);
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+SET default_tmp_storage_engine = aria;
+CREATE TEMPORARY TABLE t2 (t int);
+DROP TABLE t2;
+CREATE TEMPORARY TABLE t2 LIKE t1;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+DROP TABLE t1;
+#
+# MDEV-26242: Assertion `i >= 0' failed on setting 
+#             default_tmp_storage_engine to 'DEFAULT' in 10.7
+#
+SHOW VARIABLES like '%storage_engine';
+Variable_name	Value
+default_storage_engine	ROCKSDB
+default_tmp_storage_engine	Aria
+enforce_storage_engine	
+storage_engine	ROCKSDB
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
+NULL	MyISAM	MyISAM	Aria	ROCKSDB	ROCKSDB
+SELECT @@GLOBAL.table_type;
+ERROR HY000: Unknown system variable 'table_type'
+SET default_storage_engine=DEFAULT;
+SET default_tmp_storage_engine=innodb;
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
+NULL	MyISAM	MyISAM	InnoDB	MyISAM	MyISAM
+CREATE TABLE t (t int);
+CREATE TEMPORARY TABLE t1 (t int);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1, t;
+SET GLOBAL default_tmp_storage_engine='default';
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+@@GLOBAL.default_tmp_storage_engine	@@GLOBAL.default_storage_engine	@@GLOBAL.storage_engine	@@SESSION.default_tmp_storage_engine	@@SESSION.default_storage_engine	@@SESSION.storage_engine
+MyISAM	MyISAM	MyISAM	InnoDB	MyISAM	MyISAM
+CREATE TABLE t (t int);
+CREATE TEMPORARY TABLE t1 (t int);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1, t;
+SET GLOBAL default_tmp_storage_engine=NULL;

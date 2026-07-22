@@ -11,7 +11,9 @@
 -- source include/master-slave.inc
 sync_slave_with_master;
 --disable_query_log
+set sql_log_bin=0;
 call mtr.add_suppression('Slave I/O: Get master BINLOG_CHECKSUM failed with error');
+set sql_log_bin=1;
 --enable_query_log
 let $status_items= Master_User, Master_Host;
 source include/show_slave_status.inc;
@@ -20,7 +22,7 @@ source include/stop_slave.inc;
 change master to master_user='test';
 source include/show_slave_status.inc;
 
-reset slave;
+--source include/reset_slave.inc
 source include/show_slave_status.inc;
 
 change master to master_user='root';
@@ -31,13 +33,13 @@ source include/show_slave_status.inc;
 # test of crash with temp tables & RESET SLAVE
 # (test to see if RESET SLAVE clears temp tables in memory and disk)
 source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 source include/start_slave.inc;
 connection master;
 create temporary table t1 (a int);
 sync_slave_with_master;
 source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 source include/start_slave.inc;
 sync_with_master;
 show status like 'slave_open_temp_tables';
@@ -51,7 +53,7 @@ sync_slave_with_master;
 
 # clearing the status
 source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 source include/check_slave_no_error.inc;
 
 #
@@ -79,7 +81,7 @@ let $slave_io_errno= 1045;
 --source include/wait_for_slave_io_error.inc
 --source include/stop_slave_sql.inc
 
-reset slave;
+--source include/reset_slave.inc
 source include/check_slave_no_error.inc;
 change master to master_user='root';
 
@@ -88,7 +90,7 @@ change master to master_user='root';
 # BUG#11809016 - NO WAY TO DISCOVER AN INSTANCE IS NO LONGER A SLAVE FOLLOWING MYSQL BUG#28796
 #
 
-reset slave;
+--source include/reset_slave.inc
 --source include/start_slave.inc
 
 --source include/stop_slave.inc
@@ -97,6 +99,7 @@ reset slave;
 --let $_slave_master_port= query_get_value(SHOW SLAVE STATUS, Master_Port, 1)
 
 reset slave all;
+set @@global.gtid_slave_pos= "";
 --error ER_BAD_SLAVE
 start slave;
 

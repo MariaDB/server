@@ -47,8 +47,8 @@ DROP TABLE t1;
 --echo #
 
 SET @@global.mysql56_temporal_format=0;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
 SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
@@ -73,8 +73,8 @@ WHERE database_name='test' AND table_name='t1' AND stat_name='size';
 --echo #
 
 SET @@global.mysql56_temporal_format=1;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
 SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
@@ -110,3 +110,12 @@ CREATE TABLE t1 (c1 INT) ENGINE=InnoDB STATS_PERSISTENT 1;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-36373 Warning: ... persistent statistics storage is corrupted
+--echo #
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+SET STATEMENT tx_read_only=1 FOR ANALYZE TABLE t1;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

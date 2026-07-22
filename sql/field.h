@@ -659,10 +659,7 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   bool check_access(THD *thd);
-  inline bool is_equal(const Virtual_column_info* vcol) const;
-  /* Same as is_equal() but for comparing with different table */
-  bool is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                            const Virtual_column_info* vcol, bool &error) const;
+  inline bool is_equal(const Virtual_column_info* vcol, bool cmp_names) const;
   inline void print(String*);
 };
 
@@ -803,8 +800,9 @@ public:
    */
   virtual void set_max()
   { DBUG_ASSERT(0); }
-  virtual bool is_max()
+  virtual bool is_max(const uchar *ptr_arg) const
   { DBUG_ASSERT(0); return false; }
+  bool is_max() const { return is_max(ptr); }
 
   uchar		*ptr;			// Position to field in record
 
@@ -921,6 +919,12 @@ public:
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
+  bool check_assignability_from(const Type_handler *from, bool ignore) const;
+  bool check_assignability_from(const Field *from, bool ignore) const
+  {
+    return check_assignability_from(from->type_handler(), ignore);
+  }
+
   /**
     Convenience definition of a copy function returned by
     Field::get_copy_func()
@@ -944,7 +948,7 @@ public:
   */
   virtual bool memcpy_field_possible(const Field *from) const= 0;
   virtual bool make_empty_rec_store_default_value(THD *thd, Item *item);
-  virtual void make_empty_rec_reset(THD *thd)
+  virtual void make_empty_rec_reset()
   {
     reset();
   }
@@ -1546,11 +1550,20 @@ public:
       }
     }
   }
+
+  /*
+    Copy the Field's value to buff. The value will be in table->record[]
+    format.
+  */
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs) const
   { get_image(buff, length, ptr, cs); }
   virtual void get_image(uchar *buff, uint length,
                          const uchar *ptr_arg, CHARSET_INFO *cs) const
     { memcpy(buff,ptr_arg,length); }
+
+  /*
+    Set Field's value to the value in *buf.
+  */
   virtual void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)
     { memcpy(ptr,buff,length); }
 
@@ -1908,6 +1921,7 @@ public:
   {
     return (double) 0.5; 
   }
+  virtual bool pos_through_val_str() { return false;}
 
   /*
     Check if comparison between the field and an item unambiguously
@@ -2197,6 +2211,8 @@ public:
   {
     return pos_in_interval_val_str(min, max, length_size());
   }
+  bool pos_through_val_str() override {return true;}
+
   bool test_if_equality_guarantees_uniqueness(const Item *const_item) const
     override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
@@ -2839,7 +2855,7 @@ public:
     return unpack_int64(to, from, from_end);
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max(const uchar *ptr_arg) const override;
   ulonglong get_max_int_value() const override
   {
     return unsigned_flag ? 0xFFFFFFFFFFFFFFFFULL : 0x7FFFFFFFFFFFFFFFULL;
@@ -3419,7 +3435,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max(const uchar *ptr_arg) const override;
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }
@@ -4822,12 +4838,12 @@ public:
   }
   bool memcpy_field_possible(const Field *from) const override
   { return false; }
-  void make_empty_rec_reset(THD *) override
+  void make_empty_rec_reset() override
   {
     if (flags & NOT_NULL_FLAG)
     {
       set_notnull();
-      store((longlong) 1, true);
+      store(1LL, true);
     }
     else
       reset();
@@ -4902,9 +4918,9 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
-  void make_empty_rec_reset(THD *thd) override
+  void make_empty_rec_reset() override
   {
-    Field::make_empty_rec_reset(thd);
+    Field::make_empty_rec_reset();
   }
 
   int  store_field(Field *from) override { return from->save_in_field(this); }
@@ -5336,7 +5352,6 @@ public:
   Column_definition(THD *thd, Field *field, Field *orig_field);
   bool set_attributes(THD *thd,
                       const Lex_field_type_st &attr,
-                      CHARSET_INFO *cs,
                       column_definition_type_t type);
   void create_length_to_internal_length_null()
   {
@@ -5411,7 +5426,7 @@ public:
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
   bool prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                      handler *file, ulonglong table_flags,
+                      column_definition_type_t type,
                       const Column_derived_attributes *derived_attr);
   void prepare_stage1_simple(CHARSET_INFO *cs)
   {
@@ -5419,11 +5434,9 @@ public:
     create_length_to_internal_length_simple();
   }
   bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
-                              handler *file, ulonglong table_flags);
-  bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
-                             handler *file, ulonglong table_flags);
-  bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
-                          handler *file, ulonglong table_flags);
+                              column_definition_type_t deftype);
+  bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root);
+  bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root);
 
   bool bulk_alter(const Column_derived_attributes *derived_attr,
                   const Column_bulk_alter_attributes *bulk_attr)
@@ -5530,6 +5543,24 @@ public:
   { return compression_method_ptr; }
 
   bool check_vcol_for_key(THD *thd) const;
+
+  void set_charset_collation_attrs(const
+                                   Lex_column_charset_collation_attrs_st &lc)
+  {
+    charset= lc.charset_info();
+    if (lc.is_contextually_typed_collation())
+      flags|= CONTEXT_COLLATION_FLAG;
+    else
+      flags&= ~CONTEXT_COLLATION_FLAG;
+  }
+  Lex_column_charset_collation_attrs charset_collation_attrs() const
+  {
+    if (!charset)
+      return Lex_column_charset_collation_attrs();
+    if (flags & CONTEXT_COLLATION_FLAG)
+      return Lex_column_charset_collation_attrs(Lex_context_collation(charset));
+    return Lex_column_charset_collation_attrs(Lex_exact_collation(charset));
+  }
 };
 
 
@@ -5736,7 +5767,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 
@@ -5939,17 +5971,29 @@ bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
 
 inline
-ulonglong TABLE::vers_end_id() const
+ulonglong TABLE::vers_end_id(const uchar *record_arg) const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
-  return static_cast<ulonglong>(vers_end_field()->val_int());
+  DBUG_ASSERT(dynamic_cast<Field_longlong*>(vers_end_field()));
+  const uchar *ptr= vers_end_field()->ptr_in_record(record_arg);
+  return static_cast<ulonglong>(sint8korr(ptr));
 }
 
 inline
-ulonglong TABLE::vers_start_id() const
+ulonglong TABLE::vers_start_id(const uchar *record_arg) const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
-  return static_cast<ulonglong>(vers_start_field()->val_int());
+  DBUG_ASSERT(dynamic_cast<Field_longlong*>(vers_start_field()));
+  const uchar *ptr= vers_start_field()->ptr_in_record(record_arg);
+  return static_cast<ulonglong>(sint8korr(ptr));
 }
+
+double pos_in_interval_for_string(CHARSET_INFO *cset,
+                                  const uchar *midp_val, uint32 midp_len,
+                                  const uchar *min_val,  uint32 min_len,
+                                  const uchar *max_val,  uint32 max_len);
+
+double pos_in_interval_for_double(double midp_val,
+                                  double min_val, double max_val);
 
 #endif /* FIELD_INCLUDED */

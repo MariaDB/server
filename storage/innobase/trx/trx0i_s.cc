@@ -29,6 +29,7 @@ table cache" for later retrieval.
 Created July 17, 2007 Vasil Dimov
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0i_s.h"
 #include "buf0buf.h"
 #include "dict0dict.h"
@@ -420,7 +421,7 @@ fill_trx_row(
 		goto thd_done;
 	}
 
-	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
+	row->trx_mysql_thread_id = trx->mysql_thd->thread_id;
 
 	char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];
 	if (size_t stmt_len = thd_query_safe(trx->mysql_thd, query,
@@ -430,7 +431,7 @@ fill_trx_row(
 				cache->storage, query, stmt_len + 1,
 				MAX_ALLOWED_FOR_STORAGE(cache)));
 
-		row->trx_query_cs = thd_charset(trx->mysql_thd);
+		row->trx_query_cs = trx->mysql_thd->charset();
 
 		if (row->trx_query == NULL) {
 

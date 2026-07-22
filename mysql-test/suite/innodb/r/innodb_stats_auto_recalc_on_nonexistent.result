@@ -5,13 +5,13 @@ COUNT(*)	1
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	3
 SELECT * FROM t;
-FLUSH TABLE t;
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';
 DELETE FROM mysql.innodb_table_stats WHERE table_name = 't';
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	0
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	0
+RENAME TABLE t TO tmp, tmp TO t;
 SELECT * FROM t;
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	1
@@ -25,13 +25,13 @@ COUNT(*)	1
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	3
 SELECT * FROM t;
-FLUSH TABLE t;
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';
 DELETE FROM mysql.innodb_table_stats WHERE table_name = 't';
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	0
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	0
+RENAME TABLE t TO tmp, tmp TO t;
 SELECT * FROM t;
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	1
@@ -45,13 +45,13 @@ COUNT(*)	1
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	3
 SELECT * FROM t;
-FLUSH TABLE t;
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';
 DELETE FROM mysql.innodb_table_stats WHERE table_name = 't';
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	0
 SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE table_name = 't';
 COUNT(*)	0
+RENAME TABLE t TO tmp, tmp TO t;
 SELECT * FROM t;
 SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE table_name = 't';
 COUNT(*)	0

@@ -19,6 +19,7 @@
 
 -- source include/have_binlog_format_mixed_or_statement.inc
 -- source include/master-slave.inc
+--let $master_use_gtid_option= No
 -- source include/rpl_reset.inc
 
 # Test is dependent on binlog positions
@@ -127,7 +128,7 @@ source include/stop_slave.inc;
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
-reset slave;
+--source include/reset_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root'; 
 

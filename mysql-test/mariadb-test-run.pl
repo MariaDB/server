@@ -25,7 +25,7 @@
 #  Tool used for executing a suite of .test files
 #
 #  See the "MySQL Test framework manual" for more information
-#  https://mariadb.com/kb/en/library/mysqltest/
+#  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 #
 #
 ##############################################################################
@@ -129,6 +129,8 @@ our $path_language;
 
 our $path_current_testlog;
 our $path_testlog;
+
+our $opt_open_files_limit;
 
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
@@ -268,6 +270,9 @@ our $opt_force= 0;
 our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -1274,6 +1279,7 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
+             'open-files-limit=i',      => \$opt_open_files_limit,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -1639,6 +1645,7 @@ sub command_line_setup {
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
+     . ($ENV{LSAN_OPTIONS} ? ":$ENV{LSAN_OPTIONS}" : "")
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
@@ -1843,7 +1850,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-buffer-page"
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
-           and $1 ne "innodb-trx";
+           and $1 ne "innodb-trx"
+           and $1 ne "gssapi";
       next;
     }
 
@@ -2223,6 +2231,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -3208,9 +3219,8 @@ sub mysql_install_db {
       # Append sys schema
       mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
            $bootstrap_sql_file);
-      # Create test database
-      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
-                            $bootstrap_sql_file);
+
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
@@ -3946,6 +3956,23 @@ sub run_testcase ($$) {
       }
     }
 
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
+    }
+
     # Write start of testcase to log
     mark_log($path_current_testlog, $tinfo);
 
@@ -4520,10 +4547,8 @@ sub extract_warning_lines ($$) {
      qr|table.*is full|,
      qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
-     qr|InnoDB: io_setup\(\) attempt|,
-     qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
-     qr|InnoDB: liburing disabled|,
+     qr|InnoDB: io_uring failed: falling back to libaio|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|failed to retrieve the MAC address|,
@@ -4562,9 +4587,6 @@ sub extract_warning_lines ($$) {
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
-
-  push @antipatterns, qr/though there are still open handles to table/
-    if $mysql_version_id < 100600;
 
   my $matched_lines= [];
   LINE: foreach my $line ( @lines )
@@ -5417,8 +5439,13 @@ sub stop_servers($$) {
 # Run a query against a server using mysql client. The output of
 # the query will be written into outfile.
 #
+# If $timeout (seconds) is given, the client is not waited for
+# indefinitely: a server stuck in an unstable state can accept the
+# connection but never answer the query, which would otherwise block forever.
+# In that case the client is killed and a non-zero status is returned.
+#
 sub run_query_output {
-  my ($mysqld, $query, $outfile)= @_;
+  my ($mysqld, $query, $outfile, $timeout)= @_;
   my $args;
 
   mtr_init_args(\$args);
@@ -5427,7 +5454,7 @@ sub run_query_output {
   mtr_add_arg($args, "--silent");
   mtr_add_arg($args, "--execute=%s", $query);
 
-  my $res= My::SafeProcess->run
+  my $proc= My::SafeProcess->new
   (
     name          => "run_query_output -> ".$mysqld->name(),
     path          => $exe_mysql,
@@ -5436,7 +5463,15 @@ sub run_query_output {
     error         => $outfile
   );
 
-  return $res
+  # wait_one() returns 1 while the process is still running,
+  # in which case we kill the hung client.
+  if ($proc->wait_one($timeout))
+  {
+    $proc->kill();
+    return 1;
+  }
+
+  return $proc->exit_status();
 }
 
 
@@ -5454,7 +5489,13 @@ sub wait_wsrep_ready($$) {
   my ($tinfo, $mysqld)= @_;
 
   my $sleeptime= 100; # Milliseconds
-  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  # Bound the whole wait by the server startup timeout. This must be a
+  # wall-clock deadline rather than a simple loop count: a single query
+  # against a wedged server can block indefinitely, which would otherwise
+  # defeat the loop bound and hang MTR until the surrounding suite timeout
+  # fires.
+  my $timeout= start_timer($opt_start_timeout);
 
   my $name= $mysqld->name();
   my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
@@ -5463,11 +5504,17 @@ sub wait_wsrep_ready($$) {
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
-  for (my $loop= 1; $loop <= $loops; $loop++)
+  while (1)
   {
+    # Cap each query by the time left so a hung client cannot exceed the
+    # overall startup budget. Integer seconds, and at least 1 (wait_one()
+    # treats 0 as a non-blocking poll).
+    my $remaining= int($timeout - time);
+    last if $remaining <= 0;
+
     # Careful... if MTR runs with option 'verbose' then the
     # file contains also SafeProcess verbose output
-    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+    if (run_query_output($mysqld, $query, $outfile, $remaining) == 0 &&
         mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
     {
       unlink($outfile);
@@ -5748,6 +5795,7 @@ sub start_mysqltest ($) {
      append        => 1,
      error         => $path_current_testlog,
      verbose       => $opt_verbose,
+     open_files_limit => $opt_open_files_limit,
     );
   mtr_verbose("Started $proc");
   return $proc;
@@ -6046,6 +6094,8 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
+  open-files-limit=N    Max number of open files allowed for any of the children
+                        of my_safe_process. Default is 1024.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to

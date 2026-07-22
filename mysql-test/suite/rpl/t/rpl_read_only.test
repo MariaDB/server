@@ -7,6 +7,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 # Create a test and replicate it to slave
 connection master;
 create user test;
+grant all on test.* to test;
 sync_slave_with_master;
 
 # Setting the master readonly :

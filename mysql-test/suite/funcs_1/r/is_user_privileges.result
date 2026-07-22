@@ -371,7 +371,7 @@ ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `my
 SHOW GRANTS;
 Grants for testuser2@localhost
 GRANT INSERT, UPDATE ON *.* TO `testuser2`@`localhost`
-connect  testuser3, localhost, testuser3, , test;
+connect  testuser3, localhost, testuser3, ,"*NO-ONE*";
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;

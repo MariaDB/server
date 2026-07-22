@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <winservice.h>
+#include <locale.h>
 
 using namespace std;
 
@@ -141,24 +142,24 @@ void CUpgradeDlg::PopulateServicesList()
     ErrorExit("OpenSCManager failed");
   }
 
-  static BYTE buf[64*1024];
+  static BYTE buf[2*64*1024];
   static BYTE configBuffer[8*1024];
 
   DWORD bufsize= sizeof(buf);
   DWORD bufneed;
   DWORD num_services;
-  BOOL ok= EnumServicesStatusEx(scm, SC_ENUM_PROCESS_INFO,  SERVICE_WIN32,
+  BOOL ok= EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO,  SERVICE_WIN32,
     SERVICE_STATE_ALL,  buf, bufsize,  &bufneed, &num_services, NULL, NULL);
   if(!ok) 
     ErrorExit("EnumServicesStatusEx failed");
 
 
-  LPENUM_SERVICE_STATUS_PROCESS info =
-    (LPENUM_SERVICE_STATUS_PROCESS)buf;
+  LPENUM_SERVICE_STATUS_PROCESSW info =
+    (LPENUM_SERVICE_STATUS_PROCESSW)buf;
   int index=-1;
   for (ULONG i=0; i < num_services; i++)
   {
-    SC_HANDLE service= OpenService(scm, info[i].lpServiceName, 
+    SC_HANDLE service= OpenServiceW(scm, info[i].lpServiceName,
       SERVICE_QUERY_CONFIG);
     if (!service)
       continue;
@@ -187,18 +188,22 @@ void CUpgradeDlg::PopulateServicesList()
         ServiceProperties props;
         props.myini= service_props.inifile;
         props.datadir= service_props.datadir;
-        props.servicename = info[i].lpServiceName;
+        char service_name_buf[1024];
+        WideCharToMultiByte(GetACP(), 0, info[i].lpServiceName, -1,
+                            service_name_buf, sizeof(service_name_buf),
+                            0, 0);
+        props.servicename= service_name_buf;
         if (service_props.version_major)
         {
           char ver[64];
-          sprintf(ver, "%d.%d.%d", service_props.version_major, 
+          snprintf(ver, sizeof(ver), "%d.%d.%d", service_props.version_major,
             service_props.version_minor, service_props.version_patch);
           props.version= ver;
         }
         else
           props.version= "<unknown>";
 
-        index = m_Services.AddString(info[i].lpServiceName);
+        index = m_Services.AddString(service_name_buf);
         services.resize(index+1);
         services[index] = props;
       }
@@ -216,7 +221,7 @@ void CUpgradeDlg::PopulateServicesList()
   else
   {
     char message[128];
-    sprintf(message, 
+    snprintf(message, sizeof(message),
       "There is no service that can be upgraded to " PRODUCT_NAME " %d.%d.%d",
       m_MajorVersion, m_MinorVersion, m_PatchVersion);
     MessageBox(message, PRODUCT_NAME " Upgrade Wizard", MB_ICONINFORMATION);
@@ -249,7 +254,7 @@ BOOL CUpgradeDlg::OnInitDialog()
   GetMyVersion(&m_MajorVersion, &m_MinorVersion, &m_PatchVersion);
   char windowTitle[64];
 
-  sprintf(windowTitle, PRODUCT_NAME " %d.%d.%d Upgrade Wizard",
+  snprintf(windowTitle, sizeof(windowTitle), PRODUCT_NAME " %d.%d.%d Upgrade Wizard",
     m_MajorVersion, m_MinorVersion, m_PatchVersion);
   SetWindowText(windowTitle);
 
@@ -267,6 +272,11 @@ BOOL CUpgradeDlg::OnInitDialog()
 
   m_Progress.ShowWindow(SW_HIDE);
   m_Ok.EnableWindow(FALSE);
+  if (GetACP() == CP_UTF8)
+  {
+    /* Required for mbstowcs, used in some functions.*/
+    setlocale(LC_ALL, "en_US.UTF8");
+  }
   PopulateServicesList();
   return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -391,7 +401,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
     if(!AssignProcessToJobObject(m_JobObject, pi.hProcess))
     {
       char errmsg[128];
-	  sprintf(errmsg, "AssignProcessToJobObject failed, error %d",
+	  snprintf(errmsg, sizeof(errmsg), "AssignProcessToJobObject failed, error %d",
         GetLastError());
       ErrorExit(errmsg);
     }

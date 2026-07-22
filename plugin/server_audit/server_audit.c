@@ -563,8 +563,8 @@ static struct st_mysql_show_var audit_status[]=
 };
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_operations;
-static PSI_mutex_info mutex_key_list[]=
+static PSI_rwlock_key key_LOCK_operations;
+static PSI_rwlock_info rwlock_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
     PSI_FLAG_GLOBAL}
@@ -839,7 +839,8 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
   return (struct connection_info *) THDVAR(thd, loc_info);
   */
   struct connection_info *ci= (struct connection_info *) THDVAR(thd, loc_info);
-  if ((size_t) ci->user_length > sizeof(ci->user))
+  /* THDVAR can return NULL if the plugin was previously uninstalled (MDEV-34074). */
+  if (ci && (size_t) ci->user_length > sizeof(ci->user))
   {
     ci->user_length= 0;
     ci->host_length= 0;
@@ -1768,6 +1769,16 @@ static int log_statement(const struct connection_info *cn,
                          const struct mysql_event_general *event,
                          const char *type, int sql_command)
 {
+  DBUG_PRINT("info", ("log_statement: event_subclass=%d, general_command=%.*s, "
+                      "cn->query_id=%lld, cn->query=%.*s, event->query_id=%lld, "
+                      "event->general_query=%.*s, type=%s",
+                        event->event_subclass, event->general_command_length,
+                        event->general_command,
+                        cn->query_id,
+                        cn->query_length == 0x4f4f4f4f ? 0 : cn->query_length,
+                        cn->query == (const char *)0x4f4f4f4f4f4f4f4fL ? NULL : cn->query,
+                        event->query_id, event->general_query_length,
+                        event->general_query, type));
   return log_statement_ex(cn, event->general_time, event->general_thread_id,
                           sql_command, event->general_query,
                           event->general_query_length,
@@ -1869,6 +1880,16 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
+    DBUG_PRINT("info", ("update_connection_info: before: event_subclass=%d, "
+                        "general_command=%.*s, cn->query_id=%lld, cn->query=%.*s, "
+                        "event->query_id=%lld, event->general_query=%.*s",
+                        event->event_subclass, event->general_command_length,
+                        event->general_command,
+                        cn->query_id,
+                        cn->query_length == 0x4f4f4f4f ? 0 : cn->query_length,
+                        cn->query == (const char *)0x4f4f4f4f4f4f4f4fL ? NULL : cn->query,
+                        event->query_id, event->general_query_length,
+                        event->general_query));
     switch (event->event_subclass) {
       case MYSQL_AUDIT_GENERAL_LOG:
       {
@@ -1898,8 +1919,8 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
           setup_connection_query(cn, event);
         else
           setup_connection_simple(cn);
-        break;
       }
+      break;
 
       case MYSQL_AUDIT_GENERAL_STATUS:
         if (event_query_command(event))
@@ -1907,10 +1928,14 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
           if (ci_needs_setup(cn))
             setup_connection_query(cn, event);
 
-          if (mode == 0 && cn->db_length == 0 && event->database.length > 0)
-            get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                      event->database.str, event->database.length);
+          if (mode == 0)
+          {
+            if (cn->db_length == 0 && event->database.length > 0)
+              get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
+                        event->database.str, event->database.length);
 
+            cn->query_id= event->query_id;
+          }
           if (event->general_error_code == 0)
           {
             /* We need to check if it's the USE command to change the DB */
@@ -1930,6 +1955,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
           update_general_user(cn, event);
         }
         break;
+
       case MYSQL_AUDIT_GENERAL_ERROR:
         /*
           We need this because the MariaDB returns NULL query field for the
@@ -1946,6 +1972,16 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
         break;
       default:;
     }
+    DBUG_PRINT("info", ("update_connection_info: after: event_subclass=%d, "
+                        "general_command=%.*s, cn->query_id=%lld, cn->query=%.*s, "
+                        "event->query_id=%lld, event->general_query=%.*s",
+                        event->event_subclass, event->general_command_length,
+                        event->general_command,
+                        cn->query_id,
+                        cn->query_length == 0x4f4f4f4f ? 0 : cn->query_length,
+                        cn->query == (const char *)0x4f4f4f4f4f4f4f4fL ? NULL : cn->query,
+                        event->query_id, event->general_query_length,
+                        event->general_query));
     break;
   }
   case MYSQL_AUDIT_TABLE_CLASS:
@@ -2038,7 +2074,9 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     cn= get_loc_info(thd);
   }
 
-  update_connection_info(thd, cn, event_class, ev, &after_action);
+  /* Without loc_info (see get_loc_info) the session is not audited. */
+  if (cn)
+    update_connection_info(thd, cn, event_class, ev, &after_action);
 
   if (!logging)
   {
@@ -2063,6 +2101,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     {
       log_statement(cn, event, "QUERY", thd_sql_command(thd));
       cn->query_length= 0; /* So the log_current_query() won't log this again. */
+      cn->query_id= 0;
       cn->log_always= 0;
     }
   }
@@ -2418,7 +2457,7 @@ static int server_audit_init(void *p __attribute__((unused)))
   logger_init_mutexes();
 #ifdef HAVE_PSI_INTERFACE
   if (PSI_server)
-    PSI_server->register_mutex("server_audit", mutex_key_list, 1);
+    PSI_server->register_rwlock("server_audit", rwlock_key_list, 1);
 #endif
   mysql_prlock_init(key_LOCK_operations, &lock_operations);
   flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
@@ -2447,7 +2486,7 @@ static int server_audit_init(void *p __attribute__((unused)))
           PLUGIN_STR_VERSION, PLUGIN_DEBUG_VERSION);
 
   /* The Query Cache shadows TABLE events if the result is taken from it */
-  /* so we warn users if both Query Cashe and TABLE events enabled.      */
+  /* so we warn users if both Query Cache and TABLE events enabled.      */
   if (!started_mysql && FILTER(EVENT_TABLE))
   {
     ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");
@@ -2595,7 +2634,7 @@ static void log_current_query(MYSQL_THD thd)
   if (!thd)
     return;
   cn= get_loc_info(thd);
-  if (!ci_needs_setup(cn) && cn->query_length)
+  if (cn && !ci_needs_setup(cn) && cn->query_length)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),

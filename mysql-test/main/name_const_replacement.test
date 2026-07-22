@@ -31,8 +31,12 @@ insert into t3 values ('foo', 1),('bar', 1);
 select * from t3;
 explain format=json
 update t3 set b=b+1 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
+#
+# enable after fixing MDEV-27904
+#
+--disable_view_protocol
 select * from t3 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
-
+--enable_view_protocol
 
 drop procedure p1;
 drop table t1, t2, t3;

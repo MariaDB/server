@@ -5248,13 +5248,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5262,7 +5262,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
@@ -5562,16 +5562,16 @@ CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
 EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where multiple equal(NULL, NULL, `test`.`a21`.`c2`))
 PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where multiple equal(NULL, NULL, `test`.`a21`.`c2`))
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2, t3;
 #
@@ -6047,3 +6047,15 @@ a	b	c
 1	1970-01-01 09:00:01	6
 DROP TABLE t;
 # End of 10.6 tests
+# Beginning of 10.11 test
+#
+# MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+# / Reprepare_observer::report_error
+#
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+EXECUTE stmt USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+# End of 10.11 test

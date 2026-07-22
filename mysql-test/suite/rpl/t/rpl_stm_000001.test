@@ -53,7 +53,7 @@ connection master;
 reset master;
 connection slave;
 stop slave;
-reset slave;
+--source include/reset_slave.inc
 
 connection master;
 let $1=5000;

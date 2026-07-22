@@ -227,7 +227,7 @@ sub defaults_for_group
 
 ####
 #### Init log file. Check for appropriate place for log file, in the following
-#### order:  my_print_defaults mysqld datadir, @datadir@
+#### order:  my_print_defaults mysqld datadir, @localstatedir@
 ####
 
 sub init_log
@@ -241,7 +241,7 @@ sub init_log
   }
   if (!defined($logdir))
   {
-    $logdir= "@datadir@" if (-d "@datadir@" && -w "@datadir@");
+    $logdir= "@localstatedir@" if (-d "@localstatedir@" && -w "@localstatedir@");
   }
   if (!defined($logdir))
   {

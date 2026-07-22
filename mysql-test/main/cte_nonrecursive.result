@@ -2485,31 +2485,39 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "cte.c1 < 4 and cte.c2 > 1",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "having_condition": "sum(t1.b) < 5 and c2 > 1",
-          "filesort": {
-            "sort_key": "t1.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 10,
-                "filtered": 100,
-                "attached_condition": "t1.b > 1 and t1.a < 4"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "cte.c1 < 4 and cte.c2 > 1",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "having_condition": "sum(t1.b) < 5 and c2 > 1",
+              "filesort": {
+                "sort_key": "t1.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 10,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 1 and t1.a < 4"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 alter table t1 add column c int;

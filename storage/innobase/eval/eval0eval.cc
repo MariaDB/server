@@ -26,6 +26,7 @@ Created 12/29/1997 Heikki Tuuri
 *******************************************************/
 
 #include "eval0eval.h"
+#include "pars0grm.h"
 #include "data0data.h"
 #include "row0sel.h"
 #include "rem0cmp.h"
@@ -144,8 +145,8 @@ eval_cmp_like(
 	switch (op) {
 	case IB_LIKE_PREFIX:
 		arg4 = que_node_get_next(arg3);
-		return(!cmp_dfield_dfield_like_prefix(que_node_get_val(arg1),
-						      que_node_get_val(arg4)));
+		return(cmp_dfield_dfield_eq_prefix(que_node_get_val(arg1),
+						   que_node_get_val(arg4)));
 	case IB_LIKE_EXACT:
 		return(!cmp_dfield_dfield(que_node_get_val(arg1),
 					  que_node_get_val(arg2)));

@@ -11,18 +11,18 @@ max_timestamp maxdb_schema.TIMESTAMP
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `def_timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `mdb_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `ora_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `def_timestamp` timestamp NULL DEFAULT NULL,
+  `mdb_timestamp` timestamp NULL DEFAULT NULL,
+  `ora_timestamp` timestamp NULL DEFAULT NULL,
   `max_timestamp` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET sql_mode=MAXDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "def_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp(),
-  "mdb_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  "ora_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  "def_timestamp" mariadb_schema.timestamp NULL DEFAULT NULL,
+  "mdb_timestamp" mariadb_schema.timestamp NULL DEFAULT NULL,
+  "ora_timestamp" mariadb_schema.timestamp NULL DEFAULT NULL,
   "max_timestamp" datetime DEFAULT NULL
 )
 DROP TABLE t1;
@@ -37,8 +37,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "def_timestamp" datetime DEFAULT NULL,
-  "mdb_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT current_timestamp(),
-  "ora_timestamp" mariadb_schema.timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  "mdb_timestamp" mariadb_schema.timestamp NULL DEFAULT NULL,
+  "ora_timestamp" mariadb_schema.timestamp NULL DEFAULT NULL,
   "max_timestamp" datetime DEFAULT NULL
 )
 SET sql_mode=DEFAULT;
@@ -46,8 +46,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `def_timestamp` datetime DEFAULT NULL,
-  `mdb_timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `ora_timestamp` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `mdb_timestamp` timestamp NULL DEFAULT NULL,
+  `ora_timestamp` timestamp NULL DEFAULT NULL,
   `max_timestamp` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

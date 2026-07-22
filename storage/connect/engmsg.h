@@ -324,3 +324,4 @@
 #define MSG_XPATH_EVAL_ERR  "Unable to evaluate xpath location '%s'"
 #define MSG_XPATH_NOT_SUPP  "Unsupported Xpath for column %s"
 #define MSG_ZERO_DIVIDE     "Zero divide in expression"
+#define MSG_ARG_IS_NULL     "Argument is NULL"

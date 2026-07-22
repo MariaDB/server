@@ -4,7 +4,7 @@
 
 call mtr.add_suppression("Operating system error number .* in a file operation.");
 call mtr.add_suppression("The error means the system cannot find the path specified.");
-call mtr.add_suppression("File ./test/t1.ibd: 'delete' returned OS error");
+call mtr.add_suppression("File ./test/t1.ibd was not found");
 
 --disable_query_log
 call mtr.add_suppression("Table `test`.`t2` contains unrecognizable instant ALTER metadata");

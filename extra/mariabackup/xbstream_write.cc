@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <my_global.h>
 #include <my_base.h>
 #include <zlib.h>
+#include <stdint.h>
 #include "common.h"
 #include "xbstream.h"
 
@@ -29,6 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 struct xb_wstream_struct {
 	pthread_mutex_t	mutex;
+	xb_stream_write_callback *write;
+	void *user_data;
 };
 
 struct xb_wstream_file_struct {
@@ -39,8 +42,7 @@ struct xb_wstream_file_struct {
 	char		*chunk_ptr;
 	size_t		chunk_free;
 	my_off_t	offset;
-	void		*userdata;
-	xb_stream_write_callback *write;
+  bool rewrite;
 };
 
 static int xb_stream_flush(xb_wstream_file_t *file);
@@ -50,7 +52,7 @@ static int xb_stream_write_eof(xb_wstream_file_t *file);
 
 static
 ssize_t
-xb_stream_default_write_callback(xb_wstream_file_t *file __attribute__((unused)),
+xb_stream_default_write_callback(
 				 void *userdata __attribute__((unused)),
 				 const void *buf, size_t len)
 {
@@ -60,21 +62,31 @@ xb_stream_default_write_callback(xb_wstream_file_t *file __attribute__((unused))
 }
 
 xb_wstream_t *
-xb_stream_write_new(void)
+xb_stream_write_new(
+	xb_stream_write_callback *write_callback, void *user_data)
 {
 	xb_wstream_t	*stream;
 
 	stream = (xb_wstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_wstream_t), MYF(MY_FAE));
 	pthread_mutex_init(&stream->mutex, NULL);
+	if (write_callback) {
+#ifdef _WIN32
+		setmode(fileno(stdout), _O_BINARY);
+#endif
+		stream->write = write_callback;
+		stream->user_data = user_data;
+	}
+	else {
+		stream->write = xb_stream_default_write_callback;
+		stream->user_data = user_data;
+	}
 
 	return stream;;
 }
 
 xb_wstream_file_t *
 xb_stream_write_open(xb_wstream_t *stream, const char *path,
-		     MY_STAT *mystat __attribute__((unused)),
-		     void *userdata,
-		     xb_stream_write_callback *onwrite)
+		const MY_STAT *mystat __attribute__((unused)), bool rewrite)
 {
 	xb_wstream_file_t	*file;
 	size_t			path_len;
@@ -109,16 +121,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 	file->offset = 0;
 	file->chunk_ptr = file->chunk;
 	file->chunk_free = XB_STREAM_MIN_CHUNK_SIZE;
-	if (onwrite) {
-#ifdef _WIN32
-		setmode(fileno(stdout), _O_BINARY);
-#endif
-		file->userdata = userdata;
-		file->write = onwrite;
-	} else {
-		file->userdata = NULL;
-		file->write = xb_stream_default_write_callback;
-	}
+	file->rewrite = rewrite;
 
 	return file;
 }
@@ -202,7 +205,8 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 	memcpy(ptr, XB_STREAM_CHUNK_MAGIC, sizeof(XB_STREAM_CHUNK_MAGIC) - 1);
 	ptr += sizeof(XB_STREAM_CHUNK_MAGIC) - 1;
 
-	*ptr++ = 0;                              /* Chunk flags */
+	*ptr++ =
+    file->rewrite ? XB_STREAM_FLAG_REWRITE : 0; /* Chunk flags */
 
 	*ptr++ = (uchar) XB_CHUNK_TYPE_PAYLOAD;  /* Chunk type */
 
@@ -227,11 +231,11 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 
 	xb_ad(ptr <= tmpbuf + sizeof(tmpbuf));
 
-	if (file->write(file, file->userdata, tmpbuf, ptr-tmpbuf) == -1)
+	if (stream->write(stream->user_data, tmpbuf, ptr-tmpbuf) == -1)
 		goto err;
 
 
-	if (file->write(file, file->userdata, buf, len) == -1) /* Payload */
+	if (stream->write(stream->user_data, buf, len) == -1) /* Payload */
 		goto err;
 
 	file->offset+= len;
@@ -245,6 +249,38 @@ err:
 	pthread_mutex_unlock(&stream->mutex);
 
 	return 1;
+}
+
+int xb_stream_write_seek_set(xb_wstream_file_t *file, my_off_t offset)
+{
+	/* Chunk magic + flags + chunk type + path_len + path + offset */
+	uchar		tmpbuf[sizeof(XB_STREAM_CHUNK_MAGIC) - 1 + 1 + 1 + 4 +
+			       FN_REFLEN + 8];
+	int error = 0;
+	xb_wstream_t	*stream = file->stream;
+	uchar		*ptr = tmpbuf;
+	/* Chunk magic */
+	memcpy(ptr, XB_STREAM_CHUNK_MAGIC, sizeof(XB_STREAM_CHUNK_MAGIC) - 1);
+	ptr += sizeof(XB_STREAM_CHUNK_MAGIC) - 1;
+	*ptr++ = 0;                              /* Chunk flags */
+	*ptr++ = (uchar) XB_CHUNK_TYPE_SEEK;   /* Chunk type */
+	int4store(ptr, file->path_len);          /* Path length */
+	ptr += 4;
+	memcpy(ptr, file->path, file->path_len); /* Path */
+	ptr += file->path_len;
+	int8store(ptr, static_cast<int64_t>(offset));  /* Offset */
+	ptr += 8;
+	if (xb_stream_flush(file))
+		return 1;
+	pthread_mutex_lock(&stream->mutex);
+	if (stream->write(stream->user_data, tmpbuf, ptr-tmpbuf) == -1)
+		error = 1;
+	if (!error)
+		file->offset = offset;
+	pthread_mutex_unlock(&stream->mutex);
+	if (xb_stream_flush(file))
+		return 1;
+	return error;
 }
 
 static
@@ -278,7 +314,7 @@ xb_stream_write_eof(xb_wstream_file_t *file)
 
 	xb_ad(ptr <= tmpbuf + sizeof(tmpbuf));
 
-	if (file->write(file, file->userdata, tmpbuf,
+	if (stream->write(stream->user_data, tmpbuf,
 			(ulonglong) (ptr - tmpbuf)) == -1)
 		goto err;
 
@@ -291,3 +327,77 @@ err:
 
 	return 1;
 }
+
+
+int
+xb_stream_write_remove(xb_wstream_t *stream, const char *path) {
+	/* Chunk magic + flags + chunk type + path_len + path */
+	uchar		tmpbuf[sizeof(XB_STREAM_CHUNK_MAGIC) - 1 + 1 + 1 + 4 + FN_REFLEN];
+	uchar		*ptr = tmpbuf;
+	/* Chunk magic */
+	memcpy(ptr, XB_STREAM_CHUNK_MAGIC, sizeof(XB_STREAM_CHUNK_MAGIC) - 1);
+	ptr += sizeof(XB_STREAM_CHUNK_MAGIC) - 1;
+
+	*ptr++ = 0;                              /* Chunk flags */
+
+	*ptr++ = (uchar) XB_CHUNK_TYPE_REMOVE;   /* Chunk type */
+	size_t path_len = strlen(path);
+	int4store(ptr, path_len);               /* Path length */
+	ptr += 4;
+
+	memcpy(ptr, path, path_len);            /* Path */
+	ptr += path_len;
+
+	xb_ad(ptr <= tmpbuf + sizeof(tmpbuf));
+
+	pthread_mutex_lock(&stream->mutex);
+
+	ssize_t result = stream->write(stream->user_data, tmpbuf,
+		(ulonglong) (ptr - tmpbuf));
+
+	pthread_mutex_unlock(&stream->mutex);
+
+	return result < 0;
+
+}
+
+int
+xb_stream_write_rename(
+	xb_wstream_t *stream, const char *old_path, const char *new_path) {
+	/* Chunk magic + flags + chunk type + path_len + path + path_len + path*/
+	uchar		tmpbuf[sizeof(XB_STREAM_CHUNK_MAGIC) - 1 + 1 + 1 +
+		4 + FN_REFLEN + 4 + FN_REFLEN];
+	uchar		*ptr = tmpbuf;
+	/* Chunk magic */
+	memcpy(ptr, XB_STREAM_CHUNK_MAGIC, sizeof(XB_STREAM_CHUNK_MAGIC) - 1);
+	ptr += sizeof(XB_STREAM_CHUNK_MAGIC) - 1;
+
+	*ptr++ = 0;                              /* Chunk flags */
+
+	*ptr++ = (uchar) XB_CHUNK_TYPE_RENAME;   /* Chunk type */
+	size_t path_len = strlen(old_path);
+	int4store(ptr, path_len);               /* Path length */
+	ptr += 4;
+
+	memcpy(ptr, old_path, path_len);            /* Path */
+	ptr += path_len;
+
+	path_len = strlen(new_path);
+	int4store(ptr, path_len);               /* Path length */
+	ptr += 4;
+
+	memcpy(ptr, new_path, path_len);            /* Path */
+	ptr += path_len;
+
+	xb_ad(ptr <= tmpbuf + sizeof(tmpbuf));
+
+	pthread_mutex_lock(&stream->mutex);
+
+	ssize_t result = stream->write(stream->user_data, tmpbuf,
+		(ulonglong) (ptr - tmpbuf));
+
+	pthread_mutex_unlock(&stream->mutex);
+
+	return result < 0;
+}
+

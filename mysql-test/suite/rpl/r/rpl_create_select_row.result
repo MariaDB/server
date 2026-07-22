@@ -1,0 +1,159 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set @max_binlog_cache_size         = @@global.max_binlog_cache_size;
+set @binlog_cache_size             = @@global.binlog_cache_size;
+set @@global.max_binlog_cache_size = 4096;
+set @@global.    binlog_cache_size = 4096;
+#
+# MDEV-35207 ignored error at binlogging by CREATE-TABLE-SELECT leads to assert
+#
+connect  conn_err,localhost,root,,;
+call mtr.add_suppression("Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage");
+create table t engine=myisam select repeat ('a',4096*3) AS a;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+create table t engine=innodb select repeat ('a',4096*3) AS a;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+create table t (a int unique, b char) select 1 AS a, 'b' as b union select 1 as a, 'c' as b;
+ERROR 23000: Duplicate entry '1' for key 'a'
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+disconnect conn_err;
+connection master;
+
+#
+# MDEV-35499 errored CREATE-OR-REPLACE-SELECT does not DROP table in binlog
+#
+#
+# Engine = innodb
+#
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a int primary key, b char) engine=innodb select 1 AS a, 'b' as b union select 1 as a, 'c' as b;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a text) engine=innodb select repeat ('a',1024) AS a union select repeat ('a',3*4096) AS a union select repeat ('a',3*4096) AS a;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a text) engine=innodb select repeat ('a',4096*3) AS a;;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+#
+# Engine = myisam
+#
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a int primary key, b char) engine=myisam select 1 AS a, 'b' as b union select 1 as a, 'c' as b;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a text) engine=myisam select repeat ('a',1024) AS a union select repeat ('a',3*4096) AS a union select repeat ('a',3*4096) AS a;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+set statement binlog_format=statement for create table t (a int) select 1 as a;
+set statement binlog_format=row for create or replace table t (a text) engine=myisam select repeat ('a',4096*3) AS a;;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+#
+# Prove an expected lonely `DROP table t'
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `test`.`t`/* Generated to handle failed CREATE OR REPLACE */
+master-bin.000001	#	Query	#	#	ROLLBACK
+create table ti_pk (a int primary key) engine=innodb;
+create table ta (a int) engine=aria;
+create function f_ia(arg int)
+returns integer
+begin
+insert into ti_pk set a=1;
+insert into ta set a=1;
+insert into ti_pk set a=arg;
+return 1;
+end |
+set statement binlog_format = ROW for create table t_y (a int) engine=aria select f_ia(1 /* err */) as a;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t_y;
+ERROR 42S02: Table 'test.t_y' doesn't exist
+# correct execution: `ta` is modified and its new record is binlogged
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into ti_pk set a=1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.ta)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+select * from ta;
+a
+1
+select * from ti_pk;
+a
+connection slave;
+include/diff_tables.inc [master:ta,slave:ta]
+connection master;
+delete from ta;
+connection slave;
+connection master;
+set statement binlog_format = STATEMENT for create table t_y (a int) engine=aria select f_ia(1 /* err */) as a;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t_y;
+ERROR 42S02: Table 'test.t_y' doesn't exist
+# ***TODO: fix MDEV-36027***. As of now `ta` is modified but that's not binlogged
+include/show_binlog_events.inc
+select *,'on_master' from ta;
+a	on_master
+1	on_master
+select * from ti_pk;
+a
+connection slave;
+select *,'on_slave' from ta;
+a	on_slave
+connection master;
+drop function f_ia;
+drop table ti_pk, ta;
+SET @@global.max_binlog_cache_size = @max_binlog_cache_size;
+SET @@global.    binlog_cache_size = @binlog_cache_size;
+connection slave;
+End of the tests
+include/rpl_end.inc

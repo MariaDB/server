@@ -1,0 +1,38 @@
+# MDEV-38600: Test the replication divergence warning that
+# restarting a slave server binlogs TRUNCATEs for MEMORY tables
+# (`rpl.rpl_memory_engine_truncate_on_restart` tests the actual TRUNCATE event.
+# By not adding an MTR suppression,
+# it also covers the case that a non-slave should not warn about this.)
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+
+CREATE TABLE t ENGINE=memory AS SELECT 1;
+
+
+# Add a pseudo-master to make this a pseudo-slave
+CHANGE MASTER TO master_host='127.0.0.1';
+
+--let $restart_parameters= --read-only=TRUE --skip-slave-start
+--source include/restart_mysqld.inc # not_embedded
+SELECT * FROM t; # Maily to trigger MEMORY table discovery
+
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN=\[Warning\] .+?memory table.+?TRUNCATE
+--source include/search_pattern_in_file.inc
+
+
+RESET SLAVE ALL;
+# Repeat the test with an already blank MEMORY table and a named connection
+CHANGE MASTER 'pseudo-upstream' TO master_host='127.0.0.1';
+
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+--source include/search_pattern_in_file.inc
+
+
+# Cleanup
+SET @@GLOBAL.read_only= FALSE;
+RESET SLAVE 'pseudo-upstream' ALL;
+DROP TABLE t;
+
+--eval CALL mtr.add_suppression("$SEARCH_PATTERN")

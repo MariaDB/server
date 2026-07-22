@@ -1,0 +1,780 @@
+###
+# Test for backup to stream
+#####
+###
+# Test for mix of online/offline backup tables
+#####
+CREATE TABLE t_default(i INT PRIMARY KEY)
+ENGINE ARIA;
+INSERT INTO t_default VALUES (1);
+CREATE TABLE t_tr_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_tr_p_ch VALUES (1);
+CREATE TABLE t_tr_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_tr_p_nch VALUES (1);
+CREATE TABLE t_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_p_ch VALUES (1);
+CREATE TABLE t_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_p_nch VALUES (1);
+CREATE TABLE t_fixed(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=FIXED PAGE_CHECKSUM=1;
+INSERT INTO t_fixed VALUES (1);
+CREATE TABLE t_dyn(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=DYNAMIC PAGE_CHECKSUM=1;
+INSERT INTO t_dyn VALUES (1);
+# Test for partitioned table
+CREATE TABLE t_part_online(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_online VALUES(5);
+INSERT INTO t_part_online VALUES(15);
+INSERT INTO t_part_online VALUES(25);
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+CREATE TABLE t_part_offline(i INT)
+ENGINE ARIA TRANSACTIONAL = 0 PAGE_CHECKSUM = 0
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_offline VALUES(5);
+INSERT INTO t_part_offline VALUES(15);
+INSERT INTO t_part_offline VALUES(25);
+# Test for filename to tablename mapping
+CREATE TABLE `t 1 t-1`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO `t 1 t-1` VALUES (1);
+CREATE TABLE `t-part online`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO `t-part online` VALUES(5);
+INSERT INTO `t-part online` VALUES(15);
+INSERT INTO `t-part online` VALUES(25);
+###
+# Test for redo log files backup;
+#####
+CREATE TABLE t_logs_1(i INT)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+CREATE TABLE t_logs_2 LIKE t_logs_1;
+CREATE TABLE t_bulk_ins LIKE t_logs_1;
+INSERT INTO t_logs_1 VALUES
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+# Generate several log files
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+###
+# Test for DML during backup for online backup
+#####
+CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_ins VALUES(1);
+CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_upd VALUES(1);
+CREATE TABLE t_dml_del(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_del VALUES(1);
+###
+# Test for DDL during backup for online backup
+#####
+CREATE DATABASE test_for_db_drop;
+CREATE TABLE test_for_db_drop.t(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_db_create(i INT PRIMARY KEY) ENGINE ARIA;
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+test_for_db_drop
+CREATE TABLE t_alter(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_alter VALUES (1);
+CREATE TABLE t_trunc(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_trunc VALUES (1);
+CREATE TABLE t_ch_i (i int(10), index(i) ) ENGINE=Aria;
+INSERT INTO t_ch_i VALUES(1);
+CREATE TABLE t_change_engine(i INT PRIMARY KEY) ENGINE InnoDB;
+INSERT INTO t_change_engine VALUES (1);
+CREATE TABLE t_rename(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE DATABASE test_for_rename;
+CREATE TABLE t_rename_2(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_3(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_4(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_delete(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_delete_2(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_alter(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_create(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_create(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_add_part(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_change_eng(i INT PRIMARY KEY) ENGINE ARIA PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_change_eng_2(i INT PRIMARY KEY) ENGINE InnoDB PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_change_eng_3(i INT PRIMARY KEY) ENGINE Aria;
+CREATE TABLE t_part_alter(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_alter_2(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 3;
+CREATE TABLE t_part_drop(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rename(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rename_3(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rm_part(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+SET SESSION debug_dbug="+d,maria_flush_whole_log";
+SET GLOBAL aria_checkpoint_interval=10000;
+### Backup to stream
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+### Result for DDL test
+SHOW CREATE TABLE t_alter;
+Table	Create Table
+t_alter	CREATE TABLE `t_alter` (
+  `i` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_alter;
+i	c
+1	NULL
+SHOW CREATE TABLE t_change_engine;
+Table	Create Table
+t_change_engine	CREATE TABLE `t_change_engine` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_change_engine;
+i
+1
+SELECT * FROM t_trunc;
+i
+1
+SELECT * FROM t_ch_i;
+i
+1
+SELECT * FROM t_rename_new;
+i
+SELECT * FROM test_for_rename.t_rename_new_2;
+i
+SELECT * FROM t_rename_new_new_3;
+i
+SELECT * FROM t_rename_new_4;
+i
+SELECT * FROM t_delete;
+ERROR 42S02: Table 'test.t_delete' doesn't exist
+SHOW CREATE TABLE t_delete_2;
+Table	Create Table
+t_delete_2	CREATE TABLE `t_delete_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_rename_alter_2;
+i	c
+SELECT * FROM t_rename_create;
+d
+SELECT * FROM t_rename_create_new;
+i
+SHOW CREATE TABLE t_part_create_2;
+Table	Create Table
+t_part_create_2	CREATE TABLE `t_part_create_2` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_create_2;
+i
+SHOW CREATE TABLE t_part_add_part;
+Table	Create Table
+t_part_add_part	CREATE TABLE `t_part_add_part` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_add_part;
+i
+SHOW CREATE TABLE t_part_change_eng;
+Table	Create Table
+t_part_change_eng	CREATE TABLE `t_part_change_eng` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_change_eng;
+i
+SHOW CREATE TABLE t_part_change_eng_2;
+Table	Create Table
+t_part_change_eng_2	CREATE TABLE `t_part_change_eng_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_change_eng_2;
+i
+SELECT * FROM t_part_alter;
+i	c
+SHOW CREATE TABLE t_part_alter_2;
+Table	Create Table
+t_part_alter_2	CREATE TABLE `t_part_alter_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_alter_2;
+i
+SELECT * FROM t_part_drop;
+ERROR 42S02: Table 'test.t_part_drop' doesn't exist
+SELECT * FROM t_part_rename;
+ERROR 42S02: Table 'test.t_part_rename' doesn't exist
+SELECT * FROM t_part_rename_2;
+i
+SELECT * FROM t_part_rename_3;
+ERROR 42S02: Table 'test.t_part_rename_3' doesn't exist
+SELECT * FROM test_for_rename.t_part_rename_4;
+i
+SHOW CREATE TABLE t_part_rm_part;
+Table	Create Table
+t_part_rm_part	CREATE TABLE `t_part_rm_part` (
+  `i` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_part_rm_part;
+i	c
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+test_for_db_create
+test_for_rename
+### Clean up for DDL test
+DROP DATABASE test_for_db_create;
+DROP TABLE t_db_create;
+DROP TABLE t_change_engine;
+DROP TABLE t_alter;
+DROP TABLE t_trunc;
+DROP TABLE t_ch_i;
+DROP TABLE t_rename_new;
+DROP TABLE t_rename_new_new_3;
+DROP TABLE t_rename_new_4;
+DROP TABLE t_delete_2;
+DROP TABLE t_rename_alter_2;
+DROP TABLE t_rename_create;
+DROP TABLE t_rename_create_new;
+DROP TABLE t_part_create;
+DROP TABLE t_part_create_2;
+DROP TABLE t_part_add_part;
+DROP TABLE t_part_change_eng;
+DROP TABLE t_part_change_eng_2;
+DROP TABLE t_part_change_eng_3;
+DROP TABLE t_part_alter;
+DROP TABLE t_part_alter_2;
+DROP TABLE t_part_rename_2;
+DROP TABLE t_part_rm_part;
+DROP DATABASE test_for_rename;
+### Result for DML test
+SELECT * FROM t_dml_ins;
+i
+1
+2
+SELECT * FROM t_dml_upd;
+i
+2
+SELECT * FROM t_dml_del;
+i
+### Clean up for DML test
+DROP TABLE t_dml_ins;
+DROP TABLE t_dml_upd;
+DROP TABLE t_dml_del;
+### Result for redo log files backup
+# ok
+# ok
+# ok
+### Cleanup for redo log files backup
+DROP TABLE t_logs_1;
+DROP TABLE t_logs_2;
+DROP TABLE t_bulk_ins;
+### Result for online/offline tables test
+SELECT * FROM t_default;
+i
+1
+SELECT * FROM t_tr_p_ch;
+i
+1
+SELECT * FROM t_tr_p_nch;
+i
+1
+SELECT * FROM t_p_ch;
+i
+1
+SELECT * FROM t_p_nch;
+i
+1
+SELECT * FROM t_fixed;
+i
+1
+SELECT * FROM t_dyn;
+i
+1
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+SELECT * FROM t_part_offline;
+i
+5
+15
+25
+SELECT * FROM `t 1 t-1`;
+i
+1
+SELECT * FROM `t-part online`;
+i
+5
+15
+25
+### Cleanup for online/offline tables test
+DROP TABLE t_default;
+DROP TABLE t_tr_p_ch;
+DROP TABLE t_tr_p_nch;
+DROP TABLE t_p_ch;
+DROP TABLE t_p_nch;
+DROP TABLE t_fixed;
+DROP TABLE t_dyn;
+DROP TABLE t_part_online;
+DROP TABLE t_part_offline;
+DROP TABLE `t 1 t-1`;
+DROP TABLE `t-part online`;
+###
+# Test for backup to directory
+#####
+###
+# Test for mix of online/offline backup tables
+#####
+CREATE TABLE t_default(i INT PRIMARY KEY)
+ENGINE ARIA;
+INSERT INTO t_default VALUES (1);
+CREATE TABLE t_tr_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_tr_p_ch VALUES (1);
+CREATE TABLE t_tr_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_tr_p_nch VALUES (1);
+CREATE TABLE t_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_p_ch VALUES (1);
+CREATE TABLE t_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_p_nch VALUES (1);
+CREATE TABLE t_fixed(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=FIXED PAGE_CHECKSUM=1;
+INSERT INTO t_fixed VALUES (1);
+CREATE TABLE t_dyn(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=DYNAMIC PAGE_CHECKSUM=1;
+INSERT INTO t_dyn VALUES (1);
+# Test for partitioned table
+CREATE TABLE t_part_online(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_online VALUES(5);
+INSERT INTO t_part_online VALUES(15);
+INSERT INTO t_part_online VALUES(25);
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+CREATE TABLE t_part_offline(i INT)
+ENGINE ARIA TRANSACTIONAL = 0 PAGE_CHECKSUM = 0
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_offline VALUES(5);
+INSERT INTO t_part_offline VALUES(15);
+INSERT INTO t_part_offline VALUES(25);
+# Test for filename to tablename mapping
+CREATE TABLE `t 1 t-1`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO `t 1 t-1` VALUES (1);
+CREATE TABLE `t-part online`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO `t-part online` VALUES(5);
+INSERT INTO `t-part online` VALUES(15);
+INSERT INTO `t-part online` VALUES(25);
+###
+# Test for redo log files backup;
+#####
+CREATE TABLE t_logs_1(i INT)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+CREATE TABLE t_logs_2 LIKE t_logs_1;
+CREATE TABLE t_bulk_ins LIKE t_logs_1;
+INSERT INTO t_logs_1 VALUES
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+# Generate several log files
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+###
+# Test for DML during backup for online backup
+#####
+CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_ins VALUES(1);
+CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_upd VALUES(1);
+CREATE TABLE t_dml_del(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_del VALUES(1);
+###
+# Test for DDL during backup for online backup
+#####
+CREATE DATABASE test_for_db_drop;
+CREATE TABLE test_for_db_drop.t(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_db_create(i INT PRIMARY KEY) ENGINE ARIA;
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+test_for_db_drop
+CREATE TABLE t_alter(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_alter VALUES (1);
+CREATE TABLE t_trunc(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_trunc VALUES (1);
+CREATE TABLE t_ch_i (i int(10), index(i) ) ENGINE=Aria;
+INSERT INTO t_ch_i VALUES(1);
+CREATE TABLE t_change_engine(i INT PRIMARY KEY) ENGINE InnoDB;
+INSERT INTO t_change_engine VALUES (1);
+CREATE TABLE t_rename(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE DATABASE test_for_rename;
+CREATE TABLE t_rename_2(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_3(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_4(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_delete(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_delete_2(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_alter(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_rename_create(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_create(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_add_part(i INT PRIMARY KEY) ENGINE ARIA;
+CREATE TABLE t_part_change_eng(i INT PRIMARY KEY) ENGINE ARIA PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_change_eng_2(i INT PRIMARY KEY) ENGINE InnoDB PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_change_eng_3(i INT PRIMARY KEY) ENGINE Aria;
+CREATE TABLE t_part_alter(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_alter_2(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 3;
+CREATE TABLE t_part_drop(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rename(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rename_3(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_rm_part(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+SET SESSION debug_dbug="+d,maria_flush_whole_log";
+SET GLOBAL aria_checkpoint_interval=10000;
+### Backup to dir
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+### Result for DDL test
+SHOW CREATE TABLE t_alter;
+Table	Create Table
+t_alter	CREATE TABLE `t_alter` (
+  `i` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_alter;
+i	c
+1	NULL
+SHOW CREATE TABLE t_change_engine;
+Table	Create Table
+t_change_engine	CREATE TABLE `t_change_engine` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_change_engine;
+i
+1
+SELECT * FROM t_trunc;
+i
+1
+SELECT * FROM t_ch_i;
+i
+1
+SELECT * FROM t_rename_new;
+i
+SELECT * FROM test_for_rename.t_rename_new_2;
+i
+SELECT * FROM t_rename_new_new_3;
+i
+SELECT * FROM t_rename_new_4;
+i
+SELECT * FROM t_delete;
+ERROR 42S02: Table 'test.t_delete' doesn't exist
+SHOW CREATE TABLE t_delete_2;
+Table	Create Table
+t_delete_2	CREATE TABLE `t_delete_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_rename_alter_2;
+i	c
+SELECT * FROM t_rename_create;
+d
+SELECT * FROM t_rename_create_new;
+i
+SHOW CREATE TABLE t_part_create_2;
+Table	Create Table
+t_part_create_2	CREATE TABLE `t_part_create_2` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_create_2;
+i
+SHOW CREATE TABLE t_part_add_part;
+Table	Create Table
+t_part_add_part	CREATE TABLE `t_part_add_part` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_add_part;
+i
+SHOW CREATE TABLE t_part_change_eng;
+Table	Create Table
+t_part_change_eng	CREATE TABLE `t_part_change_eng` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_change_eng;
+i
+SHOW CREATE TABLE t_part_change_eng_2;
+Table	Create Table
+t_part_change_eng_2	CREATE TABLE `t_part_change_eng_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_change_eng_2;
+i
+SELECT * FROM t_part_alter;
+i	c
+SHOW CREATE TABLE t_part_alter_2;
+Table	Create Table
+t_part_alter_2	CREATE TABLE `t_part_alter_2` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`i`)
+PARTITIONS 2
+SELECT * FROM t_part_alter_2;
+i
+SELECT * FROM t_part_drop;
+ERROR 42S02: Table 'test.t_part_drop' doesn't exist
+SELECT * FROM t_part_rename;
+ERROR 42S02: Table 'test.t_part_rename' doesn't exist
+SELECT * FROM t_part_rename_2;
+i
+SELECT * FROM t_part_rename_3;
+ERROR 42S02: Table 'test.t_part_rename_3' doesn't exist
+SELECT * FROM test_for_rename.t_part_rename_4;
+i
+SHOW CREATE TABLE t_part_rm_part;
+Table	Create Table
+t_part_rm_part	CREATE TABLE `t_part_rm_part` (
+  `i` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SELECT * FROM t_part_rm_part;
+i	c
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+test_for_db_create
+test_for_rename
+### Clean up for DDL test
+DROP DATABASE test_for_db_create;
+DROP TABLE t_db_create;
+DROP TABLE t_change_engine;
+DROP TABLE t_alter;
+DROP TABLE t_trunc;
+DROP TABLE t_ch_i;
+DROP TABLE t_rename_new;
+DROP TABLE t_rename_new_new_3;
+DROP TABLE t_rename_new_4;
+DROP TABLE t_delete_2;
+DROP TABLE t_rename_alter_2;
+DROP TABLE t_rename_create;
+DROP TABLE t_rename_create_new;
+DROP TABLE t_part_create;
+DROP TABLE t_part_create_2;
+DROP TABLE t_part_add_part;
+DROP TABLE t_part_change_eng;
+DROP TABLE t_part_change_eng_2;
+DROP TABLE t_part_change_eng_3;
+DROP TABLE t_part_alter;
+DROP TABLE t_part_alter_2;
+DROP TABLE t_part_rename_2;
+DROP TABLE t_part_rm_part;
+DROP DATABASE test_for_rename;
+### Result for DML test
+SELECT * FROM t_dml_ins;
+i
+1
+2
+SELECT * FROM t_dml_upd;
+i
+2
+SELECT * FROM t_dml_del;
+i
+### Clean up for DML test
+DROP TABLE t_dml_ins;
+DROP TABLE t_dml_upd;
+DROP TABLE t_dml_del;
+### Result for redo log files backup
+# ok
+# ok
+# ok
+### Cleanup for redo log files backup
+DROP TABLE t_logs_1;
+DROP TABLE t_logs_2;
+DROP TABLE t_bulk_ins;
+### Result for online/offline tables test
+SELECT * FROM t_default;
+i
+1
+SELECT * FROM t_tr_p_ch;
+i
+1
+SELECT * FROM t_tr_p_nch;
+i
+1
+SELECT * FROM t_p_ch;
+i
+1
+SELECT * FROM t_p_nch;
+i
+1
+SELECT * FROM t_fixed;
+i
+1
+SELECT * FROM t_dyn;
+i
+1
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+SELECT * FROM t_part_offline;
+i
+5
+15
+25
+SELECT * FROM `t 1 t-1`;
+i
+1
+SELECT * FROM `t-part online`;
+i
+5
+15
+25
+### Cleanup for online/offline tables test
+DROP TABLE t_default;
+DROP TABLE t_tr_p_ch;
+DROP TABLE t_tr_p_nch;
+DROP TABLE t_p_ch;
+DROP TABLE t_p_nch;
+DROP TABLE t_fixed;
+DROP TABLE t_dyn;
+DROP TABLE t_part_online;
+DROP TABLE t_part_offline;
+DROP TABLE `t 1 t-1`;
+DROP TABLE `t-part online`;

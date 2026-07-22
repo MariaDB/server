@@ -390,10 +390,10 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_BINLOG=
 
 /* Privileges related to --read-only */
 // Was super prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL;
 // Was super prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY=
-  READ_ONLY_ADMIN_ACL | SUPER_ACL;
+  READ_ONLY_ADMIN_ACL;
 
 /*
   Privileges related to connection handling.
@@ -546,6 +546,8 @@ constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_GTID_DOMAIN_ID=
 */
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_EVENTS_MARKED_FOR_SKIP=
   REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB=
+  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_DB=
   REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_TABLE=
@@ -570,6 +572,8 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_EXEC_MODE=
   REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_ALLOWED_PACKET=
   REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_STATEMENT_TIME=
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT=
   REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MAX_QUEUED=
@@ -634,6 +638,7 @@ constexpr privilege_t PRIV_STMT_DROP_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
 
 /* Privileges related to processes */
 constexpr privilege_t PRIV_COM_PROCESS_INFO= PROCESS_ACL;
+// This privilege applies both for SHOW EXPLAIN and SHOW ANALYZE
 constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;

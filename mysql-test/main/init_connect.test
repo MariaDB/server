@@ -13,28 +13,30 @@
 connect (con0,localhost,root,,);
 connection con0;
 select hex(@a);
-connect (con1,localhost,user_1,,);
+connect (con1,localhost,user_1,,"*NO-ONE*");
 connection con1;
 select hex(@a);
 connection con0;
 set global init_connect="set @a=2;set @b=3";
-connect (con2,localhost,user_1,,);
+connect (con2,localhost,user_1,,"*NO-ONE*");
 connection con2;
 select @a, @b;
 connection con0;
 set GLOBAL init_connect=DEFAULT;
-connect (con3,localhost,user_1,,);
+connect (con3,localhost,user_1,,"*NO-ONE*");
 connection con3;
 select @a;
 connection con0;
 set global init_connect="drop table if exists t1; create table t1(a char(10));\
 insert into t1 values ('\0');insert into t1 values('abc')";
-connect (con4,localhost,user_1,,);
+create user 'user_1'@'localhost';
+GRANT DROP,CREATE,SELECT,INSERT ON test.* TO 'user_1'@'localhost';
+connect (con4,localhost,user_1,,test);
 connection con4;
 select hex(a) from t1;
 connection con0;
 set GLOBAL init_connect="adsfsdfsdfs";
-connect (con5,localhost,user_1,,);
+connect (con5,localhost,user_1,,test);
 connection con5;
 # BUG#11755281/47032: ERROR 2006 / ERROR 2013 INSTEAD OF PROPER ERROR MESSAGE
 # We now throw a proper error message here:
@@ -54,6 +56,7 @@ disconnect con2;
 disconnect con3;
 disconnect con4;
 disconnect con5;
+drop user 'user_1'@'localhost';
 
 --source include/delete_anonymous_users.inc
 
@@ -72,7 +75,7 @@ grant all privileges on test.* to mysqltest1@localhost;
 # Create a simple procedure
 #
 set global init_connect="create procedure p1() select * from t1";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 call p1();
 drop procedure p1;
@@ -88,7 +91,7 @@ begin\
   select * from t1;\
   set @x = x;
 end";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 call p1(42);
 select @x;
@@ -99,7 +102,7 @@ disconnect con1;
 # Just call it - this will not generate any output
 #
 set global init_connect="call p1(4711)";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select @x;
 
@@ -109,7 +112,7 @@ disconnect con1;
 # Drop the procedure
 #
 set global init_connect="drop procedure if exists p1";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 --error ER_SP_DOES_NOT_EXIST
 call p1();
@@ -145,7 +148,7 @@ end|
 delimiter ;|
 # Call the procedure with a cursor
 set global init_connect="call p1(@sum)";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select @sum;
 
@@ -167,7 +170,7 @@ end|
 delimiter ;|
 # Call the procedure with prepared statements
 set global init_connect="call p1('t1', 11)";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select * from t1;
 
@@ -188,7 +191,7 @@ end|
 delimiter ;|
 # Invoke a function
 set global init_connect="set @x = f1()";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select @x;
 
@@ -198,7 +201,7 @@ disconnect con1;
 # Create a view
 #
 set global init_connect="create view v1 as select f1()";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select * from v1;
 
@@ -208,7 +211,7 @@ disconnect con1;
 # Drop the view
 #
 set global init_connect="drop view v1";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 --error ER_NO_SUCH_TABLE
 select * from v1;
@@ -225,7 +228,7 @@ drop function f1;
 #  after insert on t2\
 #  for each row\
 #  insert into t1 values (new.y)";
-#connect (con1,localhost,mysqltest1,,);
+#connect (con1,localhost,mysqltest1,,test);
 #connection con1;
 #insert into t2 values (2), (4);
 #select * from t1;
@@ -240,7 +243,7 @@ create trigger trg1
 
 # Invoke trigger
 set global init_connect="insert into t2 values (13), (17), (19)";
-connect (con1,localhost,mysqltest1,,);
+connect (con1,localhost,mysqltest1,,test);
 connection con1;
 select * from t1;
 

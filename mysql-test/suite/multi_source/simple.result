@@ -62,7 +62,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	1
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -73,6 +73,7 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -123,7 +124,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -134,6 +135,7 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -148,7 +150,7 @@ CHANNEL_NAME	slave2
 HOST	127.0.0.1
 PORT	#
 USER	root
-USING_GTID	NO
+USING_GTID	SLAVE_POS
 SSL_ALLOWED	NO
 SSL_CA_FILE	
 SSL_CA_PATH	
@@ -168,7 +170,7 @@ CHANNEL_NAME	slave1
 HOST	127.0.0.1
 PORT	#
 USER	root
-USING_GTID	NO
+USING_GTID	SLAVE_POS
 SSL_ALLOWED	NO
 SSL_CA_FILE	
 SSL_CA_PATH	
@@ -249,7 +251,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	1
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -260,6 +262,7 @@ Slave_SQL_Running_State
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 reset slave 'slave1';
 show all slaves status;
 Connection_name	slave1
@@ -306,7 +309,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	1
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -317,6 +320,7 @@ Slave_SQL_Running_State
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -367,7 +371,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -378,6 +382,7 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -430,7 +435,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -441,6 +446,7 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -495,7 +501,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -506,6 +512,7 @@ Slave_SQL_Running_State
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7

@@ -31,7 +31,7 @@ path=`dirname $0`
 #   the destination
 #
 
-extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized"
+extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized -Wno-unused-parameter"
 extra_configs="$pentium_configs $debug_configs -DWITH_UBSAN=ON -DMYSQL_MAINTAINER_MODE=NO --without-spider"
 
 . "$path/FINISH.sh"

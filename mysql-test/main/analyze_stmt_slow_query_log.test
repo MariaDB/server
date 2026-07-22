@@ -26,6 +26,7 @@ select * from t1 where a<3;
 --enable_cursor_protocol
 drop table t1;
 let SLOW_LOG_FILE= `select @@slow_query_log_file`;
+FLUSH SLOW LOGS;
 
 # select @@slow_query_log_file;
 

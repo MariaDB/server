@@ -52,40 +52,6 @@ IS_GRANTABLE	varchar(3)	NO		NULL
 SELECT GRANTEE, TABLE_CATALOG, TABLE_SCHEMA, PRIVILEGE_TYPE
 FROM information_schema.schema_privileges WHERE table_catalog IS NOT NULL;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE
-''@'%'	def	test	SELECT
-''@'%'	def	test	INSERT
-''@'%'	def	test	UPDATE
-''@'%'	def	test	DELETE
-''@'%'	def	test	CREATE
-''@'%'	def	test	DROP
-''@'%'	def	test	REFERENCES
-''@'%'	def	test	INDEX
-''@'%'	def	test	ALTER
-''@'%'	def	test	CREATE TEMPORARY TABLES
-''@'%'	def	test	LOCK TABLES
-''@'%'	def	test	CREATE VIEW
-''@'%'	def	test	SHOW VIEW
-''@'%'	def	test	CREATE ROUTINE
-''@'%'	def	test	EVENT
-''@'%'	def	test	TRIGGER
-''@'%'	def	test	DELETE HISTORY
-''@'%'	def	test\_%	SELECT
-''@'%'	def	test\_%	INSERT
-''@'%'	def	test\_%	UPDATE
-''@'%'	def	test\_%	DELETE
-''@'%'	def	test\_%	CREATE
-''@'%'	def	test\_%	DROP
-''@'%'	def	test\_%	REFERENCES
-''@'%'	def	test\_%	INDEX
-''@'%'	def	test\_%	ALTER
-''@'%'	def	test\_%	CREATE TEMPORARY TABLES
-''@'%'	def	test\_%	LOCK TABLES
-''@'%'	def	test\_%	CREATE VIEW
-''@'%'	def	test\_%	SHOW VIEW
-''@'%'	def	test\_%	CREATE ROUTINE
-''@'%'	def	test\_%	EVENT
-''@'%'	def	test\_%	TRIGGER
-''@'%'	def	test\_%	DELETE HISTORY
 ###############################################################################
 # Testcase 3.2.15.2-3.2.15.4 INFORMATION_SCHEMA.SCHEMA_PRIVILEGES accessibility
 ###############################################################################
@@ -106,7 +72,7 @@ GRANT INSERT ON db_datadict_2.t1 TO 'testuser1'@'localhost';
 GRANT SELECT ON db_datadict_4.*  TO 'testuser1'@'localhost' WITH GRANT OPTION;
 GRANT SELECT ON db_datadict_3.*  TO 'testuser2'@'localhost';
 GRANT SELECT ON db_datadict_1.*  TO 'testuser2'@'localhost';
-connect  testuser1, localhost, testuser1, , test;
+connect  testuser1, localhost, testuser1, ,"*NO-ONE*";
 GRANT SELECT ON db_datadict_4.*  TO 'testuser2'@'localhost';
 # Root granted INSERT db_datadict_1 to me     -> visible
 # Root granted SELECT db_datadict_1 to testuser2 -> invisible
@@ -130,7 +96,7 @@ GRANT SELECT ON `db_datadict_4`.* TO `testuser1`@`localhost` WITH GRANT OPTION
 GRANT INSERT ON `db_datadict_2`.`t1` TO `testuser1`@`localhost`
 SHOW GRANTS FOR 'testuser2'@'localhost';
 ERROR 42000: Access denied for user 'testuser1'@'localhost' to database 'mysql'
-connect  testuser2, localhost, testuser2, , test;
+connect  testuser2, localhost, testuser2, ,"*NO-ONE*";
 # Root granted SELECT db_datadict_1 to me     -> visible
 # Root granted INSERT db_datadict_1 to testuser1 -> invisible
 # Root granted INSERT db_datadict_2.t1 but not db_datadict_1 to testuser1 -> invisible

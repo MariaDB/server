@@ -10,6 +10,14 @@ drop table if exists t3;
 drop table if exists t4;
 --enable_warnings
 
+--echo #
+--echo # General tests
+--echo #
+SET NAMES eucjpms;
+-- source include/ctype_ascii_order.inc
+SET NAMES eucjpms COLLATE eucjpms_bin;
+-- source include/ctype_ascii_order.inc
+
 set names eucjpms;
 set character_set_database = eucjpms;
  

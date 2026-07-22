@@ -99,6 +99,7 @@ public:
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
+  bool store(I_List<i_string_pair> *str_list);
   bool store_string_or_null(const char *from, CHARSET_INFO *cs);
   bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }

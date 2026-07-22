@@ -179,6 +179,8 @@ static int spider_i_s_wrapper_protocols_fill_table(
   SPIDER_DBTON *dbton;
   TABLE *table = tables->table;
   DBUG_ENTER("spider_i_s_wrapper_protocols_fill_table");
+  if (!spider_hton_ptr)
+    DBUG_RETURN(0);
   for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
   {
     dbton = &spider_dbton[roop_count];

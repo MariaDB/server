@@ -57,9 +57,9 @@ f174 numeric (0),
 f175 numeric (64)
 ) engine = <engine_to_be_used>;
 Warnings:
-Note	1265	Data truncated for column 'f150' at row 1
-Note	1265	Data truncated for column 'f151' at row 1
-Note	1265	Data truncated for column 'f152' at row 1
+Note	1265	Data truncated for column 'f150' at row 0
+Note	1265	Data truncated for column 'f151' at row 0
+Note	1265	Data truncated for column 'f152' at row 0
 
 Testcase: 3.5:
 --------------
@@ -69,8 +69,10 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM test_general@localhost;
 create User test_super@localhost;
 set password for test_super@localhost = password('PWD');
 grant ALL on *.* to test_super@localhost with grant OPTION;
-connect  con1_general,localhost,test_general,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-connect  con1_super,localhost,test_super,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con1_general,localhost,test_general,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection con1_general;
+connect  con1_super,localhost,test_super,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection con1_super;
 connection default;
 
 Testcase 3.5.4:
@@ -136,7 +138,7 @@ create table t1_433a (f1a char (5)) engine = <engine_to_be_used>;
 CREATE TRIGGER trg3 BEFORE INSERT on t1_433 for each row
 set new.f1 = 'Trigger 3.5.4.3';
 Drop trigger t1.433.trg3;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.trg3' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.433.trg3' at line 1
 Drop trigger db_drop3.t1.433.trg3;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.433.trg3' at line 1
 Drop trigger mysql.trg3;

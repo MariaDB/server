@@ -1,0 +1,22 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+SET @old_debug_dbug=@@debug_dbug;
+
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 INET4, c02 INET4);
+SET debug_dbug=@old_debug_dbug;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

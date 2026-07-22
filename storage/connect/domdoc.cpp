@@ -163,7 +163,7 @@ bool DOMDOC::NewDoc(PGLOBAL g, PCSZ ver)
   char buf[64];
   MSXML2::IXMLDOMProcessingInstructionPtr pip;
 
-  sprintf(buf, "version=\"%s\" encoding=\"%s\"", ver, Encoding);
+  snprintf(buf, sizeof(buf), "version=\"%s\" encoding=\"%s\"", ver, Encoding);
   pip = Docp->createProcessingInstruction("xml", buf);
   Docp->appendChild(pip);
   return false;

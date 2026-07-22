@@ -45,7 +45,7 @@ INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999');
 INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999999');
 ALTER TABLE t1 MODIFY a TIMESTAMP(3) NULL DEFAULT NULL;
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 2
 SELECT a FROM t1;
 a
 2001-01-01 00:00:00.000
@@ -139,7 +139,7 @@ SELECT * FROM t1,t2 WHERE t1.a=t2.a;
 a	a
 2001-01-01 23:59:59.9999999	2001-01-02 00:00:00
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-01-01 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2001-01-01 23:59:59.9999999' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1,t2 WHERE CONCAT(t1.a)=t2.a;
 a	a
 2001-01-01 23:59:59.9999999	2001-01-02 00:00:00

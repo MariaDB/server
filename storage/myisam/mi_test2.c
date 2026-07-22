@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
   for (i=0 ; i < recant ; i++)
   {
     n1=rnd(1000); n2=rnd(100); n3=rnd(5000);
-    sprintf((char*) record,"%6d:%4d:%8d:Pos: %4d    ",n1,n2,n3,write_count);
+    snprintf((char*) record, sizeof(record), "%6d:%4d:%8d:Pos: %4d    ",n1,n2,n3,write_count);
     int4store(record+STANDARD_LENGTH-4,(long) i);
     fix_length(record,(uint) STANDARD_LENGTH+rnd(60));
     put_blob_in_record(record+blob_pos,&blob_buffer);
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
       for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
       if (!j)
 	for (j=999 ; j>0 && key1[j] == 0 ; j--) ;
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (mi_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("Test in loop: Can't find key: \"%s\"\n",key);
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
     for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (mi_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n",key);
@@ -313,14 +313,14 @@ int main(int argc, char *argv[])
   for (i=0 ; i<recant/10 ; i++)
   {
     n1=rnd(1000); n2=rnd(100); n3=rnd(5000);
-    sprintf((char*) record2,"%6d:%4d:%8d:XXX: %4d     ",n1,n2,n3,update);
+    snprintf((char*) record2, sizeof(record2), "%6d:%4d:%8d:XXX: %4d     ",n1,n2,n3,update);
     int4store(record2+STANDARD_LENGTH-4,(long) i);
     fix_length(record2,(uint) STANDARD_LENGTH+rnd(60));
 
     for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (mi_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n",(char*) key);
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
       dupp_keys=key1[i]; j=i;
     }
   }
-  sprintf((char*) key,"%6d",j);
+  snprintf((char*) key, sizeof(key), "%6d",j);
   start=keyinfo[0].seg[0].start;
   length=keyinfo[0].seg[0].length;
   if (dupp_keys)
@@ -650,8 +650,8 @@ int main(int argc, char *argv[])
       page_range pages;
       if (j > k)
 	swap_variables(int, j, k);
-      sprintf((char*) key,"%6d",j);
-      sprintf((char*) key2,"%6d",k);
+      snprintf((char*) key, sizeof(key), "%6d",j);
+      snprintf((char*) key2, sizeof(key2), "%6d",k);
 
       min_key.key= key;
       min_key.keypart_map= HA_WHOLE_KEY;
@@ -693,11 +693,11 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     char buff[80];
-    get_date(buff,3,info.create_time);
+    get_date(buff,sizeof(buff),3,info.create_time);
     printf("info: Created %s\n",buff);
-    get_date(buff,3,info.check_time);
+    get_date(buff,sizeof(buff),3,info.check_time);
     printf("info: checked %s\n",buff);
-    get_date(buff,3,info.update_time);
+    get_date(buff,sizeof(buff),3,info.update_time);
     printf("info: Modified %s\n",buff);
   }
 

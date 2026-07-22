@@ -1,0 +1,21 @@
+--- ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_20502.result	2025-08-01 15:07:36.416896406 +1000
++++ ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_20502.reject	2025-10-22 17:39:57.398950875 +1100
+@@ -54,14 +54,14 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`id` `id`,0 `const`,t0.`val` `val` from `auto_test_remote`.`tbl_a` t0
+ select `id`,`val` from `auto_test_remote`.`tbl_a`
+-select (t0.`val` + 1) `tbl_a.val+1` from `auto_test_remote`.`tbl_a` t0
++select `id`,`val` from `auto_test_remote`.`tbl_a`
++select `val` from `auto_test_remote`.`tbl_a`
+ select `id`,`val` from `auto_test_remote`.`tbl_a` order by `id` desc limit 1 for update
+ select `val` from `auto_test_remote`.`tbl_a` group by `val`
+-select (t0.`val` + 1) `tbl_a.val+1` from `auto_test_remote`.`tbl_a` t0 limit 1
++select `val` from `auto_test_remote`.`tbl_a` limit 2
+ select max(`id`),min(`id`),`val` from `auto_test_remote`.`tbl_a` group by `val`
+-select (t0.`val` + 1) `tbl_a.val+1` from `auto_test_remote`.`tbl_a` t0 limit 1
++select `val` from `auto_test_remote`.`tbl_a` limit 2
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT id, val FROM tbl_a ORDER BY id;
+ id	val

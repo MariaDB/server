@@ -128,7 +128,7 @@ show create table t3;
 Table	t3
 Create Table	CREATE TABLE `t3` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
-  `dt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `dt` timestamp NULL DEFAULT NULL,
   `user` char(255) DEFAULT NULL,
   `uuidf` longblob DEFAULT NULL,
   `fkid` mediumint(9) DEFAULT NULL,

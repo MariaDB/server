@@ -836,9 +836,7 @@ public:
   inline void move_elements_to(I_List<T>* new_owner) {
     base_ilist::move_elements_to(new_owner);
   }
-#ifndef _lint
   friend class I_List_iterator<T>;
-#endif
 };
 
 
@@ -883,7 +881,6 @@ list_copy_and_replace_each_value(List<T> &list, MEM_ROOT *mem_root)
     it.replace(el->clone(mem_root));
 }
 
-void free_list(I_List <i_string_pair> *list);
 void free_list(I_List <i_string> *list);
 
 #endif // INCLUDES_MYSQL_SQL_LIST_H

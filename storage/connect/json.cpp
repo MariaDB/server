@@ -24,10 +24,8 @@
 
 #define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
-#if defined(_WIN32)
-#define EL  "\r\n"
-#else
-#define EL  "\n"
+#define EL "\n"
+#if !defined(_WIN32)
 #undef     SE_CATCH                  // Does not work for Linux
 #endif
 
@@ -1672,13 +1670,13 @@ PSZ JVALUE::GetString(PGLOBAL g, char *buff)
     p = Strp;
     break;
   case TYPE_INTG:
-    sprintf(p, "%d", N);
+    snprintf(p, 32, "%d", N);
     break;
   case TYPE_BINT:
-    sprintf(p, "%lld", LLn);
+    snprintf(p, 32, "%lld", LLn);
     break;
   case TYPE_DBL:
-    sprintf(p, "%.*lf", Nd, F);
+    snprintf(p, 32, "%.*lf", Nd, F);
     break;
   case TYPE_BOOL:
     p = (char*)((B) ? "true" : "false");

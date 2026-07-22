@@ -207,7 +207,8 @@ typedef struct st_mi_isam_share
   uint32 ftkeys;                        /* Number of full-text keys + 1 */
   File	kfile;				/* Shared keyfile */
   File	data_file;			/* Shared data file */
-  int	mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint	reopen;				/* How many times reopened */
   uint	w_locks,r_locks,tot_locks;	/* Number of read/write locks */
   uint	blocksize;			/* blocksize of keyfile */

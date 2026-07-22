@@ -195,7 +195,7 @@ let $master_pos= `SELECT $master_pos + 1`;
 --connection slave
 --source include/stop_slave.inc
 --replace_regex /[0-9]+/MASTER_POS/
-eval CHANGE MASTER TO master_log_pos=$master_pos;
+eval CHANGE MASTER TO master_log_pos=$master_pos, master_use_gtid=no;
 
 START SLAVE;
 # ER_MASTER_FATAL_ERROR_READING_BINLOG 1236

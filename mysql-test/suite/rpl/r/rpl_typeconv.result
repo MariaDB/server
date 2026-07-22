@@ -11,7 +11,7 @@ On_Master LONGTEXT,
 On_Slave LONGTEXT,
 Expected LONGTEXT,
 Compare INT,
-Error TEXT);
+Error INT2);
 SELECT @@global.slave_type_conversions;
 @@global.slave_type_conversions
 
@@ -51,6 +51,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
 # MDEV-17098 DATE <-> DATETIME
 #
 # End of MDEV-17098
+#
+# MDEV-39240 Invalid / MDEV-32188-only TIMESTAMPs
+#
+# End of MDEV-39240
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
@@ -67,6 +71,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 # MDEV-17098 DATE <-> DATETIME
 #
 # End of MDEV-17098
+#
+# MDEV-39240 Invalid / MDEV-32188-only TIMESTAMPs
+#
+# End of MDEV-39240
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
@@ -83,6 +91,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
 # MDEV-17098 DATE <-> DATETIME
 #
 # End of MDEV-17098
+#
+# MDEV-39240 Invalid / MDEV-32188-only TIMESTAMPs
+#
+# End of MDEV-39240
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
@@ -99,6 +111,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
 # MDEV-17098 DATE <-> DATETIME
 #
 # End of MDEV-17098
+#
+# MDEV-39240 Invalid / MDEV-32188-only TIMESTAMPs
+#
+# End of MDEV-39240
 include/rpl_reset.inc
 connection slave;
 **** Result of conversions ****
@@ -267,6 +283,8 @@ DATE           	DATETIME(0)    	                         	<Correct error>
 DATETIME(6)    	DATE           	                         	<Correct error>
 DATETIME(6)    	DATE           	                         	<Correct error>
 DATETIME(0)    	DATE           	                         	<Correct error>
+TIMESTAMP(0)   	TIMESTAMP(0)   	                         	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	                         	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
@@ -431,6 +449,8 @@ DATE           	DATETIME(0)    	ALL_NON_LOSSY            	<Correct value>
 DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
 DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
 DATETIME(0)    	DATE           	ALL_NON_LOSSY            	<Correct error>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_NON_LOSSY            	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_NON_LOSSY            	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
@@ -595,6 +615,8 @@ DATE           	DATETIME(0)    	ALL_LOSSY                	<Correct error>
 DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
 DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
 DATETIME(0)    	DATE           	ALL_LOSSY                	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_LOSSY                	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_LOSSY                	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
@@ -759,8 +781,11 @@ DATE           	DATETIME(0)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DATETIME(0)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TIMESTAMP(0)   	TIMESTAMP(0)   	ALL_LOSSY,ALL_NON_LOSSY  	<Correct error>
 DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
+call mtr.add_suppression("Slave: Got error.*: 1030");
 connection master;
 DROP TABLE t1;
 connection slave;

@@ -25,8 +25,14 @@ call mtr.add_suppression("WSREP: .*State transfer.* failed: Protocol error");
 SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
 SET GLOBAL WSREP_ON=0;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_allowlist;
 SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
 SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+INSERT INTO mysql.wsrep_allowlist (ip) VALUES (0);
+SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
+SELECT 1;
+DELETE FROM mysql.wsrep_allowlist;
 
 --connection node_2
 --source include/kill_galera.inc

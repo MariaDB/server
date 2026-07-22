@@ -13,7 +13,7 @@ set timestamp=default;
 ### SUPER
 create user foo@127.0.0.1;
 grant super on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
@@ -26,7 +26,7 @@ set timestamp=default;
 ### BINLOG REPLAY
 create user foo@127.0.0.1;
 grant binlog replay on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'BINLOG REPLAY';
 BINLOG REPLAY
@@ -37,7 +37,7 @@ drop user foo@127.0.0.1;
 set timestamp=default;
 ### non-privileged user
 create user foo@127.0.0.1;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';

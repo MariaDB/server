@@ -1,5 +1,8 @@
 set @debug_tmp= @@debug_dbug;
 set global debug_dbug="+d,force_group_by";
+set
+@rgmm_hist_type=@@histogram_type,
+histogram_type=double_prec_hb;
 drop table if exists t1;
 create table t1 (
 a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(248) default ' '
@@ -3523,4 +3526,5 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 DROP TABLE t1;
 # End of test for Bug#18109609
+set histogram_type=@rgmm_hist_type;
 set global debug_dbug=@debug_tmp;

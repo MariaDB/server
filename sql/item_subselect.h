@@ -377,7 +377,6 @@ class Item_exists_subselect :public Item_subselect
 protected:
   Item_func_not *upper_not;
   bool value; /* value of this item (boolean: exists/not-exists) */
-  bool abort_on_null;
 
   void init_length_and_dec();
   bool select_prepare_to_be_in();
@@ -401,7 +400,7 @@ public:
 
   Item_exists_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_exists_subselect(THD *thd_arg):
-    Item_subselect(thd_arg), upper_not(NULL), abort_on_null(0),
+  Item_subselect(thd_arg), upper_not(NULL),
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
   {}
 
@@ -428,8 +427,6 @@ public:
   bool fix_length_and_dec() override;
   void print(String *str, enum_query_type query_type) override;
   bool select_transformer(JOIN *join) override;
-  void top_level_item() override { abort_on_null=1; }
-  bool is_top_level_item() const override { return abort_on_null; }
   bool exists2in_processor(void *opt_arg) override;
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
@@ -643,6 +640,7 @@ public:
     value= 0;
     null_value= 0;
     was_null= 0;
+    is_jtbm_const_tab= 0;
   }
   bool select_transformer(JOIN *join) override;
   bool create_in_to_exists_cond(JOIN *join_arg);

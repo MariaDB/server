@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT, b INT, c INT, UNIQUE (A), UNIQUE(B));
 INSERT t1 VALUES (1,2,10), (3,4,20);
 INSERT t1 VALUES (5,6,30) ON DUPLICATE KEY UPDATE c=c+100;
@@ -416,7 +415,8 @@ drop table t1;
 # MDEV-31164 default current_timestamp() not working when used INSERT ON DUPLICATE KEY in some cases
 #
 set timestamp=unix_timestamp('2000-10-20 0:0:0');
-create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp);
+create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp
+default current_timestamp on update current_timestamp);
 insert t1 (pk, val) values(1, 'val1');
 select * from t1;
 pk	val	ts
@@ -450,6 +450,26 @@ pk	val	ts
 5	val1	2000-10-20 03:00:00
 drop table t1;
 set timestamp=default;
-#
 # End of 10.4 tests
 #
+# MDEV-38096 Server crashes after INSERT.. ON duplicate KEY UPDATE i = DEFAULT;
+#
+create sequence s;
+create table t1 (i varchar(10) default nextval(s), j text, key(i));
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+drop table t1;
+create table t1 (i varchar(10) default nextval(s), j text, key(i)) engine=innodb;
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+drop table t1;
+create table t1 (i varchar(10) default nextval(s), j varchar(10), key(i)) engine=myisam;
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+insert into t1 set i =  (value (j)) on duplicate key update i = default;
+drop table t1;
+create table t1 (j text default 5, i varchar(10) as (j), key(i));
+insert into t1 set j =  (value (j)) on duplicate key update i = default;
+insert into t1 set j =  (value (j)) on duplicate key update i = default;
+drop table t1;
+drop sequence s;
+# End of 10.11 tests

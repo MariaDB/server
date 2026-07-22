@@ -1,18 +1,18 @@
 #
-#   This test ensures that a primary will listen for ACKs by newly added
+#   This test ensures that a master will listen for ACKs by newly added
 # semi-sync connections connections, after a pre-existing connection is already
 # established. MDEV-32960 reported that the newly added slave's ACK can be
 # ignored if listen_on_sockets() does not timeout before
 # rpl_semi_sync_master_timeout, and if the existing semi-sync connections fail
 # to send ACKs, semi-sync is switched off.
 #
-#   This test ensures this in a two-replica setup with a semi-sync timeout of
-# 500ms, and delaying the ACK reply of the first-established replica by 800ms
-# to force a timeout, and allowing the second replica to immediately ACK.
+#   This test ensures this in a two-slave setup with a semi-sync timeout of
+# 500ms, and delaying the ACK reply of the first-established slave by 800ms
+# to force a timeout, and allowing the second slave to immediately ACK.
 #
 # References:
 #   MDEV-32960: Semi-sync ACKed Transaction can Timeout and Switch Off
-#               Semi-sync with Multiple Replicas
+#               Semi-sync with Multiple Slaves
 #
 --source include/have_debug.inc
 # binlog_format independent
@@ -44,7 +44,7 @@ set global rpl_semi_sync_slave_enabled= 1;
 set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --source include/start_slave.inc
 
---echo # Ensure primary recognizes both replicas are semi-sync
+--echo # Ensure master recognizes both slaves are semi-sync
 --connection server_1
 --let $status_var_value= 2
 --let $status_var= rpl_semi_sync_master_clients
@@ -81,7 +81,7 @@ set debug_sync= "now signal io_thd_do_reply";
 if (`SELECT $slave1_sent_ack`)
 {
   SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack';
-  --die server_2 should not have sent semi-sync ACK to primary
+  --die server_2 should not have sent semi-sync ACK to master
 }
 
 --connection server_3
@@ -94,7 +94,7 @@ if (`SELECT $slave1_sent_ack`)
 if (`SELECT NOT $slave2_sent_ack`)
 {
   SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack';
-  --die server_3 should have sent semi-sync ACK to primary
+  --die server_3 should have sent semi-sync ACK to master
 }
 
 --connection server_1
@@ -112,7 +112,7 @@ if (`SELECT $cur_master_yes_tx != ($init_master_yes_tx + 1)`)
 {
   --echo # Initial yes_tx: $init_master_yes_tx
   --echo # Current yes_tx: $cur_master_yes_tx
-  --die rpl_semi_sync_master_yes_tx should have been incremented by primary
+  --die rpl_semi_sync_master_yes_tx should have been incremented by master
 }
 
 --connection server_2

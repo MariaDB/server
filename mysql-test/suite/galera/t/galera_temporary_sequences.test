@@ -4,17 +4,20 @@
 --connection node_2
 SET AUTOCOMMIT=0;
 SET SESSION wsrep_OSU_method='RSU';
-CREATE TABLE t (i int primary key, j int);
+CREATE TABLE t (i int primary key, j int) ENGINE=InnoDB;
 CREATE TEMPORARY SEQUENCE seq2 NOCACHE ENGINE=InnoDB;
 COMMIT;
-SET SESSION wsrep_OSU_method='RSU';
 CREATE SEQUENCE seq1 NOCACHE ENGINE=InnoDB;
-SET SESSION wsrep_OSU_method='TOI';
+COMMIT;
 DROP TABLE t;
 DROP SEQUENCE seq2;
 DROP SEQUENCE seq1;
+SET SESSION wsrep_OSU_method='TOI';
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET GLOBAL wsrep_OSU_method='TOI';
 CREATE TABLE t (i int primary key, j int) ENGINE=InnoDB;
 SET AUTOCOMMIT=0;
 INSERT INTO t VALUES (3,0);
@@ -22,9 +25,17 @@ CREATE TEMPORARY SEQUENCE seq1 NOCACHE ENGINE=InnoDB;
 COMMIT;
 INSERT INTO t VALUES (4,0);
 CREATE SEQUENCE seq2 NOCACHE ENGINE=InnoDB;
-commit;
+COMMIT;
 
 --connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t
+--source include/wait_condition.inc
+
 SELECT * FROM t;
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE seq1;
@@ -34,3 +45,5 @@ SHOW CREATE TABLE seq2;
 DROP TABLE t;
 DROP SEQUENCE seq1;
 DROP SEQUENCE seq2;
+
+--source include/galera_end.inc

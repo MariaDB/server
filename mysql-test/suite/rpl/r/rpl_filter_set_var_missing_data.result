@@ -1,13 +1,13 @@
 include/master-slave.inc
 [connection master]
 #
-# Set replica to ignore system mysql tables
+# Set slave to ignore system mysql tables
 connection slave;
 include/stop_slave.inc
 SET @@GLOBAL.replicate_wild_ignore_table="mysql.%";
 include/start_slave.inc
 #
-# Execute grant-based commands on primary which modify mysql system
+# Execute grant-based commands on master which modify mysql system
 # tables
 connection master;
 CREATE ROLE journalist;
@@ -19,7 +19,7 @@ SET DEFAULT ROLE journalist for testuser@localhost;
 SET PASSWORD for testuser@localhost= PASSWORD('123');
 include/save_master_gtid.inc
 #
-# Verify primary's grant tables have the correct user/role data
+# Verify master's grant tables have the correct user/role data
 select count(*)=1 from mysql.user where User='testuser';
 count(*)=1
 1
@@ -27,14 +27,14 @@ select count(*)=1 from mysql.roles_mapping where User='testuser';
 count(*)=1
 1
 #
-# Ensure that the replica receives all of the primary's events without
+# Ensure that the slave receives all of the master's events without
 # error
 connection slave;
 include/sync_with_master_gtid.inc
 Last_SQL_Error = 
 Last_SQL_Errno = 0
 #
-# Verify that the replica did not execute the master's commands
+# Verify that the slave did not execute the master's commands
 select count(*)=0 from mysql.user where User='testuser';
 count(*)=0
 1

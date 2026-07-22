@@ -4,10 +4,6 @@
 --echo # -- 
 --echo
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 
@@ -18,11 +14,7 @@ INSERT INTO t1 VALUES (1), (2), (3);
 --enable_info
 --echo SELECT * FROM t1 INTO OUTFILE "MYSQL_TMP_DIR/bug21818.txt";
 --disable_query_log # to avoid $MYSQL_TMP_DIR in query log
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * FROM t1 INTO OUTFILE "$MYSQL_TMP_DIR/bug21818.txt"
---enable_ps2_protocol
---enable_cursor_protocol
 --enable_query_log
 --disable_info
 
@@ -34,11 +26,9 @@ SELECT ROW_COUNT();
 --echo
 --echo # -- Check 2.
 
---disable_cursor_protocol
 --enable_info
 SELECT a FROM t1 LIMIT 1 INTO @a;
 --disable_info
---enable_cursor_protocol
 
 --echo
 --disable_ps2_protocol

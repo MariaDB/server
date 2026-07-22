@@ -6,14 +6,19 @@
 # Changes to this file will be preserved when updating the Debian package.
 #
 
+# shellcheck source=debian/additions/debian-start.inc.sh
 source /usr/share/mysql/debian-start.inc.sh
 
 # Read default/mysql first and then default/mariadb just like the init.d file does
-if [ -f /etc/default/mysql ]; then
+if [ -f /etc/default/mysql ]
+then
+  # shellcheck source=/dev/null
   . /etc/default/mysql
 fi
 
-if [ -f /etc/default/mariadb ]; then
+if [ -f /etc/default/mariadb ]
+then
+  # shellcheck source=/dev/null
   . /etc/default/mariadb
 fi
 
@@ -21,7 +26,6 @@ MARIADB="/usr/bin/mariadb --defaults-extra-file=/etc/mysql/debian.cnf"
 MYADMIN="/usr/bin/mariadb-admin --defaults-extra-file=/etc/mysql/debian.cnf"
 # Don't run full mariadb-upgrade on every server restart, use --version-check to do it only once
 MYUPGRADE="/usr/bin/mariadb-upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
-MYCHECK="/usr/bin/mariadb-check --defaults-extra-file=/etc/mysql/debian.cnf"
 
 # The following commands should be run when the server is up but in background
 # where they do not block the server start and in one shell instance so that

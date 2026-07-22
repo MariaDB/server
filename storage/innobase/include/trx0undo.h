@@ -271,6 +271,8 @@ struct trx_undo_t {
 	uint16_t	top_offset;	/*!< offset of the latest undo record,
 					i.e., the topmost element in the undo
 					log if we think of it as a stack */
+	uint16_t	old_offset;	/*!< previous undo record offset
+					for ALTER IGNORE */
 	undo_no_t	top_undo_no;	/*!< undo number of the latest record
 					(IB_ID_MAX if the undo log is empty) */
 	buf_block_t*	guess_block;	/*!< guess for the buffer block where

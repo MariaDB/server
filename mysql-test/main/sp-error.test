@@ -4,15 +4,11 @@
 
 --source include/default_charset.inc
 
---disable_ps2_protocol
 # Backup the mysql.proc table
 --enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
 --disable_prepare_warnings
---enable_cursor_protocol
---enable_ps2_protocol
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
 
@@ -2234,10 +2230,17 @@ delimiter ;$$
 
 #
 # Bug#15192: "fatal errors" are caught by handlers in stored procedures
-#
+# MDEV-39109 - lower limits for debug sanitizers.
 
 set @old_recursion_depth = @@max_sp_recursion_depth;
-set @@max_sp_recursion_depth = 255;
+set @l = 255;
+--disable_warnings
+SELECT IF(global_value like 'MSAN%', 20,
+    IF(global_value LIKE 'ASAN%', 200, 255)) INTO @l
+  FROM information_schema.system_variables
+  WHERE variable_name='have_sanitizer' AND version() LIKE '%debug%';
+--enable_warnings
+set @@max_sp_recursion_depth = @l;
 delimiter |;
 create procedure p1(a int)
 begin

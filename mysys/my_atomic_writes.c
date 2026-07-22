@@ -310,8 +310,9 @@ static my_bool test_if_sfx_card_exists()
   {
     struct stat stat_buff;
 
-    sprintf(sfx_devices[sfx_found_devices].dev_name, "/dev/sfdv%dn1",
-            dev_num);
+    snprintf(sfx_devices[sfx_found_devices].dev_name,
+             sizeof(sfx_devices[sfx_found_devices].dev_name),
+             "/dev/sfdv%dn1", dev_num);
     if (stat(sfx_devices[sfx_found_devices].dev_name, &stat_buff) < 0)
       break;
 

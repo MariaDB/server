@@ -408,7 +408,7 @@ bool xa_trans_force_rollback(THD *thd)
     rc= true;
   }
   thd->variables.option_bits&=
-    ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_GTID_BEGIN);
+    ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX | OPTION_GTID_BEGIN);
   thd->transaction->all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -568,11 +568,9 @@ bool trans_xa_prepare(THD *thd)
         ha_prepare(thd))
     {
       if (!mdl_request.ticket)
-      {
         /* Failed to get the backup lock */
         ha_rollback_trans(thd, TRUE);
-      }
-      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
       thd->transaction->all.reset();
       thd->server_status&=
         ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -627,7 +625,7 @@ bool trans_xa_commit(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       /*
         Not allow to commit from inside an not-"native" to xid
@@ -765,7 +763,7 @@ bool trans_xa_commit(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -801,7 +799,7 @@ bool trans_xa_rollback(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       my_error(ER_XAER_OUTSIDE, MYF(0));
       DBUG_RETURN(TRUE);
@@ -1146,7 +1144,7 @@ bool mysql_xa_recover(THD *thd)
 
 static bool slave_applier_reset_xa_trans(THD *thd)
 {
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));

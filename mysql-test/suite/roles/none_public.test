@@ -8,6 +8,8 @@ create role none;
 create role public;
 --error ER_CANNOT_USER
 drop role none;
+--error ER_CANNOT_USER
+drop role public;
 
 --error ER_INVALID_ROLE
 grant none to role1;
@@ -17,9 +19,7 @@ grant role1 to none;
 grant select on *.* to none;
 --error ER_INVALID_ROLE
 grant public to role1;
---error ER_INVALID_ROLE
 grant role1 to public;
---error ER_INVALID_ROLE
 grant select on *.* to public;
 
 --error ER_INVALID_ROLE
@@ -33,14 +33,11 @@ revoke role1 from none;
 revoke select on *.* from none;
 --error ER_INVALID_ROLE
 revoke public from role1;
---error ER_INVALID_ROLE
 revoke role1 from public;
---error ER_INVALID_ROLE
 revoke select on *.* from public;
 
 --error ER_INVALID_ROLE
 show grants for none;
---error ER_INVALID_ROLE
 show grants for public;
 
 --error ER_INVALID_ROLE
@@ -50,6 +47,29 @@ create definer=public view test.v1 as select 1;
 
 drop role role1;
 
-insert mysql.global_priv values ('', 'none', '{"is_role":true}'), ('', 'public', '{"is_role":true}');
+create user foo@localhost;
+connect foo,localhost,foo;
+--error ER_INVALID_ROLE
+set default role public;
+disconnect foo;
+
+connection default;
+update mysql.global_priv set priv=json_insert(priv, '$.default_role', 'none') where user='foo';
+connect foo,localhost,foo;
+show grants;
+select * from information_schema.enabled_roles;
+disconnect foo;
+
+connection default;
+update mysql.global_priv set priv=json_insert(priv, '$.default_role', 'public') where user='foo';
+connect foo,localhost,foo;
+show grants;
+select * from information_schema.enabled_roles;
+disconnect foo;
+
+connection default;
+drop user foo@localhost;
+
+insert mysql.global_priv values ('', 'none', '{"is_role":true}');
 flush privileges;
 delete from mysql.global_priv where host='';

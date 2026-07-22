@@ -117,6 +117,7 @@ public:
     return 1000.0 * static_cast<double>(cycles_arg) /
       timer_tracker_frequency();
   }
+
   double get_time_ms() const
   {
     return cycles_to_ms(cycles);
@@ -125,6 +126,7 @@ public:
   {
     return cycles;
   }
+
   bool has_timed_statistics() const { return cycles > 0; }
 };
 

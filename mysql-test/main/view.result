@@ -956,7 +956,7 @@ insert into v3 (col1) values ((select max(col1) from v1));
 insert into v3 (col1) values ((select max(col1) from t1));
 insert into v3 (col1) values ((select max(col1) from v2));
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
-ERROR 22003: Out of range value for column 'col1' at row 2
+ERROR 22003: Out of range value for column 'col1' at row 3
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 ERROR 23000: Column 'col1' cannot be null
@@ -3277,13 +3277,13 @@ from table_24532;
 describe view_24532_b;
 Field	Type	Null	Key	Default	Extra
 a IS TRUE	int(1)	NO		0	
-old_istrue	int(1)	NO		0	
+old_istrue	int(2)	NO		0	
 a IS NOT TRUE	int(1)	NO		0	
-old_isnottrue	int(1)	NO		0	
+old_isnottrue	int(2)	NO		0	
 a IS FALSE	int(1)	NO		0	
-old_isfalse	int(1)	NO		0	
+old_isfalse	int(2)	NO		0	
 a IS NOT FALSE	int(1)	NO		0	
-old_isnotfalse	int(1)	NO		0	
+old_isnotfalse	int(2)	NO		0	
 show create view view_24532_b;
 View	Create View	character_set_client	collation_connection
 view_24532_b	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `view_24532_b` AS select `table_24532`.`a` is true AS `a IS TRUE`,if(ifnull(`table_24532`.`a`,0),1,0) AS `old_istrue`,`table_24532`.`a` is not true AS `a IS NOT TRUE`,if(ifnull(`table_24532`.`a`,0),0,1) AS `old_isnottrue`,`table_24532`.`a` is false AS `a IS FALSE`,if(ifnull(`table_24532`.`a`,1),0,1) AS `old_isfalse`,`table_24532`.`a` is not false AS `a IS NOT FALSE`,if(ifnull(`table_24532`.`a`,1),1,0) AS `old_isnotfalse` from `table_24532`	latin1	latin1_swedish_ci
@@ -7088,3 +7088,64 @@ a
 drop view v;
 drop table t;
 # End of 10.6 tests
+#
+# MDEV-29587: Allowing insert into a view with columns that
+# are not part the table
+#
+# view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+# we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+#
+# MDEV-37920 Out-of-Bounds memory access in File_parser::parse()
+#
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+#
+# MDEV-38798 Assertion `mdl_key->length() == 3' failed in MDL_map::find_or_insert
+#
+create view v as select * from (select 'foo' as a) sq;
+create procedure p() alter table v truncate partition p;
+caLL p;
+ERROR HY000: Partition management on a not partitioned table is not possible
+CAll p;
+ERROR HY000: Partition management on a not partitioned table is not possible
+drop procedure p;
+drop view v;
+# End of 10.11 test

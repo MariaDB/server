@@ -1,0 +1,80 @@
+include/master-slave.inc
+[connection master]
+#
+# Ensure initial CREATE TABLE with partitioned data is replicated
+# correctly
+connection master;
+create table t (a int, b int, key(a)) engine=innodb partition by range (b) (partition p1 values less than (10), partition pn values less than (maxvalue));
+insert into t values (1,5),(2,100);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+#
+# Ensure ALTER TABLE .. CONVERT PARTITION .. TO TABLE replicates
+# correctly
+connection master;
+alter table t convert partition p1 to table offspring;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+include/diff_tables.inc [master:test.offspring,slave:test.offspring]
+#
+# Ensure data can be inserted into existing table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+insert into t values (3, 6);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+#
+# Ensure data can be inserted into offspring table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+insert into offspring values (4, 101);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.offspring,slave:test.offspring]
+#
+# Ensure data can be updated in existing table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+update t set b=b+1 where a=3;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+#
+# Ensure data can be updated in offspring table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+update offspring set b=b+1 where a=4;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.offspring,slave:test.offspring]
+#
+# Ensure data can be deleted in existing table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+delete from t;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+#
+# Ensure data can be deleted in offspring table after
+# ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+connection master;
+delete from offspring;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.offspring,slave:test.offspring]
+connection master;
+drop table t, offspring;
+include/rpl_end.inc
+# End of rpl_alter_convert_partition

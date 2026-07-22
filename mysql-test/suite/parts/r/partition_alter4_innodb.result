@@ -7576,7 +7576,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8036,7 +8036,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8507,7 +8507,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8979,7 +8979,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9445,7 +9445,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9917,7 +9917,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10394,7 +10394,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10869,7 +10869,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11334,7 +11334,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11794,7 +11794,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12265,7 +12265,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12737,7 +12737,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13203,7 +13203,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13675,7 +13675,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14152,7 +14152,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14627,7 +14627,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26369,7 +26369,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26829,7 +26829,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27300,7 +27300,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27772,7 +27772,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28238,7 +28238,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28710,7 +28710,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29187,7 +29187,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29662,7 +29662,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30127,7 +30127,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30587,7 +30587,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31058,7 +31058,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31530,7 +31530,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31996,7 +31996,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32468,7 +32468,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32945,7 +32945,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -33420,7 +33420,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45178,7 +45178,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45638,7 +45638,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46109,7 +46109,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46581,7 +46581,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47047,7 +47047,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47519,7 +47519,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47996,7 +47996,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48471,7 +48471,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48936,7 +48936,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49396,7 +49396,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49867,7 +49867,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50339,7 +50339,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50805,7 +50805,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51277,7 +51277,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51754,7 +51754,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -52229,7 +52229,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -63946,7 +63946,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -63961,7 +63961,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -63984,7 +63984,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64005,7 +64005,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64024,7 +64024,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64047,7 +64047,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64070,7 +64070,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64089,7 +64089,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 #  4.4 ALTER ... REBUILD PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
@@ -64106,7 +64106,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64121,7 +64121,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64144,7 +64144,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64165,7 +64165,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64184,7 +64184,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64207,7 +64207,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64230,7 +64230,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64249,7 +64249,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 #  4.5 ALTER ... REBUILD PARTITION ALL;
 DROP TABLE IF EXISTS t1;
@@ -75528,7 +75528,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -75988,7 +75988,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76459,7 +76459,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76931,7 +76931,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77397,7 +77397,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77869,7 +77869,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78346,7 +78346,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78821,7 +78821,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79286,7 +79286,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79746,7 +79746,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80217,7 +80217,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80689,7 +80689,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81155,7 +81155,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81627,7 +81627,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82104,7 +82104,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82579,7 +82579,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;

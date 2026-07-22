@@ -491,7 +491,7 @@ static char *hex_md5(const unsigned char *hash, char *out)
 	int i;
 
 	for (i = 0, p = out; i < hash_len; i++, p+=2) {
-		sprintf(p, "%02x", hash[i]);
+		snprintf(p, 3, "%02x", hash[i]);
 	}
 
 	return out;
@@ -549,6 +549,7 @@ swift_temp_auth(const char *auth_url, swift_auth_info *info)
 	CURLcode res;
 	long http_code;
 	char *hdr_buf = NULL;
+	size_t hdr_buf_size = 0;
 	struct curl_slist *slist = NULL;
 
 	if (opt_swift_user == NULL) {
@@ -565,18 +566,19 @@ swift_temp_auth(const char *auth_url, swift_auth_info *info)
 
 	if (curl != NULL) {
 
-		hdr_buf = (char *)(calloc(14 + max(strlen(opt_swift_user),
-						   strlen(opt_swift_key)), 1));
+		hdr_buf_size = 14 + max(strlen(opt_swift_user),
+					strlen(opt_swift_key));
+		hdr_buf = (char *)(calloc(hdr_buf_size, 1));
 
 		if (!hdr_buf) {
 			res = CURLE_FAILED_INIT;
 			goto cleanup;
 		}
 
-		sprintf(hdr_buf, "X-Auth-User: %s", opt_swift_user);
+		snprintf(hdr_buf, hdr_buf_size, "X-Auth-User: %s", opt_swift_user);
 		slist = curl_slist_append(slist, hdr_buf);
 
-		sprintf(hdr_buf, "X-Auth-Key: %s", opt_swift_key);
+		snprintf(hdr_buf, hdr_buf_size, "X-Auth-Key: %s", opt_swift_key);
 		slist = curl_slist_append(slist, hdr_buf);
 
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, opt_verbose);

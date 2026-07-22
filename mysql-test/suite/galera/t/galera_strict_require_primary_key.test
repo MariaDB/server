@@ -16,6 +16,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_aria.inc
+# This test triggers warning flood control, which suppresses further
+# REQUIRE_PRIMARY_KEY warnings for 300 seconds. That suppression state, and
+# the error-log contents the asserts grep for, must start clean on every run
+# (e.g. with --repeat), so force a server restart before the test.
+--source include/force_restart.inc
 
 call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled\\. Table ");
 

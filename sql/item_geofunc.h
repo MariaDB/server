@@ -42,7 +42,7 @@ public:
   Item_geometry_func(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c) {}
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   const Type_handler *type_handler() const override
   { return &type_handler_geometry; }
 };
@@ -289,7 +289,7 @@ public:
     return name;
   }
   String *val_str_ascii(String *) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -309,7 +309,7 @@ public:
   String *val_str(String *) override;
   const Type_handler *type_handler() const override
   { return &type_handler_long_blob; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     collation.set(&my_charset_bin);
     decimals=0;
@@ -344,7 +344,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_asgeojson") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   String *val_str_ascii(String *) override;
 
 protected:
@@ -364,7 +364,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_geometrytype") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
@@ -614,9 +614,9 @@ public:
     item_type=it;
   }
   String *val_str(String *) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    if (Item_geometry_func::fix_length_and_dec())
+    if (Item_geometry_func::fix_length_and_dec(thd))
       return TRUE;
     for (unsigned int i= 0; i < arg_count; ++i)
     {
@@ -1001,7 +1001,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isempty") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { set_maybe_null(); return FALSE; }
   bool need_parentheses_in_default() override { return false; }
 
@@ -1025,7 +1025,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_issimple") };
     return name;
   }
-  bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=2; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
 
 protected:
@@ -1044,7 +1044,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isclosed") };
     return name;
   }
-  bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=2; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
 
 protected:
@@ -1079,7 +1079,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_dimension") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
 
 protected:
@@ -1098,9 +1098,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_x") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    if (Item_real_func::fix_length_and_dec())
+    if (Item_real_func::fix_length_and_dec(thd))
       return TRUE;
     set_maybe_null();
     return FALSE;
@@ -1122,9 +1122,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_y") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    if (Item_real_func::fix_length_and_dec())
+    if (Item_real_func::fix_length_and_dec(thd))
       return TRUE;
     set_maybe_null();
     return FALSE;
@@ -1147,7 +1147,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numgeometries") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
 
 protected:
@@ -1167,7 +1167,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numinteriorrings") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
 
 protected:
@@ -1187,7 +1187,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numpoints") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
 
 protected:
@@ -1206,9 +1206,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_area") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    if (Item_real_func::fix_length_and_dec())
+    if (Item_real_func::fix_length_and_dec(thd))
       return TRUE;
     set_maybe_null();
     return FALSE;
@@ -1232,9 +1232,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_length") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    if (Item_real_func::fix_length_and_dec())
+    if (Item_real_func::fix_length_and_dec(thd))
       return TRUE;
     set_maybe_null();
     return FALSE;
@@ -1257,7 +1257,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("srid") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
 
 protected:
@@ -1341,7 +1341,7 @@ class Item_func_gis_debug: public Item_long_func
   public:
     Item_func_gis_debug(THD *thd, Item *a): Item_long_func(thd, a)
     { null_value= false; }
-    bool fix_length_and_dec() override { fix_char_length(10); return FALSE; }
+    bool fix_length_and_dec(THD *thd) override { fix_char_length(10); return FALSE; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_gis_debug") };

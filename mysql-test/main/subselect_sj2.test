@@ -604,6 +604,9 @@ insert into t2 select * from t1;
 explain extended select * from t0
 where t0.a in ( select t1.a from t1,t2 where t2.a=t0.a and
 t1.b=t2.b);
+select * from t0
+where t0.a in ( select t1.a from t1,t2 where t2.a=t0.a and
+t1.b=t2.b);
 
 #
 # BUG#46556 "Returning incorrect, empty results for some IN subqueries 
@@ -932,6 +935,9 @@ insert into t3 values (2135),(2142);
 create table t2 (c1 tinytext,c2 text,c6 timestamp) engine=innodb;
 -- echo # The following must not crash, EXPLAIN should show one SJ strategy, not a mix:
 explain select 1 from t2 where 
+  c2 in (select 1 from t3, t2) and
+  c1 in (select convert(c6,char(1)) from t2);
+select 1 from t2 where 
   c2 in (select 1 from t3, t2) and
   c1 in (select convert(c6,char(1)) from t2);
 drop table t2, t3;

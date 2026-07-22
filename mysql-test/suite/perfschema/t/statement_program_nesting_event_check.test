@@ -8,6 +8,7 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 --source include/have_innodb.inc
+--source include/not_msan_with_debug.inc
 
 TRUNCATE TABLE performance_schema.events_statements_history_long;
 

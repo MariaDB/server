@@ -19,7 +19,8 @@
 
 --connection slave
 --source include/stop_slave.inc
-reset slave;
+--let $master_use_gtid_option=No
+--source include/reset_slave.inc
 
 --connection master
 --let $datadir= `SELECT @@datadir`

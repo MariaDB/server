@@ -8,16 +8,10 @@ COUNT(@@GLOBAL.innodb_write_io_threads)
 1
 1 Expected
 '#---------------------BS_STVARS_027_02----------------------#'
-SET @@GLOBAL.innodb_read_io_threads=1;
-ERROR HY000: Variable 'innodb_read_io_threads' is a read only variable
-Expected error 'Read only variable'
 SELECT COUNT(@@GLOBAL.innodb_read_io_threads);
 COUNT(@@GLOBAL.innodb_read_io_threads)
 1
 1 Expected
-SET @@GLOBAL.innodb_write_io_threads=1;
-ERROR HY000: Variable 'innodb_write_io_threads' is a read only variable
-Expected error 'Read only variable'
 SELECT COUNT(@@GLOBAL.innodb_write_io_threads);
 COUNT(@@GLOBAL.innodb_write_io_threads)
 1

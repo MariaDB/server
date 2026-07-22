@@ -108,6 +108,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     MESSAGE(FATAL_ERROR "Invalid value for PLUGIN_${plugin}")
   ENDIF()
 
+  # Validate that the requested build mode is compatible with what the
+  # plugin actually supports. STATIC_ONLY plugins cannot be built as
+  # dynamic modules, and MODULE_ONLY plugins cannot be linked statically.
+  IF(PLUGIN_${plugin} STREQUAL "DYNAMIC" AND ARG_STATIC_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is STATIC_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=DYNAMIC. Remove this option or use STATIC.")
+  ELSEIF(PLUGIN_${plugin} STREQUAL "STATIC" AND ARG_MODULE_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is MODULE_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=STATIC. Remove this option or use DYNAMIC.")
+  ENDIF()
+
   IF(ARG_STORAGE_ENGINE)
     SET(with_var "WITH_${plugin}_STORAGE_ENGINE" )
   ELSE()
@@ -161,6 +172,9 @@ MACRO(MYSQL_ADD_PLUGIN)
             PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
+        IF(ARG_LINK_LIBRARIES)
+          TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES})
+        ENDIF()
       ENDIF()
     ENDIF()
 
@@ -213,6 +227,11 @@ MACRO(MYSQL_ADD_PLUGIN)
     ENDIF()
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
+
+    IF(WIN32)
+      # A popular library, turns out many plugins need it for gethostname()
+      TARGET_LINK_LIBRARIES (${target} ws2_32)
+    ENDIF()
 
     IF(CMAKE_SYSTEM_NAME MATCHES AIX)
       TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")
@@ -320,11 +339,13 @@ MACRO(CONFIGURE_PLUGINS)
 
   GET_CMAKE_PROPERTY(ALL_VARS VARIABLES)
   FOREACH (V ${ALL_VARS})
-    IF (V MATCHES "^PLUGIN_" AND ${V} MATCHES "YES")
-      STRING(SUBSTRING ${V} 7 -1 plugin)
-      STRING(TOLOWER ${plugin} target)
-      IF (NOT TARGET ${target})
-        MESSAGE(FATAL_ERROR "Plugin ${plugin} cannot be built")
+    IF (V MATCHES "^PLUGIN_")
+      IF (${V} STREQUAL "YES")
+        STRING(SUBSTRING ${V} 7 -1 plugin)
+        STRING(TOLOWER ${plugin} target)
+        IF (NOT TARGET ${target})
+          MESSAGE(FATAL_ERROR "Plugin ${plugin} cannot be built")
+        ENDIF()
       ENDIF()
     ENDIF()
   ENDFOREACH()

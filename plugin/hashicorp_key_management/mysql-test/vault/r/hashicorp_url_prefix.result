@@ -1,0 +1,31 @@
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "/"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "abcd"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "abcd/"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "abcd//"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "/abcd"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "abcd/v"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "a/v1"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "a/v1b"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "a/v1/"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "a/v1///"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "a///v1/"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "///v1/a"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "http://"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "http:///"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://a"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://abcd"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://abcd/"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://abcd//"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "http:///abcd"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://abcd/v"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "http://a/v1"
+[ERROR] mariadbd: hashicorp: According to the Hashicorp Vault API rules, the path inside the URL must start with the "/v1/" prefix, while the supplied URL value is: "http://a/v1b"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "http://a/v1/"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "http://a/v1///"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a secret name: "http://a///v1/"
+[ERROR] mariadbd: hashicorp: Supplied URL does not contain a hostname: "http://///v1/a"
+# restart: with restart_parameters
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+DROP TABLE t1;
+# restart

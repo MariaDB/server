@@ -524,7 +524,7 @@ public:
   }
   void cleanup() override
   {
-    if (flags & ALLOCATED)
+    if (flags & ALLOCATED && global_var(intptr) != (intptr)option.def_value)
     {
       my_free(global_var(char*));
       global_var(char *)= NULL;
@@ -580,8 +580,7 @@ public:
   }
   void global_update_finish(char *new_val)
   {
-    if (flags & ALLOCATED)
-      my_free(global_var(char*));
+    cleanup();
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }
@@ -2170,6 +2169,31 @@ public:
   { return valptr(thd, *(uchar**)option.def_value); }
 };
 
+
+/**
+  The class to store character sets.
+*/
+class Sys_var_charset: public Sys_var_struct
+{
+public:
+  using Sys_var_struct::Sys_var_struct;
+  void global_save_default(THD *, set_var *var) override
+  {
+    /*
+      The default value can point to an arbitrary collation,
+      e.g. default_charset_info.
+      Let's convert it to the compiled default collation.
+      This makes the code easier in various places such as SET NAMES.
+    */
+    void **default_value= reinterpret_cast<void**>(option.def_value);
+    var->save_result.ptr=
+      Lex_exact_charset_opt_extended_collate((CHARSET_INFO *) *default_value,
+                                             true).
+        find_default_collation();
+  }
+};
+
+
 /**
   The class for variables that store time zones
 
@@ -2248,7 +2272,7 @@ public:
       timezone). If it's the global value which was used we can't replicate
       (binlog code stores session value only).
     */
-    thd->time_zone_used= 1;
+    thd->used|= THD::TIME_ZONE_USED;
     return valptr(thd, session_var(thd, Time_zone *));
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override

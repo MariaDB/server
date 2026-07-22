@@ -17,6 +17,8 @@ ERROR 42S02: Unknown table 'test.t1'
 #
 # Bootstrap with a large thd->net.max_packet
 #
+create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
+select * into outfile 'MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;
 # Kill the server
 # restart
 drop table t1;

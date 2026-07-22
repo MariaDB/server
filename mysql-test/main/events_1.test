@@ -8,6 +8,7 @@ set sql_mode="";
 --source include/default_charset.inc
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
+call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
 
 --disable_warnings
 drop database if exists events_test;

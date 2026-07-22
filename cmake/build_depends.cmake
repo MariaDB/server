@@ -32,7 +32,7 @@ IF(RPM)
     GET_PROPERTY(T CACHE ${V} PROPERTY TYPE)
     IF ((T STREQUAL FILEPATH OR V MATCHES "^CMAKE_COMMAND$") AND ${V} MATCHES "^/")
       IF (RPM)
-        FIND_DEP(${V} rpm -q --qf "%{NAME}" -f ${${V}})
+        FIND_DEP(${V} rpm -q --qf "%{NAME} " -f ${${V}})
       ELSE() # must be DEB
         MESSAGE(FATAL_ERROR "Not implemented")
       ENDIF ()

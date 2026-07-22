@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2016, 2021, MariaDB Corporation.
+ Copyright (c) 2016, 2022, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -55,6 +55,10 @@
 #ifdef HAVE_WOLFSSL
 #undef ERR_remove_state
 #define ERR_remove_state(x) do {} while(0)
+#undef SSL_get_cipher
+#define SSL_get_cipher(ssl) (SSL_version(ssl) == TLS1_3_VERSION ? wolfSSL_get_cipher(ssl) : wolfSSL_get_cipher_name(ssl))
+#undef SSL_get_cipher_list
+#define SSL_get_cipher_list(ctx,i) wolfSSL_get_cipher_list(i)
 #elif defined (HAVE_ERR_remove_thread_state)
 #define ERR_remove_state(X) ERR_remove_thread_state(NULL)
 #endif /* HAVE_ERR_remove_thread_state */

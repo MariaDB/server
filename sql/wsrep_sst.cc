@@ -125,12 +125,14 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role donor) ongoing...");
     }
   }
 
   WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role donor) completed.\n");
 
   return NULL;
 }
@@ -162,12 +164,14 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role joiner) ongoing...");
     }
   }
 
   WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role joiner) completed.\n");
 
   return NULL;
 }
@@ -598,6 +602,57 @@ static int generate_binlog_index_opt_val(char** ret)
   return 0;
 }
 
+// report progress event
+static void sst_report_progress(int const       from,
+                                long long const total_prev,
+                                long long const total,
+                                long long const complete)
+{
+  static char buf[128] = { '\0', };
+  static size_t const buf_len= sizeof(buf) - 1;
+  snprintf(buf, buf_len,
+           "{ \"from\": %d, \"to\": %d, \"total\": %lld, \"done\": %lld, "
+           "\"indefinite\": -1 }",
+           from, WSREP_MEMBER_JOINED, total_prev + total, total_prev +complete);
+  WSREP_DEBUG("REPORTING SST PROGRESS: '%s'", buf);
+}
+
+// process "complete" event from SST script feedback
+static void sst_handle_complete(const char* const input,
+                                long long const   total_prev,
+                                long long*        total,
+                                long long*        complete,
+                                int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0 && x > *complete)
+  {
+    *complete= x;
+    if (*complete > *total) *total= *complete;
+    sst_report_progress(from, total_prev, *total, *complete);
+  }
+}
+
+// process "total" event from SST script feedback
+static void sst_handle_total(const char* const input,
+                             long long*        total_prev,
+                             long long*        total,
+                             long long*        complete,
+                             int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0)
+  {
+    // new stage starts, update total_prev
+    *total_prev+= *total;
+    *total= x;
+    *complete= 0;
+    sst_report_progress(from, *total_prev, *total, *complete);
+  }
+}
+
 static void* sst_joiner_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*) a;
@@ -605,8 +660,8 @@ static void* sst_joiner_thread (void* a)
 
   {
     THD* thd;
-    const char magic[]= "ready";
-    const size_t magic_len= sizeof(magic) - 1;
+    static const char magic[]= "ready";
+    static const size_t magic_len= sizeof(magic) - 1;
     const size_t out_len= 512;
     char out[out_len];
 
@@ -659,22 +714,51 @@ static void* sst_joiner_thread (void* a)
     wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
     wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-    // in case of successfull receiver start, wait for SST
-    // completion/end
-    char* tmp= my_fgets (out, out_len, proc.pipe());
+    // current stage progress
+    long long total= 0;
+    long long complete= 0;
+    // previous stages cumulative progress
+    long long total_prev= 0;
 
-    proc.wait();
-
+    // in case of successful receiver start, wait for SST completion/end
+    const char* tmp= NULL;
     err= EINVAL;
 
-    if (!tmp)
+  wait_signal:
+    tmp= my_fgets (out, out_len, proc.pipe());
+
+    if (tmp)
     {
-      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
-                  "joiner script.");
-      if (proc.error()) err= proc.error();
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_JOINER;
+
+      if (!strncasecmp (tmp, magic_complete, complete_len))
+      {
+        sst_handle_complete(tmp + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (tmp, magic_total, total_len))
+      {
+        sst_handle_total(tmp + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
     }
     else
     {
+      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
+                  "joiner script.");
+      proc.wait();
+      if (proc.error()) err= proc.error();
+    }
+
+    // this should be the final script output with GTID
+    if (tmp)
+    {
+      proc.wait();
       // Read state ID (UUID:SEQNO) followed by wsrep_gtid_domain_id (if any).
       unsigned long int domain_id= wsrep_gtid_domain_id;
       const char *pos= strchr(out, ' ');
@@ -1162,7 +1246,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(),
-                 0,
+                 wsrep_debug ? 1 : 0,
                  binlog_opt_val, binlog_index_opt_val);
 
   my_free(binlog_opt_val);
@@ -1733,9 +1817,9 @@ static int sst_flush_tables(THD* thd)
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
     char *real_name= (char*) my_malloc(key_memory_WSREP, full_len, 0);
-    sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
+    snprintf(real_name, full_len, "%s/%s", mysql_real_data_home, base_name);
     char *tmp_name= (char*) my_malloc(key_memory_WSREP, full_len + 4, 0);
-    sprintf(tmp_name, "%s.tmp", real_name);
+    snprintf(tmp_name, full_len + 4, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
     if (0 == file)
@@ -1804,16 +1888,38 @@ static void* sst_donor_thread (void* a)
 
   if (proc.pipe() && !err)
   {
+    long long total= 0;
+    long long complete= 0;
+    // total form previous stages
+    long long total_prev= 0;
+
 wait_signal:
     out= my_fgets (out_buf, out_len, proc.pipe());
 
     if (out)
     {
-      const char magic_flush[]= "flush tables";
-      const char magic_cont[]= "continue";
-      const char magic_done[]= "done";
+      static const char magic_flush[]= "flush tables";
+      static const char magic_cont[]= "continue";
+      static const char magic_done[]= "done";
+      static const size_t done_len=strlen(magic_done);
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_DONOR;
 
-      if (!strcasecmp (out, magic_flush))
+      if (!strncasecmp (out, magic_complete, complete_len))
+      {
+        sst_handle_complete(out + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (out, magic_total, total_len))
+      {
+        sst_handle_total(out + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
+      else if (!strcasecmp (out, magic_flush))
       {
         err= sst_flush_tables (thd.ptr);
 
@@ -1858,7 +1964,7 @@ wait_signal:
         err=  0;
         goto wait_signal;
       }
-      else if (!strncasecmp (out, magic_done, strlen(magic_done)))
+      else if (!strncasecmp (out, magic_done, done_len))
       {
         err= sst_scan_uuid_seqno (out + strlen(magic_done) + 1,
                                   &ret_uuid, &ret_seqno);
@@ -1970,7 +2076,7 @@ static int sst_donate_other (const char*        method,
                  "%s"
                  "%s",
                  method, addr, mysqld_port, mysqld_unix_port,
-                 0,
+                 wsrep_debug ? 1 : 0,
                  mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,

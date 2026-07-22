@@ -1,8 +1,6 @@
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
 set session default_storage_engine=myisam;
-drop table if exists t1,t2,t3,t4,t5,t6;
-drop database if exists mysqltest;
 create table t1 (a int not null primary key auto_increment, message char(20));
 create table t2 (a int not null primary key auto_increment, message char(20));
 INSERT INTO t1 (message) VALUES ("Testing"),("table"),("t1");
@@ -2266,7 +2264,6 @@ DROP TABLE t1;
 # Bug45781 infinite hang/crash in "opening tables" after handler tries to
 #          open merge table
 #
-DROP TABLE IF EXISTS m1,t1;
 CREATE TABLE t1(a int)engine=myisam;
 CREATE TABLE t2(a int)engine=myisam;
 CREATE TABLE t3(a int)engine=myisam;
@@ -2376,7 +2373,6 @@ DROP TABLE t2, t1;
 #
 # Bug#46339 - crash on REPAIR TABLE merge table USE_FRM
 #
-DROP TABLE IF EXISTS m1, t1;
 CREATE TABLE t1 (c1 INT) ENGINE=MYISAM;
 CREATE TABLE m1 (c1 INT) ENGINE=MRG_MyISAM UNION=(t1) INSERT_METHOD=LAST;
 LOCK TABLE m1 READ;
@@ -2565,7 +2561,6 @@ DROP TABLE t1;
 #
 # Test merge table with too many merge children.
 #
-drop table if exists t_parent;
 set @save_table_open_cache=@@global.table_open_cache;
 #
 # Set @@global.table_open_cache to minimum
@@ -2595,7 +2590,6 @@ deallocate prepare stmt;
 #
 drop table t_parent;
 set @@global.table_open_cache=@save_table_open_cache;
-DROP DATABASE IF EXISTS mysql_test1;
 CREATE DATABASE mysql_test1;
 CREATE TABLE t1 ... DATA DIRECTORY=... INDEX DIRECTORY=...
 CREATE TABLE mysql_test1.t2 ... DATA DIRECTORY=... INDEX DIRECTORY=...
@@ -2881,7 +2875,6 @@ DROP TABLE t1;
 # More tests with TEMPORARY MERGE table and permanent children.
 # First without locked tables.
 #
-DROP TABLE IF EXISTS t1, t2, t3, t4, m1, m2;
 #
 CREATE TABLE t1 (c1 INT, c2 INT) ENGINE=MyISAM;
 CREATE TABLE t2 (c1 INT, c2 INT) ENGINE=MyISAM;
@@ -3582,7 +3575,6 @@ DROP TABLE t1, t2, t3, t4, m1, m2;
 # Test that merge tables are closed correctly when opened using 
 # HANDLER ... OPEN.
 # The general case.
-DROP TABLE IF EXISTS t1, t2, t3;
 connect  con1,localhost,root,,;
 CREATE TABLE t1 (c1 int);
 CREATE TABLE t2 (c1 int);
@@ -3635,7 +3627,6 @@ drop table t4, t3, t2, t1;
 #
 # Bug#51240 ALTER TABLE of a locked MERGE table fails
 #
-DROP TABLE IF EXISTS m1, t1;
 CREATE TABLE t1 (c1 INT);
 CREATE TABLE m1 (c1 INT) ENGINE=MRG_MyISAM UNION=(t1);
 LOCK TABLE m1 WRITE;
@@ -3657,7 +3648,6 @@ DROP TABLE m1, t1;
 #
 # Test for bug #37371 "CREATE TABLE LIKE merge loses UNION parameter"
 #
-drop tables if exists t1, m1, m2;
 create table t1 (i int) engine=myisam;
 create table m1 (i int) engine=mrg_myisam union=(t1) insert_method=first;
 create table m2 like m1;
@@ -3677,7 +3667,6 @@ drop tables m1, m2, t1;
 # Test case for Bug#54811 "Assert in mysql_lock_have_duplicate()"
 # Check that unique_table() works correctly for merge tables.
 #
-drop table if exists t1, t2, t3, m1, m2;
 create table t1 (a int);
 create table t2 (a int);
 create table t3 (b int);
@@ -3712,7 +3701,6 @@ drop table t1, t2, t3, m1, m2;
 # Bug#56494 Segfault in upgrade_shared_lock_to_exclusive() for
 #           REPAIR of merge table
 #
-DROP TABLE IF EXISTS t1, t2, t_not_exists;
 CREATE TABLE t1(a INT);
 ALTER TABLE t1 engine= MERGE UNION (t_not_exists);
 ANALYZE TABLE t1;
@@ -3756,7 +3744,6 @@ DROP TABLE t1, t2;
 # Bug#57002 Assert in upgrade_shared_lock_to_exclusive()
 #           for ALTER TABLE + MERGE tables
 #
-DROP TABLE IF EXISTS t1, m1;
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE m1(a INT) engine=merge UNION(t1);
 LOCK TABLES t1 READ, m1 WRITE;
@@ -3768,7 +3755,6 @@ DROP TABLE m1, t1;
 # Test for bug #11754210 - "45777: CHECK TABLE DOESN'T SHOW ALL
 #                           PROBLEMS FOR MERGE TABLE COMPLIANCE IN 5.1"
 #
-drop tables if exists t1, t2, t3, t4, m1;
 create table t1(id int) engine=myisam;
 create view t3 as select 1 as id;
 create table t4(id int) engine=memory;
@@ -3798,8 +3784,7 @@ test.m1	repair	error	Corrupt
 drop tables m1, t1, t4;
 drop view t3;
 #
-# MDEV-10424 - Assertion `ticket == __null' failed in
-#              MDL_request::set_type
+# MDEV-10424 Assertion `ticket == __null' failed in MDL_request::set_type
 #
 CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
 CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
@@ -3818,7 +3803,9 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;
-End of 5.5 tests
+#
+# End of 5.5 tests
+#
 #
 # Additional coverage for refactoring which is made as part
 # of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
@@ -3826,8 +3813,7 @@ End of 5.5 tests
 # 
 # Check that prelocking works correctly for various variants of
 # merge tables.
-drop table if exists t1, t2, m1;
-drop function if exists f1;
+# 
 create table t1 (j int);
 insert into t1 values (1);
 create function f1() returns int return (select count(*) from m1);
@@ -3893,11 +3879,6 @@ checksum table m1;
 Table	Checksum
 test.m1	3459908756
 drop tables t1, m1;
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS m1;
-DROP TRIGGER IF EXISTS trg1;
-DROP TABLE IF EXISTS q1;
-DROP TABLE IF EXISTS q2;
 CREATE TABLE t1(a INT);
 CREATE TABLE m1(a INT) ENGINE = MERGE UNION (q1, q2);
 CREATE TRIGGER trg1 BEFORE DELETE ON t1
@@ -3908,6 +3889,7 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE m1;
+set global default_storage_engine=@save_default_storage_engine;
 #
 # MDEV-31083 ASAN use-after-poison in myrg_attach_children
 #
@@ -3920,3 +3902,109 @@ foo
 bar
 DROP TABLE mrg, t1;
 End of 10.5 tests
+#
+# End of 10.0 tests
+#
+#
+# MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
+#
+create table t (a int, key(a desc)) engine=myisam;
+create table tm (a int, key(a)) engine=merge union(t);
+select * from tm;
+ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
+drop table tm, t;
+#
+# MDEV-27586 Auto-increment does not work with DESC on MERGE table
+#
+create table t (a int not null, primary key(a desc)) engine=myisam;
+create table tm (a int not null auto_increment, primary key(a desc)) engine=merge union=(t) insert_method=first;
+insert into tm () values ();
+insert into tm () values ();
+insert into tm () values ();
+select * from tm;
+a
+3
+2
+1
+drop table tm, t;
+#
+# End of 10.8 tests
+#
+#
+# MDEV-35816 ASAN use-after-poison in st_select_lex::print
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET SESSION optimizer_trace = 'enabled=on';
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (SELECT a FROM t1) SELECT * FROM cte)';
+EXECUTE stmt;
+a
+1
+2
+3
+4
+5
+EXECUTE stmt;
+a
+1
+2
+3
+4
+5
+PREPARE nested FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (WITH cte2 AS (SELECT a FROM t1) SELECT * from cte2) SELECT * FROM cte)';
+EXECUTE nested;
+a
+1
+2
+3
+4
+5
+EXECUTE nested;
+a
+1
+2
+3
+4
+5
+DROP TABLE t1;
+#
+# MDEV-39494 UBSAN failure
+#
+# This test was ported down from 11.x and was originally implemented under MDEV-30525.
+# Under 10.11, this scenario results in a divide-by-zero failure because there are zero
+# table records available.
+#
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE tm (a INT, KEY(a)) ENGINE=MRG_MyISAM UNION=(t1,t2);
+SELECT DISTINCT a FROM tm WHERE a > 50;
+a
+DROP TABLE tm, t1, t2;
+#
+# MDEV-38474 Double free or corruption, ASAN heap-use-after-free in st_join_table::cleanup
+#
+# Test case 1, fails on 10.11+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+# Inserts are optional, fails with and without data
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t3 VALUES (5),(6);
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 WHERE a IN ((SELECT c FROM t3 WHERE FALSE HAVING c < 0)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+DROP TABLE t1, t2, t3;
+# Test case 2, fails on 11.4 but not on 10.11
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+CREATE TABLE t4 (d INT PRIMARY KEY);
+SET SQL_SAFE_UPDATES=1;
+UPDATE t1 STRAIGHT_JOIN t2 SET a = 89 WHERE 9 IN (SELECT c FROM t3 WHERE c IN (SELECT MAX(d) FROM t4));
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
+DROP TABLE t1, t2, t3, t4;
+#
+# End of 10.11 tests
+#

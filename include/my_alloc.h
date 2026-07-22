@@ -57,7 +57,7 @@ typedef struct st_mem_root
 
   void (*error_handler)(void);
 
-  PSI_memory_key m_psi_key;
+  PSI_memory_key psi_key;
 } MEM_ROOT;
 
 #ifdef  __cplusplus

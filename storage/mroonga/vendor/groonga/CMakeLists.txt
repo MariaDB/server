@@ -150,7 +150,7 @@ endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-but-set-variable")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=unused-but-set-variable")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-pointer-sign")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wformat")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wstrict-aliasing=2")

@@ -165,13 +165,13 @@ then
     # reason is that dump contains ALTER TABLE for log tables, and
     # this causes an error if logging is enabled
     GENERAL_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@GENERAL_LOG")
-    SLOW_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@SLOW_QUERY_LOG")
+    SLOW_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@LOG_SLOW_QUERY")
 
-    LOG_OFF="SET GLOBAL GENERAL_LOG=OFF; SET GLOBAL SLOW_QUERY_LOG=OFF;"
+    LOG_OFF="SET GLOBAL GENERAL_LOG=OFF; SET GLOBAL LOG_SLOW_QUERY=OFF;"
 
     # commands to restore log settings
     RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
-    RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
+    RESTORE_SLOW_QUERY_LOG="SET GLOBAL LOG_SLOW_QUERY=$SLOW_LOG_OPT;"
 
     (echo "$STOP_WSREP" && echo "$LOG_OFF" && echo "$RESET_MASTER" && \
      echo "$SET_GTID_BINLOG_STATE" && echo "$SQL_LOG_BIN_OFF" && \

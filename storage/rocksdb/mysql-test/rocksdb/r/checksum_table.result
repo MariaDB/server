@@ -70,6 +70,8 @@ col3 double
 # Enable the old algorithm:
 set @tmp_old=@@old;
 set old=1;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
 checksum table t1;
 Table	Checksum
 test.t1	0
@@ -89,4 +91,6 @@ checksum table t1;
 Table	Checksum
 test.t1	3183101003
 set old=@tmp_old;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
 drop table t1;

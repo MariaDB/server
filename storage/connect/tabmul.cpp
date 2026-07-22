@@ -202,23 +202,16 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
       p = filename + strlen(filename) - 1;
 
-#if !defined(_WIN32)
-      // Data files can be imported from Windows (having CRLF)
+
+      // Data files can have CRLF
       if (*p == '\n' || *p == '\r') {
-        // is this enough for Unix ???
         p--;          // Eliminate ending CR or LF character
 
         if (p >= filename)
-          // is this enough for Unix ???
           if (*p == '\n' || *p == '\r')
             p--;    // Eliminate ending CR or LF character
 
-        } // endif p
-
-#else
-      if (*p == '\n')
-        p--;        // Eliminate ending new-line character
-#endif
+      } // endif p
       // Trim rightmost blanks
       for (; p >= filename && *p == ' '; p--) ;
 
@@ -963,7 +956,7 @@ void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
 	SYSTEMTIME stp;
 
 	if (FileTimeToSystemTime(&ftime, &stp)) {
-		sprintf(tsp, "%04d-%02d-%02d %02d:%02d:%02d",
+		snprintf(tsp, sizeof(tsp), "%04d-%02d-%02d %02d:%02d:%02d",
 			stp.wYear, stp.wMonth, stp.wDay, stp.wHour, stp.wMinute, stp.wSecond);
 
 		if (Value->GetType() != TYPE_STRING) {

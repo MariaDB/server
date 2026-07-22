@@ -4,9 +4,18 @@ insert into t1 values(1, 2);
 insert into t2 values(1, 2);
 SET GLOBAL innodb_fast_shutdown = 0;
 # restart: --innodb-force-recovery=4
+SELECT CAST(variable_value AS INTEGER) INTO @read1
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
 select * from t1;
 f1	f2
 1	2
+SELECT CAST(variable_value AS INTEGER) INTO @read2
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+SELECT @read1>0, @read2>@read1;
+@read1>0	@read2>@read1
+1	1
 begin;
 insert into t1 values(2, 3);
 rollback;

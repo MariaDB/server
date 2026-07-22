@@ -18,6 +18,7 @@
 #include <mysqld.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
+#include "wsrep_status.h"
 
 /* Allow only alnum and -_. */
 static bool is_valid_node_name(const char* s)
@@ -49,6 +50,9 @@ static bool is_valid_node_addr(const char* s)
 void wsrep_notify_status(enum wsrep::server_state::state status,
                          const wsrep::view* view)
 {
+
+  Wsrep_status::report_state(status);
+
   if (!view)
   {
     WSREP_DEBUG("wsrep_notify_status server not yet ready : wsrep_ready=%d status %d",

@@ -1179,7 +1179,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
       case OP_GT:
       case OP_GE:
       case OP_LT:
-      case OP_LE:  new(this) FILTERCMP(g); break;
+      case OP_LE:  new(this) FILTERCMP(g, Opc); break;
       case OP_AND: new(this) FILTERAND; break;
       case OP_OR:  new(this) FILTEROR;  break;
       case OP_NOT: new(this) FILTERNOT; break;
@@ -1589,8 +1589,9 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
 /***********************************************************************/
 /*  FILTERCMP constructor.                                             */
 /***********************************************************************/
-FILTERCMP::FILTERCMP(PGLOBAL g)
+FILTERCMP::FILTERCMP(PGLOBAL g, OPVAL Opc)
   {
+  this->Opc= Opc;
   Bt = OpBmp(g, Opc);
   } // end of FILTERCMP constructor
 

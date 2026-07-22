@@ -541,3 +541,28 @@ SELECT EXTRACT(DAY FROM TIMESTAMP(-221938034527));
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-38971: ASAN/UBSAN errors, assertion `is_valid_value_slow()` failure upon combination temporal functions and `ZERO_DATE_TIME_CAST`
+--echo #
+
+SET SESSION old_mode=ZERO_DATE_TIME_CAST;
+
+# 12-digit number uses 2-digit year     (YYMMDDHHMMSS)
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(202112010000));
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(202612012300));
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(200012010000));
+
+# A valid datetime argument: LAST_DAY returns a DATE, so HOUR_SECOND is 0.
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(20211201000000));
+
+# Direct interval extraction from a number must still work unchanged
+SELECT EXTRACT(HOUR_SECOND FROM 200012010000);
+
+# CAST function tests
+SELECT EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATETIME));
+SELECT EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATE));
+
+SET SESSION old_mode=DEFAULT;
+
+--echo # End of 10.11 tests

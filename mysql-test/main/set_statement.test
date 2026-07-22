@@ -1021,6 +1021,10 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 set statement long_query_time=0.01 for select sleep(0.1);
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
+--echo #should be written
+set statement log_slow_query_time=0.01 for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
 set @@long_query_time=0.01;
 --echo #should NOT be written
 set statement slow_query_log=0 for select sleep(0.1);
@@ -1037,6 +1041,10 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 --echo #---
 --echo #should NOT be written
 set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,log_slow_min_examined_row_limit=50 for select sleep(0.1);
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --enable_view_protocol

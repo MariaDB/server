@@ -1,6 +1,11 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
+connection slave;
 CREATE USER 'nonsuperuser'@'127.0.0.1';
 GRANT ALTER,CREATE,DELETE,DROP,EVENT,INSERT,PROCESS,REPLICATION SLAVE,
 SELECT,UPDATE ON *.* TO 'nonsuperuser'@'127.0.0.1';

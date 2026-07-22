@@ -1,51 +1,61 @@
 connection node_2;
 connection node_1;
+connection node_1;
+set global auto_increment_offset=1;
+set global auto_increment_increment=1;
+connection node_2;
+set global auto_increment_offset=2;
+set global auto_increment_increment=1;
+connection node_1;
+select @@auto_increment_increment,@@auto_increment_offset;
+@@auto_increment_increment	@@auto_increment_offset
+1	1
 create table t1(id serial, val varchar(100)) engine=myisam;
 insert into t1 values(null, 'a');
 insert into t1 values(null, 'b');
 insert into t1 select null, 'c';
 insert into t1 select null, 'd' from t1;
-select * from t1;
+select * from t1 order by id;
 id	val
 1	a
-3	b
-5	c
-7	d
-9	d
-11	d
+2	b
+3	c
+4	d
+5	d
+6	d
 create table t2(id serial, val varchar(100)) engine=aria;
 insert into t2 values(null, 'a');
 insert into t2 values(null, 'b');
 insert into t2 select null, 'c';
 insert into t2 select null, 'd' from t2;
-select * from t2;
+select * from t2 order by id;
 id	val
 1	a
-3	b
-5	c
-7	d
-9	d
-11	d
+2	b
+3	c
+4	d
+5	d
+6	d
 create table t3(id serial, val varchar(100)) engine=innodb;
 insert into t3 values(null, 'a');
 insert into t3 values(null, 'b');
 insert into t3 select null, 'c';
 insert into t3 select null, 'd' from t3;
-select * from t3;
+select * from t3 order by id;
 id	val
 1	a
-3	b
-5	c
-7	d
-9	d
-11	d
+2	b
+3	c
+4	d
+5	d
+6	d
 set global wsrep_mode='REPLICATE_MYISAM,REPLICATE_ARIA';
 create table t4(id serial, val varchar(100)) engine=myisam;
 insert into t4 values(null, 'a');
 insert into t4 values(null, 'b');
 insert into t4 select null, 'c';
 insert into t4 select null, 'd' from t4;
-select * from t4;
+select * from t4 order by id;
 id	val
 1	a
 2	b
@@ -58,28 +68,7 @@ insert into t5 values(null, 'a');
 insert into t5 values(null, 'b');
 insert into t5 select null, 'c';
 insert into t5 select null, 'd' from t5;
-select * from t2;
-id	val
-1	a
-3	b
-5	c
-7	d
-9	d
-11	d
-connection node_2;
-select * from t1;
-id	val
-select * from t2;
-id	val
-select * from t3;
-id	val
-1	a
-3	b
-5	c
-7	d
-9	d
-11	d
-select * from t4;
+select * from t5 order by id;
 id	val
 1	a
 2	b
@@ -87,7 +76,31 @@ id	val
 4	d
 5	d
 6	d
-select * from t5;
+connection node_2;
+select @@auto_increment_increment,@@auto_increment_offset;
+@@auto_increment_increment	@@auto_increment_offset
+1	2
+select * from t1 order by id;
+id	val
+select * from t2 order by id;
+id	val
+select * from t3 order by id;
+id	val
+1	a
+2	b
+3	c
+4	d
+5	d
+6	d
+select * from t4 order by id;
+id	val
+1	a
+2	b
+3	c
+4	d
+5	d
+6	d
+select * from t5 order by id;
 id	val
 1	a
 2	b

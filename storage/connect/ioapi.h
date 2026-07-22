@@ -21,10 +21,11 @@
 #ifndef ZLIBIOAPI64_H
 #define ZLIBIOAPI64_H
 
-#if defined(__linux__)
+#if defined(__linux__) || defined (__GNU__)
 
-  /* Linux needs this to support file operation on files larger then 4+GB */
-  /* But might need better if/def to select just the platforms that needs them.*/
+  // Linux and Hurd needs this to support file operation on files larger
+  // than 4+GB.
+  // But might need better if/def to select just the platforms that needs them.
 
         #ifndef __USE_FILE_OFFSET64
                 #define __USE_FILE_OFFSET64

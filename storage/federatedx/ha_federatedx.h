@@ -291,8 +291,7 @@ private:
                                       FEDERATEDX_IO_RESULT *result);
   bool create_where_from_key(String *to, KEY *key_info,
                              const key_range *start_key,
-                             const key_range *end_key,
-                             bool records_in_range, bool eq_range);
+                             const key_range *end_key, bool eq_range);
   int stash_remote_error();
 
   static federatedx_txn *get_txn(THD *thd, bool no_create= FALSE);

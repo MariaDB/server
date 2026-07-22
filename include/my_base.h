@@ -35,7 +35,7 @@
 
 #define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */
 #define HA_OPEN_WAIT_IF_LOCKED		1U
-#define HA_OPEN_IGNORE_IF_LOCKED	2U
+#define HA_OPEN_IGNORE_IF_LOCKED	2U      /* Ignore lock error */
 #define HA_OPEN_TMP_TABLE		4U	/* Table is a temp table */
 #define HA_OPEN_DELAY_KEY_WRITE		8U	/* Don't update index  */
 #define HA_OPEN_ABORT_IF_CRASHED	16U
@@ -50,6 +50,13 @@
 #define HA_OPEN_FOR_CREATE              4096U
 #define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 #define HA_OPEN_GLOBAL_TMP_TABLE	(1U << 14) /* TMP table used by repliction */
+/*
+  This is to signal that the table will not be cached by the caller
+  and the table should be open in read-only mode if the tool requests
+  that
+*/
+#define HA_OPEN_FORCE_MODE              (1U << 15) /* Force open mode */
+#define HA_OPEN_DATA_READONLY           (1U << 16) /* Use readonly for data */
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
@@ -216,10 +223,14 @@ enum ha_extra_function {
     that we are starting an ordered index scan. Needed by Spider
   */
   HA_EXTRA_STARTING_ORDERED_INDEX_SCAN,
-  /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_BEGIN_ALTER_COPY,
-  /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY
+  /** Start copying in ALTER TABLE...ALGORITHM=COPY or CREATE TABLE..SELECT */
+  HA_EXTRA_BEGIN_COPY,
+  /** Start writing rows during ALTER IGNORE TABLE..ALGORITHM=COPY */
+  HA_EXTRA_BEGIN_ALTER_IGNORE_COPY,
+  /** Finish HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
+  HA_EXTRA_END_COPY,
+  /** Abort HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
+  HA_EXTRA_ABORT_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */

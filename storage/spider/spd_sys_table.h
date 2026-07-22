@@ -492,7 +492,6 @@ int spider_sys_replace(
   bool *modified_non_trans_table
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -500,15 +499,6 @@ TABLE *spider_mk_sys_tmp_table(
   const LEX_CSTRING *field_name,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table(
   THD *thd,
@@ -516,7 +506,6 @@ void spider_rm_sys_tmp_table(
   TMP_TABLE_PARAM *tmp_tbl_prm
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -526,17 +515,6 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const LEX_CSTRING *field_name3,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table_for_result(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name1,
-  const char *field_name2,
-  const char *field_name3,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table_for_result(
   THD *thd,

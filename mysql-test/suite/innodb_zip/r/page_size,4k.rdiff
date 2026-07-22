@@ -21,9 +21,9 @@
 -test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
 +test/t3	DEFAULT	2048	MYSQLD_DATADIR/test/t3.ibd
  test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
+ innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
  DROP TABLE t1, t2, t3, t4;
- # Test 4) The maximum row size is dependent upon the page size.
-@@ -51,141 +51,90 @@
+@@ -52,141 +52,90 @@
  SET SESSION innodb_strict_mode = ON;
  CREATE TABLE t1 (
  c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
@@ -211,7 +211,7 @@
  ALTER TABLE t1 KEY_BLOCK_SIZE=4;
  SHOW WARNINGS;
  Level	Code	Message
-@@ -217,15 +166,21 @@
+@@ -218,15 +167,21 @@
  DROP TABLE t1;
  SET SESSION innodb_strict_mode = OFF;
  CREATE TABLE t1 (i int) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
@@ -233,7 +233,7 @@
  SELECT table_name, row_format, create_options
  FROM information_schema.tables WHERE table_name = 't1';
  table_name	row_format	create_options
-@@ -269,6 +224,7 @@
+@@ -270,6 +225,7 @@
  ERROR HY000: Can't create table `test`.`t4` (errno: 140 "Wrong create options")
  SHOW WARNINGS;
  Level	Code	Message
@@ -241,7 +241,7 @@
  Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
  Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
  Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-@@ -276,105 +232,11 @@
+@@ -277,105 +233,11 @@
  ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
  SHOW WARNINGS;
  Level	Code	Message
@@ -348,7 +348,7 @@
  # Test 8) Test creating a table that could lead to undo log overflow.
  CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
  h blob,i blob,j blob,k blob,l blob,m blob,n blob,
-@@ -389,10 +251,6 @@
+@@ -390,10 +252,6 @@
  UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
  k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b;
  CREATE INDEX t1a ON t1 (a(767));
@@ -359,7 +359,7 @@
  UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
  k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c;
  CREATE INDEX t1f ON t1 (f(767));
-@@ -407,37 +265,15 @@
+@@ -408,37 +266,15 @@
  COMMIT;
  CREATE INDEX t1g ON t1 (g(767));
  UPDATE t1 SET g=@e;
@@ -401,7 +401,7 @@
  SHOW CREATE TABLE t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -463,28 +299,12 @@
+@@ -464,28 +300,12 @@
    `t` blob DEFAULT NULL,
    `u` blob DEFAULT NULL,
    KEY `t1a` (`a`(767)),
@@ -432,7 +432,7 @@
  ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
  DROP TABLE t1;
  # Bug#12547647 UPDATE LOGGING COULD EXCEED LOG PAGE SIZE
-@@ -569,27 +389,25 @@
+@@ -570,27 +390,25 @@
  DROP TABLE t1;
  CREATE TABLE t1(
  c text NOT NULL, d text NOT NULL,

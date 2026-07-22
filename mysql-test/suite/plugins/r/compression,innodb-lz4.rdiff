@@ -1,0 +1,28 @@
+--- suite/plugins/r/compression.result
++++ suite/plugins/r/compression.reject
+@@ -1,8 +1,8 @@
+ #
+-# Testing bzip2 compression provider with innodb
++# Testing lz4 compression provider with innodb
+ #
+ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provider plugin is not loaded");
+-set global innodb_compression_algorithm = bzip2;
++set global innodb_compression_algorithm = lz4;
+ call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+ call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
+ call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate");
+@@ -16,12 +16,12 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-provider-bzip2
++# restart: --disable-provider-lz4
+ select a, left(b, 9), length(b) from t1;
+ ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
+ show warnings;
+ Level	Code	Message
+-Warning	4185	MariaDB tried to use the BZip2 compression, but its provider plugin is not loaded
++Warning	4185	MariaDB tried to use the LZ4 compression, but its provider plugin is not loaded
+ Error	1877	Table `test`.`t1` is corrupted. Please drop the table and recreate.
+ drop table t1;
+ # restart

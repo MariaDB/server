@@ -381,41 +381,51 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "t2.f2 in (2,3) and t2.f2 is not null"
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["test.t2.f2"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 in (2,3)"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "attached_condition": "t2.f2 in (2,3) and t2.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["test.t2.f2"],
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 in (2,3)"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from v1 join v4 on f1=f2;
@@ -475,46 +485,58 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived3>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 3,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 11,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
                         }
                       }
                     }
-                  }
+                  ]
                 }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from (select * from 
@@ -544,58 +566,72 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "tt.f1 > 2 and tt.f1 > 2 and tt.f1 is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "attached_condition": "tt.f1 > 2 and tt.f1 > 2 and tt.f1 is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived5>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["tt.f1"],
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 5,
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived5>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["tt.f1"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 5,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
-              }
-            }
-          }
-        }
-      }
-    }
+    ]
   }
 }
 flush status;
@@ -671,92 +707,114 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "x.f1 is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived3>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 3,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "attached_condition": "x.f1 is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 11,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
                         }
                       }
                     }
-                  }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["x.f1"],
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived5>",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 5,
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 11,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived4>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["x.f1"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 4,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived5>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 5,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    ]
   }
 }
 select * from 
@@ -795,30 +853,38 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "v1.f1 < 7",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "attached_condition": "v1.f1 < 7",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from ( select * from v1 where f1 < 7) tt;
@@ -873,41 +939,51 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "t2.f2 < 7 and t2.f2 in (2,3) and t2.f2 is not null"
-    },
-    "table": {
-      "table_name": "<derived5>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["test.t2.f2"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 5,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 in (2,3)"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100,
+          "attached_condition": "t2.f2 < 7 and t2.f2 in (2,3) and t2.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived5>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["test.t2.f2"],
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 5,
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 11,
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 in (2,3)"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from v6 join v7 on f2=f1;

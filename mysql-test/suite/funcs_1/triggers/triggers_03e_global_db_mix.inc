@@ -86,6 +86,8 @@ let $message= trigger privilege on user level for create:;
         use priv_db;
 --replace_column 6 #
         show triggers;
+--replace_column 17 #
+--sorted_result
 	select * from information_schema.triggers;
 	--error ER_TABLEACCESS_DENIED_ERROR
         drop trigger trg1_1;
@@ -213,4 +215,3 @@ let $message= trigger privilege on db level for create:;
 	drop user test_yesprivs@localhost;
         drop user test_noprivs@localhost;
  	--enable_warnings
-

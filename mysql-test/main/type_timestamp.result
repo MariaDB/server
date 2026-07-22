@@ -575,7 +575,7 @@ a
 2010-02-01 09:31:02
 2010-02-01 09:31:03
 2010-02-01 09:31:04
-CREATE TABLE t2 ( a TIMESTAMP, KEY ( a DESC ) );
+CREATE TABLE t2 ( a TIMESTAMP, KEY ( a ) );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:01' );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:02' );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:03' );
@@ -1145,7 +1145,7 @@ DROP TABLE t1;
 # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
 #
 SET time_zone='+00:00';
-CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+CREATE TABLE t1 (a TIMESTAMP(6) NOT NULL) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 FLUSH TABLES;
 MYD
@@ -1588,8 +1588,8 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t2`.`not_indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t2`.`not_indexed_col` at row 1
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col VARCHAR(32));
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');

@@ -1,5 +1,5 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
-   Copyright 2025-2026 MariaDB
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB plc <http://www.mariadb.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
 #include "wsrep_mysqld.h"
+#include "wsrep_schema.h"
 
 ulong   wsrep_reject_queries;
 
@@ -861,10 +862,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
       return true;
     }
   } else {
+    THD_STAGE_INFO(thd, stage_waiting_flow);
     ret= Wsrep_server_state::instance().provider().resync();
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
-                  thd->get_db(), thd->query());
+                  thd->get_db(), wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
       return true;
     }
@@ -885,29 +887,47 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 
   const ulong new_trx_fragment_size= var->value->val_uint();
 
-  if (!WSREP(thd) && new_trx_fragment_size > 0) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because wsrep is switched off.");
-    return true;
-  }
+  if (new_trx_fragment_size)
+  {
+    // Give error if wsrep_trx_fragment_size is set and wsrep is disabled or
+    // provider is not loaded
+    if (!WSREP(thd) || !Wsrep_server_state::instance().is_provider_loaded())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because wsrep is switched off.");
+      return true;
+    }
 
-  if (new_trx_fragment_size > 0 && !wsrep_provider_is_SR_capable()) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because the wsrep_provider does not support streaming "
-                  "replication.");
-    return true;
-  }
+    if (!wsrep_provider_is_SR_capable())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because the wsrep_provider does not support streaming "
+                    "replication.");
+      return true;
+    }
 
-  if (wsrep_protocol_version < 4  && new_trx_fragment_size > 0) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because cluster is not yet operating in Galera 4 mode.");
-    return true;
+    if (wsrep_protocol_version < 4)
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because cluster is not yet operating in Galera 4 mode.");
+      return true;
+    }
+
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_VAR,
+                          "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                          "0 because streaming table %s.%s does not exists.",
+		          WSREP_LEX_SCHEMA.str, WSREP_LEX_STREAMING.str);
+      return true;
+    }
   }
 
   return false;
@@ -918,45 +938,56 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_trx_fragment_size_update: %llu",
               thd->variables.wsrep_trx_fragment_size);
 
-  // Give error if wsrep_trx_fragment_size is set and wsrep is disabled or
-  // provider is not loaded
-  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
-  {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' because "
-                  "wsrep is switched off");
-    return true;
-  }
-
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
       wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
       size_t(thd->variables.wsrep_trx_fragment_size));
   }
-  else
+  else if (wsrep_streaming_enabled(thd))
   {
     thd->wsrep_cs().disable_streaming();
-    return false;
   }
+  return false;
+}
+
+bool wsrep_trx_fragment_unit_check (sys_var *self, THD* thd, set_var* var)
+{
+  uint new_trx_fragment_unit= (uint)var->save_result.ulonglong_value;
+  // Do not allow setting fragment unit anything else than
+  // default if galera is not enabled and streaming replication
+  // table does not exists.
+  if (thd->variables.wsrep_trx_fragment_size ||
+      new_trx_fragment_unit != WSREP_FRAG_BYTES)
+  {
+    // Give error if wsrep_trx_fragment_unit is set and wsrep is disabled or
+    // provider is not loaded
+    if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                   "Cannot set 'wsrep_trx_fragment_unit' because "
+                   "wsrep is switched off");
+      return true;
+    }
+
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_VAR,
+                          "Cannot set 'wsrep_trx_fragment_unit' "
+                          "because streaming table %s.%s does not exists.",
+                          WSREP_LEX_SCHEMA.str, WSREP_LEX_STREAMING.str);
+      return true;
+    }
+  }
+  return false;
 }
 
 bool wsrep_trx_fragment_unit_update(sys_var* self, THD *thd, enum_var_type)
 {
   WSREP_DEBUG("wsrep_trx_fragment_unit_update: %lu",
               thd->variables.wsrep_trx_fragment_unit);
-
-  // Give error if wsrep_trx_fragment_unit is set and wsrep is disabled or
-  // provider is not loaded
-  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
-  {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_unit' because "
-                  "wsrep is switched off");
-    return true;
-  }
 
   if (thd->variables.wsrep_trx_fragment_size)
   {
@@ -972,6 +1003,11 @@ bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
   if (!WSREP_ON)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
     return true;
   }
   return false;
@@ -1012,55 +1048,6 @@ bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
-#if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
-static SHOW_VAR wsrep_status_vars[]=
-{
-  {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
-  {"ready",             (char*) &wsrep_show_ready,        SHOW_FUNC},
-  {"cluster_state_uuid",(char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
-  {"cluster_conf_id",   (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
-  {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
-  {"cluster_size",      (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
-  {"local_index",       (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_FUNC},
-  {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
-  {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
-  {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"provider_capabilities", (char*) &wsrep_provider_capabilities, SHOW_CHAR_PTR},
-  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
-  {"applier_thread_count", (char*)&wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
-  {"rollbacker_thread_count", (char *)&wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
-};
-
-static int show_var_cmp(const void *var1, const void *var2)
-{
-  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
-}
-
-/*
- * Status variables stuff below
- */
-static inline void
-wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
-{
-  mysql->name= wsrep_var->name;
-  switch (wsrep_var->type) {
-  case WSREP_VAR_INT64:
-    mysql->value= (char*) &wsrep_var->value._int64;
-    mysql->type= SHOW_LONGLONG;
-    break;
-  case WSREP_VAR_STRING:
-    mysql->value= (char*) &wsrep_var->value._string;
-    mysql->type= SHOW_CHAR_PTR;
-    break;
-  case WSREP_VAR_DOUBLE:
-    mysql->value= (char*) &wsrep_var->value._double;
-    mysql->type= SHOW_DOUBLE;
-    break;
-  }
-}
-#endif /* UNUSED */
-
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
 static SHOW_VAR*          mysql_status_vars= NULL;
@@ -1075,6 +1062,17 @@ static void export_wsrep_status_to_mysql(THD* thd)
   int wsrep_status_len, i;
 
   thd->wsrep_status_vars= Wsrep_server_state::instance().status();
+
+  /* Add wsrep_checkpoint_position and SE checkpoint */
+  wsrep::provider::status_variable checkpoint("checkpoint_position",
+					      wsrep_get_checkpoint());
+  thd->wsrep_status_vars.push_back(checkpoint);
+  XID xid;
+  wsrep_get_SE_checkpoint(xid);
+  const std::string se_checkpoint= wsrep_xid_print(&xid);
+  wsrep::provider::status_variable se_chkpoint("se_checkpoint",
+					       se_checkpoint);
+  thd->wsrep_status_vars.push_back(se_chkpoint);
 
   wsrep_status_len= thd->wsrep_status_vars.size();
 
@@ -1152,43 +1150,6 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   return false;
 }
 
-bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_strict_ddl we set new
-  // option to wsrep_mode
-  if (wsrep_strict_ddl)
-    wsrep_mode|= WSREP_MODE_STRICT_REPLICATION;
-  else
-    wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
-  return false;
-}
-
-bool wsrep_replicate_myisam_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_replicate_myisam we set new
-  // option to wsrep_mode
-  if (wsrep_replicate_myisam)
-    wsrep_mode|= WSREP_MODE_REPLICATE_MYISAM;
-  else
-    wsrep_mode&= (~WSREP_MODE_REPLICATE_MYISAM);
-  return false;
-}
-
-bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
-{
-  bool new_replicate_myisam= (bool)var->save_result.ulonglong_value;
-
-  if (new_replicate_myisam &&
-      !(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
-        wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
-  {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_mode=REPLICATE_MYISAM can't be enabled "
-               "if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
-    return true;
-  }
-  return false;
-}
-
 bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
 {
   ulonglong new_forced_binlog_format= var->save_result.ulonglong_value;
@@ -1212,5 +1173,45 @@ bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
     }
   }
 
+  return false;
+}
+
+bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_slave_threads= var->save_result.ulonglong_value;
+
+  if (!WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (new_slave_threads &&
+      Wsrep_server_state::instance().state() == wsrep::server_state::s_disconnected)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WRONG_VALUE_FOR_VAR,
+                 "Cannot set 'wsrep_slave_threads' because "
+                 "wsrep is disconnected");
+    return true;
+  }
+
+  return false;
+}
+
+bool wsrep_max_ws_rows_check(sys_var *self, THD* thd, set_var* var)
+{
+  unsigned long long max_rows= (unsigned long long)var->save_result.ulonglong_value;
+
+  // Default 0 is always allowed
+  if (max_rows == 0)
+    return false;
+
+  // Note that we allow changing this even when WSREP is not on
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
+    return true;
+  }
   return false;
 }

@@ -1,0 +1,42 @@
+#
+# Test verifies replay of binary logs which contain
+# SA/RA/CA works fine.
+# Generate a binary log with alter events and use mysqlbinlog tool to
+# generate a sql file for replay. Source it on an clean master and
+# verify the correctness. Use the latest binlog and repeat the same
+# process mentioned above and observe replay works fine.
+#
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+create table t1 (f1 int primary key) engine=InnoDB;
+create table t2 (f1 int primary key, constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
+alter table t2 add constraint c1 foreign key (f1) references t1(f1);
+ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
+drop table t2, t1;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-5
+FLUSH LOGS;
+# reset the binlog
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-5
+FLUSH LOGS;
+# Replay 1: One more time to simulate S->S case
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-5
+FLUSH LOGS;
+# Replay 2: One more time to simulate S->S case
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-5
+# clean up
+RESET MASTER;
+set global binlog_alter_two_phase=0;

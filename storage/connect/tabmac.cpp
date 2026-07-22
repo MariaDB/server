@@ -385,7 +385,7 @@ void MACCOL::ReadColumn(PGLOBAL g)
         if (i)
           strcat(p++, "-");
       
-        p += sprintf(p, "%.2X", adp->Address[i]);
+        p += snprintf(p, sizeof(buf) - (p - buf), "%.2X", adp->Address[i]);
         } // endfor i
 
       p = buf;
@@ -400,7 +400,7 @@ void MACCOL::ReadColumn(PGLOBAL g)
         case IF_LOOPBACK_ADAPTERTYPE:   p = "Loop Back Adapter";    break;
 //      case IF_SLIP_ADAPTERTYPE:        p = "Generic Slip Adapter";  break;
         default:
-          sprintf(buf, "Other Adapter, type=%d", adp->Type);
+          snprintf(buf, sizeof(buf), "Other Adapter, type=%d", adp->Type);
           p = buf;
         } // endswitch Type
 #endif // 0
@@ -442,7 +442,7 @@ void MACCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       if (Buf_Type == TYPE_STRING) {
-        sprintf(buf, "Invalid flag value %d", Flag);
+        snprintf(buf, sizeof(buf), "Invalid flag value %d", Flag);
         p = buf;
       } else
         n = 0;

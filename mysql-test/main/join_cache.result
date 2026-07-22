@@ -1000,7 +1000,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1200,7 +1200,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1459,7 +1459,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1656,7 +1656,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1853,7 +1853,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2050,7 +2050,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2694,7 +2694,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2708,7 +2708,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China
@@ -2751,7 +2751,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2765,7 +2765,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China
@@ -2952,7 +2952,7 @@ metaid int  NOT NULL default '0',
 formatid int  NOT NULL default '0',
 status int default NULL,
 path varchar(100) NOT NULL default '',
-datemodified timestamp NOT NULL ,
+datemodified timestamp NOT NULL default now(),
 resourcetype int  NOT NULL default '1',
 parameters text,
 signature int  default NULL,
@@ -6056,8 +6056,7 @@ SET join_cache_level = 3;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.db WHERE Select_priv = PAGE_FAULTS_MINOR;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using where
-1	SIMPLE	db	hash_ALL	NULL	#hash#$hj	1	information_schema.PROFILING.PAGE_FAULTS_MINOR	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 set join_cache_level=@save_join_cache_level;
 create table t1 (c1 date not null, key (c1)) engine=innodb;
 insert t1 values ('2017-12-27');
@@ -6195,34 +6194,40 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "a",
-      "access_type": "index",
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "rows": 10,
-      "filtered": 100,
-      "using_index": true
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "b",
-        "access_type": "range",
-        "possible_keys": ["kp1"],
-        "key": "kp1",
-        "key_length": "10",
-        "used_key_parts": ["kp1", "kp2"],
-        "rows": 836,
-        "filtered": 100,
-        "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
-        "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "using_index": true
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "54",
-      "join_type": "BNL",
-      "attached_condition": "b.kp1 + 1 = a.a + 1"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["kp1"],
+            "key": "kp1",
+            "key_length": "10",
+            "used_key_parts": ["kp1", "kp2"],
+            "rows": 836,
+            "filtered": 100,
+            "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
+            "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "54",
+          "join_type": "BNL",
+          "attached_condition": "b.kp1 + 1 = a.a + 1"
+        }
+      }
+    ]
   }
 }
 drop table t1,t2,t3;
@@ -6437,4 +6442,30 @@ set join_cache_level=default;
 DROP TABLE t1, t2;
 #
 # End of 10.5 tests
+#
+#
+# MDEV-36165: BKA join cache buffer is employed despite join_cache_level=3 (flat BNLH)
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT a, a from t1;
+CREATE TABLE t3(a INT, b INT, c INT, key (a,b));
+INSERT INTO t3 select a, a, a FROM t1;
+SET optimizer_switch = 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+SET join_cache_level = 3;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = 4;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = default;
+SET optimizer_switch = default;
+DROP TABLE t1, t2, t3;
+#
+# End of 10.11 tests
 #

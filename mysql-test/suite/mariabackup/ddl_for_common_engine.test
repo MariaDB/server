@@ -1,0 +1,79 @@
+# This test is just to ensure the DDL processing works for common engines like
+# MyISAM, ARCHIVE, CSV etc. The more complex test for different cases is
+# implemented in aria_backup.test.
+--source include/have_archive.inc
+--source include/have_csv.inc
+--source include/have_debug.inc
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+
+--let $e_myisam = 1
+--let $e_merge = 2
+--let $e_csv = 3
+--let $e_archive = 4
+# 'rename' is not logged in $e_archive, return when fix
+--let $e_var = $e_csv
+
+while ($e_var) {
+if ($e_var == $e_csv) {
+--let $engine = CSV
+}
+if ($e_var == $e_archive) {
+--let $engine = ARCHIVE
+}
+if ($e_var == $e_merge) {
+--let $engine = MERGE
+}
+if ($e_var == $e_myisam) {
+--let $engine = MyISAM
+}
+
+if ($e_var == $e_merge) {
+CREATE TABLE t1_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t1_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=MERGE UNION=(t1_m1, t1_m2) INSERT_METHOD=LAST;
+CREATE TABLE t2_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t2_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT NOT NULL) ENGINE=MERGE UNION=(t2_m1, t2_m2) INSERT_METHOD=LAST;
+CREATE TABLE t3_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t3_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t3 (a INT NOT NULL) ENGINE=MERGE UNION=(t3_m1, t3_m2) INSERT_METHOD=LAST;
+}
+if ($e_var != $e_merge) {
+eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=$engine;
+eval CREATE TABLE t2 (a INT NOT NULL) ENGINE=$engine;
+eval CREATE TABLE t3 (a INT NOT NULL) ENGINE=$engine;
+}
+
+--let after_ce_table_copy_test_t1=begin not atomic CREATE TABLE test.t4 LIKE test.t1; DROP TABLE test.t2; RENAME TABLE test.t3 TO test.t5; end
+
+--mkdir $targetdir
+--echo ### Backup to dir
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events
+--enable_result_log
+
+--echo # xtrabackup prepare
+--disable_result_log
+--exec $XTRABACKUP  --prepare --target-dir=$targetdir
+--source include/restart_and_restore.inc
+--enable_result_log
+--rmdir $targetdir
+
+SELECT * FROM t4;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t2;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t3;
+SELECT * FROM t5;
+SELECT * FROM t1;
+
+DROP TABLE t4, t5, t1;
+
+if ($e_var == $e_merge) {
+DROP TABLE t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
+}
+--let after_ce_table_copy_test_t1=
+--dec $e_var
+}
+

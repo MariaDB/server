@@ -8,9 +8,9 @@ echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 let $stream=$MYSQLTEST_VARDIR/tmp/backup.xb;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir $backup_extra_param;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir $backup_extra_param;
 --enable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup  --stream=xbstream > $stream 2>$MYSQLTEST_VARDIR/tmp/backup_stream.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10  --stream=xbstream > $stream 2>$MYSQLTEST_VARDIR/tmp/backup_stream.log;
 
 INSERT INTO t VALUES(2);
 

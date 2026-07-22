@@ -1,0 +1,31 @@
+# This test will test all the option related to the Alter Table command
+# NOTE not all alter statements will follow alter_algorithm since for some statements
+# copy is only option
+# parameters
+# $alter_algorithm   {DEFAULT|INPLACE|COPY|NOCOPY|INSTANT}
+# $show_binlog
+#
+
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--let $alter_algorithm= default
+#--let $show_binlog= false
+--source include/start_alter_options.inc
+
+--let $alter_algorithm= inplace
+--source include/start_alter_options.inc
+
+--let $alter_algorithm= copy
+--source include/start_alter_options.inc
+
+--echo # Prove formal support for nocopy and instant
+--let $alter_algorithm= instant
+--source include/start_alter_options.inc
+
+--let $alter_algorithm= nocopy
+--source include/start_alter_options.inc
+
+
+--source include/rpl_end.inc

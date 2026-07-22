@@ -4,7 +4,7 @@ include/master-slave.inc
 connection master;
 CREATE TABLE t1 (a CHAR(48));
 CREATE TEMPORARY TABLE t1_tmp1(a INT);
-INSERT INTO t1 VALUES (UUID());
+INSERT INTO t1 VALUES (SYS_GUID());
 connection slave;
 ==== Verify results on slave ====
 SHOW STATUS LIKE "Slave_open_temp_tables";
@@ -121,12 +121,12 @@ master-bin.000001	#	Query	#	#	COMMIT
 BEGIN;
 DROP TEMPORARY TABLE t1;
 # The rows event will binlogged after 'INSERT INTO t1 VALUES(1)'
-INSERT IGNORE INTO t1 VALUES(uuid()+0);
+INSERT IGNORE INTO t1 VALUES(SYS_GUID()+0);
 COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT IGNORE INTO t1 VALUES(uuid()+0)
+master-bin.000001	#	Annotate_rows	#	#	INSERT IGNORE INTO t1 VALUES(SYS_GUID()+0)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT

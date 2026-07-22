@@ -14,6 +14,10 @@ log_slow_admin_statements	ON
 log_slow_disabled_statements	sp
 log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log_slow_max_warnings	10
+log_slow_min_examined_row_limit	0
+log_slow_query	ON
+log_slow_query_file	$PATH/mysqld-slow.log
+log_slow_query_time	10.000000
 log_slow_rate_limit	1
 log_slow_slave_statements	ON
 log_slow_verbosity	

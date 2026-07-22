@@ -842,7 +842,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 BIT  NOT NULL;
 SHOW TABLES;
@@ -851,7 +851,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` bit(1) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -1898,7 +1898,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TINYINT  NOT NULL;
 SHOW TABLES;
@@ -1907,7 +1907,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` tinyint(4) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -2954,7 +2954,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 SMALLINT  NOT NULL;
 SHOW TABLES;
@@ -2963,7 +2963,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` smallint(6) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -4010,7 +4010,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 MEDIUMINT  NOT NULL;
 SHOW TABLES;
@@ -4019,7 +4019,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` mediumint(9) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -5066,7 +5066,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 INT  NOT NULL;
 SHOW TABLES;
@@ -5075,7 +5075,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` int(11) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -6122,7 +6122,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 INTEGER  NOT NULL;
 SHOW TABLES;
@@ -6131,7 +6131,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` int(11) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -7178,7 +7178,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 BIGINT  NOT NULL;
 SHOW TABLES;
@@ -7187,7 +7187,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` bigint(20) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -8234,7 +8234,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 REAL  NOT NULL;
 SHOW TABLES;
@@ -8243,7 +8243,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` double NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -9290,7 +9290,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 DOUBLE  NOT NULL;
 SHOW TABLES;
@@ -9299,7 +9299,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` double NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -10346,7 +10346,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 FLOAT  NOT NULL;
 SHOW TABLES;
@@ -10355,7 +10355,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` float NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -11402,7 +11402,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 DECIMAL  NOT NULL;
 SHOW TABLES;
@@ -11411,7 +11411,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` decimal(10,0) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -12458,7 +12458,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 NUMERIC  NOT NULL;
 SHOW TABLES;
@@ -12467,7 +12467,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` decimal(10,0) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -13514,7 +13514,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 DATE  NOT NULL;
 SHOW TABLES;
@@ -13523,7 +13523,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` date NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -14570,7 +14570,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TIME  NOT NULL;
 SHOW TABLES;
@@ -14579,7 +14579,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` time NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -15328,7 +15328,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15350,7 +15350,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15372,7 +15372,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15394,7 +15394,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15416,7 +15416,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15438,7 +15438,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15460,7 +15460,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15482,7 +15482,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15504,7 +15504,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15526,7 +15526,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15548,7 +15548,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15570,7 +15570,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15592,7 +15592,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15614,7 +15614,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15626,7 +15626,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TIMESTAMP  NOT NULL;
 SHOW TABLES;
@@ -15635,8 +15635,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `c1` timestamp NOT NULL,
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15658,7 +15658,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15680,7 +15680,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyblob NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15702,7 +15702,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` blob NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15724,7 +15724,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumblob NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15746,7 +15746,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` longblob NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15768,7 +15768,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinytext NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15790,7 +15790,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` text NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15812,7 +15812,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumtext NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -15834,7 +15834,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` longtext NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c2` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -16682,7 +16682,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 YEAR  NOT NULL;
 SHOW TABLES;
@@ -16691,7 +16691,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` year(4) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -17738,7 +17738,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TINYBLOB  NOT NULL;
 SHOW TABLES;
@@ -17747,7 +17747,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` tinyblob NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -18794,7 +18794,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 BLOB  NOT NULL;
 SHOW TABLES;
@@ -18803,7 +18803,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` blob NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -19850,7 +19850,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NOT NULL;
 SHOW TABLES;
@@ -19859,7 +19859,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` mediumblob NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -20906,7 +20906,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 LONGBLOB  NOT NULL;
 SHOW TABLES;
@@ -20915,7 +20915,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` longblob NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -21962,7 +21962,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TINYTEXT  NOT NULL;
 SHOW TABLES;
@@ -21971,7 +21971,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` tinytext NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -23018,7 +23018,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 TEXT  NOT NULL;
 SHOW TABLES;
@@ -23027,7 +23027,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` text NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -24074,7 +24074,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NOT NULL;
 SHOW TABLES;
@@ -24083,7 +24083,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` mediumtext NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
@@ -25130,7 +25130,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c2 LONGTEXT  NOT NULL;
 SHOW TABLES;
@@ -25139,7 +25139,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NOT NULL,
   `c2` longtext NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

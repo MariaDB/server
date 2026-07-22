@@ -300,8 +300,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `c1` timestamp NOT NULL,
+  `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 DROP   c2;
 ALTER TABLE t1 DROP   c1;
@@ -309,7 +309,7 @@ ERROR 42000: You can't delete all columns with ALTER TABLE; use DROP TABLE inste
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;
@@ -636,8 +636,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `c1` timestamp NOT NULL,
+  `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 DROP COLUMN c2;
 ALTER TABLE t1 DROP COLUMN c1;
@@ -645,7 +645,7 @@ ERROR 42000: You can't delete all columns with ALTER TABLE; use DROP TABLE inste
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SHOW TABLES;

@@ -72,7 +72,7 @@ drop table t1;
 # Handle that openssl gives different error messages from YaSSL.
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #

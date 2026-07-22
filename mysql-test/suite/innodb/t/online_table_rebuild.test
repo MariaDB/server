@@ -59,5 +59,29 @@ connection default;
 reap;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-30183  Assertion `!memcmp(rec_trx_id, old_pk_trx_id->data,
+--echo #	6 + 7)' failed in row_log_table_apply_update
+--echo #
+set @old_sql_mode = @@sql_mode;
+set @@sql_mode="";
+CREATE TABLE t1(col_int int, col_varchar varchar(500))ENGINE=InnoDB;
+INSERT INTO t1(col_int) values(2560);
+set debug_sync="row_log_table_apply1_before SIGNAL con1_begin WAIT_FOR con1_commit";
+send ALTER TABLE t1 ADD PRIMARY KEY ( col_varchar);
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_begin";
+UPDATE t1 SET col_int = 2178;
+INSERT INTO t1(col_int) VALUES(3016);
+UPDATE t1 set col_int=2802;
+SET DEBUG_SYNC="now SIGNAL con1_commit";
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+DROP TABLE t1;
+SET @@sql_mode = @old_sql_mode;
 disconnect con1;
 SET DEBUG_SYNC=reset;

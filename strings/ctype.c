@@ -279,8 +279,8 @@ static const struct my_cs_file_section_st
 
 typedef struct my_cs_file_info
 {
-  char   csname[MY_CS_NAME_SIZE];
-  char   name[MY_CS_NAME_SIZE];
+  char   csname[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char   name[MY_CS_COLLATION_NAME_SIZE];
   uchar  ctype[MY_CS_CTYPE_TABLE_SIZE];
   uchar  to_lower[MY_CS_TO_LOWER_TABLE_SIZE];
   uchar  to_upper[MY_CS_TO_UPPER_TABLE_SIZE];
@@ -388,7 +388,8 @@ tailoring_append(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len, attr);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len, attr);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -407,7 +408,8 @@ tailoring_append2(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len1, attr1, (int) len2, attr2);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len1, attr1, (int) len2, attr2);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -608,11 +610,11 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     i->cs.primary_number= strtol(attr,(char**)NULL,10);
     break;
   case _CS_COLNAME:
-    i->cs.coll_name.str= mstr(i->name,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.coll_name.str= mstr(i->name,attr,len,MY_CS_COLLATION_NAME_SIZE-1);
     i->cs.coll_name.length= strlen(i->cs.coll_name.str);
     break;
   case _CS_CSNAME:
-    i->cs.cs_name.str= mstr(i->csname,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.cs_name.str= mstr(i->csname,attr,len,MY_CS_CHARACTER_SET_NAME_SIZE-1);
     i->cs.cs_name.length= strlen(i->cs.cs_name.str);
     break;
   case _CS_CSDESCRIPT:
@@ -675,7 +677,10 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     /* 1, 2, 3, 4, 5, or primary, secondary, tertiary, quaternary, identical */
     rc= tailoring_append(st, "[strength %.*s]", len, attr);
     if (len && attr[0] >= '1' && attr[0] <= '9')
-      i->cs.levels_for_order= attr[0] - '0';
+    {
+      uint strength= attr[0] - '0';
+      my_ci_set_strength(&i->cs, MY_MIN(strength, MY_UCA_WEIGHT_LEVELS));
+    }
     break;
 
   case _CS_ST_ALTERNATE:
@@ -827,10 +832,11 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
     if (sizeof(loader->error) > 32 + strlen(errstr))
     {
       /* We cannot use my_snprintf() here. See previous comment. */
-      sprintf(loader->error, "at line %d pos %d: %s",
-                my_xml_error_lineno(&p)+1,
-                (int) my_xml_error_pos(&p),
-                my_xml_error_string(&p));
+      snprintf(loader->error, sizeof(loader->error),
+               "at line %d pos %d: %s",
+               my_xml_error_lineno(&p)+1,
+               (int) my_xml_error_pos(&p),
+               my_xml_error_string(&p));
     }
   }
   return rc;
@@ -1391,4 +1397,29 @@ int my_strnncollsp_nchars_generic_8bit(CHARSET_INFO *cs,
   set_if_smaller(len2, nchars);
   DBUG_ASSERT((cs->state & MY_CS_NOPAD) == 0);
   return cs->coll->strnncollsp(cs, str1, len1, str2, len2);
+}
+
+
+uint my_ci_get_id_generic(CHARSET_INFO *cs, my_collation_id_type_t type)
+{
+  return cs->number;
+}
+
+
+LEX_CSTRING my_ci_get_collation_name_generic(CHARSET_INFO *cs,
+                                             my_collation_name_mode_t mode)
+{
+  return cs->coll_name;
+}
+
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs)
+{
+  return 1;
+}
+
+
+uint my_casefold_multiply_2(CHARSET_INFO *cs)
+{
+  return 2;
 }

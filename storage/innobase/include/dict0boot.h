@@ -42,7 +42,7 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id);	/*!< out: space id
+	uint32_t*		space_id);	/*!< out: space id
 						(not assigned if NULL) */
 /** Update dict_sys.row_id in the dictionary header file page. */
 void dict_hdr_flush_row_id(row_id_t id);

@@ -995,3 +995,104 @@ DROP USER mysqltest_u1@localhost;
 USE test;
 
 --echo End of 5.1 tests.
+
+
+--echo #
+--echo # MDEV-37474: Privilege check of information_schema.TRIGGERS does not correspond the standard
+--echo #
+
+CREATE TABLE t (a INT);
+
+CREATE TABLE t1 (count INT);
+INSERT INTO t1 VALUES (0);
+
+CREATE TRIGGER trg_ai AFTER INSERT ON t FOR EACH ROW UPDATE t1 SET t1.count = t1.count + 1;
+INSERT INTO t VALUES (1), (2);
+
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CREATE USER user@localhost;
+GRANT TRIGGER ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show all columns including ACTION_CONDITION and ACTION_STATEMENT
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+--echo # Revoke TRIGGER & grant INSERT, UPDATE, DELETE one after another
+REVOKE TRIGGER ON t FROM user@localhost;
+GRANT INSERT ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show all columns excluding ACTION_CONDITION and ACTION_STATEMENT
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+REVOKE INSERT ON t FROM user@localhost;
+GRANT UPDATE ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show all columns excluding ACTION_CONDITION and ACTION_STATEMENT
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+REVOKE UPDATE ON t FROM user@localhost;
+GRANT DELETE ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show all columns excluding ACTION_CONDITION and ACTION_STATEMENT
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+REVOKE DELETE ON t FROM user@localhost;
+GRANT SELECT ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show no rows
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+# keep only the TRIGGER privilege
+GRANT TRIGGER ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# show all columns
+--replace_column 17 -
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'trg_ai';
+--replace_column 6 -
+SHOW TRIGGERS FROM test WHERE `Table` = 't';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+DROP USER user@localhost;
+DROP TABLE t, t1;
+
+--echo # End of 10.11 tests

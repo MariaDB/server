@@ -151,7 +151,7 @@ BEGIN
                                        ELSE
                                          -- Use long query time from the server to
                                          -- flag long running statements in red
-                                         IF((timer_wait/1000000000000) > @@long_query_time, 
+                                         IF((timer_wait/1000000000000) > @@log_slow_query_time,
                                             ' style=filled, color=red', 
                                             ' style=filled, color=lightblue')
                                   END

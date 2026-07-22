@@ -48,11 +48,11 @@ int GetRcString(int id, char *buf, int bufsize)
   char msg[32];
 
   if (!(p = GetMsgid(id))) {
-    sprintf(msg, "ID=%d unknown", id);
+    snprintf(msg, sizeof(msg), "ID=%d unknown", id);
     p = msg;
     } // endif p
 
-  return sprintf(buf, "%.*s", bufsize-1, p);
+  return snprintf(buf, bufsize, "%.*s", bufsize-1, p);
   } // end of GetRcString
 
 #endif // !XMSG

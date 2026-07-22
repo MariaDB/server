@@ -1,0 +1,13 @@
+--- ../src/storage/spider/mysql-test/spider/r/udf_pushdown.result	2022-12-05 17:51:57.843152110 +1100
++++ ../src/storage/spider/mysql-test/spider/r/udf_pushdown.reject	2025-10-22 17:41:38.167673091 +1100
+@@ -148,8 +148,8 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE argument LIKE "%select%" AND argument NOT LIKE "%argument%";
+ argument
+-select t0.`id` `id`,t0.`a` `a` from `auto_test_remote`.`ta_r` t0 where (t0.`id` = (`plusone`(1)))
+-select t0.`id` `id`,t0.`a` `a` from `auto_test_remote`.`ta_r` t0 where ((t0.`id` in( (`plusone`(1)) , (`plusone`(2)))) and (t0.`a` = (`plusone`(32))))
++select `id`,`a` from `auto_test_remote`.`ta_r` where (`id` = (`plusone`(1)))
++select `id`,`a` from `auto_test_remote`.`ta_r` where ((`id` in( (`plusone`(1)) , (`plusone`(2)))) and (`a` = (`plusone`(32))))
+ 
+ ##### test UPDATEs #####
+ connection master_1;

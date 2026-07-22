@@ -206,12 +206,18 @@ CREATE FUNCTION `foo bar` RETURNS STRING SONAME 'udf\'example.so';
 delete from mysql.func;
 change master to master_host='master''host', master_port=3306,
 master_log_file='b''n.000001', master_log_pos=4;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
 /*M!999999\- enable the sandbox mode */ 
 CHANGE MASTER '' TO MASTER_HOST='master''host', MASTER_PORT=3306, MASTER_LOG_FILE='b''n.000001', MASTER_LOG_POS=4;
 
 -- SET GLOBAL gtid_slave_pos='';
 call mtr.add_suppression('Slave I/O: Fatal error: .* Connection attempt terminated');
 stop slave;
+Warnings:
+Note	1255	Slave already has been stopped
 reset slave;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 change master to master_host='127.0.0.1', master_user='root';
 # End of 10.6 tests

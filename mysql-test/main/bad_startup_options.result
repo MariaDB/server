@@ -1,2 +1,3 @@
 FOUND 1 /\[ERROR\] SSL error: Unable to get certificate/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Failed to set ciphers to use/ in errorlog.err
 # restart

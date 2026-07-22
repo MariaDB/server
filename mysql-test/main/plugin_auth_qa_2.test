@@ -17,6 +17,7 @@ CREATE USER qa_test_1_user IDENTIFIED WITH qa_auth_interface AS 'qa_test_1_dest'
 CREATE USER qa_test_1_dest IDENTIFIED BY 'dest_passwd';
 GRANT ALL PRIVILEGES ON test_user_db.* TO qa_test_1_dest identified by 'dest_passwd';
 GRANT PROXY ON qa_test_1_dest TO qa_test_1_user;
+GRANT ALL ON test_user_db.* TO 'qa_test_1_user'@'%';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 SELECT @@proxy_user;
@@ -39,6 +40,7 @@ CREATE USER authenticated_as IDENTIFIED BY 'dest_passwd';
 GRANT ALL PRIVILEGES ON test_user_db.* TO qa_test_2_dest identified by 'dest_passwd';
 GRANT PROXY ON qa_test_2_dest TO qa_test_2_user;
 GRANT PROXY ON authenticated_as TO qa_test_2_user;
+GRANT ALL ON test_user_db.* TO 'authenticated_as'@'%';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 SELECT @@proxy_user;

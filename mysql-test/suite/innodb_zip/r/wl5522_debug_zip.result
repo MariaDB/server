@@ -5,7 +5,7 @@ call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
 call mtr.add_suppression("InnoDB: Unknown index id .* on page");
 call mtr.add_suppression("InnoDB: Operating system error number");
-call mtr.add_suppression("InnoDB: The error means");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");

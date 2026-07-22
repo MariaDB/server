@@ -100,9 +100,10 @@ const char *gcalc_ev_name(int ev)
 }
 
 
-static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postfix)
+static int gcalc_pi_str(char *str, size_t size,
+                        const Gcalc_heap::Info *pi, const char *postfix)
 {
-  return sprintf(str, "%s %d %d | %s %d %d%s",
+  return snprintf(str, size, "%s %d %d | %s %d %d%s",
                      GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
                      GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
                      postfix);
@@ -132,7 +133,7 @@ static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 #endif
     return;
   }
-  n_buf= gcalc_pi_str(buf, pi, "");
+  n_buf= gcalc_pi_str(buf, sizeof(buf), pi, "");
   buf[n_buf]= 0;
   GCALC_DBUG_PRINT(("%s", buf));
 }
@@ -148,14 +149,16 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;
-    lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
-    lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
+    lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "%d\t", slice->thread);
+    lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "%s\t",
+                      gcalc_ev_name(slice->event));
 
-    lnbuf+= gcalc_pi_str(buf + lnbuf, slice->pi, "\t");
+    lnbuf+= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf, slice->pi, "\t");
     if (slice->is_bottom())
-      lnbuf+= sprintf(buf+lnbuf, "bt\t");
+      lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "bt\t");
     else
-      lnbuf+= gcalc_pi_str(buf+lnbuf, slice->next_pi, "\t");
+      lnbuf+= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf,
+                            slice->next_pi, "\t");
     buf[lnbuf]= 0;
     GCALC_DBUG_PRINT(("%s", buf));
   }
@@ -172,7 +175,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
 
 
 Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
-  m_blk_size(blk_size - ALLOC_ROOT_MIN_BLOCK_SIZE),
+  m_blk_size(blk_size),
   m_sizeof_item(ALIGN_SIZE(sizeof_item)),
   m_points_per_blk((uint)((m_blk_size - PH_DATA_OFFSET) / m_sizeof_item)),
   m_blk_hook(&m_first_blk),
@@ -916,6 +919,16 @@ void Gcalc_heap::Info::calc_intersection_xy(double *x, double *y) const
                node.intersection.p1->node.shape.y) * b1_x;
 
   t/= b0xb1;
+
+  /*
+    That can fail when the intersecting lines are almost parallel.
+    Here the t can go to positive or negetive infinity.
+    We have to correct this.
+  */
+  if (t < 0.0)
+    t= 0.0;
+  else if (t > 1.0)
+    t= 1.0;
 
   *x= node.intersection.p1->node.shape.x + b0_x * t;
   *y= node.intersection.p1->node.shape.y + b0_y * t;

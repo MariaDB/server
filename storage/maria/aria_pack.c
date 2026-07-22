@@ -239,7 +239,8 @@ int main(int argc, char **argv)
   if (!opt_ignore_control_file &&
       (no_control_file= ma_control_file_open(FALSE,
                                              (opt_require_control_file ||
-                                              !silent), FALSE)) &&
+                                              !silent), FALSE,
+                                             control_file_open_flags)) &&
        opt_require_control_file)
   {
     error= 1;
@@ -288,11 +289,9 @@ end:
   maria_end();
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
-#ifndef _lint
-  return 0;					/* No compiler warning */
-#endif
 }
 
+ATTRIBUTE_NORETURN
 static void my_exit(int error)
 {
   free_defaults(default_argv);

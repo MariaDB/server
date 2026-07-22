@@ -5,7 +5,7 @@ SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 SET GLOBAL LOG_WARNINGS=2;
 connection slave;
 include/stop_slave.inc
-CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 connection master;
 "Test Case 1: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('')"

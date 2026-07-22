@@ -39,8 +39,6 @@
 #include "debug.h"              // debug_crash_here
 #include "wsrep_mysqld.h"
 
-#define MD5_BUFF_LENGTH 33
-
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
 static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
@@ -183,7 +181,7 @@ void make_valid_column_names(THD *thd, List<Item> &item_list)
 
   for (uint column_no= 1; (item= it++); column_no++)
   {
-    if (item->is_explicit_name() || !check_column_name(item->name.str))
+    if (item->is_explicit_name() || !check_column_name(item->name))
       continue;
     name_len= my_snprintf(buff, NAME_LEN, "Name_exp_%u", column_no);
     item->orig_name= item->name.str;
@@ -734,7 +732,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     if (backup_file_name[0])
     {
       LEX_CSTRING cpath= {backup_file_name, strlen(backup_file_name) };
-      ddl_log_delete_tmp_file(thd, &ddl_log_state_tmp_file, &cpath,
+      ddl_log_delete_tmp_file(&ddl_log_state_tmp_file, &cpath,
                               &ddl_log_state);
     }
     debug_crash_here("ddl_log_create_before_binlog");
@@ -912,7 +910,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= (char *)thd->alloc(MD5_BUFF_LENGTH)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
@@ -1211,7 +1209,7 @@ loop_out:
     goto err;
   }
 
-  ddl_log_create_view(thd, ddl_log_state, &path, old_view_exists ?
+  ddl_log_create_view(ddl_log_state, &path, old_view_exists ?
                       DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY :
                       DDL_CREATE_VIEW_PHASE_NO_OLD_VIEW);
 
@@ -1275,7 +1273,6 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
              share->db.str, share->table_name.str);
     return TRUE;
   }
-  DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
 
   return FALSE;
 }
@@ -1395,11 +1392,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
-  DBUG_ASSERT(share->tabledef_version.length);
   if (!table->tabledef_version.length)
-  {
     table->set_view_def_version(&table->hr_timestamp);
-  }
 
   /*
     check old format view .frm
@@ -1688,8 +1682,12 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         /* We have to keep the lock type for sequence tables */
         if (!tbl->sequence)
 	  tbl->lock_type= table->lock_type;
-        tbl->mdl_request.set_type(table->mdl_request.type);
-        tbl->updating= table->updating;
+        /* VIEWs with derived are non-writable */
+        if (!tbl->is_pure_alias())
+        {
+          tbl->mdl_request.set_type(table->mdl_request.type);
+          tbl->updating= table->updating;
+        }
       }
       /*
         If the view is mergeable, we might want to
@@ -1726,6 +1724,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* move SQL_CACHE to whole query */
     if (lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       old_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
+
+    old_lex->default_used|= lex->default_used;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (table->view_suid)
@@ -1824,7 +1824,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       {
         table->select_lex->order_list.
           push_back(&lex->first_select_lex()->order_list);
-        lex->first_select_lex()->order_list.empty();
+        lex->first_select_lex()->optimize_out_order_list();
       }
       else
       {
@@ -1972,10 +1972,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     }
     if (!view_count++)
     {
-      if (ddl_log_drop_view_init(thd, &ddl_log_state, &thd->db))
+      if (ddl_log_drop_view_init(&ddl_log_state, &thd->db))
         DBUG_RETURN(TRUE);
     }
-    if (ddl_log_drop_view(thd, &ddl_log_state, &cpath, &view->db,
+    if (ddl_log_drop_view(&ddl_log_state, &cpath, &view->db,
                           &view->table_name))
       DBUG_RETURN(TRUE);
     debug_crash_here("ddl_log_drop_before_delete_view");

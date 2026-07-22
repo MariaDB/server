@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -657,7 +657,7 @@ bool mysql_lock_abort_for_thread(THD *thd, TABLE *table)
   a and b are freed with my_free()
 */
 
-MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b)
+MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a, MYSQL_LOCK *b, THD *thd)
 {
   MYSQL_LOCK *sql_lock;
   TABLE **table, **end_table;
@@ -665,16 +665,28 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b)
   DBUG_PRINT("enter", ("a->lock_count: %u  b->lock_count: %u",
                        a->lock_count, b->lock_count));
 
-  if (!(sql_lock= (MYSQL_LOCK*)
-	my_malloc(key_memory_MYSQL_LOCK, sizeof(*sql_lock) +
-		  sizeof(THR_LOCK_DATA*)*((a->lock_count+b->lock_count)*2) +
-		  sizeof(TABLE*)*(a->table_count+b->table_count),MYF(MY_WME))))
-    DBUG_RETURN(0);				// Fatal error
+  const size_t lock_size= sizeof(*sql_lock) +
+    sizeof(THR_LOCK_DATA *) * ((a->lock_count + b->lock_count) * 2) +
+    sizeof(TABLE *) * (a->table_count + b->table_count);
+  if (thd)
+  {
+    sql_lock= (MYSQL_LOCK *) thd->alloc(lock_size);
+    if (!sql_lock)
+      DBUG_RETURN(0);
+    sql_lock->flags= GET_LOCK_ON_THD;
+  }
+  else
+  {
+    sql_lock= (MYSQL_LOCK *)
+      my_malloc(key_memory_MYSQL_LOCK, lock_size, MYF(MY_WME));
+    if (!sql_lock)
+      DBUG_RETURN(0);
+    sql_lock->flags= 0;
+  }
   sql_lock->lock_count=a->lock_count+b->lock_count;
   sql_lock->table_count=a->table_count+b->table_count;
   sql_lock->locks=(THR_LOCK_DATA**) (sql_lock+1);
   sql_lock->table=(TABLE**) (sql_lock->locks+sql_lock->lock_count*2);
-  sql_lock->flags= 0;
   memcpy(sql_lock->locks,a->locks,a->lock_count*sizeof(*a->locks));
   memcpy(sql_lock->locks+a->lock_count,b->locks,
 	 b->lock_count*sizeof(*b->locks));
@@ -708,8 +720,10 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b)
                   a->lock_count, b->lock_count);
 
   /* Delete old, not needed locks */
-  my_free(a);
-  my_free(b);
+  if (!(a->flags & GET_LOCK_ON_THD))
+    my_free(a);
+  if (!(b->flags & GET_LOCK_ON_THD))
+    my_free(b);
   DBUG_RETURN(sql_lock);
 }
 
@@ -1141,6 +1155,9 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     else if (WSREP_NNULL(thd) &&
              server_state.state() == Wsrep_server_state::s_synced)
     {
+      THD_STAGE_INFO(thd, stage_waiting_flow);
+      WSREP_DEBUG("unlock_global_read_lock: waiting for flow control for %s",
+                  wsrep_thd_query(thd));
       server_state.resume_and_resync();
       DEBUG_SYNC(thd, "wsrep_unlock_global_read_lock_after_resume_and_resync");
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;

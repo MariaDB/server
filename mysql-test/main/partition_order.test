@@ -1,13 +1,8 @@
-#--disable_abort_on_error
 #
 # Simple test for the partition storage engine
 # Focuses on tests of ordered index read
 # 
 -- source include/have_partition.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 #
 # Ordered index read, int type
@@ -841,4 +836,13 @@ INSERT into t1 values (2,6,'6'),(1,7,'7'),(2,8,'8'),(1,9,'9');
 INSERT into t1 values (1, NULL, NULL), (2, NULL, '10');
 select * from t1 where a = 1 order by a desc, b desc;
 select * from t1 where a = 1 order by b desc;
+drop table t1;
+
+--echo #
+--echo # MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+--echo #
+create table t1 (a int, b int, key(a desc)) partition by hash(a) partitions 4;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
+explain select * from t1 order by a limit 3;
+select * from t1 order by a limit 3;
 drop table t1;

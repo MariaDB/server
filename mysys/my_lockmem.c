@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/* Alloc a block of locked memory */
+/* Alloc a block of locked memory (memory protected against swap) */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
@@ -35,7 +35,7 @@ LIST *mem_list;
 uchar *my_malloc_lock(size_t size, myf MyFlags)
 {
   int success;
-  uint pagesize=sysconf(_SC_PAGESIZE);
+  uint pagesize= my_system_page_size;
   uchar *ptr;
   struct st_mem_list *element;
   DBUG_ENTER("my_malloc_lock");

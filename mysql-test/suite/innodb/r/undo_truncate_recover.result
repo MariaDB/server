@@ -1,3 +1,5 @@
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2
 SET GLOBAL innodb_undo_log_truncate = 1;
 create table t1(keyc int primary key, c char(100)) engine = innodb;
 begin;

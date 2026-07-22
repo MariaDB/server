@@ -1,6 +1,6 @@
 SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
-SELECT IF(COUNT(*) < 20, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
-IF(COUNT(*) < 20, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+SELECT IF(COUNT(*) < 20, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) AS ProcessCheck FROM information_schema.processlist WHERE user = "system user";
+ProcessCheck
 OK
 SELECT @@GLOBAL.slave_parallel_threads as 'must be 20 because of .cnf';
 must be 20 because of .cnf
@@ -16,7 +16,7 @@ SET GLOBAL slave_parallel_threads= 10;
 SELECT @@GLOBAL.slave_parallel_threads;
 @@GLOBAL.slave_parallel_threads
 10
-SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
-IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) AS ProcessCheck FROM information_schema.processlist WHERE user = "system user";
+ProcessCheck
 OK
 SET GLOBAL slave_parallel_threads = @save_slave_parallel_threads;

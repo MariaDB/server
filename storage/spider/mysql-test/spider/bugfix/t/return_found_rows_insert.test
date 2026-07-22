@@ -22,7 +22,12 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+skey int NOT NULL,
+dt date NOT NULL,
+tm time NOT NULL,
+PRIMARY KEY (skey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -34,12 +39,12 @@ echo CREATE TABLE tbl_a (
     tm time NOT NULL,
     PRIMARY KEY (skey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     skey int NOT NULL,
     dt date NOT NULL,
     tm time NOT NULL,
     PRIMARY KEY (skey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 --enable_query_log
 INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
 FLUSH TABLES;
@@ -58,10 +63,10 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 --enable_ps2_protocol
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 
 TRUNCATE TABLE mysql.general_log;
 
@@ -73,10 +78,10 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 --enable_ps2_protocol
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 
 TRUNCATE TABLE mysql.general_log;
 
@@ -88,10 +93,10 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%replace %');
 --enable_ps2_protocol
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 
 --echo
 --echo deinit

@@ -243,8 +243,9 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 	    //  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
 	    //    goto err;
 
+			size_t query_size = strlen(Picol) + strlen(Tabname) + 30;
 			query = (char*)PlugSubAlloc(g, NULL, 0);
-			sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
+			snprintf(query, query_size, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
 			PlugSubAlloc(g, NULL, strlen(query) + 1);
 			Myc.FreeResult();
 

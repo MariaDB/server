@@ -9,6 +9,12 @@
 --source include/big_test.inc
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
+# This test asserts exact gtid_binlog_state values (e.g. 2-3-4, 1-1-3). The
+# galera wsrep GTID domain seqno is cluster-global state that "reset master"
+# does not reset (and the mid-test SST restart only rejoins, preserving it), so
+# the cluster must start clean on every run (e.g. with --repeat). Only a full
+# restart that re-bootstraps the cluster resets the wsrep domain seqno.
+--source include/force_restart.inc
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
 # we open the node_3 connection here

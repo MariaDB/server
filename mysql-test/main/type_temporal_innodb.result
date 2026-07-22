@@ -24,7 +24,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	00:00:00	0
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
@@ -45,7 +45,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	00:00:00	0
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
@@ -75,7 +75,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
@@ -96,7 +96,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
@@ -126,7 +126,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
@@ -147,7 +147,7 @@ SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`a` at row 1
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1

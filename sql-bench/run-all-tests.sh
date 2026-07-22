@@ -25,7 +25,7 @@
 # All options to this script is passed to all test program.
 # useful options:
 # --fast --force --lock-tables
-# --server   ==> mysql (default) / mSQL / Pg (postgres) / Solid
+# --server   ==> mariadb (default) / mysql / Pg (postgres) / Oracle
 # --user     ==> the user with permission to create / drop / select
 # --pass     ==> password for the user
 # --cmp      ==> Compare --server with one of the others (mysql/mSQL/Pg/Solid)

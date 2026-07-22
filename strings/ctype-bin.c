@@ -527,7 +527,9 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_hash_sort_8bit_bin,
   my_propagate_simple,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
@@ -546,7 +548,9 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_hash_sort_bin,
   my_propagate_simple,
   my_min_str_8bit_simple_nopad,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
@@ -565,7 +569,9 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_hash_sort_bin,
   my_propagate_simple,
   my_min_str_8bit_simple_nopad,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
@@ -599,7 +605,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_8bit,
   my_copy_8bit,
   my_wc_mb_bin,
-  my_wc_to_printable_generic
+  my_wc_to_printable_generic,
+  my_casefold_multiply_1,
+  my_casefold_multiply_1
 };
 
 
@@ -618,19 +626,21 @@ struct charset_info_st my_charset_bin =
     NULL,			/* uca           */
     NULL,			/* tab_to_uni    */
     NULL,			/* tab_from_uni  */
-    &my_unicase_default,        /* caseinfo     */
+    NULL,                       /* casefold     */
     NULL,			/* state_map    */
     NULL,			/* ident_map    */
     1,				/* strxfrm_multiply */
-    1,                          /* caseup_multiply  */
-    1,                          /* casedn_multiply  */
     1,				/* mbminlen      */
     1,				/* mbmaxlen      */
     0,				/* min_sort_char */
     255,			/* max_sort_char */
     0,                          /* pad char      */
     0,                          /* escape_with_backslash_is_dangerous */
-    1,                          /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_binary_handler
 };
+
+
+struct charset_info_st my_collation_contextually_typed_binary= {0};
+struct charset_info_st my_collation_contextually_typed_default= {0};

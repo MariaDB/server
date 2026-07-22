@@ -84,6 +84,7 @@ my %debuggers = (
       push @::global_suppressions, qr/InnoDB: native AIO failed/;
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
+      $ENV{LSAN_OPTIONS}= "report_objects=1:" . ($ENV{LSAN_OPTIONS} || '');
     }
   },
   valgdb => {

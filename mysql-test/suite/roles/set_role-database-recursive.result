@@ -19,8 +19,6 @@ localhost	test_user	test_role1	N
 localhost	test_user	test_role2	N
 select user, host from mysql.db;
 user	host
-	%
-	%
 grant select on mysql.* to test_role2;
 flush privileges;
 select * from mysql.roles_mapping;

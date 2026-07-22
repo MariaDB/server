@@ -9,7 +9,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: '.*test.t1\.ibd'");
-call mtr.add_suppression('InnoDB: Operating system error number');
+call mtr.add_suppression('InnoDB: (Operating system error number|Error number \\d+ means)');
 call mtr.add_suppression('InnoDB: The error means the system cannot find the path specified\.');
 call mtr.add_suppression('InnoDB: Table test/t1 in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist');
 call mtr.add_suppression('InnoDB: Ignoring tablespace for test/t1 because it could not be opened\.');
@@ -24,7 +24,7 @@ call mtr.add_suppression('InnoDB: Ignoring tablespace for test/t1 because it cou
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 
 rmdir $targetdir;

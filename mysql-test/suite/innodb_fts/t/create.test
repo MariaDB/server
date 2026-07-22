@@ -111,10 +111,34 @@ SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
 --echo #
 --echo # MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
 --echo #
---error ER_WRONG_NAME_FOR_INDEX
+--error ER_INNODB_FT_WRONG_DOCID_INDEX
 create table t1 (
   f1 int, f2 text,
   FTS_DOC_ID bigint unsigned not null,
   unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
   fulltext (f2))
 engine=innodb;
+
+--echo #
+--echo # MDEV-26938 Support descending indexes internally in InnoDB
+--echo #
+
+--error ER_INNODB_FT_WRONG_DOCID_INDEX
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
+                UNIQUE KEY FTS_DOC_ID_INDEX(FTS_DOC_ID DESC), FULLTEXT(b))
+ENGINE=InnoDB;
+
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
+                UNIQUE KEY FTS_DOC_ID_INDEX(FTS_DOC_ID DESC)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+if ($MTR_COMBINATION_ORIG) {
+--error ER_INNODB_FT_WRONG_DOCID_INDEX
+ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=INPLACE;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=INPLACE;
+}
+--error ER_INNODB_FT_WRONG_DOCID_INDEX
+ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
+DROP TABLE t1;

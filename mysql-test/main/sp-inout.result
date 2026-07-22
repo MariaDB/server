@@ -1,0 +1,2033 @@
+#
+# MDEV-10654 IN, OUT, INOUT parameters in CREATE FUNCTION
+#
+#
+# CREATE FUNCTION with IN, OUT, INOUT qualifiers
+# SHOW CREATE FUNCTION
+#
+CREATE FUNCTION add_func(IN a INT, IN b INT, OUT c INT, INOUT d INT) RETURNS INT
+BEGIN
+SET c= 100;
+SET d= d + 1;
+RETURN a + b;
+END;
+$$
+SHOW CREATE FUNCTION add_func;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+add_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `add_func`(IN a INT, IN b INT, OUT c INT, INOUT d INT) RETURNS int(11)
+BEGIN
+SET c= 100;
+SET d= d + 1;
+RETURN a + b;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION add_func;
+#
+# CREATE PROCEDURE with IN, OUT, INOUT qualifiers
+# SHOW CREATE PROCEDURE
+#
+CREATE PROCEDURE add_proc(IN a INT, IN b INT, INOUT c INT, OUT d INT)
+BEGIN
+SET d= a + b + c + d;
+END;
+$$
+SHOW CREATE PROCEDURE add_proc;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+add_proc	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `add_proc`(IN a INT, IN b INT, INOUT c INT, OUT d INT)
+BEGIN
+SET d= a + b + c + d;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP PROCEDURE add_proc;
+#
+# Call function from SELECT query
+# SELECT > FUNCTION(IN)
+#
+CREATE FUNCTION add_func2(IN a INT, IN b INT) RETURNS INT
+BEGIN
+RETURN a + b;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SELECT add_func2(@a, @b);
+add_func2(@a, @b)
+5
+DROP FUNCTION add_func2;
+#
+# Call function from SELECT query
+# SELECT > FUNCTION(OUT)
+#
+CREATE FUNCTION add_func3(IN a INT, IN b INT, OUT c INT) RETURNS INT
+BEGIN
+SET c = 100;
+RETURN a + b;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+SET @res= add_func3(@a, @b, @c);
+SELECT @res, @a, @b, @c;
+@res	@a	@b	@c
+5	2	3	100
+SELECT add_func3(@a, @b, @c);
+ERROR HY000: OUT or INOUT argument 3 for function add_func3 is not allowed here
+DROP FUNCTION add_func3;
+#
+# Call function from SELECT query
+# SELECT > FUNCTION(INOUT)
+#
+CREATE FUNCTION add_func4(IN a INT, IN b INT, OUT c INT, INOUT d INT) RETURNS INT
+BEGIN
+SET c = 100;
+SET d = d + 1;
+RETURN a + b;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+SET @d = 9;
+SET @res= add_func4(@a, @b, @c, @d);
+SELECT @res, @a, @b, @c, @d;
+@res	@a	@b	@c	@d
+5	2	3	100	10
+SELECT add_func4(@a, @b, @c, @d);
+ERROR HY000: OUT or INOUT argument 3 for function add_func4 is not allowed here
+DROP FUNCTION add_func4;
+#
+# Call from procedure
+# PROCEDURE(OUT) > FUNCTION(IN)
+#
+CREATE FUNCTION add_func2(IN a INT, IN b INT) RETURNS INT
+BEGIN
+RETURN a + b;
+END;
+$$
+CREATE PROCEDURE add_proc2(IN a INT, IN b INT, OUT c INT)
+BEGIN
+SET c = add_func2(a, b);
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+CALL add_proc2(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	5
+DROP FUNCTION add_func2;
+DROP PROCEDURE add_proc2;
+#
+# Call from procedure
+# PROCEDURE(OUT) > FUNCTION(OUT)
+#
+CREATE FUNCTION add_func3(IN a INT, IN b INT, OUT c INT) RETURNS INT
+BEGIN
+SET c = 100;
+RETURN a + b;
+END;
+$$
+CREATE PROCEDURE add_proc3(IN a INT, IN b INT, OUT c INT)
+BEGIN
+DECLARE res INT;
+SET res = add_func3(a, b, c);
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+CALL add_proc3(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	100
+DROP FUNCTION add_func3;
+DROP PROCEDURE add_proc3;
+#
+# Call from procedure
+# PROCEDURE(OUT) > FUNCTION(INOUT)
+#
+CREATE FUNCTION add_func4(IN a INT, IN b INT, OUT c INT, INOUT d INT) RETURNS INT
+BEGIN
+SET c = 100;
+SET d = d + 1;
+RETURN a + b;
+END;
+$$
+CREATE PROCEDURE add_proc4(IN a INT, IN b INT, OUT res INT)
+BEGIN
+DECLARE c INT;
+DECLARE d INT;
+SET d = 30;
+SET res = add_func4(a, b, c, d);
+SET res = c + d;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @res = 0;
+CALL add_proc4(@a, @b, @res);
+SELECT @a, @b, @res;
+@a	@b	@res
+2	3	131
+DROP FUNCTION add_func4;
+DROP PROCEDURE add_proc4;
+#
+# Call from procedure
+# PROCEDURE(OUT) > PROCEDURE(OUT)
+#
+CREATE PROCEDURE add_proc(IN a INT, IN b INT, OUT c INT)
+BEGIN
+SET c = a + b;
+END;
+$$
+CREATE PROCEDURE test_proc1(IN a INT, IN b INT, OUT c INT)
+BEGIN
+CALL add_proc(a, b, c);
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+CALL test_proc1(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	5
+DROP PROCEDURE add_proc;
+DROP PROCEDURE test_proc1;
+#
+# Argument's order change
+# PROCEDURE(a IN, b IN, c OUT) > FUNCTION(b IN, a IN, c OUT)
+#
+CREATE FUNCTION func_sub(IN b INT, IN a INT, OUT c INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+SET c = a - b;
+SET res = a;
+RETURN res;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, IN b INT, OUT c INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(b, a, c);
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+CALL proc_main(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	-1
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# Argument's order change
+# PROCEDURE(a IN, b IN, c OUT) > FUNCTION(c OUT, b IN, a IN)
+#
+CREATE FUNCTION func_sub(OUT c INT, IN b INT, IN a INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+SET c = a - b;
+SET res = a;
+RETURN res;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, IN b INT, OUT c INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(c, b, a);
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+CALL proc_main(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	-1
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# Argument's order change
+# PROCEDURE(a IN, b IN, c INOUT, d OUT) > FUNCTION(d OUT, a IN, b IN, c INOUT)
+#
+CREATE FUNCTION func_sub(OUT d INT, IN a INT, IN b INT, INOUT c INT) RETURNS INT
+BEGIN
+SET c = c + 6;
+SET d = 10;
+RETURN a - b;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, IN b INT, INOUT c INT, OUT d INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(d, a, b, c);
+SET d = d + c + res;
+END;
+$$
+SET @a = 15;
+SET @b = 5;
+SET @c = 4;
+SET @d= 0;
+CALL proc_main(@a, @b, @c, @d);
+SELECT @a, @b, @c, @d;
+@a	@b	@c	@d
+15	5	10	30
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# Argument's order change
+# PROCEDURE(IN a INT, IN b INT, INOUT c INT, OUT d INT) > FUNCTION1(c INOUT INT, IN b INT) > FUNCTION2(d OUT INT, IN a INT)
+#
+CREATE FUNCTION func_sub1(INOUT c INT, IN b INT) RETURNS INT
+BEGIN
+SET c = c + b;
+RETURN 0;
+END;
+$$
+CREATE FUNCTION func_sub2(OUT d INT, IN a INT) RETURNS INT
+BEGIN
+SET d = 5 + a;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, IN b INT, INOUT c INT, OUT d INT)
+BEGIN
+DECLARE res1 INT;
+DECLARE res2 INT;
+SET res1 = func_sub1(c, b);
+SET res2 = func_sub2(d, a);
+SET d = d + c;
+END;
+$$
+SET @a = 15;
+SET @b = 6;
+SET @c = 4;
+SET @d= 0;
+CALL proc_main(@a, @b, @c, @d);
+SELECT @a, @b, @c, @d;
+@a	@b	@c	@d
+15	6	10	30
+DROP FUNCTION func_sub1;
+DROP FUNCTION func_sub2;
+DROP PROCEDURE proc_main;
+#
+# Argument's order change
+# FUNCTION1(a IN, b IN) > FUNCTION2(b IN, c OUT, a IN)
+#
+CREATE FUNCTION func_sub(IN b INT, OUT c INT, IN a INT) RETURNS INT
+BEGIN
+SET c = 100;
+RETURN a + b;
+END;
+$$
+CREATE FUNCTION func_main(IN a INT, IN b INT) RETURNS INT
+BEGIN
+DECLARE c INT;
+DECLARE res INT;
+SET res = func_sub(b, c, a);
+RETURN res + c;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SELECT func_main(@a, @b);
+func_main(@a, @b)
+105
+DROP FUNCTION func_sub;
+DROP FUNCTION func_main;
+#
+# Call procedure inside function
+# FUNCTION1(a IN, b IN) > PROCEDURE(a IN, b IN, c OUT)
+#
+CREATE PROCEDURE proc_sub(IN a INT, IN b INT, OUT c INT)
+BEGIN
+SET c = a + b;
+END;
+$$
+CREATE FUNCTION func_main(IN b INT, IN a INT) RETURNS INT
+BEGIN
+DECLARE c INT;
+CALL proc_sub(a, b, c);
+RETURN c;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SELECT func_main(@a, @b);
+func_main(@a, @b)
+5
+DROP PROCEDURE proc_sub;
+DROP FUNCTION func_main;
+#
+# Call procedure inside function
+# FUNCTION1(a IN, b IN) > PROCEDURE(a IN, b INOUT)
+#
+CREATE PROCEDURE proc_sub(IN a INT, INOUT b INT)
+BEGIN
+SET b = a + b;
+END;
+$$
+CREATE FUNCTION func_main(IN b INT, IN a INT) RETURNS INT
+BEGIN
+CALL proc_sub(a, b);
+RETURN b;
+END;
+$$
+SET @a = 2;
+SET @b = 3;
+SELECT func_main(@a, @b);
+func_main(@a, @b)
+5
+DROP PROCEDURE proc_sub;
+DROP FUNCTION func_main;
+#
+# Call procedure inside function
+# FUNCTION1(a IN, b IN, c OUT) > PROCEDURE(a IN, b IN, c OUT)
+#
+CREATE PROCEDURE proc_sub(IN a INT, IN b INT, OUT c INT)
+BEGIN
+SET c = a + b;
+END;
+$$
+CREATE FUNCTION func_main(IN b INT, IN a INT, OUT c INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+CALL proc_sub(a, b, c);
+RETURN 0;
+END; 
+$$
+SET @a = 2;
+SET @b = 3;
+SET @c = 0;
+DO func_main(@a, @b, @c);
+SELECT @a, @b, @c;
+@a	@b	@c
+2	3	5
+SELECT func_main(@a, @b, @c);
+ERROR HY000: OUT or INOUT argument 3 for function func_main is not allowed here
+DROP PROCEDURE proc_sub;
+DROP FUNCTION func_main;
+#
+# Call function from UPDATE query
+# UPDATE <table> SET <column> = FUNCTION(a IN)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE FUNCTION func(IN a INT) RETURNS INT
+BEGIN
+RETURN a * 10;
+END;
+$$
+SET @a = 5;
+UPDATE Persons SET Age = func(@a) WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# Call function from UPDATE query
+# UPDATE <table> SET <column> = FUNCTION(a OUT)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE FUNCTION func(OUT a INT) RETURNS INT
+BEGIN
+SET a = 5;
+RETURN 80;
+END;
+$$
+SET @a = 0;
+UPDATE Persons SET Age = func(@a) WHERE ID = 1;
+ERROR HY000: OUT or INOUT argument 1 for function func is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# Call function from INSERT query
+# INSERT INTO <table> SELECT <val1>, <val2>, FUNCTION(a IN)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE FUNCTION func(IN a INT) RETURNS INT
+BEGIN
+RETURN a * 10;
+END;
+$$
+SET @a = 4;
+INSERT INTO Persons SELECT 4, 'DDD', func(@a);
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# Call function from INSERT query
+# INSERT INTO <table> SELECT <val1>, <val2>, FUNCTION(a OUT)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE FUNCTION func(OUT a INT) RETURNS INT
+BEGIN
+SET a = 45;
+RETURN 40;
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SET @a = 0;
+INSERT INTO Persons SELECT 5, 'EEE', func(@a);
+ERROR HY000: OUT or INOUT argument 1 for function func is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# Call function from DELETE query
+# DELETE FROM <table> WHERE <column> = FUNCTION(a IN)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func(IN a INT) RETURNS INT
+BEGIN
+RETURN a;
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 4;
+DELETE FROM Persons WHERE ID = func(@a);
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# Call function from DELETE query
+# DELETE FROM <table> WHERE <column> = FUNCTION(a OUT)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func(OUT a INT) RETURNS INT
+BEGIN
+SET a = 40;
+RETURN 4;
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 0;
+DELETE FROM Persons WHERE ID = func(@a);
+ERROR HY000: OUT or INOUT argument 1 for function func is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func;
+#
+# SELECT query inside function
+# FUNCTION(a IN) > SELECT … FROM <table>
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE c INT;
+SELECT AGE INTO c FROM Persons WHERE ID = a;
+RETURN c;
+END;
+$$
+SET @a = 3;
+SELECT func_main(@a);
+func_main(@a)
+30
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# SELECT query inside function
+# FUNCTION(a OUT) > SELECT … FROM <table>
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_main(OUT a INT) RETURNS INT
+BEGIN
+SELECT AGE INTO a FROM Persons WHERE ID = 3;
+RETURN 0;
+END;
+$$
+SET @a = 0;
+SELECT func_main(@a);
+ERROR HY000: OUT or INOUT argument 1 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# SELECT query inside function
+# FUNCTION(a INOUT) > SELECT … FROM <table>
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_main(INOUT a INT) RETURNS INT
+BEGIN
+SELECT AGE INTO a FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+SET @a = 1;
+SELECT func_main(@a);
+ERROR HY000: OUT or INOUT argument 1 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# SELECT query inside function
+# FUNCTION(a IN) > FUNCTION(a IN, b OUT) > SELECT … FROM <table>
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE b INT;
+DECLARE res INT;
+SET res = func_sub(a, b);
+RETURN b;
+END;
+$$
+SET @a = 2;
+SELECT func_main(@a);
+func_main(@a)
+20
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP FUNCTION func_main;
+#
+# UPDATE query inside function
+# FUNCTION(a IN) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE c INT;
+UPDATE Persons SET AGE = 50 WHERE ID = a;
+SELECT AGE INTO c FROM Persons WHERE ID = a;
+RETURN c;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+SET @a = 5;
+SELECT func_main(@a);
+func_main(@a)
+50
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	50
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# UPDATE query inside function
+# FUNCTION(a IN, b OUT) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_main(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+UPDATE Persons SET AGE = 60 WHERE ID = a;       
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+SET @a = 5;
+SET @b = 0;
+SELECT func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# UPDATE query inside function
+# FUNCTION(a IN, b INOUT) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_main(IN a INT, INOUT b INT) RETURNS INT
+BEGIN
+UPDATE Persons SET AGE = 60 WHERE ID = a;       
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+SET @a = 5;
+SET @b = 0;
+SELECT func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# UPDATE query inside function
+# FUNCTION(a IN) > FUNCTION(a IN, b OUT) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 80);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+UPDATE Persons SET AGE = 10 WHERE ID = a;
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE b INT;
+DECLARE res INT;
+SET res = func_sub(a, b);
+RETURN b;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	80
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+SET @a = 1;
+SELECT func_main(@a);
+func_main(@a)
+10
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP FUNCTION func_main;
+#
+# INSERT query inside function
+# FUNCTION(a IN) > INSERT INTO <table> VALUES …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 50);
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE b INT;
+INSERT INTO Persons VALUE (a, 'FFF', 60);       
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN b;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	50
+SET @a = 6;
+SELECT func_main(@a);
+func_main(@a)
+60
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	50
+6	FFF	60
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# INSERT query inside function
+# FUNCTION(a IN, b OUT) > INSERT INTO <table> VALUES …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 50);
+CREATE FUNCTION func_main(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+INSERT INTO Persons VALUE (a, 'FFF', 60);       
+SELECT AGE INTO b FROM Persons WHERE ID = a;       
+RETURN 0;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	50
+SET @a = 6;
+SET @b = 0;
+SELECT func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# INSERT query inside function
+# FUNCTION(a IN, b INOUT) > INSERT INTO <table> VALUES …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_main(IN a INT, INOUT b INT) RETURNS INT
+BEGIN
+INSERT INTO Persons VALUE (a, 'FFF', 60);       
+SELECT AGE INTO b FROM Persons WHERE ID = a;       
+RETURN 0;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+SET @a = 6;
+SET @b = 0;
+SELECT func_main(@a, @b);
+ERROR HY000: OUT or INOUT argument 2 for function func_main is not allowed here
+DROP TABLE Persons;
+DROP FUNCTION func_main;
+#
+# INSERT query inside function
+# FUNCTION(a IN) > FUNCTION(a IN, b OUT) > INSERT INTO <table> VALUES …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'EEE', 40);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+INSERT INTO Persons VALUE (a, 'FFF', 60);       
+SELECT AGE INTO b FROM Persons WHERE ID = a;       
+RETURN 0;
+END;
+$$
+CREATE FUNCTION func_main(IN a INT) RETURNS INT
+BEGIN
+DECLARE b INT;
+DECLARE res INT;
+SET res = func_sub(a, b);
+RETURN b;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+SET @a = 6;
+SELECT func_main(@a);
+func_main(@a)
+60
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	EEE	40
+6	FFF	60
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP FUNCTION func_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(IN) > SELECT FROM <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_sub(IN a INT) RETURNS INT
+BEGIN
+DECLARE b INT;
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN b;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+SET b = func_sub(a);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 2;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+20
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(OUT) > SELECT FROM <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+SELECT AGE INTO b FROM Persons WHERE ID = a;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(a, b);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 1;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+50
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(INOUT) > SELECT FROM <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_sub(IN a INT, INOUT c INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+SELECT AGE INTO res FROM Persons WHERE ID = a;
+SET c = c * 100;
+RETURN res;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE c INT;
+DECLARE res INT;
+SET c = 5;
+SET res = func_sub(a, c);
+SET b = c;
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 2;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+500
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(IN) > INSESRT INTO <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+CREATE FUNCTION func_sub(IN a INT) RETURNS INT
+BEGIN
+INSERT INTO Persons VALUE (a, 'FFF', 50);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+SET b = func_sub(a);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+SET @a = 5;
+SET @b = 1;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+0
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(OUT) > INSESRT INTO <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'FFF', 50);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+INSERT INTO Persons VALUE (a, 'GGG', 60);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(a, b);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+SET @a = 6;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+6	GGG	60
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(INOUT) > INSESRT INTO <table> …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'FFF', 50);
+INSERT INTO Persons VALUES (6, 'GGG', 60);
+CREATE FUNCTION func_sub(IN a INT, INOUT c INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+INSERT INTO Persons VALUE (a, 'HHH', 70);
+SET c = c * 100;
+RETURN res;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE c INT;
+DECLARE res INT;
+SET c = 5;
+SET res = func_sub(a, c);
+SET b = c;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+6	GGG	60
+SET @a = 7;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+500
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+6	GGG	60
+7	HHH	70
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(IN) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'FFF', 50);
+INSERT INTO Persons VALUES (6, 'GGG', 60);
+INSERT INTO Persons VALUES (7, 'HHH', 70);
+CREATE FUNCTION func_sub(IN a INT) RETURNS INT
+BEGIN
+UPDATE Persons SET AGE = 100 WHERE ID = a;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+SET b = func_sub(a);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	50
+6	GGG	60
+7	HHH	70
+SET @a = 5;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	100
+6	GGG	60
+7	HHH	70
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(OUT) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'FFF', 100);
+INSERT INTO Persons VALUES (6, 'GGG', 60);
+INSERT INTO Persons VALUES (7, 'HHH', 70);
+CREATE FUNCTION func_sub(IN a INT, OUT b INT) RETURNS INT
+BEGIN
+UPDATE Persons SET AGE = 100 WHERE ID = a;
+SET b = 1;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE res INT;
+SET res = func_sub(a, b);
+END; 
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	100
+6	GGG	60
+7	HHH	70
+SET @a = 6;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+1
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	100
+6	GGG	100
+7	HHH	70
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# PROCEDURE > FUNCTION > SQL query
+# PROCEDURE(OUT) > FUNCTION(INOUT) > UPDATE <table> SET …
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+INSERT INTO Persons VALUES (4, 'DDD', 40);
+INSERT INTO Persons VALUES (5, 'FFF', 100);
+INSERT INTO Persons VALUES (6, 'GGG', 100);
+INSERT INTO Persons VALUES (7, 'HHH', 70);
+CREATE FUNCTION func_sub(IN a INT, INOUT c INT) RETURNS INT
+BEGIN
+DECLARE res INT;
+UPDATE Persons SET AGE = 100 WHERE ID = a;
+SET c = c * 100;
+RETURN res;
+END;
+$$
+CREATE PROCEDURE proc_main(IN a INT, OUT b INT)
+BEGIN
+DECLARE c INT;
+DECLARE res INT;
+SET c = 5;
+SET res = func_sub(a, c);
+SET b = c;
+END;
+$$
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	100
+6	GGG	100
+7	HHH	70
+SET @a = 7;
+SET @b = 0;
+CALL proc_main(@a, @b);
+SELECT @b;
+@b
+500
+SELECT * from Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+4	DDD	40
+5	FFF	100
+6	GGG	100
+7	HHH	100
+DROP TABLE Persons;
+DROP FUNCTION func_sub;
+DROP PROCEDURE proc_main;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 20 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	20
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > FUNCTION(IN) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(IN a INT) RETURNS INT
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+a;
+RETURN 0;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+DECLARE a INT;
+DECLARE res INT;
+SET a = 1;
+SET res = 0;
+SET res = func(a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 30 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	30
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > FUNCTION(OUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 40);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(IN age_in INT, OUT age_out INT) RETURNS INT
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+SET age_out = age_in + 1;
+RETURN 0;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+BEFORE UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+DECLARE res INT DEFAULT (func(OLD.age, NEW.age));
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	40
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 50 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	41
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > FUNCTION(INOUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 50);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(INOUT a INT) RETURNS INT
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+SET a = 100;
+RETURN 0;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+DECLARE a INT;
+DECLARE res INT;
+SET a = 10;
+SET res = 0;
+SET res = func(a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	50
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 60 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	60
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(IN) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE PROCEDURE proc(IN a INT)
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+a;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(1);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 30 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	30
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(OUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE PROCEDURE proc(IN old_age INT, OUT new_age INT)
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+SET new_age=old_age+41;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+BEFORE UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(OLD.age, NEW.age);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 50 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	51
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(INOUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE PROCEDURE proc(INOUT a INT)
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+SET a = 51;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+BEFORE UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(NEW.age);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 50 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	51
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(OUT) > FUNCTION(IN) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(IN a INT) RETURNS INT
+BEGIN
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc(OUT a INT)
+BEGIN
+DECLARE res INT;
+SET a = 100;
+SET res = func(a);
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(@a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 60 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	60
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(OUT) > FUNCTION(OUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(OUT a INT) RETURNS INT
+BEGIN
+SET a = 200;
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc(OUT a INT)
+BEGIN
+DECLARE res INT;
+SET a = 100;
+SET res = func(a);
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(@a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 80 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	80
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP FUNCTION func;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(OUT) > FUNCTION(INOUT) > UPDATE TABLE2
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(INOUT a INT) RETURNS INT
+BEGIN
+SET a = 200;
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc(OUT a INT)
+BEGIN
+DECLARE res INT;
+SET a = 100;
+SET res = func(a);
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(@a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 90 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	90
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+1
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;
+#
+# Trigger
+# TRIGGER AFTER UPDATE ON TABLE1 > PROCEDURE(OUT) > FUNCTION(OUT) > UPDATE TABLE2 with OUT argument (to check if OUT is returning by reference)
+#
+CREATE TABLE Persons (
+ID int,
+Name varchar(255),
+Age int
+);
+INSERT INTO Persons VALUES (1, 'AAA', 10);
+INSERT INTO Persons VALUES (2, 'BBB', 20);
+INSERT INTO Persons VALUES (3, 'CCC', 30);
+CREATE TABLE PersonsLog (
+UpdateCount int
+);
+INSERT INTO PersonsLog VALUES (0);
+CREATE FUNCTION func(OUT a INT) RETURNS INT
+BEGIN
+SET a = 111;
+UPDATE PersonsLog SET UpdateCount = UpdateCount+1;
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE proc(OUT a INT)
+BEGIN
+DECLARE res INT;
+SET res = func(a);
+UPDATE PersonsLog SET UpdateCount = a;
+END;
+$$
+CREATE OR REPLACE TRIGGER my_trigger
+AFTER UPDATE ON Persons
+FOR EACH ROW
+BEGIN
+CALL proc(@a);
+END;
+$$
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	10
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+0
+UPDATE Persons SET Age = 80 WHERE ID = 1;
+SELECT * FROM Persons;
+ID	Name	Age
+1	AAA	80
+2	BBB	20
+3	CCC	30
+SELECT * FROM PersonsLog;
+UpdateCount
+111
+DROP TRIGGER my_trigger;
+DROP FUNCTION func;
+DROP PROCEDURE proc;
+DROP TABLE Persons;
+DROP TABLE PersonsLog;

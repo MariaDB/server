@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/innodb_page_size.inc
---source include/have_undo_tablespaces.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
@@ -11,6 +10,11 @@ call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer po
 # This may be triggered on a slow system.
 call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
 --enable_query_log
+
+# Re-create the undo log tablespaces after slow shutdown
+SET GLOBAL innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=2;
+--source include/restart_mysqld.inc
 
 SET GLOBAL innodb_undo_log_truncate = 0;
 
@@ -57,6 +61,7 @@ SET GLOBAL innodb_max_purge_lag_wait=0;
 SET GLOBAL innodb_max_undo_log_size=DEFAULT;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
+let $restart_parameters=;
 --source include/restart_mysqld.inc
 --replace_regex /.*Trx id counter ([0-9]+).*/\1/
 let $trx_after= `SHOW ENGINE INNODB STATUS`;

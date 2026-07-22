@@ -6,7 +6,7 @@
 --echo #
 
 create user test@localhost;
-grant CREATE, DROP, INSERT, SELECT on *.* to test@localhost;
+grant CREATE TEMPORARY TABLES, DROP, INSERT, SELECT on *.* to test@localhost;
 create table t1 (a int) engine=myisam;
 insert into t1 values (1),(2);
 reset master;

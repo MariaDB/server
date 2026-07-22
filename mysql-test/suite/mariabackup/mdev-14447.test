@@ -11,7 +11,7 @@ CREATE TABLE t(a varchar(40) PRIMARY KEY, b varchar(40), c varchar(40), d varcha
 
 echo # Create full backup , modify table, then create incremental/differential backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 
 SET debug_dbug='+d,skip_page_checksum',foreign_key_checks=0,unique_checks=0;

@@ -37,9 +37,9 @@ c2
 menny
 SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 UNION SELECT c2 from tx3;
 c2
-jim
 menny
 linda
+jim
 kris
 create table MINUS (a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MINUS (a int)' at line 1

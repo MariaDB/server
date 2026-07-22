@@ -92,7 +92,7 @@ public:
   void slave_stop(Master_info *mi);
   void slave_reconnect(Master_info *mi);
   int request_transmit(Master_info *mi);
-  void kill_connection(MYSQL *mysql);
+  void kill_connection(Master_info *mi);
 
 private:
   /* True when init_object has been called */

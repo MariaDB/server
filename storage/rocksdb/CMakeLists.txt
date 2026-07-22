@@ -9,13 +9,6 @@ SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
-STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
-       CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
-       CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
-       CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-MY_CHECK_AND_SET_COMPILER_FLAG(-Wframe-larger-than=32768)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-effc++ DEBUG RELWITHDEBINFO)
 
@@ -37,6 +30,11 @@ ENDIF(HAVE_TIMER_DELETE)
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
+ENDIF()
+
+CHECK_FUNCTION_EXISTS(getauxval  HAVE_AUXV_GETAUXVAL)
+IF(HAVE_AUXV_GETAUXVAL)
+  ADD_DEFINITIONS(-DROCKSDB_AUXV_GETAUXVAL_PRESENT)
 ENDIF()
 
 IF(WITH_VALGRIND)
@@ -69,15 +67,6 @@ IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 ENDIF()
 IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
-ENDIF()
-
-#
-# Also, disable on ARM64 when not Linux
-# Requires submodule update to v6.16.3
-# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
-#
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
 ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
@@ -159,8 +148,12 @@ else()
   SET(ATOMIC_EXTRA_LIBS)
 endif()
 
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
                  LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
@@ -168,8 +161,6 @@ IF(NOT TARGET rocksdb)
   # Bail out if compilation with rocksdb engine is not requested
   RETURN()
 ENDIF()
-
-
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)

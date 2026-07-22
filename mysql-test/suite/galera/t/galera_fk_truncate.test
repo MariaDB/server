@@ -1,6 +1,17 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+#
+# Make sure earlier test has no effect to this one
+#
+--connection node_1
+set global auto_increment_offset=1;
+set global auto_increment_increment=2;
+--connection node_2
+set global auto_increment_offset=2;
+set global auto_increment_increment=2;
+
+--connection node_1
 CREATE TABLE author (
   id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL
@@ -38,3 +49,8 @@ SELECT * FROM author;
 SELECT * FROM book;
 
 DROP TABLE book, author;
+set global auto_increment_increment=2;
+--connection node_2
+set global auto_increment_offset=2;
+
+

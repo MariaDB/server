@@ -4,4 +4,4 @@
 #
 #plugin-load-add = ha_spider
 
-# Read more at https://mariadb.com/kb/en/spider/
+# Read more at https://mariadb.com/docs/server/server-usage/storage-engines/spider

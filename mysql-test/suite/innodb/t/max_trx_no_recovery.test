@@ -1,0 +1,135 @@
+--source include/have_innodb.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--let transactions_count=10
+--let perl_inc_file=$MYSQL_TMP_DIR/max_trx_no_recovery.inc
+
+--let $i=$transactions_count
+# We need several tables to avoid blocking on records locking and pages latching
+while($i) {
+--dec $i
+if ($i == 0) {
+--eval CREATE TABLE t_1_$i(a INT primary key) Engine=InnoDB STATS_PERSISTENT=0
+--eval INSERT INTO t_1_$i SET a = 10
+}
+--eval CREATE TABLE t_2_$i(a INT primary key) Engine=InnoDB STATS_PERSISTENT=0
+--eval INSERT INTO t_2_$i SET a = 10
+}
+--source include/wait_all_purged.inc
+
+--connect (prevent_purge,localhost,root,,)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+# Let all the following redo logs will be pushed in the same rseg
+SET GLOBAL DEBUG_DBUG ="+d,assign_same_rseg";
+
+--connection default
+# Add the first undo log to the history of trx_sys.rseg_array[0] to fordbid
+# "if (auto len= flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY + ...)" branch of
+# "trx_rseg_mem_restore()" to update rseg->needs_purge. Let trx_id and trx_no
+# of the following transaction is L and M correspondingly.
+UPDATE t_2_1 SET a=150;
+
+--connect (con_1_0, localhost,root,,)
+BEGIN;
+# After the following transaction the undo segment will contain the following
+# undo logs:
+# sn: 0, trx_id: L, trx_no: M
+# sn: 1, trx_id: N=M+1, trx_no: 0
+UPDATE t_1_0 SET a=15;
+--connect (con_2_0, localhost,root,,)
+BEGIN;
+# Stop the following "UPDATE" just before the undo log creating.
+SET DEBUG_SYNC="before_undo_log_trx_id_write SIGNAL before_0 WAIT_FOR cont_0";
+SET DEBUG_SYNC="after_undo_log_trx_id_write SIGNAL after_0";
+--send UPDATE t_2_0 SET a=15
+--connection con_1_0
+SET DEBUG_SYNC="now WAIT_FOR before_0";
+
+# The following trick with perl code, which generates mysqltest code, is applied
+# to bypass the restriction of mysqltest in substitution variable values in
+# connection names.
+--perl END_OF_FILE
+  use strict;
+  use warnings;
+  my $out_file = $ENV{'perl_inc_file'};
+  my $transactions_count = $ENV{'transactions_count'};
+  open (my $output, '>', $out_file) or die $!;
+  my $i = 1;
+  while ($i < $transactions_count) {
+    print $output
+      "--connect (con_2_$i, localhost,root,,)\n".
+      "BEGIN;\n".
+      "SET DEBUG_SYNC=\"before_undo_log_trx_id_write SIGNAL before_$i WAIT_FOR cont_$i\";\n".
+      "--send UPDATE t_2_$i SET a=15\n".
+      "--connection default\n".
+      "SET DEBUG_SYNC=\"now WAIT_FOR before_$i\";\n";
+      ++$i;
+  }
+  close $output;
+END_OF_FILE
+
+# The generated code starts rw transactions just to increase
+# trx_sys.m_max_trx_id by the number of started transactions S.
+--source $perl_inc_file
+--remove_file $perl_inc_file
+
+--connection con_1_0
+# After the following COMMIT and debug sync points the undo segment will contain
+# the following undo logs:
+# sn: 0, trx_id: L, trx_no: M
+# sn: 1, trx_id: N=M+1, trx_no: N+S
+# sn: 2, trx_id: N+1, trx_no: 0
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL cont_0";
+SET DEBUG_SYNC="now WAIT_FOR after_0";
+
+--source include/kill_and_restart_mysqld.inc
+
+# The trx_no of the last undo log is 0 and it's in active state, that's why
+# the rseg->needs_purge is set to trx_id+1 = N+1+1 in
+# trx_undo_mem_create_at_db_start(). The trx_sys.m_max_trx_id is set to maximum
+# value of rseg->needs_purge among all rsegs + 1, i.e. for our case it's
+# N+1+1+1.
+#
+# After uncommitted transactions rolling back on recovery, the undo
+# segment will contain the following undo logs:
+# sn: 0, trx_id: L, trx_no: M
+# sn: 1, trx_id: N=M+1, trx_no: N+S
+# and
+# trx_sys.m_max_trx_id =
+#  N + 3(see above)
+#  + 1(row_merge_drop_temp_indexes())
+#  + 1(active transaction rollback)
+# So trx_sys.m_max_trx_id = N + 5.
+#
+# The trx_no of the last undo log in the above undo segment is N+S. In the case
+# if S > 5, the trx_no of one of the following transactions will be greater than
+# N + S, i.e. the trx_no of the last undo log in the undo segment.
+#
+# That is treated as error in purge thread, because purge queue is
+# min-heap of (trx_no, trx_sys.rseg_array index) pairs, where the key is trx_no,
+# and it must not be that trx_no of the last parsed undo log of a committed
+# transaction is greater than the last trx_no of the rseg at the top of
+# the queue.
+INSERT INTO t_2_1 SET a = 20;
+INSERT INTO t_2_1 SET a = 30;
+INSERT INTO t_2_1 SET a = 40;
+INSERT INTO t_2_1 SET a = 50;
+INSERT INTO t_2_1 SET a = 60;
+
+# Assertion ut_a(tail.trx_no <= last_trx_no) failures in
+# purge_sys_t::choose_next_log if the bug is not fixed.
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
+--let $i=$transactions_count
+while($i) {
+--dec $i
+if ($i == 0) {
+--eval DROP TABLE t_1_$i
+}
+--eval DROP TABLE t_2_$i
+}

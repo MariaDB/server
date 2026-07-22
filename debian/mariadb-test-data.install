@@ -1,3 +1,4 @@
+usr/lib/mysql/plugin/test_pam_modules
 usr/share/mysql/mysql-test/collections
 usr/share/mysql/mysql-test/include
 usr/share/mysql/mysql-test/main

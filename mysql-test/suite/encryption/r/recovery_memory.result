@@ -1,0 +1,15 @@
+CREATE TABLE t1(f1 text, index idx(f1(20))) ENGINE INNODB;
+set global innodb_fast_shutdown=0;
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+set global debug_dbug="+d,ib_log_checkpoint_avoid_hard";
+INSERT INTO t1 SELECT repeat('a', 8000) FROM seq_1_to_1280;
+DELETE FROM t1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+INSERT INTO t1 VALUES('a');
+# XTRABACKUP PREPARE
+# restart
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;

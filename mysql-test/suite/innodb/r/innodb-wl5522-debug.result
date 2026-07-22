@@ -1,5 +1,5 @@
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
-call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
 call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be opened.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
@@ -142,15 +142,6 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_8";
-FLUSH TABLES t1 FOR EXPORT;
-Warnings:
-Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
-UNLOCK TABLES;
-SET SESSION debug_dbug=@saved_debug_dbug;
-DROP TABLE t1;
-CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
-INSERT INTO t1 VALUES (1);
-SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
 Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")

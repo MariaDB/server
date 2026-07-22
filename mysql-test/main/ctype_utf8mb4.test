@@ -2049,12 +2049,59 @@ EXECUTE stmt;
 EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
 
 --echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
+--echo #
+--echo # Start of 10.6 tests
+--echo #
 
 --echo #
---echo # Start of 10.5 tests
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.11 tests
 --echo #
 
 --echo #
@@ -2067,7 +2114,6 @@ SELECT 1 COLLATE utf8mb4_bin;
 --error ER_COLLATION_CHARSET_MISMATCH
 SELECT 1 COLLATE latin1_swedish_ci;
 
---echo #
 --echo # MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
 --echo #
 
@@ -2162,4 +2208,41 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (
+   c1 varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('jj');
+SELECT * FROM t1 WHERE c1 LIKE 'jj' COLLATE utf8mb4_unicode_ci;
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1 LIKE ? COLLATE utf8mb4_unicode_ci';
+EXECUTE stmt USING 'jj';
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(?) COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT NULL COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

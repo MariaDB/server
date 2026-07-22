@@ -28,14 +28,6 @@ flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
 flush status;
---disable_warnings
-drop table if exists t1,t2,t3,t4,t11,t21,t1_1,t1_2,t9,t9_1,t9_2;
-drop database if exists mysqltest;
-
-# Fix possible left overs from other tests
-drop table if exists ```a`;
-drop view if exists v1;
---enable_warnings
 
 #
 # First simple test
@@ -807,9 +799,6 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
 
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 delimiter //;
 CREATE PROCEDURE `p1`()
 begin
@@ -1230,10 +1219,6 @@ set global query_cache_type=on;
 set session query_cache_type=on;
 
 --echo Restore default values.
- --disable_warnings
- drop database if exists db1;
- drop database if exists db2;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  use db1;
@@ -1249,10 +1234,6 @@ set session query_cache_type=on;
  drop database db2;
  set global query_cache_size=@save_query_cache_size;
 
- --disable_warnings
- drop database if exists db1;
- drop database if exists db3;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  create database db3;
@@ -1304,10 +1285,6 @@ SET GLOBAL query_cache_size= default;
 #
 # Bug#36326: nested transaction and select
 #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 FLUSH STATUS;
 SET GLOBAL query_cache_size=1048576;
@@ -1430,10 +1407,6 @@ if (!` SELECT (@sleep_time_per_result_row * @row_count - @max_acceptable_delay >
    exit;
 }
 SET @@global.query_cache_size = 1024 * 64;
---disable_warnings
-DROP TEMPORARY TABLE IF EXISTS t_history;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 CREATE TEMPORARY TABLE t_history (attempt SMALLINT,
 start_ts DATETIME, end_ts DATETIME,
 start_cached INTEGER, end_cached INTEGER);
@@ -1608,10 +1581,6 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#51336 Assert in reload_acl_and_cache during RESET QUERY CACHE
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(id INT);
 
@@ -1901,6 +1870,88 @@ DROP TABLE t;
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
---enable_ps2_protocol
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
+--echo #
+
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+
+create table t1 (a int);
+insert into t1 values (1000);
+
+flush status;
+--let $v1 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+--let $v2 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+if ($v1 == $v2) {
+--echo highly improbable $v1 = $v2
+}
+
+select random_bytes(1024) = random_bytes(1024) as improbable;
+
+# Cleanup
+drop table t1;
+set global query_cache_type= @qcache;
+
+--echo # End of 10.10 tests
+
+--echo #
+--echo # MDEV-25365 Server hangs or crashes in Query_cache::move_by_type upon FLUSH QUERY CACHE
+--echo #
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= on;
+set query_cache_type= on;
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+create view v4 as select * from t4;
+create table t5 (e int);
+create view v5 as select * from t5;
+create table t6 (f int);
+create view v6 as select * from t6;
+create table t7 (g int);
+
+# in the next 3 queries the exact tables or views seem to be important
+# (but not the length of the query)
+
+select * from t1, t2;
+select * from t2;
+select t7.* from t3 t3a, t3 t3b, t3 t3c, t3 t3d, t3 t3e, v4 v4a, v4 v4b, v4 v4c, v4 v4d, v5, v6, t6, t7;
+
+# this most likely correlates with the first select,
+# to kick it out from the cache but to keep everything else
+
+alter table t1 force;
+
+# here the length of the query and the presence of (at least) two tables
+# seems to be important, while the exact tables are not
+# the comment compensates for the length
+
+select * from t5, t6 /* this query needs to be of a certain length, so i am trying to make the comment at least 175 symbols long. now i am out of ideas what to write, so.............................. */;
+
+# this is the query cache magic which causes the hang or crash
+
+flush QUERY cache;
+reset query cache;
+FLUSH query cache;
+
+# cleanup
+drop view v4;
+drop view v5;
+drop view v6;
+drop table t1, t2, t3, t4, t5, t6, t7;
+set global query_cache_type= @qcache;
+
+--echo # End of 10.11 tests
+
+--enable_ps2_protocol

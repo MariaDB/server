@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, 2021, MariaDB
+/* Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ static const my_crc32_t my_checksum_func= init_crc32();
 # error "my_checksum() is defined in mysys/crc32/crc32_ppc64.c"
 #endif
 extern "C"
-unsigned int my_checksum(unsigned int crc, const void *data, size_t len)
+uint32 my_checksum(uint32 crc, const void *data, size_t len)
 {
   return my_checksum_func(crc, data, len);
 }

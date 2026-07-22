@@ -19,6 +19,8 @@ create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_31
 ERROR HY000: Table 'test.t1' is read only
 drop table t1, t2;
 set session spider_read_only_mode = -1;
+Warnings:
+Warning	138	The option value -1 (fallback to default) is deprecated and will be removed in a future release
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_31524",TABLE "t2"';
 /* 3 */ insert into t1 values (42);
@@ -35,6 +37,8 @@ create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "0", WRAPPER "mysq
 /* 5 */ insert into t1 values (42);
 drop table t1, t2;
 SET session spider_read_only_mode = -1;
+Warnings:
+Warning	138	The option value -1 (fallback to default) is deprecated and will be removed in a future release
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "srv_mdev_31524",TABLE "t2"';
 /* 6 */ insert into t1 values (42);

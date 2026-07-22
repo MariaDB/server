@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_global.h>
 #include <mysql_version.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <my_sys.h>
 
@@ -55,7 +54,7 @@ static inline int vasprintf(char **strp, const char *fmt, va_list args)
   {
     return -1;
   }
-  vsprintf(*strp, fmt, args);
+  vsnprintf(*strp, len + 1, fmt, args);
   return len;
 }
 
@@ -149,10 +148,9 @@ static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const ch
 /***********************************************************************
 Computes bit shift for a given value. If the argument is not a power
 of 2, returns 0.*/
-static inline size_t
-get_bit_shift(size_t value)
+static inline unsigned get_bit_shift(size_t value)
 {
-    size_t shift;
+    unsigned shift;
 
     if (value == 0)
 	return 0;

@@ -55,6 +55,9 @@ permission notice:
 #define XB_GALERA_INFO_FILENAME "xtrabackup_galera_info"
 #define XB_GALERA_DONOR_INFO_FILENAME "donor_galera_info"
 
+/* backup copy of galera info file as sent by donor */
+#define XB_GALERA_INFO_FILENAME_SST "xtrabackup_galera_info_SST"
+
 /***********************************************************************
 Store Galera checkpoint info in the 'xtrabackup_galera_info' file, if that
 information is present in the trx system header. Otherwise, do nothing. */
@@ -68,19 +71,45 @@ xb_write_galera_info(bool incremental_prepare)
 	long long	seqno;
 	MY_STAT		statinfo;
 
-	/* Do not overwrite an existing file to be compatible with
-	servers with older server versions */
-	if (!incremental_prepare &&
-		my_stat(XB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL) {
+	xid.null();
 
+	/* try to read last wsrep XID from innodb rsegs, we will use it
+	   instead of galera info file received from donor
+	*/
+	if (!trx_rseg_read_wsrep_checkpoint(xid)) {
+		/* no worries yet, SST may have brought in galera info file
+		   from some old MariaDB version, which does not support
+		   wsrep XID storing in innodb rsegs
+		*/
 		return;
 	}
 
-	xid.null();
+	/* if SST brought in galera info file, copy it as *_SST file
+	   this will not be used, saved just for future reference
+	*/
+	if (my_stat(XB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL) {
+		FILE* fp_in  = fopen(XB_GALERA_INFO_FILENAME, "r");
+		FILE* fp_out = fopen(XB_GALERA_INFO_FILENAME_SST, "w");
 
-	if (!trx_rseg_read_wsrep_checkpoint(xid)) {
-
-		return;
+		char buf[BUFSIZ] = {'\0'};
+		size_t size;
+		while ((size = fread(buf, 1, BUFSIZ, fp_in))) {
+			if (fwrite(buf, 1, size, fp_out) != strlen(buf)) {
+				die(
+				    "could not write to "
+				    XB_GALERA_INFO_FILENAME_SST
+				    ", errno = %d\n",
+				    errno);
+			}
+		}
+		if (!feof(fp_in)) {
+			die(
+			    XB_GALERA_INFO_FILENAME_SST
+			    " not fully copied\n"
+			);
+		}
+		fclose(fp_out);
+		fclose(fp_in);
 	}
 
 	wsrep_uuid_t uuid;
@@ -97,7 +126,6 @@ xb_write_galera_info(bool incremental_prepare)
 		    "could not create " XB_GALERA_INFO_FILENAME
 		    ", errno = %d\n",
 		    errno);
-		exit(EXIT_FAILURE);
 	}
 
 	seqno = wsrep_xid_seqno(&xid);

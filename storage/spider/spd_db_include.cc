@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -45,13 +45,6 @@ int spider_db_result::fetch_table_checksum(
   DBUG_ENTER("spider_db_result::fetch_table_checksum");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
-}
-
-uint spider_db_result::limit_mode()
-{
-  DBUG_ENTER("spider_db_result::limit_mode");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(spider_dbton[dbton_id].db_util->limit_mode());
 }
 
 spider_db_conn::spider_db_conn(

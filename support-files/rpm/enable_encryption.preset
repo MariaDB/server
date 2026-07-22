@@ -9,7 +9,7 @@
 # to the .cnf file after the !include directive.
 #
 # NOTE that you also need to install an encryption plugin for the encryption
-# to work. See https://mariadb.com/kb/en/mariadb/data-at-rest-encryption/#encryption-key-management
+# to work. See https://mariadb.com/docs/server/security/encryption/data-at-rest-encryption
 #
 [mariadb]
 aria-encrypt-tables

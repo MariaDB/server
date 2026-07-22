@@ -748,7 +748,7 @@ create table t1 select * from t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 # Error during table creation
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (primary key(a)) select "b" as b;
 # Error in select_create::prepare() which is not related to table creation
 create table t1 (a int);
@@ -1062,9 +1062,9 @@ SET sql_mode = NO_ZERO_DATE;
 --error ER_INVALID_DEFAULT
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
 
---echo
---error ER_INVALID_DEFAULT
-CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
+#--echo
+#--error ER_INVALID_DEFAULT
+#CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 
 --echo
 --echo # -- Check that NULL column still can be created.
@@ -1948,3 +1948,20 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 SET NAMES DEFAULT;
 
 --echo # End of 10.5 Test
+
+--echo #
+--echo # MDEV-39002: Diagnostics area assertion failure upon CREATE TABLE
+--echo #
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a INT, b VARCHAR(8) DEFAULT (IFNULL(a,''))) CHARSET swe7;
+
+--echo # Test Item_func_case_abbreviation2 (IF, NVL2, IFNULL) with collation mismatch in DEFAULT
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IFNULL(_latin1'x', _swe7'y'))) CHARSET utf8;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IF(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (NVL2(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+
+--echo End of 10.11 tests

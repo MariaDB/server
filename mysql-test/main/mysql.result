@@ -567,7 +567,9 @@ CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `a1\``b1` VALUES (1),(2);
+INSERT INTO `a1\``b1` VALUES
+(1),
+(2);
 insert `a1\``b1` values (4),(5);
 show create table `a1\``b1`;
 Table	Create Table
@@ -597,7 +599,9 @@ CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO "a1\""b1" VALUES (1),(2);
+INSERT INTO "a1\""b1" VALUES
+(1),
+(2);
 insert "a1\""b1" values (4),(5);
 show create table "a1\""b1";
 Table	Create Table
@@ -613,15 +617,11 @@ set sql_mode=default;
 create table t1 (a text);
 select count(*) from t1;
 count(*)
-42
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
-42
-truncate table t1;
-select count(*) from t1;
-count(*)
-0
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -629,7 +629,11 @@ count(*)
 truncate table t1;
 select count(*) from t1;
 count(*)
-42
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+44
 truncate table t1;
 select count(*) from t1;
 count(*)

@@ -1,0 +1,29 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-20913 sql_mode=ORACLE: INET6 does not work as a routine parameter type and return type
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE FUNCTION f1() RETURN INET4 AS
+BEGIN
+RETURN '255.255.255.255';
+END;
+$$
+SELECT f1();
+f1()
+255.255.255.255
+DROP FUNCTION f1;
+SET sql_mode=ORACLE;
+CREATE OR REPLACE FUNCTION f1(a INET4) RETURN INT AS
+BEGIN
+RETURN LENGTH(a);
+END;
+$$
+SELECT f1('000.000.000.000');
+f1('000.000.000.000')
+7
+DROP FUNCTION f1;
+#
+# End of 10.10 tests
+#

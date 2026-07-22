@@ -319,7 +319,7 @@ my_bool _ma_ft_convert_to_ft2(MARIA_HA *info, MARIA_KEY *key)
   /* we'll generate one pageful at once, and insert the rest one-by-one */
   /* calculating the length of this page ...*/
   length=(keyinfo->block_length-2) / keyinfo->keylength;
-  set_if_smaller(length, da->elements);
+  set_if_smaller(length, (uint)da->elements);
   length=length * keyinfo->keylength;
 
   get_key_full_length_rdonly(key_length, key->data);

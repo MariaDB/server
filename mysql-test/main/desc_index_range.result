@@ -1,0 +1,201 @@
+create table t1 (
+a int,
+key (a desc)
+);
+insert into t1 select seq from seq_1_to_1000;
+set optimizer_trace=1;
+explain select * from t1 force index(a) where a in (2, 4, 6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    [
+        "(6) <= (a DESC) <= (6)",
+        "(4) <= (a DESC) <= (4)",
+        "(2) <= (a DESC) <= (2)"
+    ]
+]
+set optimizer_trace=default;
+# These should go in reverse order:
+select * from t1 force index(a) where a in (2, 4, 6);
+a
+6
+4
+2
+drop table t1;
+#
+# Multi-part key tests
+#
+create table t1 (
+a int not null,
+b int not null,
+key ab(a, b desc)
+);
+insert into t1 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+set optimizer_trace=1;
+explain select * from t1 force index(ab) where a>=8 and b>=50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ab	ab	4	NULL	51	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    ["(8) <= (a)"]
+]
+explain select * from t1 force index(ab) where a>=8 and b<=50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ab	ab	8	NULL	46	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    ["(8,50) <= (a,b DESC)"]
+]
+select * from t1 force index(ab) where a>=8 and b<=50;
+a	b
+8	50
+8	40
+8	30
+8	20
+8	10
+9	50
+9	40
+9	30
+9	20
+9	10
+10	50
+10	40
+10	30
+10	20
+10	10
+select * from t1 ignore index(ab) where a>=8 and b<=50 order by a, b desc;
+a	b
+8	50
+8	40
+8	30
+8	20
+8	10
+9	50
+9	40
+9	30
+9	20
+9	10
+10	50
+10	40
+10	30
+10	20
+10	10
+explain
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ab	ab	8	NULL	17	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    ["(2,80) <= (a,b DESC) <= (4,50)"]
+]
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+a	b
+2	80
+2	70
+2	60
+2	50
+3	80
+3	70
+3	60
+3	50
+4	80
+4	70
+4	60
+4	50
+drop table t1;
+create table t2 (
+a int not null,
+b int not null,
+key ab(a desc, b desc)
+);
+insert into t2 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+explain
+select * from t2 where a between 2 and 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	ab	ab	4	NULL	40	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    ["(4) <= (a DESC) <= (2)"]
+]
+explain
+select * from t2 where a between 2 and 4 and b between 50 and 80;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	ab	ab	8	NULL	31	Using where; Using index
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    ["(4,80) <= (a DESC,b DESC) <= (2,50)"]
+]
+drop table t2;
+#
+# Check that "Using index for group-by" is disabled (it's not supported, yet)
+#
+CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a desc));
+insert into t1 select 2,seq from seq_0_to_1000;
+EXPLAIN select MIN(a) from t1 where p = 2 group by p;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	PRIMARY	PRIMARY	4	const	1000	Using index
+select json_detailed(json_extract(trace, '$**.potential_group_range_indexes')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    [
+        {
+            "index": "PRIMARY",
+            "usable": false,
+            "cause": "Reverse-ordered (not supported yet)"
+        }
+    ]
+]
+drop table t1;
+set optimizer_trace=default;
+#
+# MDEV-27426: Wrong result upon query using index_merge with DESC key
+#
+CREATE TABLE t1 (pk INT, a INT, b int, KEY(a), PRIMARY KEY(pk DESC))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,4,5),(2,9,6),(3,NULL,7),(4,NULL,8);
+SELECT * FROM t1 WHERE pk > 10 OR a > 0;
+pk	a	b
+2	9	6
+1	4	5
+DROP TABLE t1;
+#
+#  MDEV-27529: Wrong result upon query using index_merge with DESC key (#2)
+#
+create table t1 (
+pk int, 
+a int, 
+b int,
+primary key(pk desc),
+key(a),
+key(b)
+) engine=innodb;
+insert into t1 values (0, 111111, 255);
+insert into t1 select seq+50000, NULL, seq+1000 from seq_1_to_260;
+insert into t1 values (10000, NULL, 255);
+insert into t1 select seq+20000, seq+20000, seq+20000 from seq_1_to_1500;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Must use ROR-intersect:
+explain select * from t1 where b = 255 AND a IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	b,a	5,5	NULL	1	Using intersect(b,a); Using where; Using index
+select * from t1 where b = 255 AND a IS NULL;
+pk	a	b
+10000	NULL	255
+drop table t1;

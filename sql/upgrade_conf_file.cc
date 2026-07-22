@@ -25,6 +25,8 @@
   Note : the list below only includes the default-compiled server and none of the
   loadable plugins.
 */
+#include <my_global.h>
+#include <my_sys.h>
 #include <windows.h>
 #include <initializer_list>
 #include <stdlib.h>
@@ -158,51 +160,159 @@ static int cmp_strings(const void* a, const void *b)
   return strcmp((const char *)a, *(const char **)b);
 }
 
+
+#define MY_INI_SECTION_SIZE 32 * 1024 + 3
+
+static bool is_utf8_str(const char *s)
+{
+  MY_STRCOPY_STATUS status;
+  const struct charset_info_st *cs= &my_charset_utf8mb4_bin;
+  size_t len= strlen(s);
+  if (!len)
+    return true;
+  cs->cset->well_formed_char_length(cs, s, s + len, len, &status);
+  return status.m_well_formed_error_pos == nullptr;
+}
+
+
+static UINT get_system_acp()
+{
+  static DWORD system_acp;
+  if (system_acp)
+    return system_acp;
+
+  char str_cp[10];
+  int cch= GetLocaleInfo(GetSystemDefaultLCID(), LOCALE_IDEFAULTANSICODEPAGE,
+                         str_cp, sizeof(str_cp));
+
+  system_acp= cch > 0 ? atoi(str_cp) : 1252;
+
+  return system_acp;
+}
+
+
+static char *ansi_to_utf8(const char *s)
+{
+#define MAX_STR_LEN MY_INI_SECTION_SIZE
+  static wchar_t utf16_buf[MAX_STR_LEN];
+  static char utf8_buf[MAX_STR_LEN];
+  if (MultiByteToWideChar(get_system_acp(), 0, s, -1, utf16_buf, MAX_STR_LEN))
+  {
+    if (WideCharToMultiByte(CP_UTF8, 0, utf16_buf, -1, utf8_buf, MAX_STR_LEN,
+                            0, 0))
+      return utf8_buf;
+  }
+  return 0;
+}
+
+int fix_section(const char *myini_path, const char *section_name,
+                bool is_server)
+{
+  if (!is_server && GetACP() != CP_UTF8)
+    return 0;
+
+  static char section_data[MY_INI_SECTION_SIZE];
+  DWORD size= GetPrivateProfileSection(section_name, section_data,
+                                       MY_INI_SECTION_SIZE, myini_path);
+  if (size == MY_INI_SECTION_SIZE - 2)
+  {
+    return -1;
+  }
+
+  for (char *keyval= section_data; *keyval; keyval += strlen(keyval)+1)
+  {
+    char varname[256];
+    char *value;
+    char *key_end= strchr(keyval, '=');
+    if (!key_end)
+      key_end= keyval + strlen(keyval);
+
+    if (key_end - keyval > sizeof(varname))
+      continue;
+
+    value= key_end + 1;
+    if (GetACP() == CP_UTF8 && !is_utf8_str(value))
+    {
+      /*Convert a value, if it is not already UTF-8*/
+      char *new_val= ansi_to_utf8(value);
+      if (new_val)
+      {
+        *key_end= 0;
+        fprintf(stdout, "Fixing variable '%s' charset, value=%s\n", keyval,
+                new_val);
+        WritePrivateProfileString(section_name, keyval, new_val, myini_path);
+        *key_end= '=';
+      }
+    }
+    if (!is_server)
+      continue;
+
+    // Check if variable should be removed from config.
+    // First, copy and normalize (convert dash to underscore) to  variable
+    // names
+    for (char *p= keyval, *q= varname;; p++, q++)
+    {
+      if (p == key_end)
+      {
+        *q= 0;
+        break;
+      }
+      *q= (*p == '-') ? '_' : *p;
+    }
+    const char *v= (const char *) bsearch(varname, removed_variables, sizeof(removed_variables) / sizeof(removed_variables[0]),
+                                          sizeof(char *), cmp_strings);
+
+    if (v)
+    {
+      fprintf(stdout, "Removing variable '%s' from config file\n", varname);
+      // delete variable
+      *key_end= 0;
+      WritePrivateProfileString(section_name, keyval, 0, myini_path);
+    }
+  }
+  return 0;
+}
+
+static bool is_mariadb_section(const char *name, bool *is_server)
+{
+  if (strncmp(name, "mysql", 5)
+      && strncmp(name, "mariadb", 7)
+      && strcmp(name, "client")
+      && strcmp(name, "client-server")
+      && strcmp(name, "server"))
+  {
+    return false;
+  }
+
+  for (const char *section_name : {"mysqld", "server", "mariadb"})
+    if (*is_server= !strcmp(section_name, name))
+      break;
+
+  return true;
+}
+
+
 /**
-  Convert file from a previous version, by removing
+  Convert file from a previous version, by removing obsolete variables
+  Also, fix values to be UTF8, if MariaDB is running in utf8 mode
 */
 int upgrade_config_file(const char *myini_path)
 {
-#define MY_INI_SECTION_SIZE 32*1024 +3
-  static char section_data[MY_INI_SECTION_SIZE];
-  for (const char *section_name : { "mysqld","server","mariadb" })
+  static char all_sections[MY_INI_SECTION_SIZE];
+  int sz= GetPrivateProfileSectionNamesA(all_sections, MY_INI_SECTION_SIZE,
+                                         myini_path);
+  if (!sz)
+    return 0;
+  if (sz > MY_INI_SECTION_SIZE - 2)
   {
-    DWORD size = GetPrivateProfileSection(section_name, section_data, MY_INI_SECTION_SIZE, myini_path);
-    if (size == MY_INI_SECTION_SIZE - 2)
-    {
-      return -1;
-    }
-
-    for (char *keyval = section_data; *keyval; keyval += strlen(keyval) + 1)
-    {
-      char varname[256];
-      char *key_end = strchr(keyval, '=');
-      if (!key_end)
-        key_end = keyval+ strlen(keyval);
-
-      if (key_end - keyval > sizeof(varname))
-        continue;
-      // copy and normalize (convert dash to underscore) to  variable names
-      for (char *p = keyval, *q = varname;; p++,q++)
-      {
-        if (p == key_end)
-        {
-          *q = 0;
-          break;
-        }
-        *q = (*p == '-') ? '_' : *p;
-      }
-      const char *v = (const char *)bsearch(varname, removed_variables, sizeof(removed_variables) / sizeof(removed_variables[0]),
-        sizeof(char *), cmp_strings);
-
-      if (v)
-      {
-        fprintf(stdout, "Removing variable '%s' from config file\n", varname);
-        // delete variable
-        *key_end = 0;
-        WritePrivateProfileString(section_name, keyval, 0, myini_path);
-      }
-    }
+    fprintf(stderr, "Too many sections in config file\n");
+    return -1;
+  }
+  for (char *section= all_sections; *section; section+= strlen(section) + 1)
+  {
+    bool is_server_section;
+    if (is_mariadb_section(section, &is_server_section))
+      fix_section(myini_path, section, is_server_section);
   }
   return 0;
 }

@@ -15,7 +15,9 @@ CREATE TABLE `t1` (
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 # dump by tables order 1
 /*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
@@ -29,7 +31,9 @@ CREATE TABLE `t1` (
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 # dump by tables order 2
 /*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
@@ -43,7 +47,9 @@ CREATE TABLE `t1` (
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 # dump by tables only tables
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -53,7 +59,9 @@ CREATE TABLE `t1` (
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=1024;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 # dump by tables only sequences
 /*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;

@@ -5,6 +5,8 @@
 --enable_query_log
 
 SET spider_same_server_link= on;
+# TODO(MDEV-37923)
+SET spider_disable_group_by_handler= 0;
 SET sql_mode='';
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');

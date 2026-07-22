@@ -1,0 +1,31 @@
+#
+# Basic test for innodb_buffer_pool_in_core_dump
+#
+
+--source include/have_innodb.inc
+if (`SELECT COUNT(*) = 0 from INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE LOWER(variable_name) ='innodb_buffer_pool_in_core_dump'`)
+{
+  --skip Test requires innodb_buffer_pool_in_core_dump variable.
+}
+
+set @old_innodb_buffer_pool_in_core_dump = @@innodb_buffer_pool_in_core_dump;
+SET GLOBAL innodb_buffer_pool_in_core_dump=OFF;
+
+SELECT @@global.innodb_buffer_pool_in_core_dump;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.innodb_buffer_pool_in_core_dump;
+
+SHOW GLOBAL VARIABLES LIKE 'innodb_buffer_pool_in_core_dump';
+SHOW SESSION VARIABLES LIKE 'innodb_buffer_pool_in_core_dump';
+
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE variable_name='innodb_buffer_pool_in_core_dump';
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE variable_name='innodb_buffer_pool_in_core_dump';
+
+--error ER_GLOBAL_VARIABLE
+SET SESSION innodb_buffer_pool_in_core_dump=ON;
+
+SET GLOBAL innodb_buffer_pool_in_core_dump=ON;
+SET GLOBAL innodb_buffer_pool_in_core_dump=OFF;
+
+SET GLOBAL innodb_buffer_pool_in_core_dump = @old_innodb_buffer_pool_in_core_dump;

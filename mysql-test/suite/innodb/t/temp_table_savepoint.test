@@ -141,12 +141,7 @@ update ignore t5 set c1 = 20 where c1 = 140 ;
 select count(*) from t5 where c1 = 140;
 
 --replace_result $MYSQLTEST_VARDIR VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval select * into outfile "$MYSQLTEST_VARDIR/tmp/t5.outfile" from t5;
---enable_ps2_protocol
---enable_cursor_protocol
-
 
 create temporary table temp_1 engine = innodb as select * from t5 where 1=2;
 select count(*) from temp_1;

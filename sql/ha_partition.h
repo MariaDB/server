@@ -271,7 +271,7 @@ typedef struct st_partition_part_key_multi_range_hld
   /* Owner object */
   ha_partition *partition;
 
-  /* id of the the partition this structure is for */
+  /* id of the partition this structure is for */
   uint32 part_id;
 
   /* Current range we're iterating through */
@@ -552,7 +552,8 @@ public:
              HA_CREATE_INFO *create_info) override;
   int create_partitioning_metadata(const char *name,
                                    const char *old_name,
-                                   chf_create_flags action_flag)
+                                   chf_create_flags action_flag,
+                                   bool ignore_delete_error)
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
@@ -575,6 +576,17 @@ public:
   {
     m_file[part_id]->update_create_info(create_info);
   }
+
+  void column_bitmaps_signal() override
+  {
+    for (uint i= bitmap_get_first_set(&m_opened_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(&m_opened_partitions, i))
+    {
+      m_file[i]->column_bitmaps_signal();
+    }
+  }
+
 private:
   int copy_partitions(ulonglong * const copied, ulonglong * const deleted);
   void cleanup_new_partition(uint part_count);
@@ -1625,6 +1637,10 @@ public:
   }
 
   bool partition_engine() override { return 1;}
+
+  /**
+     Get the number of records in part_elem and its subpartitions, if any.
+  */
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);

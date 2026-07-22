@@ -251,3 +251,26 @@ test.t1	repair	status	OK
 set myisam_repair_threads = default;
 drop table t1;
 # End of 10.2 tests
+#
+# Start of 10.11 tests
+#
+USE test;
+CREATE TEMPORARY TABLE t(c INT NOT NULL) ENGINE=CSV;
+INSERT INTO t VALUES(1);
+REPAIR TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+DELETE FROM t;
+#
+# MDEV-23207 Assertion `tl->table == __null' failed in THD::open_temporary_table
+#
+create table t1 (pk int primary key) engine=innodb partition by hash(pk) partitions 10;
+create table t2 (c int) engine=innodb;
+create temporary table t3 (c int);
+repair table t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+test.t2	repair	status	OK
+test.t3	repair	status	OK
+drop tables t1, t2;
+# End of 10.11 tests

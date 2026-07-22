@@ -82,6 +82,30 @@ SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 h
 @@global.gtid_binlog_state	all through 101 have been committed
 0-1-101	0-1-101
 connection slave;
+include/stop_slave.inc
+set @saved_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_mode = conservative;
+include/start_slave.inc
+connection master;
+INSERT INTO ti SET a=2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+lock table ti write;
+SET GLOBAL debug_dbug= "+d,halt_past_mark_start_commit";
+connection master;
+INSERT INTO ti SET a=35570;
+ALTER SEQUENCE s2 restart with 1;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+SET debug_sync = "now SIGNAL past_mark_continue";
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @@global.slave_parallel_mode = @saved_mode;
+SET @@global.debug_dbug = @@GLOBAL.debug_dbug;
+include/start_slave.inc
+connection slave;
 flush tables with read lock;
 connection master;
 CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;

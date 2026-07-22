@@ -64,7 +64,7 @@ drop table t1;
 create table t1 (c1 timestamp);
 desc t1;
 Field	Type	Null	Key	Default	Extra
-c1	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+c1	timestamp	YES		NULL	
 drop table t1;
 create table t1 (c1 datetime);
 desc t1;

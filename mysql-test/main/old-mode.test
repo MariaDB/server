@@ -19,6 +19,8 @@ drop table t1,t2;
 #
 # Test that SHOW PROCESSLIST doesn't have the Progress column
 #
+let $count_sessions= 1;
+source include/wait_until_count_sessions.inc;
 
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
 # Embedded server is hardcoded to show "Writing to net" as STATE.
@@ -91,7 +93,7 @@ SET @@global.mysql56_temporal_format=DEFAULT;
 # Copy_field
 set time_zone='Europe/Moscow';
 set global mysql56_temporal_format=false;
-create table t1 (a timestamp);
+create table t1 (a timestamp not null default now());
 set timestamp=1288477526;
 insert t1 values (null);
 insert t1 values ();
@@ -107,7 +109,7 @@ drop table t1;
 
 # field_conv_incompatible()
 set global mysql56_temporal_format=false;
-create table t1 (a timestamp);
+create table t1 (a timestamp not null default now());
 set timestamp=1288477526;
 insert t1 values (null);
 set timestamp=1288481126;
@@ -169,3 +171,11 @@ DROP TABLE t1;
 
 SET @@time_zone=DEFAULT;
 SET TIMESTAMP=DEFAULT;
+
+--echo #
+--echo # MDEV-31608 - Connector/NET fails to connect since 10.10
+--echo #
+select count(*) > 0 from information_schema.collations where id IS NULL;
+SET old_mode=no_null_collation_ids;
+select count(*) > 0 from information_schema.collations where id IS NULL;
+

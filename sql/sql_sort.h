@@ -52,7 +52,7 @@ typedef struct st_sort_addon_field
   /* Sort addon packed field */
   Field *field;          /* Original field */
   uint   offset;         /* Offset from the last sorted field */
-  uint   null_offset;    /* Offset to to null bit from the last sorted field */
+  uint   null_offset;    /* Offset to null bit from the last sorted field */
   uint   length;         /* Length in the sort buffer */
   uint8  null_bit;       /* Null bit mask for the field */
 } SORT_ADDON_FIELD;

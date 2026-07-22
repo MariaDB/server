@@ -6,6 +6,12 @@
 
 source include/master-slave.inc;
 
+connection slave;
+source include/stop_slave.inc;
+change master to master_use_gtid=no;
+source include/start_slave.inc;
+connection master;
+
 let $SERVER_VERSION=`select version()`;
 
 create table t1 (a int) ENGINE=MyISAM;

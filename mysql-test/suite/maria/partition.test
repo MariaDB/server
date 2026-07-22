@@ -9,3 +9,37 @@
 CREATE TABLE t (a INT, KEY(a)) ENGINE=Aria PARTITION BY KEY(a) PARTITIONS 2;
 SELECT * FROM t PARTITION (p1);
 DROP TABLE t;
+
+
+#
+# MDEV-33190
+# Errors or assertion failure upon REPAIR on partitioned Aria table with misplaced rows
+#
+
+CREATE TABLE t (a INT KEY) ENGINE=Aria PARTITION BY LIST (a) (
+      PARTITION p0 VALUES IN (1,2),
+      PARTITION p1 VALUES IN (3,4)
+);
+
+CREATE TABLE t1 (a INT KEY) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (3);
+
+--echo Swap table t1 and partition p0 of table t.
+FLUSH TABLES;
+let $datadir=`select @@datadir`;
+
+move_file $datadir/test/t1.MAD $datadir/test/tmp.MAD;
+move_file $datadir/test/t1.MAI $datadir/test/tmp.MAI;
+
+move_file $datadir/test/t#P#p0.MAD $datadir/test/t1.MAD;
+move_file $datadir/test/t#P#p0.MAI $datadir/test/t1.MAI;
+
+move_file $datadir/test/tmp.MAD $datadir/test/t#P#p0.MAD;
+move_file $datadir/test/tmp.MAI $datadir/test/t#P#p0.MAI;
+
+REPAIR TABLE t;
+
+DROP TABLE t;
+DROP TABLE t1;
+

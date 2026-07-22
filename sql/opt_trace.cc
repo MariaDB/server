@@ -23,6 +23,7 @@
 #include "set_var.h"
 #include "my_json_writer.h"
 #include "sp_head.h"
+#include "item_jsonfunc.h"
 
 #include "rowid_filter.h"
 
@@ -126,7 +127,18 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
     The output is not very pretty lots of back-ticks, the output
     is as the one in explain extended , lets try to improved it here.
   */
-  writer->add("expanded_query", str.c_ptr_safe(), str.length());
+
+  StringBuffer<1024> escaped_str(system_charset_info);
+  if (st_append_escaped(&escaped_str, &str) == 0)
+  {
+    writer->add("expanded_query", escaped_str.c_ptr_safe(), 
+                                  escaped_str.length());
+  }
+  else
+  {
+    writer->add("expanded_query", 
+      "Error: failed to escape query string for JSON output");
+  }
 }
 
 void opt_trace_disable_if_no_security_context_access(THD *thd)
@@ -473,22 +485,21 @@ void Opt_trace_context::end()
 }
 
 
-void Opt_trace_start::init(THD *thd,
-                           TABLE_LIST *tbl,
-                           enum enum_sql_command sql_command,
-                           List<set_var_base> *set_vars,
-                           const char *query,
-                           size_t query_length,
-                           const CHARSET_INFO *query_charset)
+/*
+  Slow path of Opt_trace_start::init(): reached only when optimizer trace is
+  enabled (the FLAG_ENABLED test is done inline by the caller in opt_trace.h).
+  It applies the remaining traceability conditions and, if they hold, starts
+  the trace context.
+*/
+void Opt_trace_start::init_traceable(THD *thd,
+                                     TABLE_LIST *tbl,
+                                     enum enum_sql_command sql_command,
+                                     List<set_var_base> *set_vars,
+                                     const char *query,
+                                     size_t query_length,
+                                     const CHARSET_INFO *query_charset)
 {
-  /*
-    if optimizer trace is enabled and the statment we have is traceable,
-    then we start the context.
-  */
-  const ulonglong var= thd->variables.optimizer_trace;
-  traceable= FALSE;
-  if (unlikely(var & Opt_trace_context::FLAG_ENABLED) &&
-      sql_command_can_be_traced(sql_command) &&
+  if (sql_command_can_be_traced(sql_command) &&
       !list_has_optimizer_trace_table(tbl) &&
       !sets_var_optimizer_trace(sql_command, set_vars) &&
       !thd->system_thread &&

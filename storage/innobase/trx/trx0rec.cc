@@ -1776,8 +1776,7 @@ TRANSACTIONAL_TARGET ATTRIBUTE_NOINLINE
 /** @return whether the transaction holds an exclusive lock on a table */
 static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
 {
-  if (table.is_temporary())
-    return true;
+  ut_ad(!table.is_temporary());
 
   uint32_t n;
 
@@ -1806,6 +1805,30 @@ static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
         return true;
 
   return false;
+}
+
+/** For ALTER TABLE...IGNORE ALGORITHM=COPY, rewind the undo log
+to maintain only the latest insert undo record. This allows easy
+rollback of the last inserted row on duplicate key errors.
+@param mtr		mini-transaction
+@param undo_block	undo log page
+@param table  		table being altered
+@param trx		transaction
+@param undo  		insert undo log
+@return mod_tables entry after inserting the table */
+static ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+std::pair<trx_mod_tables_t::iterator, bool>
+trx_undo_rewrite_ignore(mtr_t *mtr, buf_block_t *undo_block,
+			dict_table_t *table, trx_t *trx, trx_undo_t *undo)
+{
+  mtr->write<2>(*undo_block, undo_block->page.frame + TRX_UNDO_PAGE_HDR +
+                TRX_UNDO_PAGE_FREE, undo->old_offset);
+  ut_ad(trx->undo_no == 1);
+  undo->top_offset= undo->old_offset;
+  undo->top_undo_no= 0;
+  trx->undo_no= 0;
+  trx->mod_tables.clear();
+  return trx->mod_tables.emplace(table, 0);
 }
 
 /***********************************************************************//**
@@ -1858,7 +1881,7 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
-	if (m.second && index->table->is_active_ddl()) {
+	if (m.second && index->table->is_native_online_ddl()) {
 		trx->apply_online_log= true;
 	}
 
@@ -1878,9 +1901,19 @@ trx_undo_report_row_operation(
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
 		ut_ad(trx->bulk_insert);
 		return DB_SUCCESS;
-	} else if (m.second && trx->bulk_insert
-		   && trx_has_lock_x(*trx, *index->table)) {
-		m.first->second.start_bulk_insert();
+	} else if (!m.second || !trx->bulk_insert) {
+		bulk = false;
+	} else if (index->table->is_temporary()) {
+	} else if (trx_has_lock_x(*trx, *index->table)
+		   && index->table->bulk_trx_id == trx->id) {
+		m.first->second.start_bulk_insert(
+			index->table,
+			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
+
+		if (dberr_t err = m.first->second.bulk_insert_buffered(
+			    *clust_entry, *index, trx)) {
+			return err;
+		}
 	} else {
 		bulk = false;
 	}
@@ -1903,9 +1936,19 @@ trx_undo_report_row_operation(
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
 		pundo = &trx->rsegs.m_redo.undo;
+		const bool clear_ignore = *pundo && trx->undo_no
+			&& (*pundo)->old_offset <= (*pundo)->top_offset
+			&& index->table->skip_alter_undo
+			== dict_table_t::IGNORE_UNDO;
+
 		rseg = trx->rsegs.m_redo.rseg;
 		undo_block = trx_undo_assign_low<false>(trx, rseg, pundo,
 							&mtr, &err);
+		if (clear_ignore) {
+			ut_ad(!rec);
+			m = trx_undo_rewrite_ignore(&mtr, undo_block,
+						    index->table, trx, *pundo);
+		}
 	}
 
 	trx_undo_t*	undo	= *pundo;
@@ -1992,6 +2035,8 @@ err_exit:
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
 			mtr.commit();
+
+			undo->old_offset = offset;
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;

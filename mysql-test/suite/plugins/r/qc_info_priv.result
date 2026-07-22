@@ -31,6 +31,7 @@ STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BL
 test	select * from t1	1	512	#	-1	1011	513	binary	utf32	utf32_bin	Europe/Moscow	4	7	STRICT_ALL_TABLES	ar_SD	1	1	1	#	0	0	0	#	0
 test	select * from t1	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	SYSTEM	0	4	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	1	#	0	0	1	#	0
 create user mysqltest;
+grant select on test.* to mysqltest;
 connect  conn1,localhost,mysqltest,,;
 connection conn1;
 select a from t1;

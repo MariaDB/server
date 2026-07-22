@@ -1,0 +1,5 @@
+[ON]
+--innodb_alter_copy_bulk=ON
+
+[OFF]
+--innodb_alter_copy_bulk=OFF

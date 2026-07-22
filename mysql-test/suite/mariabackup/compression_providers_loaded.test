@@ -1,0 +1,38 @@
+let $alg = $MTR_COMBINATIONS;
+
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'provider_$alg' and plugin_status='active'`)
+{
+  skip "Needs provider_$alg plugin";
+}
+
+--echo #
+--echo # Testing mariabackup with $alg compression
+--echo #
+
+--echo # Creating table
+eval set global innodb_compression_algorithm = $alg;
+eval create table t1 (a int, b text $column_params) engine = innodb page_compressed = 1;
+insert t1 (a, b) values (0, repeat("abc", 100));
+insert t1 (a, b) values (1, repeat("def", 1000));
+insert t1 (a, b) values (2, repeat("ghi", 10000));
+select a, left(b, 9), length(b) from t1;
+
+--source include/restart_mysqld.inc
+
+--echo # xtrabackup backup
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+disable_result_log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+enable_result_log;
+
+--echo # xtrabackup prepare;
+disable_result_log;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+source include/restart_and_restore.inc;
+enable_result_log;
+
+select a, left(b, 9), length(b) from t1;
+
+drop table t1;
+rmdir $targetdir;

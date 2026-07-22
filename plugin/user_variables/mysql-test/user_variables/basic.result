@@ -29,13 +29,13 @@ SET @dec_var=CAST(1 AS DECIMAL(20, 10));
 SET @time_var=CAST('2016-02-25' AS DATE);
 SET @' @#^%'='Value of variable with odd name';
 SET @''='Value of variable with empty name';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '='Value of variable with empty name'' at line 1
 SET @null_var=NULL;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
 COUNT(*)
-10
+9
 SELECT * FROM INFORMATION_SCHEMA.USER_VARIABLES ORDER BY VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE	VARIABLE_TYPE	CHARACTER_SET_NAME
-	Value of variable with empty name	VARCHAR	latin1
  @#^%	Value of variable with odd name	VARCHAR	latin1
 dec_var	1.0000000000	DECIMAL	latin1
 double_var	1	DOUBLE	latin1
@@ -47,7 +47,6 @@ uint_var	2	INT UNSIGNED	latin1
 utf8str_var	UTF8 string value	VARCHAR	utf8mb3
 SHOW USER_VARIABLES;
 Variable_name	Value
-	Value of variable with empty name
  @#^%	Value of variable with odd name
 dec_var	1.0000000000
 double_var	1

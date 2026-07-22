@@ -26,17 +26,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "xbstream.h"
 #include "fil0fil.h"
 #include <set>
+#include "handler.h"
+
+#include <utility>
+#include <vector>
+#include <tuple>
+#include <functional>
+
 
 #define XB_TOOL_NAME "mariadb-backup"
+#define XB_HISTORY_TABLE "mysql.mariadb_backup_history"
 
 struct xb_delta_info_t
 {
-	xb_delta_info_t(ulint page_size, ulint zip_size, ulint space_id)
+	xb_delta_info_t(ulint page_size, ulint zip_size, uint32_t space_id)
 	: page_size(page_size), zip_size(zip_size), space_id(space_id) {}
 
 	ulint	page_size;
 	ulint	zip_size;
-	ulint	space_id;
+	uint32_t space_id;
 };
 
 class CorruptedPages
@@ -44,10 +52,10 @@ class CorruptedPages
 public:
   CorruptedPages();
   ~CorruptedPages();
-  void add_page(const char *file_name, ulint space_id, unsigned page_no);
-  bool contains(ulint space_id, unsigned page_no) const;
-  void drop_space(ulint space_id);
-  void rename_space(ulint space_id, const std::string &new_name);
+  void add_page(const char *file_name, page_id_t page_id);
+  bool contains(page_id_t page_id) const;
+  void drop_space(uint32_t space_id);
+  void rename_space(uint32_t space_id, const std::string &new_name);
   bool print_to_file(ds_ctxt *ds_data, const char *file_name) const;
   void read_from_file(const char *file_name);
   bool empty() const;
@@ -56,13 +64,13 @@ public:
   void backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta);
 
 private:
-  void add_page_no_lock(const char *space_name, ulint space_id,
-                        unsigned page_no, bool convert_space_name);
+  void add_page_no_lock(const char *space_name, page_id_t page_id,
+                        bool convert_space_name);
   struct space_info_t {
     std::string space_name;
-    std::set<unsigned> pages;
+    std::set<uint32_t> pages;
   };
-  typedef std::map<ulint, space_info_t> container_t;
+  typedef std::map<uint32_t, space_info_t> container_t;
   mutable pthread_mutex_t m_mutex;
   container_t m_spaces;
 };
@@ -82,9 +90,6 @@ extern char		*xb_rocksdb_datadir;
 extern my_bool	xb_backup_rocksdb;
 
 extern uint		opt_protocol;
-
-/* The last checkpoint LSN at the backup startup time */
-extern lsn_t checkpoint_lsn_start;
 
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;
@@ -112,7 +117,7 @@ extern my_bool		xtrabackup_decrypt_decompress;
 extern char		*innobase_data_file_path;
 extern longlong		innobase_page_size;
 
-extern int		xtrabackup_parallel;
+extern uint		xtrabackup_parallel;
 
 extern my_bool		xb_close_files;
 extern const char	*xtrabackup_compress_alg;
@@ -131,7 +136,6 @@ extern my_bool		opt_galera_info;
 extern my_bool		opt_slave_info;
 extern my_bool		opt_no_lock;
 extern my_bool		opt_safe_slave_backup;
-extern my_bool		opt_rsync;
 extern my_bool		opt_force_non_empty_dirs;
 extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
@@ -288,15 +292,40 @@ fil_file_readdir_next_file(
 	os_file_stat_t* info);	/*!< in/out: buffer where the
 				info is returned */
 
-#ifndef DBUG_OFF
-#include <fil0fil.h>
-extern void dbug_mariabackup_event(const char *event,
-                            const fil_space_t::name_type key);
+const char *convert_dst(const char *dst);
 
-#define DBUG_MARIABACKUP_EVENT(A, B)                                          \
-  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A, B);)
-#else
-#define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
-#endif // DBUG_OFF
+std::string get_table_version_from_image(const std::vector<uchar> &frm_image);
+std::pair<bool, legacy_db_type>
+	get_table_engine_from_image(const std::vector<uchar> &frm_image);
+std::string read_table_version_id(File file);
 
+std::string convert_tablename_to_filepath(
+	const char *data_dir_path, const std::string &db, const std::string &table);
+
+std::tuple<std::string, std::string, std::string>
+convert_filepath_to_tablename(const char *filepath);
+
+typedef std::string table_key_t;
+
+inline table_key_t table_key(const std::string &db, const std::string &table) {
+	return std::string(db).append(".").append(table);
+};
+
+inline table_key_t table_key(const char *db, const char *table) {
+	return std::string(db).append(".").append(table);
+};
+
+typedef std::function<void(std::string, std::string, std::string)>
+  post_copy_table_hook_t;
+
+my_bool
+check_if_skip_table(
+/******************/
+	const char*	name);	/*!< in: path to the table */
+
+bool is_log_table(const char *dbname, const char *tablename);
+bool is_stats_table(const char *dbname, const char *tablename);
+
+extern my_bool xtrabackup_copy_back;
+extern my_bool xtrabackup_move_back;
 #endif /* XB_XTRABACKUP_H */

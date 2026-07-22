@@ -28,7 +28,7 @@ To clean up afterwards, remove the created "var" subdirectory, e.g.
 If tests fail on your system, please read the following manual section
 for instructions on how to report the problem:
 
-https://mariadb.com/kb/en/reporting-bugs
+https://mariadb.com/docs/general-resources/community/community/bug-tracking/reporting-bugs
 
 If you want to use an already running MySQL server for specific tests,
 use the --extern option to mysql-test-run. Please note that in this mode,
@@ -94,7 +94,7 @@ ftp://ftp.mariadb.org/private and submit a report to
 https://mariadb.org/jira about it.
 
 The latest information about mysql-test-run can be found at:
-https://mariadb.com/kb/en/mariadb/mysqltest/
+https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 
 If you want to create .rdiff files, check
-https://mariadb.com/kb/en/mariadb/mysql-test-auxiliary-files/
+https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test/mariadb-test-auxiliary-files

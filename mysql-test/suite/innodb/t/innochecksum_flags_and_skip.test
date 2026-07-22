@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/have_debug.inc
+--source include/have_sequence.inc
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 SET GLOBAL innodb_log_checkpoint_now=ON;
@@ -84,6 +85,13 @@ remove_file $resultlog_1;
 --source include/start_mysqld.inc
 CREATE TABLE ibd_1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 INSERT INTO ibd_1 VALUES(1), (2), (3), (4);
+
+disable_warnings;
+SET GLOBAL innodb_file_per_table=0;
+enable_warnings;
+CREATE TABLE ibd_2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO ibd_2 SELECT seq FROM seq_1_to_8451;
+
 let $shutdown_timeout=;
 --source include/shutdown_mysqld.inc
 --echo # Pass wrong tablespace flag for ibdata2
@@ -167,5 +175,5 @@ let SEARCH_PATTERN=Exceeded the maximum allowed checksum mismatch;
 
 remove_file $ibdata3;
 --source include/start_mysqld.inc
-DROP TABLE t1, ibd_1;
+DROP TABLE t1, ibd_1, ibd_2;
 remove_file $resultlog;

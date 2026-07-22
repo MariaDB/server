@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -953,6 +953,9 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
           part->length < part_field->key_length())
         break;
 
+      if (part->key_part_flag & HA_REVERSE_SORT)
+        break; // TODO MDEV-27576
+
       if (field->eq(part->field))
       {
         ref->key= idx;
@@ -1010,7 +1013,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
   @param[in] ref            Reference to the key value and info
   @param[in] field          Field used the MIN/MAX expression
   @param[in] cond           WHERE condition
-  @param[in] range_fl       Says whether there is a condition to to be checked
+  @param[in] range_fl       Says whether there is a condition to be checked
   @param[in] prefix_len     Length of the constant part of the key
 
   @retval

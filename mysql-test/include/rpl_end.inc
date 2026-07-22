@@ -90,7 +90,7 @@ while ($_rpl_server)
   --source include/rpl_connection.inc
 
   # Clear Using_Gtid in SHOW SLAVE STATUS to keep check_testcase happy.
-  CHANGE MASTER TO master_log_file='';
+  CHANGE MASTER TO master_use_gtid=Slave_Pos;
 
   --dec $_rpl_server
 }

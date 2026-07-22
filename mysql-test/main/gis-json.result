@@ -137,3 +137,22 @@ NULL
 Warnings:
 Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'st_geomfromgeojson' at position 473
 # End of 10.6 tests
+#
+# MDEV-34079: ST_AsGeoJSON returns incorrect value for empty geometry
+#
+SELECT ST_AsGeoJSON(GeomFromText('GeometryCollection EMPTY'));
+ST_AsGeoJSON(GeomFromText('GeometryCollection EMPTY'))
+{"type": "GeometryCollection", "geometries": []}
+SELECT ST_AsGeoJSON(ST_DIFFERENCE(POINT(0,0), POINT(0,0)));
+ST_AsGeoJSON(ST_DIFFERENCE(POINT(0,0), POINT(0,0)))
+{"type": "GeometryCollection", "geometries": []}
+SELECT ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'))
+NULL
+SELECT ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'))
+NULL
+SELECT ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'))
+NULL
+# End of 10.11 tests

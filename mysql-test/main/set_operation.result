@@ -571,192 +571,244 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 8,
             "operation": "UNION",
-            "table": {
-              "table_name": "<derived2>",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "materialized": {
-                "query_block": {
-                  "union_result": {
-                    "table_name": "<intersect2,3,4>",
-                    "access_type": "ALL",
-                    "query_specifications": [
-                      {
-                        "query_block": {
-                          "select_id": 2,
-                          "table": {
-                            "table_name": "t2",
-                            "access_type": "ALL",
-                            "rows": 6,
-                            "filtered": 100
-                          }
-                        }
-                      },
-                      {
-                        "query_block": {
-                          "select_id": 3,
-                          "operation": "INTERSECT",
-                          "table": {
-                            "message": "No tables used"
-                          }
-                        }
-                      },
-                      {
-                        "query_block": {
-                          "select_id": 4,
-                          "operation": "INTERSECT",
-                          "table": {
-                            "table_name": "<derived5>",
-                            "access_type": "ALL",
-                            "rows": 10,
-                            "filtered": 100,
-                            "materialized": {
-                              "query_block": {
-                                "union_result": {
-                                  "query_specifications": [
-                                    {
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "<derived2>",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100,
+                  "materialized": {
+                    "query_block": {
+                      "union_result": {
+                        "table_name": "<intersect2,3,4>",
+                        "access_type": "ALL",
+                        "query_specifications": [
+                          {
+                            "query_block": {
+                              "select_id": 2,
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "t2",
+                                    "access_type": "ALL",
+                                    "rows": 6,
+                                    "filtered": 100
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "query_block": {
+                              "select_id": 3,
+                              "operation": "INTERSECT",
+                              "table": {
+                                "message": "No tables used"
+                              }
+                            }
+                          },
+                          {
+                            "query_block": {
+                              "select_id": 4,
+                              "operation": "INTERSECT",
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "<derived5>",
+                                    "access_type": "ALL",
+                                    "rows": 10,
+                                    "filtered": 100,
+                                    "materialized": {
                                       "query_block": {
-                                        "select_id": 5,
-                                        "table": {
-                                          "table_name": "t1",
-                                          "access_type": "ALL",
-                                          "rows": 5,
-                                          "filtered": 100
-                                        }
-                                      }
-                                    },
-                                    {
-                                      "query_block": {
-                                        "select_id": 6,
-                                        "operation": "UNION",
-                                        "table": {
-                                          "table_name": "t1",
-                                          "access_type": "ALL",
-                                          "rows": 5,
-                                          "filtered": 100
+                                        "union_result": {
+                                          "query_specifications": [
+                                            {
+                                              "query_block": {
+                                                "select_id": 5,
+                                                "nested_loop": [
+                                                  {
+                                                    "table": {
+                                                      "table_name": "t1",
+                                                      "access_type": "ALL",
+                                                      "rows": 5,
+                                                      "filtered": 100
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "query_block": {
+                                                "select_id": 6,
+                                                "operation": "UNION",
+                                                "nested_loop": [
+                                                  {
+                                                    "table": {
+                                                      "table_name": "t1",
+                                                      "access_type": "ALL",
+                                                      "rows": 5,
+                                                      "filtered": 100
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
                                         }
                                       }
                                     }
-                                  ]
+                                  }
                                 }
-                              }
+                              ]
                             }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               }
-            }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 7,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 9,
             "operation": "UNION",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 6,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 6,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 10,
             "operation": "UNION",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 11,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 6,
-                "filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "65",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 6,
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "65",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 12,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "attached_condition": "t1.a < 4"
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 6,
-                "filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100,
+                  "attached_condition": "t1.a < 4"
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "65",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 6,
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "65",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 13,
             "operation": "UNION",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]

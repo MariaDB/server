@@ -22,7 +22,7 @@ set -ue
 # This is a reference script for mariadb-backup-based state snapshot transfer.
 
 # Documentation:
-# https://mariadb.com/kb/en/mariabackup-overview/
+# https://mariadb.com/docs/server/server-usage/backup-and-restore/mariadb-backup/mariadb-backup-overview
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
@@ -1189,12 +1189,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
-
-        if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-            wsrep_log_info "Forcing FTWRL due to environment variable" \
-                           "FORCE_FTWRL equal to $FORCE_FTWRL"
-            iopts="--no-backup-locks${iopts:+ }$iopts"
-        fi
 
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariadb-backup command line:

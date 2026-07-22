@@ -465,8 +465,6 @@ sql_parse_prepare(const LEX_CSTRING *file_name, MEM_ROOT *mem_root,
     DBUG_RETURN(0);
   }
 
-  MSAN_STAT_WORKAROUND(&stat_info);
-
   if (stat_info.st_size > INT_MAX-1)
   {
     my_error(ER_FPARSER_TOO_BIG_FILE, MYF(0), file_name->str);
@@ -816,7 +814,7 @@ File_parser::parse(uchar* base, MEM_ROOT *mem_root,
       {
 	len= parameter->name.length;
 	// check length
-	if (len < (size_t)(end-ptr) && ptr[len] != '=')
+	if (len >= (size_t)(end-ptr) || ptr[len] != '=')
 	  continue;
 	// check keyword
 	if (memcmp(parameter->name.str, ptr, len) == 0)

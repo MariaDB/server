@@ -339,7 +339,7 @@ public:
 ///
 /// sp_pcontext objects are organized in a tree according to the following
 /// rules:
-///   - one sp_pcontext object corresponds for for each BEGIN..END block;
+///   - one sp_pcontext object corresponds for each BEGIN..END block;
 ///   - one sp_pcontext object corresponds for each exception handler;
 ///   - one additional sp_pcontext object is created to contain
 ///     Stored Program parameters.
@@ -451,6 +451,20 @@ public:
   /// slots needed for variables during the runtime phase.
   uint max_var_index() const
   { return m_max_var_index; }
+
+  /// @return the offset of the first variable on this context
+  uint first_variable_offset() const
+  { return m_var_offset; }
+
+  /// @return the offset of the variable which will be
+  /// declared immediately after this context.
+  /// Such a declaration is possible after a cursor with parameters
+  ///   CURSOR cur(c0 INT,c1 INT);
+  ///   x1 INT;
+  /// In the above example, the context containing c0 and c1 will return
+  /// the offset of x1.
+  uint after_last_variable_offset() const
+  { return m_var_offset + m_max_var_index; }
 
   /// @return the current number of variables used in the parent contexts
   /// (from the root), including this context.

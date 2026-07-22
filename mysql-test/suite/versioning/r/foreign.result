@@ -393,10 +393,7 @@ SET FOREIGN_KEY_CHECKS = ON;
 SET SESSION SQL_MODE= 'NO_BACKSLASH_ESCAPES';
 SET timestamp = 8;
 LOAD DATA INFILE 't1.data' REPLACE INTO TABLE t1;
-Warnings:
-Warning	1265	Data truncated for column 'f12' at row 2
-Warning	1265	Data truncated for column 'f12' at row 4
-Warning	1265	Data truncated for column 'f12' at row 7
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f13`) REFERENCES `t2` (`f`) ON DELETE SET NULL)
 SET timestamp = 9;
 REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;

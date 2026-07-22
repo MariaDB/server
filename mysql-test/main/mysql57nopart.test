@@ -1,0 +1,13 @@
+source include/have_innodb.inc;
+--echo #
+--echo # MDEV-35079 Migrate MySQL5.7 to MariaDB 10.4, then to MariaDB 10.11 Failed
+--echo #
+let $datadir=`select @@datadir`;
+copy_file std_data/mysql57part.frm $datadir/test/mysql57part.frm;
+--disable_view_protocol
+select table_name, concat('<',table_comment,'>') from information_schema.tables
+  where table_schema='test';
+--enable_view_protocol
+drop table mysql57part;
+
+--echo # End of 10.11 tests

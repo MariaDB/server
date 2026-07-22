@@ -1,0 +1,10 @@
+#
+# MDEV-38110 Sever shutdown prevented by RocksDB setting rocksdb_pause_background_work
+#
+install soname 'ha_rocksdb';
+set global rocksdb_pause_background_work=1;
+# restart
+select 'ok';
+ok
+ok
+# End of 10.11 tests

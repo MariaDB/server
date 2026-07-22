@@ -1,5 +1,8 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+call mtr.add_suppression("Slave: ER_CONNECTION_KILLED .* is not allowed in --slave-skip-errors");
+include/assert_grep.inc [Warning about ER_CONNECTION_KILLED should appear in error log]
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 *** Provoke a deadlock on the slave, check that transaction retry succeeds. ***
 connection master;

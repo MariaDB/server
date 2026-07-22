@@ -268,14 +268,14 @@ bool TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
 template <class TYPE>
 char *TYPBLK<TYPE>::GetCharString(char *p, int n)
   {
-  sprintf(p, Fmt, UnalignedRead(n));
+  snprintf(p, 32, Fmt, UnalignedRead(n));
   return p;
   } // end of GetCharString
 
 template <>
 char *TYPBLK<double>::GetCharString(char *p, int n)
   {
-  sprintf(p, Fmt, Prec, UnalignedRead(n));
+  snprintf(p, 32, Fmt, Prec, UnalignedRead(n));
   return p;
   } // end of GetCharString
 

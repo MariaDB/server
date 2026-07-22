@@ -1,5 +1,9 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
@@ -961,7 +965,9 @@ include/rpl_stop_server.inc [server_number=1]
 include/rpl_start_server.inc [server_number=1]
 --> Master binlog: Server ver: 5.0.16-debug-log, Binlog ver: 4
 connection slave;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 START SLAVE;
 SELECT MASTER_POS_WAIT('master-bin.000001', 513) >= 0;
 MASTER_POS_WAIT('master-bin.000001', 513) >= 0
@@ -992,7 +998,9 @@ DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE t2;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 SHOW TABLES LIKE 't_';
 Tables_in_test (t_)
@@ -1083,7 +1091,12 @@ drop table t1;
 connection slave;
 connection master;
 include/rpl_reset.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection master;
 create table t1 ( f int ) engine = innodb;
 create table log ( r int ) engine = myisam;

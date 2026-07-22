@@ -2815,7 +2815,7 @@ grn_rc
 grn_hash_delete(grn_ctx *ctx, grn_hash *hash, const void *key, uint32_t key_size,
                 grn_table_delete_optarg *optarg)
 {
-  uint32_t h, i, m, s;
+  uint32_t h, i, s;
   grn_rc rc = grn_hash_error_if_truncated(ctx, hash);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -2836,7 +2836,6 @@ grn_hash_delete(grn_ctx *ctx, grn_hash *hash, const void *key, uint32_t key_size
   {
     grn_id e, *ep;
     /* lock */
-    m = *hash->max_offset;
     for (i = h; ; i += s) {
       if (!(ep = grn_hash_idx_at(ctx, hash, i))) { return GRN_NO_MEMORY_AVAILABLE; }
       if (!(e = *ep)) { break; }

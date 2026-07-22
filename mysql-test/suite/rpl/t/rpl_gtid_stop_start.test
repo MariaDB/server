@@ -21,7 +21,6 @@ INSERT INTO t1 VALUES (1);
 --let $status_items= Master_Log_File,Using_Gtid
 --source include/show_slave_status.inc
 
-CHANGE MASTER TO master_use_gtid=current_pos;
 
 # Now try to restart the slave mysqld server without starting the slave first
 # threads after the CHANGE MASTER.

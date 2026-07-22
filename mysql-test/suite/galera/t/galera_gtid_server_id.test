@@ -1,4 +1,8 @@
 --source include/galera_cluster.inc
+# This test asserts exact GTID positions (e.g. 1-11-2). Those only hold from a
+# fresh cluster, so the cluster GTID state must start clean on every run (e.g.
+# with --repeat). Force a server restart before the test.
+--source include/force_restart.inc
 
 --connection node_1
 select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;

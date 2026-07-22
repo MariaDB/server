@@ -302,7 +302,7 @@ flush privileges;
 
 # if user-table is affected by PAD_CHAR_TO_FULL_LENGTH, our connect will fail
 # --error 1045
-connect (user_32753,localhost,mysqltest_32753,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (user_32753,localhost,mysqltest_32753,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
 select current_user();
 
 # clean up

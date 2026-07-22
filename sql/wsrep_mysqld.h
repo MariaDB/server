@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -67,17 +67,17 @@ extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
+extern const char* wsrep_status_file;
+extern const char* wsrep_allowlist;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern my_bool     wsrep_desync;
 extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_recovery;
-extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
 extern my_bool     wsrep_restart_slave;
-extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_trx_fragment_unit;
@@ -91,7 +91,6 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
-extern my_bool     wsrep_strict_ddl;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -209,7 +208,7 @@ extern void wsrep_close_applier_threads(int count);
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication(const char *wsrep_cluster_address);
-extern void wsrep_shutdown_replication();
+extern void wsrep_shutdown();
 extern bool wsrep_check_mode (enum_wsrep_mode mask);
 extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
                                                TABLE_LIST *tables);
@@ -223,6 +222,7 @@ extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 extern bool wsrep_reload_ssl();
+extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -277,7 +277,6 @@ static inline bool wsrep_cluster_address_exists()
 }
 
 extern my_bool wsrep_ready_get();
-extern void wsrep_ready_wait();
 
 extern mysql_mutex_t LOCK_wsrep_ready;
 extern mysql_cond_t  COND_wsrep_ready;
@@ -590,7 +589,17 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
                                      enum wsrep::key::type type);
 
-void wsrep_wait_ready(THD *thd);
+/**
+ * Wait until wsrep has reached ready state
+ * @return true if the node is ready, false if it's in shutdown
+ *
+ * @note The function may spuriously stop waiting and return
+ * readiness indication while in reality the node is not being
+ * ready. It's the best effort, and it's false-positive.
+ * In contrast, returning false is guaranteed to only happen
+ * when the node is indeed in shutdown.
+ */
+bool wsrep_wait_ready(THD *thd);
 void wsrep_ready_set(bool ready_value);
 
 /**
@@ -608,6 +617,16 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
  * @return true if error, otherwise false.
  */
 bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
+
+void wsrep_report_query_interrupted(const THD *thd, const char* file, const int line);
+
+/** Return wsrep server uuid.
+ */
+const std::string wsrep_get_server_uuid();
+
+/** Return full wsrep strorage engine checkpoint.
+ */
+const std::string wsrep_get_checkpoint();
 
 #else /* !WITH_WSREP */
 

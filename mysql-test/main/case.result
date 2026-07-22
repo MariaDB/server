@@ -1,4 +1,3 @@
-drop table if exists t1, t2;
 select CASE "b" when "a" then 1 when "b" then 2 END as exp;
 exp
 2
@@ -159,13 +158,13 @@ Note	1003	select coalesce(1) AS `COALESCE(1)`,coalesce(1.0) AS `COALESCE(1.0)`,c
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(1)` int(1) NOT NULL,
+  `COALESCE(1)` int(2) NOT NULL,
   `COALESCE(1.0)` decimal(2,1) NOT NULL,
   `COALESCE('a')` varchar(1) NOT NULL,
   `COALESCE(1,1.0)` decimal(2,1) NOT NULL,
   `COALESCE(1,'1')` varchar(1) NOT NULL,
   `COALESCE(1.1,'1')` varchar(4) NOT NULL,
-  `COALESCE('a' COLLATE latin1_bin,'b')` varchar(1) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+  `COALESCE('a' COLLATE latin1_bin,'b')` varchar(1) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 SELECT IFNULL('a' COLLATE latin1_swedish_ci, 'b' COLLATE latin1_bin);
@@ -572,6 +571,58 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where case `test`.`t1`.`a` when `test`.`t1`.`b` then 1 end = 1 and case when `test`.`t1`.`a` then `test`.`t1`.`b` else 1 end = 3
 DROP TABLE t1;
-#
 # End of 10.3 test
 #
+# MDEV-25415 CASE function handles NULL inconsistently
+#
+select case 'X' when null then 1 when 'X' then 2 else 3 end;
+case 'X' when null then 1 when 'X' then 2 else 3 end
+2
+select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
+case 'X' when 1/1 then 1 when 'X' then 2 else 3 end
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'X'
+select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
+case 'X' when 1/0 then 1 when 'X' then 2 else 3 end
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'X'
+Warning	1365	Division by 0
+#
+# MDEV-23278: Incorrect Calculation with AVG() Function
+#
+create table avg_calc_test (
+id int(11) not null auto_increment,
+name varchar(255) default null,
+primary key (id)
+) auto_increment=1 default charset=latin1;
+insert into avg_calc_test (name) values ('orange'), ('blue'), ('black'), ('orange'), ('black');
+select * from (
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test
+) t;
+metric_val
+2.0000
+create table t1 as
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+2.0000
+create or replace table t1 as
+select
+avg(least(1,2)) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+create or replace table t1 as
+select avg(coalesce(1,2)) as metric_val from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+drop table avg_calc_test, t1;
+# End of 10.11 test

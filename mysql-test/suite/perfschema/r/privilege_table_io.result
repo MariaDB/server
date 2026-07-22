@@ -119,8 +119,6 @@ wait/io/table/sql/handler		TABLE	mysql	global_priv	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	global_priv	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	global_priv	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	db	fetch	1
-wait/io/table/sql/handler		TABLE	mysql	db	fetch	1
-wait/io/table/sql/handler		TABLE	mysql	db	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	proxies_priv	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	proxies_priv	fetch	1
 wait/io/table/sql/handler		TABLE	mysql	proxies_priv	fetch	1

@@ -38,7 +38,7 @@ include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 DROP TABLE t2, t1;
 connection slave;
-CHANGE MASTER TO MASTER_LOG_FILE='LOG_FILE', MASTER_LOG_POS=LOG_POS;
+CHANGE MASTER TO MASTER_LOG_FILE='LOG_FILE', MASTER_LOG_POS=LOG_POS, MASTER_USE_GTID=NO;
 SET @@GLOBAL.innodb_limit_optimistic_insert_debug = @saved_innodb_limit_optimistic_insert_debug;
 include/start_slave.inc
 include/rpl_end.inc

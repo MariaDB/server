@@ -199,7 +199,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   if (have_v1_header)
   {
     /* Read until end of header (newline character)*/
-    while(pos < sizeof(hdr)-1)
+    while(pos < sizeof(hdr) - 1)
     {
       long len= (long)vio_read(vio, hdr + pos, 1);
       if (len < 0)
@@ -208,6 +208,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
       if (hdr[pos-1] == '\n')
         break;
     }
+    DBUG_ASSERT(pos < sizeof(hdr));
     hdr[pos]= 0;
 
     if (parse_v1_header((char *)hdr, pos, peer_info))

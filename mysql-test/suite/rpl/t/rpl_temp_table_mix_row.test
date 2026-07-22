@@ -4,7 +4,7 @@
 # This test case will test the condition of the bug#40013.
 # The test step is:
 #   1: create temp table on connection 'master';
-#   2: switch to ROW format using 'INSERT INTO t1 VALUES (UUID());'
+#   2: switch to ROW format using 'INSERT INTO t1 VALUES (SYS_GUID());'
 #   3: disconnect 'master' and connect to a new connection 'master1';
 #   4: sync to slave and check the number of temp tables on slave.
 #
@@ -19,7 +19,7 @@ source include/master-slave.inc;
 
 CREATE TABLE t1 (a CHAR(48));
 CREATE TEMPORARY TABLE t1_tmp1(a INT);
-INSERT INTO t1 VALUES (UUID());
+INSERT INTO t1 VALUES (SYS_GUID());
 
 sync_slave_with_master;
 
@@ -188,7 +188,7 @@ DROP TEMPORARY TABLE t1;
 
 --echo # The rows event will binlogged after 'INSERT INTO t1 VALUES(1)'
 --disable_warnings
-INSERT IGNORE INTO t1 VALUES(uuid()+0);
+INSERT IGNORE INTO t1 VALUES(SYS_GUID()+0);
 --enable_warnings
 COMMIT;
 

@@ -139,7 +139,7 @@ class Window_spec;
   The general rule to detect whether a set function is legal in a query with
   nested subqueries is much more complicated.
 
-  Consider the the following query:
+  Consider the following query:
     SELECT t1.a FROM t1 GROUP BY t1.a
       HAVING t1.a > ALL (SELECT t2.c FROM t2 WHERE SUM(t1.b) < t2.c).
   The set function SUM(b) is used here in the WHERE clause of the subquery.
@@ -468,7 +468,7 @@ public:
     Updated value is then saved in the field.
   */
   virtual void update_field()=0;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
     null_value=1;
@@ -800,7 +800,7 @@ public:
   {
     return get_date_from_int(thd, ltime, fuzzydate);
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=21;
@@ -823,7 +823,7 @@ protected:
   my_decimal direct_sum_decimal;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
 
 public:
   Item_sum_sum(THD *thd, Item *item_par, bool distinct):
@@ -970,7 +970,7 @@ public:
 
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   enum Sumfunctype sum_func () const override
   {
     return has_with_distinct() ? AVG_DISTINCT_FUNC : AVG_FUNC;
@@ -1055,7 +1055,7 @@ public:
 class Item_sum_variance :public Item_sum_double
 {
   Stddev m_stddev;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
 
 public:
   uint sample;
@@ -1176,7 +1176,7 @@ public:
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear() override;
   void direct_add(Item *item);
@@ -1272,7 +1272,7 @@ public:
   void update_field() override;
   const Type_handler *type_handler() const override
   { return &type_handler_ulonglong; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     if (args[0]->check_type_can_return_int(func_name_cstring()))
       return true;
@@ -1466,7 +1466,7 @@ public:
   {
     return create_table_field_from_handler(root, table);
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool fix_fields(THD *thd, Item **ref) override;
   LEX_CSTRING func_name_cstring() const override;
   const Type_handler *type_handler() const override;
@@ -1774,7 +1774,7 @@ class Item_sum_udf_float :public Item_udf_sum
   my_decimal *val_decimal(my_decimal *) override;
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd) override;
 
@@ -1804,7 +1804,7 @@ public:
       return &type_handler_ulonglong;
     return &type_handler_slonglong;
   }
-  bool fix_length_and_dec() override { decimals=0; max_length=21; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd) override;
 
 protected:
@@ -1848,7 +1848,7 @@ public:
   my_decimal *val_decimal(my_decimal *dec) override;
   const Type_handler *type_handler() const override
   { return string_type_handler(); }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   Item *copy_or_same(THD* thd) override;
 
 protected:
@@ -1881,7 +1881,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   const Type_handler *type_handler() const override
   { return &type_handler_newdecimal; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd) override;
 
@@ -1961,7 +1961,7 @@ public:
     { DBUG_ASSERT(fixed()); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed()); null_value=1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { base_flags|= item_base_t::MAYBE_NULL; max_length=0; return FALSE; }
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}

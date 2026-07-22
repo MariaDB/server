@@ -146,21 +146,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table);
+/** Release a metadata lock.
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept;
 
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread is a
-				foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd = NULL,
-	MDL_ticket*	mdl = NULL);
+/** Release a table reference and a metadata lock.
+@param table  referenced table
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+inline void dict_table_close(dict_table_t* table, THD *thd, MDL_ticket *mdl)
+  noexcept
+{
+  table->release();
+  mdl_release(thd, mdl);
+}
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -674,7 +674,7 @@ TPOOL_SUPPRESS_TSAN
 @return estimated number of rows */
 inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
 {
-  ut_ad(table->stat_initialized);
+  ut_ad(table->stat_initialized());
   return table->stat_n_rows;
 }
 
@@ -828,11 +828,8 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
-	MY_ATTRIBUTE((const));
-
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
+  MY_ATTRIBUTE((const));
 
 /** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags
@@ -1057,16 +1054,16 @@ dict_table_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*******************************************************************//**
-Adds a column to index. */
-void
-dict_index_add_col(
-/*===============*/
-	dict_index_t*		index,		/*!< in/out: index */
-	const dict_table_t*	table,		/*!< in: table */
-	dict_col_t*		col,		/*!< in: column */
-	ulint			prefix_len)	/*!< in: column prefix length */
-	MY_ATTRIBUTE((nonnull));
+/** Add a column to an index.
+@param index          index
+@param table          table
+@param col            column
+@param prefix_len     column prefix length
+@param descending     whether to use descending order */
+void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
+                        dict_col_t *col, ulint prefix_len,
+                        bool descending= false)
+  MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Copies types of fields contained in index to tuple. */

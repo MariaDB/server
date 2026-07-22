@@ -8,6 +8,7 @@ sql_error_log_rate	1
 sql_error_log_rotate	OFF
 sql_error_log_rotations	9
 sql_error_log_size_limit	1000000
+sql_error_log_warnings	ON
 sql_error_log_with_db_and_thread_info	OFF
 set global sql_error_log_rate=1;
 select * from t_doesnt_exist;
@@ -45,6 +46,13 @@ END|
 CALL e1();
 ERROR 42S02: Table 'test.non_exists' doesn't exist
 DROP PROCEDURE e1;
+CREATE TABLE t1 (a char(4));
+set sql_mode="";
+insert into t1 value("12345");
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+set sql_mode=default;
+drop table t1;
 uninstall plugin SQL_ERROR_LOG;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
@@ -56,3 +64,5 @@ MYSQL_ERRNO = 1000,
 MESSAGE_TEXT = 'new message'
 TIME HOSTNAME ERROR 1366: Incorrect integer value: 'aa' for column `test`.`t1`.`id` at row 1 : insert into t1 values ('aa')
 TIME HOSTNAME ERROR 1146: Table 'test.non_exists' doesn't exist : INSERT INTO test.non_exists VALUES (0,0,0) /* e1  */
+TIME HOSTNAME WARNING 1265: Data truncated for column 'a' at row 1 : insert into t1 value("12345")
+TIME HOSTNAME WARNING 1620: Plugin is busy and will be uninstalled on shutdown : uninstall plugin SQL_ERROR_LOG

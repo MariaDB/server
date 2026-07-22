@@ -12,6 +12,10 @@
 
 --source include/default_optimizer_switch.inc
 
+set
+  @rgmm_hist_type=@@histogram_type,
+  histogram_type=double_prec_hb;
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -1438,3 +1442,5 @@ SHOW SESSION STATUS LIKE 'Handler_read%';
 DROP TABLE t1;
 
 --echo # End of test for Bug#18109609
+
+set histogram_type=@rgmm_hist_type;

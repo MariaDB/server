@@ -1,0 +1,52 @@
+#
+#    binlog_alter_two_phase system variable
+#    Session as well as global
+#    Allowed values NO_SPLIT, SPLIT, BINLOG_ONLY (0,1,2)
+
+--source include/not_embedded.inc
+
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set binlog_alter_two_phase = OFF;
+select @@binlog_alter_two_phase;
+
+set binlog_alter_two_phase = ON;
+select @@binlog_alter_two_phase;
+
+--echo # wrong value
+--error ER_WRONG_VALUE_FOR_VAR
+set binlog_alter_two_phase=BINLOG_OY;
+select @@binlog_alter_two_phase;
+
+--echo #true and false
+set binlog_alter_two_phase=false;
+select @@binlog_alter_two_phase;
+
+set binlog_alter_two_phase=true;
+select @@binlog_alter_two_phase;
+
+set binlog_alter_two_phase=0;
+select @@binlog_alter_two_phase;
+
+set binlog_alter_two_phase=1;
+select @@binlog_alter_two_phase;
+
+--echo ##wrong value
+--error ER_WRONG_VALUE_FOR_VAR
+set binlog_alter_two_phase=2;
+select @@binlog_alter_two_phase;
+
+
+--echo #Global value
+set global binlog_alter_two_phase = OFF;
+connect (con1,localhost,root,,);
+select @@binlog_alter_two_phase;
+disconnect con1;
+
+connection default;
+set global binlog_alter_two_phase = ON;
+connect (con1,localhost,root,,);
+select @@binlog_alter_two_phase;
+disconnect con1;
+
+connection default;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase

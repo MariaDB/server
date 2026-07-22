@@ -1,0 +1,20 @@
+#
+# MDEV-34482 visibility of event worker threads to non-privileded user
+#
+CREATE USER u@localhost;
+GRANT EVENT ON *.* TO u@localhost;
+SET GLOBAL event_scheduler = ON;
+connect c1,localhost,u,,;
+CREATE EVENT e
+ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 0.1 SECOND
+DO SELECT SLEEP(10000);
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Progress
+#	u	localhost	test	Query	0	starting	show processlist	0.000
+#	u	localhost	test	Connect	0	User sleep	SELECT SLEEP(10000)	0.000
+KILL QUERY id;
+disconnect c1;
+connection default;
+SET GLOBAL event_scheduler = OFF;
+DROP EVENT e;
+DROP USER u@localhost;

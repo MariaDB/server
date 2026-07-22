@@ -124,9 +124,10 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   const_item_cache= false;
 
-  with_flags= (with_flags & ~item_with_t::SUM_FUNC) | item_with_t::WINDOW_FUNC;
+  DBUG_ASSERT((bool) (with_flags & item_with_t::WINDOW_FUNC));
+  with_flags&= ~item_with_t::SUM_FUNC;
 
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
     return TRUE;
 
   max_length= window_func()->max_length;
@@ -352,7 +353,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
     with_flags|= args[i]->with_flags;
   }
 
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
     return TRUE;
 
   setup_hybrid(thd, args[0]);
@@ -368,7 +369,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 }
 
 
-bool Item_sum_hybrid_simple::fix_length_and_dec()
+bool Item_sum_hybrid_simple::fix_length_and_dec(THD *thd)
 {
   set_maybe_null();
   null_value= true;

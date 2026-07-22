@@ -472,8 +472,10 @@ grn_geo_get_meshes_for_circle(grn_ctx *ctx, grn_geo_point *base_point,
                                               i
   */
   {
-    int i, j, n_sub_meshes, lat, lat_min, lat_max, lng, lng_min, lng_max;
-    n_sub_meshes = 0;
+    int i, j, lat, lat_min, lat_max, lng, lng_min, lng_max;
+#ifdef GEO_DEBUG
+    int n_sub_meshes = 0;
+#endif
     for (i = -5; i < 5; i++) {
       lat_min = ((lat_diff + 1) / 2) * i;
       lat_max = ((lat_diff + 1) / 2) * (i + 1) - 1;
@@ -514,7 +516,9 @@ grn_geo_get_meshes_for_circle(grn_ctx *ctx, grn_geo_point *base_point,
           meshes[n_meshes].key_size = diff_bit + 2;
           n_meshes++;
         }
+#ifdef GEO_DEBUG
         n_sub_meshes++;
+#endif
       }
     }
   }
@@ -890,7 +894,6 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
                          grn_obj *res, grn_operator op)
 {
   grn_id domain;
-  double center_longitude, center_latitude;
   double d;
   grn_obj *pat, *point_on_circle = NULL, center_point_, point_on_circle_;
   grn_geo_point *center, on_circle;
@@ -943,8 +946,6 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
     center_point = &center_point_;
   }
   center = GRN_GEO_POINT_VALUE_RAW(center_point);
-  center_longitude = GRN_GEO_INT2RAD(center->longitude);
-  center_latitude = GRN_GEO_INT2RAD(center->latitude);
 
   distance_raw_func = grn_geo_resolve_distance_raw_func(ctx,
                                                         approximate_type,

@@ -665,12 +665,12 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     */
     if (!win_spec1->name() && win_spec2->name())
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec1->save_order_list= win_spec1->order_list;
       win_spec1->order_list= win_spec2->order_list;
     }
     else
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec2->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
     }
 
@@ -2255,6 +2255,7 @@ private:
      between them, top bound row  and bottom bound row inclusive. */
   void compute_values_for_current_row()
   {
+    THD *thd= current_thd;
     if (top_bound.is_outside_computation_bounds() ||
         bottom_bound.is_outside_computation_bounds())
       return;
@@ -2265,7 +2266,8 @@ private:
 
     cursor.move_to(start_rownum);
 
-    for (ha_rows idx= start_rownum; idx <= bottom_rownum; idx++)
+    for (ha_rows idx= start_rownum; idx <= bottom_rownum
+         && ((idx & 0xFF) || !thd->check_killed(true)); idx++)
     {
       if (cursor.fetch()) //EOF
         break;
@@ -2490,13 +2492,25 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
     }
     else
     {
+      /*
+        compare_window_funcs_by_window_specs() will try to get the 
+        Window Specs to reuse the ORDER BY lists.
+        RANGE-type window frame expects a single ORDER BY element,
+        and if the list from a different window spec having more than 1 
+        ORDER BY element is used, then an ASSERT is raised.
+        
+        So, use the original ORDER BY list when constructing 
+        RANGE-type frames.
+      */
+      SQL_I_List<ORDER> *order_list=
+          spec->save_order_list ? spec->save_order_list : spec->order_list;
       if (is_top_bound)
         return new Frame_range_n_top(
-            thd, spec->partition_list, spec->order_list,
+            thd, spec->partition_list, order_list,
             is_preceding, bound->offset);
 
       return new Frame_range_n_bottom(thd,
-          spec->partition_list, spec->order_list,
+          spec->partition_list, order_list,
           is_preceding, bound->offset);
     }
   }
@@ -2961,7 +2975,7 @@ static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
     for (ORDER *cur= cur_list; cur; cur= cur->next)
     {
       ORDER *copy= (ORDER*)alloc_root(mem_root, sizeof(ORDER));
-      memcpy(copy, cur, sizeof(ORDER));
+      memcpy((void *) copy, (void *) cur, sizeof(ORDER));
       if (prev)
         prev->next= copy;
       prev= copy;
@@ -3136,9 +3150,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
        field. We don't care of the particular sorting result in this case.
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
-    memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_temptable_field(thd,
-                                                    join_tab->table->field[0]);
+    memset((void *) order, 0, sizeof(*order));
+    Item_field *item=
+        new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    if (item)
+      item->set_refers_to_temp_table();
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;
@@ -3239,10 +3255,13 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
 }
 
 
-bool st_select_lex::add_window_func(Item_window_func *win_func)
+bool st_select_lex::add_window_func(THD *thd, Item_window_func *win_func)
 {
   if (parsing_place != SELECT_LIST)
     fields_in_window_functions+= win_func->window_func()->argument_count();
+  /* We may use it later for other clauses, now just ORDER_CLAUSE */
+  if (thd->where == THD_WHERE::ORDER_CLAUSE)
+    parent_lex->clause_winfuncs.push_back(win_func, thd->mem_root);
   return window_funcs.push_back(win_func);
 }
 

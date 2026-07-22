@@ -6,7 +6,7 @@ set global rpl_semi_sync_master_enabled = ON;
 connection slave;
 include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = ON;
-change master to master_log_file='master-bin.000002', master_log_pos = 320;
+change master to master_log_file='master-bin.000002', master_log_pos = 320, master_use_gtid=no;
 start slave;
 include/wait_for_slave_io_error.inc [errno=1236]
 connection master;
@@ -14,7 +14,9 @@ insert into t1 values (1);
 reset master;
 connection slave;
 include/stop_slave_sql.inc
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
 set global rpl_semi_sync_slave_enabled = OFF;
 connection master;

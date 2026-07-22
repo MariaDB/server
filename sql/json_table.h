@@ -160,11 +160,14 @@ public:
     m_column_type= ctype;
   }
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path, CHARSET_INFO *cs);
+  int set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
+          const Lex_column_charset_collation_attrs_st &cl);
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
     m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;
+    m_format_json= false;
   }
   int print(THD *tnd, Field **f, String *str);
 };
@@ -282,7 +285,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables);
+                                          table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
 

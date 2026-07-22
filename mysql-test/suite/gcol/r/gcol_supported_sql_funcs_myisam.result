@@ -2599,7 +2599,7 @@ create table t1 (a timestamp, c bigint generated always as (timestampdiff(MONTH,
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `a` timestamp NULL DEFAULT NULL,
   `c` bigint(20) GENERATED ALWAYS AS (timestampdiff(MONTH,`a`,`a`)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('2003-02-01',default);
@@ -2889,20 +2889,6 @@ a	b
 any value	any value
 drop table t1;
 set sql_warnings = 0;
-# DES_ENCRYPT(), DES_DECRYPT()
-create table t1 (a varchar(1024), b varchar(1024) generated always as (des_encrypt(des_decrypt(a,'adf'),'adf')) virtual);
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(1024) DEFAULT NULL,
-  `b` varchar(1024) GENERATED ALWAYS AS (des_encrypt(des_decrypt(`a`,'adf'),'adf')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-insert into t1 values ('MySQL',default);
-select * from t1;
-a	b
-MySQL	ÿw2¥ð
-èõÁ
-drop table t1;
 # INET_ATON(), INET_NTOA()
 set sql_warnings = 1;
 create table t1 (a varchar(1024), b varchar(1024) generated always as (inet_ntoa(inet_aton(a))) virtual);

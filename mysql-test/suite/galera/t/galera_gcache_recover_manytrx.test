@@ -7,6 +7,14 @@
 --source include/big_test.inc
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
+--source include/force_restart.inc
+
+# Remove if exists earlier log and start position, they might
+# be there if test using galera_wsrep_recover.inc failed
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_recover.log
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_start_position.log
 
 SET SESSION wsrep_sync_wait = 0;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;

@@ -125,6 +125,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
       (thd->variables.log_slow_verbosity &
        LOG_SLOW_VERBOSITY_ENGINE))
   {
+    explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
     if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
@@ -285,25 +286,88 @@ int update_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-inline
-int TABLE::delete_row()
-{
-  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+/**
+  Delete a record stored in:
+  replace= true: record[0]
+  replace= false: record[1]
 
-  store_record(this, record[1]);
-  vers_update_end();
-  int err= file->ha_update_row(record[1], record[0]);
-  /*
-     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
-     row with same trx_id which is the result of foreign key action, so we
-     don't need one more history row.
-  */
-  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-    return file->ha_delete_row(record[0]);
+  with regard to the treat_versioned flag, which can be false for a versioned
+  table in case of versioned->versioned replication.
+
+ For a versioned case, we detect a few conditions, under which we should delete
+ a row instead of updating it to a history row.
+ This includes:
+ * History deletion by user;
+ * History collision, in case of REPLACE or very fast sequence of dmls
+   so that timestamp doesn't change;
+ * History collision in the parent table
+
+ A normal delete is processed here as well.
+*/
+template <bool replace>
+int TABLE::delete_row(bool treat_versioned)
+{
+  int err= 0;
+  uchar *del_buf= record[replace ? 1 : 0];
+
+  bool delete_row= !treat_versioned
+                   || in_use->lex->vers_conditions.delete_history
+                   || versioned(VERS_TRX_ID)
+                   || !vers_end_field()->is_max(
+                           vers_end_field()->ptr_in_record(del_buf));
+  if (!delete_row)
+  {
+    if (replace)
+    {
+      store_record(this, record[2]);
+      restore_record(this, record[1]);
+    }
+    else
+    {
+      store_record(this, record[1]);
+    }
+    vers_update_end();
+
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    // Don't make history row with negative lifetime
+    delete_row= row_start->cmp(row_start->ptr, row_end->ptr) > 0;
+
+    if (likely(!delete_row))
+      err= file->ha_update_row(record[1], record[0]);
+    if (unlikely(err))
+    {
+      /*
+        MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+        history row with same trx_id which is the result of foreign key
+        action, so we don't need one more history row.
+
+        Additionally, delete the row if versioned record already exists.
+        This happens on replace, a very fast sequence of inserts and deletes,
+        or if timestamp is frozen.
+      */
+      delete_row= err == HA_ERR_FOUND_DUPP_KEY
+                  || err == HA_ERR_FOUND_DUPP_UNIQUE
+                  || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
+      if (!delete_row)
+        return err;
+    }
+
+    if (delete_row)
+      del_buf= record[1];
+
+    if (replace)
+      restore_record(this, record[2]);
+  }
+
+  if (delete_row)
+    err= file->ha_delete_row(del_buf);
+
   return err;
 }
 
+template int TABLE::delete_row<true>(bool treat_versioned);
+template int TABLE::delete_row<false>(bool treat_versioned);
 
 /**
   Implement DELETE SQL word.
@@ -393,7 +457,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   if (delete_history)
+  {
+    DBUG_ASSERT(conds);
     table->vers_write= false;
+  }
 
   if (returning)
     (void) result->prepare(returning->item_list, NULL);
@@ -424,7 +491,17 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
+  /*
+    Apply the IN=>EXISTS and other transformations to all subqueries and
+    optimize them.
+
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
+  */
+  if (select_lex->optimize_constant_subqueries())
+    DBUG_RETURN(TRUE);
+
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 
@@ -455,13 +532,14 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       not in safe mode (not using option --safe-mode)
     - There is no limit clause
     - The condition is constant
-    - If there is a condition, then it it produces a non-zero value
+    - If there is a condition, then it produces a non-zero value
     - If the current command is DELETE FROM with no where clause, then:
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
   */
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
+  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!returning && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
@@ -523,6 +601,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
 
+    if (thd->binlog_for_noop_dml(transactional_table))
+      DBUG_RETURN(1);
+
     if (!thd->lex->current_select->leaf_tables_saved)
     {
       thd->lex->current_select->save_leaf_tables(thd);
@@ -561,6 +642,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     */
     if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
+
+    if (thd->binlog_for_noop_dml(transactional_table))
+      DBUG_RETURN(1);
 
     if (!thd->lex->current_select->leaf_tables_saved)
     {
@@ -764,6 +848,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
 
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
+
   if (!delete_while_scanning)
   {
     /*
@@ -821,9 +907,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
 
+  thd->get_stmt_da()->reset_current_row_for_warning(0);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {
+    thd->get_stmt_da()->inc_current_row_for_warning();
     if (delete_while_scanning)
       delete_record= record_should_be_deleted(thd, table, select, explain,
                                               delete_history);
@@ -899,6 +987,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
 
 terminate_delete:
   killed_status= thd->killed;
@@ -939,14 +1028,14 @@ cleanup:
   deltempfile=NULL;
   delete select;
   select= NULL;
-  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!transactional_table && deleted > 0)
     thd->transaction->stmt.modified_non_trans_table=
       thd->transaction->all.modified_non_trans_table= TRUE;
 
   /* See similar binlogging code in sql_update.cc, for comments */
-  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table))
+  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table
+      || thd->log_current_statement()))
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -956,8 +1045,8 @@ cleanup:
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
-      ScopedStatementReplication scoped_stmt_rpl(
-          table->versioned(VERS_TRX_ID) ? thd : NULL);
+      StatementBinlog stmt_binlog(thd, table->versioned(VERS_TRX_ID) ||
+                                       thd->binlog_need_stmt_format(transactional_table));
       /*
         [binlog]: If 'handler::delete_all_rows()' was called and the
         storage engine does not inject the rows itself, we replicate
@@ -1480,13 +1569,15 @@ void multi_delete::abort_result_set()
     DBUG_VOID_RETURN;
   }
 
-  if (thd->transaction->stmt.modified_non_trans_table)
+  if (thd->transaction->stmt.modified_non_trans_table ||
+      thd->log_current_statement())
   {
     /*
        there is only side effects; to binlog with the error
     */
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
+      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
       /* possible error of writing binary log is ignored deliberately */
       (void) thd->binlog_query(THD::ROW_QUERY_TYPE,
@@ -1596,7 +1687,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&
@@ -1628,7 +1719,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
 /*
   Send ok to the client
 
-  return:  0 sucess
+  return:  0 success
 	   1 error
 */
 
@@ -1667,7 +1758,8 @@ bool multi_delete::send_eof()
     query_cache_invalidate3(thd, delete_tables, 1);
   }
   if (likely((local_error == 0) ||
-             thd->transaction->stmt.modified_non_trans_table))
+             thd->transaction->stmt.modified_non_trans_table) ||
+      thd->log_current_statement())
   {
     if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -1676,7 +1768,8 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
-      thd->thread_specific_used= TRUE;
+      thd->used|= THD::THREAD_SPECIFIC_USED;
+      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
                                      transactional_tables, FALSE, FALSE,

@@ -1,0 +1,19 @@
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+SET @@session.server_id= 1;
+INSERT INTO t2 VALUES (1);
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 3;
+CREATE TABLE t3 (a int);
+FLUSH LOGS;
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > SEARCH_FILE
+FOUND 1 /Gtid list \[0-1-1,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1\]/ in tmp_binlog.out
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;

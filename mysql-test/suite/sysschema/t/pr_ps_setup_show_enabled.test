@@ -26,7 +26,8 @@ UPDATE performance_schema.threads
    SET INSTRUMENTED = 'NO'
  WHERE NAME LIKE 'thread/innodb/srv\_%'
     OR NAME LIKE '%con\_%'
-    OR NAME LIKE '%signal_handler%';
+    OR NAME LIKE '%signal_handler%'
+    OR (NAME='thread/sql/one_connection' AND PROCESSLIST_ID!=CONNECTION_ID());
 
 # Show limited info (no thread or instrument info)
 CALL sys.ps_setup_show_enabled(FALSE, FALSE);

@@ -22,7 +22,6 @@ DROP TABLE t2;
 connection node_2;
 SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 SET SESSION wsrep_sync_wait = 0;
-1
 connection node_1;
 UPDATE t1 SET f2 = 1 WHERE id=2;
 connection node_2;

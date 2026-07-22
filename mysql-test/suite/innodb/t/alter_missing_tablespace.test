@@ -10,7 +10,7 @@
 --disable_query_log
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
-call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/\(t\|x@002e@002ed\) because it could not be opened");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing");
 call mtr.add_suppression("Could not find a valid tablespace file for");

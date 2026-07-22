@@ -87,7 +87,7 @@ uint sys_var_elements()
 
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags)
 {
-  uint saved_elements= long_options->elements;
+  size_t saved_elements= long_options->elements;
 
   DBUG_ENTER("sys_var_add_options");
 

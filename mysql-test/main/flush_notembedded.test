@@ -13,6 +13,7 @@ create table mysqltest1.t1 (a int);
 create user u1@localhost;
 grant reload on *.* to u1@localhost;
 grant select on mysqltest1.* to u1@localhost;
+grant all on test.* to u1@localhost;
 connect u1,localhost,u1;
 error ER_DBACCESS_DENIED_ERROR;
 flush tables mysqltest1.t1 for export;

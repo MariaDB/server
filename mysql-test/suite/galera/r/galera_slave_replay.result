@@ -89,6 +89,7 @@ COUNT(*) = 1
 set session wsrep_sync_wait=0;
 STOP SLAVE;
 RESET SLAVE;
+SET GLOBAL gtid_slave_pos = "";
 SET DEBUG_SYNC = "RESET";
 DROP TABLE t1;
 connection node_3;

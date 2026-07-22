@@ -8,5 +8,3 @@ SELECT * FROM information_schema.SPIDER_ALLOC_MEM;
 ID	FUNC_NAME	FILE_NAME	LINE_NO	TOTAL_ALLOC_MEM	CURRENT_ALLOC_MEM	ALLOC_MEM_COUNT	FREE_MEM_COUNT
 SELECT * FROM information_schema.SPIDER_WRAPPER_PROTOCOLS;
 WRAPPER_NAME	WRAPPER_VERSION	WRAPPER_DESCRIPTION	WRAPPER_MATURITY
-mysql	3.4.0	For communication with MySQL using the native protocol	Stable
-mariadb	3.4.0	For communication with MariaDB using the native protocol	Stable

@@ -15,7 +15,7 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 
 --error ER_LOCK_TABLE_FULL
 SET STATEMENT debug_dbug='+d,innodb_skip_lock_bitmap' FOR
-INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g LIMIT 45000;
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g;
 
 SELECT COUNT(*) FROM t1;
 

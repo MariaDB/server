@@ -1,4 +1,5 @@
 set sql_mode="";
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 Run mysql_upgrade once
 Phase 1/8: Checking and upgrading mysql database
 Processing databases

@@ -72,9 +72,11 @@ public:
   int set_wild_do_table(const char* table_spec);
   int set_wild_ignore_table(const char* table_spec);
 
+  int add_rewrite_db(const char* table_spec);
   int add_do_db(const char* db_spec);
   int add_ignore_db(const char* db_spec);
 
+  int set_rewrite_db(const char* db_spec);
   int set_do_db(const char* db_spec);
   int set_ignore_db(const char* db_spec);
 
@@ -88,8 +90,6 @@ public:
     return parallel_mode;
   }
 
-  void add_db_rewrite(const char* from_db, const char* to_db);
-
   /* Getters - to get information about current rules */
 
   void get_do_table(String* str);
@@ -99,8 +99,9 @@ public:
   void get_wild_ignore_table(String* str);
 
   bool rewrite_db_is_empty();
+  I_List<i_string_pair>* get_rewrite_db();
+  void get_rewrite_db(String *str);
   const char* get_rewrite_db(const char* db, size_t *new_len);
-  void copy_rewrite_db(Rpl_filter *from);
 
   I_List<i_string>* get_do_db();
   I_List<i_string>* get_ignore_db();
@@ -122,15 +123,17 @@ private:
 
   void free_string_array(DYNAMIC_ARRAY *a);
   void free_string_list(I_List<i_string> *l);
+  void free_string_pair_list(I_List<i_string_pair> *l);
 
   void table_rule_ent_hash_to_str(String* s, HASH* h, bool inited);
   void table_rule_ent_dynamic_array_to_str(String* s, DYNAMIC_ARRAY* a,
                                            bool inited);
+  void db_rewrite_rule_ent_list_to_str(String*, I_List<i_string_pair>*);
   void db_rule_ent_list_to_str(String* s, I_List<i_string>* l);
   TABLE_RULE_ENT* find_wild(DYNAMIC_ARRAY *a, const char* key, int len);
 
   int add_string_list(I_List<i_string> *list, const char* spec);
-
+  int add_string_pair_list(const char* my_spec);
   /*
     Those 4 structures below are uninitialized memory unless the
     corresponding *_inited variables are "true".

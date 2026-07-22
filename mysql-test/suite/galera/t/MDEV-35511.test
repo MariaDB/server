@@ -1,0 +1,34 @@
+--source include/galera_cluster.inc
+
+if (!$SERVER_AUDIT_SO) {
+    skip No SERVER_AUDIT plugin;
+}
+
+# enable audit loggin in node 2
+--connection node_2
+SET GLOBAL server_audit_logging=ON;
+
+# replicate CREATE and INSERT, these should be seen in the audit log
+--connection node_1
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+# make sure that the INSERT has been applied
+--let $wait_condition = SELECT COUNT(*) = 1 FROM test.t1;
+--source include/wait_condition.inc
+
+--echo # Now checking the audit log
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
+cat_file $MYSQLD_DATADIR/server_audit.log;
+
+--echo # resetting the test state
+SET GLOBAL server_audit_logging=DEFAULT;
+
+--connection node_1
+DROP TABLE t1;
+
+#UNINSTALL PLUGIN server_audit;
+
+remove_file $MYSQLD_DATADIR/server_audit.log;

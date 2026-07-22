@@ -10,6 +10,8 @@ ERROR 42000: Unknown database 'mysqltest-1'
 show create database `#mysql50#mysqltest-1`;
 Database	Create Database
 #mysql50#mysqltest-1	CREATE DATABASE `#mysql50#mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+Warnings:
+Note	1105	Database '#mysql50#mysqltest-1' does not have a db.opt file. You can create one with ALTER DATABASE if needed
 show tables in `mysqltest1`;
 Tables_in_mysqltest1
 #mysql50#t-1
@@ -180,7 +182,7 @@ partition p0 values in (3),
 partition p1 values in (5)
 );
 alter table t1 convert partition p0 to table `#mysql50#t-1`;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'partition p0 to table `#mysql50#t-1`' at line 1
+ERROR 42000: Incorrect table name '#mysql50#t-1'
 drop table t1;
 create table t1 (a int) partition by list (a) (
 partition p0 values in (3),
@@ -226,10 +228,8 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` VALUES IN (3) ENGINE = MyISAM,
  PARTITION `p-1` VALUES IN (5) ENGINE = MyISAM,
  PARTITION `#mysql50#p-2` VALUES IN (7) ENGINE = MyISAM)
-alter table t1 convert parition `#mysql50#p-2` table t2;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'parition `#mysql50#p-2` table t2' at line 1
 alter table t1 convert table t2 to partition p2 values in (7);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'table t2 to partition p2 values in (7)' at line 1
+ERROR 42S02: Table 'test.t2' doesn't exist
 alter table t1 reorganize partition `#mysql50#p-2` into (partition t2 values in (7));
 show create table t1;
 Table	Create Table

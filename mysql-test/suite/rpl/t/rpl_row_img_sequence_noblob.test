@@ -16,7 +16,7 @@
 # Specifically, mysqlbinlog is used in verbose mode so it outputs the columns
 # which belong to the event, and the columns are analyzed to ensure the correct
 # ones were logged. rpl_row_img_general_loop.inc is used to test with multiple
-# chained replicas, varying engines between InnoDB and MyISAM.
+# chained slaves, varying engines between InnoDB and MyISAM.
 #
 # References:
 #   MDEV-28487: sequences not respect value of binlog_row_image with select

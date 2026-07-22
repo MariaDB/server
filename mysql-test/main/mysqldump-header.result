@@ -1,0 +1,101 @@
+CREATE TABLE `courses` (
+`course_id` smallint(20) PRIMARY KEY,
+`name` varchar(50),
+`description` varchar(100),
+`num_years` tinyint(1),
+`escape_çÇÁá!#%"'` varchar(10)
+);
+desc courses;
+Field	Type	Null	Key	Default	Extra
+course_id	smallint(20)	NO	PRI	NULL	
+name	varchar(50)	YES		NULL	
+description	varchar(100)	YES		NULL	
+num_years	tinyint(1)	YES		NULL	
+escape_çÇÁá!#%"'	varchar(10)	YES		NULL	
+INSERT INTO `courses` VALUES (5, 'Course 1', 'Course Description 1', 3, NULL);
+#
+# Dump only data rows into outfile with default options
+#
+5	Course 1	Course Description 1	3	\N
+#
+# Dump header and data rows into outfile with default options
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+5	Course 1	Course Description 1	3	\N
+#
+# Dump header and data rows into outfile with comma delimited fields
+#
+course_id,name,description,num_years,escape_çÇÁá!#%"'
+5,Course 1,Course Description 1,3,\N
+#
+# Dump header and data rows into outfile with single quote enclosed fields
+#
+'course_id'	'name'	'description'	'num_years'	'escape_çÇÁá!#%"\''
+'5'	'Course 1'	'Course Description 1'	'3'	\N
+#
+# Dump header and data rows into outfile with optional single quote enclosed fields
+#
+'course_id'	'name'	'description'	'num_years'	'escape_çÇÁá!#%"\''
+'5'	'Course 1'	'Course Description 1'	'3'	\N
+#
+# Dump header and data rows into outfile with semicolon terminated data rows
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"';5	Course 1	Course Description 1	3	\N;
+#
+# Dump header and data rows into outfile with several options above combined
+#
+'course_id','name','description','num_years','escape_çÇÁá!#%"\'';'5','Course 1','Course Description 1','3',\N;
+'course_id','name','description','num_years','escape_çÇÁá!#%"\'';'5','Course 1','Course Description 1','3',\N;
+#
+# --skip-quote-names
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+5	Course 1	Course Description 1	3	\N
+#
+# --compatible=ansi
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+5	Course 1	Course Description 1	3	\N
+INSERT INTO `courses` VALUES (4, 'Course 2', 'Course Description 2', 4, NULL);
+INSERT INTO `courses` VALUES (3, 'Course 3', 'Course Description 3', 3, NULL);
+INSERT INTO `courses` VALUES (2, 'Course 4', 'Course Description 4', 5, NULL);
+INSERT INTO `courses` VALUES (1, 'Course 5', 'Course Description 5', 3, NULL);
+
+#
+# Dump data rows into outfile with --where clause
+#
+2	Course 4	Course Description 4	5	\N
+#
+# Dump header and data rows into outfile with --where clause. The header must remain on top and not meddle among data rows
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+2	Course 4	Course Description 4	5	\N
+#
+# Dump data rows ordered by primary key.
+#
+1	Course 5	Course Description 5	3	\N
+2	Course 4	Course Description 4	5	\N
+3	Course 3	Course Description 3	3	\N
+4	Course 2	Course Description 2	4	\N
+5	Course 1	Course Description 1	3	\N
+#
+# Dump header and data rows ordered by primary key. The header must remain on top and not meddle among data rows
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+1	Course 5	Course Description 5	3	\N
+2	Course 4	Course Description 4	5	\N
+3	Course 3	Course Description 3	3	\N
+4	Course 2	Course Description 2	4	\N
+5	Course 1	Course Description 1	3	\N
+#
+# Dump data rows from an empty table, must generate no output
+#
+DELETE FROM `courses`;
+#
+# Dump header and data rows from an empty table, must generate a single header line as output
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+#
+# Use header without the --tab option. Must produce an error
+#
+DROP TABLE `courses`;

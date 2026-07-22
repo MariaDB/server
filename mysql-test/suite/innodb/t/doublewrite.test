@@ -60,7 +60,10 @@ connection default;
 
 flush table t1 for export;
 
---let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
+# If we are skipping the test at this point due to an unexpected
+# checkpoint then page cleaner could be active after reading the
+# initial checkpoint information
+--let CLEANUP_IF_CHECKPOINT=XA COMMIT 'x'; drop table t1;
 --source ../include/no_checkpoint_end.inc
 
 --copy_file $MYSQLD_DATADIR/ibdata1 $MYSQLD_DATADIR/ibdata1.bak

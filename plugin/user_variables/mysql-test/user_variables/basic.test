@@ -12,6 +12,7 @@ SET @double_var=CAST(1 AS DOUBLE);
 SET @dec_var=CAST(1 AS DECIMAL(20, 10));
 SET @time_var=CAST('2016-02-25' AS DATE);
 SET @' @#^%'='Value of variable with odd name';
+--error ER_PARSE_ERROR
 SET @''='Value of variable with empty name';
 SET @null_var=NULL;
 

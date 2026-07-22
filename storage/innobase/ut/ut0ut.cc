@@ -103,31 +103,32 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf) /*!< in: buffer where to sprintf */
+	char*	buf, /*!< in: buffer where to sprintf */
+	size_t	buf_size) /*!< in: size of the buffer */
 {
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
-		cal_tm.wYear % 100,
-		cal_tm.wMonth,
-		cal_tm.wDay,
-		cal_tm.wHour,
-		cal_tm.wMinute,
-		cal_tm.wSecond);
+	snprintf(buf, buf_size, "%02u%02u%02u %2u:%02u:%02u",
+		 cal_tm.wYear % 100,
+		 cal_tm.wMonth,
+		 cal_tm.wDay,
+		 cal_tm.wHour,
+		 cal_tm.wMinute,
+		 cal_tm.wSecond);
 #else
 	time_t	   tm;
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		cal_tm.tm_year % 100,
-		cal_tm.tm_mon + 1,
-		cal_tm.tm_mday,
-		cal_tm.tm_hour,
-		cal_tm.tm_min,
-		cal_tm.tm_sec);
+	snprintf(buf, buf_size, "%02d%02d%02d %2d:%02d:%02d",
+		 cal_tm.tm_year % 100,
+		 cal_tm.tm_mon + 1,
+		 cal_tm.tm_mday,
+		 cal_tm.tm_hour,
+		 cal_tm.tm_min,
+		 cal_tm.tm_sec);
 #endif
 }
 
@@ -405,7 +406,7 @@ ut_strerr(
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
 	case DB_DECRYPTION_FAILED:
-		return("Table is encrypted but decrypt failed.");
+		return("Table is compressed or encrypted but uncompress or decrypt failed.");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_COMPUTE_VALUE_FAILED:
@@ -432,6 +433,18 @@ ut_strerr(
 }
 
 namespace ib {
+
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs)
+{
+  static const char *sizes[]= {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
+                              "EiB", "ZiB", "YiB"};
+  size_t i= 0;
+  double d= rhs.get_double();
+  for (; d > 512.0 && i < array_elements(sizes); i++, d/= 1024.0);
+  lhs.precision(3);
+  lhs << std::fixed << d << sizes[i];
+  return lhs;
+}
 
 ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
 {

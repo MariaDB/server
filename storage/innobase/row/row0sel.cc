@@ -24,6 +24,7 @@ Select
 Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0sel.h"
 #include "dict0dict.h"
 #include "dict0boot.h"
@@ -50,6 +51,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0mon.h"
 #include "sql_error.h"
+#include "sql_class.h" // THD
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
 #endif
@@ -145,7 +147,7 @@ row_sel_sec_rec_is_for_blob(
 		return false;
 	}
 
-	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
+	return !cmp_data(mtype, prtype, false, buf, len, sec_field, sec_len);
 }
 
 /** Function to read the secondary spatial index, calculate
@@ -392,9 +394,8 @@ compare_blobs:
 			}
 		}
 
-		if (0 != cmp_data_data(col->mtype, col->prtype,
-				       clust_field, len,
-				       sec_field, sec_len)) {
+		if (cmp_data(col->mtype, col->prtype, false,
+			     clust_field, len, sec_field, sec_len)) {
 			return DB_SUCCESS;
 		}
 	}
@@ -3147,6 +3148,18 @@ static bool row_sel_store_mysql_rec(
 	ut_ad(rec_clust || index == prebuilt->index);
 	ut_ad(!rec_clust || dict_index_is_clust(index));
 
+	/* Secondary index reads populate only templated columns.
+	Seed the NULL bitmap from default_rec so uncovered columns
+	read as SQL NULL in ha_partition::swap_blobs(). */
+	if (!dict_index_is_clust(index) &&
+	    prebuilt->m_mysql_table &&
+	    prebuilt->m_mysql_table->s->blob_fields &&
+	    prebuilt->null_bitmap_len) {
+		ut_ad(prebuilt->default_rec);
+		memcpy(mysql_rec, prebuilt->default_rec,
+		       prebuilt->null_bitmap_len);
+	}
+
 	if (UNIV_LIKELY_NULL(prebuilt->blob_heap)) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
 	}
@@ -3324,7 +3337,7 @@ class Row_sel_get_clust_rec_for_mysql
       ulint len1, len2;
       const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
       const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
-      ut_ad(!cmp_data_data(col->mtype, col->prtype, b1, len1, b2, len2));
+      ut_ad(!cmp_data(col->mtype, col->prtype, false, b1, len1, b2, len2));
     }
   }
 #endif
@@ -3377,9 +3390,6 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	prebuilt->clust_pcur->old_rec = nullptr;
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
-
-	srv_stats.n_sec_rec_cluster_reads.inc(
-		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets);
@@ -4247,11 +4257,11 @@ bool row_search_with_covering_prefix(
 	const dict_index_t*	index = prebuilt->index;
 	ut_ad(!dict_index_is_clust(index));
 
-	if (dict_index_is_spatial(index)) {
-		return false;
-	}
-
-	if (!srv_prefix_index_cluster_optimization) {
+	/* In ha_innobase::build_template() we choose to access the
+	whole row when using exclusive row locks or In case of fts
+	query, we need to read from clustered index */
+	if (prebuilt->select_lock_type == LOCK_X || prebuilt->in_fts_query
+	    || !index->is_btree()) {
 		return false;
 	}
 
@@ -4318,7 +4328,6 @@ bool row_search_with_covering_prefix(
 		ut_a(templ->rec_field_no != ULINT_UNDEFINED);
 	}
 
-	srv_stats.n_sec_rec_cluster_reads_avoided.inc();
 	return true;
 }
 
@@ -5081,7 +5090,7 @@ wrong_offs:
 
 		/* fputs("Comparing rec and search tuple\n", stderr); */
 
-		if (0 != cmp_dtuple_rec(search_tuple, rec, offsets)) {
+		if (cmp_dtuple_rec(search_tuple, rec, index, offsets)) {
 
 			if (set_also_gap_locks
 			    && !dict_index_is_spatial(index)) {
@@ -5116,7 +5125,8 @@ wrong_offs:
 
 	} else if (match_mode == ROW_SEL_EXACT_PREFIX) {
 
-		if (!cmp_dtuple_is_prefix_of_rec(search_tuple, rec, offsets)) {
+		if (!cmp_dtuple_is_prefix_of_rec(search_tuple, rec,
+						 index, offsets)) {
 
 			if (set_also_gap_locks
 			    && !dict_index_is_spatial(index)) {
@@ -5236,12 +5246,19 @@ wrong_offs:
 		    && direction == 0
 		    && dtuple_get_n_fields_cmp(search_tuple)
 		    == dict_index_get_n_unique(index)
-		    && 0 == cmp_dtuple_rec(search_tuple, rec, offsets)) {
+		    && !cmp_dtuple_rec(search_tuple, rec, index, offsets)) {
 no_gap_lock:
 			lock_type = LOCK_REC_NOT_GAP;
 		} else {
 			lock_type = LOCK_ORDINARY;
 		}
+
+		/* Test hook (debug builds only): allows a BF abort to mark this
+		transaction a wsrep victim after the interrupt check at the top of
+		rec_loop but before it enqueues a waiting lock request below — the
+		window in which the orphaned-waiter bug forms. Inert in release
+		builds (DEBUG_SYNC_C compiles to nothing without ENABLED_DEBUG_SYNC). */
+		DEBUG_SYNC_C("row_search_before_rec_lock");
 
 		err = sel_set_rec_lock(pcur,
 				       rec, index, offsets,
@@ -6203,8 +6220,8 @@ compare_blobs:
       }
     }
 
-    if (cmp_data_data(ifield.col->mtype, ifield.col->prtype,
-                      field, len, sec_field, sec_len))
+    if (cmp_data(ifield.col->mtype, ifield.col->prtype, false,
+                 field, len, sec_field, sec_len))
       return DB_SUCCESS_LOCKED_REC;
   }
 
@@ -6386,16 +6403,13 @@ rec_loop:
                                  ULINT_UNDEFINED, &heap);
       goto next_rec;
     }
-    else if (!rec_deleted && !rec_trx_id);
+    else if (!rec_deleted);
     else if (!check_table_extended_view.changes_visible(rec_trx_id));
     else if (prebuilt->autoinc_error == DB_SUCCESS)
     {
-      const char *msg= rec_deleted
-        ? "Unpurged clustered index record"
-        : "Clustered index record with stale history";
-
       ib::warn w;
-      w << msg << " in table " << index->table->name << ": "
+      w << "Unpurged clustered index record in table "
+        << index->table->name << ": "
         << rec_offsets_print(rec, offsets);
       prebuilt->autoinc_error= DB_MISSING_HISTORY;
       push_warning_printf(prebuilt->trx->mysql_thd,
@@ -6798,7 +6812,7 @@ count_row:
   if (prev_entry)
   {
     ulint matched_fields= 0;
-    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, offsets,
+    int cmp= cmp_dtuple_rec_with_match(prev_entry, rec, index, offsets,
                                        &matched_fields);
     const char* msg;
 

@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   This SQL script creates system tables for SPIDER
@@ -646,19 +646,63 @@ static LEX_STRING spider_init_queries[] = {
 */
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_tables"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_failed_log"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_xa_member"
-    "  add column if not exists dsn char(64) default null after default_group;"
+    "  add column if not exists dsn char(64) default null after default_group,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists filedsn text default null after dsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_link_mon_servers"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_tables"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_failed_log"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
+  )},
+  {C_STRING_WITH_LEN(
+    "alter table mysql.spider_xa_member"
+    "  add column if not exists driver char(64) default null after filedsn,"
+    "  algorithm=copy, lock=shared;"
   )},
   {C_STRING_WITH_LEN(
     "alter table mysql.spider_link_mon_servers"

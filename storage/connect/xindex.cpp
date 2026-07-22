@@ -434,7 +434,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Get the starting information for progress.                       */
   /*********************************************************************/
   dup->Step = (char*)PlugSubAlloc(g, NULL, 128);
-  sprintf((char*)dup->Step, MSG(BUILD_INDEX), Xdp->GetName(), Tdbp->Name);
+  snprintf((char*)dup->Step, 128, MSG(BUILD_INDEX), Xdp->GetName(), Tdbp->Name);
   dup->ProgMax = Tdbp->GetProgMax(g);
   dup->ProgCur = 0;
 #endif // 0

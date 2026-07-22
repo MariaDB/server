@@ -1,0 +1,71 @@
+#
+# MDEV-39278 Validate .cfg file parser string lengths
+#
+# Test that IMPORT TABLESPACE rejects .cfg files with
+# invalid string lengths in the metadata header.
+#
+call mtr.add_suppression("InnoDB: Importing tablespace for table `test`\\.`t1`");
+call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Discarding tablespace of table `test`\\.`t1`");
+# Export a valid .ibd/.cfg pair to reuse across tests.
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# Test 1: Corrupt hostname length in .cfg
+# .cfg format: [4 bytes version][4 bytes hostname_len]...
+# Patch offset 4 to 0x00001000 (4096), exceeding
+# HOSTNAME_LENGTH + 1 (256).
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg hostname length.
+DROP TABLE t1;
+#
+# Test 2: Zero hostname length in .cfg
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg hostname length.
+DROP TABLE t1;
+#
+# Test 3: Table name length zero in .cfg
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg table name length.
+DROP TABLE t1;
+#
+# Test 4: Hostname length just over limit (257)
+# HOSTNAME_LENGTH + 1 = 256 is the max valid value.
+# 257 should be rejected.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg hostname length.
+DROP TABLE t1;
+#
+# Test 5: Hostname length 0xFFFFFFFF (max uint32)
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg hostname length.
+DROP TABLE t1;
+#
+# Test 6: Corrupt table name length in .cfg
+# The table name length field follows the hostname string.
+# We need to find and patch it dynamically.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: (0, Invalid argument) while reading .cfg table name length.
+DROP TABLE t1;
+# End of 10.11 tests

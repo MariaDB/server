@@ -67,7 +67,7 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-connect  con1, localhost, user1, , ;
+connect  con1, localhost, user1, ,test;
 connection default;
 "================== Step 2 =================="
 call dump_thread();
@@ -235,7 +235,7 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-connect  con2, localhost, user2, , ;
+connect  con2, localhost, user2, ,test;
 connection default;
 "================== Step 4 =================="
 call dump_thread();
@@ -415,7 +415,7 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-connect  con3, localhost, user3, , ;
+connect  con3, localhost, user3, ,test;
 connection default;
 "================== Step 6 =================="
 call dump_thread();
@@ -597,7 +597,7 @@ execute dump_users;
 USER	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
-connect  con4, localhost, user4, , ;
+connect  con4, localhost, user4, ,test;
 connection default;
 "================== Step 8 =================="
 call dump_thread();

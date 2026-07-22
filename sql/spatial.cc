@@ -473,7 +473,7 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
   uint32 geom_type;
   Geometry *geom;
 
-  if (len < WKB_HEADER_SIZE)
+  if (len < WKB_HEADER_SIZE || (uchar) wkb[0] > wkb_ndr)
     return NULL;
   wkbByteOrder bo= (wkbByteOrder)wkb[0];
   geom_type= wkb_get_uint(wkb+1, bo);
@@ -867,15 +867,18 @@ static void append_json_point(String *txt, uint max_dec, const char *data)
 static const char *append_json_points(String *txt, uint max_dec,
     uint32 n_points, const char *data, uint32 offset)
 {			     
+  bool any_points= false;
   txt->qs_append('[');
   while (n_points--)
   {
+    any_points= true;
     data+= offset;
     append_json_point(txt, max_dec, data);
     data+= POINT_DATA_SIZE;
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);// Remove ending ', '
+  if (any_points)
+    txt->length(txt->length() - 2);// Remove ending ', '
   txt->qs_append(']');
   return data;
 }
@@ -1760,9 +1763,11 @@ bool Gis_polygon::get_data_as_json(String *txt, uint max_dec_digits,
   n_linear_rings= uint4korr(data);
   data+= 4;
 
+  bool any_rings= false;
   txt->qs_append('[');
   while (n_linear_rings--)
   {
+    any_rings= true;
     uint32 n_points;
     if (no_data(data, 4))
       return 1;
@@ -1774,7 +1779,8 @@ bool Gis_polygon::get_data_as_json(String *txt, uint max_dec_digits,
     data= append_json_points(txt, max_dec_digits, n_points, data, 0);
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);// Remove ending ', '
+  if (any_rings)
+    txt->length(txt->length() - 2);// Remove ending ', '
   txt->qs_append(']');
   *end= data;
   return 0;
@@ -2528,6 +2534,9 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
     Gis_line_string ls;
     int ls_len;
 
+    if ((uchar) wkb[0] > wkb_ndr) /* invalid */
+      return 0;
+
     if ((len < WKB_HEADER_SIZE) ||
         res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
@@ -2637,9 +2646,11 @@ bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
   n_line_strings= uint4korr(data);
   data+= 4;
 
+  bool any_ls= false;
   txt->qs_append('[');
   while (n_line_strings--)
   {
+    any_ls= true;
     uint32 n_points;
     if (no_data(data, (WKB_HEADER_SIZE + 4)))
       return 1;
@@ -2651,7 +2662,8 @@ bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
     data= append_json_points(txt, max_dec_digits, n_points, data, 0);
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);
+  if (any_ls)
+    txt->length(txt->length() - 2);
   txt->qs_append(']');
   *end= data;
   return 0;
@@ -2900,8 +2912,9 @@ uint Gis_multi_polygon::init_from_wkb(const char *wkb, uint len,
     Gis_polygon p;
     int p_len;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
     res->q_append((char) wkb_ndr);
     res->q_append((uint32) wkb_polygon);
@@ -3049,9 +3062,11 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
   n_polygons= uint4korr(data);
   data+= 4;
 
+  bool any_polygons= false;
   txt->q_append('[');
   while (n_polygons--)
   {
+    any_polygons= true;
     uint32 n_linear_rings;
     if (no_data(data, 4 + WKB_HEADER_SIZE) ||
 	txt->reserve(1, 512))
@@ -3060,8 +3075,10 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
     data+= 4 + WKB_HEADER_SIZE;
     txt->q_append('[');
 
+    bool any_rings= false;
     while (n_linear_rings--)
     {
+      any_rings= true;
       if (no_data(data, 4))
         return 1;
       uint32 n_points= uint4korr(data);
@@ -3073,10 +3090,12 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
       data= append_json_points(txt, max_dec_digits, n_points, data, 0);
       txt->qs_append(", ", 2);
     }
-    txt->length(txt->length() - 2);
+    if (any_rings)
+      txt->length(txt->length() - 2);
     txt->qs_append("], ", 3);
   }
-  txt->length(txt->length() - 2);
+  if (any_polygons)
+    txt->length(txt->length() - 2);
   txt->q_append(']');
   *end= data;
   return 0;
@@ -3348,10 +3367,9 @@ uint Gis_geometry_collection::init_from_opresult(String *bin,
                                                  const char *opres,
                                                  uint res_len)
 {
-  const char *opres_orig= opres;
   Geometry_buffer buffer;
   Geometry *geom;
-  int g_len;
+  uint g_len, result= 0;
   uint32 wkb_type;
   int no_pos= bin->length();
   uint32 n_objects= 0;
@@ -3363,7 +3381,7 @@ uint Gis_geometry_collection::init_from_opresult(String *bin,
   if (res_len == 0)
   {
     /* Special case of GEOMETRYCOLLECTION EMPTY. */
-    opres+= 1;
+    result= 1;
     goto empty_geom;
   }
   
@@ -3388,11 +3406,12 @@ uint Gis_geometry_collection::init_from_opresult(String *bin,
       return 0;
     opres+= g_len;
     res_len-= g_len;
+    result+= g_len;
     n_objects++;
   }
 empty_geom:
   bin->write_at_position(no_pos, n_objects);
-  return (uint) (opres - opres_orig);
+  return result;
 }
 
 
@@ -3418,8 +3437,9 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
     int g_len;
     uint32 wkb_type;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
 
     wkbByteOrder bo= (wkbByteOrder)wkb[0];
@@ -3536,9 +3556,11 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
   n_objects= uint4korr(data);
   data+= 4;
 
+  bool any_objects= false;
   txt->qs_append('[');
   while (n_objects--)
   {
+    any_objects= true;
     uint32 wkb_type;
 
     if (no_data(data, WKB_HEADER_SIZE))
@@ -3554,7 +3576,8 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
         txt->append(STRING_WITH_LEN("}, "), 512))
       return 1;
   }
-  txt->length(txt->length() - 2);
+  if (any_objects)
+    txt->length(txt->length() - 2);
   if (txt->append(']'))
     return 1;
 

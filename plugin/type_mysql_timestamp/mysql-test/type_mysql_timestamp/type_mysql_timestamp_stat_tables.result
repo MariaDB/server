@@ -13,7 +13,7 @@ innodb_table_stats	CREATE TABLE `innodb_table_stats` (
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
 Table	Create Table
 innodb_table_stats	CREATE TABLE `innodb_table_stats` (
@@ -25,7 +25,7 @@ innodb_table_stats	CREATE TABLE `innodb_table_stats` (
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 Table	Create Table
 innodb_index_stats	CREATE TABLE `innodb_index_stats` (
@@ -44,7 +44,7 @@ CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (10);
 DROP TABLE t1;
 SET @@global.innodb_stats_persistent=0;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
 Table	Create Table
 innodb_table_stats	CREATE TABLE `innodb_table_stats` (
@@ -56,7 +56,7 @@ innodb_table_stats	CREATE TABLE `innodb_table_stats` (
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 Table	Create Table
 innodb_index_stats	CREATE TABLE `innodb_index_stats` (
@@ -74,8 +74,8 @@ SET @@global.innodb_stats_persistent=1;
 #
 # Testing MySQL-5.6-alike Field_timestampf: BINARY(4) based, without UNSIGNED_FLAG
 #
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
 Field	Type	Null	Key	Default	Extra
 last_update	type_mysql_timestamp	NO		current_timestamp()	on update current_timestamp()
@@ -104,5 +104,5 @@ database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size
 #
 # Restore the structure of the tables
 #
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();

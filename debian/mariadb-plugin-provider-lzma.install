@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/provider_lzma.cnf
+usr/lib/mysql/plugin/provider_lzma.so

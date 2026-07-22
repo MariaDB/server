@@ -1,5 +1,7 @@
-CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
+CREATE TABLE t(c TEXT) ENGINE INNODB encrypted=yes;
+INSERT INTO t VALUES(REPEAT('fubar',100));
 INSERT INTO t VALUES('foobar1');
+DELETE FROM t LIMIT 1;
 # xtrabackup backup
 NOT FOUND /foobar1/ in ib_logfile0
 # expect NOT FOUND

@@ -489,16 +489,16 @@ SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
 indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "DATE'2001-01-01'" of type `date`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
 SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
 indexed_col
 Warnings:
@@ -507,16 +507,16 @@ SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
 indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
 SELECT * FROM t1 WHERE indexed_col=0x00;
 indexed_col
 SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
@@ -564,26 +564,26 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `date`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col DATETIME);
 INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
@@ -591,26 +591,26 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `datetime`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col TIMESTAMP);
 INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
@@ -618,26 +618,26 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `timestamp`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
+Warning	1292	Incorrect datetime value: '2001' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '2002' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect datetime value: '2003' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect datetime value: '2004' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect datetime value: '2005' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect datetime value: '2006' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect datetime value: '2007' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect datetime value: '2008' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect datetime value: '2009' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect datetime value: '2010' for column `test`.`t1`.`indexed_col` at row 10
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col VARBINARY(32));
 INSERT INTO t2 VALUES (0x30),(0x31);
@@ -672,3 +672,36 @@ INSERT INTO t VALUES ('',CURRENT_TIME,'');
 UPDATE t SET c2=c2+5 WHERE c BETWEEN '' AND '';
 DROP TABLE t;
 SET sql_mode=DEFAULT;
+# End of 10.6 tests
+#
+# MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+#
+CREATE TABLE t1
+(
+c_int INT,
+c_set SET('1')
+);
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_int` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_set)  FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_int, c_set)` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c_int	c_int	253	33	0	Y	0	0	33
+c_int
+SELECT COALESCE(c_int, c_set)  FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c_int, c_set)	253	33	0	Y	0	39	33
+COALESCE(c_int, c_set)
+DROP TABLE t1;
+# End of 10.11 tests

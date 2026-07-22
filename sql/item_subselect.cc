@@ -476,15 +476,19 @@ public:
   st_select_lex *new_parent; /* Select we're in */
   void visit_field(Item_field *item) override
   {
-    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
-    //{
-    //  if (tbl->table == field->table)
-    //  {
-        used_tables|= item->field->table->map;
-    //    return;
-    //  }
-    //}
-    //used_tables |= OUTER_REF_TABLE_BIT;
+    DBUG_ASSERT(item->field && item->field->table);
+    if (!item->field->table->pos_in_table_list)
+    {
+      used_tables|= OUTER_REF_TABLE_BIT;
+      return;
+    }
+    st_select_lex *cmp= new_parent;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list->select_lex == cmp)
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
   }
 };
 
@@ -1031,7 +1035,13 @@ bool Item_subselect::const_item() const
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
   if (!with_sum_func() && !const_item())
-    return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
+  {
+    auto item_field=
+        new (thd->mem_root) Item_field(thd_arg, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table();
+    return item_field;
+  }
   return copy_or_same(thd_arg);
 }
 
@@ -1273,8 +1283,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
@@ -1366,7 +1376,7 @@ bool subselect_single_select_engine::always_returns_one_row() const
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1601,7 +1611,7 @@ bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t
 
 Item_exists_subselect::Item_exists_subselect(THD *thd,
                                              st_select_lex *select_lex):
-  Item_subselect(thd), upper_not(NULL), abort_on_null(0),
+  Item_subselect(thd), upper_not(NULL),
   emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
@@ -1687,7 +1697,6 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= 1;
-  abort_on_null= 0;
   reset();
   //if test_limit will fail then error will be reported to client
   test_limit(select_lex->master_unit());
@@ -1752,7 +1761,7 @@ bool Item_in_subselect::fix_length_and_dec()
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -2064,8 +2073,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }
@@ -2262,8 +2271,11 @@ bool Item_allany_subselect::is_maxmin_applicable(JOIN *join)
     Check if max/min optimization applicable: It is top item of
     WHERE condition.
   */
-  return (abort_on_null || (upper_item && upper_item->is_top_level_item())) &&
-      !(join->select_lex->master_unit()->uncacheable & ~UNCACHEABLE_EXPLAIN) && !func->eqne_op();
+  return ((is_top_level_item() ||
+           (upper_item && upper_item->is_top_level_item())) &&
+          !(join->select_lex->master_unit()->uncacheable &
+            ~UNCACHEABLE_EXPLAIN) &&
+          !func->eqne_op());
 }
 
 
@@ -2321,7 +2333,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   *having_item= NULL;
 
   if (join_having || select_lex->with_sum_func ||
-      select_lex->group_list.elements)
+      select_lex->group_list.elements || select_lex->with_rownum)
   {
     LEX_CSTRING field_name= this->full_name_cstring();
     Item *item= func->create(thd, expr,
@@ -2333,7 +2345,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                       ref_pointer_array[0],  
                                                       {STRING_WITH_LEN("<ref>")},
                                                       field_name));
-    if (!abort_on_null && left_expr->maybe_null())
+    if (!is_top_level_item() && left_expr->maybe_null())
     {
       /* 
         We can encounter "NULL IN (SELECT ...)". Wrap the added condition
@@ -2366,7 +2378,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
       Item *orig_item= item;
 
       item= func->create(thd, expr, item);
-      if (!abort_on_null && orig_item->maybe_null())
+      if (!is_top_level_item() && orig_item->maybe_null())
       {
 	having= new (thd->mem_root) Item_is_not_null_test(thd, this, having);
         if (left_expr->maybe_null())
@@ -2388,7 +2400,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         If we may encounter NULL IN (SELECT ...) and care whether subquery
         result is NULL or FALSE, wrap condition in a trig_cond.
       */
-      if (!abort_on_null && left_expr->maybe_null())
+      if (!is_top_level_item() && left_expr->maybe_null())
       {
         disable_cond_guard_for_const_null_left_expr(0);
         if (!(item= new (thd->mem_root) Item_func_trig_cond(thd, item,
@@ -2418,7 +2430,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                   &select_lex->ref_pointer_array[0],
                                                   no_matter_name,
                                                   field_name));
-      if (!abort_on_null && left_expr->maybe_null())
+      if (!is_top_level_item() && left_expr->maybe_null())
       {
         disable_cond_guard_for_const_null_left_expr(0);
         if (!(new_having= new (thd->mem_root)
@@ -2568,9 +2580,10 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
     during JOIN::optimize: this->tmp_having= this->having; this->having= 0;
   */
   Item* join_having= join->having ? join->having : join->tmp_having;
-  bool is_having_used= (join_having || select_lex->with_sum_func ||
-                        select_lex->group_list.first ||
-                        !select_lex->table_list.elements);
+  bool is_having_used=
+      (join_having || select_lex->with_sum_func ||
+       select_lex->group_list.first || !select_lex->table_list.elements ||
+       select_lex->with_rownum);
   LEX_CSTRING list_ref= { STRING_WITH_LEN("<list ref>")};
   DBUG_ENTER("Item_in_subselect::create_row_in_to_exists_cond");
   DBUG_ASSERT(thd == join->thd);
@@ -2613,7 +2626,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                   list_ref));
       Item *col_item= new (thd->mem_root)
         Item_cond_or(thd, item_eq, item_isnull);
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i))
       {
         disable_cond_guard_for_const_null_left_expr(i);
@@ -2632,7 +2645,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                        ref_pointer_array[i],
                                        no_matter_name,
                                        list_ref));
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i) )
       {
         disable_cond_guard_for_const_null_left_expr(i);
@@ -2670,7 +2683,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                      ref_pointer_array[i],
                                      no_matter_name,
                                      list_ref));
-      if (!abort_on_null && select_lex->ref_pointer_array[i]->maybe_null())
+      if (!is_top_level_item() && select_lex->ref_pointer_array[i]->maybe_null())
       {
         Item *having_col_item=
           new (thd->mem_root)
@@ -2702,7 +2715,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         }
         *having_item= and_items(thd, *having_item, having_col_item);
       }
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i))
       {
         if (!(item= new (thd->mem_root)
@@ -3680,7 +3693,7 @@ bool Item_in_subselect::init_cond_guards()
 {
   DBUG_ASSERT(thd);
   uint cols_num= left_expr->cols();
-  if (!abort_on_null && !pushed_cond_guards &&
+  if (!is_top_level_item() && !pushed_cond_guards &&
       (left_expr->maybe_null() || cols_num > 1))
   {
     if (!(pushed_cond_guards= (bool*)thd->alloc(sizeof(bool) * cols_num)))
@@ -3981,10 +3994,9 @@ bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
   set_handler(&type_handler_varchar);
   for (uint i= 0; (sel_item= li++); i++)
   {
-    item->max_length= sel_item->max_length;
     set_handler(sel_item->type_handler());
-    item->decimals= sel_item->decimals;
-    item->unsigned_flag= sel_item->unsigned_flag;
+    item->Type_std_attributes::operator=(
+      sel_item->type_handler()->Item_type_std_attributes_generic(sel_item));
     maybe_null= sel_item->maybe_null();
     if (!(row[i]= sel_item->get_cache(thd)))
       return TRUE;
@@ -4286,9 +4298,9 @@ bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
       - NULL  if select produces empty row set
       - FALSE otherwise.
 
-    In some cases (IN subselect is a top level item, i.e. abort_on_null==TRUE)
-    the caller doesn't distinguish between NULL and FALSE result and we just
-    return FALSE. 
+    In some cases (IN subselect is a top level item, i.e.
+    is_top_level_item() == TRUE, the caller doesn't distinguish between NULL and
+    FALSE result and we just return FALSE.
     Otherwise we make a full table scan to see if there is at least one 
     matching row.
     
@@ -5157,7 +5169,7 @@ my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -5353,10 +5365,12 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     /* New equi-join condition for the current column. */
     Item_func_eq *eq_cond;
     /* Item for the corresponding field from the materialized temp table. */
-    Item_field *right_col_item;
+    Item_field *right_col_item= new (thd->mem_root)
+        Item_field(thd, context, tmp_table->field[i]);
+    if (right_col_item)
+      right_col_item->set_refers_to_temp_table();
 
-    if (!(right_col_item= new (thd->mem_root)
-          Item_temptable_field(thd, context, tmp_table->field[i])) ||
+    if (!right_col_item ||
         !(eq_cond= new (thd->mem_root)
           Item_func_eq(thd, item_in->left_expr->element_index(i),
                        right_col_item)) ||
@@ -6064,7 +6078,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1)))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;

@@ -17,6 +17,7 @@
 */
 
 
+#include "log_event.h"
 #ifndef MYSQL_CLIENT
 #error MYSQL_CLIENT must be defined here
 #endif
@@ -634,7 +635,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       float fl;
       float4get(fl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-20g", (double) fl);
+      snprintf(tmp, sizeof(tmp), "%-20g", (double) fl);
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
@@ -648,7 +649,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
 
       float8get(dbl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+      snprintf(tmp, sizeof(tmp), "%-.20g", dbl); /* strmake doesn't support %-20g */
       my_b_printf(file, tmp, "%s");
       return 8;
     }
@@ -1191,7 +1192,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   }
 
   /* Copying rows from the end to the begining into event */
-  for (uint i= rows_arr.elements; i > 0; --i)
+  for (size_t i= rows_arr.elements; i > 0; --i)
   {
     LEX_STRING *one_row= dynamic_element(&rows_arr, i - 1, LEX_STRING*);
 
@@ -1929,6 +1930,9 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
           print_set_option(file, tmp, mask & OPTION_EXPLICIT_DEF_TIMESTAMP, flags2,
                            "@@session.explicit_defaults_for_timestamp",
                            &need_comma) ||
+          print_set_option(file, tmp, mask & OPTION_INSERT_HISTORY, flags2,
+                           "@@session.system_versioning_insert_history",
+                           &need_comma) ||
           my_b_printf(file,"%s\n", print_event_info->delimiter))
         goto err;
       print_event_info->flags2= flags2;
@@ -2037,6 +2041,19 @@ err:
   return 1;
 }
 
+bool Query_log_event::print_verbose(IO_CACHE* cache, PRINT_EVENT_INFO* print_event_info)
+{
+  if (my_b_printf(cache, "### ") ||
+      my_b_write(cache, (uchar *) query, q_len) ||
+      my_b_printf(cache, "\n"))
+  {
+    goto err;
+  }
+  return 0;
+
+err:
+  return 1;
+}
 
 bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
@@ -2052,9 +2069,42 @@ bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     goto err;
   if (!is_flashback)
   {
-    if (my_b_write(&cache, (uchar*) query, q_len) ||
-        my_b_printf(&cache, "\n%s\n", print_event_info->delimiter))
-      goto err;
+    if (gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
+                            Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                            Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+    {
+      bool do_print_encoded=
+        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+        !print_event_info->short_form;
+      bool comment_mode= do_print_encoded &&
+        gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
+                            Gtid_log_event::FL_ROLLBACK_ALTER_E1);
+
+      if(comment_mode)
+        my_b_printf(&cache, "/*!100600 ");
+      if (do_print_encoded)
+        my_b_printf(&cache, "BINLOG '\n");
+      if (print_base64(&cache, print_event_info, do_print_encoded))
+        goto err;
+      if (do_print_encoded)
+      {
+        if(comment_mode)
+           my_b_printf(&cache, "' */%s\n", print_event_info->delimiter);
+        else
+           my_b_printf(&cache, "'%s\n", print_event_info->delimiter);
+      }
+      if (print_event_info->verbose && print_verbose(&cache, print_event_info))
+      {
+        goto err;
+      }
+    }
+    else
+    {
+      if (my_b_write(&cache, (uchar*) query, q_len) ||
+          my_b_printf(&cache, "\n%s\n", print_event_info->delimiter))
+        goto err;
+    }
   }
   else // is_flashback == 1
   {
@@ -2327,6 +2377,8 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   char buf[21];
   uint32 i;
 
+  qsort(list, count, sizeof(rpl_gtid), compare_glle_gtids);
+
   if (print_header(&cache, print_event_info, FALSE) ||
       my_b_printf(&cache, "\tGtid list ["))
     goto err;
@@ -2463,7 +2515,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
-      sprintf(real_buf, "%.14g", real_val);
+      snprintf(real_buf, sizeof(real_buf), "%.14g", real_val);
       if (my_b_printf(&cache, ":=%s%s\n", real_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2872,10 +2924,13 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     sizeof(fmt_binlog2) +
     3*PRINT_EVENT_INFO::max_delimiter_size;
 
+  size_t buf_alloc_size;
+
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, (size_t)cache->end_of_file + fmt_size,
+  buf_alloc_size= (size_t)cache->end_of_file + fmt_size;
+  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, buf_alloc_size,
                                    MYF(0))))
   {
     perror("Out of memory: can't allocate memory in "
@@ -2904,38 +2959,45 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
       contribution of non-compressed packet.
     */
     char *str= to->str;
+    const char *buf_end= to->str + buf_alloc_size;
     size_t add_to_len;
 
-    str += (to->length= sprintf(str, fmt_frag, 0));
+    str += (to->length= snprintf(str, (size_t)(buf_end - str), fmt_frag, 0));
     if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
       goto err;
     str += (add_to_len = (uint32) (cache_size/2 + 1));
     to->length += add_to_len;
-    str += (add_to_len= sprintf(str, fmt_n_delim, delimiter));
+    str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                 fmt_n_delim, delimiter));
     to->length += add_to_len;
 
-    str += (add_to_len= sprintf(str, fmt_frag, 1));
+    str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                 fmt_frag, 1));
     to->length += add_to_len;
     if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
       goto err;
     str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
     to->length += add_to_len;
     {
-      str += (add_to_len= sprintf(str , fmt_delim, delimiter));
+      str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                   fmt_delim, delimiter));
       to->length += add_to_len;
     }
-    to->length += sprintf(str, fmt_binlog2, delimiter);
+    to->length += snprintf(str, (size_t)(buf_end - str),
+                           fmt_binlog2, delimiter);
   }
   else
   {
     char *str= to->str;
+    const char *buf_end= to->str + buf_alloc_size;
 
-    str += (to->length= sprintf(str, str_binlog));
+    str += (to->length= snprintf(str, (size_t)(buf_end - str), str_binlog));
     if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;
     to->length += (size_t)cache->end_of_file;
-      to->length += sprintf(str , fmt_delim, delimiter);
+      to->length += snprintf(str, (size_t)(buf_end - str),
+                             fmt_delim, delimiter);
   }
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
@@ -3816,6 +3878,8 @@ st_print_event_info::st_print_event_info()
   printed_fd_event=FALSE;
   file= 0;
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
+  m_is_event_group_active= TRUE;
+  m_is_event_group_filtering_enabled= FALSE;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
   open_cached_file(&tail_cache, NULL, NULL, 0, flags);
@@ -3883,6 +3947,15 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
     if (flags2 & FL_WAITED)
       if (my_b_write_string(&cache, " waited"))
+        goto err;
+    if (flags_extra & FL_START_ALTER_E1)
+      if (my_b_write_string(&cache, " START ALTER"))
+        goto err;
+    if (flags_extra & FL_COMMIT_ALTER_E1)
+      if (my_b_printf(&cache, " COMMIT ALTER id= %lu", sa_seq_no))
+        goto err;
+    if (flags_extra & FL_ROLLBACK_ALTER_E1)
+      if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
     if (my_b_printf(&cache, "\n"))
       goto err;

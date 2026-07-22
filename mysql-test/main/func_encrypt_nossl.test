@@ -1,4 +1,4 @@
--- source include/not_ssl.inc
+-- source include/is_embedded.inc
 
 #
 # Test output from des_encrypt and des_decrypt when server is

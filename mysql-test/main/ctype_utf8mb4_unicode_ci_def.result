@@ -9,3 +9,48 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-34288 SET NAMES DEFAULT crashes `mariadbd --collation-server=utf8mb4_unicode_ci`
+#
+SET NAMES DEFAULT COLLATE latin1_bin;
+ERROR 42000: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+latin1	latin1_swedish_ci	latin1
+SET NAMES DEFAULT COLLATE utf8mb4_bin;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb4	utf8mb4_bin	utf8mb4
+SET NAMES DEFAULT COLLATE uca1400_ai_ci;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb4	utf8mb4_uca1400_ai_ci	utf8mb4
+SET @@global.character_set_client=latin1;
+SET NAMES DEFAULT;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+latin1	latin1_swedish_ci	latin1
+SET @@global.character_set_client=utf8mb3;
+SET NAMES DEFAULT;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb3	utf8mb3_general_ci	utf8mb3
+SET @@global.character_set_client=DEFAULT;
+SET NAMES DEFAULT;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb4	utf8mb4_general_ci	utf8mb4
+SET NAMES DEFAULT;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb4	utf8mb4_general_ci	utf8mb4
+SET NAMES DEFAULT COLLATE DEFAULT;
+SELECT @@character_set_connection, @@collation_connection, @@character_set_results;
+@@character_set_connection	@@collation_connection	@@character_set_results
+utf8mb4	utf8mb4_general_ci	utf8mb4
+#
+# End of 10.11 tests
+#

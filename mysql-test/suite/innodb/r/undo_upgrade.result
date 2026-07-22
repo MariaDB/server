@@ -1,0 +1,88 @@
+#
+#  MDEV-19229 Allow innodb_undo_tablespaces to be changed
+#	after database creation
+#
+call mtr.add_suppression("Found .* prepared XA transactions");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=\\d+ because previous shutdown was not with innodb_fast_shutdown=0");
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+# case 1: XA transaction alone left
+InnoDB		0 transactions not purged
+XA START 'zombie';
+INSERT INTO t1 VALUES(2);
+XA END 'zombie';
+XA PREPARE 'zombie';
+# restart
+# Display 4 undo tablespaces
+select @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+XA COMMIT 'zombie';
+# case 2: Successful innodb_undo_tablespace upgrade
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2
+# Display 2 undo tablespaces
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces
+undo001
+undo002
+DROP TABLE t1;
+InnoDB		0 transactions not purged
+# case 3: Reduce the innodb_undo_tablespace to 0
+# restart: --innodb_undo_tablespaces=0
+# Display 0 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+0
+# Shouldn't list any undo log tablespaces
+# case 4: Change undo tablespace when force_recovery < 5
+# restart: --innodb_undo_tablespaces=2 --innodb_force_recovery=4
+# Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces
+undo001
+undo002
+# case 5: Fail to change undo tablespace when force_recovery > 4
+# restart: --innodb_undo_tablespaces=4 --innodb_force_recovery=5
+# Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces, not 4
+undo001
+undo002
+#
+# MDEV-34200 InnoDB tries to write to read-only
+#    system tablespace in buf_dblwr_t::init_or_load_pages()
+#
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+set global innodb_fast_shutdown=0;
+# restart: --innodb_read_only=1
+set global innodb_fast_shutdown=0;
+# restart: --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/bugdir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/bugdir --innodb_undo_tablespaces=3
+# Should list 3 undo log tablespaces
+undo001
+undo002
+undo003
+set global innodb_fast_shutdown=0;
+# restart: --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/bugdir_1 --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/bugdir_1 --innodb_undo_tablespaces=0
+# Shouldn't list 0 undo log tablespaces
+set global innodb_fast_shutdown=0;
+# restart

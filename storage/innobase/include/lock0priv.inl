@@ -83,12 +83,12 @@ lock_rec_set_nth_bit(
 	byte_index = i / 8;
 	bit_index = i % 8;
 
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
 #endif
 	((byte*) &lock[1])[byte_index] |= static_cast<byte>(1 << bit_index);
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic pop
 #endif
 #ifdef SUX_LOCK_GENERIC

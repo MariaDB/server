@@ -1025,23 +1025,11 @@ SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_1: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1075,9 +1063,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_1: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1129,23 +1129,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_2: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1179,9 +1167,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_2: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1233,23 +1233,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_3: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1283,9 +1271,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t2' to './test/#sql-exchange' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_3: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1337,23 +1337,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_4: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1387,9 +1375,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_4: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1441,23 +1441,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_5: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1491,9 +1479,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t1#P#p0' to './test/t2' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_5: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1545,23 +1545,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_6: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1595,9 +1583,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_6: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1649,23 +1649,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_7: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1699,9 +1687,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/#sql-exchange' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_7: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1753,23 +1753,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_8: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1803,9 +1791,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_8: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1857,23 +1857,11 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_9: BEFORE failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1907,9 +1895,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_9: AFTER failure
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -1958,3 +1958,3229 @@ a	b
 4	Original from partition p0
 DROP TABLE t2;
 SET SESSION debug_dbug=@save_dbug;
+#
+# MDEV-22165 CONVERT PARTITION: move in partition from existing table
+#
+set @save_dbug=@@debug_dbug;
+set session debug_dbug="+d,fail_convert_partition_1";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_1: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_1: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_2";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_2: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_2: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_3";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_3: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_3: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_4";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_4: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_4: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_5";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_5: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_5: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_6";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_6: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_6: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_7";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_7: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_7: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_8";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_8: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_8: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_9";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_9: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_9: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_11";
+create or replace table t2 (x int primary key);
+insert into t2 values (32), (42), (52);
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30));
+insert into t1 values (2), (12), (22);
+# d,fail_convert_partition_11: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+x
+32
+42
+52
+alter table t1 convert table t2 to partition pn values less than maxvalue;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_11: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;
+#
+# MDEV-22166 CONVERT PARTITION: move out partition into a table
+#
+set @save_dbug=@@debug_dbug;
+set session debug_dbug="+d,fail_create_before_create_frm";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_create_before_create_frm: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_create_before_create_frm: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_create_before_create_frm: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_create_before_create_frm: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_alter_partition_after_write_frm";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_alter_partition_after_write_frm: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_alter_partition_after_write_frm: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_alter_partition_after_write_frm: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_alter_partition_after_write_frm: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,error_convert_partition_00";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,error_convert_partition_00: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Error on rename of './test/t1#P#p2' to './test/tp2' (errno: 0 "Internal error/check (Not system error)")
+# d,error_convert_partition_00: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,error_convert_partition_00: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Error on rename of './test/t1#P#p2' to './test/tp2' (errno: 0 "Internal error/check (Not system error)")
+# d,error_convert_partition_00: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_1";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_1: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_1: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_1: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_1: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_2";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_2: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_2: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_2: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_2: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_3";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_3: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_3: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_3: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_3: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_4";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_4: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_4: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_4: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_4: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_5";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_5: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_5: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_5: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_5: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_6";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_6: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_6: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_6: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_6: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_7";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_7: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_7: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_7: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_7: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_8";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_8: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_8: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_8: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_8: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_9";
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_9: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_9: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_9: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_9: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_11";
+# Already finished DDL logging, so tp2 now exists:
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_11: BEFORE failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Unknown error
+# d,fail_convert_partition_11: AFTER failure
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+tp2.MYD
+tp2.MYI
+tp2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+2
+22
+32
+42
+52
+DROP TABLE t1;
+create or replace table t1 (x int primary key)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+# d,fail_convert_partition_11: BEFORE failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+tp2.MYD
+tp2.MYI
+tp2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+LOCK TABLE t1 WRITE;
+alter table t1 convert partition p2 to table tp2;
+ERROR 42S01: Table 'tp2' already exists
+# d,fail_convert_partition_11: AFTER failure (under LOCK TABLE)
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1#P#p2.MYD
+t1#P#p2.MYI
+t1#P#p3.MYD
+t1#P#p3.MYI
+t1#P#p4.MYD
+t1#P#p4.MYI
+t1#P#p5.MYD
+t1#P#p5.MYI
+t1#P#pn.MYD
+t1#P#pn.MYI
+t1.frm
+t1.par
+tp2.MYD
+tp2.MYI
+tp2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = MyISAM,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = MyISAM,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+SELECT * FROM t1;
+x
+12
+2
+22
+32
+42
+52
+UNLOCK TABLES;
+DROP TABLE t1;
+set session debug_dbug=@save_dbug;
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select * from tp2;
+x
+12
+drop table tp2;

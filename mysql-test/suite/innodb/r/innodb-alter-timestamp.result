@@ -59,16 +59,11 @@ SELECT DISTINCT d1 FROM t1;
 d1
 NULL
 ALTER TABLE t1 CHANGE d1 d1 TIMESTAMP DEFAULT '2017-05-08 16:32:54';
-affected rows: 5
-info: Records: 5  Duplicates: 0  Warnings: 0
-# Note: NULL was changed to CURRENT_TIMESTAMP(),
-# not the specified constant DEFAULT value!
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SELECT COUNT(DISTINCT d1),COUNT(d1),COUNT(*) FROM t1;
 COUNT(DISTINCT d1)	COUNT(d1)	COUNT(*)
-1	5	5
-SELECT DISTINCT (CURRENT_TIMESTAMP()-d1) <= 60 FROM t1;
-(CURRENT_TIMESTAMP()-d1) <= 60
-1
+0	0	5
 drop table t1;
 CREATE TABLE t1 (
 `i1` INT(10) UNSIGNED NOT NULL,
@@ -111,8 +106,8 @@ t1	CREATE TABLE `t1` (
   `i1` int(10) unsigned NOT NULL,
   `d1` timestamp NOT NULL DEFAULT current_timestamp(),
   `u1` varchar(30) DEFAULT substr(user(),1),
-  `d2` timestamp NOT NULL DEFAULT '2017-05-08 16:23:45',
-  `d3` timestamp NOT NULL DEFAULT `d1`
+  `d2` timestamp NULL DEFAULT '2017-05-08 16:23:45',
+  `d3` timestamp NULL DEFAULT `d1`
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD COLUMN d4 TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 affected rows: 0

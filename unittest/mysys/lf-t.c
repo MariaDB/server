@@ -91,7 +91,7 @@ pthread_handler_t test_lf_alloc(void *arg)
     lf_alloc_free(pins, node2);
   }
   lf_alloc_put_pins(pins);
-  pthread_mutex_lock(&mutex);
+  mysql_mutex_lock(&mutex);
   bad+= y;
 
   if (--N == 0)
@@ -102,7 +102,7 @@ pthread_handler_t test_lf_alloc(void *arg)
     bad|= lf_allocator.mallocs - lf_alloc_pool_count(&lf_allocator);
 #endif
   }
-  pthread_mutex_unlock(&mutex);
+  mysql_mutex_unlock(&mutex);
 
   if (with_my_thread_init)
     my_thread_end();
@@ -157,7 +157,7 @@ pthread_handler_t test_lf_hash(void *arg)
     }
   }
   lf_hash_put_pins(pins);
-  pthread_mutex_lock(&mutex);
+  mysql_mutex_lock(&mutex);
   bad+= sum;
   inserts+= ins;
 
@@ -168,7 +168,7 @@ pthread_handler_t test_lf_hash(void *arg)
          lf_hash.size, inserts, scans);
     bad|= lf_hash.count;
   }
-  pthread_mutex_unlock(&mutex);
+  mysql_mutex_unlock(&mutex);
   if (with_my_thread_init)
     my_thread_end();
   return 0;

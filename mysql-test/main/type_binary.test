@@ -178,3 +178,14 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+--echo #
+CREATE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (-2),(-1),(1),(2);
+SELECT HEX(c1) FROM t1 WHERE 'a' BETWEEN 0 AND (c1);
+SELECT HEX(c1) FROM t1 IGNORE KEY(c1) WHERE 'a' BETWEEN 0 AND (c1);
+SELECT HEX(c1) FROM t1 WHERE '#' BETWEEN c1 AND 0;
+SELECT HEX(c1) FROM t1 IGNORE KEY(c1) WHERE '#' BETWEEN c1 AND 0;
+DROP TABLE t1;

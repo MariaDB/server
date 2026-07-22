@@ -1,0 +1,113 @@
+source include/windows.inc;
+let $datadir_name=data;
+let $service_name_prefix=mariadb;
+let $password=password;
+
+source include/check_windows_admin.inc;
+
+# The test uses return code from sc.exe utility, which are as follows
+let $ERROR_SERVICE_DOES_NOT_EXIST= 1060;
+let $ERROR_SERVICE_CANNOT_ACCEPT_CTRL=1061;# intermediate, during start or stop
+let $ERROR_SERVICE_NOT_ACTIVE=1062;# service stopped
+let $ERROR_INVALID_SERVICE_CONTROL=1052; # The requested control is not valid for this service
+
+let $sc_exe= C:\Windows\System32\sc.exe;
+let $ddir= $MYSQLTEST_VARDIR/tmp/$datadir_name;
+let $service_name=$service_name_prefix$MASTER_MYPORT;
+let TMP= $MYSQLTEST_VARDIR/tmp;
+let $upgrade_log=$TMP/mysql_upgrade_service.$service_name.log;
+
+use mysql;
+error 0,1;
+rmdir $ddir;
+
+--disable_result_log
+error 0,$ERROR_SERVICE_DOES_NOT_EXIST;
+exec $sc_exe delete $service_name;
+--enable_result_log
+
+source include/shutdown_mysqld.inc;
+echo # run mysql_install_db with --service parameter;
+--disable_result_log
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name --verbose-bootstrap -R;
+--enable_result_log
+
+echo # Start service;
+--disable_result_log
+exec $sc_exe start $service_name;
+--enable_result_log
+
+enable_reconnect;
+source include/wait_until_connected_again.inc;
+disable_reconnect;
+
+echo # -- Upgrade service (online) --;
+--replace_result $upgrade_log UPGRADE_LOG  $service_name SERVICE_NAME
+let $sys_errno=0;
+let $upgrade_success = 1;
+error 0,1;
+exec $MARIADB_UPGRADE_SERVICE_EXE --service=$service_name;
+
+if($sys_errno != 0)
+{
+  let $upgrade_success = 0;
+}
+
+echo # upgrade_success(online)=$upgrade_success;
+file_exists $upgrade_log;
+if ($upgrade_success == 0)
+{
+  echo --detailed error(online upgrade)--;
+  cat_file $upgrade_log;
+}
+# stop service
+--disable_result_log
+# Wait until stopped
+let $sys_errno=0;
+while($sys_errno != $ERROR_SERVICE_NOT_ACTIVE)
+{
+  --error 0,$ERROR_SERVICE_CANNOT_ACCEPT_CTRL,$ERROR_SERVICE_NOT_ACTIVE, $ERROR_INVALID_SERVICE_CONTROL
+  exec $sc_exe stop $service_name;
+  if($sys_errno != $ERROR_SERVICE_NOT_ACTIVE)
+  {
+    --real_sleep 0.1
+  }
+}
+--enable_result_log
+echo # Service stopped;
+
+echo # -- Upgrade service (offline) --;
+--replace_result $upgrade_log UPGRADE_LOG  $service_name SERVICE_NAME
+let $sys_errno=0;
+let $upgrade_success = 1;
+error 0,1;
+exec $MARIADB_UPGRADE_SERVICE_EXE --service=$service_name;
+
+if($sys_errno != 0)
+{
+  let $upgrade_success = 0;
+}
+
+echo # upgrade_success(offline)=$upgrade_success;
+file_exists $upgrade_log;
+if ($upgrade_success == 0)
+{
+  echo --detailed error(online upgrade)--;
+  cat_file $upgrade_log;
+}
+
+echo # Delete service;
+let $sys_errno=0;
+--disable_result_log
+exec $sc_exe delete $service_name;
+--enable_result_log
+
+# Cleanup
+source include/wait_until_disconnected.inc;
+rmdir $ddir;
+remove_file $upgrade_log;
+let TEMP=$old_temp;
+
+#restart original server
+connection default;
+source include/start_mysqld.inc;

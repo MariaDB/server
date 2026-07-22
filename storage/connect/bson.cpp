@@ -1547,16 +1547,16 @@ PSZ BJSON::GetString(PBVAL vp, char* buff)
     p = MZP(vlp->To_Val);
     break;
   case TYPE_INTG:
-    sprintf(p, "%d", vlp->N);
+    snprintf(p, 32, "%d", vlp->N);
     break;
   case TYPE_FLOAT:
-    sprintf(p, "%.*f", vlp->Nd, vlp->F);
+    snprintf(p, 32, "%.*f", vlp->Nd, vlp->F);
     break;
   case TYPE_BINT:
-    sprintf(p, "%lld", *(longlong*)MP(vlp->To_Val));
+    snprintf(p, 32, "%lld", *(longlong*)MP(vlp->To_Val));
     break;
   case TYPE_DBL:
-    sprintf(p, "%.*lf", vlp->Nd, *(double*)MP(vlp->To_Val));
+    snprintf(p, 32, "%.*lf", vlp->Nd, *(double*)MP(vlp->To_Val));
     break;
   case TYPE_BOOL:
     p = (PSZ)((vlp->B) ? "true" : "false");

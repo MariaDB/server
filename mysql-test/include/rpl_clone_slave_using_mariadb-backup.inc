@@ -5,7 +5,7 @@ if ($cnf == "galera2_to_mariadb")
   --connect slave, 127.0.0.1, root, , test, $NODE_MYPORT_3
   --disable_query_log
   --replace_result $MASTER_MYPORT ###
-  --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$MASTER_MYPORT;
+  --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$MASTER_MYPORT, MASTER_USE_GTID=NO;
   --enable_query_log
   START SLAVE;
   --source include/wait_for_slave_to_start.inc

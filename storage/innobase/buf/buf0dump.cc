@@ -58,7 +58,7 @@ take after being waked up. */
 static volatile bool	buf_dump_should_start;
 static volatile bool	buf_load_should_start;
 
-static bool	buf_load_abort_flag;
+static Atomic_relaxed<bool> buf_load_abort_flag;
 
 /** Start the buffer pool dump/load task and instructs it to start a dump. */
 void buf_dump_start()
@@ -295,7 +295,7 @@ buf_dump(
 
 		/* limit the number of total pages dumped to X% of the
 		total number of pages */
-		t_pages = buf_pool.curr_size * srv_buf_pool_dump_pct / 100;
+		t_pages = buf_pool.curr_size() * srv_buf_pool_dump_pct / 100;
 		if (n_pages > t_pages) {
 			buf_dump_status(STATUS_INFO,
 					"Restricted to " ULINTPF
@@ -314,11 +314,13 @@ buf_dump(
 					       n_pages * sizeof(*dump)));
 
 	if (dump == NULL) {
+		std::ostringstream str_bytes;
 		mysql_mutex_unlock(&buf_pool.mutex);
 		fclose(f);
+		str_bytes << ib::bytes_iec{n_pages * sizeof(*dump)};
 		buf_dump_status(STATUS_ERR,
-				"Cannot allocate " ULINTPF " bytes: %s",
-				(ulint) (n_pages * sizeof(*dump)),
+				"Cannot allocate %s: %s",
+				str_bytes.str().c_str(),
 				strerror(errno));
 		/* leave tmp_filename to exist */
 		return;
@@ -402,7 +404,7 @@ done:
 
 	/* success */
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	buf_dump_status(STATUS_INFO,
 			"Buffer pool(s) dump completed at %s", now);
@@ -475,17 +477,17 @@ buf_load()
 		return;
 	}
 
-	/* If dump is larger than the buffer pool(s), then we ignore the
+	/* If the dump is larger than the buffer pool, then we ignore the
 	extra trailing. This could happen if a dump is made, then buffer
 	pool is shrunk and then load is attempted. */
-	dump_n = std::min(dump_n, buf_pool.get_n_pages());
+	dump_n = std::min(dump_n, buf_pool.curr_size());
 
 	if (dump_n != 0) {
 		dump = static_cast<page_id_t*>(ut_malloc_nokey(
 				dump_n * sizeof(*dump)));
 	} else {
 		fclose(f);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty)", now, full_filename);
@@ -493,11 +495,14 @@ buf_load()
 	}
 
 	if (dump == NULL) {
+		std::ostringstream str_bytes;
 		fclose(f);
-		buf_load_status(STATUS_ERR,
-				"Cannot allocate " ULINTPF " bytes: %s",
-				dump_n * sizeof(*dump),
+		str_bytes << ib::bytes_iec{dump_n * sizeof(*dump)};
+		buf_dump_status(STATUS_ERR,
+				"Cannot allocate %s: %s",
+				str_bytes.str().c_str(),
 				strerror(errno));
+		/* leave tmp_filename to exist */
 		return;
 	}
 
@@ -548,7 +553,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty or had errors)", now, full_filename);
@@ -578,7 +583,7 @@ buf_load()
 	/* Avoid calling the expensive fil_space_t::get() for each
 	page within the same tablespace. dump[] is sorted by (space, page),
 	so all pages from a given tablespace are consecutive. */
-	ulint		cur_space_id = dump[0].space();
+	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
 	ulint		zip_size = space ? space->zip_size() : 0;
 
@@ -590,10 +595,9 @@ buf_load()
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
 
 		/* space_id for this iteration of the loop */
-		const ulint	this_space_id = dump[i].space();
+		const uint32_t this_space_id = dump[i].space();
 
-		if (this_space_id == SRV_TMP_SPACE_ID) {
-			/* Ignore the innodb_temporary tablespace. */
+		if (this_space_id >= SRV_SPACE_ID_UPPER_BOUND) {
 			continue;
 		}
 
@@ -664,7 +668,7 @@ buf_load()
 
   os_aio_wait_until_no_pending_reads(true);
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	if (i == dump_n) {
 		buf_load_status(STATUS_INFO,

@@ -1,0 +1,58 @@
+SHOW VARIABLES LIKE 'aria_log_file_size';
+Variable_name	Value
+aria_log_file_size	8388608
+CREATE PROCEDURE display_aria_log_control(ctrl BLOB)
+BEGIN
+SELECT HEX(REVERSE(SUBSTRING(ctrl, 42, 4))) AS last_logno;
+END;
+$$
+CREATE PROCEDURE populate_t1()
+BEGIN
+FOR id IN 0..9 DO
+INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+END FOR;
+END;
+$$
+CREATE TABLE test.t1(id INT, txt LONGTEXT) ENGINE=Aria;
+# MYSQLD_DATADIR/aria_log_control before --backup
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000001
+# Running --backup
+# MYSQLD_DATADIR/aria_log_control after --backup
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# targetdir/aria_log_control after --backup
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000001
+# Running --prepare
+# targetdir/aria_log_control after --prepare
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+# MYSQLD_DATADIR/aria_log_control after --copy-back
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# Checking that after --restore all t1 data is there
+SELECT id, LENGTH(txt) FROM t1 ORDER BY id;
+id	LENGTH(txt)
+0	1048576
+1	1048576
+2	1048576
+3	1048576
+4	1048576
+5	1048576
+6	1048576
+7	1048576
+8	1048576
+9	1048576
+DROP TABLE t1;
+DROP PROCEDURE populate_t1;
+DROP PROCEDURE display_aria_log_control;

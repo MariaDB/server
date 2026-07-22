@@ -11,6 +11,9 @@ Should exist when summary includes dblwr pages
 # restart
 CREATE TABLE ibd_1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 INSERT INTO ibd_1 VALUES(1), (2), (3), (4);
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE ibd_2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO ibd_2 SELECT seq FROM seq_1_to_8451;
 # Pass wrong tablespace flag for ibdata2
 FOUND 1 /Error: Page 0 checksum mismatch/ in result.log
 # Pass wrong tablespace flag for ibdata1
@@ -25,4 +28,4 @@ FOUND 1 /Error: First page of the tablespace file should be 0, but encountered p
 # Test innochecksum with the modified ibdata3 with tablespace flags
 FOUND 1 /Exceeded the maximum allowed checksum mismatch/ in result.log
 # restart
-DROP TABLE t1, ibd_1;
+DROP TABLE t1, ibd_1, ibd_2;

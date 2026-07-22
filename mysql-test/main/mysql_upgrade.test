@@ -10,6 +10,7 @@ let major=`select substring_index(version(), '.', 1) - (version() like '%.0.%')`
 
 set sql_mode="";
 
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 #
 # Basic test that we can run mysql_upgrde and that it finds the
 # expected binaries it uses.

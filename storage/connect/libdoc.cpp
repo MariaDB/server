@@ -195,7 +195,7 @@ void xtrc(char const *fmt, ...)
   va_start (ap, fmt);
 																							;
 //vfprintf(stderr, fmt, ap);
-  vsprintf(s, fmt, ap);
+  vsnprintf(s, sizeof(s), fmt, ap);
   if (s[strlen(s)-1] == '\n')
       s[strlen(s)-1] = 0;
   va_end (ap);
@@ -599,7 +599,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
     if (trace(1))
       htrc("Calling xmlPathInit\n");
 
-    xmlXPathInit();
+    xmlInitParser();
 
     if (trace(1))
       htrc("Calling xmlXPathNewContext Docp=%p\n", Docp);

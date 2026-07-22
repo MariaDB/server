@@ -276,3 +276,81 @@ DELIMITER ;$$
 SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
 --horizontal_results
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-20609 Full table scan in INFORMATION_SCHEMA.PARAMETERS/ROUTINES
+--echo #
+--disable_warnings
+DROP DATABASE IF EXISTS i_s_parameters_test;
+--enable_warnings
+
+CREATE DATABASE i_s_parameters_test;
+USE i_s_parameters_test;
+
+CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
+  RETURN CONCAT('XYZ, ' ,s);
+
+--let count_routines = `select count(*) from information_schema.routines`
+
+--echo #
+--echo # We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
+--echo # but we will use SPECIFIC_NAME for filtering records from mysql.proc
+FLUSH STATUS;
+--disable_cursor_protocol
+--disable_ps2_protocol
+query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
+  WHERE SPECIFIC_NAME = 'test_func5';
+--enable_ps2_protocol
+--enable_cursor_protocol
+--replace_result $count_routines count_routines
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # We cannot use the index due to CONCAT(), and filtering by SPECIFIC_NAME
+--echo # does not work either since SPECIFIC_NAME = 'not_existing_proc'. See
+--echo # the difference in counters in comparison to the previous test
+--disable_cursor_protocol
+--disable_ps2_protocol
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
+  WHERE CONCAT(SPECIFIC_SCHEMA) = 'i_s_parameters_test'
+  AND SPECIFIC_NAME = 'not_existing_proc';
+--replace_result $count_routines count_routines
+SHOW STATUS LIKE 'handler_read%next';
+--echo #
+--echo # Now the index must be used
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
+  WHERE SPECIFIC_SCHEMA = 'i_s_parameters_test'
+  AND SPECIFIC_NAME = 'test_func5';
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # Using the first key part of the index
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
+  WHERE SPECIFIC_SCHEMA = 'i_s_parameters_test';
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # Test non-latin letters in procedure name
+SET NAMES koi8r;
+CREATE PROCEDURE `процедурка`(a INT) SELECT a;
+--echo #
+--echo # The index must be used
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
+  WHERE SPECIFIC_SCHEMA = 'i_s_parameters_test'
+  AND SPECIFIC_NAME = 'процедурка';
+SHOW STATUS LIKE 'handler_read%next';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+--replace_column 1 #
+SELECT COUNT(*) FROM information_schema.PARAMETERS
+  WHERE SPECIFIC_CATALOG = NULL;
+
+# Cleanup
+DROP DATABASE i_s_parameters_test;
+USE test;

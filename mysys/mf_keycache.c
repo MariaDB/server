@@ -3762,10 +3762,11 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 
 static int cmp_sec_link(const void *_a, const void *_b)
 {
-  BLOCK_LINK *const *a= _a;
-  BLOCK_LINK *const *b= _b;
-  return (((*a)->hash_link->diskpos < (*b)->hash_link->diskpos) ? -1 :
-      ((*a)->hash_link->diskpos > (*b)->hash_link->diskpos) ? 1 : 0);
+  const BLOCK_LINK *a= *(const BLOCK_LINK **)_a;
+  const BLOCK_LINK *b= *(const BLOCK_LINK **)_b;
+
+  return (a->hash_link->diskpos < b->hash_link->diskpos) ? -1 :
+      (a->hash_link->diskpos > b->hash_link->diskpos) ? 1 : 0;
 }
 
 
@@ -3901,6 +3902,8 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
     0   ok
     1  error
 */
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
 				File file, enum flush_type type)
@@ -4334,6 +4337,7 @@ err:
   DBUG_RETURN(last_errno != 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   Flush all blocks for a file from key buffers of a simple key cache 

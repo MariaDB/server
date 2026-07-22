@@ -338,7 +338,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len,
       DBUG_ASSERT(event_buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
       event_buf[FLAGS_OFFSET]= (uchar) flags;
     }
-    res= DBUG_EVALUATE_IF("simulate_checksum_test_failure", TRUE, computed != incoming);
+    res= (DBUG_IF("simulate_checksum_test_failure") || computed != incoming);
   }
   return res;
 }

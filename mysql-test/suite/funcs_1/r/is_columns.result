@@ -42,7 +42,7 @@ NUMERIC_PRECISION	bigint(21) unsigned	YES		NULL
 NUMERIC_SCALE	bigint(21) unsigned	YES		NULL	
 DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
 CHARACTER_SET_NAME	varchar(32)	YES		NULL	
-COLLATION_NAME	varchar(32)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
 COLUMN_TYPE	longtext	NO		NULL	
 COLUMN_KEY	varchar(3)	NO		NULL	
 EXTRA	varchar(80)	NO		NULL	
@@ -67,7 +67,7 @@ COLUMNS	CREATE TEMPORARY TABLE `COLUMNS` (
   `NUMERIC_SCALE` bigint(21) unsigned,
   `DATETIME_PRECISION` bigint(21) unsigned,
   `CHARACTER_SET_NAME` varchar(32),
-  `COLLATION_NAME` varchar(32),
+  `COLLATION_NAME` varchar(64),
   `COLUMN_TYPE` longtext NOT NULL,
   `COLUMN_KEY` varchar(3) NOT NULL,
   `EXTRA` varchar(80) NOT NULL,
@@ -92,7 +92,7 @@ NUMERIC_PRECISION	bigint(21) unsigned	YES		NULL
 NUMERIC_SCALE	bigint(21) unsigned	YES		NULL	
 DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
 CHARACTER_SET_NAME	varchar(32)	YES		NULL	
-COLLATION_NAME	varchar(32)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
 COLUMN_TYPE	longtext	NO		NULL	
 COLUMN_KEY	varchar(3)	NO		NULL	
 EXTRA	varchar(80)	NO		NULL	

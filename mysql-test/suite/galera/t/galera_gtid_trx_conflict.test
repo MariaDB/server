@@ -5,6 +5,11 @@
 --source include/galera_cluster.inc
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
+# This test forces a specific GTID seqno (100). wsrep_gtid_seq_no only accepts a
+# value ahead of the cluster's current position, so the cluster GTID state must
+# start clean on every run (e.g. with --repeat). Force a server restart before
+# the test.
+--source include/force_restart.inc
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 

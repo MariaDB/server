@@ -8,7 +8,7 @@ PRIMARY KEY (date, title)
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
-  `date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `date` timestamp NOT NULL,
   `title` varchar(100) NOT NULL,
   `content` text NOT NULL,
   PRIMARY KEY (`date`,`title`)

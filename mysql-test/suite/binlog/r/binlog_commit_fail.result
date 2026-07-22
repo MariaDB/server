@@ -1,0 +1,116 @@
+set @@session.gtid_domain_id=1;
+set @save_gtid_stric_mode=@@global.gtid_strict_mode;
+create table ta (a int) engine=aria;
+create table ti (a int) engine=innodb;
+create table ti_pk (a int primary key) engine=innodb;
+create table t  (a int) engine=innodb;
+create function f_i()
+returns integer
+begin
+insert into ti set a=1;
+return 1;
+end |
+create function f_ia(arg int)
+returns integer
+begin
+insert into ti_pk set a=1;
+insert into ta set a=1;
+insert into ti_pk set a=arg;
+return 1;
+end |
+call mtr.add_suppression("Error writing file");
+select count(*) as zero from t;
+zero
+0
+select count(*) as zero from ta;
+zero
+0
+select count(*) as zero from ti;
+zero
+0
+# 1. simple Innodb test
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+insert into t set a=1;
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+# observe effective rollback
+select count(*) as zero from t;
+zero
+0
+# 2. simple Aira test
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+insert into ta values (1),(2);
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+# note no rollback
+select count(*) as '*NON-zero*' from ta;
+*NON-zero*
+2
+delete from ta;
+# 3. multi-engine test
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+insert into ta set a=f_i();
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+# note no rollback..
+select count(*) as one from ta;
+one
+1
+# ..except transactional engine
+select count(*) as zero from ti;
+zero
+0
+delete from ta;
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+insert into t set a=f_ia(0);
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+# note no rollback..
+select count(*) as one from ta;
+one
+1
+# ..except transactional engine
+select count(*) as zero from t;
+zero
+0
+select count(*) as zero from ti_pk;
+zero
+0
+delete from ta;
+# 4. create-table-select-f()
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+create table f_x (a int) select f_i() as a;
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+# rollback indeed takes place in the pure transactional case
+select count(*) as zero from ti;
+zero
+0
+set @@global.gtid_strict_mode=0;
+set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+create table t_x (a int) engine=aria select f_ia(0) as a;
+ERROR HY000: An attempt was made to binlog GTID VALUE which would create an out-of-order sequence number with existing GTID VALUE, and gtid strict mode is enabled
+select * from t_x;
+ERROR 42S02: Table 'test.t_x' doesn't exist
+# **TODO**: fix MDEV-36027
+# **TODO**: the empty binlog is buggy ..
+include/show_binlog_events.inc
+# .. as non-transactional `ta` (and `t_x` sic!) are modified
+select count(*) as one from ta;
+one
+1
+select count(*) as zero from ti;
+zero
+0
+delete from ta;
+#.
+set  @@global.gtid_strict_mode=@save_gtid_stric_mode;
+drop function f_i;
+drop function f_ia;
+drop table t, ta, ti, ti_pk;

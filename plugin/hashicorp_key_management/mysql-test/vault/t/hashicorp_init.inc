@@ -1,0 +1,7 @@
+--exec vault secrets disable mariadbtest > /dev/null
+--exec vault secrets enable -path /mariadbtest -version=2 kv > /dev/null
+--exec vault kv put /mariadbtest/1 data="123456789ABCDEF0123456789ABCDEF0" > /dev/null
+--exec vault kv put /mariadbtest/2 data="23456789ABCDEF0123456789ABCDef01" > /dev/null
+--exec vault kv put /mariadbtest/3 data="00000000000000000000000000000000" > /dev/null
+--exec vault kv put /mariadbtest/3 data="00000000000000000000000000000001" > /dev/null
+--exec vault kv put /mariadbtest/4 data="456789ABCDEF0123456789ABCDEF0123" > /dev/null

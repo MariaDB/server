@@ -24,6 +24,7 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0purge.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
@@ -42,17 +43,13 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
-#include "table.h"
+#include "sql_class.h"
 
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
                         const char *tb, size_t tblen,
                         MDL_ticket *mdl_ticket) noexcept;
 int close_thread_tables(THD* thd) noexcept;
 MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
-
-#ifdef UNIV_DEBUG
-unsigned long long thd_get_query_id(const MYSQL_THD thd);
-#endif /* UNIV_DEBUG */
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -267,8 +264,9 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
   if (trx->mysql_log_file_name && *trx->mysql_log_file_name)
     /* Update the latest binlog name and offset if log_bin=ON or this
-    is a replica. */
-    trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+    is a slave. */
+    trx_rseg_update_binlog_offset(rseg_header, trx->mysql_log_file_name,
+                                  trx->mysql_log_offset, mtr);
 
   /* Add the log as the first in the history list */
 
@@ -590,7 +588,7 @@ inline void trx_sys_t::undo_truncate_start(fil_space_t &space)
     }
 }
 
-inline fil_space_t *purge_sys_t::undo_truncate_try(ulint id, ulint size)
+inline fil_space_t *purge_sys_t::undo_truncate_try(uint32_t id, uint32_t size)
 {
   ut_ad(srv_is_undo_tablespace(id));
   fil_space_t *space= fil_space_get(id);
@@ -614,7 +612,7 @@ fil_space_t *purge_sys_t::truncating_tablespace()
   const uint32_t size=
     uint32_t(std::min(ulonglong{std::numeric_limits<uint32_t>::max()},
                       srv_max_undo_log_size >> srv_page_size_shift));
-  for (ulint i= truncate_undo_space.last, j= i;; )
+  for (uint32_t i= truncate_undo_space.last, j= i;; )
   {
     if (fil_space_t *s= undo_truncate_try(srv_undo_space_id_start + i, size))
       return s;
@@ -1083,7 +1081,7 @@ static void trx_purge_close_table(purge_table &pt,
   {
     if (TABLE *maria_table= pt.get_maria_table())
       purge_sys.reset_in_use(maria_table);
-    dict_table_close(pt.table);
+    pt.table->release();
     pt.table= nullptr;
   }
 
@@ -1237,7 +1235,7 @@ static purge_table trx_purge_table_open(table_id_t table_id,
       {
         if (result.table->vc_templ)
         {
-          ut_ad(thd_get_query_id(thd) == 0);
+          ut_ad(thd->query_id == 0);
           result.table->lock_mutex_lock();
           result.table->vc_templ->mysql_table= maria_table;
           result.table->vc_templ->mysql_table_query_id= 0;
@@ -1258,7 +1256,7 @@ static purge_table trx_purge_table_open(table_id_t table_id,
         needs to be closed before opening the new version
         The purge coordinator should close all open tables and retry
         opening. */
-        dict_table_close(result.table);
+        result.table->release();
         result.table= reinterpret_cast<dict_table_t*>(-1);
       }
     }
@@ -1272,9 +1270,8 @@ purge_table purge_sys_t::close_and_reopen(table_id_t id,
                                           purge_table pt,
                                           THD *thd) noexcept
 {
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
-retry:
+  MDL_context *mdl_context= &thd->mdl_context;
+ retry:
   ut_ad(m_active);
   trx_purge_close_tables(thd, &pt);
 
@@ -1325,13 +1322,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     table_id_map(TRX_PURGE_TABLE_BUCKETS);
   purge_sys.m_active= true;
 
-  MDL_context *const mdl_context=
-    static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
-
-  const size_t max_pages=
-    std::min(buf_pool.curr_size * 3 / 4, size_t{srv_purge_batch_size});
-
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
     /* Track the max {trx_id, undo_no} for truncating the
@@ -1365,7 +1355,7 @@ enqueue:
     }
     else
     {
-      purge_table pt= trx_purge_table_open(table_id, mdl_context);
+      purge_table pt= trx_purge_table_open(table_id, &thd->mdl_context);
       if (pt.must_wait())
         pt= purge_sys.close_and_reopen(table_id, pt, thd);
 
@@ -1387,7 +1377,9 @@ enqueue:
       }
     }
 
-    if (purge_sys.n_pages_handled() >= max_pages)
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
       break;
   }
 
@@ -1480,7 +1472,10 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 
   purge_sys.clone_oldest_view(thd);
 
-  ut_d(if (srv_purge_view_update_only_debug) return 0);
+#ifdef UNIV_DEBUG
+  if (srv_purge_view_update_only_debug)
+    return purge_sys.reset_coordinator();
+#endif /* UNIV_DEBUG */
 
   /* Fetch the UNDO recs that need to be purged. */
   ulint n_work= 0;
