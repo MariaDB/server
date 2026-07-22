@@ -1776,6 +1776,7 @@ public:
                                       const Data_type_compatibility reason)
                                       const;
   void raise_note_key_become_unused(THD *thd, const String &expr) const;
+  bool is_supertype(Item *item) const;
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
   {

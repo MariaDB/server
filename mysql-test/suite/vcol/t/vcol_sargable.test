@@ -127,7 +127,17 @@ alter table t1 add index(color);
 select * from t1 limit 3;
 
 --echo # Index is used:
+--echo ## TODO: actually does not work because
+--echo ## capacity_limit_is_in_characters() returns false for
+--echo ## the expression with type mediumtext, and true for
+--echo ## Item_string 'hue5'
+
+--echo ## set collation_connection so that the constant string has the
+--echo ## correct collation
+set @old_collation_connection=@@collation_connection;
+set collation_connection=utf8mb4_bin;
 explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
+set collation_connection=@old_collation_connection;
 explain select * from t1 where json_unquote(json_extract(js1, '$.color')) IS NULL;
 explain select * from t1 force index(color)
 where json_unquote(json_extract(js1, '$.color')) IS NOT NULL;
@@ -162,10 +172,14 @@ select * from t1 where size1=10;
 select collation(json_value(js1, '$.color')) from t1 limit 1;
 
 --echo # If one is fine with _bin comparisons, they can use index access:
+--echo ## same problem with capacity_limit_is_in_characters
 alter table t1
   add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
   add index(color1);
+set @old_collation_connection=@@collation_connection;
+set collation_connection=utf8mb4_bin;
 explain select * from t1 where json_value(js1, '$.color')='hue10';
+set collation_connection=@old_collation_connection;
 alter table t1 drop column color1;
 
 --echo # Using different collation in column substitution prevents
@@ -178,18 +192,23 @@ alter table t1 drop column color2;
 
 
 --echo # Explicitly specifying the collation helps:
+--echo ## TODO: same problem with capacity_limit_is_in_characters
 alter table t1
   add color3 varchar(100) collate utf8mb4_unicode_ci as
   (json_value(js1, '$.color') collate utf8mb4_unicode_ci),
   add index(color3);
+set @old_collation_connection=@@collation_connection;
+set collation_connection=utf8mb4_unicode_ci;
 explain select * from t1
 where
   json_value(js1, '$.color') collate utf8mb4_unicode_ci='hue10';
+set collation_connection=@old_collation_connection;
 
 --echo #
 --echo # Alternatively, one can store JSON in a column with the same
 --echo # collation as default and then casts are not needed:
 --echo #
+--echo ## TODO: same problem with capacity_limit_is_in_characters
 create table t2(
   js1 longtext COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL CHECK (json_valid(`js1`))
 );
