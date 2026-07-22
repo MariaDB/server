@@ -258,8 +258,29 @@ INSERT INTO t2 VALUES (1),(2);
 UPDATE t1 NATURAL JOIN t2 SET a = 1 ORDER BY AVG (a) ;
 DROP TABLE t1, t2;
 
+--echo # End of 10.3 tests
 
 --echo #
---echo # End of 10.3 tests
+--echo # MDEV-25813 ASAN errors in err_conv / field_unpack upon multi-UPDATE causing ER_DUP_ENTRY
 --echo #
+
+CREATE TABLE t1 (
+  pk INT, a CHAR(3), b TEXT,
+  c TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, d INT,
+  PRIMARY KEY (pk), UNIQUE (b(3), c)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1, 'foo', 'qux', '2025-08-15', 11),
+                      (2, 'bar', 'qux', '2037-01-11', 12);
+
+CREATE TABLE t2 (f CHAR(3)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('abc'), ('def');
+
+--replace_regex /qux-[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/qux-TIMESTAMP/
+--error ER_DUP_ENTRY
+UPDATE t1 LEFT JOIN t2 ON (t1.a = t2.f) SET t1.d = 1;
+
+DROP TABLE t1, t2;
+
+--echo # End of 10.11 tests
 
