@@ -11600,6 +11600,14 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
   }
 }
 
+bool Field::is_supertype(Item *item) const
+{
+  return type_handler()->is_supertype(type_std_attributes(),
+                                      type_extra_attributes(),
+                                      item->type_handler(),
+                                      *item /*Type_std_attributes*/,
+                                      item->type_extra_attributes());
+}
 
 /*
   Give warning for unusable key

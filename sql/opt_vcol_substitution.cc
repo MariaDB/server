@@ -120,7 +120,8 @@ static
 void subst_vcol_if_compatible(Vcol_subst_context *ctx,
                               Item_bool_func *cond,
                               Item **vcol_expr_ref,
-                              Field *vcol_field);
+                              Field *vcol_field,
+                              bool skip_supertype_check= false);
 
 static
 bool collect_indexed_vcols_for_table(TABLE *table, List<Field> *vcol_fields)
@@ -440,41 +441,29 @@ static
 void subst_vcol_if_compatible(Vcol_subst_context *ctx,
                               Item_bool_func *cond,
                               Item **vcol_expr_ref,
-                              Field *vcol_field)
+                              Field *vcol_field,
+                              bool skip_supertype_check)
 {
   Item *vcol_expr= *vcol_expr_ref;
   THD *thd= ctx->thd;
 
   const char *fail_cause= NULL;
-  if (cond)                     /* WHERE substitution (MDEV-39525) */
+  if (cond)
   {
-    if (vcol_expr->type_handler_for_comparison() !=
-        vcol_field->type_handler_for_comparison() ||
-        (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
-      fail_cause="type mismatch";
-    else
-    {
-      CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
-      if (vcol_expr->collation.collation != vcol_field->charset() &&
-          cs != vcol_field->charset())
-        fail_cause= "collation mismatch";
-    }
+    if (vcol_expr->collation.collation != vcol_field->charset() &&
+        cond->compare_collation() != vcol_field->charset())
+      fail_cause= "collation mismatch";
   }
-  else                          /* ORDER/GROUP BY substitution */
+  if (!fail_cause && !skip_supertype_check &&
+      !vcol_field->is_supertype(vcol_expr))
   {
-    if (!vcol_field->type_handler()->is_supertype(
-        vcol_field->type_std_attributes(),
-        vcol_field->type_extra_attributes(),
-        vcol_expr->type_handler(),
-        *vcol_expr /*Type_std_attributes*/,
-        vcol_expr->type_extra_attributes()))
       fail_cause="failed supertype check";
-    else if (vcol_expr->maybe_null() && !vcol_field->maybe_null())
-    {
-      /* NOT NULL is not allowed for vcol definition */
-      DBUG_ASSERT(0);
-      fail_cause= "nullability mismatch";
-    }
+  }
+  if (!fail_cause && vcol_expr->maybe_null() && !vcol_field->maybe_null())
+  {
+    /* NOT NULL is not allowed for vcol definition */
+    DBUG_ASSERT(0);
+    fail_cause= "nullability mismatch";
   }
 
   if (fail_cause)
@@ -530,6 +519,10 @@ bool Item::vcol_subst_analyzer(uchar **)
            (((Item_func*)this)->bitmap_bit() & allowed_cmp_funcs))); // (2)
 }
 
+static bool vcol_type_both_bounded(Field *vcol_field, Item *vcol_expr, Item *rhs)
+{
+  return vcol_field->is_supertype(rhs) && vcol_expr->is_supertype(rhs);
+}
 
 Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
 {
@@ -537,18 +530,30 @@ Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
   Field *vcol_field;
   Item **vcol_expr;
+  Item *other= NULL;
 
   if (!args[0]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[1])))
+  {
     vcol_expr= &args[1];
+    if (functype() == EQ_FUNC)
+      other= args[0];
+  }
   else if (!args[1]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[0])))
+  {
     vcol_expr= &args[0];
+    if (functype() == EQ_FUNC)
+      other= args[1];
+  }
   else
     return this; /* No substitution */
 
   DBUG_EXECUTE_IF("vcol_subst_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field);
+  if (other && vcol_type_both_bounded(vcol_field, *vcol_expr, other))
+    subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field, true);
+  else
+    subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field, false);
 
   DBUG_EXECUTE_IF("vcol_subst_simulate_oom",
                   DBUG_SET("-d,vcol_subst_simulate_oom"););
@@ -564,7 +569,11 @@ Item* Item_func_between::vcol_subst_transformer(THD *thd, uchar *arg)
       !args[2]->used_tables() &&
       (vcol_field= is_vcol_expr(ctx, args[0])))
   {
-    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+    if (vcol_type_both_bounded(vcol_field, args[0], args[1]) &&
+        vcol_type_both_bounded(vcol_field, args[0], args[2]))
+      subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, true);
+    else
+      subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, false);
   }
   return this;
 }
@@ -575,7 +584,7 @@ Item* Item_func_null_predicate::vcol_subst_transformer(THD *thd, uchar *arg)
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
   Field *vcol_field;
   if ((vcol_field= is_vcol_expr(ctx, args[0])))
-    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, true);
   return this;
 }
 
@@ -584,6 +593,7 @@ Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
 {
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
   Field *vcol_field= nullptr;
+  uint i= 1;
 
   /*
     Check that the left hand side of IN() is a virtual column expression and
@@ -592,8 +602,13 @@ Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
   if (!(vcol_field= is_vcol_expr(ctx, args[0])) ||
       !compatible_types_scalar_bisection_possible())
     return this;
+  for (; i < arg_count; i++)
+  {
+    if (!vcol_type_both_bounded(vcol_field, args[0], args[i]))
+      break;
+  }
 
-  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, i == arg_count);
   return this;
 }
 
