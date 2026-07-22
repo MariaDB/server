@@ -1,4 +1,5 @@
 --source include/default_charset.inc
+--disable_replay testfile Don't support UDFs
 
 SET sql_mode=ORACLE;
 
