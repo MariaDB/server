@@ -2,8 +2,10 @@ SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
+set @innodb_stats_auto_recalc_save = @@innodb_stats_auto_recalc;
 set global innodb_stats_persistent= 1;
-set global innodb_stats_persistent_sample_pages=100;
+set global innodb_stats_persistent_sample_pages=1000;
+set global innodb_stats_auto_recalc= 0;
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 DROP DATABASE IF EXISTS world;
 set names utf8;
@@ -1048,4 +1050,5 @@ DROP TABLE t1, t2;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;
+set global innodb_stats_auto_recalc= @innodb_stats_auto_recalc_save;
 SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
