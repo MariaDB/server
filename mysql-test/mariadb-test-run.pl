@@ -219,7 +219,7 @@ my @DEFAULT_SUITES= qw(
     period-
     sysschema-
   );
-my $opt_suites;
+my @opt_suites;
 
 our $opt_verbose= 0;  # Verbose output, enable with --verbose
 our $exe_patch;
@@ -409,13 +409,24 @@ sub main {
   check_debug_support();
   environment_setup();
 
-  if (!$opt_suites) {
-    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
+  # Resolve the suite list. A "!NAME" entry excludes NAME; if only exclusions
+  # are given, they apply to the default suite set. Names accumulate across the
+  # command line and the [mtr] config file (see @opt_suites).
+  my $suites;
+  {
+    my (@names, %exclude);
+    for my $s (@opt_suites) {
+      if ($s =~ /^!(.+)/) { $exclude{(split /-/, $1)[0]}= 1; }
+      else                { push @names, $s; }
+    }
+    @names= collect_default_suites(@DEFAULT_SUITES) unless @names;
+    @names= grep { !$exclude{(split /-/, $_)[0]} } @names;
+    $suites= join ',', @names;
   }
-  mtr_report("Using suites: $opt_suites") unless @opt_cases;
+  mtr_report("Using suites: $suites") unless @opt_cases;
 
   mtr_report("Collecting tests...");
-  my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
+  my $tests= collect_test_cases($opt_reorder, $suites, \@opt_cases, \@opt_skip_test_list);
   if (@$tests == 0) {
     mtr_report("No tests to run...");
     exit 0;
@@ -1352,7 +1363,7 @@ sub command_line_setup {
              # Control what test suites or cases to run
              'force+'                   => \$opt_force,
              'skip-not-found'           => \$opt_skip_not_found,
-             'suite|suites=s'           => \$opt_suites,
+             'suite|suites=s'           => sub { push @opt_suites, split(/,/, $_[1]) },
              'skip-rpl'                 => \&collect_option,
              'skip-test=s'              => \&collect_option,
              'do-test=s'                => \&collect_option,
@@ -1912,7 +1923,7 @@ sub command_line_setup {
     mtr_error("--user-args only valid with --start options")
       unless $start_only;
     mtr_error("--user-args cannot be combined with named suites or tests")
-      if $opt_suites || @opt_cases;
+      if @opt_suites || @opt_cases;
   }
 
   # --------------------------------------------------------------------------
@@ -1933,8 +1944,8 @@ sub command_line_setup {
     $opt_stress=~ s/,/ /g;
     $opt_user_args= 1;
     mtr_error("--stress cannot be combined with named ordinary suites or tests")
-      if $opt_suites || @opt_cases;
-    $opt_suites="stress";
+      if @opt_suites || @opt_cases;
+    @opt_suites= ("stress");
     @opt_cases= ("wrapper");
     $ENV{MST_OPTIONS}= $opt_stress;
   }
@@ -6219,7 +6230,10 @@ Options to control what test suites or cases to run
                         prefix may be suite.testname or just testname
   suite[s]=NAME1,..,NAMEN
                         Collect tests in suites from the comma separated
-                        list of suite names.
+                        list of suite names. A name prefixed with '!' is
+                        excluded; if only '!'-prefixed names are given, they
+                        are excluded from the default set. Names accumulate
+                        across the command line and the [mtr] config file.
                         The default is: "@DEFAULT_SUITES"
   skip-rpl              Skip the replication test cases.
   big-test              Also run tests marked as "big". Repeat this option
