@@ -243,3 +243,31 @@ f	b
 NULL	1
 NULL	2
 drop table t1;
+#
+# Start of 11.4 tests
+#
+#
+# MDEV-39609 - SIGSEGV in process_i_s_table_temporary_tables after failed ALTER TABLE on temporary TIMESTAMP table with CHECK constraint
+#
+CREATE TEMPORARY TABLE t (c INT KEY) ENGINE=INNODB;
+ALTER TABLE t MODIFY c TIMESTAMP;
+ALTER TABLE t ADD CHECK(c=0);
+ALTER TABLE t ADD INDEX idx1 (c);
+SET SESSION sql_mode='TRADITIONAL';
+ALTER TABLE t ROW_FORMAT=COMPRESSED;
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ALTER TABLE t ANALYZE PARTITION p2;
+ERROR HY000: Partition management on a not partitioned table is not possible
+SELECT table_schema, table_name, table_type, engine, temporary
+FROM information_schema.tables WHERE table_name='t';
+table_schema	table_name	table_type	engine	temporary
+test	t	TEMPORARY	InnoDB	Y
+INSERT INTO t VALUES (0);
+ERROR 22007: Incorrect datetime value: '0' for column `test`.`t`.`c` at row 1
+INSERT INTO t VALUES ('0000-00-00 00:00:00');
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t`.`c` at row 1
+SET SESSION sql_mode=DEFAULT;
+DROP TEMPORARY TABLE t;
+#
+# End of 11.4 tests
+#
