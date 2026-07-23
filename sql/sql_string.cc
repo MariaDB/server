@@ -372,6 +372,26 @@ bool String::needs_conversion_on_storage(size_t arg_length,
 }
 
 
+bool String::is_charset_conversion_lossless(const CHARSET_INFO *from_cs,
+                                            const CHARSET_INFO *to_cs)
+{
+  if (to_cs == &my_charset_bin)
+    return true; // binary swallows any bytes
+  if (from_cs == &my_charset_bin)
+    return false; // arbitrary bytes ⊄ text charset
+  if (my_charset_same(from_cs, to_cs))
+    return true;                             // same repertoire family
+  if (from_cs->state & MY_CS_PUREASCII)      // ASCII-only source...
+    return my_charset_is_ascii_based(to_cs); // ...into any ASCII-based target
+  if ((to_cs->state &
+       MY_CS_UNICODE) && // Unicode target covers every repertoire,
+      (to_cs->state &
+       MY_CS_UNICODE_SUPPLEMENT)) // incl. non-BMP (so utf8mb4/utf16/utf32,
+    return true;                  // but NOT plain utf8mb3/ucs2)
+  return false;                   // unknown → treat as possibly lossy
+}
+
+
 /*
   Copy a multi-byte character sets with adding leading zeros.
 
