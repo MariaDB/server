@@ -1174,12 +1174,15 @@ public:
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
   st_select_lex *merged_into; /* select which this select is merged into */
-                              /* (not 0 only for views/derived tables)   */
   const char *type;           /* type of select for EXPLAIN          */
 
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /* List of Items that are in inner selects but resolved here */
+  List<Item_ident> outer_references_resolved_here;
+  bool add_outer_reference_resolved_here(THD *thd, Item_ident *dependency);
 
   /*
     Pushdown from HAVING into WHERE optimization: conditions from the HAVING
@@ -1399,6 +1402,8 @@ public:
     case of an error during prepare the PS is not created.
   */
   uint8 changed_elements; // see TOUCHED_SEL_*
+  uint8 save_uncacheable;
+  uint8 save_master_uncacheable;
 
   /**
     The set of those tables whose fields are referenced in the select list of
@@ -1604,8 +1609,6 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   void set_unique_exclude();
-
-  bool is_merged_child_of(st_select_lex *ancestor);
 
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
@@ -5333,6 +5336,8 @@ bool TABLE_LIST::is_pure_alias() const
 {
   return !db.length || (table_options & TL_OPTION_ALIAS);
 }
+
+struct nest_updater {int inc; SELECT_LEX_UNIT *base;};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

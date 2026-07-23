@@ -2280,6 +2280,7 @@ public:
   bool cleanup_excluding_immutables_processor (void *arg);
   virtual bool cleanup_excluding_const_fields_processor (void *arg)
   { return cleanup_processor(arg); }
+  virtual bool select_update_base_processor(void *arg) { return 0; }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool unknown_splocal_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
@@ -3041,6 +3042,17 @@ public:
   virtual ~Field_enumerator() = default;;             /* purecov: inspected */
   Field_enumerator() = default;                       /* Remove gcc warning */
 };
+
+
+class Field_fixer: public Field_enumerator
+{
+public:
+  table_map used_tables;             /* Collect used_tables here */
+  st_select_lex *select;             /* the select_lex we're confined to */
+  bool not_ready;                    /* if we hit an unfixed field, set this */
+  void visit_field(Item_field *item) override;
+};
+
 
 class Item_string;
 
@@ -6414,14 +6426,7 @@ public:
                        Item **item,
                        LEX_CSTRING &table_name_arg,
                        LEX_CSTRING &field_name_arg,
-                       TABLE_LIST *view_arg):
-    Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg),
-    item_equal(0), view(view_arg),
-    null_ref_table(NULL)
-  {
-    if (fixed())
-      set_null_ref_table();
-  }
+                       TABLE_LIST *view_arg);
 
   bool fix_fields(THD *, Item **) override;
   bool eq(const Item *item, const Eq_config &config) const override;
