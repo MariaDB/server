@@ -248,6 +248,7 @@ my $opt_head_warnings;
 my $opt_tail_warnings;
 
 my $opt_dry_run;
+my $opt_comb_list;
 
 my $opt_compress;
 my $opt_ssl;
@@ -430,6 +431,43 @@ sub main {
   my $tests= collect_test_cases($opt_reorder, $suites, \@opt_cases, \@opt_skip_test_list);
   if (@$tests == 0) {
     mtr_report("No tests to run...");
+    exit 0;
+  }
+
+  if ($opt_comb_list)
+  {
+    # For each collected test, list its combinations in the selectable
+    # "test,combination" form (one per line), preceded by a summary line.
+    my (%combs, @order);
+    for my $t (@$tests) {
+      my $name= $t->{name};
+      push @order, $name unless $combs{$name};
+      my $suffix= defined $t->{combinations}
+                  ? join(',', sort @{$t->{combinations}}) : '';
+      push @{$combs{$name}}, $suffix if length $suffix;
+    }
+    for my $name (@order) {
+      my @c= @{$combs{$name} || []};
+      # Summary line: list each distinct combination name once, keeping names
+      # from the same .combinations file together. Names from one file never
+      # appear together in a variant, so group names that never co-occur;
+      # order follows first appearance.
+      my @variants= map { [ split /,/ ] } @c;
+      my (%seen, %co, @cnames);
+      for my $v (@variants) {
+        for my $a (@$v) {
+          push @cnames, $a unless $seen{$a}++;
+          $co{$a}{$_}= 1 for @$v;
+        }
+      }
+      my @groups;
+      for my $n (@cnames) {
+        my ($g)= grep { !grep { $co{$n}{$_} } @$_ } @groups;
+        $g ? push(@$g, $n) : push(@groups, [$n]);
+      }
+      print "Combinations for $name: ", join(',', map { @$_ } @groups), "\n";
+      print "$name,$_\n" for @c;
+    }
     exit 0;
   }
 
@@ -1462,6 +1500,7 @@ sub command_line_setup {
 	     'head-warnings=i'          => \$opt_head_warnings,
 	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
+             'list-combinations|lc'     => \$opt_comb_list,
 
              'help|h'                   => \$opt_usage,
 	     # list-options is internal, not listed in help
@@ -6207,6 +6246,9 @@ Options to control what engine/variation to run:
                         Ignored when --combination is used.
   dry-run               Don't run any tests, print the list of tests
                         that were selected for execution
+  list-combinations     For the specified test(s), list the available
+  lc                    combinations in selectable "test,combination" form
+                        and exit.
 
 Options to control directories to use
   tmpdir=DIR            The directory where temporary files are stored
