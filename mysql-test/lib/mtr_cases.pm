@@ -316,6 +316,21 @@ sub combinations_from_file($$)
     }
     @combs = ({ skip => 'Requires: ' . basename($filename, '.combinations') }) unless @combs;
   }
+
+  # --combination-select=N selects a single combination by position in the
+  # file, in [] section order (1-based; a negative N counts from the end,
+  # -1 being the last). Ignored for skipped or command-line combinations.
+  if (defined $::opt_comb_sel and @combs and not $combs[0]->{skip}) {
+    my $n= $::opt_comb_sel;
+    mtr_error("--combination-select must be a non-zero integer, not '$n'")
+      unless $n =~ /^-?[1-9][0-9]*$/;
+    my $i= $n > 0 ? $n - 1 : $n;
+    mtr_error("--combination-select=$n is out of range for '$filename' ".
+              "(it has ".scalar(@combs)." combination(s))")
+      if $i >= @combs or $i < -@combs;
+    @combs= ($combs[$i]);
+  }
+
   @combs;
 }
 

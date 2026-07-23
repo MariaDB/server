@@ -235,6 +235,7 @@ our $opt_big_test= 0;
 our $opt_staging_run= 0;
 
 our @opt_combinations;
+our $opt_comb_sel;
 
 our @opt_extra_mysqld_opt;
 our @opt_mysqld_envs;
@@ -1370,6 +1371,7 @@ sub command_line_setup {
              'start-from=s'             => \&collect_option,
              'big-test+'                => \$opt_big_test,
 	     'combination=s'            => \@opt_combinations,
+	     'combination-select|c=s'   => \$opt_comb_sel,
              'experimental=s'           => \@opt_experimentals,
              'staging-run'              => \$opt_staging_run,
 
@@ -1490,6 +1492,13 @@ sub command_line_setup {
   GetOptions(%options) or usage("Can't read options");
   usage("") if $opt_usage;
   list_options(\%options) if $opt_list_options;
+
+  # Validate --combination-select here, so a bad value is rejected even when
+  # the selected test(s) have no .combinations file (combinations_from_file,
+  # the other check point, is only reached for tests that do).
+  mtr_error("--combination-select must be a non-zero integer, not ".
+            "'$opt_comb_sel'")
+    if defined $opt_comb_sel and $opt_comb_sel !~ /^-?[1-9][0-9]*$/;
 
   # --------------------------------------------------------------------------
   # Setup verbosity
@@ -6188,8 +6197,14 @@ Options to control what engine/variation to run:
                         tests
   defaults-extra-file=<config template> Extra config template to add to
                         all generated configs
-  combination=<opt>     Use at least twice to run tests with specified
-                        options to mysqld
+  combination=OPTIONS   Extra mysqld options making up one test combination.
+                        Repeat it (two or more times) to run every test once
+                        per combination. When given, it applies to all tests
+                        and their .combinations files are ignored.
+  combination-select=N  Run only the Nth combination from each .combinations
+  c=N                   file, counting [] sections in file order (1-based).
+                        A negative N counts from the end, -1 being the last.
+                        Ignored when --combination is used.
   dry-run               Don't run any tests, print the list of tests
                         that were selected for execution
 
