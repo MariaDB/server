@@ -881,9 +881,9 @@ INSERT INTO t1 SELECT f1 - 256 FROM t1;
 INSERT INTO t1 SELECT f1 - 512 FROM t1;
 SELECT * FROM t1;
 DROP TABLE t1;
-select "500g blï¿½bï¿½rsyltetï¿½y" as "will be lower cased";
+select "500g blåbærsyltetøy" as "will be lower cased";
 will be lower cased
-500g blï¿½bï¿½rsyltetï¿½y
+500g blåbærsyltetøy
 SELECT "UPPER" AS "WILL NOT BE lower cased";
 WILL NOT BE lower cased
 UPPER
@@ -901,8 +901,8 @@ xyz
 select 1 as "some new text";
 some new text
 1
-select 0 as "will not lower case ï¿½ï¿½ï¿½";
-will not lower case ï¿½ï¿½ï¿½
+select 0 as "will not lower case ÄËÐ";
+will not lower case ÄËÐ
 0
 CREATE TABLE t1(
 a int, b varchar(255), c datetime
@@ -1033,7 +1033,6 @@ SELECT 1 /* doesn't throw error */;
 SELECT 1 /* doesn't throw error */;
 1
 1
-End of tests
 #
 # MDEV-38696: infinite loop in my_copy() function
 #

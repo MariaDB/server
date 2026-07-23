@@ -275,7 +275,7 @@ select * from t1;
 show create table t1;
 #--error ER_PARSE_ERROR # no error in 10.11 # uncomment when MDEV-40413 is pushed
 #alter table t1 convert partition `#mysql50#p-2` to table t2;
---error ER_NO_SUCH_TABLE # no error in 10.11
+--error ER_NO_SUCH_TABLE # remove after MDEV-40413
 alter table t1 convert table t2 to partition p2 values in (7);
 alter table t1 reorganize partition `#mysql50#p-2` into (partition t2 values in (7));
 show create table t1;

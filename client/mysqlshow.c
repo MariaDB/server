@@ -769,9 +769,10 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
   while ((row=mysql_fetch_row(result)))
     print_res_row(result,row);
   print_res_top(result);
-  mysql_free_result(result);
   if (opt_show_keys)
   {
+    mysql_free_result(result);          /* free the columns result set */
+    result= NULL;
     my_snprintf(query, sizeof(query), "show keys from %`s", table);
     if (mysql_query(mysql,query) || !(result=mysql_store_result(mysql)))
     {

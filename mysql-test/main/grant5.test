@@ -436,7 +436,7 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 
 --echo # End of 10.5 tests
---echo #
+
 --echo # MDEV-40470 GRANT PROXY with empty password incorrectly checks grantor's privileges
 --echo #
 create user u1@localhost;
