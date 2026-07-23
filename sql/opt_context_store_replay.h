@@ -39,6 +39,15 @@ class Multi_range_read_const_call_record;
 void init_optimizer_context_recorder_if_needed(THD *thd,
                                                const TABLE_LIST *query_tables);
 
+class Opt_ctx_recorder_state
+{
+public:
+  TABLE *table= nullptr;
+
+  int keyread_state= 0;
+  MY_BITMAP *saved_read_set= nullptr;
+};
+
 /*
   Recorder is used to capture the environment during query optimization run.
   When the optimization is finished, one can save the captured context
@@ -50,6 +59,9 @@ public:
   Optimizer_context_recorder(MEM_ROOT *mem_root_arg);
 
   ~Optimizer_context_recorder();
+
+  void prepare_captured_row_read(TABLE *table, Opt_ctx_recorder_state *state);
+  void finish_captured_row_read(Opt_ctx_recorder_state *state);
 
   void record_multi_range_read_info_const(const TABLE *table, uint keynr,
                                           Range_print_enumerator *ranges,
@@ -66,11 +78,6 @@ public:
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
                                const key_range *max_range, ha_rows records);
-  void record_const_table_row(TABLE *tbl)
-  {
-    /* use table->record[1] */
-    record_table_row(tbl, 1);
-  }
   void record_current_table_row(TABLE *tbl)
   {
     /* use table->record[0] */
@@ -139,6 +146,13 @@ public:
 int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *);
 
 void clean_captured_ctx(THD *thd);
+
+/*
+  Widen read_set to all stored (non-virtual) columns via table->tmp_set, so the
+  next read/record captures the full row; returns the previous read_set for the
+  caller to restore. See the definition for the tmp_set precondition.
+*/
+MY_BITMAP *widen_read_set_no_vcols(TABLE *table);
 
 /***************************************************************************
  * Part 3: APIs for loading previously saved Optimizer Context and replaying

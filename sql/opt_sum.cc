@@ -428,6 +428,12 @@ int opt_sum_query(THD *thd,
           error= 0;
 
           table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
+
+          /* Prepare to capture the MIN/MAX row for the optimizer context */
+          Opt_ctx_recorder_state state;
+          if (thd->opt_ctx_recorder)
+            thd->opt_ctx_recorder->prepare_captured_row_read(table, &state);
+
           if (!table->const_table)
           {
             if (likely(!(error= table->file->ha_index_init((uint) ref.key,
@@ -443,10 +449,12 @@ int opt_sum_query(THD *thd,
                               conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
 
-          if (!error)
+          /* Capture the MIN/MAX row for the optimizer context */
+          if (Optimizer_context_recorder *rec= thd->opt_ctx_recorder)
           {
-            if (Optimizer_context_recorder *rec= thd->opt_ctx_recorder)
+            if (!error)
               rec->record_current_table_row(table);
+            rec->finish_captured_row_read(&state);
           }
           if (!table->const_table)
           {

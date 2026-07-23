@@ -3024,6 +3024,7 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
   return length;
 }
 
+
 /*
   @brief
     Format the row record and store it in the output
@@ -3148,12 +3149,26 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
         }
         field->val_str(&tmp);
       }
-      if (require_quote)
-        output.append('\'');
-      output.append_for_single_quote_opt_convert(tmp.ptr(), tmp.length(),
-                                                 field->charset());
-      if (require_quote)
-        output.append('\'');
+      /*
+        Emit non-empty values as a hex literal whenever converting field's
+        charset to the output charset conversion is lossy; otherwise emit the
+        charset-converted value, quoted only when the type requires it.
+      */
+      if (require_quote && tmp.length() &&
+          !String::is_charset_conversion_lossless(tmp.charset(),
+                                                  output.charset()))
+      {
+        output.append(STRING_WITH_LEN("0x"));
+        output.append_hex(tmp.ptr(), tmp.length());
+      }
+      else
+      {
+        if (require_quote)
+          output.append('\'');
+        output.append_for_single_quote_opt_convert(tmp);
+        if (require_quote)
+          output.append('\'');
+      }
     }
   }
   output.append(')');
