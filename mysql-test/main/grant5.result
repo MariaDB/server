@@ -472,7 +472,6 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 ERROR HY000: Plugin 'not_installed_plugin' is not loaded
 # End of 10.5 tests
-#
 # MDEV-40470 GRANT PROXY with empty password incorrectly checks grantor's privileges
 #
 create user u1@localhost;
