@@ -1121,7 +1121,7 @@ void Optimizer_context_recorder::record_records_in_range(
   String min_key;
   String max_key;
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length);
 
   if (!(rec_in_range_ctx->min_key= strdup_root(mem_root, &min_key)))
     return; // OOM
@@ -1144,10 +1144,13 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
   StringBuffer<512> output(&my_charset_utf8mb4_bin);
 
   /*
-    The table could have fields that do not have a default value
-    but are not in the table->read_set.
-    The record doesn't have values for those.
-    Use a relaxed sql_mode setting so that REPLACE INTO doesn't fail.
+    Due to use of prepare_captured_row_read(), we have values for all
+    table columns.
+
+    However, the row that we're trying to dump might have been inserted into
+    the table with relaxed settings (no strict mode).
+    So, use relaxed @@sql_mode setting here also to make the REPLACE statement
+    is processed (i.e. not fails with an error).
   */
   output.append(
     STRING_WITH_LEN("SET STATEMENT sql_mode="
@@ -1953,7 +1956,7 @@ bool Optimizer_context_replay::infuse_records_in_range(
   String max_key;
   String tbl_name;
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length);
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -2370,4 +2373,81 @@ void clean_captured_ctx(THD *thd)
 {
   delete thd->captured_opt_ctx;
   thd->captured_opt_ctx= nullptr;
+}
+
+/*
+  Point table->read_set at a private bitmap (table->tmp_set) covering every
+  stored column, so that a subsequent read/record captures the full row.
+
+  Virtual columns are excluded: they cannot be assigned in REPLACE INTO and are
+  recomputed on read. We copy s->all_set into the per-table tmp_set rather than
+  aliasing s->all_set directly -- s->all_set is shared across the whole
+  TABLE_SHARE and must never be mutated.
+
+  Precondition: table->tmp_set must stay free for the caller's use until
+  read_set is restored. This holds on the const-row and MIN/MAX read paths
+  precisely because we clear the virtual-column bits: with those bits unset,
+  TABLE::update_virtual_fields(VCOL_UPDATE_FOR_READ) skips them during the read
+  and so never reuses tmp_set as its own scratch. A caller on a path that
+  evaluates virtual columns into tmp_set would corrupt the widened read_set.
+
+  @return  the previous read_set, which the caller must restore (via
+           column_bitmaps_set) once the row has been read and recorded.
+*/
+MY_BITMAP *widen_read_set_no_vcols(TABLE *table)
+{
+  MY_BITMAP *saved_read_set= table->read_set;
+  /*
+    We are about to repurpose table->tmp_set as the widened read_set, so it
+    must not already be in use (e.g. as the current read_set). If this fires,
+    the caller is on a path that violates the tmp_set precondition documented
+    above.
+  */
+  DBUG_ASSERT(saved_read_set != &table->tmp_set);
+  bitmap_copy(&table->tmp_set, &table->s->all_set);
+  for (Field **pfield= table->field; *pfield; pfield++)
+  {
+    /* virtual columns need not be stored. */
+    if ((*pfield)->vcol_info)
+      bitmap_clear_bit(&table->tmp_set, (*pfield)->field_index);
+  }
+  table->column_bitmaps_set(&table->tmp_set, table->write_set);
+  return saved_read_set;
+}
+
+
+/*
+  @brief
+    Prepare a TABLE to read a row which will be captured into the optimizer
+    context.
+
+  @detail
+    The query has set up table->read_set to only include columns of interest.
+    However, we need to read all non-virtual columns to produce a valid INSERT
+    statement. This may require disabling 'index-only' read.
+
+  @param  table  IN  Table we're processing
+  @param  state  OUT Save the state here.
+*/
+
+void Optimizer_context_recorder::prepare_captured_row_read(TABLE *table,
+                                                           Opt_ctx_recorder_state *state)
+{
+  state->table= table;
+  state->keyread_state= table->file->ha_end_active_keyread();
+  state->saved_read_set= widen_read_set_no_vcols(table);
+}
+
+
+/*
+  @brief
+    Restore the table state previously saved by prepare_captured_row_read.
+*/
+
+void Optimizer_context_recorder::finish_captured_row_read(Opt_ctx_recorder_state *state)
+{
+  if (state->saved_read_set)
+    state->table->column_bitmaps_set(state->saved_read_set, state->table->write_set);
+
+  state->table->file->ha_restart_keyread(state->keyread_state);
 }

@@ -376,6 +376,119 @@ select lastval(s1) as nv;
 set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table s1;
+
+--echo #
+--echo # MDEV-40383: innodb_gis.point_basic fails on replay
+--echo #
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  p POINT NOT NULL,
+  l LINESTRING NOT NULL,
+  g GEOMETRY NOT NULL,
+  PRIMARY KEY(p),
+  SPATIAL KEY `idx2` (p),
+  SPATIAL KEY `idx3` (l),
+  SPATIAL KEY `idx4` (g)
+);
+
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+
+INSERT INTO t1 VALUES(
+2, ST_GeomFromText('POINT(20 20)'),
+ST_GeomFromText('LINESTRING(2 3, 7 8, 9 10, 15 16)'),
+ST_GeomFromText('POLYGON((10 30, 30 40, 40 50, 40 30, 30 20, 10 30))'));
+
+set optimizer_record_context=1;
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+
+--echo #
+--echo # MIN/MAX recording with geometry fields in the table
+--echo #
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+
+alter table t1 add index(a);
+
+select a from t1;
+SELECT MIN(a) FROM t1;
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+drop table t1;
+
+--echo #
+--echo # MIN/MAX recording with a virtual column present.
+--echo #
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b INT NOT NULL,
+  v INT AS (a + 100) VIRTUAL,
+  KEY(a)
+) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20),(3,30),(1,40);
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--echo # MIN(a) row is (1,10); the non-indexed NOT NULL column b must be
+--echo # captured (not defaulted to 0), and v must be recomputed as a+100=101:
+SELECT a, b, v FROM t1;
+drop table t1;
+
 --echo # End of 13.1 tests
 
 drop database db1;
