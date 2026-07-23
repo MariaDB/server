@@ -2839,13 +2839,13 @@ protected:
 MEM_ROOT *get_thd_memroot(THD *thd);
 
 template <class T>
-inline Item* get_item_copy (THD *thd, const T* item)
+inline T* get_item_copy (THD *thd, const T* item)
 {
-  Item *copy= new (get_thd_memroot(thd)) T(*item);
+  T *copy= new (get_thd_memroot(thd)) T(*item);
   if (likely(copy))
     copy->register_in(thd);
   return copy;
-}	
+}
 
 
 #ifndef DBUG_OFF
@@ -7236,8 +7236,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   {
-    Item_default_value *new_item=
-      (Item_default_value *) get_item_copy<Item_default_value>(thd, this);
+    Item_default_value *new_item= get_item_copy<Item_default_value>(thd, this);
     // This is a copy so do not manage the field and should not delete it
     new_item->m_share_field= 1;
     return new_item;
