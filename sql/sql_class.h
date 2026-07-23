@@ -1346,6 +1346,18 @@ public:
   virtual Type type() const;
   virtual ~Query_arena() = default;
 
+  /*
+    True only before a direct-exec statement's fused execute has gone
+    through any real prepare. See
+    Prepared_statement::is_direct_exec_unresolved().
+
+    Declared here, not on Statement, so sql_select.cc/table.cc can read it
+    through thd->stmt_arena without seeing Prepared_statement (defined only
+    in sql_prepare.cc). A nested SP/trigger instruction repoints stmt_arena
+    to its own arena, which correctly inherits this default (false).
+  */
+  virtual bool is_direct_exec_unresolved() const { return false; }
+
   inline bool is_stmt_prepare() const { return state == STMT_INITIALIZED; }
   inline bool is_stmt_prepare_or_first_sp_execute() const
   { return (int)state < (int)STMT_PREPARED; }
@@ -1972,6 +1984,17 @@ public:
   trg_event_type current_trg_event();
   bool push_current_trg_event(trg_event_type trg_event);
   void pop_current_trg_event();
+  /*
+    For pipelined direct execution: emit the (buffered, un-flushed) prepare
+    response just before the execute leg sends its first reply - its own
+    result-set metadata, a LOAD DATA LOCAL file request, or (for a statement
+    without a result set) its OK. Called with the resolved result columns
+    (NULL/empty for a 0-column statement). Returns true on network error.
+    No-op (returns false) for statements that are not a pipelined direct
+    execution, and on every call after the first one.
+  */
+  virtual bool send_pipelined_prepare_response(List<Item> *fields)
+  { return false; }
 };
 
 

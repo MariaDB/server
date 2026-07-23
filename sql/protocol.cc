@@ -1158,6 +1158,23 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   if (flags & Protocol::SEND_FORCE_COLUMN_INFO)
     return true;
 
+  /*
+    This call is the direct-exec execute leg's own result-set metadata send.
+    It always comes after send_pipelined_prepare_response() has already run
+    for this same command (sql_prepare.cc), forcing its own, separate call
+    to this function with SEND_FORCE_COLUMN_INFO for the identical list -
+    so full column info already went out moments ago, in this same command.
+    Skip unconditionally rather than running metadata_columns_changed():
+    that call's own column_info_state was never touched by the forced send
+    above (it returned true via the SEND_FORCE_COLUMN_INFO check, never
+    reaching that state), so calling it now would see !initialized and
+    answer "changed" - the wrong answer, not just a redundant computation.
+  */
+  if (thd->cur_stmt->is_direct_exec_unresolved())
+  {
+    thd->status_var.skip_metadata_count++;
+    return false;
+  }
   auto &column_info_state= thd->cur_stmt->column_info_state;
 #ifndef DBUG_OFF
   auto cmd= thd->get_command();
@@ -1198,6 +1215,18 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
 bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 {
   DBUG_ENTER("Protocol::send_result_set_metadata");
+
+  /*
+    Pipelined direct execution: emit the (buffered) prepare response before
+    this statement's own result-set metadata. This is the single choke point
+    through which every result-set-producing statement type sends its column
+    metadata (SELECT via select_send, but also SHOW/ANALYZE/CHECK/HELP/
+    HANDLER READ/XA RECOVER/... which call this directly), so hooking it here
+    covers all of them instead of one call site per statement type. No-op for
+    ordinary statements.
+  */
+  if (thd->cur_stmt && thd->cur_stmt->send_pipelined_prepare_response(list))
+    DBUG_RETURN(TRUE);
 
   bool send_column_info= should_send_column_info(thd, list, flags);
 

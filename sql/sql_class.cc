@@ -3434,6 +3434,11 @@ bool select_send::send_result_set_metadata(List<Item> &list, uint flags)
     return FALSE;
   }
 #endif /* WITH_WSREP */
+  /*
+    Pipelined direct execution's prepare-response hook lives in
+    Protocol::send_result_set_metadata() itself (protocol.cc), not here - that
+    covers every statement type that sends a result set, not just SELECT.
+  */
   if (!(res= thd->protocol->send_result_set_metadata(&list, flags)))
     is_result_set_started= 1;
   return res;

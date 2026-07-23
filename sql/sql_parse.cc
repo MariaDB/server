@@ -117,6 +117,10 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   @{
 */
 
+#ifdef WITH_DIRECT_EXEC_OPTIMIZE_SWITCH
+my_bool opt_exec_direct= 1;
+#endif
+
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
 static void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
@@ -1846,7 +1850,41 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
   }
   case COM_STMT_PREPARE:
   {
-    mysqld_stmt_prepare(thd, packet, packet_length);
+    /*
+      If a COM_STMT_EXECUTE for stmt_id -1 is already pipelined right behind
+      this prepare, fuse the two into a single command (parse, then execute
+      the just-parsed statement) so the exchange is flushed only once.
+    */
+#ifdef WITH_DIRECT_EXEC_OPTIMIZE_SWITCH
+    if (opt_exec_direct && direct_execution(thd->net.vio))
+#else
+    if (direct_execution(thd->net.vio))
+#endif
+    {
+      /*
+        log_slow_done/wsrep_after_statement() only if the execute leg ran:
+        Prepared_statement::execute() already logged/audited then, same as
+        the ordinary COM_STMT_EXECUTE case above. On an early failure (parse
+        error, read error, malformed packet) nothing executed, so neither
+        applies - same as an ordinary COM_STMT_PREPARE failure.
+      */
+      bool force_close= false;
+      bool executed= mysqld_stmt_direct_execute(thd, packet, packet_length,
+                                                &force_close);
+      log_slow_done= executed;
+      if (force_close)
+        error= true;
+#ifdef WITH_WSREP
+      if (executed && WSREP(thd))
+      {
+          (void)wsrep_after_statement(thd);
+      }
+#endif /* WITH_WSREP */
+    }
+    else
+    {
+      mysqld_stmt_prepare(thd, packet, packet_length);
+    }
     break;
   }
   case COM_STMT_CLOSE:

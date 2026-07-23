@@ -137,6 +137,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->viodelete	=vio_ssl_delete;
     vio->vioerrno	=vio_errno;
     vio->read		=vio_ssl_read;
+    vio->peek     =vio_ssl_peek;
     vio->write		=vio_ssl_write;
     vio->fastsend	=vio_fastsend;
     vio->viokeepalive	=vio_keepalive;
@@ -172,6 +173,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
   vio->timeout          =vio_socket_timeout;
   vio->has_data         = ((flags & VIO_BUFFERED_READ) ?
                            vio_buff_has_data : has_no_data);
+  vio->peek             =vio_peek;
   DBUG_VOID_RETURN;
 }
 

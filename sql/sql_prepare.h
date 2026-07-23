@@ -81,6 +81,16 @@ private:
 };
 
 
+struct st_vio;
+bool direct_execution(struct st_vio *vio);
+/*
+  Returns true if the execute leg ran (and so already audited/logged itself).
+  Sets *force_close to true if the connection must be closed once the
+  current reply has been sent (a desynced pipelined read) - the caller
+  should fold that into dispatch_command()'s own close-connection decision.
+*/
+bool mysqld_stmt_direct_execute(THD *thd, const char *packet,
+                                uint packet_length, bool *force_close);
 void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length);
 void mysqld_stmt_execute(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_execute_bulk(THD *thd, char *packet, uint packet_length);

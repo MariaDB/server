@@ -181,6 +181,35 @@ static size_t my_vio_read(st_vio *vio, uchar *dest, size_t sz)
   return sock->m_orig_vio_read(vio, dest, sz);
 }
 
+/*
+  Peek at incoming data without consuming it, thread-pool-buffer aware.
+
+  Without this override, a caller peeking the wire (e.g. direct_execution()
+  detecting a pipelined COM_STMT_EXECUTE) would only ever see the raw
+  socket, never bytes the one-shot AIO read already pulled into m_buf_ptr -
+  a deterministic miss for any payload small enough to fit in one such read.
+
+  Mirrors vio_peek()'s own two-source shape: serve from the AIO buffer
+  first, then fall through to m_orig_vio_peek() for anything beyond what's
+  already buffered. Never advances m_buf_off - a peek must not consume what
+  a later my_vio_read() still needs to see.
+*/
+static size_t my_vio_peek(st_vio *vio, uchar *dest, size_t sz)
+{
+  auto sock= (win_aiosocket *) vio->tp_ctx;
+  DBUG_ASSERT(sock);
+
+  auto buffered= std::min(sock->buffer_remaining(), sz);
+
+  if (buffered > 0)
+    memcpy(dest, sock->m_buf_ptr + sock->m_buf_off, buffered);
+
+  if (buffered == sz)
+    return buffered;
+
+  return buffered + sock->m_orig_vio_peek(vio, dest + buffered, sz - buffered);
+}
+
 DWORD win_aiosocket::begin_read()
 {
   DWORD err = ERROR_SUCCESS;
@@ -255,6 +284,18 @@ void win_aiosocket::init(Vio *vio)
 
   m_orig_vio_read= vio->read;
   vio->read= my_vio_read;
+
+  /*
+    Only override peek if this transport has one to fall back to (e.g. not
+    a named pipe) - otherwise my_vio_peek() would call a NULL
+    m_orig_vio_peek() once a caller asked for more than m_buf_ptr's
+    leftovers, turning "no peek support" into a crash.
+  */
+  if (vio->peek)
+  {
+    m_orig_vio_peek= vio->peek;
+    vio->peek= my_vio_peek;
+  }
 }
 
 void init_win_aio_buffers(unsigned int n_buffers)

@@ -6349,7 +6349,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
                        get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
-      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute() ||
+      thd->stmt_arena->is_direct_exec_unresolved())
   {
     /* initialize lists */
     used_items.empty();

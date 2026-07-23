@@ -2235,6 +2235,30 @@ static uint query_cache_hits(MYSQL *conn)
   return result;
 }
 
+#ifndef EMBEDDED_LIBRARY
+/* reads Qcache_inserts from server and returns its value
+ * Atm it's only used by tests under #ifndef EMBEDDED_LIBRARY - avoiding warnings 
+ */
+static uint query_cache_inserts(MYSQL *conn)
+{
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int rc;
+  uint result;
+
+  rc= mysql_query(conn, "show status like 'qcache_inserts'");
+  myquery(rc);
+  res= mysql_use_result(conn);
+  DIE_UNLESS(res);
+
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row);
+
+  result= atoi(row[1]);
+  mysql_free_result(res);
+  return result;
+}
+#endif
 
 /*
   utility for the next test; expects 3 rows in the result from a SELECT,
@@ -23709,7 +23733,1181 @@ static void test_mdev35953()
 }
 #endif
 
+/*
+  MDEV-16670 test helpers and regression tests for the pipelined
+  "direct execution" (fused COM_STMT_PREPARE + COM_STMT_EXECUTE(-1))
+  optimization. These exercise mariadb_stmt_execute_direct(), the same
+  connector API existing MDEV tests in this file already use - the
+  server decides on its own, by peeking the wire, whether to fuse the
+  two commands, so no special option is needed to reach the code path.
+
+  Not available in the embedded library - see the sibling
+  test_mdev19838()/test_mdev_24411() for the same guard.
+*/
+#ifndef EMBEDDED_LIBRARY
+
+/*
+  Run a distinguishing SELECT on 'conn' and verify we get back exactly
+  'marker'. Used after an operation that could have desynced the fused
+  prepare+execute reply pair, to prove the connection is still usable
+  without needing to detect a hang directly.
+*/
+static void mdev16670_check_alive(MYSQL *conn, int marker)
+{
+  int rc;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  char query[64];
+
+  sprintf(query, "SELECT %d", marker);
+  rc= mysql_query(conn, query);
+  myquery(rc);
+  res= mysql_store_result(conn);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row != NULL);
+  DIE_UNLESS(atoi(row[0]) == marker);
+  mysql_free_result(res);
+}
+
+/*
+  Observability for whether mysqld_stmt_direct_execute() actually ran (and
+  whether it then got demoted by skip_direct_exec_optimization()), so tests
+  that care whether the fused path specifically ran - rather than the
+  ordinary two-command fallback that direct_execution()'s peek can silently
+  take instead - can tell the difference. Uses a DBUG_PRINT trace rather
+  than a status counter or a pushed warning: the fused path calls
+  thd->reset_for_next_command() again partway through (before the execute
+  leg, demoted or not), which would clear a warning-based marker before a
+  test ever read it back.
+
+  Debug-only by construction: "debug_dbug" is a session variable that only
+  exists on a debug server. mdev16670_dbug_trace_start() detects the
+  resulting "unknown system variable" error (1193) on a non-debug server
+  and returns non-zero so callers skip the test outright, rather than
+  trying to read back a trace file that was never written.
+*/
+static int mdev16670_dbug_trace_start(MYSQL *conn, char *path, size_t path_size)
+{
+  int rc;
+  char cmd[FN_REFLEN + 64];
+
+  my_snprintf(path, path_size, "%s/log/mdev16670_trace.log", opt_vardir);
+  my_delete(path, MYF(0));
+
+  my_snprintf(cmd, sizeof(cmd),
+             "SET SESSION debug_dbug='+d,mdev16670_fused,prep_query:O,%s'", path);
+  rc= mysql_query(conn, cmd);
+  if (rc)
+  {
+    fprintf(stderr, "\n mdev16670_dbug_trace_start failed: [%d] %s\n",
+            mysql_errno(conn), mysql_error(conn));
+    if (mysql_errno(conn) == 1193)
+      return 1;
+  }
+  DIE_UNLESS(rc == 0);
+  return 0;
+}
+
+static void mdev16670_dbug_trace_stop(MYSQL *conn)
+{
+  int rc= mysql_query(conn, "SET SESSION debug_dbug=''");
+  if (rc)
+    fprintf(stderr, "\n mdev16670_dbug_trace_stop failed: [%d] %s\n",
+            mysql_errno(conn), mysql_error(conn));
+  DIE_UNLESS(rc == 0);
+}
+
+static my_bool mdev16670_trace_contains(const char *path, const char *marker)
+{
+  FILE *f;
+  char line[512];
+  my_bool found= FALSE;
+
+  if (!(f= fopen(path, "r")))
+    return FALSE;
+  while (fgets(line, sizeof(line), f))
+  {
+    if (strstr(line, marker))
+    {
+      found= TRUE;
+      break;
+    }
+  }
+  fclose(f);
+  return found;
+}
+
+/* Bind, store and fetch a single-row, single-INT result, and assert its
+   value. */
+static void mdev16670_fetch_one_int(MYSQL_STMT *stmt, int expected)
+{
+  MYSQL_BIND bind_out;
+  int val= 0;
+  my_bool is_null= FALSE;
+  int rc;
+
+  memset(&bind_out, 0, sizeof(bind_out));
+  bind_out.buffer_type= MYSQL_TYPE_LONG;
+  bind_out.buffer= &val;
+  bind_out.is_null= &is_null;
+
+  rc= mysql_stmt_bind_result(stmt, &bind_out);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+  DIE_UNLESS(mysql_stmt_num_rows(stmt) == 1);
+  rc= mysql_stmt_fetch(stmt);
+  check_execute(stmt, rc);
+  DIE_UNLESS(!is_null && val == expected);
+}
+
+/*
+  A query-cache HIT on the fused path used to hang the client: the HIT
+  branch of Prepared_statement::execute() leaves its "error" flag at the
+  TRUE initialiser without raising an error, so neither the post-exec hook
+  nor the prepare-ok fallback fired - the client got the raw cached result
+  set with no prepare-OK in front of it. The fix makes direct-exec opt out
+  of the query cache entirely (sql_prepare.cc: query_cache_is_applicable=0,
+  lex->safe_to_cache_query=0), which closes the hang but also means a
+  direct-exec'd statement can never itself register a cache HIT - so
+  instead of asserting a hit (impossible once the fix is in place whenever
+  the fused path actually runs), this populates the cache via an ORDINARY
+  binary-protocol prepare+execute of the same statement (the query cache
+  key includes protocol_type, sql/sql_cache.cc, so a text-protocol entry
+  from mysql_query() could never be hit by any binary-protocol execute,
+  direct-exec'd or not, and the "no hit" assertion below would hold
+  vacuously regardless of the fix). A second ordinary binary-protocol
+  execute first proves that repeat really does hit the entry just
+  populated, so the test's own premise isn't itself vacuous. Then it checks
+  that a direct-exec'd repeat (confirmed fused when the DBUG trace shows
+  it) does not move Qcache_hits, while still returning the right value and
+  leaving the connection usable. Bound the risk with a short read timeout
+  so a regression fails this test instead of hanging the whole
+  mysql-test run.
+*/
+static void test_mdev_16670_qc_hit_hang()
+{
+  MYSQL *conn;
+  MYSQL_STMT *stmt;
+  int rc;
+  uint timeout= 15;
+  uint hits_before, hits_after;
+  char trace_path[FN_REFLEN];
+
+  myheader("test_mdev_16670_qc_hit_hang");
+
+  if (!is_query_cache_available())
+  {
+    if (!opt_silent)
+      fprintf(stdout, "Query cache is not available, skipping test\n");
+    return;
+  }
+
+  if (!(conn= mysql_client_init(NULL)))
+  {
+    myerror("mysql_client_init() failed");
+    exit(1);
+  }
+  mysql_options(conn, MYSQL_OPT_READ_TIMEOUT, &timeout);
+  if (!mysql_real_connect(conn, opt_host, opt_user, opt_password,
+                          current_db, opt_port,
+                          opt_unix_socket, 0))
+  {
+    myerror("connection failed");
+    exit(1);
+  }
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1, 111)");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type=@@global.query_cache_type,"
+                  "@save_query_cache_size=@@global.query_cache_size");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_type=ON");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_size=1000000");
+  myquery(rc);
+  rc= mysql_query(conn, "set local query_cache_type=ON");
+  myquery(rc);
+
+  /* Populate the cache the ORDINARY way, via the SAME binary protocol a
+     direct-exec'd repeat uses, so there is a real entry it could hit if it
+     didn't opt out. */
+  stmt= mysql_stmt_init(conn);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, "SELECT val FROM t1 WHERE id=1", -1);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mdev16670_fetch_one_int(stmt, 111);
+
+  /* Prove the test's own premise first: an ordinary (not direct-exec'd)
+     repeat of the same binary-protocol statement really does hit the
+     entry just populated - otherwise the "no hit" assertion below would
+     hold no matter what the fix does. */
+  hits_before= query_cache_hits(conn);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mdev16670_fetch_one_int(stmt, 111);
+  hits_after= query_cache_hits(conn);
+  if (!opt_silent)
+    fprintf(stdout, "\n sanity check: ordinary binary-protocol repeat "
+            "hits before=%u after=%u", hits_before, hits_after);
+  DIE_UNLESS(hits_after == hits_before + 1);
+  mysql_stmt_close(stmt);
+
+  hits_before= query_cache_hits(conn);
+
+  /* direct-exec the same query. Confirm it actually fused (proving this
+     assertion isn't vacuous), then confirm it did NOT hit the cache entry
+     that was just populated, and still got the right answer. */
+  if (mdev16670_dbug_trace_start(conn, trace_path, sizeof(trace_path)))
+  {
+    mysql_close(conn);
+    fprintf(stdout, "Could not enable DBUG trace, skipping test test_mdev_16670_qc_hit_hang\n");
+    rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
+    myquery(rc);
+    rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
+    myquery(rc);
+    rc= mysql_query(mysql, "DROP TABLE t1");
+    myquery(rc);
+    return;
+  }
+  stmt= mysql_stmt_init(conn);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "SELECT val FROM t1 WHERE id=1", -1);
+  check_execute(stmt, rc);
+
+  /* Consume the pending result before issuing any other command on conn
+     (including mdev16670_dbug_trace_stop() below) - otherwise the client
+     library rejects the next command with CR_COMMANDS_OUT_OF_SYNC. */
+  mdev16670_fetch_one_int(stmt, 111);
+  mysql_stmt_close(stmt);
+
+  mdev16670_dbug_trace_stop(conn);
+
+  if (mdev16670_trace_contains(trace_path, "entered"))
+  {
+    if (!opt_silent)
+      fprintf(stdout, "\n confirmed fused (demoted=%d)",
+              mdev16670_trace_contains(trace_path, "demoted"));
+    DIE_UNLESS(!mdev16670_trace_contains(trace_path, "demoted"));
+
+    /* Only a genuinely fused execute is exempt from the cache: if the peek
+       missed and this fell back to the ordinary two-command flow, it is
+       just another ordinary binary-protocol execute of the same statement
+       and MUST hit, like the sanity check above. */
+    hits_after= query_cache_hits(conn);
+    if (!opt_silent)
+      fprintf(stdout, "\n qcache_hits before=%u after=%u", hits_before,
+              hits_after);
+    DIE_UNLESS(hits_after == hits_before);
+  }
+  else if (!opt_silent)
+    fprintf(stdout, "\n NOTE: could not confirm the fused path ran "
+            "(non-debug server, or direct_execution()'s peek missed the "
+            "pipelined packet) - skipping the no-hit assertion, which only "
+            "holds for a genuinely fused execute");
+
+  /* Prove the connection is still usable, not left mid-packet. */
+  mdev16670_check_alive(conn, 1667001);
+
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  mysql_close(conn);
+}
+
+/*
+  MDEV-16670 regression test: query_cache_insert() taps the WHOLE flushed
+  network buffer, so caching a direct-exec'd statement's result would also
+  capture this connection's prepare-OK / column-definition bytes ahead of
+  the real result set. Direct-exec'd statements therefore opt out of the
+  query cache (see Prepared_statement::execute()) - confirmed directly via
+  Qcache_inserts, not just inferred from a later read. A later ORDINARY
+  client, reading back via the SAME (binary) protocol a direct-exec'd
+  statement would have written its entry under - the query cache key
+  includes protocol_type (sql/sql_cache.cc), so a text-protocol reader could
+  never hit a binary-protocol entry regardless of whether the opt-out works
+  - running the same query must still get a correct, uncorrupted result.
+*/
+static void test_mdev_16670_qc_poison()
+{
+  MYSQL *conn_direct, *conn_plain;
+  MYSQL_STMT *stmt, *stmt_plain;
+  int rc;
+  uint inserts_before, inserts_after;
+  char trace_path[FN_REFLEN];
+  my_bool have_trace;
+
+  myheader("test_mdev_16670_qc_poison");
+
+  if (!is_query_cache_available())
+  {
+    if (!opt_silent)
+      fprintf(stdout, "Query cache is not available, skipping test\n");
+    return;
+  }
+
+  conn_direct= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  conn_plain= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  rc= mysql_select_db(conn_direct, current_db);
+  myquery(rc);
+  rc= mysql_select_db(conn_plain, current_db);
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1, 1667002)");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type=@@global.query_cache_type,"
+                  "@save_query_cache_size=@@global.query_cache_size");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_type=ON");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_size=1000000");
+  myquery(rc);
+  rc= mysql_query(conn_direct, "set local query_cache_type=ON");
+  myquery(rc);
+  rc= mysql_query(conn_plain, "set local query_cache_type=ON");
+  myquery(rc);
+
+  /* Attempt to populate the cache via the direct-exec (fused) path, and
+     confirm directly that it didn't: with the opt-out working, Qcache_inserts
+     must not move, regardless of what any other connection later reads back. */
+  inserts_before= query_cache_inserts(conn_direct);
+  have_trace= !mdev16670_dbug_trace_start(conn_direct, trace_path, sizeof(trace_path));
+  if (!have_trace && !opt_silent)
+    fprintf(stdout, "Could not enable DBUG trace, skipping the fused-path "
+            "confirmation in test_mdev_16670_qc_poison\n");
+
+  stmt= mysql_stmt_init(conn_direct);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "SELECT val FROM t1 WHERE id=1", -1);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  if (have_trace)
+  {
+    mdev16670_dbug_trace_stop(conn_direct);
+    if (mdev16670_trace_contains(trace_path, "entered"))
+    {
+      if (!opt_silent)
+        fprintf(stdout, "\n confirmed fused (demoted=%d)",
+                mdev16670_trace_contains(trace_path, "demoted"));
+      DIE_UNLESS(!mdev16670_trace_contains(trace_path, "demoted"));
+
+      /* Only a genuinely fused execute is exempt from the cache: a missed
+         peek falls back to an ordinary two-command prepare+execute, which
+         populates the cache like any other ordinary statement. */
+      inserts_after= query_cache_inserts(conn_direct);
+      if (!opt_silent)
+        fprintf(stdout, "\n qcache_inserts before=%u after=%u", inserts_before,
+                inserts_after);
+      DIE_UNLESS(inserts_after == inserts_before);
+    }
+    else if (!opt_silent)
+      fprintf(stdout, "\n NOTE: could not confirm the fused path ran "
+              "(non-debug server, or direct_execution()'s peek missed the "
+              "pipelined packet) - skipping the Qcache_inserts assertion, "
+              "which only holds for a genuinely fused execute");
+  }
+
+  /* An entirely unrelated, ordinary client must read the correct value
+     back from the (possibly poisoned) cache entry - via the binary
+     protocol, the only one that could ever hit an entry a direct-exec'd
+     statement wrote. */
+  stmt_plain= mysql_stmt_init(conn_plain);
+  check_stmt(stmt_plain);
+  rc= mysql_stmt_prepare(stmt_plain, "SELECT val FROM t1 WHERE id=1", -1);
+  check_execute(stmt_plain, rc);
+  rc= mysql_stmt_execute(stmt_plain);
+  check_execute(stmt_plain, rc);
+  mdev16670_fetch_one_int(stmt_plain, 1667002);
+  mysql_stmt_close(stmt_plain);
+
+  /* And the connection must still be usable afterward. */
+  mdev16670_check_alive(conn_plain, 1667003);
+
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  mysql_close(conn_direct);
+  mysql_close(conn_plain);
+}
+
+/*
+  MDEV-16670 regression test: the direct-exec parse-only prepare marks
+  the statement STMT_PREPARED without ever running
+  check_prepared_statement(), so skip_setup_conds() used to treat the fused
+  execute as a re-execution and skip the first-resolution-only
+  vers_setup_conds()/period_setup_conds(): a SELECT on a system-versioned
+  table returned history rows, and an UPDATE ... FOR PORTION OF lost its
+  period predicate. skip_setup_conds() now counts that pass as a first
+  resolution via is_direct_exec_unresolved().
+*/
+static void test_mdev_16670_versioned_rows()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int rc;
+  my_ulonglong rows;
+
+  myheader("test_mdev_16670_versioned_rows");
+
+  /* --- part 1: system versioning history rows --- */
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "CREATE TABLE t1 (id INT PRIMARY KEY, val INT) "
+                  "WITH SYSTEM VERSIONING");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 (id, val) VALUES (1, 1)");
+  myquery(rc);
+  /* Creates one historical (closed) row plus the current row. */
+  rc= mysql_query(mysql, "UPDATE t1 SET val=2 WHERE id=1");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "SELECT id FROM t1", -1);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+  rows= mysql_stmt_num_rows(stmt);
+  if (!opt_silent)
+    fprintf(stdout, "\n direct-exec SELECT on versioned t1 returned %lu "
+            "row(s) (expected 1, the current row only)",
+            (unsigned long) rows);
+  DIE_UNLESS(rows == 1);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  /* --- part 2: FOR PORTION OF period predicate --- */
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "CREATE TABLE t1 (id INT, val INT, s DATE, e DATE, "
+                  "PERIOD FOR app(s,e))");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "INSERT INTO t1 (id, val, s, e) VALUES "
+                  "(1, 0, '2020-01-01', '2030-01-01')");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt,
+        "UPDATE t1 FOR PORTION OF app FROM '2024-01-01' TO '2025-01-01' "
+        "SET val=999 WHERE id=1", -1);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  /* A correctly-applied FOR PORTION OF update splits the single row
+     into 3 rows (before/during/after the portion); losing the period
+     predicate collapses this back to an ordinary single-row UPDATE. */
+  rc= mysql_query(mysql, "SELECT COUNT(*) FROM t1");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row != NULL);
+  if (!opt_silent)
+    fprintf(stdout, "\n row count after FOR PORTION OF UPDATE: %s "
+            "(expected 3)", row[0]);
+  DIE_UNLESS(atoi(row[0]) == 3);
+  mysql_free_result(res);
+
+  rc= mysql_query(mysql,
+                  "SELECT COUNT(*) FROM t1 WHERE val=999 AND "
+                  "s='2024-01-01' AND e='2025-01-01'");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row != NULL);
+  DIE_UNLESS(atoi(row[0]) == 1);
+  mysql_free_result(res);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: a parse error in the fused path must still
+  send exactly the two replies the pipelining client is waiting for
+  (prepare error + "unknown prepared statement" execute error), and must
+  not leave the connection desynced.
+*/
+static void test_mdev_16670_parse_error_reply_pair()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+
+  myheader("test_mdev_16670_parse_error_reply_pair");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "SELET * FROM t1", -1);
+  DIE_UNLESS(rc != 0);
+  if (!opt_silent)
+    fprintf(stdout, "\n expected parse error: %d, %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+  DIE_UNLESS(mysql_stmt_errno(stmt) == ER_PARSE_ERROR);
+  mysql_stmt_close(stmt);
+
+  /* The two-reply pair must have been fully drained; the connection
+     must still be usable. */
+  mdev16670_check_alive(mysql, 1667004);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: an execute-leg failure that happens after
+  a successful parse (e.g. a SIGNALed error from a trigger) must go through
+  direct_exec_prepare_ok_fallback() and come back to the client as the
+  ORIGINAL runtime error, with its original, non-default SQLSTATE preserved
+  - not misreported as a generic prepare failure. ER_DUP_ENTRY would not
+  tell the two apart (23000 is also its own default SQLSTATE, so even a
+  regression to re-raising just the error code would still show "23000"),
+  so this uses a BEFORE INSERT trigger with SIGNAL SQLSTATE '45001' -
+  triggers are not demoted by skip_direct_exec_optimization(), unlike a
+  stored function/procedure reference in the statement text itself.
+*/
+static void test_mdev_16670_fallback_sqlstate()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+
+  myheader("test_mdev_16670_fallback_sqlstate");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY)");
+  myquery(rc);
+  rc= mysql_query(mysql,
+        "CREATE TRIGGER tr_16670_sqlstate BEFORE INSERT ON t1 FOR EACH ROW "
+        "SIGNAL SQLSTATE '45001' SET MESSAGE_TEXT='mdev16670 custom error'");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  /* Parses fine; fails during the execute leg with the trigger's SIGNALed
+     error, which must NOT be reported as a prepare failure. */
+  rc= mariadb_stmt_execute_direct(stmt, "INSERT INTO t1 VALUES (1)", -1);
+  DIE_UNLESS(rc != 0);
+  if (!opt_silent)
+    fprintf(stdout, "\n execute-leg error: %d %s (sqlstate %s)",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt),
+            mysql_stmt_sqlstate(stmt));
+  /* ER_SIGNAL_EXCEPTION, not some other code a misattributed generic
+     prepare failure would carry, confirms this really is the trigger's own
+     SIGNAL surfacing as the execute reply. */
+  DIE_UNLESS(mysql_stmt_errno(stmt) == ER_SIGNAL_EXCEPTION);
+  DIE_UNLESS(strcmp(mysql_stmt_sqlstate(stmt), "45001") == 0);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TRIGGER tr_16670_sqlstate");
+  myquery(rc);
+
+  mdev16670_check_alive(mysql, 1667005);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: PREPARE/EXECUTE/DEALLOCATE PREPARE of an
+  SQL-level prepared statement must still be rejected with
+  ER_UNSUPPORTED_PS when attempted through the direct-exec path, exactly
+  as an ordinary nested PREPARE/EXECUTE/DEALLOCATE would be.
+*/
+static void test_mdev_16670_unsupported_ps()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+
+  myheader("test_mdev_16670_unsupported_ps");
+
+  rc= mysql_query(mysql, "PREPARE stmt_16670 FROM 'SELECT 1'");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt,
+        "PREPARE stmt2_16670 FROM 'SELECT 1'", -1);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_stmt_errno(stmt) == ER_UNSUPPORTED_PS);
+  mysql_stmt_close(stmt);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "EXECUTE stmt_16670", -1);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_stmt_errno(stmt) == ER_UNSUPPORTED_PS);
+  mysql_stmt_close(stmt);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "DEALLOCATE PREPARE stmt_16670", -1);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_stmt_errno(stmt) == ER_UNSUPPORTED_PS);
+  mysql_stmt_close(stmt);
+
+  mdev16670_check_alive(mysql, 1667006);
+
+  rc= mysql_query(mysql, "DEALLOCATE PREPARE stmt_16670");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: a direct-exec'd statement must still leave a
+  "Prepare" row in the general log. The parse-only prepare branch of
+  Prepared_statement::prepare() originally skipped the general_log_write()
+  call the ordinary tail makes, so a fused INSERT logged only its "Execute"
+  row; the parse-only branch now makes the same call. Uses the DBUG trace
+  to tell whether the fused path actually ran (and was not demoted). If the
+  trace shows it did not - direct_execution()'s peek missed the pipelined
+  packet - the test only prints a NOTE, and the count assertion below then
+  exercises the ordinary two-command path rather than the fix.
+*/
+static void test_mdev_16670_general_log()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int rc;
+  char trace_path[FN_REFLEN];
+
+  myheader("test_mdev_16670_general_log");
+
+  /* Same check as test_bug28386: querying mysql.general_log only sees
+     anything if log_output includes TABLE - skip gracefully rather than
+     assuming the server's default (FILE) was overridden. */
+  rc= mysql_query(mysql, "select @@global.log_output");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  DIE_UNLESS(res);
+  row= mysql_fetch_row(res);
+  if (!strstr(row[0], "TABLE"))
+  {
+    mysql_free_result(res);
+    if (!opt_silent)
+      fprintf(stdout, "Skipping the test since logging to tables is not enabled\n");
+    return;
+  }
+  mysql_free_result(res);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT)");
+  myquery(rc);
+
+  enable_query_logs(1);
+
+  if (mdev16670_dbug_trace_start(mysql, trace_path, sizeof(trace_path)))
+  {
+    fprintf(stdout, "Could not enable DBUG trace, skipping test test_mdev_16670_general_log\n");
+    restore_query_logs();
+    rc= mysql_query(mysql, "DROP TABLE t1");
+    myquery(rc);
+    return;
+  }
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt,
+        "INSERT INTO t1 VALUES (166700701)", -1);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+  mdev16670_dbug_trace_stop(mysql);
+
+  if (mdev16670_trace_contains(trace_path, "entered"))
+  {
+    if (!opt_silent)
+      fprintf(stdout, "\n confirmed fused (demoted=%d)",
+              mdev16670_trace_contains(trace_path, "demoted"));
+    DIE_UNLESS(!mdev16670_trace_contains(trace_path, "demoted"));
+  }
+  else if (!opt_silent)
+    fprintf(stdout, "\n NOTE: could not confirm the fused path ran "
+            "(non-debug server, or direct_execution()'s peek missed the "
+            "pipelined packet) - the assertion below still holds either way");
+
+  rc= mysql_query(mysql,
+        "SELECT COUNT(*) FROM mysql.general_log WHERE "
+        "command_type='Prepare' AND argument LIKE '%166700701%'");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row != NULL);
+  if (!opt_silent)
+    fprintf(stdout, "\n general_log 'Prepare' rows for direct-exec "
+            "statement: %s (expected 1)", row[0]);
+  DIE_UNLESS(atoi(row[0]) == 1);
+  mysql_free_result(res);
+
+  restore_query_logs();
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: mariadb_stmt_execute_direct() with real bound
+  parameters (STMT_ATTR_PREBIND_PARAMS + mysql_stmt_bind_param()), rather
+  than a literal, placeholder-free query. The other MDEV-16670 tests only
+  cover the latter shape; this is the realistic use of the pipelined
+  prepare+execute API (set up bindings in advance, since there is no
+  separate prepare() call to bind against), and was previously untested.
+  Confirms via the DBUG trace that the fused path actually ran, and checks
+  the decoded parameter values (not just the row count), so a
+  parameter-decoding bug in the fused path's own packet offset
+  (mysqld_stmt_direct_execute()'s params = exec_packet + 1 + 9) would be
+  caught even if it left row count and ids intact.
+*/
+static void test_mdev_16670_prebind_direct()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+  MYSQL_BIND bind_in[2];
+  int id_val;
+  char val_buf[32];
+  unsigned long val_len;
+  unsigned int param_count= 2;
+  char trace_path[FN_REFLEN];
+  my_bool have_trace;
+
+  myheader("test_mdev_16670_prebind_direct");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS test_insert");
+  myquery(rc);
+  rc= mysql_query(mysql,
+        "CREATE TABLE IF NOT EXISTS test_insert "
+        "(id INT NOT NULL PRIMARY KEY, val VARCHAR(32))");
+  myquery(rc);
+
+  have_trace= !mdev16670_dbug_trace_start(mysql, trace_path, sizeof(trace_path));
+  if (!have_trace && !opt_silent)
+    fprintf(stdout, "\n Could not enable DBUG trace, proceeding without "
+            "confirming the fused path ran\n");
+
+  for (id_val= 1; id_val <= 3; id_val++)
+  {
+    val_len= my_snprintf(val_buf, sizeof(val_buf),
+                         "val-5678901234567890123456789-%d", id_val);
+
+    stmt= mysql_stmt_init(mysql);
+    check_stmt(stmt);
+
+    rc= mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &param_count);
+    if (rc)
+    {
+      if (!opt_silent)
+        fprintf(stdout,
+                "\n mysql_stmt_attr_set(PREBIND_PARAMS) failed: [%d] %s\n",
+                mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
+    DIE_UNLESS(rc == 0);
+
+    memset(bind_in, 0, sizeof(bind_in));
+    bind_in[0].buffer_type= MYSQL_TYPE_LONG;
+    bind_in[0].buffer= &id_val;
+    bind_in[1].buffer_type= MYSQL_TYPE_STRING;
+    bind_in[1].buffer= val_buf;
+    bind_in[1].buffer_length= sizeof(val_buf);
+    bind_in[1].length= &val_len;
+
+    rc= mysql_stmt_bind_param(stmt, bind_in);
+    if (rc)
+    {
+      if (!opt_silent)
+        fprintf(stdout, "\n mysql_stmt_bind_param failed: [%d] %s\n",
+                mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
+    DIE_UNLESS(rc == 0);
+    rc= mariadb_stmt_execute_direct(
+        stmt, "INSERT INTO test_insert (id, val) VALUES(?, ?)", -1);
+    if (rc)
+    {
+      if (!opt_silent)
+        fprintf(stdout, "\n mariadb_stmt_execute_direct failed: [%d] %s\n",
+                mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
+    DIE_UNLESS(rc == 0);
+
+    mysql_stmt_close(stmt);
+  }
+
+  if (have_trace)
+  {
+    mdev16670_dbug_trace_stop(mysql);
+    if (mdev16670_trace_contains(trace_path, "entered"))
+    {
+      if (!opt_silent)
+        fprintf(stdout, "\n confirmed fused");
+    }
+    else if (!opt_silent)
+      fprintf(stdout, "\n NOTE: could not confirm the fused path ran "
+              "(direct_execution()'s peek missed the pipelined packet) - "
+              "the assertions below still hold either way");
+  }
+
+  /* Check the decoded id/val pairs, not just the row count. */
+  rc= mysql_query(mysql, "SELECT id, val FROM test_insert ORDER BY id");
+  myquery(rc);
+  {
+    MYSQL_RES *res= mysql_store_result(mysql);
+    MYSQL_ROW row;
+    int expected_id;
+
+    mytest(res);
+    DIE_UNLESS(mysql_num_rows(res) == 3);
+    for (expected_id= 1; expected_id <= 3; expected_id++)
+    {
+      char expected_val[32];
+
+      my_snprintf(expected_val, sizeof(expected_val),
+                  "val-5678901234567890123456789-%d", expected_id);
+      row= mysql_fetch_row(res);
+      DIE_UNLESS(row != NULL);
+      if (!opt_silent)
+        fprintf(stdout, "\n id=%s val=%s (expected id=%d val=%s)",
+                row[0], row[1], expected_id, expected_val);
+      DIE_UNLESS(atoi(row[0]) == expected_id);
+      DIE_UNLESS(strcmp(row[1], expected_val) == 0);
+    }
+    mysql_free_result(res);
+  }
+  rc= mysql_query(mysql, "DROP TABLE test_insert");
+  myquery(rc);
+}
+
+/*
+  MDEV-16670 regression test: the server's direct_execution() peek fuses
+  this call regardless of what the query is, but a statement referencing a
+  stored function demotes back out of the fused path right after parsing
+  (skip_direct_exec_optimization() in Prepared_statement::prepare(), before
+  check_prepared_statement() would ever run) - falling back to an ordinary
+  prepare+execute. That demotion clears is_direct_exec(), so
+  send_pipelined_prepare_response() - which only ever runs for a statement
+  still flagged direct-exec - never sets is_direct_exec_prepare_sent(). A
+  successful demoted execution must not trip the DBUG_ASSERT() guarding
+  that flag in mysqld_stmt_direct_execute().
+*/
+static void test_mdev_16670_demoted_function_call()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+  char trace_path[FN_REFLEN];
+  my_bool have_trace;
+
+  myheader("test_mdev_16670_demoted_function_call");
+
+  rc= mysql_query(mysql, "DROP FUNCTION IF EXISTS mdev16670_f1");
+  myquery(rc);
+  rc= mysql_query(mysql,
+        "CREATE FUNCTION mdev16670_f1() RETURNS INT DETERMINISTIC "
+        "RETURN 42");
+  myquery(rc);
+
+  have_trace= !mdev16670_dbug_trace_start(mysql, trace_path, sizeof(trace_path));
+  if (!have_trace && !opt_silent)
+    fprintf(stdout, "\n Could not enable DBUG trace, proceeding without "
+            "confirming the fused-then-demoted path ran\n");
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mariadb_stmt_execute_direct(stmt, "SELECT mdev16670_f1()", -1);
+  check_execute(stmt, rc);
+
+  /* Consume the pending result before issuing any other command on this
+     connection (including mdev16670_dbug_trace_stop() below) - otherwise
+     the client library rejects the next command with
+     CR_COMMANDS_OUT_OF_SYNC. */
+  mdev16670_fetch_one_int(stmt, 42);
+  mysql_stmt_close(stmt);
+
+  if (have_trace)
+  {
+    mdev16670_dbug_trace_stop(mysql);
+    DIE_UNLESS(!mdev16670_trace_contains(trace_path, "entered") ||
+              mdev16670_trace_contains(trace_path, "demoted"));
+  }
+
+  rc= mysql_query(mysql, "DROP FUNCTION mdev16670_f1");
+  myquery(rc);
+}
+
+
+typedef struct mdev16670_kill_ctx_st
+{
+  MYSQL *conn;
+  int rc;
+  uint stmt_errno;
+} mdev16670_kill_ctx;
+
+static void *mdev16670_kill_worker(void *arg)
+{
+  mdev16670_kill_ctx *ctx= (mdev16670_kill_ctx *) arg;
+  MYSQL_STMT *stmt= mysql_stmt_init(ctx->conn);
+
+  ctx->rc= mariadb_stmt_execute_direct(stmt, "SELECT * FROM t1", -1);
+  ctx->stmt_errno= mysql_stmt_errno(stmt);
+  mysql_stmt_close(stmt);
+  return NULL;
+}
+
+/*
+  MDEV-16670 regression test (timing-sensitive): a statement killed while
+  blocked acquiring the table lock - i.e. before any prepare response could
+  have been emitted - must go through direct_exec_prepare_ok_fallback(), and
+  must NOT come back as ER_UNKNOWN_STMT_HANDLER (which would mean the
+  kill got misreported as a generic "prepare succeeded, execute failed,
+  and now the statement handle doesn't exist" sequence). mysql_execute_command()
+  always resets thd->killed before returning (sql_parse.cc), so the
+  fallback's own re-prepare attempt never gets killed again - this
+  accepts either ER_QUERY_INTERRUPTED or ER_LOCK_ABORTED only because a
+  THR_LOCK wait killed by KILL QUERY can surface as either, depending on
+  timing, not because of anything the fallback itself does differently.
+*/
+static void test_mdev_16670_kill_during_fallback()
+{
+  MYSQL *conn_lock, *conn_target;
+  pthread_t worker;
+  mdev16670_kill_ctx ctx;
+  int rc;
+  int waited;
+  my_bool found_wait;
+  char probe[160];
+  char kill_cmd[64];
+  unsigned long target_id;
+  uint timeout= 15;
+  MYSQL_RES *res;
+
+  myheader("test_mdev_16670_kill_during_fallback");
+
+  conn_lock= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  rc= mysql_select_db(conn_lock, current_db);
+  myquery(rc);
+  if (!(conn_target= mysql_client_init(NULL)))
+  {
+    myerror("mysql_client_init() failed");
+    exit(1);
+  }
+  mysql_options(conn_target, MYSQL_OPT_READ_TIMEOUT, &timeout);
+  if (!mysql_real_connect(conn_target, opt_host, opt_user, opt_password,
+                          current_db, opt_port,
+                          opt_unix_socket, 0))
+  {
+    myerror("connection failed");
+    exit(1);
+  }
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1)");
+  myquery(rc);
+
+  rc= mysql_query(conn_lock, "LOCK TABLES t1 WRITE");
+  myquery(rc);
+
+  target_id= mysql_thread_id(conn_target);
+  ctx.conn= conn_target;
+  ctx.rc= 0;
+  ctx.stmt_errno= 0;
+
+  if (pthread_create(&worker, NULL, mdev16670_kill_worker, (void *) &ctx))
+  {
+    myerror("pthread_create() failed");
+    DIE_UNLESS(0);
+  }
+
+  /* Bounded poll for conn_target visibly waiting on the table lock,
+     instead of a blind sleep. */
+  found_wait= FALSE;
+  sprintf(probe,
+          "SELECT 1 FROM information_schema.processlist WHERE id=%lu "
+          "AND state LIKE '%%lock%%'", target_id);
+  for (waited= 0; waited < 100; waited++)
+  {
+    rc= mysql_query(mysql, probe);
+    myquery(rc);
+    res= mysql_store_result(mysql);
+    mytest(res);
+    found_wait= (mysql_num_rows(res) > 0);
+    mysql_free_result(res);
+    if (found_wait)
+      break;
+    my_sleep(100000); /* 100ms */
+  }
+  DIE_UNLESS(found_wait);
+
+  sprintf(kill_cmd, "KILL QUERY %lu", target_id);
+  rc= mysql_query(mysql, kill_cmd);
+  myquery(rc);
+
+  rc= mysql_query(conn_lock, "UNLOCK TABLES");
+  myquery(rc);
+
+  pthread_join(worker, NULL);
+
+  if (!opt_silent)
+    fprintf(stdout, "\n killed direct-exec: rc=%d errno=%u", ctx.rc,
+            ctx.stmt_errno);
+  DIE_UNLESS(ctx.rc != 0);
+  DIE_UNLESS(ctx.stmt_errno != ER_UNKNOWN_STMT_HANDLER);
+  DIE_UNLESS(ctx.stmt_errno == ER_QUERY_INTERRUPTED ||
+             ctx.stmt_errno == ER_LOCK_ABORTED);
+
+  mdev16670_check_alive(conn_target, 1667008);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  mysql_close(conn_lock);
+  mysql_close(conn_target);
+}
+
+/*
+  Verifies that a trigger body's own resolution is correctly treated as a
+  first resolution, not skipped as if it were a cached re-execution.
+  skip_direct_exec_optimization() cannot see a table's triggers at parse
+  time (only open_tables() discovers them, after the fast-path decision is
+  already made), so a direct-exec'd INSERT into a table with a BEFORE
+  INSERT trigger still takes the fused path. If the trigger body's own
+  SELECT COUNT(*) against the (system-versioned) table were wrongly
+  treated as not-a-first-resolution, vers_setup_conds() would never add
+  its current-rows filter, and COUNT(*) would include history rows too.
+*/
+static void test_mdev_16670_trigger_versioned()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int rc;
+  int i;
+  const int n_inserts= 4;
+
+  myheader("test_mdev_16670_trigger_versioned");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "CREATE TABLE t1 (id INT PRIMARY KEY, cnt INT) "
+                  "WITH SYSTEM VERSIONING");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW "
+                  "SET NEW.cnt = (SELECT COUNT(*) FROM t1)");
+  myquery(rc);
+
+  for (i= 0; i < n_inserts; i++)
+  {
+    char insert_query[128];
+    char select_query[128];
+
+    sprintf(insert_query, "INSERT INTO t1 (id) VALUES (%d)", i);
+    stmt= mysql_stmt_init(mysql);
+    check_stmt(stmt);
+    rc= mariadb_stmt_execute_direct(stmt, insert_query, -1);
+    check_execute(stmt, rc);
+    mysql_stmt_close(stmt);
+
+    if (i == 1)
+    {
+      /* Force a history row (a non-current version of id=0) without
+         touching the live row count. The trigger's SELECT COUNT(*) is
+         implicitly filtered to current rows by vers_setup_conds(); with
+         every row ever written still "current" (nothing UPDATEd or
+         DELETEd), that filter has nothing to exclude, so a duplicated or
+         dropped versioning WHERE condition would be invisible - cnt comes
+         out as i either way. */
+      rc= mysql_query(mysql, "UPDATE t1 SET cnt=999 WHERE id=0");
+      myquery(rc);
+    }
+
+    sprintf(select_query, "SELECT cnt FROM t1 WHERE id=%d", i);
+    rc= mysql_query(mysql, select_query);
+    myquery(rc);
+    res= mysql_store_result(mysql);
+    mytest(res);
+    row= mysql_fetch_row(res);
+    DIE_UNLESS(row != NULL);
+    if (!opt_silent)
+      fprintf(stdout, "\n insert #%d: trigger-computed cnt=%s (expected %d)",
+              i, row[0], i);
+    DIE_UNLESS(atoi(row[0]) == i);
+    mysql_free_result(res);
+  }
+
+  /* Confirm the premise: a history row for id=0 really exists, so the
+     assertions above were actually exercising vers_setup_conds(), not
+     trivially passing because nothing was ever filtered. */
+  rc= mysql_query(mysql, "SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row != NULL);
+  if (!opt_silent)
+    fprintf(stdout, "\n total row versions (current + history) = %s "
+            "(expected %d)", row[0], n_inserts + 1);
+  DIE_UNLESS(atoi(row[0]) == n_inserts + 1);
+  mysql_free_result(res);
+
+  mdev16670_check_alive(mysql, 1667009);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+#endif /* EMBEDDED_LIBRARY */
+
 static struct my_tests_st my_tests[]= {
+#ifndef EMBEDDED_LIBRARY
+  {"test_mdev_16670_qc_hit_hang", test_mdev_16670_qc_hit_hang},
+  {"test_mdev_16670_qc_poison", test_mdev_16670_qc_poison},
+  {"test_mdev_16670_versioned_rows", test_mdev_16670_versioned_rows},
+  {"test_mdev_16670_trigger_versioned", test_mdev_16670_trigger_versioned},
+  {"test_mdev_16670_parse_error_reply_pair", test_mdev_16670_parse_error_reply_pair},
+  {"test_mdev_16670_fallback_sqlstate", test_mdev_16670_fallback_sqlstate},
+  {"test_mdev_16670_unsupported_ps", test_mdev_16670_unsupported_ps},
+  {"test_mdev_16670_general_log", test_mdev_16670_general_log},
+  {"test_mdev_16670_prebind_direct", test_mdev_16670_prebind_direct},
+  {"test_mdev_16670_demoted_function_call", test_mdev_16670_demoted_function_call},
+  { "test_mdev_16670_kill_during_fallback", test_mdev_16670_kill_during_fallback },
+#endif
   { "test_mdev_20516", test_mdev_20516 },
   { "test_mdev24827", test_mdev24827 },
   { "test_mdev_26145", test_mdev_26145 },

@@ -39,9 +39,10 @@ struct win_aiosocket
   size_t m_buf_datalen{};
 
   /*  Vio handling */
-  /** Pointer to original vio->vio_read/vio->has_data function */
+  /** Pointer to original vio->vio_read/vio->has_data/vio->peek function */
   size_t (*m_orig_vio_read)(st_vio *, unsigned char *, size_t){};
   char (*m_orig_vio_has_data)(st_vio *){};
+  size_t (*m_orig_vio_peek)(st_vio *, unsigned char *, size_t){};
 
 
 

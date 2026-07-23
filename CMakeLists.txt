@@ -179,6 +179,14 @@ OPTION(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS "Enable Json_writer_object / Json_
 IF(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
   ADD_DEFINITIONS(-DENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
 ENDIF()
+# ADD_DEFINITIONS, matching ENABLED_JSON_WRITER_CONSISTENCY_CHECKS above, rather
+# than #cmakedefine: this flag only compiles in the opt_exec_direct sysvar
+# itself (direct execution stays on either way), so no generated header needs
+# to carry it.
+OPTION(WITH_DIRECT_EXEC_OPTIMIZE_SWITCH "Compile in the opt_exec_direct sysvar for toggling pipelined direct-execution at runtime (direct execution itself is always on)" OFF)
+IF(WITH_DIRECT_EXEC_OPTIMIZE_SWITCH)
+  ADD_DEFINITIONS(-DWITH_DIRECT_EXEC_OPTIMIZE_SWITCH)
+ENDIF()
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)

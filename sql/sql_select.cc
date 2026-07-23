@@ -1167,8 +1167,25 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
 static
 bool skip_setup_conds(THD *thd)
 {
-  return (!thd->stmt_arena->is_conventional()
-          && !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+  /*
+    A pipelined direct execution's fused execute is the only resolution
+    pass its statement will ever get without going through a real prepare
+    (see Query_arena::is_direct_exec_unresolved()) - unlike an ordinary
+    prepared statement, which resolves once during a separate PREPARE
+    (state < STMT_PREPARED) and replays the result on every execute. Count
+    that one pass as "first execute" too, so that e.g. period/versioning
+    conditions get built on it instead of being silently skipped forever.
+
+    Read through thd->stmt_arena, not thd->cur_stmt: a nested SP/trigger
+    instruction executing inside the fused statement's own execute leg
+    switches thd->stmt_arena to its own arena (thd->cur_stmt stays pointed
+    at the outer statement throughout), so its is_direct_exec_unresolved()
+    correctly reads as false via the Query_arena default - it is never the
+    fused statement's own one-shot resolution pass, however it was reached.
+  */
+  bool is_first_resolve= thd->stmt_arena->is_stmt_prepare_or_first_sp_execute() ||
+                         thd->stmt_arena->is_direct_exec_unresolved();
+  return (!thd->stmt_arena->is_conventional() && !is_first_resolve)
          || thd->lex->is_view_context_analysis();
 }
 

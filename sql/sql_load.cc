@@ -546,6 +546,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 #ifndef EMBEDDED_LIBRARY
   if (read_file_from_client)
   {
+    /*
+      Pipelined direct execution: the file-request packet is the first thing
+      the client sees from this statement, so the (buffered) prepare response
+      must go out before it. No-op for ordinary statements. Tables are already
+      open+locked and fields validated here, i.e. the prepare would have
+      succeeded.
+    */
+    if (thd->cur_stmt && thd->cur_stmt->send_pipelined_prepare_response(NULL))
+      DBUG_RETURN(TRUE);
     (void)net_request_file(&thd->net,ex->file_name);
     file = -1;
   }
