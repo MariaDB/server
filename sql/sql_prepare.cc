@@ -197,11 +197,17 @@ public:
   uint param_count;
   uint last_errno;
   uint flags;
+  // Whether this is pipelined direct execution, i.e. prepare and execute commands sent
+  // together using -1 stmt_id. Used also to store open tables count.
+  uint direct_exec;
+  // For pipelined direct execution: set once the (buffered) prepare response
+  // has been emitted during the execute leg, so we do it exactly once.
+  bool direct_exec_prep_sent;
   char last_error[MYSQL_ERRMSG_SIZE];
   my_bool iterations;
   my_bool start_param;
   my_bool read_types;
-
+  
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
                      uchar *read_pos, String *expanded_query);
@@ -215,7 +221,7 @@ public:
                                         List<Item> &list,
                                         String *expanded_query);
 public:
-  Prepared_statement(THD *thd_arg);
+  Prepared_statement(THD *thd_arg, my_bool dir_exec=false);
   ~Prepared_statement() override;
   void setup_set_params();
   Query_arena::Type type() const override;
@@ -353,7 +359,11 @@ private:
       item_param->expr_event_handler(thd, event);
     }
   }
-
+  uint pipelined_direct_exec() override { return direct_exec /*!= (uint)-1*/; }
+  bool send_pipelined_prepare_response(List<Item> *fields) override;
+public:
+  void clear_direct_exec() { direct_exec= 0; }
+  bool direct_exec_prepare_sent() const { return direct_exec_prep_sent; }
 };
 
 /**
@@ -430,7 +440,8 @@ find_prepared_statement(THD *thd, ulong id)
 */
 
 #ifndef EMBEDDED_LIBRARY
-static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
+static bool send_prep_stmt(Prepared_statement *stmt, uint columns,
+                           bool set_da_status= true)
 {
   NET *net= &stmt->thd->net;
   uchar buff[12];
@@ -465,7 +476,7 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
                 Protocol::SEND_EOF | Protocol::SEND_FORCE_COLUMN_INFO);
   }
 
-  if (likely(!error))
+  if (likely(!error) && set_da_status)
   {
     /* Flag that a response has already been sent */
     thd->get_stmt_da()->disable_status();
@@ -487,6 +498,40 @@ static bool send_prep_stmt(Prepared_statement *stmt,
   return 0;
 }
 #endif /*!EMBEDDED_LIBRARY*/
+
+
+/*
+  Pipelined direct execution: emit the prepare response just before the
+  execute leg sends its own result-set metadata (or, for a statement with no
+  result set, before its OK). The bytes are written into the network buffer
+  but not flushed: the execute response is appended and the whole exchange is
+  flushed once at command completion.
+*/
+
+bool Prepared_statement::send_pipelined_prepare_response(List<Item> *fields)
+{
+#ifndef EMBEDDED_LIBRARY
+  if (!direct_exec || direct_exec_prep_sent)
+    return false;
+  direct_exec_prep_sent= true;
+
+  uint columns= fields ? fields->elements : 0;
+  DBUG_PRINT("direct_exec", ("emit prepare-OK: columns=%u param_count=%u "
+                             "pkt_nr=%u", columns, param_count,
+                             (uint) thd->net.pkt_nr));
+  /*
+    set_da_status=false: unlike a standalone prepare, we must NOT mark the
+    diagnostics area as "response already sent" - the execute leg still has to
+    send its own result set or OK after this.
+  */
+  if (send_prep_stmt(this, columns, false))
+    return true;
+  if (columns &&
+      thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF))
+    return true;
+#endif /*!EMBEDDED_LIBRARY*/
+  return false;
+}
 
 
 #ifndef EMBEDDED_LIBRARY
@@ -1597,7 +1642,7 @@ static int mysql_test_select(Prepared_statement *stmt,
     */
     if (send_prep_stmt(stmt, lex->result->field_count(fields)) ||
         lex->result->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
-        thd->protocol->flush())
+        (!stmt->direct_exec && thd->protocol->flush()))
       goto error;
     DBUG_RETURN(2);
   }
@@ -2620,6 +2665,34 @@ static bool init_param_array(Prepared_statement *stmt)
 
 
 /**
+  Detect a pipelined "direct execution": a COM_STMT_EXECUTE for the special
+  stmt_id -1 (LAST_STMT_ID) already waiting in the connection right behind the
+  COM_STMT_PREPARE we are about to process.
+
+  We peek (without consuming) at the raw bytes of the next network packet. Its
+  layout is: 3-byte length + 1-byte sequence number (the packet header),
+  followed by 1-byte command + 4-byte stmt_id. We only claim a direct
+  execution if the full 9 header+command+id bytes are already available and
+  they spell out COM_STMT_EXECUTE with stmt_id == LAST_STMT_ID. Anything less
+  (short read, different command, no peek support on this transport) falls
+  back to the ordinary two-command path.
+*/
+
+bool direct_execution(Vio *vio)
+{
+  /* 4-byte packet header + 1-byte command + 4-byte stmt id. */
+  uchar buff[9];
+
+  if (!vio || !vio->peek)
+    return false;
+
+  if (vio->peek(vio, buff, sizeof(buff)) != sizeof(buff))
+    return false;
+
+  return buff[4] == COM_STMT_EXECUTE && uint4korr(buff + 5) == LAST_STMT_ID;
+}
+
+    /**
   COM_STMT_PREPARE handler.
 
     Given a query string with parameter markers, create a prepared
@@ -3420,42 +3493,30 @@ stmt_execute_packet_sanity_check(Prepared_statement *stmt,
   @param send_unit_results  send a result-set with all insert IDs and affected rows
 */
 
-static void mysql_stmt_execute_common(THD *thd,
-                                      ulong stmt_id,
-                                      uchar *packet,
-                                      uchar *packet_end,
-                                      ulong cursor_flags,
-                                      bool bulk_op,
-                                      bool read_types,
-                                      bool send_unit_results)
+/**
+  Execute an already-located prepared statement.
+
+  This is the part of mysql_stmt_execute_common() that runs once the
+  Prepared_statement handle is known. It is split out so that pipelined
+  direct execution (mysqld_stmt_direct_execute()) can drive the execute leg
+  with the statement it has just parsed, without going through a stmt-id
+  lookup (and without LAST_STMT_ID resolution).
+
+  @param direct_exec  true for pipelined direct execution / stmt_id == -1;
+                      controls the parameter-packet sanity check.
+*/
+
+static void mysql_stmt_execute_with_stmt(THD *thd, Prepared_statement *stmt,
+                                         uchar *packet, uchar *packet_end,
+                                         ulong cursor_flags, bool bulk_op,
+                                         bool read_types, bool send_unit_results,
+                                         bool direct_exec)
 {
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
-  Prepared_statement *stmt;
   Protocol *save_protocol= thd->protocol;
   bool open_cursor;
-  DBUG_ENTER("mysqld_stmt_execute_common");
-  DBUG_ASSERT((!read_types) || (read_types && bulk_op));
-
-  /* First of all clear possible warnings from the previous command */
-  thd->reset_for_next_command();
-
-  if (!(stmt= find_prepared_statement(thd, stmt_id)))
-  {
-    char llbuf[22];
-    size_t length;
-    /*
-      Did not find the statement with the provided stmt_id.
-      Set thd->query_string with the stmt_id so the
-      audit plugin gets the meaningful notification.
-    */
-    length= (size_t) (longlong10_to_str(stmt_id, llbuf, 10) - llbuf);
-    if (alloc_query(thd, llbuf, length + 1))
-      thd->set_query(0, 0);
-    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), (int) length, llbuf,
-             "mysqld_stmt_execute");
-    DBUG_VOID_RETURN;
-  }
+  DBUG_ENTER("mysql_stmt_execute_with_stmt");
 
   /*
     In case of direct execution application decides how many parameters
@@ -3466,7 +3527,7 @@ static void mysql_stmt_execute_common(THD *thd,
     evil client.
   */
   if (stmt_execute_packet_sanity_check(stmt, packet, packet_end, bulk_op,
-                                       stmt_id == LAST_STMT_ID, read_types))
+                                       direct_exec, read_types))
   {
     my_error(ER_MALFORMED_PACKET, MYF(0));
     /*
@@ -3493,6 +3554,19 @@ static void mysql_stmt_execute_common(THD *thd,
   auto save_cur_stmt= thd->cur_stmt;
   thd->cur_stmt= stmt;
 
+  /*
+    For pipelined direct execution the whole exchange runs under a single
+    COM_STMT_PREPARE command, but the execute leg must present itself as
+    COM_STMT_EXECUTE: it drives the result-set metadata path (and the
+    metadata-caching state machine in should_send_column_info()), which
+    asserts/behaves per the current command. Switch for the duration of the
+    execute and restore afterwards so the outer command bookkeeping is
+    unchanged.
+  */
+  enum enum_server_command save_command= thd->get_command();
+  if (direct_exec)
+    thd->set_command(COM_STMT_EXECUTE);
+
   if (!bulk_op)
     stmt->execute_loop(&expanded_query, open_cursor,
                        &stmt->result, &stmt->cursor,
@@ -3500,6 +3574,8 @@ static void mysql_stmt_execute_common(THD *thd,
   else
     stmt->execute_bulk_loop(&expanded_query, open_cursor, packet, packet_end, send_unit_results);
 
+  if (direct_exec)
+    thd->set_command(save_command);
   thd->cur_stmt= save_cur_stmt;
   thd->protocol= save_protocol;
 
@@ -3510,6 +3586,387 @@ static void mysql_stmt_execute_common(THD *thd,
 
   /* Close connection socket; for use with client testing (Bug#43560). */
   DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_shutdown(thd->net.vio,SHUT_RD););
+
+  DBUG_VOID_RETURN;
+}
+
+
+static void mysql_stmt_execute_common(THD *thd,
+                                      ulong stmt_id,
+                                      uchar *packet,
+                                      uchar *packet_end,
+                                      ulong cursor_flags,
+                                      bool bulk_op,
+                                      bool read_types,
+                                      bool send_unit_results)
+{
+  Prepared_statement *stmt;
+  DBUG_ENTER("mysqld_stmt_execute_common");
+  DBUG_ASSERT((!read_types) || (read_types && bulk_op));
+
+  /* First of all clear possible warnings from the previous command */
+  thd->reset_for_next_command();
+
+  if (!(stmt= find_prepared_statement(thd, stmt_id)))
+  {
+    char llbuf[22];
+    size_t length;
+    /*
+      Did not find the statement with the provided stmt_id.
+      Set thd->query_string with the stmt_id so the
+      audit plugin gets the meaningful notification.
+    */
+    length= (size_t) (longlong10_to_str(stmt_id, llbuf, 10) - llbuf);
+    if (alloc_query(thd, llbuf, length + 1))
+      thd->set_query(0, 0);
+    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), (int) length, llbuf,
+             "mysqld_stmt_execute");
+    DBUG_VOID_RETURN;
+  }
+
+  mysql_stmt_execute_with_stmt(thd, stmt, packet, packet_end, cursor_flags,
+                               bulk_op, read_types, send_unit_results,
+                               stmt_id == LAST_STMT_ID);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Send the two error replies a pipelined direct execution owes the client when
+  the "prepare-equivalent" work fails - either a parse error, or an
+  open/lock/analysis failure during the execute leg before any prepare
+  response was emitted.
+
+  The connector issued a PREPARE and an EXECUTE and reads a reply for each, so
+  we send the current diagnostics-area error as the PREPARE reply, then an
+  "unknown prepared statement" error as the EXECUTE reply (mirroring the normal
+  two-command flow, where the pipelined EXECUTE(-1) finds no last statement
+  because prepare failed and cleared it). Both are buffered into one continuous
+  packet sequence; the second is emitted by the caller's end_statement().
+*/
+
+static void send_direct_exec_prepare_stage_error(THD *thd)
+{
+  Diagnostics_area *da= thd->get_stmt_da();
+  if (!da->is_error())
+    return;
+
+  /* Preserve the prepare error before we reset the diagnostics area. */
+  uint prep_errno= da->sql_errno();
+  char prep_msg[MYSQL_ERRMSG_SIZE];
+  char prep_sqlstate[SQLSTATE_LENGTH + 1];
+  strmake_buf(prep_msg, da->message());
+  strmake(prep_sqlstate, da->get_sqlstate(), SQLSTATE_LENGTH);
+
+  /* (1) PREPARE reply: the error itself. */
+  thd->protocol->net_send_error(thd, prep_errno, prep_msg, prep_sqlstate);
+
+  /* (2) EXECUTE reply: "unknown prepared statement", sent by end_statement(). */
+  da->reset_diagnostics_area();
+  char llbuf[22];
+  size_t length= (size_t) (longlong10_to_str(LAST_STMT_ID, llbuf, 10) - llbuf);
+  my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), (int) length, llbuf,
+           "mysqld_stmt_execute");
+}
+
+
+/*
+  Lock-stage failure fallback for pipelined direct execution.
+
+  The execute leg failed to LOCK tables (lock wait timeout / deadlock) before
+  emitting any prepare response, but a normal COM_STMT_PREPARE would have
+  succeeded here: it opens tables with shared MDL only (never a THR_LOCK), so
+  it does not contend with the connection holding the write lock. To match that
+  behaviour the client must still see a successful prepare response, followed by
+  the lock error as the execute reply.
+
+  We rebuild the prepare response by running an ordinary (non-direct) prepare on
+  the original query text - it opens tables with MYSQL_OPEN_FORCE_SHARED_MDL and
+  analyses them, taking no THR_LOCK, and sends+flushes the prepare-OK. Then we
+  re-raise the saved lock error so the caller's end_statement() emits it as the
+  execute reply. pkt_nr stays continuous across both replies (net_flush does not
+  reset it), which is what the pipelining client expects.
+
+  If even the shared-MDL open cannot proceed (e.g. the lock holder is doing DDL
+  and holds an exclusive MDL), the fallback prepare fails too - exactly as a
+  normal prepare would - and we degrade to the standard prepare-error plus
+  unknown-statement pair.
+*/
+
+static void direct_exec_lock_timeout_fallback(THD *thd,
+                                               Prepared_statement *failed_stmt)
+{
+  Diagnostics_area *da= thd->get_stmt_da();
+
+  /* Preserve the lock error: the fresh prepare below clears the DA. */
+  uint lock_errno= da->sql_errno();
+  char lock_msg[MYSQL_ERRMSG_SIZE];
+  strmake_buf(lock_msg, da->message());
+
+  /* Copy the query text; the failed statement is about to be dropped. */
+  size_t qlen= failed_stmt->query_string.length();
+  char *query= (char *) thd->alloc(qlen + 1);
+  if (query)
+  {
+    memcpy(query, failed_stmt->query_string.str(), qlen);
+    query[qlen]= '\0';
+  }
+
+  thd->stmt_map.erase(failed_stmt);
+  thd->clear_last_stmt();
+
+  if (!query)
+  {
+    /* Out of memory: keep the lock error as the (single) reply. */
+    my_message(lock_errno, lock_msg, MYF(0));
+    return;
+  }
+
+  da->reset_diagnostics_area();
+
+  /* Ordinary (full) prepare to build and send the prepare response. */
+  Protocol *save_protocol= thd->protocol;
+  thd->protocol= &thd->protocol_binary;
+
+  Prepared_statement *fb= new Prepared_statement(thd);   /* direct_exec=false */
+  bool fb_error= true;
+  bool fb_inserted= false;
+  if (fb)
+  {
+    if (thd->stmt_map.insert(thd, fb))
+      fb= NULL;                    /* insert failed and already freed it */
+    else
+    {
+      fb_inserted= true;
+      fb->m_prepared_stmt= MYSQL_CREATE_PS(fb, fb->id, thd->m_statement_psi,
+                                           fb->name.str, fb->name.length);
+      fb_error= fb->prepare(query, (uint) qlen);
+    }
+  }
+
+  thd->protocol= save_protocol;
+
+  if (fb_error)
+  {
+    /*
+      The fallback prepare failed too (or could not be created). Report it as
+      an ordinary prepare failure: prepare error + unknown-statement execute
+      error. If we have no diagnostics (e.g. OOM), fall back to the lock error.
+    */
+    if (fb_inserted)
+      thd->stmt_map.erase(fb);
+    thd->clear_last_stmt();
+    if (!thd->get_stmt_da()->is_error())
+      my_message(lock_errno, lock_msg, MYF(0));
+    send_direct_exec_prepare_stage_error(thd);
+    return;
+  }
+
+  /*
+    The prepare-OK has been sent. Re-raise the saved lock error so
+    end_statement() emits it as the execute reply.
+  */
+  thd->set_last_stmt(fb);
+  da->reset_diagnostics_area();
+  my_message(lock_errno, lock_msg, MYF(0));
+}
+
+
+/**
+  Pipelined direct execution handler.
+
+  Handles the case where a COM_STMT_PREPARE is immediately followed in the
+  connection by a COM_STMT_EXECUTE for stmt_id -1 (LAST_STMT_ID). Instead of
+  running a full prepare (which flushes a prepare-response) and then a
+  separate execute command (a second flush), we drive both legs inside a
+  single command so the whole exchange is flushed once, at command
+  completion.
+
+  Flow:
+    1. Parse-only prepare: build the Prepared_statement (parse tree + param
+       array). Table open/lock and the analysis that yields result metadata
+       are deferred to the execute leg, where they happen exactly once.
+    2. Read the pipelined COM_STMT_EXECUTE packet (already confirmed present
+       by direct_execution()). We must read it regardless of the parse
+       outcome, so the protocol stays in sync.
+    3. Drive the execute leg with the parsed statement handle. When it is
+       clear that the prepare would have succeeded (tables open+locked and
+       the statement analysed), the prepare-response is written into the
+       network buffer but NOT flushed; execution then appends its own
+       response and the single command-completion flush sends both.
+
+  @param thd            thread handle
+  @param packet         COM_STMT_PREPARE payload (query text), no command byte
+  @param packet_length  length of the query text
+*/
+
+void mysqld_stmt_direct_execute(THD *thd, const char *packet,
+                                uint packet_length)
+{
+  Protocol *save_protocol= thd->protocol;
+  Prepared_statement *stmt;
+  NET *net= &thd->net;
+  uchar *exec_packet;
+  ulong exec_length;
+  bool parse_error;
+  DBUG_ENTER("mysqld_stmt_direct_execute");
+  DBUG_PRINT("prep_query", ("%s", packet));
+
+  /* First of all clear possible warnings from the previous command */
+  thd->reset_for_next_command();
+
+  if (!(stmt= new Prepared_statement(thd, /*direct_exec=*/ true)))
+    DBUG_VOID_RETURN;           /* out of memory: error is set in Sql_alloc */
+
+  if (thd->stmt_map.insert(thd, stmt))
+  {
+    /* The error is set in insert(); the statement is freed there too. */
+    DBUG_VOID_RETURN;
+  }
+
+  thd->protocol= &thd->protocol_binary;
+
+  /* Create PS table entry, set query text after rewrite. */
+  stmt->m_prepared_stmt= MYSQL_CREATE_PS(stmt, stmt->id,
+                                         thd->m_statement_psi,
+                                         stmt->name.str, stmt->name.length);
+
+  /* Parse-only prepare leg (no table open/lock, no prepare-response yet). */
+  parse_error= stmt->prepare(packet, packet_length);
+  DBUG_PRINT("direct_exec", ("parse_error=%d param_count=%u pkt_nr=%u",
+                             parse_error, stmt->param_count,
+                             (uint) thd->net.pkt_nr));
+
+  thd->protocol= save_protocol;
+
+  /*
+    We peeked a COM_STMT_EXECUTE waiting behind the prepare, so it must be
+    read now regardless of the parse outcome - otherwise the next
+    do_command() iteration would misread these bytes as a fresh command.
+
+    The client numbers each command independently, starting the packet
+    sequence at 0 (the pipelined EXECUTE arrives as seq 0, not a continuation
+    of the PREPARE). Normally every do_command() iteration resets the sequence
+    via net_new_transaction(); since we read this second command ourselves, we
+    must do the same, or my_net_read_packet() rejects it as "out of order".
+    After the reset the read leaves pkt_nr == 1, which is exactly what the
+    client expects for the first response packet, so the buffered prepare
+    response and the execute response form one continuous sequence.
+  */
+  net_new_transaction(net);
+  exec_length= my_net_read_packet(net, 1);
+  DBUG_PRINT("direct_exec", ("after read: exec_length=%lu is_packet_error=%d "
+                             "net_error=%d last_errno=%u pkt_nr=%u",
+                             exec_length, exec_length == packet_error,
+                             (int) net->error, net->last_errno,
+                             (uint) net->pkt_nr));
+
+  if (parse_error)
+  {
+    /*
+      Prepare failed. The client sent a PREPARE and an EXECUTE, so it reads
+      two responses (see mariadb_stmt_execute_direct(): on prepare failure it
+      still drains the execute reply, "which is always an error packet
+      (invalid statement id)"). We must therefore send BOTH:
+        1. the prepare error (already in the diagnostics area), and
+        2. an "unknown prepared statement" error for the pipelined EXECUTE -
+           mirroring the normal two-command flow, where EXECUTE(-1) finds no
+           last statement because prepare cleared it.
+      Both are written to the network buffer as one continuous sequence (the
+      execute packet was already drained above).
+    */
+    if (alloc_query(thd, stmt->query_string.str(), stmt->query_string.length()))
+      thd->set_query(0, 0);
+    thd->stmt_map.erase(stmt);
+    thd->clear_last_stmt();
+
+    send_direct_exec_prepare_stage_error(thd);
+    DBUG_VOID_RETURN;
+  }
+
+  thd->set_last_stmt(stmt);
+
+  sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_spec_cache, stored_program_cache_size);
+  sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
+
+  if (exec_length == packet_error)
+  {
+    /* Connection/read error - nothing more we can do with the execute leg. */
+    DBUG_VOID_RETURN;
+  }
+
+  exec_packet= net->read_pos;
+  exec_packet[exec_length]= '\0';               /* safety, as in do_command */
+
+  /*
+    Layout of the read packet (command byte included, unlike the handler
+    packets which dispatch_command() advances past): command, 4-byte
+    stmt_id, 1-byte flags, 4-byte iteration count, then parameter data.
+    direct_execution() already verified command == COM_STMT_EXECUTE and
+    stmt_id == LAST_STMT_ID, so this cannot disagree with what we peeked.
+  */
+  DBUG_PRINT("direct_exec", ("exec pkt: len=%lu cmd=%u stmt_id=%d pkt_nr=%u",
+                             exec_length, exec_packet[0],
+                             (int) sint4korr(exec_packet + 1),
+                             (uint) thd->net.pkt_nr));
+
+  if (exec_length < 10 || exec_packet[0] != COM_STMT_EXECUTE)
+  {
+    my_error(ER_MALFORMED_PACKET, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
+  {
+    ulong flags= (ulong) exec_packet[5];
+    uchar *params= exec_packet + 1 + 9;         /* past cmd + stmt_id/flags */
+    uchar *params_end= exec_packet + exec_length;
+
+    thd->reset_for_next_command();
+    mysql_stmt_execute_with_stmt(thd, stmt, params, params_end, flags,
+                                 /*bulk_op=*/ false, /*read_types=*/ false,
+                                 /*send_unit_results=*/ false,
+                                 /*direct_exec=*/ true);
+  }
+
+  if (!stmt->direct_exec_prepare_sent() && thd->is_error())
+  {
+    uint exec_errno= thd->get_stmt_da()->sql_errno();
+    if (exec_errno == ER_LOCK_WAIT_TIMEOUT || exec_errno == ER_LOCK_DEADLOCK)
+    {
+      /*
+        The execute leg failed while LOCKING tables (lock wait timeout /
+        deadlock). A normal PREPARE would have SUCCEEDED here - it only takes
+        shared MDL, never a THR_LOCK - so the client must still see a
+        successful prepare response followed by the lock error as the execute
+        reply. Rebuild the prepare response via a real prepare and re-raise
+        the lock error. See direct_exec_lock_timeout_fallback().
+      */
+      direct_exec_lock_timeout_fallback(thd, stmt);
+    }
+    else
+    {
+      /*
+        The execute leg failed at a prepare-equivalent stage that a normal
+        PREPARE would also reject (missing table, unknown column, ...). Send
+        the failure as the PREPARE reply plus an "unknown prepared statement"
+        error as the EXECUTE reply, and drop the unusable statement.
+      */
+      thd->stmt_map.erase(stmt);
+      thd->clear_last_stmt();
+      send_direct_exec_prepare_stage_error(thd);
+    }
+    DBUG_VOID_RETURN;
+  }
+
+  /*
+    The fused prepare+execute is done. The statement stays registered under
+    its real id; if the client reuses it with a normal COM_STMT_EXECUTE, it
+    must behave like an ordinary prepared statement (in particular go through
+    reinit_stmt_before_use()), so drop the direct-execution marker now.
+  */
+  stmt->clear_direct_exec();
 
   DBUG_VOID_RETURN;
 }
@@ -4083,7 +4540,7 @@ bool Execute_sql_statement::execute_server_code(THD *thd)
  Prepared_statement
 ****************************************************************************/
 
-Prepared_statement::Prepared_statement(THD *thd_arg)
+Prepared_statement::Prepared_statement(THD *thd_arg, my_bool dir_exec)
   :Statement(NULL, &main_mem_root,
              STMT_INITIALIZED,
              ((++thd_arg->statement_id_counter) & STMT_ID_MASK)),
@@ -4103,6 +4560,8 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   iterations(0),
   start_param(0),
   read_types(0),
+  direct_exec(dir_exec),
+  direct_exec_prep_sent(false),
   m_sql_mode(thd->variables.sql_mode),
   m_prepare_time_thd_used_flags(0),
   m_prepare_time_charset_collation_map_version(0)
@@ -4298,7 +4757,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   */
   status_var_increment(thd->status_var.com_stmt_prepare);
 
-  if (! (lex= new (mem_root) st_lex_local))
+  if (!(lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
   lex->stmt_lex= lex;
 
@@ -4346,7 +4805,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->restore_backup_statement(this, &stmt_backup);
     thd->restore_active_arena(this, &stmt_backup);
     thd->stmt_arena= old_stmt_arena;
-    thd->cur_stmt = save_cur_stmt;
+    thd->cur_stmt= save_cur_stmt;
     DBUG_RETURN(TRUE);
   }
 
@@ -4356,9 +4815,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   lex_start(thd);
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_PREPARE;
 
-
-  error= (parse_sql(thd, & parser_state, NULL) ||
-          thd->is_error() ||
+  error= (parse_sql(thd, &parser_state, NULL) || thd->is_error() ||
           init_param_array(this));
 
   if (lex->m_sql_cmd)
@@ -4373,7 +4830,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->restore_backup_statement(this, &stmt_backup);
     thd->restore_active_arena(this, &stmt_backup);
     thd->stmt_arena= old_stmt_arena;
-    thd->cur_stmt = save_cur_stmt;
+    thd->cur_stmt= save_cur_stmt;
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(true);
   }
@@ -4382,7 +4839,6 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 #ifdef PROTECT_STATEMENT_MEMROOT
   executed_counter= 0;
 #endif
-
   /*
     While doing context analysis of the query (in check_prepared_statement)
     we allocate a lot of additional memory: for open tables, JOINs, derived
@@ -4398,6 +4854,36 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     external changes when cleaning up after validation.
   */
   DBUG_ASSERT(thd->Item_change_list::is_empty());
+
+  if (direct_exec)
+  {
+    /*
+      Pipelined direct execution: parse-only prepare. We deliberately skip
+      check_prepared_statement() here - opening/locking tables and the
+      analysis that resolves result metadata happen exactly once, later, in
+      the execute leg driven by mysqld_stmt_direct_execute(). At this point
+      we only need a valid parse tree and the parameter array; no tables are
+      open and no MDL has been taken, so there is nothing to tear down.
+    */
+    thd->restore_backup_statement(this, &stmt_backup);
+    thd->stmt_arena= old_stmt_arena;
+    thd->cur_stmt= save_cur_stmt;
+
+    lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
+    if (likely(error == 0))
+    {
+      setup_set_params();
+      state= Query_arena::STMT_PREPARED;
+      flags&= ~(uint) IS_IN_USE;
+      MYSQL_SET_PS_TEXT(m_prepared_stmt, query(), query_length());
+    }
+
+    hr_prepare_time= my_hrtime();
+    m_prepare_time_thd_used_flags= thd->used;
+    m_prepare_time_charset_collation_map_version=
+      thd->variables.character_set_collations.version();
+    DBUG_RETURN(error);
+  }
 
   /*
     Marker used to release metadata locks acquired while the prepared
@@ -4415,7 +4901,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   if (likely(error == 0))
     error= run_set_statement_if_requested(thd, lex);
 
-  /* 
+  /*
    The only case where we should have items in the thd->free_list is
    after stmt->set_params_from_vars(), which may in some cases create
    Item_null objects.
@@ -4433,15 +4919,23 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
   }
 
-  /* The order is important */
-  lex->unit.cleanup();
+  if (true)//!direct_exec)
+  {
+    /* The order is important */
+    lex->unit.cleanup();
+  }
+  if (unlikely(error) || !direct_exec)
+  {
+    /* No need to commit statement transaction, it's not started. */
+    DBUG_ASSERT(thd->transaction->stmt.is_empty());
 
-  /* No need to commit statement transaction, it's not started. */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
-
-  close_thread_tables_for_query(thd);
+    close_thread_tables_for_query(thd);
+  }
+  else if (likely(!error))
+  {
+    thd->locked_tables_mode= LTM_LOCK_TABLES; //DIREXEC
+  }
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-
   /*
     Transaction rollback was requested since MDL deadlock was discovered
     while trying to open tables. Rollback transaction in all storage
@@ -4450,7 +4944,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Once dynamic SQL is allowed as substatements the below if-statement
     has to be adjusted to not do rollback in substatement.
   */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!thd->in_sub_stmt);
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
@@ -4465,8 +4959,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Pass the value true to restore original values of variables modified
     on handling SET STATEMENT clause.
   */
-  error|= cleanup_stmt(true);
-
+  if (!direct_exec)
+  {
+    error|= cleanup_stmt(true);
+  }
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
   thd->cur_stmt= save_cur_stmt;
@@ -5294,7 +5790,10 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
   */
   old_stmt_arena= thd->stmt_arena;
   thd->stmt_arena= this;
-  reinit_stmt_before_use(thd, lex);
+  if (!direct_exec)
+  {
+    reinit_stmt_before_use(thd, lex);
+  }
 
   /* Go! */
 
@@ -5353,6 +5852,19 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
     }
     thd->update_server_status();
   }
+
+  /*
+    Pipelined direct execution of a statement with no result set (INSERT,
+    UPDATE, DELETE, ...): there is no send_result_set_metadata() to hook, so
+    emit the (buffered) prepare response here, before the execute leg's OK is
+    produced. Only do it when the prepare-equivalent stages succeeded; on
+    error the error itself is the response.
+  */
+  if (direct_exec)
+    DBUG_PRINT("direct_exec", ("post-exec: error=%d is_error=%d prep_sent=%d",
+                               error, thd->is_error(), direct_exec_prep_sent));
+  if (direct_exec && !direct_exec_prep_sent && !error && !thd->is_error())
+    error= send_pipelined_prepare_response(NULL);
 
   /*
     Restore the current database (if changed).

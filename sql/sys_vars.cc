@@ -7737,3 +7737,10 @@ static Sys_var_path Sys_path(
         "path", "Comma-separated list of schema names that defines the search "
         "order for stored routines",
         SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);
+
+extern my_bool opt_exec_direct;
+
+static Sys_var_mybool Sys_optimize_direct_exec(
+    "opt_exec_direct", "Optimize direct prepared statement execution",
+    GLOBAL_VAR(opt_exec_direct), CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+    NO_MUTEX_GUARD, NOT_IN_BINLOG);

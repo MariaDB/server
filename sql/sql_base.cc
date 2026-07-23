@@ -5780,7 +5780,6 @@ err:
   DBUG_RETURN(TRUE);
 }
 
-
 /*
   Open all tables in list and process derived tables
 

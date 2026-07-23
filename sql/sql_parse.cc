@@ -117,6 +117,8 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   @{
 */
 
+my_bool opt_exec_direct= 1;
+
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
 static void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
@@ -1839,7 +1841,15 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   }
   case COM_STMT_PREPARE:
   {
-    mysqld_stmt_prepare(thd, packet, packet_length);
+    /*
+      If a COM_STMT_EXECUTE for stmt_id -1 is already pipelined right behind
+      this prepare, fuse the two into a single command (parse, then execute
+      the just-parsed statement) so the exchange is flushed only once.
+    */
+    if (opt_exec_direct && direct_execution(thd->net.vio))
+      mysqld_stmt_direct_execute(thd, packet, packet_length);
+    else
+      mysqld_stmt_prepare(thd, packet, packet_length);
     break;
   }
   case COM_STMT_CLOSE:
@@ -3514,7 +3524,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     DBUG_RETURN(1);
   }
 
-  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt);
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() || thd->in_sub_stmt ||
+              (is_called_from_prepared_stmt && thd->cur_stmt->pipelined_direct_exec()));
   /*
     Each statement or replication event which might produce deadlock
     should handle transaction rollback on its own. So by the start of

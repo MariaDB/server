@@ -251,6 +251,56 @@ my_bool vio_buff_has_data(Vio *vio)
 }
 
 
+static my_bool socket_peek_read(Vio *vio, uint *bytes);
+
+/*
+  Peek at incoming data without consuming it.
+
+  Copies up to 'size' bytes that a subsequent read would return into 'buf',
+  taking data from the buffered-read buffer first and then from the socket
+  (via MSG_PEEK). This never blocks: if fewer than 'size' bytes are available
+  right now, only the available bytes are returned. The socket is left
+  untouched, so the following my_net_read() sees exactly the same stream.
+
+  @return number of bytes copied into 'buf' (may be less than 'size').
+*/
+
+size_t vio_peek(Vio *vio, uchar *buf, size_t size)
+{
+  size_t buffered= 0;
+  uint avail= 0;
+  ssize_t ret;
+  DBUG_ENTER("vio_peek");
+
+  /*
+    First, serve bytes still sitting in the buffered-read buffer. These are
+    the not-yet-consumed leftovers of an earlier vio_read(); the socket's
+    unread bytes logically follow them.
+  */
+  if (vio->read_pos < vio->read_end)
+  {
+    buffered= MY_MIN((size_t) (vio->read_end - vio->read_pos), size);
+    memcpy(buf, vio->read_pos, buffered);
+    if (buffered == size)
+      DBUG_RETURN(buffered);
+  }
+
+  /*
+    Peek the remainder from the socket without consuming or blocking. Only
+    request what is already available so recv(MSG_PEEK) cannot block.
+  */
+  if (socket_peek_read(vio, &avail) || avail == 0)
+    DBUG_RETURN(buffered);
+
+  ret= mysql_socket_recv(vio->mysql_socket, (SOCKBUF_T *) (buf + buffered),
+                         MY_MIN(size - buffered, (size_t) avail), MSG_PEEK);
+  if (ret <= 0)
+    DBUG_RETURN(buffered);
+
+  DBUG_RETURN(buffered + (size_t) ret);
+}
+
+
 size_t vio_write(Vio *vio, const uchar* buf, size_t size)
 {
   ssize_t ret;

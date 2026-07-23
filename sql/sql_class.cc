@@ -3362,6 +3362,12 @@ bool select_send::send_result_set_metadata(List<Item> &list, uint flags)
     return FALSE;
   }
 #endif /* WITH_WSREP */
+  /*
+    Pipelined direct execution: emit the (buffered) prepare response before
+    this statement's own result-set metadata. No-op for ordinary statements.
+  */
+  if (thd->cur_stmt && thd->cur_stmt->send_pipelined_prepare_response(&list))
+    return TRUE;
   if (!(res= thd->protocol->send_result_set_metadata(&list, flags)))
     is_result_set_started= 1;
   return res;

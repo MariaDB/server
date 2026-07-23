@@ -81,6 +81,9 @@ private:
 };
 
 
+struct st_vio;
+bool direct_execution(struct st_vio *vio);
+void mysqld_stmt_direct_execute(THD *thd, const char *packet, uint packet_length);
 void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length);
 void mysqld_stmt_execute(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_execute_bulk(THD *thd, char *packet, uint packet_length);

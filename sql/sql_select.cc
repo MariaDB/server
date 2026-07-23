@@ -5360,6 +5360,10 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   if (select_lex->join != 0)
   {
     join= select_lex->join;
+    if (join->result == NULL) //DIREXEC
+    {
+      join->result= result;
+    }
     /*
       is it single SELECT in derived table, called in derived table
       creation

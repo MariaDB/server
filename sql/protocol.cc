@@ -1158,6 +1158,12 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   if (flags & Protocol::SEND_FORCE_COLUMN_INFO)
     return true;
 
+  // thd->cur_stmt can't be null here - checked above. Not sure if it can be not a Prepared_statement
+  /*Prepared_statement *cur_stmt= dynamic_cast<Prepared_statement*>(thd->cur_stmt);
+  if (cur_stmt && cur_stmt->direct_exec_prepare_sent())
+  {
+    return false;
+  }*/
   auto &column_info_state= thd->cur_stmt->column_info_state;
 #ifndef DBUG_OFF
   auto cmd= thd->get_command();

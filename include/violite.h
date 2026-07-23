@@ -279,6 +279,7 @@ struct st_vio
   my_bool (*has_data) (Vio*);
   int (*io_wait)(Vio*, enum enum_vio_io_event, int);
   my_bool (*connect)(Vio*, struct sockaddr *, socklen_t, int);
+  size_t  (*peek)(Vio *, uchar *, size_t);
 #ifdef HAVE_OPENSSL
   void	  *ssl_arg;
 #endif

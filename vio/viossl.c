@@ -185,6 +185,34 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 
 }
 
+size_t vio_ssl_peek(Vio *vio, uchar *buf, size_t size)
+{
+  int ret;
+  SSL *ssl= vio->ssl_arg;
+  DBUG_ENTER("vio_ssl_peek");
+  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu  ssl: %p",
+                       (int) mysql_socket_getfd(vio->mysql_socket), buf, size,
+                       vio->ssl_arg));
+
+  /*
+    "Quick peek": only look at application data that is already decrypted and
+    waiting in the SSL layer's plaintext buffer (clearOutputBuffer). If fewer
+    than 'size' bytes are buffered, return 0 immediately instead of calling
+    SSL_peek(), which would read from - and block on, up to the read timeout -
+    the socket. This keeps pipelined-execute detection free for the common
+    case where nothing is waiting behind the prepare.
+
+    When at least 'size' decrypted bytes are pending, SSL_peek() returns them
+    without touching the socket, so it neither blocks nor needs a retry loop.
+  */
+  if ((size_t) SSL_pending(ssl) < size)
+    DBUG_RETURN(0);
+
+  ret= SSL_peek(ssl, buf, (int) size);
+
+  DBUG_PRINT("exit", ("%d", ret));
+  DBUG_RETURN(ret < 0 ? 0 : (size_t) ret);
+}
 
 size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
 {

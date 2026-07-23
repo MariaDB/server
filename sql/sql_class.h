@@ -1806,6 +1806,16 @@ public:
   trg_event_type current_trg_event();
   bool push_current_trg_event(trg_event_type trg_event);
   void pop_current_trg_event();
+  virtual uint pipelined_direct_exec() { return false; }
+  /*
+    For pipelined direct execution: emit the (buffered, un-flushed) prepare
+    response just before the execute leg sends its own result-set metadata.
+    Called with the resolved result columns (NULL/empty for a 0-column
+    statement). Returns true on network error. No-op (returns false) for
+    statements that are not a pipelined direct execution.
+  */
+  virtual bool send_pipelined_prepare_response(List<Item> *fields)
+  { return false; }
 };
 
 
