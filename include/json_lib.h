@@ -436,6 +436,8 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
                       enum json_value_types vt, const int* array_size_counter);
 
 int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs);
+int json_valid_engine(json_engine_t *je, const char *js, size_t js_len,
+                      CHARSET_INFO *cs);
 
 int json_locate_key(const char *js, const char *js_end,
                     const char *kname,
@@ -444,6 +446,8 @@ int json_locate_key(const char *js, const char *js_end,
 
 int json_normalize(DYNAMIC_STRING *result,
                    const char *s, size_t size, CHARSET_INFO *cs);
+int json_normalize_engine(json_engine_t *je, DYNAMIC_STRING *result,
+                          const char *s, size_t size, CHARSET_INFO *cs);
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
 

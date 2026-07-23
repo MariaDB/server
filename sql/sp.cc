@@ -412,7 +412,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     from the disk.
   */
 
-  if (!db_cl)
+  if (!db_cl && name->m_db.length)
     db_cl= get_default_db_collation(thd, name->m_db.str);
 
   /* Create the context. */

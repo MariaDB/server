@@ -9,12 +9,7 @@ disable_query_log;
 show variables like "lower_case_table_names";
 enable_query_log;
 
---disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3,t2aA,t1Aa;
-DROP DATABASE IF EXISTS `TEST_$1`;
-DROP DATABASE IF EXISTS `test_$1`;
-DROP DATABASE IF EXISTS mysqltest_LC2;
---enable_warnings
+let $MYSQLD_DATADIR= `select @@datadir`;
 
 CREATE TABLE T1 (a int) ENGINE=MyISAM;
 INSERT INTO T1 VALUES (1);
@@ -259,7 +254,6 @@ create table t_bug44738_UPPERCASE (i int) engine = myisam;
 select table_schema, table_name, table_comment from information_schema.tables
   where table_schema = 'test' and table_name like 't_bug44738_%';
 --echo # Simulate manual removal of the table.
-let $MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.frm
 --remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.MYD
 --remove_file $MYSQLD_DATADIR/test/t_bug44738_UPPERCASE.MYI
@@ -317,7 +311,7 @@ drop database db1;
 --echo # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
 --echo #
 
-CREATE DATABASE `#mysql50#D+b1`;
+--mkdir $MYSQLD_DATADIR/D+b1
 ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
 SHOW CREATE DATABASE `D+b1`;
 SHOW CREATE DATABASE `d+b1`;

@@ -1,0 +1,71 @@
+install soname 'ha_example';
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+a int complex='c,f,f,f' invalid=3
+) engine=example ull=10000 str='dskj' one_or_two='one' yesno=0
+foobar=barfoo;
+Warnings:
+Warning	1911	Unknown option 'invalid'
+Warning	1911	Unknown option 'foobar'
+create table t2 (a int, key (a) some_option=2014);
+Warnings:
+Warning	1911	Unknown option 'some_option'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL `complex`='c,f,f,f' `invalid`='3'
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ull`='10000' `str`='dskj' `one_or_two`='one' `yesno`='0' `foobar`='barfoo'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) `some_option`='2014'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+set sql_mode='';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL `complex`='c,f,f,f' /* `invalid`='3' */
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ull`='10000' `str`='dskj' `one_or_two`='one' `yesno`='0' /* `foobar`='barfoo' */
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) /* `some_option`='2014' */
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1, t2;
+uninstall soname 'ha_example';
+#
+# MDEV-39776 SHOW CREATE TABLE corrupts `-quoted table options
+#
+set sql_mode='ignore_bad_table_options';
+create table t1 (a int) opt1='*\/ oops1 ' opt2=`*/oops2 `;
+Warnings:
+Warning	1911	Unknown option 'opt1'
+Warning	1911	Unknown option 'opt2'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `opt1`='*/ oops1 ' `opt2`='*/oops2 '
+set sql_mode=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `opt1`='*\/ oops1 ' `opt2`='*\/oops2 ' */
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `opt1`='*\/ oops1 ' `opt2`='*\/oops2 ' */;
+/*!40101 SET character_set_client = @saved_cs_client */;
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
+# End of 10.6 tests

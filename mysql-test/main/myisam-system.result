@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 create table t1 (a int) engine=myisam;
 drop table if exists t1;
 Warnings:
@@ -17,3 +16,9 @@ Warnings:
 Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
+#
+# MDEV-39816 MyISAM crash on corrupted MYI with invalid keyseg length
+#
+MYISAMCHK: Unknown error 126
+myisamchk: error: 'VARDIR/std_data/MDEV-39816.MYI' doesn't have a correct index definition. You need to recreate it before you can do a repair
+# End of 10.6 tests

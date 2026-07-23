@@ -232,6 +232,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 		if (lstat(fn, &fileinfo) < 0) {
 			snprintf(g->Message, sizeof(g->Message), "%s: %s", fn, strerror(errno));
+			closedir(dir);
 			return true;
 		} else if (!S_ISREG(fileinfo.st_mode))
 			continue;      // Not a regular file (should test for links)

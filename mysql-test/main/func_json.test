@@ -24,10 +24,7 @@ select json_array(1);
 --disable_view_protocol
 select json_array(1, "text", false, null);
 
-#enable after fix MDEV-31554
---disable_cursor_protocol
 select json_array_append('["a", "b"]', '$', FALSE);
---enable_cursor_protocol
 --enable_view_protocol
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
@@ -1250,6 +1247,15 @@ SELECT JSON_EXTRACT('0E+0','$');
 SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as je;
 SELECT JSON_EXISTS('[[[[[Y[[[[n[[[[[[[[[[[n[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 to rrrrrRR-1]') as je;
 SELECT JSON_EXISTS('[[[[[Y[[[[[[[[[[[[[[[[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 to rrrrRR-1]') as je;
+
+--echo #
+--echo # MDEV-39817 JSON_ARRAYAGG() returns garbage because of off-by-one error
+--echo #
+set session group_concat_max_len = 9;
+create temporary table t (c varchar(20) character set latin1);
+insert into t values ('ab'), ('cd'), ('ef');
+select json_arrayagg(c order by c) from t;
+drop temporary table t;
 
 --echo # End of 10.6 tests
 

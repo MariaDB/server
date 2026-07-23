@@ -1,0 +1,16 @@
+!include ../galera_2nodes.cnf
+
+# mariabackup SST over socat (encrypt=3) with a TLS certificate that bundles
+# an intermediate CA. tcert is a leaf+intermediate chain, tca holds the root
+# only - the layout produced by cert-manager and similar PKIs.
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=1
+
+[sst]
+tca=@ENV.MYSQL_TEST_DIR/std_data/galera-chain-ca.pem
+tcert=@ENV.MYSQL_TEST_DIR/std_data/galera-chain-cert.pem
+tkey=@ENV.MYSQL_TEST_DIR/std_data/galera-chain-key.pem
+encrypt=3
+transferfmt=@ENV.MTR_GALERA_TFMT

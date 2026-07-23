@@ -39,7 +39,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `y` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`=MYSQL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
 SELECT * FROM t1;
 ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'SELECT' [SELECT `x`, `y` FROM `t1`]' from CONNECT
 DROP TABLE t1;
@@ -80,7 +80,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `TABNAME`='t1' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
 SELECT * FROM t1;
 a	b
 NULL	NULL
@@ -96,7 +96,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=MYSQL `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
 SELECT * FROM t1;
 a	b
 0	
@@ -112,7 +112,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`=MYSQL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
 SELECT * FROM t1;
 a	b
 NULL	NULL

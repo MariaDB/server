@@ -968,12 +968,15 @@ static bool build_filename_and_delete_tmp_file(char *path, size_t path_length,
                                                const char *ext,
                                                PSI_file_key psi_key)
 {
-  bool deleted;
+  bool deleted= 1;
   uint length= build_table_filename(path, path_length-1,
                                     db->str, name->str, ext, 0);
-  path[length]= '~';
-  path[length+1]= 0;
-  deleted= mysql_file_delete(psi_key, path, MYF(0)) != 0;
+  if (length)
+  {
+    path[length]= '~';
+    path[length+1]= 0;
+    deleted= mysql_file_delete(psi_key, path, MYF(0)) != 0;
+  }
   path[length]= 0;
   return deleted;
 }
@@ -2025,6 +2028,13 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                                       ddl_log_entry->from_db.str,
                                       ddl_log_entry->from_name.str,
                                       reg_ext, 0);
+      if (!to_length)
+      {
+        my_error(ER_INTERNAL_ERROR, MYF(0),
+                 "DDL log: from_name in ALTER TABLE INPLACE event is invalid");
+        break;
+      }
+
       if (!access(from_path, F_OK))             // Does #sql-alter.. exists?
       {
         LEX_CUSTRING version= {ddl_log_entry->uuid, MY_UUID_SIZE};

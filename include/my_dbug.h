@@ -108,6 +108,8 @@ extern int (*dbug_sanity)(void);
         do {if (_db_keyword_(0, (keyword), 1)) { a1 }} while(0)
 
 #define DBUG_IF(keyword) _db_keyword_(0, (keyword), 1)
+#define DBUG_EVALUATE_IF(keyword, a1, a2) \
+        (DBUG_IF(keyword) ? (a1) : (a2))
 
 #define DBUG_PUSH_EMPTY if (_dbug_on_) { DBUG_PUSH(""); }
 #define DBUG_POP_EMPTY  if (_dbug_on_) { DBUG_POP(); }
@@ -175,6 +177,7 @@ extern void _db_suicide_(void);
 #define DBUG_EXECUTE(keyword,a1)        do { } while(0)
 #define DBUG_EXECUTE_IF(keyword,a1)     do { } while(0)
 #define DBUG_IF(keyword) 0
+#define DBUG_EVALUATE_IF(keyword, a1, a2) (a2)
 #define DBUG_PRINT(keyword,arglist)     do { } while(0)
 #define DBUG_PUSH_EMPTY                 do { } while(0)
 #define DBUG_POP_EMPTY                  do { } while(0)

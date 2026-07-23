@@ -2610,6 +2610,7 @@ public:
     thd.lex->current_select= lex->current_select;
     thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
     thd.lex->duplicates= lex->duplicates;
+    thd.lex->vers_conditions= lex->vers_conditions; // For TABLE::delete_row()
     /*
       Prevent changes to global.lock_wait_timeout from affecting
       delayed insert threads as any timeouts in delayed inserts

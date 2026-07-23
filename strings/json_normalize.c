@@ -308,12 +308,93 @@ json_norm_value_string_init(struct json_norm_value *val,
 }
 
 
+static int json_norm_kv_comp(const void *a_, const void *b_);
+
+static int json_norm_value_comp(const struct json_norm_value *a,
+                                const struct json_norm_value *b)
+{
+  if (a->type != b->type)
+    return (int) a->type - b->type;
+
+  switch (a->type)
+  {
+  case JSON_VALUE_OBJECT:
+  {
+    const DYNAMIC_ARRAY *ao= &a->value.object.kv_pairs;
+    const DYNAMIC_ARRAY *bo= &b->value.object.kv_pairs;
+    int ret;
+    if (ao->elements != bo->elements)
+      return ao->elements < bo->elements ? -1 : 1;
+
+    for (size_t i= 0; i < ao->elements; ++i)
+    {
+      const struct json_norm_kv *akv=
+        dynamic_element(ao, i, struct json_norm_kv*);
+      const struct json_norm_kv *bkv=
+        dynamic_element(bo, i, struct json_norm_kv*);
+      if ((ret= json_norm_kv_comp(akv, bkv)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_ARRAY:
+  {
+    const DYNAMIC_ARRAY *aa= &a->value.array.values;
+    const DYNAMIC_ARRAY *ba= &b->value.array.values;
+    int ret;
+
+    if (aa->elements != ba->elements)
+      return aa->elements < ba->elements ? -1 : 1;
+
+    for (size_t i= 0; i < aa->elements; ++i)
+    {
+      const struct json_norm_value *aval=
+        dynamic_element(aa, i, struct json_norm_value*);
+      const struct json_norm_value *bval=
+        dynamic_element(ba, i, struct json_norm_value*);
+      if ((ret= json_norm_value_comp(aval, bval)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_STRING:
+  {
+    const LEX_STRING *as= &a->value.string;
+    const LEX_STRING *bs= &b->value.string;
+    if (as->length != bs->length)
+      return as->length < bs->length ? -1 : 1;
+
+    return my_strnncoll(&my_charset_utf8mb4_bin,
+                        (const uchar *)as->str, as->length,
+                        (const uchar *)bs->str, bs->length);
+  }
+  case JSON_VALUE_NUMBER:
+  {
+    const DYNAMIC_STRING *anum= &a->value.number;
+    const DYNAMIC_STRING *bnum= &b->value.number;
+    if (anum->length != bnum->length)
+      return anum->length < bnum->length ? -1 : 1;
+    return strncmp(anum->str, bnum->str, anum->length);
+  }
+  case JSON_VALUE_NULL:
+  case JSON_VALUE_TRUE:
+  case JSON_VALUE_FALSE:
+  case JSON_VALUE_UNINITIALIZED:
+  default:
+    return 0;
+  }
+}
+
+
 static int json_norm_kv_comp(const void *a_, const void *b_)
 {
   const struct json_norm_kv *a= a_, *b= b_;
-  return my_strnncoll(&my_charset_utf8mb4_bin,
-                      (const uchar *)a->key.str, a->key.length,
-                      (const uchar *)b->key.str, b->key.length);
+  int ret;
+  if (!(ret= my_strnncoll(&my_charset_utf8mb4_bin,
+                          (const uchar *)a->key.str, a->key.length,
+                          (const uchar *)b->key.str, b->key.length)))
+    return json_norm_value_comp(&a->value, &b->value);
+  return ret;
 }
 
 
@@ -753,28 +834,29 @@ json_norm_parse_end:
 
 
 static int
-json_norm_build(struct json_norm_value *root,
+json_norm_build(json_engine_t *je, struct json_norm_value *root,
                 const char *s, size_t size, CHARSET_INFO *cs)
 {
   int err= 0;
-  json_engine_t je;
+  volatile const uint32_t *killed_ptr= je->killed_ptr;
 
   DBUG_ASSERT(s);
-  memset(&je, 0x00, sizeof(je));
 
   memset(root, 0x00, sizeof(struct json_norm_value));
   root->type= JSON_VALUE_UNINITIALIZED;
 
-  err= json_scan_start(&je, cs, (const uchar *)s, (const uchar *)(s + size));
-  if (json_read_value(&je))
+  /* json_scan_start clears the killed_ptr */
+  err= json_scan_start(je, cs, (const uchar *)s, (const uchar *)(s + size));
+  je->killed_ptr= killed_ptr;
+  if (json_read_value(je))
     return err;
 
-  err= json_norm_value_init(root, &je);
+  err= json_norm_value_init(root, je);
 
   if (root->type == JSON_VALUE_OBJECT ||
       root->type == JSON_VALUE_ARRAY)
   {
-    err= json_norm_parse(root, &je);
+    err= json_norm_parse(root, je);
     if (err)
       return err;
   }
@@ -783,8 +865,8 @@ json_norm_build(struct json_norm_value *root,
 
 
 int
-json_normalize(DYNAMIC_STRING *result,
-               const char *s, size_t size, CHARSET_INFO *cs)
+json_normalize_engine(json_engine_t *je, DYNAMIC_STRING *result,
+                      const char *s, size_t size, CHARSET_INFO *cs)
 {
   int err= 0;
   uint convert_err= 0;
@@ -827,13 +909,13 @@ json_normalize(DYNAMIC_STRING *result,
   }
 
 
-  if (!json_valid(in, in_size, &my_charset_utf8mb4_bin))
+  if (!json_valid_engine(je, in, in_size, &my_charset_utf8mb4_bin))
   {
     err= 1;
     goto json_normalize_end;
   }
 
-  err= json_norm_build(&root, in, in_size, &my_charset_utf8mb4_bin);
+  err= json_norm_build(je, &root, in, in_size, &my_charset_utf8mb4_bin);
   if (err)
     goto json_normalize_end;
 
@@ -846,8 +928,22 @@ json_normalize_end:
   if (err)
     dynstr_free(result);
   if (s_utf8)
+  {
+    /* resulting error offset is mapped to original string */
+    if (je->s.error)
+      je->s.c_str= (const uchar *) (s + (ptrdiff_t)(je->s.c_str - (const uchar *) s_utf8));
     my_free(s_utf8);
+  }
   return err;
 }
 
 
+int
+json_normalize(DYNAMIC_STRING *result,
+               const char *s, size_t size, CHARSET_INFO *cs)
+{
+  json_engine_t je;
+
+  memset(&je, 0x00, sizeof(je));
+  return json_normalize_engine(&je, result, s, size, cs);
+}

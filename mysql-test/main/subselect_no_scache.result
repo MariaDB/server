@@ -1316,7 +1316,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(1) NOT NULL DEFAULT 0,
-  `(SELECT a)` int(1) NOT NULL DEFAULT 0
+  `(SELECT a)` int(2) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE TABLE t1 SELECT * FROM (SELECT 1 as a,(SELECT a+0)) a;

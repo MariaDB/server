@@ -2190,7 +2190,7 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
   if (event_group_new_gtid(rgi, gtid_ev))
   {
     free_rgi(rgi);
-    my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
   }
   rgi->parallel_entry= e;
@@ -3255,6 +3255,20 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   if (unlikely(typ == ROTATE_EVENT))
   {
     Rotate_log_event *rev= static_cast<Rotate_log_event *>(ev);
+    /*
+      Sanity check that we do not have a "real" rotate event inside an event
+      group (or what we think is inside). The rotate event is only written to
+      the binlog by the master at the end of a binlog file, and event groups
+      cannot span files.
+
+      An artificial rotate event generated on-the-fly in the dump thread can
+      still appear inside an event group. And event groups can span relay log
+      file boundaries, so rotate events for the relay log can also appear
+      inside event groups.
+    */
+    DBUG_ASSERT(rev->is_relay_log_event() ||
+                rev->is_artificial_event() ||
+                !rli->is_in_group());
     if ((rev->server_id != global_system_variables.server_id ||
          rli->replicate_same_server_id) &&
         !rev->is_relay_log_event() &&
@@ -3386,7 +3400,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
                        0 : gtid_ev->domain_id);
     if (!(e= find(domain_id, rli)))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       delete ev;
       return 1;
     }

@@ -263,6 +263,9 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   bool res= TRUE;
   DBUG_ENTER("create_view_precheck");
 
+  if (error_if_mysql50_prefix(view->table_name.str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(TRUE);
+
   /*
     Privilege check for view creation:
     - user has CREATE VIEW privilege on view table
@@ -828,10 +831,10 @@ static File_option view_parameters[]=
   FILE_OPTIONS_VIEW_ALGO},
  {{ STRING_WITH_LEN("definer_user")},
   my_offsetof(TABLE_LIST, definer.user),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("definer_host")},
   my_offsetof(TABLE_LIST, definer.host),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("suid")},
   my_offsetof(TABLE_LIST, view_suid),
   FILE_OPTIONS_ULONGLONG},

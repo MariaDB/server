@@ -888,8 +888,13 @@ int my_fprintf(FILE *stream, const char* format, ...)
 }
 
 
-#ifdef __APPLE__
-/* Delete the ':' character added by Apple's implementation of strerror_r */
+/*
+  Normalize the unknown-error text so it is identical on all platforms.
+  BSD-derived libc (macOS, FreeBSD, ...) formats "Unknown error: <n>" with a
+  colon, glibc uses "Unknown error <n>" without one. Strip the colon when
+  present. glibc never emits it, so this is a no-op there - normalize by
+  behavior rather than by guessing the OS/libc.
+*/
 static void delete_colon_char(char *buf)
 {
   static const char *unknown_err= "Unknown error";
@@ -906,7 +911,6 @@ static void delete_colon_char(char *buf)
     }
   }
 }
-#endif
 
 
 /*
@@ -963,9 +967,7 @@ const char* my_strerror(char *buf, size_t len, int nr)
     strerror_r(nr, buf, len);
 #endif
 
-#ifdef __APPLE__
     delete_colon_char(buf);
-#endif
   }
 
   /*

@@ -2314,6 +2314,11 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
     to->sign=from1->sign != from2->sign;
     to->intg=intg0*DIG_PER_DEC1;
     to->frac=frac0*DIG_PER_DEC1;
+    if (unlikely(frac0==0 && intg0==0))
+    {
+      decimal_make_zero(to);
+      return E_DEC_OK;
+    }
   }
   buf0=to->buf;
   stop0=buf0+intg0+frac0;

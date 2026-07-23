@@ -2304,6 +2304,46 @@ connection default;
 disconnect con1;
 drop user foo@localhost;
 drop schema foo;
+use test;
+
+--echo #
+--echo # MDEV-40484 ambiguous view frm parsing when username includes \n
+--echo #
+create user 'root
+definer_host=localhost
+suid=1'@localhost;
+
+grant all privileges on test.* to 'root
+definer_host=localhost
+suid=1'@localhost;
+
+connect u,localhost,'root
+definer_host=localhost
+suid=1',,test;
+
+query_vertical select user(), current_user();
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select group_concat(user,'@',host) from mysql.global_priv;
+
+create function f() returns text sql security invoker
+  return (select group_concat(user,'@',host) from mysql.global_priv);
+
+create view v as select f();
+
+--error ER_VIEW_INVALID
+select * from v;
+disconnect u;
+connection default;
+
+query_vertical select * from information_schema.views where table_schema='test';
+
+drop view v;
+drop function f;
+drop user 'root
+definer_host=localhost
+suid=1'@localhost;
+
 --echo # End of 10.6 tests
 
 # Wait till we reached the initial number of concurrent sessions

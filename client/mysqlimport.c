@@ -351,7 +351,7 @@ static int write_to_table(char *filename, MYSQL *mysql)
       strmake(tablename, escaped_name, len);
   }
   if (!opt_local_file)
-    strmov(hard_path,filename);
+    strmake_buf(hard_path, filename);
   else
     my_load_path(hard_path, filename, NULL); /* filename includes the path */
 

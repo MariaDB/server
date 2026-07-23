@@ -647,52 +647,77 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 void sp_pcontext::retrieve_field_definitions(
   List<Spvar_definition> *field_def_lst) const
 {
-  /* Put local/context fields in the result list. */
+  size_t next_child_idx= 0;
+  size_t next_variable_idx= 0;
 
-  size_t next_child= 0;
-  for (size_t i= 0; i < m_vars.elements(); ++i)
+  for ( ; ; )
   {
-    sp_variable *var_def= m_vars.at(i);
-
-    /*
-      The context can have holes in run-time offsets,
-      the missing offsets reside on the children contexts in such cases.
-      Example:
-        CREATE PROCEDURE p1() AS
-          x0 INT:=100;        -- context 0, position 0, run-time 0
-          CURSOR cur(
-            p0 INT,           -- context 1, position 0, run-time 1
-            p1 INT            -- context 1, position 1, run-time 2
-          ) IS SELECT p0, p1;
-          x1 INT:=101;        -- context 0, position 1, run-time 3
-        BEGIN
-          ...
-        END;
-      See more comments in sp_pcontext::find_variable().
-      We must retrieve the definitions in the order of their run-time offsets.
-      Check that there are children that should go before the current variable.
-    */
-    for ( ; next_child < m_children.elements(); next_child++)
+    if (next_variable_idx >= m_vars.elements())
     {
-      sp_pcontext *child= m_children.at(next_child);
-      if (!child->context_var_count() ||
-          child->get_context_variable(0)->offset > var_def->offset)
-        break;
-      /*
-        All variables on the embedded context (that fills holes of the parent)
-        should have the run-time offset strictly less than var_def.
-      */
-      DBUG_ASSERT(child->get_context_variable(0)->offset < var_def->offset);
-      DBUG_ASSERT(child->get_last_context_variable()->offset < var_def->offset);
-      child->retrieve_field_definitions(field_def_lst);
+      // No variables left, just retrieve the remaining children contexts
+      for (size_t i= next_child_idx; i < m_children.elements(); ++i)
+        m_children.at(i)->retrieve_field_definitions(field_def_lst);
+      return;
     }
-    field_def_lst->push_back(&var_def->field_def);
+    if (next_child_idx >= m_children.elements())
+    {
+      // No child contexts left, just retrieve the remaining variables
+      for (size_t i= next_variable_idx; i < m_vars.elements(); ++i)
+        field_def_lst->push_back(&m_vars.at(i)->field_def);
+      return;
+    }
+
+    sp_variable *next_variable= m_vars.at(next_variable_idx);
+    sp_pcontext *next_child= m_children.at(next_child_idx);
+
+    if (next_variable->offset < next_child->first_variable_offset())
+    {
+      /*
+        The next variable has a smaller offset than variables on the next
+        child contexts - retrieve the variable.
+        We can be here in the most frequent case:
+          BEGIN
+            DECLARE x0 INT; -- Rertieve x0 (not the child context with x1)
+            BEGIN
+              DECLARE x1 INT;
+            END;
+          END;
+      */
+      field_def_lst->push_back(&next_variable->field_def);
+      next_variable_idx++;
+    }
+    else
+    {
+      /*
+        The variables on next_child have smaller offsets
+        than the next variable - retrieve the child context.
+
+        We're here e.g. in case of a declaration of a cursor with parameters:
+          CREATE PROCEDURE p1() AS
+            CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+            x1 INT:=101;
+          BEGIN
+            ...
+          END;
+        Now we need to retrieve the child context with cp1/cp2,
+        then the variable x1 on the next loop interation.
+
+        Let's assert that the offsets are in a good order:
+        - All variables on next_child (with its children) have smaller
+          offsets than next_variable->offset.
+        - Additionally, if this is the very last child, then
+          next_variable->offset goes immediately after the offset of
+          the very last variable on next_child (and its children).
+          No holes are possible.
+      */
+      DBUG_ASSERT(next_child_idx + 1 < m_children.elements() ?
+        next_child->after_last_variable_offset() <= next_variable->offset :
+        next_child->after_last_variable_offset() == next_variable->offset);
+      next_child->retrieve_field_definitions(field_def_lst);
+      next_child_idx++;
+    }
   }
 
-  /* Put the fields of the remaining enclosed contexts in the result list. */
-
-  for (size_t i= next_child; i < m_children.elements(); ++i)
-    m_children.at(i)->retrieve_field_definitions(field_def_lst);
 }
 
 

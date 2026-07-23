@@ -57,3 +57,30 @@ drop database `test```;
 drop database `test\``
 \! ls
 #`;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-40311 mariadb-dump doesn't always quote identifiers
+--echo #
+create table t1 (a int);
+create trigger `tr 1` before insert on t1 for each row set new.a=new.a+1;
+exec $MYSQL_DUMP --compact --add-drop-trigger test;
+drop table t1;
+
+insert into mysql.func values('foo bar', 0, 'udf''example.so', 'function');
+exec $MYSQL_DUMP --compact --system=udfs test;
+delete from mysql.func;
+
+change master to master_host='master''host', master_port=3306,
+                 master_log_file='b''n.000001', master_log_pos=4;
+
+exec $MYSQL_DUMP --compact --dump-slave --include-master-host-port test;
+
+# cleanup after mariadb-dump executed START SLAVE
+call mtr.add_suppression('Slave I/O: Fatal error: .* Connection attempt terminated');
+stop slave;
+reset slave;
+change master to master_host='127.0.0.1', master_user='root';
+
+--echo # End of 10.6 tests

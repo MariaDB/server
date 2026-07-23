@@ -25,7 +25,7 @@
 #include "set_var.h"
 #include "my_xml.h"
 #include "sp_pcontext.h"
-#include "sql_class.h"                          // THD
+#include "sql_parse.h"                          // THD
 
 /*
   TODO: future development directions:
@@ -2003,6 +2003,9 @@ static int my_xpath_parse_AbbreviatedStep(MY_XPATH *xpath)
 */
 static int my_xpath_parse_lp_Expr_rp(MY_XPATH *xpath)
 {
+  if (check_stack_overrun(xpath->thd, STACK_MIN_SIZE, NULL))
+    return 0;
+
   return my_xpath_parse_term(xpath, MY_XPATH_LEX_LP) &&
          my_xpath_parse_Expr(xpath) &&
          my_xpath_parse_term(xpath, MY_XPATH_LEX_RP);
