@@ -964,8 +964,14 @@ bool JOIN::transform_max_min_subquery()
   if (!subselect || (subselect->substype() != Item_subselect::ALL_SUBS &&
                      subselect->substype() != Item_subselect::ANY_SUBS))
     DBUG_RETURN(0);
-  DBUG_RETURN(((Item_allany_subselect *) subselect)->
-              transform_into_max_min(this));
+
+  bool rc= false;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  rc= (((Item_allany_subselect *) subselect)->transform_into_max_min(this));
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(rc);
 }
 
 
@@ -1909,7 +1915,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     if (!item_eq)
       goto restore_tl_and_exit;
     if (left_exp_orig != left_exp)
-      thd->change_item_tree(item_eq->arguments(), left_exp);
+      *item_eq->arguments()= left_exp;
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
@@ -1932,8 +1938,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       DBUG_ASSERT(left_exp->element_index(i)->fixed());
       if (left_exp_orig->element_index(i) !=
           left_exp->element_index(i))
-        thd->change_item_tree(item_eq->arguments(),
-                              left_exp->element_index(i));
+        *item_eq->arguments()= left_exp->element_index(i);
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
     }
@@ -1957,7 +1962,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     for (uint i= 0; i < row->cols(); i++)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
-        thd->change_item_tree(row->addr(i), subq_lex->ref_pointer_array[i]);
+        *row->addr(i)= subq_lex->ref_pointer_array[i];
     }
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
@@ -6548,6 +6553,10 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   if (is_in_subquery())
   {
     in_subs= unit->item->get_IN_subquery();
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_INJECTED))
+      return false;
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_ENGINE))
+      return false;
     if (in_subs->create_in_to_exists_cond(this))
       return true;
   }
