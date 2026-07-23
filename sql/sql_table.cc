@@ -13009,11 +13009,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (hlindex_bulk_started && to->hlindexes_bulk_insert_end() && error <= 0)
+  if (hlindex_bulk_started)
   {
+    int err= to->hlindexes_bulk_insert_end();
+    thd->optimize_mhnsw= false;
+    if (err && error <= 0)
+    {
       if (!thd->is_error())
-          to->file->print_error(my_errno, MYF(0));
+        to->file->print_error(my_errno, MYF(0));
       error= 1;
+    }
   }
   hlindex_bulk_started=0;
 

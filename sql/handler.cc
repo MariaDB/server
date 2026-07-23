@@ -5881,7 +5881,12 @@ handler::ha_optimize(THD* thd, HA_CHECK_OPT* check_opt)
   mark_trx_read_write();
 
   // in-engine optimize can modify rowids, which will break hlindexes
-  return table->s->hlindexes() ? HA_ADMIN_TRY_ALTER : optimize(thd, check_opt);
+  if (table->s->hlindexes())
+  {
+    thd->optimize_mhnsw= true;
+    return HA_ADMIN_TRY_ALTER;
+  }
+  return optimize(thd, check_opt);
 }
 
 

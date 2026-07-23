@@ -3192,6 +3192,7 @@ private:
 
 public:
   bool is_setting_returning;
+  bool optimize_mhnsw; // Set during OPTIMIZE TABLE for graph indexes
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */

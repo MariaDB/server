@@ -829,6 +829,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   mdl_context.init(this);
   is_setting_returning= false;
+  optimize_mhnsw= false;
   mdl_backup_lock= 0;
 
   /*
