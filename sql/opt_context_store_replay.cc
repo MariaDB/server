@@ -2337,3 +2337,87 @@ void clean_captured_ctx(THD *thd)
   delete thd->captured_opt_ctx;
   thd->captured_opt_ctx= nullptr;
 }
+
+/*
+  Point table->read_set at a private bitmap (table->tmp_set) covering every
+  stored column, so that a subsequent read/record captures the full row.
+
+  Virtual columns are excluded: they cannot be assigned in REPLACE INTO and are
+  recomputed on read. We copy s->all_set into the per-table tmp_set rather than
+  aliasing s->all_set directly -- s->all_set is shared across the whole
+  TABLE_SHARE and must never be mutated.
+
+  Precondition: table->tmp_set must stay free for the caller's use until
+  read_set is restored. This holds on the const-row and MIN/MAX read paths
+  precisely because we clear the virtual-column bits: with those bits unset,
+  TABLE::update_virtual_fields(VCOL_UPDATE_FOR_READ) skips them during the read
+  and so never reuses tmp_set as its own scratch. A caller on a path that
+  evaluates virtual columns into tmp_set would corrupt the widened read_set.
+
+  @return  the previous read_set, which the caller must restore (via
+           column_bitmaps_set) once the row has been read and recorded.
+*/
+MY_BITMAP *widen_read_set_no_vcols(TABLE *table)
+{
+  MY_BITMAP *saved_read_set= table->read_set;
+  bitmap_copy(&table->tmp_set, &table->s->all_set);
+  for (Field **pfield= table->field; *pfield; pfield++)
+  {
+    /* virtual columns need not be stored. */
+    if ((*pfield)->vcol_info)
+      bitmap_clear_bit(&table->tmp_set, (*pfield)->field_index);
+  }
+  table->column_bitmaps_set(&table->tmp_set, table->write_set);
+  return saved_read_set;
+}
+
+/*
+  Re-read a const/system table row with ALL but Virtual columns and
+  record it for the optimizer context.
+
+  join_read_system()/join_read_const() only fetch the columns present in
+  table->read_set. That's sufficient for execution, but when we record the
+  const row for replay it yields an incomplete REPLACE INTO -- columns that
+  are NOT NULL and have no default then depend on a relaxed sql_mode (see
+  Optimizer_context_recorder::record_table_row()). Widen read_set to all
+  columns, re-read the single row, record it, then restore read_set so the
+  chosen plan is not disturbed.
+
+  The caller must have cached the row the optimizer actually used in
+  record[1] before calling this. We re-read the full row into record[0] only
+  to record it, then unconditionally restore record[0] from record[1] so that
+  recording leaves execution's record[0] byte-for-byte identical to the
+  non-recording case -- regardless of whether the re-read found a row.
+*/
+void record_const_row_full(JOIN_TAB *tab, bool is_system)
+{
+  TABLE *table= tab->table;
+  Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder;
+
+  uint saved_status= table->status;
+  MY_BITMAP *saved_read_set= widen_read_set_no_vcols(table);
+
+  int error;
+  /*
+    Re-read the single const row with the widened read_set, mirroring how the
+    optimizer originally fetched it: a system table (join_read_system) has at
+    most one row, read via the primary key; a const eq_ref table
+    (join_read_const) is fetched by an exact lookup on tab->ref.
+  */
+  if (is_system)
+    error= table->file->ha_read_first_row(table->record[0],
+                                          table->s->primary_key);
+  else
+    error= table->file->ha_index_read_idx_map(
+        table->record[0], tab->ref.key, (uchar *) tab->ref.key_buff,
+        make_prev_keypart_map(tab->ref.key_parts), HA_READ_KEY_EXACT);
+
+  if (likely(!error))
+    rec->record_current_table_row(table); // records the full record[0]
+
+  /* Recording must not perturb the row execution uses: restore it. */
+  restore_record(table, record[1]);
+
+  table->column_bitmaps_set(saved_read_set, table->write_set);
+  table->status= saved_status;
+}

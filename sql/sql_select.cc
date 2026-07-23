@@ -25066,7 +25066,6 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   DBUG_RETURN(0);
 }
 
-
 /**
   Read a constant table when there is at most one matching row, using a table
   scan.
@@ -25095,9 +25094,9 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
-    store_record(table,record[1]);
-    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
-      rec->record_const_table_row(table);
+    store_record(table, record[1]);     // cache the row the optimizer used
+    if (tab->join->thd->opt_ctx_recorder)
+      record_const_row_full(tab, true); // re-read full row, record, restore
   }
   else if (!table->status)			// Only happens with left join
     restore_record(table,record[1]);			// restore old record
@@ -25152,10 +25151,9 @@ join_read_const(JOIN_TAB *tab)
 	return report_error(table, error);
       return -1;
     }
-    store_record(table,record[1]);
-
-    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
-      rec->record_const_table_row(table);
+    store_record(table, record[1]);      // cache the row the optimizer used
+    if (tab->join->thd->opt_ctx_recorder)
+      record_const_row_full(tab, false); // re-read full row, record, restore
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
   {

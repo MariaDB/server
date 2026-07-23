@@ -428,6 +428,23 @@ int opt_sum_query(THD *thd,
           error= 0;
 
           table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
+          /*
+            While recording optimizer context we want record_current_table_row()
+            to emit a complete REPLACE INTO, so widen read_set to all stored
+            columns. format_and_store_row() picks the columns to print from
+            read_set, so this matters even for a clustered primary key (where the
+            whole row is already materialized); for a covering secondary index it
+            additionally forces the full row to be read, since keyread was
+            suppressed in find_key_for_maxmin().
+
+            Only the non-const branch reads the row here. A const table's row was
+            read into record[0] earlier and recorded (as a full row) by
+            record_const_row_full() on the const-table read path, so we neither
+            widen nor re-read it here.
+          */
+          MY_BITMAP *saved_read_set= NULL;
+          if (thd->opt_ctx_recorder && !table->const_table)
+            saved_read_set= widen_read_set_no_vcols(table);
           if (!table->const_table)
           {
             if (likely(!(error= table->file->ha_index_init((uint) ref.key,
@@ -448,6 +465,8 @@ int opt_sum_query(THD *thd,
             if (Optimizer_context_recorder *rec= thd->opt_ctx_recorder)
               rec->record_current_table_row(table);
           }
+          if (saved_read_set)
+            table->column_bitmaps_set(saved_read_set, table->write_set);
           if (!table->const_table)
           {
             table->file->ha_end_keyread();
@@ -1026,7 +1045,13 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
             The following test is false when the key in the key tree is
             converted (for example to upper case)
           */
-          if (field->part_of_key.is_set(idx))
+          /*
+            When recording optimizer context we need the whole row (see
+            opt_sum_query()), so do not switch to index-only reads -- otherwise
+            only the MIN/MAX column would be materialized into record[0].
+          */
+          if (field->part_of_key.is_set(idx) &&
+              !table->in_use->opt_ctx_recorder)
             table->file->ha_start_keyread(idx);
           *reverse= part->key_part_flag & HA_REVERSE_SORT ? true : false;
           DBUG_RETURN(TRUE);

@@ -3024,6 +3024,25 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
   return length;
 }
 
+static bool is_charset_conversion_lossless(const CHARSET_INFO *from_cs,
+                                           const CHARSET_INFO *to_cs)
+{
+  if (to_cs == &my_charset_bin)
+    return true; // binary swallows any bytes
+  if (from_cs == &my_charset_bin)
+    return false; // arbitrary bytes ⊄ text charset
+  if (my_charset_same(from_cs, to_cs))
+    return true;                             // same repertoire family
+  if (from_cs->state & MY_CS_PUREASCII)      // ASCII-only source...
+    return my_charset_is_ascii_based(to_cs); // ...into any ASCII-based target
+  if ((to_cs->state &
+       MY_CS_UNICODE) && // Unicode target covers everything,M N?'b;
+      (to_cs->state &
+       MY_CS_UNICODE_SUPPLEMENT)) // incl. non-BMP (so utf8mb4/utf16/utf32,
+    return true;                  // but NOT plain utf8mb3/ucs2)
+  return false;                   // unknown → treat as possibly lossy
+}
+
 /*
   @brief
     Format the row record and store it in the output
@@ -3148,12 +3167,25 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
         }
         field->val_str(&tmp);
       }
-      if (require_quote)
-        output.append('\'');
-      output.append_for_single_quote_opt_convert(tmp.ptr(), tmp.length(),
-                                                 field->charset());
-      if (require_quote)
-        output.append('\'');
+      /*
+        Emit non-empty values as a hex literal whenever converting field's
+        charset to the output charset conversion is lossy; otherwise emit the
+        charset-converted value, quoted only when the type requires it.
+      */
+      if (require_quote && tmp.length() &&
+          !is_charset_conversion_lossless(tmp.charset(), output.charset()))
+      {
+        output.append(STRING_WITH_LEN("0x"));
+        output.append_hex(tmp.ptr(), tmp.length());
+      }
+      else
+      {
+        if (require_quote)
+          output.append('\'');
+        output.append_for_single_quote_opt_convert(tmp);
+        if (require_quote)
+          output.append('\'');
+      }
     }
   }
   output.append(')');

@@ -25,6 +25,7 @@
 class Item_subselect;
 class Json_writer;
 class Json_writer_object;
+using JOIN_TAB= struct st_join_table;
 
 /***************************************************************************
  * Part 1: APIs for recording Optimizer Context.
@@ -66,11 +67,6 @@ public:
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
                                const key_range *max_range, ha_rows records);
-  void record_const_table_row(TABLE *tbl)
-  {
-    /* use table->record[1] */
-    record_table_row(tbl, 1);
-  }
   void record_current_table_row(TABLE *tbl)
   {
     /* use table->record[0] */
@@ -139,6 +135,15 @@ public:
 int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *);
 
 void clean_captured_ctx(THD *thd);
+
+/*
+  Widen read_set to all stored (non-virtual) columns via table->tmp_set, so the
+  next read/record captures the full row; returns the previous read_set for the
+  caller to restore. See the definition for the tmp_set precondition.
+*/
+MY_BITMAP *widen_read_set_no_vcols(TABLE *table);
+
+void record_const_row_full(JOIN_TAB *tab, bool is_system);
 
 /***************************************************************************
  * Part 3: APIs for loading previously saved Optimizer Context and replaying
