@@ -246,6 +246,7 @@ my $opt_head_log;
 my $opt_tail_log;
 our $opt_strip_hints= 0;
 my $opt_strip_limits= 0;
+my $opt_strip_backtrace= 0;
 my $opt_head_warnings;
 my $opt_tail_warnings;
 
@@ -1501,6 +1502,9 @@ sub command_line_setup {
 	     'tail-log=i'               => \$opt_tail_log,
 	     'strip-hints'              => \$opt_strip_hints,
 	     'strip-limits'             => \$opt_strip_limits,
+	     'strip-backtrace'          => \$opt_strip_backtrace,
+	     'strip-log'                => sub { $opt_strip_hints= $opt_strip_limits=
+						  $opt_strip_backtrace= 1 },
 	     'head-warnings=i'          => \$opt_head_warnings,
 	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
@@ -4763,6 +4767,58 @@ sub strip_resource_limits
   return @out;
 }
 
+# When --strip-backtrace is given, drop the server's own (non-debugger) stack
+# backtrace from the error log: the "Attempting backtrace" intro, the thread
+# pointer and stack_bottom lines, addr2line diagnostics and the frame lines
+# (which end in an [0x...] address). The gdb/lldb backtrace produced from a
+# core file by My::CoreDump is a separate thing and is not affected.
+sub strip_backtrace
+{
+  # A server crash backtrace is a bounded block: it starts at an "Attempting
+  # backtrace" or "Thread pointer:" line and runs through the intro prose, the
+  # optional "stack_bottom"/"Stack range" header, the frame list (either
+  # "...[0x...]" symbol lines, or bare "0x..." addresses from the builds whose
+  # my_print_stacktrace uses the frame-pointer walker), and the interleaved
+  # addr2line / my_addr_resolve diagnostics.  The block ends at the first line
+  # that is not recognisable backtrace content; that line and everything after
+  # it are kept, so later log sections (or a second backtrace) survive.
+  #
+  # Anything unrecognised ends the block (rather than being dropped), so a
+  # backtrace with no "stack_bottom" line and no bracketed frames - as the
+  # frame-pointer walker produces, and as an aborted backtrace produces - does
+  # not swallow the rest of the log.
+  my @out;
+  my $in= 0;
+  for my $line (@_) {
+    if (!$in) {
+      if ($line =~ /^Thread pointer:/ or $line =~ /^Attempting backtrace/) {
+        $in= 1;
+      } else {
+        push @out, $line;
+      }
+      next;
+    }
+    # Inside a backtrace: drop recognised content, otherwise the block has
+    # ended - fall back to keeping this line and resuming normal output.
+    next if $line =~ /^\s*$/                        # blank line
+         or $line =~ /^Thread pointer:/
+         or $line =~ /^\(note: /                    # "(note: Retrieving ...)"
+         or $line =~ /^stack_bottom /
+         or $line =~ /^Stack range sanity check/    # frame-pointer walker
+         or $line =~ /wild guesses/                 #   (Alpha) warning
+         or $line =~ /^\(my_addr_resolve failure/
+         or $line =~ /^addr2line:/
+         or $line =~ /\[0x[0-9a-fA-F]+\]\s*$/        # symbol frame
+         or $line =~ /^0x[0-9a-fA-F]+\s*$/           # bare walker frame
+         or $line =~ /Aborting backtrace/
+         or $line =~ /frame pointer/
+         or $line =~ /Bogus stack limit/;
+    $in= 0;
+    push @out, $line;
+  }
+  return @out;
+}
+
 sub get_log_from_proc ($$) {
   my ($proc, $name)= @_;
   my $srv_log= "";
@@ -4774,6 +4830,7 @@ sub get_log_from_proc ($$) {
       my @lines= extract_server_log($mysqld->if_exist('log-error'), $name);
       @lines= strip_crash_hints(@lines) if $opt_strip_hints;
       @lines= strip_resource_limits(@lines) if $opt_strip_limits;
+      @lines= strip_backtrace(@lines) if $opt_strip_backtrace;
       my @srv_lines= splice_lines(\@lines, $opt_head_log, $opt_tail_log);
       $srv_log= "\nServer log from this test:\n" .
 	"----------SERVER LOG START-----------\n". join ("", @srv_lines) .
@@ -6507,6 +6564,11 @@ Misc options
                         "hint" paragraphs from a crash report, keeping only
                         the actual server log and backtrace.
   strip-limits          Omit the "Resource Limits" table from a crash report.
+  strip-backtrace       Omit the server's own (non-debugger) stack backtrace
+                        from a crash report; the gdb/lldb backtrace from a
+                        core file, if any, is kept.
+  strip-log             Enable all of --strip-hints, --strip-limits and
+                        --strip-backtrace.
   head-warnings=N       Keep the first N suspicious lines of the shutdown-
                         warnings report (0 none, negative all).  With neither
                         head-warnings nor tail-warnings given the whole report
