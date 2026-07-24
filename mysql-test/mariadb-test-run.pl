@@ -244,6 +244,7 @@ my $opt_stress;
 my $opt_tail_lines= 20;
 my $opt_head_log;
 my $opt_tail_log;
+our $opt_strip_hints= 0;
 my $opt_head_warnings;
 my $opt_tail_warnings;
 
@@ -1497,6 +1498,7 @@ sub command_line_setup {
 	     'tail-lines=i'             => \$opt_tail_lines,
 	     'head-log=i'               => \$opt_head_log,
 	     'tail-log=i'               => \$opt_tail_log,
+	     'strip-hints'              => \$opt_strip_hints,
 	     'head-warnings=i'          => \$opt_head_warnings,
 	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
@@ -4705,6 +4707,39 @@ sub splice_lines {
           @$lines[$total - $tail .. $total - 1]);
 }
 
+# When --strip-hints is given, drop the explanatory crash-report "hint" paragraphs
+# (bug-reporting boilerplate, backtrace instructions, ...) that the server
+# writes to its error log, keeping the actual data. Each hint is a paragraph
+# from an opener line to the next blank line.
+sub strip_crash_hints
+{
+  my @openers=
+    (
+     qr/^Sorry, we probably made a mistake/,
+     qr/^Your assistance in bug reporting/,
+     qr/^To report this bug/,
+     qr/^Please include the information from the server start/,
+     qr/^The information page at/,
+     qr/^The manual page at/,
+     qr/^Attempting backtrace/,
+     qr/^This could be because you hit a bug/,
+     qr/^We will try our best to scrape up/,
+    );
+  my (@out, $skip);
+  for my $line (@_) {
+    if ($skip) {
+      $skip= 0 if $line =~ /^\s*$/;
+      next;
+    }
+    if (grep { $line =~ $_ } @openers) {
+      $skip= 1;
+      next;
+    }
+    push @out, $line;
+  }
+  return @out;
+}
+
 sub get_log_from_proc ($$) {
   my ($proc, $name)= @_;
   my $srv_log= "";
@@ -4713,9 +4748,9 @@ sub get_log_from_proc ($$) {
 
   foreach my $mysqld (all_servers()) {
     if ($mysqld->{proc} eq $proc) {
-      my @srv_lines=
-        splice_lines([extract_server_log($mysqld->if_exist('log-error'), $name)],
-                     $opt_head_log, $opt_tail_log);
+      my @lines= extract_server_log($mysqld->if_exist('log-error'), $name);
+      @lines= strip_crash_hints(@lines) if $opt_strip_hints;
+      my @srv_lines= splice_lines(\@lines, $opt_head_log, $opt_tail_log);
       $srv_log= "\nServer log from this test:\n" .
 	"----------SERVER LOG START-----------\n". join ("", @srv_lines) .
 	"----------SERVER LOG END-------------\n";
@@ -6444,6 +6479,9 @@ Misc options
                         giving one alone drops the opposite end, giving both
                         keeps both ends with the middle snipped.
   tail-log=N            Like head-log but keeps the last N lines.
+  strip-hints           Omit the explanatory bug-reporting and backtrace
+                        "hint" paragraphs from a crash report, keeping only
+                        the actual server log and backtrace.
   head-warnings=N       Keep the first N suspicious lines of the shutdown-
                         warnings report (0 none, negative all).  With neither
                         head-warnings nor tail-warnings given the whole report

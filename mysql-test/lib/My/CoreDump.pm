@@ -252,12 +252,16 @@ sub _gdb {
   return if $? >> 8;
   return unless $gdb_output;
 
-  resfile_print <<EOF . $gdb_output . "\n";
+  unless ($::opt_strip_hints) {
+    resfile_print <<EOF . $gdb_output . "\n";
 Output from gdb follows. The first stack trace is from the failing thread.
 The following stack traces are from all threads (so the failing one is
 duplicated).
 --------------------------
 EOF
+  } else {
+    resfile_print $gdb_output . "\n";
+  }
   return 1;
 }
 
@@ -425,12 +429,16 @@ sub _lldb
   return if $?;
   return unless $lldb_output;
 
-  resfile_print <<EOF . $lldb_output . "\n";
+  unless ($::opt_strip_hints) {
+    resfile_print <<EOF . $lldb_output . "\n";
 Output from lldb follows. The first stack trace is from the failing thread.
 The following stack traces are from all threads (so the failing one is
 duplicated).
 --------------------------
 EOF
+  } else {
+    resfile_print $lldb_output . "\n";
+  }
   return 1;
 }
 
