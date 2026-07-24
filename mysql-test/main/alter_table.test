@@ -2521,5 +2521,35 @@ drop table Another.Tp4;
 drop database Another;
 
 --echo #
+--echo # MDEV-35732: Failed ALTER TABLE causes inconsistency, changes behavior of the next statement
+--echo #
+--echo # It should be impossible for a failed rename index to affect
+--echo # a subsequent duplicate name check for a foreign key.
+--echo #
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+                 foreign key fk1 (b) references t1 (f1)) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2 rename index fk1 to fk, algorithm=instant, order by a;
+
+--error ER_DUP_KEYNAME
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+
+drop table t2, t1;
+
+--echo #
+--echo # It should be impossible to add a foreign key with a duplicate name.
+--echo #
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+                 foreign key fk1 (b) references t1 (f1)) engine=innodb;
+
+--error ER_DUP_KEYNAME
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+
+drop table t2, t1;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
