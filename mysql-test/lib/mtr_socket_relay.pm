@@ -22,7 +22,7 @@ sub setup_relay {
     my ($listen_port, $target_host, $target_port) = @_;
 
     my $listen_sock = IO::Socket::INET->new(
-        LocalAddr => '127.0.0.1',
+        LocalAddr => $target_host,
         LocalPort => $listen_port,
         Type      => SOCK_STREAM,
         ReuseAddr => 1,
