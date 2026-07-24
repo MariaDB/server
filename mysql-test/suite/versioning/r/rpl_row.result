@@ -74,6 +74,21 @@ i
 connection master;
 drop table t;
 #
+# MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+#            in Row-format Binlog's before-image
+#            for non-trivial Text/Blob Virtual Columns
+#
+connection master;
+create table t (a text, v text as (right(a, 1)) virtual)
+with system versioning as select 'before' as a;
+update t set a='after';
+connection slave;
+select * from t;
+v	a
+r	after
+connection master;
+drop table t;
+#
 # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 #
 flush binary logs;

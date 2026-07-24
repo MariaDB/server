@@ -389,11 +389,83 @@ enum vcol_init_mode
 
 enum enum_vcol_update_mode
 {
+  /*
+    VCOL_UPDATE_FOR_READ
+
+    Engine-driven mode: invoked by the handler read methods (ha_rnd_next,
+    ha_rnd_pos, ha_index_*) for every row read into record[0].
+
+    For a field in the read_set: with keyread enabled, compute it only when
+    it is not directly part of the read index but is derivable from the
+    indexed columns; otherwise compute it only when it is not stored.
+
+    Blob values are stored into read_value (see swap_value_and_read_value()).
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_READ= 0,
+  /*
+    VCOL_UPDATE_FOR_WRITE
+
+    General write mode, used by all SQL-layer write paths (INSERT, the new
+    record in UPDATE, row-based replication apply, and ALTER ... copy).
+
+    Compute every vcol in the read_set, both stored and non-stored.
+
+    Blob values are stored into value.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_WRITE,
+  /*
+    VCOL_UPDATE_FOR_DELETE
+
+    Invoked only from record_should_be_deleted() while deciding whether to
+    delete a row, so the DELETE condition can reference virtual columns.
+
+    Same fields as VCOL_UPDATE_FOR_WRITE: every vcol in the read_set, both
+    stored and non-stored.
+
+    Blob values are stored into value.
+    As on read, errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_DELETE,
+  /*
+    VCOL_UPDATE_INDEXED
+
+    Used only by MyISAM index (re)build/repair (compute_vcols()). Complements
+    VCOL_UPDATE_FOR_READ and must run after it.
+
+    Compute non-stored vcols in the read_set that are part of a key
+    (PART_KEY_FLAG or PART_INDIRECT_KEY_FLAG) -- the indexed vcols that
+    VCOL_UPDATE_FOR_READ skips.
+
+    Blob values are stored into read_value.
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_INDEXED,
+  /*
+    VCOL_UPDATE_INDEXED_FOR_UPDATE
+
+    Used only by multi-table UPDATE, on the old row re-read via rnd_pos so
+    its indexed vcols match the stored index entries before the new values
+    overwrite them.
+
+    Same fields as VCOL_UPDATE_INDEXED.
+
+    Blob values are stored into read_value.
+    Being part of an update, errors are reported instead of downgraded.
+  */
   VCOL_UPDATE_INDEXED_FOR_UPDATE,
+  /*
+    VCOL_UPDATE_FOR_REPLACE
+
+    Used only by REPLACE (write_record()) on the conflicting row.
+
+    Compute non-stored, part-of-key vcols in the read_set; additionally, for
+    row-based binary logging with a non-minimal row image, compute all vcols.
+
+    Blob values are stored into read_value and old value preserved.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_REPLACE
 };
 
@@ -2318,8 +2390,25 @@ struct TABLE_CHAIN
   void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
 };
 
+
+/*
+  Byte_zero helps to keep the construction of encapsulated objects as
+  the order of initialization is: base class, encapsulated objects, current class.
+
+  So, we move bzero() into base class to do it before encapsulated ctors.
+ */
+class Byte_zero
+{
+protected:
+  Byte_zero(size_t size)
+  {
+    bzero((void*)this, size);
+  }
+};
+
+
 class Table_ident;
-struct TABLE_LIST
+struct TABLE_LIST : public Byte_zero
 {
   TABLE_LIST(THD *thd,
              LEX_CSTRING db_str,
@@ -2335,7 +2424,8 @@ struct TABLE_LIST
              List<Index_hint> *index_hints_ptr,
              LEX_STRING *option_ptr);
 
-  TABLE_LIST() = default;                          /* Remove gcc warning */
+  /* Important to call the encapsulated ctors after we've byte-zeroed the object */
+  TABLE_LIST() : Byte_zero(sizeof(*this)) {}
 
   enum prelocking_types
   {
@@ -2346,7 +2436,6 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
-  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
@@ -2360,7 +2449,6 @@ struct TABLE_LIST
     else
       mdl_type= MDL_SHARED_READ;
 
-    reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
@@ -2373,7 +2461,7 @@ struct TABLE_LIST
                      mdl_type, MDL_TRANSACTION);
   }
 
-  TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
+  TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type) : Byte_zero(*this)
   {
     DBUG_ASSERT(table_arg->s);
     init_one_table(&table_arg->s->db, &table_arg->s->table_name,
@@ -2406,6 +2494,31 @@ struct TABLE_LIST
     for_insert_data= insert_data;
   }
 
+
+  /*
+    Initialization with reset. TODO(newbie): these 2 should go away after
+    all C-way allocations without calling ctor are gone.
+  */
+  inline void init_one_tab_r(const LEX_CSTRING *db_arg,
+                             const LEX_CSTRING *table_name_arg,
+                             const LEX_CSTRING *alias_arg,
+                             enum thr_lock_type lock_type_arg)
+  {
+    bzero((void*)this, sizeof(*this));
+    init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
+  }
+  inline void init_one_table_for_prelockn_r(const LEX_CSTRING *db_arg,
+          const LEX_CSTRING *table_name_arg, const LEX_CSTRING *alias_arg,
+          enum thr_lock_type lock_type_arg, prelocking_types prelocking_type,
+          TABLE_LIST *belong_to_view_arg, uint8 trg_event_map_arg,
+          TABLE_LIST ***last_ptr, my_bool insert_data)
+  {
+    bzero((void*)this, sizeof(*this));
+    init_one_table_for_prelocking(db_arg, table_name_arg, alias_arg,
+                                  lock_type_arg, prelocking_type,
+                                  belong_to_view_arg, trg_event_map_arg,
+                                  last_ptr, insert_data);
+  }
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers

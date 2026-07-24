@@ -5938,9 +5938,8 @@ TABLE_LIST::TABLE_LIST(THD *thd,
                        bool info_schema,
                        st_select_lex *sel,
                        List<Index_hint> *index_hints_ptr,
-                       LEX_STRING *option_ptr)
+                       LEX_STRING *option_ptr) : Byte_zero(sizeof(*this))
 {
-  reset();
   db= db_str;
   is_fqtn= fqtn;
   alias= alias_str;
@@ -9450,7 +9449,7 @@ bool TABLE::vers_update_fields()
   }
 
   if (vfield)
-    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
+    update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
   return res;
 }
 
