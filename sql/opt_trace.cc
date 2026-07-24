@@ -485,22 +485,21 @@ void Opt_trace_context::end()
 }
 
 
-void Opt_trace_start::init(THD *thd,
-                           TABLE_LIST *tbl,
-                           enum enum_sql_command sql_command,
-                           List<set_var_base> *set_vars,
-                           const char *query,
-                           size_t query_length,
-                           const CHARSET_INFO *query_charset)
+/*
+  Slow path of Opt_trace_start::init(): reached only when optimizer trace is
+  enabled (the FLAG_ENABLED test is done inline by the caller in opt_trace.h).
+  It applies the remaining traceability conditions and, if they hold, starts
+  the trace context.
+*/
+void Opt_trace_start::init_traceable(THD *thd,
+                                     TABLE_LIST *tbl,
+                                     enum enum_sql_command sql_command,
+                                     List<set_var_base> *set_vars,
+                                     const char *query,
+                                     size_t query_length,
+                                     const CHARSET_INFO *query_charset)
 {
-  /*
-    if optimizer trace is enabled and the statment we have is traceable,
-    then we start the context.
-  */
-  const ulonglong var= thd->variables.optimizer_trace;
-  traceable= FALSE;
-  if (unlikely(var & Opt_trace_context::FLAG_ENABLED) &&
-      sql_command_can_be_traced(sql_command) &&
+  if (sql_command_can_be_traced(sql_command) &&
       !list_has_optimizer_trace_table(tbl) &&
       !sets_var_optimizer_trace(sql_command, set_vars) &&
       !thd->system_thread &&

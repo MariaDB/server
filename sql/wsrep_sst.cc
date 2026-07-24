@@ -2146,11 +2146,24 @@ int wsrep_sst_donate(const std::string& msg,
     addr= data;
   }
 
-  if (remote_auth() &&
-      wsrep_check_request_str(remote_auth(), wsrep_shell_char, true))
+  if (remote_auth())
   {
-    WSREP_ERROR("Bad remote auth string. SST canceled.");
-    return WSREP_CB_FAILURE;
+    /* auth is like localhost:ecee4512990b6a685b5d8df250cb5028 */
+    std::string auth= remote_auth();
+    std::string r_user = auth.substr(0, auth.find(":"));
+    std::string r_pw = auth.substr(auth.find(":")+1, auth.size());
+    if (!r_user.empty() &&
+        wsrep_check_request_str(r_user.c_str(), wsrep_filename_char, true))
+    {
+      WSREP_ERROR("Bad remote auth string. SST canceled.");
+      return WSREP_CB_FAILURE;
+    }
+    if (!r_pw.empty() &&
+        wsrep_check_request_str(r_pw.c_str(), wsrep_filename_char, true))
+    {
+      WSREP_ERROR("Bad remote auth string. SST canceled.");
+      return WSREP_CB_FAILURE;
+    }
   }
 
   if (wsrep_check_request_str(addr, wsrep_address_char, true))

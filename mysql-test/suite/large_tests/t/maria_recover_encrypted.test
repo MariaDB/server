@@ -77,7 +77,7 @@ UNLOCK TABLES;
 # Crash and restart the server while it's still flushing index
 --write_line "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET debug_dbug="d,crash_shutdown";
---error 2013
+--error 2013,2026
 shutdown;
 --enable_reconnect
 --source include/wait_until_connected_again.inc

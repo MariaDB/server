@@ -16,7 +16,7 @@
 
 show global status like "connection_errors_%";
 
-connect (con1,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 select current_user();
 disconnect con1;
@@ -27,7 +27,7 @@ set global debug_dbug= "+d,vio_peer_addr_error";
 
 --disable_query_log
 --error ER_BAD_HOST_ERROR
-connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con2,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -36,7 +36,7 @@ show global status like "connection_errors_%";
 
 --disable_query_log
 --error ER_BAD_HOST_ERROR
-connect (con3,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con3,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default

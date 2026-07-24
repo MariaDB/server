@@ -98,7 +98,7 @@ EOF
 
 FLUSH TABLES;
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 SELECT 1;
 
 --source include/wait_until_disconnected.inc
@@ -170,7 +170,7 @@ EOF
 
 FLUSH TABLES;
 SET SESSION debug_dbug="+d,crash_before_writing_xid";
---error 2006,2013
+--error 2006,2013,2026
 INSERT INTO t1 SELECT a+4, '++server_1' FROM t2;
 
 --source include/wait_until_disconnected.inc

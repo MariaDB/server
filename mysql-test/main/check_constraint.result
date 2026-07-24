@@ -221,23 +221,23 @@ drop table t1;
 use test;
 drop table if exists t;
 create table t(a int, b int check(b>0),
-constraint b check(a<b), constraint a check(a>0),
+constraint a_lt_b check(a<b), constraint a check(a>0),
 constraint x check (a>10));
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL CHECK (`b` > 0),
-  CONSTRAINT `b` CHECK (`a` < `b`),
+  CONSTRAINT `a_lt_b` CHECK (`a` < `b`),
   CONSTRAINT `a` CHECK (`a` > 0),
   CONSTRAINT `x` CHECK (`a` > 10)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Field constraint 'b' will fail
 insert into t values (-1, 0);
 ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
-# Table constraint 'b' will fail
+# Table constraint 'a_lt_b' will fail
 insert into t values (1,1);
-ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
+ERROR 23000: CONSTRAINT `a_lt_b` failed for `test`.`t`
 drop table t;
 create table t1 (a int auto_increment primary key, b int, check (b > 5));
 insert t1 (b) values (1);
@@ -439,4 +439,64 @@ ERROR 22007: Truncated incorrect DECIMAL value: 'a'
 insert into t1 values ("b");
 ERROR 22007: Truncated incorrect DECIMAL value: 'b'
 drop table t1;
+#
+# MDEV-24598 Duplicate CHECK constraint names are allowed
+#
+CREATE TABLE t1 (a INT CHECK (a>2), CONSTRAINT a CHECK (a < 5));
+ERROR HY000: Duplicate CHECK constraint name 'a'
+CREATE TABLE t2 (
+path VARCHAR(100) NOT NULL,
+json_c1 JSON NOT NULL DEFAULT '{}',
+CONSTRAINT json_c1 CHECK (path > 0)
+);
+ERROR HY000: Duplicate CHECK constraint name 'json_c1'
+CREATE TABLE t3 (a INT, CONSTRAINT c1 CHECK (a > 0),
+CONSTRAINT c1 CHECK (a < 100));
+ERROR HY000: Duplicate CHECK constraint name 'c1'
+CREATE TABLE t4 (CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 0),
+CHECK (CONSTRAINT_1 < 100));
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `CONSTRAINT_1` int(11) DEFAULT NULL CHECK (`CONSTRAINT_1` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`CONSTRAINT_1` < 100)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t4;
+CREATE TABLE t5 (a INT, CONSTRAINT b CHECK (a > 0));
+ALTER TABLE t5 ADD COLUMN b INT CHECK (b > 5);
+ERROR HY000: Duplicate CHECK constraint name 'b'
+DROP TABLE t5;
+CREATE TABLE t6 (a INT CHECK (a > 0));
+ALTER TABLE t6 ADD CONSTRAINT a CHECK (a < 100);
+ERROR HY000: Duplicate CHECK constraint name 'a'
+DROP TABLE t6;
+CREATE TABLE t7 (a INT CHECK (a > 0), CONSTRAINT new_a CHECK (a < 100));
+ALTER TABLE t7 RENAME COLUMN a TO new_a;
+ERROR HY000: Duplicate CHECK constraint name 'new_a'
+DROP TABLE t7;
+CREATE TABLE t8 (CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 0));
+ALTER TABLE t8 ADD CHECK (CONSTRAINT_1 < 100);
+SHOW CREATE TABLE t8;
+Table	Create Table
+t8	CREATE TABLE `t8` (
+  `CONSTRAINT_1` int(11) DEFAULT NULL CHECK (`CONSTRAINT_1` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`CONSTRAINT_1` < 100)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t8;
+CREATE TABLE t9 (a INT, CHECK (a > 0));
+SHOW CREATE TABLE t9;
+Table	Create Table
+t9	CREATE TABLE `t9` (
+  `a` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ALTER TABLE t9 ADD COLUMN CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 5);
+ERROR HY000: Duplicate CHECK constraint name 'CONSTRAINT_1'
+SHOW CREATE TABLE t9;
+Table	Create Table
+t9	CREATE TABLE `t9` (
+  `a` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t9;
 # End of 10.11 tests

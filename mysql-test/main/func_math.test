@@ -2216,4 +2216,12 @@ SELECT c1, MIN(ABS(c1)) AS m FROM t1 GROUP BY c1;
 SELECT c1, ABS(c1) AS v FROM t1 GROUP BY c1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-38061 Assertion `args[0]->decimal_precision() < 22' in
+--echo #            Item_func_round::fix_arg_hex_hybrid
+--echo #
+
+SELECT ROUND(NAME_CONST('x', 0x0123456789ABCDEF0123456789ABCDEF0123456789AB)) as a;
+
 --echo # End of 10.11 tests

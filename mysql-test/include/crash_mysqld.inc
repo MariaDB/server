@@ -8,7 +8,7 @@
 
 # Setup the mysqld to crash at shutdown
 SET debug_dbug="d,crash_shutdown";
---error 2013
+--error 2013,2026
 shutdown;
 
 # Turn on reconnect

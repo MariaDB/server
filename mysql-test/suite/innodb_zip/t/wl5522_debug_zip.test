@@ -78,7 +78,7 @@ SELECT * FROM t1;
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
---error 2013
+--error 2013,2026
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 --enable_reconnect
@@ -99,7 +99,7 @@ SELECT COUNT(*) FROM t1;
 --write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
---error 2013
+--error 2013,2026
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 # After the above test the results are non-deterministic,

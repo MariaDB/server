@@ -110,3 +110,10 @@ hex(des_encrypt('a'))
 #
 # End of 10.10 tests
 #
+#
+# MDEV-27561: Valgrind/MSAN errors in Item_func_des_encrypt::val_str
+#
+SELECT VARIANCE(0), HEX(DES_ENCRYPT('foo', ExtractValue('<foo></foo>', '/foo')));
+VARIANCE(0)	HEX(DES_ENCRYPT('foo', ExtractValue('<foo></foo>', '/foo')))
+0.0000	FFD41F3FDEBD4F0F62
+# End of 10.11 tests

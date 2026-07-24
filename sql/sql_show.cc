@@ -1692,7 +1692,7 @@ static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
     }
     filename= winfilename;
 #endif
-    packet->append(filename, length);
+    packet->append_for_single_quote(filename, length);
     packet->append('\'');
   }
 }
@@ -1837,10 +1837,7 @@ static void append_create_options(THD *thd, String *packet,
     packet->append(' ');
     append_identifier(thd, packet, &opt->name);
     packet->append('=');
-    if (opt->quoted_value)
-      append_unescaped(packet, opt->value.str, opt->value.length);
-    else
-      packet->append(&opt->value);
+    append_unescaped(packet, opt->value.str, opt->value.length, in_comment);
   }
   if (in_comment)
     packet->append(STRING_WITH_LEN(" */"));
@@ -4601,7 +4598,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
-  build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
+  if (!build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0))
+    return 0;
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
@@ -5405,7 +5403,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-        if (!(thd->col_access & TABLE_ACLS))
+        if (!(thd->col_access & (TABLE_ACLS & ~GRANT_ACL)))
         {
           TABLE_LIST table_acl_check;
           table_acl_check.reset();
@@ -5530,6 +5528,8 @@ static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
   if (!dbname.str[0])
     DBUG_RETURN(true); // Empty database name: does not exist.
   path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  if (!path_len)
+    DBUG_RETURN(true); // invalid name
   path[path_len - 1]= 0;
   if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
     DBUG_RETURN(true); // The database directory was not found: does not exist.
@@ -6615,7 +6615,6 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   CHARSET_INFO *cs= system_charset_info;
   LEX_CSTRING definer, params, returns= empty_clex_str;
   LEX_CSTRING db, name;
-  char path[FN_REFLEN];
   sp_head *sp;
   const Sp_handler *sph;
   bool free_sp_head;
@@ -6625,8 +6624,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
-  (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-  init_tmp_table_share(thd, &share, "", 0, "", path);
+  init_tmp_table_share(thd, &share, "", 0, "", "");
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
@@ -6802,14 +6800,12 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                                                 &free_sp_head);
         if (sp)
         {
-          char path[FN_REFLEN];
           TABLE_SHARE share;
           TABLE tbl;
           Field *field;
 
           bzero((char*) &tbl, sizeof(TABLE));
-          (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-          init_tmp_table_share(thd, &share, "", 0, "", path);
+          init_tmp_table_share(thd, &share, "", 0, "", "");
           field= sp->m_return_field_def.make_field(&share, thd->mem_root,
                                                    &empty_clex_str);
           field->table= &tbl;

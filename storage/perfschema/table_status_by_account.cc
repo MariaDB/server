@@ -56,7 +56,7 @@ table_status_by_account::m_share=
   "USER CHAR(32) collate utf8_bin default null comment 'User for which the status variable is reported.',"
   "HOST CHAR(60) collate utf8_bin default null comment 'Host for which the status variable is reported.',"
   "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
-  "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
+  "VARIABLE_VALUE VARCHAR(4096) comment 'Aggregated status variable value.' )") },
   false, /* m_perpetual */
   false, /* m_optional */
   &m_share_state

@@ -4426,6 +4426,8 @@ bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func_group_concat::fix_fields(thd, ref);
   m_tmp_json.set_charset(collation.collation);
+  /* account for opening and closing brackets */
+  max_length= MY_MIN(max_length + 2*collation.collation->mbminlen, UINT_MAX32);
   return res;
 }
 
@@ -4458,8 +4460,7 @@ void Item_func_json_arrayagg::cut_max_length(String *result,
   if (result->length() == 0)
     return;
 
-  if (result->ptr()[result->length() - 1] != '"' ||
-      max_length == 0)
+  if (result->end()[-1] != '"' || old_length == max_length)
   {
     Item_func_group_concat::cut_max_length(result, old_length, max_length);
     return;

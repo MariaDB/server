@@ -1501,4 +1501,29 @@ SELECT * FROM v6_t;
 ERROR HY000: View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
 DROP TABLE t;
+#
+# MDEV-17846 Wrong result with grouping select from merged derived table
+#
+CREATE TABLE t1 (f1 int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f1 int, t1_f1 int);
+INSERT INTO t2 VALUES (674,1),(679,1),(684,1),(689,1),(694,1),(901,1),(608,1),
+(610,1),(299,1),(667,1),(51951034,2),(281,2),(116,2),(740,2),(974,2);
+SET optimizer_switch = 'derived_merge=off';
+SELECT  dt.tf1,
+(SELECT COUNT(dt.tf1) FROM t1 WHERE t1.f1 = dt.tf1 AND dt.tf1 = 1) AS val
+FROM (SELECT t1.f1 AS tf1, t2.f1 FROM t1 JOIN t2 ON t1.f1 = t2.t1_f1) AS dt
+GROUP BY dt.tf1;
+tf1	val
+1	10
+2	NULL
+SET optimizer_switch = 'derived_merge=on';
+SELECT  dt.tf1,
+(SELECT COUNT(dt.tf1) FROM t1 WHERE t1.f1 = dt.tf1 AND dt.tf1 = 1) AS val
+FROM (SELECT t1.f1 AS tf1, t2.f1 FROM t1 JOIN t2 ON t1.f1 = t2.t1_f1) AS dt
+GROUP BY dt.tf1;
+tf1	val
+1	10
+2	NULL
+drop table t1, t2;
 # End of 10.11 tests

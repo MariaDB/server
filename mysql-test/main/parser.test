@@ -2064,52 +2064,18 @@ DELIMITER ;$$
 
 --disable_prepare_warnings
 
---echo #
 --echo # End of 10.6 tests
---echo #
 
 --echo #
---echo # MDEV-17677 : Keywords are parsed as identifiers when followed by a dot
+--echo # MDEV-39654 schema-qualified unquoted table name starting with digit fails to parse
 --echo #
 
-SET NAMES utf8;
+create table 1a (1b int);
+create table `select` (1c int);
 
---echo  test for Nd (should work)
-SELECT.1;
-SELECT.123+0;
-SELECT.5 * 2;
+select 1b from test.1a;
+select select.1c from test.select;
 
---character_set utf8mb4
---echo  test for Mn
---error ER_PARSE_ERROR
-SELECT.́1;
+drop table 1a, `select`;
 
---error ER_PARSE_ERROR
-SELECT.̈abc;
-
-
--- echo  test for Mc
---error ER_PARSE_ERROR
-SELECT.ःtest;
-
---echo  test for Pc
---error ER_PARSE_ERROR
-SELECT.‿a;
-
---echo  test for Cf
---error ER_PARSE_ERROR
-SELECT.‎abc;
-
---echo  test for Middle-dot and underscore
---error ER_PARSE_ERROR
-SELECT.·123;
---error ER_PARSE_ERROR
-ٍSELECT._1;
-
---echo  still work as identifier
-CREATE TABLE `SELECT` (a INT);
-INSERT INTO `SELECT` VALUES (5);
-SELECT `SELECT`.a FROM `SELECT`;
-DROP TABLE `SELECT`;
-
-SET NAMES DEFAULT;
+--echo # End of 10.11 tests

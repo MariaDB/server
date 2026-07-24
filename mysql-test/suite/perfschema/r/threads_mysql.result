@@ -1,6 +1,6 @@
 SET GLOBAL event_scheduler = OFF;
 SELECT name, type, processlist_user, processlist_host, processlist_db,
-processlist_command, processlist_info, connection_type,
+processlist_command, processlist_info, connection_type is null,
 IF(parent_thread_id IS NULL, parent_thread_id, 'unified parent_thread_id')
 AS unified_parent_thread_id,
 `role`, instrumented
@@ -15,7 +15,7 @@ processlist_host	NULL
 processlist_db	mysql
 processlist_command	NULL
 processlist_info	NULL
-connection_type	NULL
+connection_type is null	1
 unified_parent_thread_id	NULL
 role	NULL
 instrumented	YES
@@ -26,7 +26,7 @@ processlist_host	NULL
 processlist_db	NULL
 processlist_command	NULL
 processlist_info	NULL
-connection_type	NULL
+connection_type is null	1
 unified_parent_thread_id	unified parent_thread_id
 role	NULL
 instrumented	YES
@@ -37,7 +37,7 @@ processlist_host	localhost
 processlist_db	test
 processlist_command	Query
 processlist_info	SELECT name, type, processlist_user, processlist_host, processlist_db,
-processlist_command, processlist_info, connection_type,
+processlist_command, processlist_info, connection_type is null,
 IF(parent_thread_id IS NULL, parent_thread_id, 'unified parent_thread_id')
 AS unified_parent_thread_id,
 `role`, instrumented
@@ -45,7 +45,7 @@ FROM performance_schema.threads
 WHERE name LIKE 'thread/sql%'
   AND (name != 'thread/sql/one_connection' OR processlist_id=connection_id())
 ORDER BY name
-connection_type	Socket
+connection_type is null	0
 unified_parent_thread_id	unified parent_thread_id
 role	NULL
 instrumented	YES
@@ -56,7 +56,7 @@ processlist_host	NULL
 processlist_db	NULL
 processlist_command	NULL
 processlist_info	NULL
-connection_type	NULL
+connection_type is null	1
 unified_parent_thread_id	unified parent_thread_id
 role	NULL
 instrumented	YES
@@ -67,7 +67,7 @@ processlist_host	NULL
 processlist_db	NULL
 processlist_command	NULL
 processlist_info	NULL
-connection_type	NULL
+connection_type is null	1
 unified_parent_thread_id	unified parent_thread_id
 role	NULL
 instrumented	YES

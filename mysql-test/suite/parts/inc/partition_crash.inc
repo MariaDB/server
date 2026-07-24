@@ -14,7 +14,7 @@ SELECT * FROM t1;
 --write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --disable_reconnect
 # CR_SERVER_LOST
---error 2013
+--error 2013,2026
 --eval $crash_statement
 --echo # State after crash (before recovery)
 --list_files_write_file $DATADIR.files.txt $DATADIR/test

@@ -90,7 +90,7 @@ CREATE TABLE t3
 (
 a int,
 b int check (b>0), # field constraint named 'b'
-CONSTRAINT b check (b>10), # table constraint
+CONSTRAINT b0 check (b>10), # table constraint
 # `CHECK_CLAUSE` should allow more then `var(64)` constraints
 CONSTRAINT b1 check (b<123456789012345678901234567890123456789012345678901234567890123456789)
 ) ENGINE=InnoDB;
@@ -105,7 +105,7 @@ def	foo	t1	t	Column	`t` > 2
 def	foo	t2	CHK_dates	Table	`start_date` is null
 def	foo	t2	name	Column	char_length(`name`) > 2
 def	foo	t3	b	Column	`b` > 0
-def	foo	t3	b	Table	`b` > 10
+def	foo	t3	b0	Table	`b` > 10
 def	foo	t3	b1	Table	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
 disconnect con1;
 CONNECT con2, localhost, boo2,,"*NO-ONE*";
@@ -159,7 +159,7 @@ t0 int,
 t1 int check (t1<0),
 t2 int check (t2<-1),
 CONSTRAINT tc_1 check(t1 > 1),
-CONSTRAINT t2 check(t2 > 1));
+CONSTRAINT t2c check(t2 > 1));
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -168,7 +168,7 @@ t	CREATE TABLE `t` (
   `t2` int(11) DEFAULT NULL CHECK (`t2` < -1),
   CONSTRAINT `CONSTRAINT_1` CHECK (`t0` > 0),
   CONSTRAINT `tc_1` CHECK (`t1` > 1),
-  CONSTRAINT `t2` CHECK (`t2` > 1)
+  CONSTRAINT `t2c` CHECK (`t2` > 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from information_schema.table_constraints where CONSTRAINT_TYPE='CHECK';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
@@ -176,7 +176,7 @@ def	mysql	Priv	mysql	global_priv	CHECK
 def	test	CONSTRAINT_1	test	t	CHECK
 def	test	t1	test	t	CHECK
 def	test	t2	test	t	CHECK
-def	test	t2	test	t	CHECK
+def	test	t2c	test	t	CHECK
 def	test	tc_1	test	t	CHECK
 select * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
@@ -184,6 +184,6 @@ def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
 def	test	t	CONSTRAINT_1	Table	`t0` > 0
 def	test	t	t1	Column	`t1` < 0
 def	test	t	t2	Column	`t2` < -1
-def	test	t	t2	Table	`t2` > 1
+def	test	t	t2c	Table	`t2` > 1
 def	test	t	tc_1	Table	`t1` > 1
 drop table t;

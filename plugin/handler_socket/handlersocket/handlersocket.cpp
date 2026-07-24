@@ -9,6 +9,7 @@
 #include <my_global.h>
 #include <memory>
 #include <string>
+#include <random>
 #include <stdio.h>
 
 #include "config.hpp"
@@ -51,6 +52,21 @@ static int
 daemon_handlersocket_init(void *p)
 {
   DENA_VERBOSE(10, fprintf(stderr, "handlersocket: initialized\n"));
+
+  if (!handlersocket_plain_secret)
+  {
+    static constexpr size_t secret_len= 16;
+    handlersocket_plain_secret= (char*)my_malloc(PSI_INSTRUMENT_MEM, secret_len+1, MYF(0));
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> pw('0', 'z');
+    for (size_t i=0; i < secret_len; i++)
+      handlersocket_plain_secret[i]= pw(gen);
+    handlersocket_plain_secret[secret_len]= 0;
+  }
+  if (!handlersocket_plain_secret_wr)
+    handlersocket_plain_secret_wr= my_strdup(PSI_INSTRUMENT_MEM, handlersocket_plain_secret, MYF(0));
+
   config conf;
   conf["use_epoll"] = handlersocket_epoll ? "1" : "0";
   if (handlersocket_address) {
@@ -79,9 +95,7 @@ daemon_handlersocket_init(void *p)
   std::unique_ptr<daemon_handlersocket_data> ap(new daemon_handlersocket_data);
   if (handlersocket_port != 0 && handlersocket_port_wr != handlersocket_port) {
     conf["port"] = handlersocket_port;
-    if (handlersocket_plain_secret) {
-      conf["plain_secret"] = handlersocket_plain_secret;
-    }
+    conf["plain_secret"] = handlersocket_plain_secret;
     ap->hssvr_rd = hstcpsvr_i::create(conf);
     ap->hssvr_rd->start_listen();
   }
@@ -91,10 +105,7 @@ daemon_handlersocket_init(void *p)
     }
     conf["port"] = handlersocket_port_wr;
     conf["for_write"] = "1";
-    conf["plain_secret"] = "";
-    if (handlersocket_plain_secret_wr) {
-      conf["plain_secret"] = handlersocket_plain_secret_wr;
-    }
+    conf["plain_secret"] = handlersocket_plain_secret_wr;
     ap->hssvr_wr = hstcpsvr_i::create(conf);
     ap->hssvr_wr->start_listen();
   }
@@ -210,10 +221,10 @@ maria_declare_plugin(handlersocket)
   PLUGIN_LICENSE_BSD,
   daemon_handlersocket_init,
   daemon_handlersocket_deinit,
-  0x0100 /* 1.0 */,
+  0x0101 /* 1.0 */,
   daemon_handlersocket_status_variables,
   daemon_handlersocket_system_variables,
-  "1.0",
+  "1.1",
   MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
