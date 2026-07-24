@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+
+# MDEV-35732: Failed ALTER TABLE causes inconsistency, changes behavior of the next statement
+
+--echo #
+--echo # Scenario A: WITH a prior failed ALTER ... RENAME INDEX
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, KEY(f1), KEY(f2)) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT, b INT, KEY ind1(a),
+                 FOREIGN KEY fk1 (b) REFERENCES t1 (f1)) ENGINE=InnoDB;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t2 RENAME INDEX fk1 TO fk, ALGORITHM=INSTANT, ORDER BY a;
+
+--error ER_DUP_KEYNAME
+ALTER TABLE t2 ADD FOREIGN KEY ind1 (b) REFERENCES t1 (f2);
+
+DROP TABLE t2, t1;
+
+--echo #
+--echo # Scenario B: WITHOUT a prior failed ALTER ... RENAME INDEX (baseline)
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, KEY(f1), KEY(f2)) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT, b INT, KEY ind1(a),
+                 FOREIGN KEY fk1 (b) REFERENCES t1 (f1)) ENGINE=InnoDB;
+
+--error ER_DUP_KEYNAME
+ALTER TABLE t2 ADD FOREIGN KEY ind1 (b) REFERENCES t1 (f2);
+
+DROP TABLE t2, t1;
