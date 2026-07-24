@@ -548,7 +548,9 @@ btr_pcur_move_to_next_page(
 	const auto s = mtr->get_savepoint();
 	mtr->rollback_to_savepoint(s - 2, s - 1);
 	if (first_access) {
-		buf_read_ahead_linear(next_block->page.id(), ibuf_inside(mtr));
+		buf_read_ahead_one(cursor->index()->table->space,
+				   btr_page_get_next(next_block->page.frame),
+				   ibuf_inside(mtr));
 	}
 	return DB_SUCCESS;
 }
@@ -573,9 +575,54 @@ btr_pcur_move_backward_from_page(
 {
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
+	ut_ad(!cursor->old_rec);
 
 	const auto latch_mode = cursor->latch_mode;
 	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
+
+	/* Fast path: Try to latch the previous page without waiting. */
+	if (buf_block_t *prev
+	    = buf_pool.page_fix(page_id_t(btr_pcur_get_block(cursor)
+					  ->page.id().space(),
+					  btr_page_get_prev(
+						  btr_pcur_get_page(cursor))),
+				nullptr, buf_pool_t::FIX_NOWAIT)) {
+		if (prev == reinterpret_cast<buf_block_t*>(-1)) {
+		} else if (latch_mode == BTR_SEARCH_LEAF
+			   ? prev->page.lock.s_lock_try()
+			   : prev->page.lock.x_lock_try()) {
+			const page_t* page = btr_pcur_get_page(cursor);
+			const page_t* p = prev->page.frame;
+			if (memcmp_aligned<4>(FIL_PAGE_NEXT + p,
+					      FIL_PAGE_OFFSET + page, 4)
+			    || memcmp_aligned<2>(FIL_PAGE_TYPE + p,
+						 FIL_PAGE_TYPE + page, 2)
+			    || memcmp_aligned<2>(PAGE_HEADER + PAGE_INDEX_ID
+						 + p,
+						 PAGE_HEADER + PAGE_INDEX_ID
+						 + page, 8)
+			    || page_is_comp(p) != page_is_comp(page)) {
+				ut_ad("corrupted" == 0);
+				mtr->memo_push(prev,
+					       mtr_memo_type_t(latch_mode));
+			} else {
+				page_cur_set_after_last(
+					prev, &cursor->btr_cur.page_cur);
+				mtr->commit();
+				mtr->start();
+				mtr->memo_push(prev,
+					       mtr_memo_type_t(latch_mode));
+				buf_read_ahead_one(
+					cursor->index()->table->space,
+					btr_page_get_prev(p),
+					ibuf_inside(mtr));
+				return false;
+			}
+		} else {
+			mtr->memo_push(prev, MTR_MEMO_BUF_FIX);
+		}
+		/* "prev" will be released by mtr_commit(mtr) below */
+	}
 
 	btr_pcur_store_position(cursor, mtr);
 
