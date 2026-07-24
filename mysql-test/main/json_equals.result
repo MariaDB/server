@@ -102,3 +102,23 @@ a	a	t1.a = t2.a	json_valid(t1.a)	json_valid(t2.a)	json_equals(t1.a, t2.a)
 "Ê"	"Ê"	1	1	1	1
 drop table t1;
 drop table t2;
+#
+# MDEV-40180 Cache constant args in JSON_EQUALS and JSON_OVERLAPS
+#
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 VALUES (NULL), ('{"a": 1}'), ('{"b": 2}'), (NULL), ('{"const": "val"}');
+SELECT a, JSON_EQUALS(a, '{"const": "val"}') FROM t1;
+a	JSON_EQUALS(a, '{"const": "val"}')
+NULL	NULL
+{"a": 1}	0
+{"b": 2}	0
+NULL	NULL
+{"const": "val"}	1
+SELECT a, JSON_OVERLAPS(a, '{"const": "val"}') FROM t1;
+a	JSON_OVERLAPS(a, '{"const": "val"}')
+NULL	NULL
+{"a": 1}	0
+{"b": 2}	0
+NULL	NULL
+{"const": "val"}	1
+DROP TABLE t1;
