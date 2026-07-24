@@ -1802,14 +1802,28 @@ int plugin_init(int *argc, char **argv, int flags)
       /* If the retry list has not changed, i.e. if all retry attempts
       result in another retry request, empty the retry list */
       if (to_re_retry == retry_end)
-        while (to_re_retry > retry_start)
+      {
+        if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
         {
-          plugin_ptr= *(--to_re_retry);
-          *(reap++)= plugin_ptr;
-          /** `plugin_do_initialize()' did not print any error in this
-          case, so we do it here. */
-          print_init_failed_error(plugin_ptr);
+          /* mysql.plugin already loaded; give up on these plugins */
+          while (to_re_retry > retry_start)
+          {
+            plugin_ptr= *(--to_re_retry);
+            *(reap++)= plugin_ptr;
+            /** `plugin_do_initialize()' did not print any error in this
+            case, so we do it here. */
+            print_init_failed_error(plugin_ptr);
+          }
         }
+        /*
+          else: mysql.plugin not yet loaded; stop retrying for now.
+          retry_end is left unchanged so these plugins are retried after
+          plugin_load() runs and loads DAEMON plugins (e.g. compression
+          providers) that the retrying plugins depend on.
+        */
+        retry_end= to_re_retry;
+        break;
+      }
       retry_end= to_re_retry;
     }
 
