@@ -64,6 +64,18 @@ sub skip_combinations {
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
+  sub ipv4_mapped_ok() {
+    use Socket;
+    return 0 unless socket my $sock, PF_INET6, SOCK_STREAM, getprotobyname('tcp');
+    $!="";
+    # eval{}, if there's no Socket::sockaddr_in6 at all, old Perl installation <5.14
+    eval { bind $sock, sockaddr_in6($::baseport, Socket::inet_pton(Socket::AF_INET6,
+                                    '::ffff:127.0.0.1')) };
+    return $@ eq "" && $! eq ""
+  }
+  $skip{'include/check_ipv4_mapped.inc'} = 'No IPv6 -> IPv4 mapped address'
+    unless ipv4_mapped_ok();
+
   # SSL is complicated
   my $ssl_lib= $::mysqld_variables{'version-ssl-library'};
   my $openssl_ver= $ssl_lib =~ /OpenSSL (\S+)/ ? $1 : "";

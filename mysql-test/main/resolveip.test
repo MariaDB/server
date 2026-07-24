@@ -1,5 +1,6 @@
 --source include/not_windows.inc
 --source include/check_ipv6.inc
+--source include/check_ipv4_mapped.inc
 
 # Reverse DNS tests (getnameinfo with NI_NAMEREQD) require:
 #   - /etc/hosts entries for 127.0.0.1 and ::1 (or working DNS PTR records)
