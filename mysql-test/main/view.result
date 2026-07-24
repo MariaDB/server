@@ -1906,8 +1906,6 @@ test.v5	check	error	Corrupt
 test.v6	check	status	OK
 drop view v1, v2, v3, v4, v5, v6;
 drop table t2;
-drop function if exists f1;
-drop function if exists f2;
 CREATE TABLE t1 (col1 time);
 CREATE TABLE t2 (col1 time);
 CREATE TABLE t3 (col1 time);
@@ -2144,8 +2142,6 @@ CREATE VIEW v1 AS SELECT f1();
 ERROR HY000: View's SELECT refers to a temporary table 't1'
 DROP FUNCTION f1;
 DROP TABLE t1;
-DROP TABLE IF EXISTS t1;
-DROP VIEW  IF EXISTS v1;
 CREATE TABLE t1 (f4 CHAR(5));
 CREATE VIEW v1 AS SELECT * FROM t1;
 DESCRIBE v1;
@@ -2431,7 +2427,6 @@ f1	sum(f2)
 NULL	12
 drop view v1;
 drop table t1;
-drop procedure if exists p1;
 create procedure p1 () deterministic
 begin
 create view v1 as select 1;
@@ -2444,7 +2439,6 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 drop view v1;
 drop procedure p1;
 CREATE VIEW v1 AS SELECT 42 AS Meaning;
-DROP FUNCTION IF EXISTS f1;
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
 DECLARE retn INTEGER;
@@ -2866,7 +2860,6 @@ SHOW TABLES;
 Tables_in_test
 t1
 DROP TABLE t1;
-DROP VIEW IF EXISTS v1;
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 CREATE DATABASE bug21261DB;
@@ -2910,9 +2903,6 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`f1` AS `f1` from `t1` where `t1`.`f1` between current_timestamp() and current_timestamp() + interval 1 minute	latin1	latin1_swedish_ci
 drop view v1;
 drop table t1;
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
-DROP VIEW IF EXISTS v2;
 CREATE TABLE t1(a INT, b INT);
 CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
 VIEW v1 AS SELECT a FROM t1;
@@ -2921,10 +2911,6 @@ CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890
 VIEW v2 AS SELECT b FROM t1;
 ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYa...' is too long for host name (should be no longer than 255)
 DROP TABLE t1;
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP VIEW IF EXISTS v1, v2;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE FUNCTION f1() RETURNS INT
@@ -2987,9 +2973,6 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`pk` AS `pk` from (`t1` join `t2` on(`t2`.`fk` = `t1`.`pk` and `t2`.`ver` = (select max(`t`.`ver`) from `t2` `t` where `t`.`org` = `t2`.`org`)))	latin1	latin1_swedish_ci
 DROP VIEW v1;
 DROP TABLE t1, t2;
-DROP FUNCTION IF EXISTS f1;
-DROP VIEW IF EXISTS v1;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1);
 CREATE VIEW v1 AS SELECT MAX(i) FROM t1;
@@ -3011,8 +2994,6 @@ UPDATE v1 SET val=6 WHERE id=2;
 ERROR 44000: CHECK OPTION failed `test`.`v1`
 DROP VIEW v1;
 DROP TABLE t1;
-DROP VIEW IF EXISTS v1, v2;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY, j INT);
 CREATE VIEW v1 AS SELECT j FROM t1;
 CREATE VIEW v2 AS SELECT * FROM t1;
@@ -3056,7 +3037,6 @@ SELECT * FROM v;
 x
 5
 DROP VIEW v;
-DROP VIEW IF EXISTS v1;
 CREATE VIEW v1 AS SELECT 'The\ZEnd';
 SELECT * FROM v1;
 TheEnd
@@ -3167,7 +3147,6 @@ code	COUNT(DISTINCT country)
 100	2
 DROP VIEW v1;
 DROP TABLE t1;
-DROP VIEW IF EXISTS v1;
 SELECT * FROM (SELECT 1) AS t into @w;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
@@ -3177,9 +3156,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT * FROM (SELECT 1) AS t into @w;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-drop view if exists view_24532_a;
-drop view if exists view_24532_b;
-drop table if exists table_24532;
 create table table_24532 (
 a int,
 b bigint,
@@ -3643,38 +3619,24 @@ DROP TABLE t1;
 # -----------------------------------------------------------------
 # -- Bug#34337 Server crash when Altering a view using a table name.
 # -----------------------------------------------------------------
-
-DROP TABLE IF EXISTS t1;
-
 CREATE TABLE t1(c1 INT);
-
 SELECT * FROM t1;
 c1
 ALTER ALGORITHM=TEMPTABLE SQL SECURITY INVOKER VIEW t1 (c2) AS SELECT (1);
 ERROR HY000: 'test.t1' is not of type 'VIEW'
-
 DROP TABLE t1;
-
-# -- End of test case for Bug#34337.
-
 # -----------------------------------------------------------------
 # -- Bug#35193 VIEW query is rewritten without "FROM DUAL",
 # --           causing syntax error
 # -----------------------------------------------------------------
-
 CREATE VIEW v1 AS SELECT 1 FROM DUAL WHERE 1;
-
 SELECT * FROM v1;
 1
 1
 SHOW CREATE TABLE v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1` from DUAL  where 1	latin1	latin1_swedish_ci
-
 DROP VIEW v1;
-
-# -- End of test case for Bug#35193.
-
 CREATE VIEW v1 AS SELECT 1;
 DROP VIEW v1;
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT, INDEX (c2));
@@ -3835,7 +3797,6 @@ DROP TABLE t1;
 # -----------------------------------------------------------------
 # -- End of 5.0 tests.
 # -----------------------------------------------------------------
-DROP DATABASE IF EXISTS `d-1`;
 CREATE DATABASE `d-1`;
 USE `d-1`;
 CREATE TABLE `t-1` (c1 INT);
@@ -3854,93 +3815,61 @@ DROP TABLE `t-2`;
 DROP VIEW  `v-2`;
 DROP DATABASE `d-1`;
 USE test;
-
 #
 # Bug#26676 VIEW using old table schema in a session.
 #
-
-DROP VIEW IF EXISTS v1;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(c1 INT, c2 INT);
 INSERT INTO t1 VALUES (1, 2), (3, 4);
-
 SELECT * FROM t1;
 c1	c2
 1	2
 3	4
-
 CREATE VIEW v1 AS SELECT * FROM t1;
-
 SELECT * FROM v1;
 c1	c2
 1	2
 3	4
-
 ALTER TABLE t1 ADD COLUMN c3 INT AFTER c2;
-
 SELECT * FROM t1;
 c1	c2	c3
 1	2	NULL
 3	4	NULL
-
 SELECT * FROM v1;
 c1	c2
 1	2
 3	4
-
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`c1` AS `c1`,`t1`.`c2` AS `c2` from `t1`	latin1	latin1_swedish_ci
-
 DROP VIEW v1;
 DROP TABLE t1;
-
-# End of test case for Bug#26676.
-
 # -----------------------------------------------------------------
 # -- Bug#32538 View definition picks up character set, but not collation
 # -----------------------------------------------------------------
-
-DROP VIEW IF EXISTS v1;
-
 SET collation_connection = latin1_general_ci;
 CREATE VIEW v1 AS SELECT _latin1 'text1' AS c1, 'text2' AS c2;
-
 SELECT COLLATION(c1), COLLATION(c2) FROM v1;
 COLLATION(c1)	COLLATION(c2)
 latin1_swedish_ci	latin1_general_ci
-
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select _latin1'text1' AS `c1`,'text2' AS `c2`	latin1	latin1_general_ci
-
 SELECT * FROM v1 WHERE c1 = 'text1';
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_general_ci,COERCIBLE) for operation '='
-
 SELECT * FROM v1 WHERE c2 = 'text2';
 c1	c2
 text1	text2
-
 use test;
 SET names latin1;
-
 SELECT COLLATION(c1), COLLATION(c2) FROM v1;
 COLLATION(c1)	COLLATION(c2)
 latin1_swedish_ci	latin1_general_ci
-
 SELECT * FROM v1 WHERE c1 = 'text1';
 c1	c2
 text1	text2
-
 SELECT * FROM v1 WHERE c2 = 'text2';
 ERROR HY000: Illegal mix of collations (latin1_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
-
 DROP VIEW v1;
-
-# -- End of test case for Bug#32538.
-
-drop view if exists a;
-drop procedure if exists p;
 create procedure p()
 begin
 declare continue handler for sqlexception begin end;
@@ -3963,9 +3892,6 @@ DROP TABLE t1;
 # Bug#48449: hang on show create view after upgrading when
 #            view contains function of view
 #
-DROP VIEW IF EXISTS v1,v2;
-DROP TABLE IF EXISTS t1,t2;
-DROP FUNCTION IF EXISTS f1;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 CREATE FUNCTION f1() RETURNS INT
@@ -4713,8 +4639,6 @@ c	a	b	c
 0	93	1	0
 DROP VIEW v4;
 DROP TABLE t1,t2,t3,t4;
-drop table if exists t_9801;
-drop view if exists v_9801;
 create table t_9801 (s1 int);
 create view v_9801 as
 select sum(s1) from t_9801 with check option;
@@ -4729,8 +4653,6 @@ drop table t_9801;
 #
 # Bug #47335 assert in get_table_share
 #
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
 CREATE TEMPORARY TABLE t1 (id INT);
 ALTER VIEW t1 AS SELECT 1 AS f1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -4747,8 +4669,6 @@ DROP VIEW v1;
 # Bug #47635 assert in start_waiting_global_read_lock 
 #            during CREATE VIEW
 #
-DROP TABLE IF EXISTS t1, t2;
-DROP VIEW IF EXISTS t2;
 CREATE TABLE t1 (f1 integer);
 CREATE TEMPORARY TABLE IF NOT EXISTS t1 (f1 integer);
 CREATE TEMPORARY TABLE t2 (f1 integer);
@@ -4762,8 +4682,6 @@ DROP TABLE t1, t2;
 # Bug#48315 Metadata lock is not taken for merged views that
 #           use an INFORMATION_SCHEMA table
 #
-DROP VIEW IF EXISTS v1;
-DROP PROCEDURE IF EXISTS p1;
 connect  con2, localhost, root;
 connect  con3, localhost, root;
 connection default;
@@ -4806,7 +4724,6 @@ disconnect con3;
 # Bug#12626844: WRONG ERROR MESSAGE WHILE CREATING A VIEW ON A
 #               NON EXISTING DATABASE
 #
-DROP DATABASE IF EXISTS nodb;
 CREATE VIEW nodb.a AS SELECT 1;
 ERROR 42000: Unknown database 'nodb'
 #
@@ -6931,9 +6848,7 @@ SELECT * FROM v1;
 b''
 
 DROP VIEW v1;
-#
 # End of 10.3 tests
-#
 #
 # MDEV-25206: view specification contains unknown column reference
 #
