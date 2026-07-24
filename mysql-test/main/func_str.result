@@ -5449,8 +5449,8 @@ count(*)
 select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
 count(*)
 1024
-select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
-random_bytes(`0`)	1
+select random_bytes(`column_0`),`column_1` from (values (0,1),(null,2),(0,3)) t1;
+random_bytes(`column_0`)	column_1
 	1
 NULL	2
 	3
@@ -5765,8 +5765,8 @@ set @@block_encryption_mode=default;
 #
 # MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
 #
-select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
-aes_encrypt(a,a) is null
+select aes_encrypt(column_0,column_0) is null from (values('a'),(NULL),('b')) x;
+aes_encrypt(column_0,column_0) is null
 0
 1
 0

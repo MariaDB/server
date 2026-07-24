@@ -151,8 +151,8 @@ Warning	4036	Character disallowed in JSON in argument 1 to function 'VEC_FromTex
 #
 # MDEV-35220 Assertion `!item->null_value' failed upon VEC_TOTEXT call
 #
-select vec_totext(`null`) from (values (null),(0x00000000)) x;
-vec_totext(`null`)
+select vec_totext(`column_0`) from (values (null),(0x00000000)) x;
+vec_totext(`column_0`)
 NULL
 [0]
 #

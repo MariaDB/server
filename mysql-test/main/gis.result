@@ -5652,7 +5652,7 @@ v5	a	101
 v6	a	101
 v7	a	101
 v8	a	101
-v9	(select max(`test`.`t1`.`a`) from `test`.`t1`)	101
+v9	column_0	101
 DROP TABLE t2,t3,t4,t5,t6,t7,t8,t9;
 DROP VIEW v2,v3,v4,v5,v6,v7,v8,v9;
 DROP TABLE t1;

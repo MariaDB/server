@@ -2479,7 +2479,7 @@ select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq
 
 select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
 
-select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
+select random_bytes(`column_0`),`column_1` from (values (0,1),(null,2),(0,3)) t1;
 
 --echo #
 --echo # Test NULL output for NULL input
@@ -2678,7 +2678,7 @@ set @@block_encryption_mode=default;
 --echo #
 --echo # MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
 --echo #
-select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+select aes_encrypt(column_0,column_0) is null from (values('a'),(NULL),('b')) x;
 
 --echo #
 --echo # MDEV-33659: Server crashed at Create_func_aes_decrypt::create_native

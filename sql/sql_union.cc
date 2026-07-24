@@ -1407,6 +1407,34 @@ inline bool st_select_lex_unit::rename_types_list(List<Lex_ident_sys> *newnames)
 }
 
 
+static bool sequential_rename_item_list(THD *thd, List<Item> *list)
+{
+  constexpr char TVC_COLUMN_NAME[]= "column_";
+  constexpr uint TVC_MAX_COL_NO= 10000;           // 0...9999
+  constexpr uint TVC_MAX_COL_DIGITS= 4;
+
+  if (list->elements > TVC_MAX_COL_NO)
+  {
+    my_error(ER_TOO_MANY_FIELDS, MYF(0));
+    return TRUE;
+  }
+
+  // rename these items column_[0..n-1]
+  List_iterator_fast<Item> li(*list);
+  Item *item;
+  char colname[sizeof(TVC_COLUMN_NAME)+TVC_MAX_COL_DIGITS];
+  strcpy( colname, TVC_COLUMN_NAME);
+
+  for (uint i= 0; (item= li++); i++)
+  {
+    snprintf(colname+sizeof(TVC_COLUMN_NAME)-1, TVC_MAX_COL_DIGITS+1,
+             "%u", i );
+    item->set_name(thd, colname, strlen(colname), system_charset_info);
+  }
+  return FALSE;
+}
+
+
 bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
                                  select_result *sel_result,
                                  ulonglong additional_options)
@@ -1708,10 +1736,20 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
       if (with_element)
       {
-        if (with_element->process_columns_of_derived_unit(thd, this))
-          goto err;
-        if (check_duplicate_names(thd, sl->item_list, 0))
-          goto err;
+        if (sl->tvc && !with_element->column_list.elements)
+        {
+          if (sequential_rename_item_list(thd, &sl->item_list))
+            goto err;
+          if (with_element->process_columns_of_derived_unit(thd, this))
+            goto err;
+        }
+        else
+        {
+          if (with_element->process_columns_of_derived_unit(thd, this))
+            goto err;
+          if (check_duplicate_names(thd, sl->item_list, 0))
+            goto err;
+        }
       }
     }
     else
@@ -1790,9 +1828,22 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     We need to rename tvc BEFORE Item_holder pushed into result table
     below in join_union_item_types().
   */
-  if (first_select()->tvc && derived_arg && derived_arg->column_names)
-    if (rename_item_list(derived_arg))
-      goto err;
+  if (first_select()->tvc && derived_arg)
+  {
+    if (derived_arg->column_names)
+    {
+      if (rename_item_list(derived_arg))
+        goto err;
+    }
+    else
+    {
+      if (!with_element)
+      {
+        if (sequential_rename_item_list(thd, &first_select()->item_list))
+          goto err;
+      }
+    }
+  }
 
   // In case of a non-recursive UNION, join data types for all UNION parts.
   if (!is_recursive && join_union_item_types(thd, types, union_part_count))

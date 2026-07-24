@@ -70,7 +70,7 @@ select vec_fromtext(0x00000000);
 --echo #
 --echo # MDEV-35220 Assertion `!item->null_value' failed upon VEC_TOTEXT call
 --echo #
-select vec_totext(`null`) from (values (null),(0x00000000)) x;
+select vec_totext(`column_0`) from (values (null),(0x00000000)) x;
 
 --echo #
 --echo # MDEV-36011 Server crashes in Charset::mbminlen / Item_func_vec_fromtext::val_str upon mixing vector type with string

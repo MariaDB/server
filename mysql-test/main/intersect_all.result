@@ -1122,25 +1122,25 @@ drop view v;
 # First line of these results is column names, not the result
 # (pay attention to "affected rows")
 values (1, 2) union all values (1, 2);
-1	2
+column_0	column_1
 1	2
 1	2
 affected rows: 2
 values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3);
-1	2
+column_0	column_1
 1	2
 4	3
 4	3
 affected rows: 3
 values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2);
-1	2
+column_0	column_1
 1	2
 4	3
 4	3
 1	2
 affected rows: 4
 values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2) union values (1, 2);
-1	2
+column_0	column_1
 1	2
 4	3
 affected rows: 2
@@ -1178,7 +1178,7 @@ a	b
 create view v2 as select * from t1 union values (1, 2) intersect all select * from t2;
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` union select `__5`.`1` AS `1`,`__5`.`2` AS `2` from (values (1,2) intersect all select `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2`) `__5`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` union select `__5`.`column_0` AS `column_0`,`__5`.`column_1` AS `column_1` from (values (1,2) intersect all select `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2`) `__5`	latin1	latin1_swedish_ci
 select * from v2;
 a	b
 1	2
@@ -1240,7 +1240,7 @@ a	b
 2	3
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE VIEW "v2" AS select "__7"."a" AS "a","__7"."b" AS "b" from (select "t1"."a" AS "a","t1"."b" AS "b" from "t1" union select "__5"."1" AS "1","__5"."2" AS "2" from (select "__6"."1" AS "1","__6"."2" AS "2" from (values (1,2) intersect all select "t2"."a" AS "a","t2"."b" AS "b" from "t2") "__6") "__5") "__7"	latin1	latin1_swedish_ci
+v2	CREATE VIEW "v2" AS select "__7"."a" AS "a","__7"."b" AS "b" from (select "t1"."a" AS "a","t1"."b" AS "b" from "t1" union select "__5"."column_0" AS "column_0","__5"."column_1" AS "column_1" from (select "__6"."column_0" AS "column_0","__6"."column_1" AS "column_1" from (values (1,2) intersect all select "t2"."a" AS "a","t2"."b" AS "b" from "t2") "__6") "__5") "__7"	latin1	latin1_swedish_ci
 select * from v2;
 a	b
 1	2
