@@ -3808,7 +3808,7 @@ static int innodb_init_params()
   }
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm, ME_ERROR_LOG))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
 
   if ((srv_encrypt_tables || srv_encrypt_log ||
        innodb_encrypt_temporary_tables) &&
