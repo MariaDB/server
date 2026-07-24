@@ -481,4 +481,45 @@ load index into cache test.t2 key (i2);
 drop table t1;
 drop user foo@localhost;
 
+--echo #
+--echo # MDEV-23086 Error codes/messages reveal information about table structure
+--echo #
+
+create database db;
+create table db.t1 (a int, b int, c int);
+create user foo@localhost;
+grant select (a,b) on db.t1 to foo@localhost;
+alter table db.t1 drop column b;
+
+create table db.t2 (x int, y int);
+grant select on db.t2 to foo@localhost;
+
+create table t1 (k int, l int, m int);
+grant select on test.t1 to foo@localhost;
+
+connect con1,localhost,foo,,db;
+
+disable_abort_on_error;
+select a from t1;               # can access, column exist
+select b from t1;               # can access, column doesn't exist
+select c from t1;               # no access, column exists
+select d from t1;               # no access, column doesn't exists
+select a from t0;               # no access, table doesn't exists
+use db2;                        # no access, db doesn't exists
+select a from t2;               # table level grant, column doesn't exists
+select c from t2, t1;           # mix tbl/col grant, no access, column exist
+select c from t1, t2;           # mix tbl/col grant, no access, column exist
+select d from t2, t1;           # mix tbl/col grant, no access, column doesn't exists
+select d from t1, t2;           # mix tbl/col grant, no access, column doesn't exist
+select t2.c from t2,t1;         # mix tbl/col grant, explicit tbl, column doesn't exist
+select * from test.t1;          # this should work
+select test.t1.c from t1,test.t1; # mix, explicit db name, column doesn't exist
+enable_abort_on_error;
+
+connection default;
+disconnect con1;
+drop user foo@localhost;
+drop database db;
+drop table t1;
+
 --echo # End of 10.11 tests

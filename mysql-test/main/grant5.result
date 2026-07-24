@@ -516,4 +516,50 @@ disconnect foo;
 connection default;
 drop table t1;
 drop user foo@localhost;
+#
+# MDEV-23086 Error codes/messages reveal information about table structure
+#
+create database db;
+create table db.t1 (a int, b int, c int);
+create user foo@localhost;
+grant select (a,b) on db.t1 to foo@localhost;
+alter table db.t1 drop column b;
+create table db.t2 (x int, y int);
+grant select on db.t2 to foo@localhost;
+create table t1 (k int, l int, m int);
+grant select on test.t1 to foo@localhost;
+connect con1,localhost,foo,,db;
+select a from t1;
+a
+select b from t1;
+ERROR 42S22: Unknown column 'b' in 'SELECT'
+select c from t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'c' in table 't1'
+select d from t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'd' in table 't1'
+select a from t0;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db`.`t0`
+use db2;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'db2'
+select a from t2;
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+select c from t2, t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'c' in table 't1'
+select c from t1, t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'c' in table 't1'
+select d from t2, t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'd' in table 't1'
+select d from t1, t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'd' in table 't1'
+select t2.c from t2,t1;
+ERROR 42S22: Unknown column 't2.c' in 'SELECT'
+select * from test.t1;
+k	l	m
+select test.t1.c from t1,test.t1;
+ERROR 42S22: Unknown column 'test.t1.c' in 'SELECT'
+connection default;
+disconnect con1;
+drop user foo@localhost;
+drop database db;
+drop table t1;
 # End of 10.11 tests
