@@ -37,7 +37,13 @@
 #include <cstdlib>
 #include "debug_sync.h"
 #include "my_rnd.h"
+#if (defined(__GNUC__) && (__GNUC__ < 8) && !defined __clang__)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
 #include <filesystem>
+namespace fs = std::filesystem;
+#endif
 
 #include <my_service_manager.h>
 
@@ -645,9 +651,9 @@ static bool sst_report_progress(const bool      joiner,
     const char *path = (wsrep_sst_tmp_dir_real && strlen(wsrep_sst_tmp_dir_real) != 0) ?
       wsrep_sst_tmp_dir_real : mysql_real_data_home_ptr;
 
-    const std::filesystem::path p(path);
+    const fs::path p(path);
     std::error_code ec;
-    std::filesystem::space_info si = std::filesystem::space(p, ec);
+    fs::space_info si = fs::space(p, ec);
     constexpr std::uintmax_t failed(-1);
     if (si.available == failed)
       si.available= 0;
