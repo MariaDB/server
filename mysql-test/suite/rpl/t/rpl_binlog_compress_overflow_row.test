@@ -81,6 +81,7 @@ RESET SLAVE ALL;
 --connection master
 let $master_gtid= `SELECT @@gtid_binlog_pos`;
 --connection slave
+--replace_result $master_gtid MASTER_GTID
 --eval SET GLOBAL gtid_slave_pos='$master_gtid'
 --source include/start_slave.inc
 
