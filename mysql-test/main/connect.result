@@ -466,8 +466,8 @@ Variable_name	Value
 Threads_connected	1
 set @max_con.save= @@max_connections;
 set global max_connections= 10;
-# ERROR 1040
-# ERROR 1040
+# ERROR
+# ERROR
 show global status like 'Connection_errors%';
 Variable_name	Value
 Connection_errors_accept	0
