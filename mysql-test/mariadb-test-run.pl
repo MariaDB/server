@@ -245,6 +245,7 @@ my $opt_tail_lines= 20;
 my $opt_head_log;
 my $opt_tail_log;
 our $opt_strip_hints= 0;
+my $opt_strip_limits= 0;
 my $opt_head_warnings;
 my $opt_tail_warnings;
 
@@ -1499,6 +1500,7 @@ sub command_line_setup {
 	     'head-log=i'               => \$opt_head_log,
 	     'tail-log=i'               => \$opt_tail_log,
 	     'strip-hints'              => \$opt_strip_hints,
+	     'strip-limits'             => \$opt_strip_limits,
 	     'head-warnings=i'          => \$opt_head_warnings,
 	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
@@ -4740,6 +4742,27 @@ sub strip_crash_hints
   return @out;
 }
 
+# When --strip-limits is given, drop the "Resource Limits" table the server writes
+# to its error log on a crash. Unlike a hint paragraph it has no trailing
+# blank line: the block is the opener, the "Limit ... Soft Limit ..." header
+# and the "Max ..." rows, ending at the first line that is neither.
+sub strip_resource_limits
+{
+  my (@out, $skip);
+  for my $line (@_) {
+    if ($skip) {
+      next if $line =~ /^(?:Limit\s|Max )/;
+      $skip= 0;
+    }
+    if ($line =~ /^Resource Limits/) {
+      $skip= 1;
+      next;
+    }
+    push @out, $line;
+  }
+  return @out;
+}
+
 sub get_log_from_proc ($$) {
   my ($proc, $name)= @_;
   my $srv_log= "";
@@ -4750,6 +4773,7 @@ sub get_log_from_proc ($$) {
     if ($mysqld->{proc} eq $proc) {
       my @lines= extract_server_log($mysqld->if_exist('log-error'), $name);
       @lines= strip_crash_hints(@lines) if $opt_strip_hints;
+      @lines= strip_resource_limits(@lines) if $opt_strip_limits;
       my @srv_lines= splice_lines(\@lines, $opt_head_log, $opt_tail_log);
       $srv_log= "\nServer log from this test:\n" .
 	"----------SERVER LOG START-----------\n". join ("", @srv_lines) .
@@ -6482,6 +6506,7 @@ Misc options
   strip-hints           Omit the explanatory bug-reporting and backtrace
                         "hint" paragraphs from a crash report, keeping only
                         the actual server log and backtrace.
+  strip-limits          Omit the "Resource Limits" table from a crash report.
   head-warnings=N       Keep the first N suspicious lines of the shutdown-
                         warnings report (0 none, negative all).  With neither
                         head-warnings nor tail-warnings given the whole report
