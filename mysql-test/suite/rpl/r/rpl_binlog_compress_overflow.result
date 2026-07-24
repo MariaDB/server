@@ -27,6 +27,7 @@ Note	1255	Slave already has been stopped
 RESET SLAVE ALL;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+RESET MASTER;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_PASSWORD='', MASTER_USE_GTID=SLAVE_POS;
 connection master;
 connection slave;

@@ -72,6 +72,7 @@ INSERT INTO t1 VALUES ('test');
 --connection slave
 STOP SLAVE;
 RESET SLAVE ALL;
+RESET MASTER;
 
 # Reconnect to real master and reset GTID position so rpl_end can sync
 --replace_result $MASTER_MYPORT MASTER_PORT
