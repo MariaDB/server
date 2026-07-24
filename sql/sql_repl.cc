@@ -3931,7 +3931,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
       slave_errno= ER_BAD_SLAVE_UNTIL_COND;
       goto err;
     }
-    if (mi->using_gtid[0] == Master_info::USE_GTID_NO)
+    if (!mi->is_gtid_supported())
     {
       slave_errno= ER_UNTIL_REQUIRES_USING_GTID;
       goto err;
@@ -4514,7 +4514,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   saved_port= mi->port;
   strmake_buf(saved_log_name, mi->master_log_name);
   saved_log_pos= mi->master_log_pos;
-  saved_using_gtid= mi->using_gtid[0];
+  saved_using_gtid= mi->using_gtid();
 
   /*
     If the user specified host or port without binlog or position,
@@ -4676,12 +4676,12 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else if (lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (mi->using_gtid[0] != Master_info::USE_GTID_NO)
+    if (mi->is_gtid_supported())
     {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
           ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
-          mi->using_gtid_astext(mi->using_gtid[0]),
+          mi->using_gtid_astext(mi->using_gtid()),
           mi->using_gtid_astext(Master_info::USE_GTID_NO));
       /*
         As the user has not told us to use_gtid, but is using log
@@ -4697,7 +4697,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     Warn about ignored options if there are GTID/log coordinate option
     conflicts
   */
-  if (mi->using_gtid[0] != Master_info::USE_GTID_NO)
+  if (mi->is_gtid_supported())
   {
     if (lex_mi->log_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -4725,11 +4725,11 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                 LEX_MASTER_INFO::LEX_MI_ENABLE) ?
                &lex_mi->repl_ignore_domain_ids : NULL);
   /*
-    Note: mi->using_gtid stores the previous state in case no MASTER_USE_GTID
-    is specified.
+    Note: mi->master_use_gtid stores the previous state in case no
+    MASTER_USE_GTID is specified.
   */
   if (mi->domain_id_filter.update_ids(do_ids, ignore_ids,
-                                      mi->master_use_gtid.supported()))
+                                      mi->is_gtid_supported()))
   {
     my_error(ER_MASTER_INFO, MYF(0),
              (int) lex_mi->connection_name.length,
@@ -4775,7 +4775,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   {
     String new_gtid_state;
 
-    if (mi->using_gtid[0] != Master_info::USE_GTID_SLAVE_POS)
+    if (mi->using_gtid() != Master_info::USE_GTID_SLAVE_POS)
     {
       my_error(ER_CM_OPTION_MISSING_REQUIREMENT, MYF(0),
                "MASTER_DEMOTE_TO_SLAVE", "TRUE", "Using_Gtid=Slave_Pos");
@@ -4870,11 +4870,10 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     "master_log_pos='%ld'.", saved_host, saved_port, saved_log_name,
     (ulong) saved_log_pos, mi->host, mi->port, mi->master_log_name,
     (ulong) mi->master_log_pos);
-  if (saved_using_gtid != Master_info::USE_GTID_NO ||
-      mi->using_gtid[0] != Master_info::USE_GTID_NO)
+  if (saved_using_gtid != Master_info::USE_GTID_NO || mi->is_gtid_supported())
     sql_print_information("Previous Using_Gtid=%s. New Using_Gtid=%s",
                           mi->using_gtid_astext(saved_using_gtid),
-                          mi->using_gtid_astext(mi->using_gtid[0]));
+                          mi->using_gtid_astext(mi->using_gtid()));
 
   /*
     If we don't write new coordinates to disk now, then old will remain in

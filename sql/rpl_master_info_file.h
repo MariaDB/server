@@ -241,7 +241,7 @@ struct Master_info_file: Info_file
     The intial value is set according the default.
     On connection to master, the state is set to NO if the master
     does not support GTID
-    The current state is stored in Master_use_gtid_value::current_mode
+    The current state is stored in Master_use_gtid_value::active_mode
   */
   struct Master_use_gtid_value: Value
   {
@@ -251,8 +251,6 @@ struct Master_info_file: Info_file
     {
       return (enum_master_use_gtid) ::master_use_gtid;
     }
-    bool supported()
-    { return active_mode != enum_master_use_gtid::NO; }
     void set_user_value(enum_master_use_gtid new_mode)
     {
       /*
@@ -408,6 +406,20 @@ struct Master_info_file: Info_file
 
   bool load_from_file() override;
   void save_to_file() override;
+
+  /*
+    Accessors for the gtid mode in effect for the connection to the
+    master (Master_use_gtid_value::active_mode), inline so that checks
+    go directly to the value:
+    * using_gtid() returns the mode itself, for code that must
+      distinguish CURRENT_POS from SLAVE_POS.
+    * is_gtid_supported() is TRUE when gtid is used for the connection,
+      i.e. the mode is not NO.
+  */
+  enum_master_use_gtid using_gtid() const
+  { return master_use_gtid.active_mode; }
+  bool is_gtid_supported() const
+  { return master_use_gtid.active_mode != enum_master_use_gtid::NO; }
 };
 
 #endif // include guard

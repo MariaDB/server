@@ -1457,8 +1457,7 @@ handle_rpl_parallel_thread(void *arg)
 
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
 
-        if (opt_gtid_ignore_duplicates &&
-            rgi->rli->mi->using_gtid[0] != Master_info::USE_GTID_NO)
+        if (opt_gtid_ignore_duplicates && rgi->rli->mi->is_gtid_supported())
         {
           int res=
             rpl_global_gtid_slave_state->check_duplicate_gtid(&rgi->current_gtid,
@@ -3385,7 +3384,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     rpl_gtid gtid;
     gtid_ev= static_cast<Gtid_log_event *>(ev);
-    uint32 domain_id= (rli->mi->using_gtid[0] == Master_info::USE_GTID_NO ||
+    uint32 domain_id= (!rli->mi->is_gtid_supported() ||
                        rli->mi->parallel_mode <= SLAVE_PARALLEL_MINIMAL ?
                        0 : gtid_ev->domain_id);
     if (!(e= find(domain_id, rli)))

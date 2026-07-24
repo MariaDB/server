@@ -261,12 +261,6 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
   */
   ulong prev_master_id;
   /*
-    The state of what gtid mode is supported. A pointer to the
-    master_use_gtid variable for easier usage.
-  */
-  enum_master_use_gtid *using_gtid= &master_use_gtid.active_mode;
-
-  /*
     This GTID position records how far we have fetched into the relay logs.
     This is used to continue fetching when the IO thread reconnects to the
     master.

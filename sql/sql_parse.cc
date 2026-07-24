@@ -4288,7 +4288,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           GTID position from the mysql.gtid_slave_pos table. But we
           can allow non-GTID replication (useful eg. during upgrade).
         */
-        if (mi->using_gtid[0] != Master_info::USE_GTID_NO)
+        if (mi->is_gtid_supported())
         {
           mi->release();
           break;
