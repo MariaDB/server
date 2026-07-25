@@ -1,0 +1,88 @@
+--echo #
+--echo # INSERT ... ON DUPLICATE KEY UPDATE on a HEAP table with blobs.
+--echo #
+--echo # The duplicate branch reads the conflicting row into record[1] (blob
+--echo # pointers are zero-copy pointers into HP_BLOCK), copies it into
+--echo # record[0] with restore_record(table, record[1]), applies the update
+--echo # fields and calls ha_update_row().  On a system-versioned table it then
+--echo # calls vers_insert_history_row(), which does the same restore_record()
+--echo # and writes the history row -- with a blob source still pointing at the
+--echo # chain the update just parked for deferred free.
+--echo #
+
+--echo #
+--echo # Versioned: history row must keep the pre-update blob
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',60));
+
+INSERT INTO t VALUES (1, 'ignored'), (2, 'ignored')
+  ON DUPLICATE KEY UPDATE f = CONCAT('new', pk);
+
+SELECT pk, f, LENGTH(f) FROM t ORDER BY pk;
+SELECT pk, LENGTH(f),
+       f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',60) AS hist_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+DROP TABLE t;
+
+--echo #
+--echo # Versioned, blob column NOT in the update list: the history row carries
+--echo # the blob forward unchanged
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, c INT, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, 10, REPEAT('abcdefgh',40)),
+                     (2, 20, REPEAT('12345678',200));
+
+INSERT INTO t (pk, c, f) VALUES (1, 0, 'ignored'), (2, 0, 'ignored')
+  ON DUPLICATE KEY UPDATE c = c + 1;
+
+SELECT pk, c, LENGTH(f),
+       f = REPEAT('abcdefgh',40) OR f = REPEAT('12345678',200) AS cur_ok
+  FROM t ORDER BY pk;
+SELECT pk, c, LENGTH(f),
+       f = REPEAT('abcdefgh',40) OR f = REPEAT('12345678',200) AS hist_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE c IN (10, 20) ORDER BY pk;
+DROP TABLE t;
+
+--echo #
+--echo # Versioned, multiple blob columns, mixed growth and shrink
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, b1 TEXT, b2 MEDIUMTEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',50), REPEAT('ABCDEFGH',150)),
+                     (2, REPEAT('12345678',25), REPEAT('!@#$%^&*',400));
+
+INSERT INTO t VALUES (1, 'ignored', 'ignored'), (2, 'ignored', 'ignored')
+  ON DUPLICATE KEY UPDATE b1 = REPEAT('z', 900), b2 = 'y';
+
+SELECT pk,
+       b1 = CASE pk WHEN 1 THEN REPEAT('abcdefgh',50)
+                    ELSE REPEAT('12345678',25) END AS b1_ok,
+       b2 = CASE pk WHEN 1 THEN REPEAT('ABCDEFGH',150)
+                    ELSE REPEAT('!@#$%^&*',400) END AS b2_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE b2 <> 'y' ORDER BY pk;
+DROP TABLE t;
+
+--echo #
+--echo # Non-versioned control: the same statement shape must leave the stored
+--echo # rows intact
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, c INT, f TEXT)
+  ENGINE=HEAP CHARACTER SET latin1;
+INSERT INTO t VALUES (1, 10, REPEAT('abcdefgh',40)),
+                     (2, 20, REPEAT('12345678',200));
+
+INSERT INTO t (pk, c, f) VALUES (1, 0, 'ignored'), (2, 0, 'ignored')
+  ON DUPLICATE KEY UPDATE c = c + 1;
+
+SELECT pk, c, LENGTH(f),
+       f = REPEAT('abcdefgh',40) OR f = REPEAT('12345678',200) AS f_ok
+  FROM t ORDER BY pk;
+
+INSERT INTO t (pk, c, f) VALUES (1, 0, 'ignored'), (2, 0, 'ignored')
+  ON DUPLICATE KEY UPDATE f = CONCAT('new', pk);
+
+SELECT pk, c, f FROM t ORDER BY pk;
+DROP TABLE t;

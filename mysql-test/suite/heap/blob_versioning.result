@@ -1,0 +1,209 @@
+#
+# UPDATE on a system-versioned HEAP table with blobs must preserve the
+# historical row's blob data.
+#
+# vers_insert_history_row() does restore_record(table, record[1]), which
+# copies record[1] verbatim into record[0] -- including the blob data
+# pointer.  For HEAP that pointer is a zero-copy pointer straight into
+# HP_BLOCK.  The following ha_write_row() flushes the deferred free of
+# the old chain and then allocates the history row's chain from the very
+# records the source pointer still refers to, so source and destination
+# of the blob copy overlap.
+#
+#
+# Reported repro: uniform payload
+#
+CREATE TABLE t (f TEXT) ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (REPEAT('x',64));
+UPDATE t SET f = 'foo';
+SELECT f, LENGTH(f) FROM t;
+f	LENGTH(f)
+foo	3
+SELECT LENGTH(f), f = REPEAT('x',64) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f <> 'foo';
+LENGTH(f)	hist_ok
+64	1
+DROP TABLE t;
+#
+# Non-uniform payload makes an overlapping copy visible as wrong data
+# rather than accidentally-correct repeated bytes.
+#
+CREATE TABLE t (f TEXT) ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (REPEAT('abcdefgh',8));
+UPDATE t SET f = 'foo';
+SELECT LENGTH(f), f = REPEAT('abcdefgh',8) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f <> 'foo';
+LENGTH(f)	hist_ok
+64	1
+DROP TABLE t;
+#
+# Blob sizes exercising the single-record run, the multi-record
+# zero-copy run and the bulk inner-record copy
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',2)), (2, REPEAT('ijklmnop',80));
+UPDATE t SET f = CONCAT('new', pk);
+SELECT pk, LENGTH(f) FROM t ORDER BY pk;
+pk	LENGTH(f)
+1	4
+2	4
+SELECT pk, LENGTH(f),
+f = REPEAT('abcdefgh',2) OR f = REPEAT('ijklmnop',80) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	16	1
+2	640	1
+# Second generation of history rows over the same free-list churn
+UPDATE t SET f = REPEAT('qrstuvwx',300);
+UPDATE t SET f = CONCAT('final', pk);
+SELECT pk, LENGTH(f),
+f = REPEAT('qrstuvwx',300) AS gen2_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f LIKE 'qrstuvwx%' ORDER BY pk;
+pk	LENGTH(f)	gen2_ok
+1	2400	1
+2	2400	1
+DROP TABLE t;
+#
+# Multiple blob columns
+#
+CREATE TABLE t (pk INT PRIMARY KEY, b1 TEXT, b2 MEDIUMTEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',50), REPEAT('ABCDEFGH',150)),
+(2, REPEAT('12345678',25), REPEAT('!@#$%^&*',400));
+UPDATE t SET b1 = 'x', b2 = 'y';
+SELECT pk,
+b1 = CASE pk WHEN 1 THEN REPEAT('abcdefgh',50)
+ELSE REPEAT('12345678',25) END AS b1_ok,
+b2 = CASE pk WHEN 1 THEN REPEAT('ABCDEFGH',150)
+ELSE REPEAT('!@#$%^&*',400) END AS b2_ok
+FROM t FOR SYSTEM_TIME ALL WHERE b1 <> 'x' ORDER BY pk;
+pk	b1_ok	b2_ok
+1	1	1
+2	1	1
+DROP TABLE t;
+#
+# Only one of two blob columns changed.  heap_update() parks a chain
+# for the changed column and leaves the other slot NULL while
+# has_pending_blob_free stays set, so the history-row write sees a mix
+# of parked and empty slots.
+#
+CREATE TABLE t (pk INT PRIMARY KEY, b1 TEXT, b2 MEDIUMTEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',50), REPEAT('ABCDEFGH',150)),
+(2, REPEAT('12345678',25), REPEAT('!@#$%^&*',400));
+UPDATE t SET b1 = 'x';
+SELECT pk, LENGTH(b1), LENGTH(b2),
+b1 = CASE pk WHEN 1 THEN REPEAT('abcdefgh',50)
+ELSE REPEAT('12345678',25) END AS b1_ok,
+b2 = CASE pk WHEN 1 THEN REPEAT('ABCDEFGH',150)
+ELSE REPEAT('!@#$%^&*',400) END AS b2_ok
+FROM t FOR SYSTEM_TIME ALL WHERE b1 <> 'x' ORDER BY pk;
+pk	LENGTH(b1)	LENGTH(b2)	b1_ok	b2_ok
+1	400	1200	1	1
+2	200	3200	1	1
+# Emptying the other column, so a slot goes from parked to zero-length
+UPDATE t SET b2 = '';
+UPDATE t SET b1 = 'zz';
+SELECT pk, LENGTH(b1), LENGTH(b2)
+FROM t FOR SYSTEM_TIME ALL ORDER BY pk, LENGTH(b1), LENGTH(b2);
+pk	LENGTH(b1)	LENGTH(b2)
+1	1	0
+1	1	1200
+1	2	0
+1	400	1200
+2	1	0
+2	1	3200
+2	2	0
+2	200	3200
+DROP TABLE t;
+#
+# Shrinking a blob in place.  LEFT(f,N) leaves the new value pointing
+# at the old data, so the row written by heap_update() and the history
+# row built from record[1] carry the same pointer with different
+# lengths.  Chain layout is a property of the chain's flags, not of the
+# length, so a short read off an adopted chain is still correct.
+#
+CREATE TABLE t (pk INT AUTO_INCREMENT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t (f) VALUES (REPEAT('hello',100)), (REPEAT('World',100));
+UPDATE t SET f = LEFT(f,6);
+SELECT pk, f, LENGTH(f) FROM t ORDER BY pk;
+pk	f	LENGTH(f)
+1	helloh	6
+2	WorldW	6
+SELECT pk, LENGTH(f),
+f = CASE pk WHEN 1 THEN REPEAT('hello',100)
+ELSE REPEAT('World',100) END AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE LENGTH(f) > 6 ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	500	1
+2	500	1
+# Shrinking again, now off a chain the previous generation adopted
+UPDATE t SET f = LEFT(f,3);
+SELECT pk, f, LENGTH(f) FROM t ORDER BY pk;
+pk	f	LENGTH(f)
+1	hel	3
+2	Wor	3
+SELECT pk, LENGTH(f), f AS gen2_ok
+FROM t FOR SYSTEM_TIME ALL WHERE LENGTH(f) = 6 ORDER BY pk;
+pk	LENGTH(f)	gen2_ok
+1	6	helloh
+2	6	WorldW
+DROP TABLE t;
+#
+# Indexed table.  heap_write() writes every key before hp_write_blobs()
+# adopts the parked chain, so the key loop runs while record[1] still
+# holds a zero-copy pointer into that chain.  A UNIQUE key additionally
+# makes the history-row write compare against stored rows, which
+# materializes their blobs into key_blob_buff -- a different buffer from
+# the blob_buff record[1] may itself be pointing into.
+#
+CREATE TABLE t (pk INT PRIMARY KEY, u INT, s INT, f TEXT,
+UNIQUE (u), KEY (s), KEY USING BTREE (s, u))
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, 10, 100, REPEAT('abcdefgh',9)),
+(2, 20, 100, REPEAT('ijklmnop',40));
+UPDATE t SET f = CONCAT('new', pk);
+SELECT pk, u, s, LENGTH(f) FROM t ORDER BY pk;
+pk	u	s	LENGTH(f)
+1	10	100	4
+2	20	100	4
+SELECT pk, LENGTH(f),
+f = CASE pk WHEN 1 THEN REPEAT('abcdefgh',9)
+ELSE REPEAT('ijklmnop',40) END AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	72	1
+2	320	1
+# The history rows are reachable through each index with blobs intact
+SELECT pk, LENGTH(f), f = REPEAT('abcdefgh',9) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE u = 10 AND f NOT LIKE 'new%';
+pk	LENGTH(f)	hist_ok
+1	72	1
+SELECT pk, LENGTH(f), f = REPEAT('ijklmnop',40) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE s = 100 AND pk = 2 AND f NOT LIKE 'new%';
+pk	LENGTH(f)	hist_ok
+2	320	1
+# Changing an indexed column and the blob in one UPDATE, so the key
+# delete/rewrite in heap_update() coincides with parking the chain
+UPDATE t SET u = u + 5, f = REPEAT('qrstuvwx',20) WHERE pk = 1;
+SELECT pk, u, LENGTH(f), f = REPEAT('qrstuvwx',20) AS cur_ok
+FROM t WHERE pk = 1;
+pk	u	LENGTH(f)	cur_ok
+1	15	160	1
+SELECT pk, u, f = CONCAT('new', pk) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE pk = 1 AND f LIKE 'new%';
+pk	u	hist_ok
+1	10	1
+DROP TABLE t;
+#
+# A blob cannot itself be indexed in HEAP, so there is no blob-as-key
+# variant of the above to cover.
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT, KEY (f(10)))
+ENGINE=HEAP WITH SYSTEM VERSIONING;
+ERROR 42000: BLOB column `f` can't be used in key specification in the MEMORY table
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT, UNIQUE (f))
+ENGINE=HEAP WITH SYSTEM VERSIONING;
+ERROR 42000: BLOB column `f` can't be used in key specification in the MEMORY table

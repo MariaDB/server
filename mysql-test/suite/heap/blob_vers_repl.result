@@ -1,0 +1,25 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',80));
+UPDATE t SET f = CONCAT('new', pk);
+# Master: history rows
+SELECT pk, LENGTH(f),
+f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',80) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	64	1
+2	640	1
+connection slave;
+# Slave: history rows must match
+SELECT pk, LENGTH(f),
+f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',80) AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	64	1
+2	640	1
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

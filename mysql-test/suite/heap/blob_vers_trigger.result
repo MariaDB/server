@@ -1,0 +1,155 @@
+#
+# An AFTER UPDATE trigger reads OLD.<blob> from the same record buffer
+# that vers_insert_history_row() builds the history row from.
+#
+# heap_update() parks the old blob chain instead of freeing it, so that
+# buffer keeps a valid zero-copy pointer for the rest of the statement.
+# The history-row write redeems that parking, so it must not leave the
+# buffer pointing at records handed back to the free list -- otherwise
+# OLD.<blob> reads whatever was written over them, and that value is
+# what lands in the audit table and in the binlog.
+#
+CREATE TABLE lg (id INT AUTO_INCREMENT PRIMARY KEY, ln INT, ok_val INT)
+ENGINE=MyISAM;
+#
+# Single-table UPDATE, blob sizes on either side of a single chain run
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f),
+OLD.f = CASE OLD.pk WHEN 1 THEN REPEAT('abcdefgh',8)
+ELSE REPEAT('ijklmnop',80) END);
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',80));
+UPDATE t SET f = CONCAT('new', pk);
+# OLD.<blob> as the trigger saw it
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+64	1
+640	1
+# and the history rows themselves
+SELECT pk, LENGTH(f),
+f = CASE pk WHEN 1 THEN REPEAT('abcdefgh',8)
+ELSE REPEAT('ijklmnop',80) END AS hist_ok
+FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+pk	LENGTH(f)	hist_ok
+1	64	1
+2	640	1
+DELETE FROM lg;
+DROP TABLE t;
+#
+# Multiple blob columns
+#
+CREATE TABLE t (pk INT PRIMARY KEY, b1 TEXT, b2 MEDIUMTEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.b1) + LENGTH(OLD.b2),
+OLD.b1 = CASE OLD.pk WHEN 1 THEN REPEAT('abcdefgh',50)
+ELSE REPEAT('qrstuvwx',25) END
+AND
+OLD.b2 = CASE OLD.pk WHEN 1 THEN REPEAT('ABCDEFGH',150)
+ELSE REPEAT('ijklmnop',400) END);
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',50), REPEAT('ABCDEFGH',150)),
+(2, REPEAT('qrstuvwx',25), REPEAT('ijklmnop',400));
+UPDATE t SET b1 = REPEAT('z',900), b2 = 'y';
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+1600	1
+3400	1
+DELETE FROM lg;
+DROP TABLE t;
+#
+# BEFORE UPDATE runs ahead of the history-row write and must be
+# unaffected; AFTER UPDATE on the same table must agree with it
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg_b BEFORE UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f), OLD.f = REPEAT('abcdefgh',80));
+CREATE TRIGGER trg_a AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f), OLD.f = REPEAT('abcdefgh',80));
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',80)), (2, REPEAT('abcdefgh',80));
+UPDATE t SET f = CONCAT('new', pk);
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+640	1
+640	1
+640	1
+640	1
+DELETE FROM lg;
+DROP TABLE t;
+#
+# INSERT ... ON DUPLICATE KEY UPDATE
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f),
+OLD.f = CASE OLD.pk WHEN 1 THEN REPEAT('abcdefgh',8)
+ELSE REPEAT('ijklmnop',80) END);
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',80));
+INSERT INTO t VALUES (1, 'ignored'), (2, 'ignored')
+ON DUPLICATE KEY UPDATE f = CONCAT('new', pk);
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+64	1
+640	1
+DELETE FROM lg;
+DROP TABLE t;
+#
+# Multi-table UPDATE, deferred do_updates() path
+#
+CREATE TABLE drv (pk INT PRIMARY KEY, c INT) ENGINE=HEAP;
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f),
+OLD.f = CASE OLD.pk WHEN 1 THEN REPEAT('abcdefgh',8)
+ELSE REPEAT('ijklmnop',80) END);
+INSERT INTO drv VALUES (1, 10), (2, 20);
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',80));
+UPDATE drv STRAIGHT_JOIN t ON drv.pk = t.pk SET t.f = CONCAT('new', t.pk);
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+64	1
+640	1
+DELETE FROM lg;
+DROP TABLE drv, t;
+#
+# Non-versioned HEAP control: no history row is written, so nothing
+# redeems the parking while the trigger is still reading
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT) ENGINE=HEAP CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f), OLD.f = REPEAT('abcdefgh',80));
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',80)), (2, REPEAT('abcdefgh',80));
+UPDATE t SET f = CONCAT('new', pk);
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+640	1
+640	1
+DELETE FROM lg;
+DROP TABLE t;
+#
+# Versioned MyISAM control: same statement shape, different engine
+#
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+ENGINE=MyISAM WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW
+INSERT INTO lg (ln, ok_val)
+VALUES (LENGTH(OLD.f), OLD.f = REPEAT('abcdefgh',80));
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',80)), (2, REPEAT('abcdefgh',80));
+UPDATE t SET f = CONCAT('new', pk);
+SELECT ln, ok_val FROM lg ORDER BY id;
+ln	ok_val
+640	1
+640	1
+DROP TABLE t;
+DROP TABLE lg;

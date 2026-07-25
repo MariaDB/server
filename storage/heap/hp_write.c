@@ -41,7 +41,15 @@ int heap_write(HP_INFO *info, const uchar *record)
     DBUG_RETURN(my_errno=EACCES);
   }
 #endif
-  hp_flush_pending_blob_free(info);
+  /*
+    Free old stored blob chains, parked by a previous heap_update() or
+    heap_delete(), that are not used by the current record.  A chain this
+    record still sources its blob data from stays parked, and
+    hp_write_blobs() adopts it below instead of allocating a copy of bytes
+    that are already in place.
+  */
+  if (info->has_pending_blob_free)
+    hp_flush_unaliased_blob_free(info, record);
   if (!(pos=next_free_record_pos(share)))
     DBUG_RETURN(my_errno);
   share->changed=1;
