@@ -119,6 +119,8 @@ Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It o
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
 Warnings:
+Note	4092	Unknown VIEW: 'db1.t1'
+Warnings:
 Note	1051	Unknown table 'db1.t1'
 count(*)
 20
