@@ -6910,7 +6910,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   if (res)
     DBUG_RETURN(TRUE);
 
-  if (thd->lex->is_view_context_analysis())
+  if (thd->lex->is_view_context_analysis() &&
+      thd->lex->sql_command == SQLCOM_CREATE_VIEW)
   {
     /*
       Here we check privileges of the stored routine only during view

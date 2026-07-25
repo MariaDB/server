@@ -2096,3 +2096,34 @@ drop user 'root
 definer_host=localhost
 suid=1'@localhost;
 # End of 10.6 tests
+#
+# MDEV-36552 mariadb-dump fails with error 1370 for a view that uses a function
+#
+# Reading a view's column metadata (SHOW COLUMNS or
+# INFORMATION_SCHEMA.COLUMNS) must not additionally require EXECUTE
+# on functions the view references. The function is not run, only
+# its result type is needed.
+#
+use test;
+create function f() returns int return 1;
+create view v as select f() as c;
+create user u@localhost;
+grant select, show view on test.* to u@localhost;
+connect  con1, localhost, u,, test;
+show columns from v;
+Field	Type	Null	Key	Default	Extra
+c	int(11)	YES		NULL	
+# INFORMATION_SCHEMA.COLUMNS returns the column, no warning 1370
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v';
+column_name
+c
+# executing the function still requires EXECUTE
+select f();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.f'
+connection default;
+disconnect con1;
+drop user u@localhost;
+drop view v;
+drop function f;
+# End of 10.11 tests

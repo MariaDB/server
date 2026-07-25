@@ -2346,5 +2346,38 @@ suid=1'@localhost;
 
 --echo # End of 10.6 tests
 
+--echo #
+--echo # MDEV-36552 mariadb-dump fails with error 1370 for a view that uses a function
+--echo #
+--echo # Reading a view's column metadata (SHOW COLUMNS or
+--echo # INFORMATION_SCHEMA.COLUMNS) must not additionally require EXECUTE
+--echo # on functions the view references. The function is not run, only
+--echo # its result type is needed.
+--echo #
+use test;
+create function f() returns int return 1;
+create view v as select f() as c;
+create user u@localhost;
+grant select, show view on test.* to u@localhost;
+
+--connect (con1, localhost, u,, test)
+show columns from v;
+
+--echo # INFORMATION_SCHEMA.COLUMNS returns the column, no warning 1370
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v';
+
+--echo # executing the function still requires EXECUTE
+--error ER_PROCACCESS_DENIED_ERROR
+select f();
+
+--connection default
+disconnect con1;
+drop user u@localhost;
+drop view v;
+drop function f;
+
+--echo # End of 10.11 tests
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
