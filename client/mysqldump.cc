@@ -3205,7 +3205,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
-  my_bool    is_generated=0, all_generated=0;
+  my_bool    is_generated=0;
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
@@ -3522,25 +3522,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       DBUG_RETURN(0);
     }
 
-    /*
-      Detect tables where every column is generated. Otherwise, skipping all
-      generated columns under --complete-insert would leave INSERT with an
-      empty column list, causing dump_table() to bail on num_fields == 0 and
-      lose row counts on reload (MDEV-40217).
-    */
-    all_generated= 1;
-    while ((row= mysql_fetch_row(result)))
-    {
-      bool is_row_start= row[2] && strcmp(row[2], "ROW START") == 0;
-      bool is_row_end= row[2] && strcmp(row[2], "ROW END") == 0;
-      if (!(strstr(row[1], "GENERATED") && !is_row_start && !is_row_end))
-      {
-        all_generated= 0;
-        break;
-      }
-    }
-    mysql_data_seek(result, 0);
-
     while ((row= mysql_fetch_row(result)))
     {
       bool is_row_start= row[2] && strcmp(row[2], "ROW START") == 0;
@@ -3566,11 +3547,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       /*
         When complete_insert is enabled, skip generated columns entirely.
         Otherwise, include them and mark them so DEFAULT is emitted.
-        Exception: if every column is generated, keep them all so DEFAULT is
-        emitted for their values and rows are preserved on reload.
       */
       if (is_generated && !path && !opt_dir && !opt_dump_history &&
-          complete_insert && !all_generated)
+          complete_insert)
         continue;
 
       dynstr_append_mem_checked(&field_flags, "", 1);
@@ -3658,6 +3637,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     if (complete_insert)
       dynstr_append_checked(&insert_pat, insert_field_names.str);
     num_fields= field_flags.length;
+    if (!num_fields)
+      dynstr_append_checked(&select_field_names, "0");
     mysql_free_result(result);
   }
   else
@@ -4352,8 +4333,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     DBUG_VOID_RETURN;
   }
 
-  DBUG_PRINT("info",
-             ("ignore_flag: %x  num_fields: %d", (int) ignore_flag,
+  DBUG_PRINT("info", ("ignore_flag: %x  num_fields: %d", (int) ignore_flag,
               num_fields));
   /*
     If the table type is a merge table or any type that has to be
@@ -4363,13 +4343,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   {
     verbose_msg("-- Warning: Skipping data for table '%s' because " \
                 "it's of type %s\n", table, table_type);
-    DBUG_VOID_RETURN;
-  }
-  /* Check that there are any fields in the table */
-  if (num_fields == 0)
-  {
-    verbose_msg("-- Skipping dump data for table '%s', it has no fields\n",
-                table);
     DBUG_VOID_RETURN;
   }
 
@@ -4545,7 +4518,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
 
     verbose_msg("-- Retrieving rows...\n");
-    if (mysql_num_fields(res) != num_fields)
+    if (num_fields && mysql_num_fields(res) != num_fields)
     {
       fprintf(stderr,"%s: Error in field count for table: %s !  Aborting.\n",
               my_progname_short, result_table);
@@ -4603,8 +4576,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         fputs("\t<row>\n", md_result_file);
         check_io(md_result_file);
       }
+      else if (extended_insert)
+        dynstr_set_checked(&extended_row,"(");
 
-      for (i= 0; i < mysql_num_fields(res); i++)
+      for (i= 0; i < num_fields; i++)
       {
         int is_blob;
         ulong length= lengths[i];
@@ -4633,9 +4608,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                     field->type == MYSQL_TYPE_TINY_BLOB));
         if (extended_insert && !opt_xml)
         {
-          if (i == 0)
-            dynstr_set_checked(&extended_row,"(");
-          else
+          if (i != 0)
             dynstr_append_checked(&extended_row,",");
 
           if (field_flags.str[i] & MYSQL_TYPE_GENERATED)

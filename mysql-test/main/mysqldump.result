@@ -8308,9 +8308,9 @@ INSERT INTO `t5` VALUES (DEFAULT,DEFAULT);
 INSERT INTO `t5` VALUES (DEFAULT,DEFAULT);
 # With --complete-insert - all generated columns kept, values use DEFAULT
 /*M!999999\- enable the sandbox mode */ 
-INSERT INTO `t5` (`a`, `b`) VALUES (DEFAULT,DEFAULT),
-(DEFAULT,DEFAULT),
-(DEFAULT,DEFAULT);
+INSERT INTO `t5` () VALUES (),
+(),
+();
 # Dump/reload roundtrip preserves row count
 DELETE FROM t5;
 SELECT * FROM t5;
