@@ -1447,21 +1447,19 @@ size_t Rows_log_event::calc_row_event_length(table_def *td,
       if (!(size= calc_field_event_length(value, td->type(i),
                                           td->field_metadata(i))))
       {
-        fprintf(stderr,
-                "\nError decoding row image while converting event for "
-                "--flashback (%s): event=%s%s, column=%u, column_type=%u, "
-                "metadata=%u\n",
-                "could not determine field length", event_name, image_suffix,
+        fprintf(stderr, "\nError decoding row image "
+                "(could not determine field length): "
+                "event=%s%s, column=%u, column_type=%u, metadata=%u\n",
+                event_name, image_suffix,
                 i, (uint) td->type(i), (uint) td->field_metadata(i));
         return 0;
       }
       if (size > (size_t) (m_rows_end - value))
       {
         /* corrupted replication event was detected, skipping entry */
-        fprintf(stderr,
-                "\nError decoding row image while converting event for "
-                "--flashback (%s): event=%s%s, column=%u\n",
-                "field extends past row buffer", event_name, image_suffix, i);
+        fprintf(stderr, "\nError decoding row image "
+                "(field extends past row buffer): "
+                "event=%s%s, column=%u\n", event_name, image_suffix, i);
         return 0;
       }
 

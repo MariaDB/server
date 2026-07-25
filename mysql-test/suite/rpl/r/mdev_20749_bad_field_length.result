@@ -12,5 +12,5 @@ set debug_dbug= @old_dbug;
 flush binary logs;
 # MYSQL_BINLOG --result-file=RESULT_FILE -vvv --flashback MYSQLD_DATADIR/BINLOG_FILE 2>&1
 
-Error decoding row image while converting event for --flashback (could not determine field length): event=Delete_rows_v1, column=1, column_type=252, metadata=5
+Error decoding row image (could not determine field length): event=Delete_rows_v1, column=1, column_type=252, metadata=5
 DROP TABLE t1;
