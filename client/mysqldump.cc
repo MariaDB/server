@@ -3198,10 +3198,10 @@ static void get_sequence_structure(const char *seq, const char *db)
     ignore_flag - what we must particularly ignore - see IGNORE_ defines above
 
   RETURN
-    number of fields in table, 0 if error
+    number of fields to dump, -1 if error
 */
 
-static uint get_table_structure(const char *table, const char *db, char *table_type,
+static int get_table_structure(const char *table, const char *db, char *table_type,
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
@@ -3228,7 +3228,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   *ignore_flag= check_if_ignore_table(table, table_type);
 
   if (!opt_copy_s3_tables && *ignore_flag == IGNORE_S3_TABLE)
-    DBUG_RETURN(0);
+    DBUG_RETURN(-1);
 
   delayed= opt_delayed;
   if (delayed && (*ignore_flag & IGNORE_INSERT_DELAYED))
@@ -3328,7 +3328,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       {
         my_free(order_by);
         order_by= 0;
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       if (multi_file_output)
@@ -3337,7 +3337,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         {
           my_free(order_by);
           order_by= 0;
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         write_header(sql_file, db);
       }
@@ -3408,7 +3408,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
           if (multi_file_output)
             my_fclose(sql_file, MYF(MY_WME));
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         else
           my_free(scv_buff);
@@ -3469,7 +3469,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           my_fclose(sql_file, MYF(MY_WME));
 
         seen_views= 1;
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       row= mysql_fetch_row(result);
@@ -3519,7 +3519,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     {
       if (multi_file_output)
         my_fclose(sql_file, MYF(MY_WME));
-      DBUG_RETURN(0);
+      DBUG_RETURN(-1);
     }
 
     while ((row= mysql_fetch_row(result)))
@@ -3662,7 +3662,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 quote_for_equal(table, temp_buff2));
 
     if (mysql_query_with_error_report(mysql, &result, query_buff))
-      DBUG_RETURN(0);
+      DBUG_RETURN(-1);
 
     /* Make an sql-file, if path was given iow. option -T was given */
     if (!opt_no_create_info)
@@ -3672,7 +3672,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
         {
           mysql_free_result(result);
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         write_header(sql_file, db);
       }
@@ -3782,7 +3782,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 my_progname_short, result_table, mysql_error(mysql));
         if (multi_file_output)
           my_fclose(sql_file, MYF(MY_WME));
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       /* Find first which key is primary key */
@@ -4297,8 +4297,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   char table_type[NAME_LEN];
   char *result_table, table_buff2[NAME_LEN*2+3], *opt_quoted_table;
   int error= 0;
-  ulong         rownr, row_break;
-  uint num_fields;
+  ulong rownr, row_break;
+  int num_fields;
   size_t total_length, init_length;
   my_bool versioned= 0;
   MYSQL_RES     *res= NULL;
@@ -4311,6 +4311,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
   num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
+
+  if (num_fields < 0)
+    DBUG_VOID_RETURN;
+
   /*
     The "table" could be a view.  If so, we don't do anything here.
   */
@@ -4518,7 +4522,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
 
     verbose_msg("-- Retrieving rows...\n");
-    if (num_fields && mysql_num_fields(res) != num_fields)
+    if (num_fields && mysql_num_fields(res) != (uint)num_fields)
     {
       fprintf(stderr,"%s: Error in field count for table: %s !  Aborting.\n",
               my_progname_short, result_table);
@@ -4579,7 +4583,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       else if (extended_insert)
         dynstr_set_checked(&extended_row,"(");
 
-      for (i= 0; i < num_fields; i++)
+      for (i= 0; i < (uint)num_fields; i++)
       {
         int is_blob;
         ulong length= lengths[i];
@@ -5758,12 +5762,12 @@ static void dump_first_mysql_tables(char *database)
   char ignore_flag;
   DBUG_ENTER("dump_first_mysql_tables");
 
-  if (!get_table_structure((char *) "general_log",
-                           database, table_type, &ignore_flag, NULL) )
+  if (get_table_structure("general_log",
+                          database, table_type, &ignore_flag, NULL) <= 0)
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'general_log' table\n");
-  if (!get_table_structure((char *) "slow_log",
-                           database, table_type, &ignore_flag, NULL) )
+  if (get_table_structure("slow_log",
+                          database, table_type, &ignore_flag, NULL) <= 0)
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'slow_log' table\n");
   /* general and slow query logs exist now */
@@ -6025,8 +6029,8 @@ static int dump_all_tables_in_db(char *database)
     {
        char table_type[NAME_LEN];
        char ignore_flag;
-      if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag, NULL) )
+      if (get_table_structure("transaction_registry",
+                              database, table_type, &ignore_flag, NULL) <= 0)
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
