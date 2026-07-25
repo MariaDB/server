@@ -1,0 +1,37 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+#
+# Does the binlog row image of a system versioning history row carry valid
+# blob data?
+#
+# vers_insert_history_row() writes record[0], whose blob pointer is a
+# zero-copy pointer into HP_BLOCK.  handler::ha_write_row() calls
+# binlog_log_row() AFTER write_row() returns, re-reading record[0].  If the
+# write invalidated what that pointer refers to, the logged row image is
+# garbage and the corruption propagates to the replica.
+#
+
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',80));
+UPDATE t SET f = CONCAT('new', pk);
+
+--echo # Master: history rows
+SELECT pk, LENGTH(f),
+       f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',80) AS hist_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+
+--sync_slave_with_master
+
+--echo # Slave: history rows must match
+SELECT pk, LENGTH(f),
+       f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',80) AS hist_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'new%' ORDER BY pk;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

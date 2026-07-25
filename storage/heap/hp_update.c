@@ -201,6 +201,12 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
           returns, reading old blob data from record[1] via zero-copy
           pointers into HP_BLOCK chain records.  Freeing chains here
           would overwrite those records, making the pointers dangle.
+
+          A system-versioned UPDATE then writes the history row from that
+          same record[1], and an AFTER UPDATE trigger reads OLD.<blob> from
+          it, so heap_write() leaves a chain the row it writes still sources
+          data from parked and adopts it instead of reallocating; see
+          hp_flush_unaliased_blob_free().
         */
         for (i= 0; i < share->blob_count; i++)
           info->pending_blob_chains[i]= (blob_changed[i] ?
