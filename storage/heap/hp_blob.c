@@ -155,6 +155,67 @@ void hp_flush_pending_blob_free_impl(HP_INFO *info)
 
 
 /*
+  Redeem the deferred blob chain frees of a previous heap_update() or
+  heap_delete(), except for chains that `record` still sources blob data from.
+
+  Those chains stay parked.  The SQL layer keeps the pre-update row in
+  record[1] for the rest of the statement -- an AFTER UPDATE trigger reads
+  OLD.<blob> from it, and the row-based binlog image is built from it -- and a
+  system-versioned UPDATE writes the history row from a verbatim copy of that
+  same buffer.  Freeing a chain both still point into would put it on the free
+  list, where the write about to follow would hand it straight back with
+  hp_push_free_block()'s links scribbled through the payload.
+
+  Keeping them costs no space: hp_write_blobs() adopts a parked chain the
+  record already sources its data from rather than allocating a second copy of
+  bytes that are already in place.
+
+  @param info   Table handle
+  @param record Record about to be written
+*/
+
+void hp_flush_unaliased_blob_free(HP_INFO *info, const uchar *record)
+{
+  HP_SHARE *share= info->s;
+  HP_BLOB_DESC *desc, *desc_end;
+  uchar **chain_pos= info->pending_blob_chains;
+  my_bool still_pending= FALSE;
+  DBUG_ASSERT(info->has_pending_blob_free);
+
+  for (desc= share->blob_descs, desc_end= desc + share->blob_count;
+       desc < desc_end; desc++, chain_pos++)
+  {
+    uint32 data_len;
+    const uchar *data_ptr;
+
+    if (!*chain_pos)
+      continue;
+
+    data_len= hp_blob_length(desc, record);
+    memcpy(&data_ptr, record + desc->offset + desc->packlength,
+           sizeof(data_ptr));
+    DBUG_ASSERT((data_len == 0) == (data_ptr == NULL));
+
+    /*
+      Test the length, not the pointer: hp_write_blobs() decides the same
+      question the same way, and the two have to agree on which columns can
+      source a parked chain.  A column they disagreed about would leave a
+      chain parked that nothing will ever adopt.
+    */
+    if (data_len != 0 && hp_blob_sources_chain(share, data_ptr, *chain_pos))
+    {
+      still_pending= TRUE;                      /* Keep for hp_write_blobs() */
+      continue;
+    }
+    hp_free_run_chain(share, *chain_pos);
+    *chain_pos= NULL;
+  }
+  hp_shrink_tail(share);
+  info->has_pending_blob_free= still_pending;
+}
+
+
+/*
   Free one continuation chain of variable-length runs.
 
   Walks from the first run, reads run_rec_count from each, frees all
@@ -557,6 +618,13 @@ err:
   runs, copies blob data into them, and overwrites the pointer in
   the stored row (pos) to point to the first continuation run.
 
+  A column whose data still lives in a chain parked for deferred free is
+  adopted instead: the bytes are already laid out exactly as this write would
+  lay them out, so the row takes the chain over.  That leaves the buffer the
+  caller still holds reading correct data, and needs no space -- which at
+  max_heap_table_size is the difference between the write succeeding and
+  failing.  See hp_flush_unaliased_blob_free().
+
   @param info   Table handle
   @param record Source record buffer (caller's data)
   @param pos    Destination row in HP_BLOCK (already has memcpy'd record)
@@ -569,6 +637,13 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
   HP_SHARE *share= info->s;
   HP_BLOB_DESC *desc, *desc_end;
   my_bool has_blob_data= FALSE;
+  /*
+    Chains parked for deferred free, or NULL when there are none.  Internal
+    temporary tables never park -- hp_update()/hp_delete() free their chains
+    outright -- and do not even allocate the array.
+  */
+  uchar **parked= (info->has_pending_blob_free ?
+                   info->pending_blob_chains : NULL);
   DBUG_ENTER("hp_write_blobs");
 
   for (desc= share->blob_descs, desc_end= desc + share->blob_count;
@@ -590,15 +665,30 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
     memcpy(&data_ptr, record + desc->offset + desc->packlength,
            sizeof(data_ptr));
 
-    if (hp_write_one_blob(share, data_ptr, data_len, &first_run))
+    if (parked && parked[desc - share->blob_descs] &&
+        hp_blob_sources_chain(share, data_ptr,
+                              parked[desc - share->blob_descs]))
     {
-      /* Rollback: free all previously completed blob columns */
+      /*
+        Adopt the parked chain: it already holds exactly these bytes.  The
+        pending slot is cleared only once every column has succeeded, so that
+        the rollback below can tell an adopted chain from an allocated one and
+        leave it parked rather than freeing it.
+      */
+      first_run= parked[desc - share->blob_descs];
+    }
+    else if (hp_write_one_blob(share, data_ptr, data_len, &first_run))
+    {
+      /*
+        Rollback: free all previously completed blob columns, leaving any
+        adopted chain parked for its original owner
+      */
       HP_BLOB_DESC *rd;
       for (rd= share->blob_descs; rd < desc; rd++)
       {
         uchar *chain;
         memcpy(&chain, pos + rd->offset + rd->packlength, sizeof(chain));
-        if (chain)
+        if (chain && (!parked || chain != parked[rd - share->blob_descs]))
           hp_free_run_chain(share, chain);
         bzero(pos + rd->offset + rd->packlength, sizeof(char*));
       }
@@ -609,6 +699,26 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
 
     memcpy(pos + desc->offset + desc->packlength, &first_run,
            sizeof(first_run));
+  }
+
+  /* Adopted chains belong to this row now, not to the deferred free */
+  if (parked)
+  {
+    /* There was at least one blob that may have been reused. Fix the chains */
+    uchar **chain_pos= parked;
+    my_bool still_pending= FALSE;
+    for (desc= share->blob_descs; desc < desc_end; desc++, chain_pos++)
+    {
+      uchar *chain;
+      if (!*chain_pos)
+        continue;
+      memcpy(&chain, pos + desc->offset + desc->packlength, sizeof(chain));
+      if (chain == *chain_pos)
+        *chain_pos= NULL;
+      else
+        still_pending= TRUE;
+    }
+    info->has_pending_blob_free= still_pending;
   }
 
   pos[share->visible]= has_blob_data ?
