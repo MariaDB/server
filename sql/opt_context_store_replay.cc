@@ -672,6 +672,18 @@ bool store_optimizer_context(THD *thd)
   return res;
 }
 
+static void store_drop_table_and_view_stmts(String &name, String &buf)
+{
+  StringBuffer<128> drop;
+  drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
+  drop.append(name);
+  drop.append(STRING_WITH_LEN(";\n"));
+  drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
+  drop.append(name);
+  drop.append(STRING_WITH_LEN(";\n"));
+  buf.append(drop);
+}
+
 /*
   @brief
     Dump definitions, basic stats of all tables and views used by the
@@ -780,25 +792,14 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
       break;
     }
 
-    /* Add CREATE TABLE|VIEW statement */
+    /* Add DROP and CREATE TABLE|VIEW statement */
+    store_drop_table_and_view_stmts(full_tbl_name, qry_ctx_script);
     if (tbl->is_view())
     {
-      StringBuffer<64> drop;
-      drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
-      drop.append(full_tbl_name);
-      drop.append(STRING_WITH_LEN(";\n"));
-      qry_ctx_script.append(drop);
-
       get_create_view_stmt(thd, tbl, &full_tbl_name, &ddl);
     }
     else
     {
-      StringBuffer<64> drop;
-      drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
-      drop.append(full_tbl_name);
-      drop.append(STRING_WITH_LEN(";\n"));
-      qry_ctx_script.append(drop);
-
       if (get_create_table_stmt(thd, tbl, &ddl))
       {
         res= true;
