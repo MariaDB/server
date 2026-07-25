@@ -383,11 +383,32 @@ extern void hp_free_blobs(HP_SHARE *share, uchar *pos);
 extern void hp_free_run_chain(HP_SHARE *share, uchar *chain);
 extern void hp_shrink_tail(HP_SHARE *share);
 extern void hp_flush_pending_blob_free_impl(HP_INFO *info);
+extern void hp_flush_unaliased_blob_free(HP_INFO *info, const uchar *record);
 
 static inline void hp_flush_pending_blob_free(HP_INFO *info)
 {
   if (info->has_pending_blob_free)
     hp_flush_pending_blob_free_impl(info);
+}
+
+/*
+  Does a record's blob data live in `chain`?
+
+  hp_read_blobs() hands out zero-copy pointers of exactly two forms: the chain
+  head itself (data at offset 0 of the first record) or chain + recbuffer
+  (data contiguous from the second record onwards).  A multi-run chain is
+  reassembled into info->blob_buff instead and can never alias.
+
+  A parked chain slot may be NULL (heap_update() parks a chain only for the
+  blob columns it changed), so callers check that before asking.
+*/
+
+static inline my_bool hp_blob_sources_chain(HP_SHARE *share,
+                                            const uchar *data_ptr,
+                                            const uchar *chain)
+{
+  DBUG_ASSERT(chain);
+  return (data_ptr == chain || data_ptr == chain + share->block.recbuffer);
 }
 
 extern mysql_mutex_t THR_LOCK_heap;

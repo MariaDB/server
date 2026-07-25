@@ -1,0 +1,79 @@
+--echo #
+--echo # The remaining vers_insert_history_row() callers on a HEAP table with
+--echo # blobs: multi-table UPDATE (both the on-the-fly and the deferred
+--echo # do_updates() path) and REPLACE.
+--echo #
+--echo # Each of them writes the history row from a record buffer that a read
+--echo # filled with zero-copy blob pointers into HP_BLOCK, so each can hand
+--echo # heap_write() a blob source living in the chain ha_update_row() just
+--echo # parked for deferred free.
+--echo #
+
+--echo #
+--echo # Multi-table UPDATE: the first table is updated while scanning, the
+--echo # second goes through the deferred do_updates() path
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+
+INSERT INTO t1 VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',60));
+INSERT INTO t2 VALUES (1, REPEAT('12345678',40)), (2, REPEAT('!@#$%^&*',300));
+
+UPDATE t1, t2 SET t1.f = CONCAT('n1_', t1.pk), t2.f = CONCAT('n2_', t2.pk)
+  WHERE t1.pk = t2.pk;
+
+SELECT pk, f FROM t1 ORDER BY pk;
+SELECT pk, f FROM t2 ORDER BY pk;
+
+SELECT pk, LENGTH(f),
+       f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',60) AS hist_ok
+  FROM t1 FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'n1\_%' ORDER BY pk;
+SELECT pk, LENGTH(f),
+       f = REPEAT('12345678',40) OR f = REPEAT('!@#$%^&*',300) AS hist_ok
+  FROM t2 FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'n2\_%' ORDER BY pk;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Multi-table UPDATE touching only the table that is not first in the
+--echo # join order
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, c INT) ENGINE=HEAP;
+CREATE TABLE t2 (pk INT PRIMARY KEY, b1 TEXT, b2 MEDIUMTEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+
+INSERT INTO t1 VALUES (1, 10), (2, 20);
+INSERT INTO t2 VALUES (1, REPEAT('abcdefgh',50), REPEAT('ABCDEFGH',150)),
+                      (2, REPEAT('qrstuvwx',25), REPEAT('ijklmnop',400));
+
+--echo # STRAIGHT_JOIN pins t2 second, so it goes through do_updates() rather
+--echo # than being updated on the fly like the case above
+UPDATE t1 STRAIGHT_JOIN t2 ON t1.pk = t2.pk
+  SET t2.b1 = REPEAT('z', 900), t2.b2 = 'y';
+
+SELECT pk,
+       b1 = CASE pk WHEN 1 THEN REPEAT('abcdefgh',50)
+                    ELSE REPEAT('qrstuvwx',25) END AS b1_ok,
+       b2 = CASE pk WHEN 1 THEN REPEAT('ABCDEFGH',150)
+                    ELSE REPEAT('ijklmnop',400) END AS b2_ok
+  FROM t2 FOR SYSTEM_TIME ALL WHERE b2 <> 'y' ORDER BY pk;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # REPLACE reaching the optimized ha_update_row() path
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, f TEXT)
+  ENGINE=HEAP WITH SYSTEM VERSIONING CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('abcdefgh',8)), (2, REPEAT('ijklmnop',60));
+
+REPLACE INTO t VALUES (1, 'r1'), (2, 'r2');
+
+SELECT pk, f FROM t ORDER BY pk;
+SELECT pk, LENGTH(f),
+       f = REPEAT('abcdefgh',8) OR f = REPEAT('ijklmnop',60) AS hist_ok
+  FROM t FOR SYSTEM_TIME ALL WHERE f NOT LIKE 'r%' ORDER BY pk;
+
+DROP TABLE t;

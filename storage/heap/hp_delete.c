@@ -186,7 +186,10 @@ int heap_delete(HP_INFO *info, const uchar *record)
         zero-copy pointers dangle.
 
         Save the chain head pointers and free them on the next mutating
-        operation (write/update/delete) or on reset/close.
+        operation (write/update/delete) or on reset/close.  heap_write()
+        leaves a chain the row it writes still sources data from parked and
+        adopts it instead of reallocating; see
+        hp_flush_unaliased_blob_free().
       */
       HP_BLOB_DESC *desc;
       uint i;
