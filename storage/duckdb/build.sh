@@ -29,6 +29,7 @@ usage() {
     echo "  -n          No clean: keep existing data files"
     echo "  -D          Install build prerequisites (requires root/sudo)"
     echo "  -u          Build unit tests"
+    echo "  -a          Enable ASAN/UBSAN (WITH_ASAN, WITH_ASAN_SCOPE, WITH_UBSAN)"
     echo "  -R          Use gcc-toolset-\${GCC_VERSION} on Rocky 8"
     echo "  -h          Show this help"
     exit 0
@@ -41,9 +42,10 @@ BUILD_PACKAGES=false
 INSTALL_DEPS=false
 GCC_TOOLSET=false
 UNIT_TESTS=false
+WITH_ASAN=false
 OS=""
 
-while getopts "t:d:j:cpSnDRuh" opt; do
+while getopts "t:d:j:cpSnDRuah" opt; do
     case $opt in
         t) BUILD_TYPE="$OPTARG" ;;
         d) OS="$OPTARG" ;;
@@ -55,6 +57,7 @@ while getopts "t:d:j:cpSnDRuh" opt; do
         D) INSTALL_DEPS=true ;;
         R) GCC_TOOLSET=true ;;
         u) UNIT_TESTS=true ;;
+        a) WITH_ASAN=true ;;
         h) usage ;;
         *) usage ;;
     esac
@@ -218,6 +221,14 @@ construct_cmake_flags() {
 
     if [[ $UNIT_TESTS = true ]]; then
         MDB_CMAKE_FLAGS+=(-DDUCKDB_UNIT_TESTS=ON)
+    fi
+
+    if [[ $WITH_ASAN = true ]]; then
+        MDB_CMAKE_FLAGS+=(
+            -DWITH_ASAN=ON
+            -DWITH_ASAN_SCOPE=ON
+            -DWITH_UBSAN=ON
+        )
     fi
 
     if [[ $BUILD_PACKAGES = true ]]; then
