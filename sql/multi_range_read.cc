@@ -131,6 +131,7 @@ ha_rows
 handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      void *seq_init_param, uint n_ranges_arg,
                                      uint *bufsz, uint *flags,
+                                     page_range *pr,
                                      ha_rows top_limit,
                                      Cost_estimate *cost)
 {
@@ -191,6 +192,12 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
   /* Default MRR implementation doesn't need buffer */
   *bufsz= 0;
+
+  /* Basically it should give the union of page extents of
+  every range in the scan. Initialize with unused_page_range
+  until the first range reports; If it is unused_page_range then
+  widened the search to whole tablespace .*/
+  page_range range_covering_all= unused_page_range;
 
   seq_it= seq->init(seq_init_param, n_ranges, *flags);
   while (!seq->next(seq_it, &range))
@@ -253,6 +260,19 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
           DBUG_RETURN(HA_POS_ERROR);
         break;
       }
+      /* Fold this range's extent into range_covering_all. */
+      if (pages.first_page == UNUSED_PAGE_NO ||
+          pages.last_page == UNUSED_PAGE_NO)
+        range_covering_all= {0, UNUSED_PAGE_NO};
+      else if (range_covering_all.first_page == UNUSED_PAGE_NO)
+        /* first positioned range */
+        range_covering_all= pages;
+      else if (range_covering_all.last_page != UNUSED_PAGE_NO)
+      {
+        set_if_smaller(range_covering_all.first_page, pages.first_page);
+        set_if_bigger(range_covering_all.last_page, pages.last_page);
+      }
+
       if (pages.first_page == UNUSED_PAGE_NO)
       {
         /*
@@ -372,6 +392,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
   if (total_rows != HA_POS_ERROR)
   {
+    if (pr)
+      *pr= range_covering_all;
     set_if_smaller(total_rows, max_rows);
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
     calculate_costs(cost, keyno, n_ranges,
@@ -1102,7 +1124,6 @@ int Mrr_ordered_rndpos_reader::get_next(range_id_t *range_info)
 /****************************************************************************
  * Top-level DS-MRR implementation functions (the ones called by storage engine)
  ***************************************************************************/
-
 /**
   DS-MRR: Initialize and start MRR scan
 
@@ -1142,7 +1163,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
 
   strategy_exhausted= FALSE;
-  
+
   /* By default, have do-nothing buffer manager */
   buf_manager.arg= this;
   buf_manager.reset_buffer_sizes= do_nothing;
@@ -1781,18 +1802,20 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
 
 ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      void *seq_init_param, uint n_ranges,
-                                     uint *bufsz, uint *flags, ha_rows limit,
+                                     uint *bufsz, uint *flags, page_range *pr,
+                                     ha_rows limit,
                                      Cost_estimate *cost)
 {
   ha_rows rows;
   uint def_flags= *flags;
   uint def_bufsz= *bufsz;
   /* Get cost/flags/mem_usage of default MRR implementation */
-  rows= primary_file->handler::multi_range_read_info_const(keyno, seq, 
+  rows= primary_file->handler::multi_range_read_info_const(keyno, seq,
                                                            seq_init_param,
-                                                           n_ranges, 
-                                                           &def_bufsz, 
+                                                           n_ranges,
+                                                           &def_bufsz,
                                                            &def_flags,
+                                                           pr,
                                                            limit,
                                                            cost);
   if (rows == HA_POS_ERROR)

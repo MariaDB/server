@@ -105,3 +105,25 @@ enum btr_latch_mode {
 	/** Try to delete mark a spatial index record */
 	BTR_RTREE_DELETE_MARK = 256
 };
+
+/** Collector of B-tree leaf child page numbers gathered
+during a root-to-leaf descent (at PAGE_LEVEL=1), used to drive
+logical read-ahead. */
+struct btr_read_ahead_t
+{
+  /** Array receiving up to capacity child page numbers */
+  uint32_t *const pages;
+  /** capacity of pages[] */
+  const uint capacity;
+  /** number of entries filled in pages[] */
+  uint n= 0;
+  /** PAGE_LEVEL=1 page the child numbers were collected from, or
+  FIL_NULL if none. Used it with l1_child to resume the read ahead
+  operation */
+  uint32_t l1_page= 0xFFFFFFFF;
+  /** child page number of the last node pointer collected from
+  l1_page. */
+  uint32_t l1_child= 0xFFFFFFFF;
+
+  btr_read_ahead_t(uint32_t *buf, uint cap) : pages(buf), capacity(cap) {}
+};
