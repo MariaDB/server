@@ -24,19 +24,24 @@
 /*
   Functionality for handling virtual memory
 
-  - reserve range,
-  - commit memory (within reserved range)
-  - decommit previously commited memory
-  - release range
+  - reserve range - memory is reserved, not allocated.
+  - commit memory (within reserved range) - memory is allocated
+  - decommit previously commited memory  - memory is deallocated, stays reserved
+  - release range - reserved range is released to OS
 
   Not every OS has a "reserve" functionality, i.e it is not always
   possible to reserve memory larger than swap or RAM for example.
 
-  We try to respect use_large_pages setting, on Windows and Linux
+  The unfortunate terminology comes from WinAPI, see MEM_* flags below.
+  It's rather confusing in the context of a database (and specifically,
+  InnoDB, the only user of this functionality), but it's the established
+  terminology.
+
+  We try to respect use_large_pages setting, both on Windows and Linux
 */
-#ifdef _WIN32
 char *my_virtual_mem_reserve(size_t *size)
 {
+#ifdef _WIN32
   DWORD flags= my_use_large_pages
     ? MEM_LARGE_PAGES | MEM_RESERVE | MEM_COMMIT
     : MEM_RESERVE;
@@ -49,8 +54,10 @@ char *my_virtual_mem_reserve(size_t *size)
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), *size);
   }
   return ptr;
-}
+#else
+  return my_large_virtual_alloc(size);
 #endif
+}
 
 #if defined _WIN32 && !defined DBUG_OFF
 static my_bool is_memory_committed(char *ptr, size_t size)
