@@ -129,7 +129,7 @@ static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
 static my_bool opt_raw_mode= 0, opt_stop_never= 0;
 static my_bool opt_convert_engine_binlog= 0;
-static ulong opt_max_binlog_size= 1024L * 1024L * 1024L;
+static ulonglong opt_max_binlog_size= 1024ULL * 1024ULL * 1024ULL;
 my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
@@ -221,6 +221,7 @@ static char out_file_name[FN_REFLEN + 1]= {0};
 
 /* Used to track the position of the log file for computing legacy end_log_pos for converted legacy binlog file */
 static ulonglong log_file_pos= 0;
+static bool log_file_pos_overflow_warning_printed= false;
 
 static rpl_binlog_state_base *gtid_state= NULL;
 
@@ -1575,16 +1576,16 @@ end_skip_count:
   ##############################################################################
 */
 
-static bool store_log_file_pos(uchar *pos)
+static void store_log_file_pos(uchar *pos)
 {
-  if (log_file_pos > UINT_MAX32)
+  if (log_file_pos > UINT_MAX32 && !log_file_pos_overflow_warning_printed)
   {
-    error("Converted binlog output file exceeds the maximum supported size of "
-          "4GB");
-    return true;
+    warning("Converted binlog output file '%s' exceeds 4GB; event end_log_pos "
+            "values might be corrupted",
+            out_file_name);
+    log_file_pos_overflow_warning_printed= true;
   }
   int4store(pos, log_file_pos);
-  return false;
 }
 
 static bool write_event_header(FILE *outfile, Log_event_type event_type,
@@ -1617,8 +1618,7 @@ static bool write_event_header(FILE *outfile, Log_event_type event_type,
   int2store(header + FLAGS_OFFSET, 0);
   /* Update the log_file_pos */
   log_file_pos+= event_len;
-  if (store_log_file_pos(header + LOG_POS_OFFSET))
-    return true;
+  store_log_file_pos(header + LOG_POS_OFFSET);
 
   /* Write this header to outfile */
   if (my_fwrite(outfile, (const uchar *)header, LOG_EVENT_HEADER_LEN, MYF(MY_NABP))) {
@@ -1661,8 +1661,7 @@ static bool update_event_end_log_pos(Log_event *ev)
   DBUG_ASSERT(ev->temp_buf != NULL &&
               ev->data_written >= LOG_EVENT_HEADER_LEN);
   log_file_pos+= ev->data_written;
-  if (store_log_file_pos(ev->temp_buf + LOG_POS_OFFSET))
-    return true;
+  store_log_file_pos(ev->temp_buf + LOG_POS_OFFSET);
   return false;
 }
 
@@ -1946,6 +1945,7 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
 {
   /* Reset the log_file_pos to 0 for the new output legacy binlog file */
   log_file_pos= 0;
+  log_file_pos_overflow_warning_printed= false;
 
   generate_output_legacy_binlog_name(out_name, out_name_len, ++convert_engine_output_index);
 
@@ -2169,11 +2169,10 @@ static struct my_option my_options[] =
    "Convert InnoDB based engine binlog files to legacy binlog files.",
    &opt_convert_engine_binlog, &opt_convert_engine_binlog, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-   /* TODO: Tarun what should be the max value? */
   {"max-binlog-size", 0,
    "Maximum size of converted legacy binlog files.",
-   &opt_max_binlog_size, &opt_max_binlog_size, 0, GET_ULONG, REQUIRED_ARG,
-   1024L * 1024L * 1024L, IO_SIZE, 1024L * 1024L * 1024L, 0, IO_SIZE, 0},
+   &opt_max_binlog_size, &opt_max_binlog_size, 0, GET_ULL, REQUIRED_ARG,
+   1024ULL * 1024ULL * 1024ULL, IO_SIZE, 4ULL * 1024ULL * 1024ULL * 1024ULL, 0, IO_SIZE, 0},
   {"flashback", 'B', "Flashback feature can rollback you committed data to a special time point.",
 #ifdef WHEN_FLASHBACK_REVIEW_READY
    "before Flashback feature writing a row, original row can insert to review-dbname.review-tablename,"
