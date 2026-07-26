@@ -1,0 +1,9 @@
+BEGIN;
+INSERT INTO batch_rollback VALUES (1);
+ROLLBACK;
+BEGIN;
+INSERT INTO batch_rollback VALUES (2);
+COMMIT;
+SELECT * FROM batch_rollback ORDER BY id;
+id
+2

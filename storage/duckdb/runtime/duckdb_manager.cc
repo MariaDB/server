@@ -185,74 +185,103 @@ bool DuckdbManager::Initialize()
     return true;
   }
 
-  /* Enable autoloading of statically-linked extensions (core_functions etc.) */
+  try
   {
+    /* Enable autoloading of statically-linked extensions (core_functions etc.) */
     auto con= std::make_shared<duckdb::Connection>(*m_database);
-    con->Query("SET autoload_known_extensions=true");
-    con->Query("SET autoinstall_known_extensions=true");
+    auto init_query= [&con](const std::string &sql) {
+      auto result= con->Query(sql);
+      if (!result)
+        throw duckdb::InternalException(
+            "DuckDB initialization query returned no result");
+      if (result->HasError())
+        throw duckdb::InvalidInputException(
+            "DuckDB initialization query failed: %s", result->GetError());
+    };
+    init_query("SET autoload_known_extensions=true");
+    init_query("SET autoinstall_known_extensions=true");
 
     /*
       Register MariaDB-compatible SQL macros for functions that DuckDB
       lacks but MariaDB pushes down via the original query text.
     */
-    con->Query("CREATE OR REPLACE MACRO adddate(d, i) AS d + i");
+    init_query("CREATE OR REPLACE MACRO adddate(d, i) AS d + i");
     /* addtime/subtime registered as C++ UDFs */
     /* curdate/curtime — MariaDB aliases */
     /* datediff(d1, d2) — MariaDB returns days, DuckDB needs 3-arg form */
-    con->Query("CREATE OR REPLACE MACRO datediff(d1, d2) AS "
+    init_query("CREATE OR REPLACE MACRO datediff(d1, d2) AS "
                "(d1::DATE - d2::DATE)");
-    con->Query("CREATE OR REPLACE MACRO curdate() AS current_date");
-    con->Query("CREATE OR REPLACE MACRO curtime(fsp := 0) AS current_time");
+    init_query("CREATE OR REPLACE MACRO curdate() AS current_date");
+    init_query("CREATE OR REPLACE MACRO curtime(fsp := 0) AS current_time");
     /* utc_time/utc_timestamp/utc_date — UTC wall-clock; fsp ignored */
-    con->Query("CREATE OR REPLACE MACRO utc_timestamp(fsp := 0) AS "
+    init_query("CREATE OR REPLACE MACRO utc_timestamp(fsp := 0) AS "
                "timezone('UTC', now())::TIMESTAMP");
-    con->Query("CREATE OR REPLACE MACRO utc_time(fsp := 0) AS "
+    init_query("CREATE OR REPLACE MACRO utc_time(fsp := 0) AS "
                "timezone('UTC', now())::TIME");
-    con->Query("CREATE OR REPLACE MACRO utc_date() AS "
+    init_query("CREATE OR REPLACE MACRO utc_date() AS "
                "timezone('UTC', now())::DATE");
     /* unix_timestamp([ts]) — epoch seconds; no arg = now() */
-    con->Query("CREATE OR REPLACE MACRO unix_timestamp(ts := now()) AS "
+    init_query("CREATE OR REPLACE MACRO unix_timestamp(ts := now()) AS "
                "epoch(ts)::BIGINT");
     /* time_to_sec(t) — seconds since midnight */
-    con->Query("CREATE OR REPLACE MACRO time_to_sec(t) AS "
+    init_query("CREATE OR REPLACE MACRO time_to_sec(t) AS "
                "(date_part('hour', t)*3600 + date_part('minute', t)*60 "
                "+ date_part('second', t))::BIGINT");
     /* convert_tz(ts, from_tz, to_tz) */
-    con->Query("CREATE OR REPLACE MACRO convert_tz(ts, from_tz, to_tz) AS "
+    init_query("CREATE OR REPLACE MACRO convert_tz(ts, from_tz, to_tz) AS "
                "timezone(to_tz, timezone(from_tz, ts))");
-    con->Query("CREATE OR REPLACE MACRO subdate(d, i) AS d - i");
-    con->Query("CREATE OR REPLACE MACRO insert(str, pos, len, newstr) AS "
+    init_query("CREATE OR REPLACE MACRO subdate(d, i) AS d - i");
+    init_query("CREATE OR REPLACE MACRO insert(str, pos, len, newstr) AS "
                "CASE WHEN pos < 1 OR pos > length(str) THEN str "
                "ELSE substr(str, 1, pos - 1) || newstr || "
                "substr(str, pos + len) END");
     /* to_base64 / from_base64 — DuckDB uses base64()/from_base64() */
-    con->Query("CREATE OR REPLACE MACRO to_base64(x) AS "
+    init_query("CREATE OR REPLACE MACRO to_base64(x) AS "
                "base64(encode(x))");
     /* substring_index(str, delim, count) */
-    con->Query("CREATE OR REPLACE MACRO substring_index(s, d, c) AS "
+    init_query("CREATE OR REPLACE MACRO substring_index(s, d, c) AS "
                "CASE WHEN c > 0 THEN "
                "array_to_string(list_slice(string_split(s, d), 1, c), d) "
                "WHEN c < 0 THEN "
                "array_to_string(list_slice(string_split(s, d), c, NULL), d) "
                "ELSE '' END");
     /* strcmp(s1, s2) — returns 0, -1 or 1 */
-    con->Query("CREATE OR REPLACE MACRO strcmp(a, b) AS "
+    init_query("CREATE OR REPLACE MACRO strcmp(a, b) AS "
                "CASE WHEN a = b THEN 0 WHEN a < b THEN -1 ELSE 1 END");
     /* MID() registered as C++ UDF in register_mysql_compat_functions() */
     /* oct, bin, hex, locate are now registered as native C++ scalar functions
        in register_mysql_compat_functions() -- no SQL macros needed. */
+    /* Register MySQL-compatible function overloads */
+    register_mysql_compat_functions(*m_database->instance);
+
+    /* Register cross-engine scan support (_mdb_scan + replacement scan) */
+    register_cross_engine_scan(*m_database->instance);
+
+    sql_print_information("DuckDB: DuckdbManager::Initialize succeed, path=%s",
+                          path);
+    return false;
+  }
+  catch (const std::exception &e)
+  {
+    sql_print_error("DuckDB: initialization failed at '%s': %s", path,
+                    e.what());
+  }
+  catch (...)
+  {
+    sql_print_error("DuckDB: initialization failed at '%s': unknown exception",
+                    path);
   }
 
-  /* Register MySQL-compatible function overloads */
-  register_mysql_compat_functions(*m_database->instance);
-
-  /* Register cross-engine scan support (_mdb_scan + replacement scan) */
-  register_cross_engine_scan(*m_database->instance);
-
-  sql_print_information("DuckDB: DuckdbManager::Initialize succeed, path=%s",
-                        path);
-
-  return false;
+  try
+  {
+    delete m_database;
+  }
+  catch (...)
+  {
+    sql_print_error("DuckDB: exception during failed initialization cleanup");
+  }
+  m_database= nullptr;
+  return true;
 }
 
 bool DuckdbManager::CreateInstance()

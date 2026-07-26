@@ -58,6 +58,8 @@ public:
 
   bool flush(bool idempotent_flag);
 
+  void discard();
+
   void cleanup();
 
 private:
@@ -96,6 +98,8 @@ public:
   void delete_appender(std::string &db, std::string &tb);
 
   bool flush_all(bool idempotent_flag, std::string &error_msg);
+
+  void discard_all();
 
   bool is_empty() { return m_append_infos.empty(); }
 

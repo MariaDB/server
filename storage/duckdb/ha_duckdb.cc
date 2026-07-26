@@ -187,14 +187,20 @@ static int duckdb_close_connection(handlerton *hton, THD *thd)
 
 static int duckdb_register_trx(THD *thd)
 {
+  auto *ctx= get_duckdb_context(thd);
+  std::string error_msg;
+  if (ctx->duckdb_trans_begin(error_msg))
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, error_msg.c_str(),
+             "DuckDB");
+    return HA_ERR_GENERIC;
+  }
+
   trans_register_ha(thd, false, duckdb_hton, 0);
 
   if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trans_register_ha(thd, true, duckdb_hton, 0);
 
-  auto *ctx= get_duckdb_context(thd);
-  if (!ctx->has_transaction())
-    ctx->duckdb_trans_begin();
   return 0;
 }
 
@@ -209,7 +215,8 @@ static void duckdb_drop_database(handlerton *hton, char *path)
   query.append(db.name);
   query.append("\"");
 
-  duckdb_register_trx(thd);
+  if (duckdb_register_trx(thd))
+    DBUG_VOID_RETURN;
   auto *ctx= get_duckdb_context(thd);
   auto query_result= myduck::duckdb_query(ctx->get_connection(), query);
   DBUG_VOID_RETURN;
