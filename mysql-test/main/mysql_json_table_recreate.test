@@ -110,18 +110,18 @@ drop table t1;
 --error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 create table t1(j mysql_json);
 # `json` type should not have character set and collation other than utf8mb4_bin
---error ER_PARSE_ERROR
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
 create table `testjson` (
   `t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
-# By removing character set from `json` field query should work and
-# expand to `longtext` with characterset
+# Even if only collation is provided without character set, the native `json`
+# type should reject it as it does not support character set/collation attributes
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
 create table `testjson` (
   `t` json /* JSON from MySQL 5.7*/ COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
-show create table testjson;
-drop table testjson;
+
 
 # `longtext` that is alias can have character set
 create table `testjson` (

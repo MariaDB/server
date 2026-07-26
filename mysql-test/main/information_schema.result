@@ -914,14 +914,12 @@ information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST
 information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
-mysql	global_priv	Priv
 sys	innodb_lock_waits	waiting_query
 sys	innodb_lock_waits	blocking_query
 sys	processlist	current_statement
 sys	processlist	last_statement
 sys	schema_auto_increment_columns	column_type
 sys	schema_table_lock_waits	waiting_query
-mysql	servers	Options
 sys	session	current_statement
 sys	session	last_statement
 sys	statement_analysis	query

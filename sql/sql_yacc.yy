@@ -6626,7 +6626,7 @@ field_type_all_builtin:
 
 field_type_all:
           field_type_all_builtin
-        | udt_name float_options srid_option opt_binary
+        | udt_name float_options srid_option opt_binary_and_compression
           {
             if (Lex->set_field_type_udt(&$$, $1, $2, $4))
               MYSQL_YYABORT;

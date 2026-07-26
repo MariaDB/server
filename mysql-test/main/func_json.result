@@ -970,7 +970,7 @@ a	b
 SELECT json_object("a", json_compact(a), "b", b)
 FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", b)
-{"a": [1,2,3], "b": {"a":"foo"}}
+{"a": [1,2,3], "b": "{\"a\":\"foo\"}"}
 SELECT json_object("a", json_compact(a), "b", json_compact(b))
 FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", json_compact(b))
@@ -1621,7 +1621,7 @@ insert into t1 values('{"color":"red", "size":1}' );
 insert into t1 values('{"color":"blue", "size":2}' );
 select JSON_ARRAYAGG(col1) from t1;
 JSON_ARRAYAGG(col1)
-[{"color":"red", "size":1},{"color":"blue", "size":2}]
+["{\"color\":\"red\", \"size\":1}","{\"color\":\"blue\", \"size\":2}"]
 drop table t1;
 #
 # MDEV-23029: JSON_OBJECTAGG returns NULL when used together with GROUP BY
@@ -3830,7 +3830,7 @@ ERROR 23000: CONSTRAINT `obj_table.val_obj` failed for `test`.`obj_table`
 INSERT INTO obj_table VALUES('{"number1":3, "string1":"abcd"}');
 ERROR 23000: CONSTRAINT `obj_table.val_obj` failed for `test`.`obj_table`
 INSERT INTO obj_table VALUES('{"number1":3, "string1":"abcd", "object1":{"key1":"val1", "key2":[1,2,3, "string1"]}');
-ERROR 23000: CONSTRAINT `obj_table.val_obj` failed for `test`.`obj_table`
+ERROR 22007: Incorrect json value: '{"number1":3, "string1":"abcd", "object1":{"key1":"val1", "key2":[1,2,3, "string1"]}' for column `test`.`obj_table`.`val_obj` at row 1
 SELECT * FROM obj_table;
 val_obj
 {"number1":4, "string1":"abcd", "object1":{"key1":"val1", "key2":[1,2,3, "string1"], "key3":4}}
@@ -5831,7 +5831,7 @@ INSERT INTO test_check_json VALUES
 ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value"}'),
 ('{"key": "value"}', '[1, 2]', '{"key": "value"}', '{"key": "value", "key2": "value2"}');
 INSERT INTO test_check_json VALUES ('[1, 2, 3]', '{1, 2}', '{"key": "value"}', 'invalid');
-ERROR 23000: CONSTRAINT `test_check_json.j_array` failed for `test`.`test_check_json`
+ERROR 22007: Incorrect json value: '{1, 2}' for column `test`.`test_check_json`.`j_array` at row 1
 INSERT INTO test_check_json VALUES ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value", "key": "value2"}');
 ERROR 23000: CONSTRAINT `test_check_json.j_object_with_unique_keys` failed for `test`.`test_check_json`
 DROP TABLE test_check_json;

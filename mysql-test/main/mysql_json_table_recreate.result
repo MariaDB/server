@@ -192,7 +192,7 @@ create table t1(j json);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+  `j` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(j mysql_json);
@@ -200,17 +200,11 @@ ERROR HY000: 'MYSQL_JSON' is not allowed in this context
 create table `testjson` (
 `t` json /* JSON from MySQL 5.7*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-) ENGINE=InnoDB DEFAULT CH...' at line 2
+ERROR HY000: Data type 'json' doesn't support CHARACTER SET attribute.
 create table `testjson` (
 `t` json /* JSON from MySQL 5.7*/ COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
-show create table testjson;
-Table	Create Table
-testjson	CREATE TABLE `testjson` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`t`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-drop table testjson;
+ERROR HY000: Data type 'json' doesn't support CHARACTER SET attribute.
 create table `testjson` (
 `t` longtext /* JSON from MySQL 5.7 */ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;

@@ -14,10 +14,6 @@ public:
   {
     return to->set_format_name(name_on_client);
   }
-  const Type_handler *type_handler_base() const override
-  {
-    return &type_handler_long_blob;
-  }
 
   const Type_collection *type_collection() const override;
   uint get_column_attributes() const override { return ATTR_NONE; }
@@ -55,6 +51,23 @@ public:
   bool can_return_real() const override { return false; }
   bool can_return_date() const override { return false; }
   bool can_return_time() const override { return false; }
+
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const override;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const override;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override;
+
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *) const override;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const override;
+  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const override;
+  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *) const override;
+  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *) const override;
+  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *) const override;
+  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *) const override;
+  bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const override;
 };
 
 extern Type_handler_json type_handler_json;

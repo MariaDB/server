@@ -75,13 +75,10 @@ drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
 create table t2 (t json) select t from t1;
-Warnings:
-Warning	1292	Incorrect json value: '' for column `test`.`t2`.`t` at row 2
+ERROR 22007: Incorrect json value: '' for column `test`.`t2`.`t` at row 2
 select * from t2;
-t
-{}
-
-drop table t1, t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values (""),("{}");
 create table t2 (t json) select t from t1;
@@ -179,6 +176,42 @@ cast('{a:1}' as json)
 NULL
 Warnings:
 Warning	1292	Truncated incorrect JSON value: '{a:1}'
+#
+# Prohibit numeric aggregate functions and arithmetic on JSON data type
+#
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a": 10}'), ('{"a": 20}'), ('[1, 2, 3]');
+SELECT SUM(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'sum'
+SELECT AVG(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'avg'
+SELECT VARIANCE(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'variance('
+SELECT VAR_SAMP(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'var_samp('
+SELECT STD(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'std('
+SELECT STDDEV_SAMP(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'stddev_samp('
+SELECT BIT_AND(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_and('
+SELECT BIT_OR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_or('
+SELECT BIT_XOR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_xor('
+SELECT -j FROM t1;
+ERROR HY000: Illegal parameter data type json for operation '-'
+SELECT ABS(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'abs'
+SELECT ROUND(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'round'
+SELECT TRUNCATE(j, 1) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'truncate'
+SELECT CEIL(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'ceiling'
+SELECT FLOOR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'floor'
+DROP TABLE t1;
 #
 # Start of 10.5 tests
 #

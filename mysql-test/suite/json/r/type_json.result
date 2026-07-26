@@ -85,31 +85,31 @@ c12 ENUM('1','2') DEFAULT '1'
 INSERT INTO t2 VALUES ();
 CALL p1('t1', 'COALESCE(colt1, colt2)');
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c0)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c0, c1)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c0, c2)	254 (format=json)	255	1	Y	0	39	8
 COALESCE(c0, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c0, c3)	254 (format=json)	65535	1	Y	0	39	8
 COALESCE(c0, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c0, c4)	254 (format=json)	16777215	1	Y	0	39	8
 COALESCE(c0, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c0, c5)	254 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(c0, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c6)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -117,31 +117,31 @@ def					COALESCE(c0, c7)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c0)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c0)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c1)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c1, c2)	253 (format=json)	255	1	Y	0	39	8
 COALESCE(c1, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c1, c3)	253 (format=json)	65535	1	Y	0	39	8
 COALESCE(c1, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c1, c4)	253 (format=json)	16777215	1	Y	0	39	8
 COALESCE(c1, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c1, c5)	253 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(c1, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c6)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c6)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -149,31 +149,31 @@ def					COALESCE(c1, c7)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c0)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c0)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c1)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c1)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c2)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c2, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c2, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c2, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c2, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c2, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c2, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c6)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c6)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -181,31 +181,31 @@ def					COALESCE(c2, c7)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c0)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c0)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c1)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c1)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c2)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c2)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c3, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c3, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c3, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c3, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c6)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c6)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -213,31 +213,31 @@ def					COALESCE(c3, c7)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c0)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c0)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c1)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c1)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c2)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c2)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c3)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c3)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c4, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c4, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c6)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c6)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -245,31 +245,31 @@ def					COALESCE(c4, c7)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c0)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c0)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c1)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c1)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c2)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c2)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c3)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c3)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c4)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c4)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c6)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c6)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -277,27 +277,27 @@ def					COALESCE(c5, c7)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c6, c0)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c6, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c6, c1)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c6, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c6, c2)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c6, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c6, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c6, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c6, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c6, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c6, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c6, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -342,31 +342,31 @@ COALESCE(c7, c7)
 1
 CALL p1('t1', 'LEAST(colt1, colt2)');
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c0)	254	30	1	Y	0	39	8
+def					LEAST(c0, c0)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c1)	253	30	1	Y	0	39	8
+def					LEAST(c0, c1)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c0, c2)	254 (format=json)	255	1	Y	0	39	8
 LEAST(c0, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c0, c3)	254 (format=json)	65535	1	Y	0	39	8
 LEAST(c0, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c0, c4)	254 (format=json)	16777215	1	Y	0	39	8
 LEAST(c0, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c0, c5)	254 (format=json)	1073741823	1	Y	0	39	8
 LEAST(c0, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c0, c6)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -374,31 +374,31 @@ def					LEAST(c0, c7)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c0)	253	30	1	Y	0	39	8
+def					LEAST(c1, c0)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c1)	253	30	1	Y	0	39	8
+def					LEAST(c1, c1)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c1, c2)	253 (format=json)	255	1	Y	0	39	8
 LEAST(c1, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c1, c3)	253 (format=json)	65535	1	Y	0	39	8
 LEAST(c1, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c1, c4)	253 (format=json)	16777215	1	Y	0	39	8
 LEAST(c1, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c1, c5)	253 (format=json)	1073741823	1	Y	0	39	8
 LEAST(c1, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c1, c6)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -406,31 +406,31 @@ def					LEAST(c1, c7)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c0)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c0)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c1)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c1)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c2)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c2, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c2, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c2, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c2, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c2, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c2, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c2, c6)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -438,31 +438,31 @@ def					LEAST(c2, c7)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c0)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c0)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c1)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c1)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c2)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c2)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c3, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c3, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c3, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c3, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c3, c6)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -470,31 +470,31 @@ def					LEAST(c3, c7)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c0)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c0)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c1)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c1)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c2)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c2)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c3)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c3)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c4, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c4, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c4, c6)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -502,31 +502,31 @@ def					LEAST(c4, c7)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c0)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c0)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c1)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c1)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c2)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c2)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c3)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c3)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c4)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c4)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c5, c6)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -534,27 +534,27 @@ def					LEAST(c5, c7)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c0)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c0)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c6, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c1)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c1)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c6, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c2)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c2)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c6, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c3)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c6, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c4)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c6, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c5)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c6, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -856,31 +856,31 @@ c7+c7
 2
 CALL p1('t1c', 'COALESCE(colt1, colt2)');
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c0)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c0, c1)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c0, c2)	254 (format=json)	255	1	Y	0	39	8
 COALESCE(c0, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c0, c3)	254 (format=json)	65535	1	Y	0	39	8
 COALESCE(c0, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c0, c4)	254 (format=json)	16777215	1	Y	0	39	8
 COALESCE(c0, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c0, c5)	254 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(c0, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c6)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -888,31 +888,31 @@ def					COALESCE(c0, c7)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c0)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c0)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c1)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c1, c2)	253 (format=json)	255	1	Y	0	39	8
 COALESCE(c1, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c1, c3)	253 (format=json)	65535	1	Y	0	39	8
 COALESCE(c1, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c1, c4)	253 (format=json)	16777215	1	Y	0	39	8
 COALESCE(c1, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c1, c5)	253 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(c1, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c1, c6)	253	30	1	Y	0	39	8
+def					COALESCE(c1, c6)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -920,31 +920,31 @@ def					COALESCE(c1, c7)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c1, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c0)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c0)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c1)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c1)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c2)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c2, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c2, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c2, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c2, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c2, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c2, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c2, c6)	252	1020	1	Y	0	39	8
+def					COALESCE(c2, c6)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -952,31 +952,31 @@ def					COALESCE(c2, c7)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c2, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c0)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c0)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c1)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c1)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c2)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c2)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c3, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c3, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c3, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c3, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c3, c6)	250	262140	1	Y	0	39	8
+def					COALESCE(c3, c6)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -984,31 +984,31 @@ def					COALESCE(c3, c7)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c3, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c0)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c0)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c1)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c1)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c2)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c2)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c3)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c3)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c4, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c4, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c4, c6)	251	67108860	1	Y	0	39	8
+def					COALESCE(c4, c6)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1016,31 +1016,31 @@ def					COALESCE(c4, c7)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c4, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c0)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c0)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c1)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c1)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c2)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c2)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c3)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c3)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c4)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c4)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c5, c6)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c5, c6)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1048,27 +1048,27 @@ def					COALESCE(c5, c7)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c5, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c6, c0)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(c6, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c1)	253	30	1	Y	0	39	8
+def					COALESCE(c6, c1)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(c6, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c2)	252	1020	1	Y	0	39	8
+def					COALESCE(c6, c2)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(c6, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c3)	250	262140	1	Y	0	39	8
+def					COALESCE(c6, c3)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(c6, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c4)	251	67108860	1	Y	0	39	8
+def					COALESCE(c6, c4)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(c6, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c5)	251	4294967292	1	Y	0	39	8
+def					COALESCE(c6, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(c6, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1113,31 +1113,31 @@ COALESCE(c7, c7)
 1
 CALL p1('t1c', 'LEAST(colt1, colt2)');
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c0)	254	30	1	Y	0	39	8
+def					LEAST(c0, c0)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c1)	253	30	1	Y	0	39	8
+def					LEAST(c0, c1)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c0, c2)	254 (format=json)	255	1	Y	0	39	8
 LEAST(c0, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c0, c3)	254 (format=json)	65535	1	Y	0	39	8
 LEAST(c0, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c0, c4)	254 (format=json)	16777215	1	Y	0	39	8
 LEAST(c0, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c0, c5)	254 (format=json)	1073741823	1	Y	0	39	8
 LEAST(c0, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c0, c6)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1145,31 +1145,31 @@ def					LEAST(c0, c7)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c0)	253	30	1	Y	0	39	8
+def					LEAST(c1, c0)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c1)	253	30	1	Y	0	39	8
+def					LEAST(c1, c1)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c1, c2)	253 (format=json)	255	1	Y	0	39	8
 LEAST(c1, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c1, c3)	253 (format=json)	65535	1	Y	0	39	8
 LEAST(c1, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c1, c4)	253 (format=json)	16777215	1	Y	0	39	8
 LEAST(c1, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c1, c5)	253 (format=json)	1073741823	1	Y	0	39	8
 LEAST(c1, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c1, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c1, c6)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1177,31 +1177,31 @@ def					LEAST(c1, c7)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c1, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c0)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c0)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c1)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c1)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c2)	252	1020	1	Y	0	39	8
+def					LEAST(c2, c2)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c2, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c2, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c2, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c2, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c2, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c2, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c2, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c2, c6)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1209,31 +1209,31 @@ def					LEAST(c2, c7)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c2, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c0)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c0)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c1)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c1)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c2)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c2)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c3)	250	262140	1	Y	0	39	8
+def					LEAST(c3, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c3, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c3, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c3, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c3, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c3, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c3, c6)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1241,31 +1241,31 @@ def					LEAST(c3, c7)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c3, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c0)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c0)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c1)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c1)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c2)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c2)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c3)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c3)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c4)	251	67108860	1	Y	0	39	8
+def					LEAST(c4, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c4, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c4, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c4, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c4, c6)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1273,31 +1273,31 @@ def					LEAST(c4, c7)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c4, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c0)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c0)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c1)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c1)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c2)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c2)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c3)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c3)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c4)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c4)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c5)	251	4294967292	1	Y	0	39	8
+def					LEAST(c5, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c5, c6)	5	23	1	Y	32896	31	63
+def					LEAST(c5, c6)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1305,27 +1305,27 @@ def					LEAST(c5, c7)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c5, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c0)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c0)	254 (format=json)	30	1	Y	0	39	8
 LEAST(c6, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c1)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c1)	253 (format=json)	30	1	Y	0	39	8
 LEAST(c6, c1)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c2)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c2)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(c6, c2)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c3)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c3)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(c6, c3)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c4)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c4)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(c6, c4)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c6, c5)	5	23	1	Y	32896	31	63
+def					LEAST(c6, c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(c6, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1651,27 +1651,27 @@ def					COALESCE(t1.c0, t2.c5)	254 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(t1.c0, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c6)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c6)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c7)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c7)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c8)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c8)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c9)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c9)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c10)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c10)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c11)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c11)	254 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1703,27 +1703,27 @@ def					COALESCE(t1.c1, t2.c5)	253 (format=json)	1073741823	1	Y	0	39	8
 COALESCE(t1.c1, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c6)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c6)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c7)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c7)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c8)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c8)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c9)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c9)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c10)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c10)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c1, t2.c11)	253	30	1	Y	0	39	8
+def					COALESCE(t1.c1, t2.c11)	253 (format=json)	30	1	Y	0	39	8
 COALESCE(t1.c1, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1755,27 +1755,27 @@ def					COALESCE(t1.c2, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c2, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c6)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c6)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c7)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c7)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c8)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c8)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c9)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c9)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c10)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c10)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c2, t2.c11)	252	1020	1	Y	0	39	8
+def					COALESCE(t1.c2, t2.c11)	252 (format=json)	1020	1	Y	0	39	8
 COALESCE(t1.c2, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1807,27 +1807,27 @@ def					COALESCE(t1.c3, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c3, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c6)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c6)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c7)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c7)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c8)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c8)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c9)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c9)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c10)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c10)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c3, t2.c11)	250	262140	1	Y	0	39	8
+def					COALESCE(t1.c3, t2.c11)	250 (format=json)	262140	1	Y	0	39	8
 COALESCE(t1.c3, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1859,27 +1859,27 @@ def					COALESCE(t1.c4, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c4, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c6)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c6)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c7)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c7)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c8)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c8)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c9)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c9)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c10)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c10)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c4, t2.c11)	251	67108860	1	Y	0	39	8
+def					COALESCE(t1.c4, t2.c11)	251 (format=json)	67108860	1	Y	0	39	8
 COALESCE(t1.c4, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1911,27 +1911,27 @@ def					COALESCE(t1.c5, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c6)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c6)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c7)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c7)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c8)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c8)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c9)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c9)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c10)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c10)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c5, t2.c11)	251	4294967292	1	Y	0	39	8
+def					COALESCE(t1.c5, t2.c11)	251 (format=json)	4294967292	1	Y	0	39	8
 COALESCE(t1.c5, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -2068,29 +2068,29 @@ def					LEAST(t1.c0, t2.c5)	254 (format=json)	1073741823	1	Y	0	39	8
 LEAST(t1.c0, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c0, t2.c6)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c0, t2.c7)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c0, t2.c8)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c0, t2.c9)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c0, t2.c10)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c0, t2.c11)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c0, t2.c12)	254 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c12)
@@ -2120,29 +2120,29 @@ def					LEAST(t1.c1, t2.c5)	253 (format=json)	1073741823	1	Y	0	39	8
 LEAST(t1.c1, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c1, t2.c6)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c1, t2.c7)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c1, t2.c8)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c1, t2.c9)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c1, t2.c10)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c1, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c1, t2.c11)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c1, t2.c12)	253 (format=json)	30	1	Y	0	39	8
 LEAST(t1.c1, t2.c12)
@@ -2172,29 +2172,29 @@ def					LEAST(t1.c2, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c2, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c2, t2.c6)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c2, t2.c7)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c2, t2.c8)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c2, t2.c9)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c2, t2.c10)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c2, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c2, t2.c11)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c2, t2.c12)	252 (format=json)	1020	1	Y	0	39	8
 LEAST(t1.c2, t2.c12)
@@ -2224,29 +2224,29 @@ def					LEAST(t1.c3, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c3, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c3, t2.c6)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c3, t2.c7)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c3, t2.c8)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c3, t2.c9)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c3, t2.c10)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c3, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c3, t2.c11)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c3, t2.c12)	250 (format=json)	262140	1	Y	0	39	8
 LEAST(t1.c3, t2.c12)
@@ -2276,29 +2276,29 @@ def					LEAST(t1.c4, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c4, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c4, t2.c6)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c4, t2.c7)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c4, t2.c8)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c4, t2.c9)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c4, t2.c10)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c4, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c4, t2.c11)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c4, t2.c12)	251 (format=json)	67108860	1	Y	0	39	8
 LEAST(t1.c4, t2.c12)
@@ -2328,29 +2328,29 @@ def					LEAST(t1.c5, t2.c5)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c6)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c5, t2.c6)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c7)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c5, t2.c7)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c8)	5	23	1	Y	32896	31	63
+def					LEAST(t1.c5, t2.c8)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c9)	11	17	15	Y	128	6	63
+def					LEAST(t1.c5, t2.c9)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c9)
-00:00:01.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c10)	10	10	10	Y	128	0	63
+def					LEAST(t1.c5, t2.c10)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c10)
-0000-00-00
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c5, t2.c11)	12	26	26	Y	128	6	63
+def					LEAST(t1.c5, t2.c11)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c11)
-0000-00-00 00:00:00.000000
+1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					LEAST(t1.c5, t2.c12)	251 (format=json)	4294967292	1	Y	0	39	8
 LEAST(t1.c5, t2.c12)

@@ -3150,7 +3150,7 @@ ERROR 42000: Incorrect parameter count in the call to native function 'JSON_CONT
 # ----------------------------------------------------------------------
 select json_object("a", ifnull(json_quote('test'), json_compact('null')));
 json_object("a", ifnull(json_quote('test'), json_compact('null')))
-{"a": "\"test\""}
+{"a": "test"}
 select json_compact(concat('[', json_quote('ab'), ']'));
 json_compact(concat('[', json_quote('ab'), ']'))
 ["ab"]
@@ -3621,7 +3621,7 @@ SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
 GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
 FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
 j
-[null, null, null, null, "1", "2"]
+[null, null, null, null, 1, 2]
 #
 # Start of 11.4 tests
 #

@@ -2833,7 +2833,7 @@ INSERT INTO obj_table VALUES('{"number1":4, "string1":"abcd", "object1":{"key1":
 INSERT INTO obj_table VALUES('{"number1":3, "string1":"abcd", "object1":{"key1":"val1", "key2":[1,2,3, "string1"], "key3":4}}');
 --error ER_CONSTRAINT_FAILED
 INSERT INTO obj_table VALUES('{"number1":3, "string1":"abcd"}');
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO obj_table VALUES('{"number1":3, "string1":"abcd", "object1":{"key1":"val1", "key2":[1,2,3, "string1"]}');
 SELECT * FROM obj_table;
 
@@ -4500,7 +4500,7 @@ INSERT INTO test_check_json VALUES
   ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value"}'),
   ('{"key": "value"}', '[1, 2]', '{"key": "value"}', '{"key": "value", "key2": "value2"}');
 
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO test_check_json VALUES ('[1, 2, 3]', '{1, 2}', '{"key": "value"}', 'invalid');
 --error ER_CONSTRAINT_FAILED
 INSERT INTO test_check_json VALUES ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value", "key": "value2"}');
