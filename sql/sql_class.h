@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5414,6 +5414,7 @@ public:
 
   void mark_transaction_to_rollback(bool all);
   bool internal_transaction() { return transaction != &default_transaction; }
+  MEM_ROOT *user_vars_root() { return &user_vars_memroot; }
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -5435,6 +5436,10 @@ private:
     tree itself is reused between executions and thus is stored elsewhere.
   */
   MEM_ROOT main_mem_root;
+  /**
+    Memory root the user_var_entry objects and their names are allocated on.
+  */
+  MEM_ROOT user_vars_memroot;
   Diagnostics_area main_da;
   Diagnostics_area *m_stmt_da;
 
