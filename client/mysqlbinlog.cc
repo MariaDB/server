@@ -3946,6 +3946,11 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     if (opt_convert_engine_binlog && !gtid_state) {
       gtid_state= new rpl_binlog_state_base();
       gtid_state->init();
+      /* initialize this gtid state from the header of the innodb binlog file */
+      if (read_initial_gtid_state(engine_binlog_reader, gtid_state)) {
+        error("Failed to read initial GTID state from the header of the innodb binlog file");
+        goto err;
+      }
     }
   }
   for (;;)
