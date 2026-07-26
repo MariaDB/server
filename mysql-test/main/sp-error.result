@@ -2776,4 +2776,17 @@ SET @@SESSION.OPTIMIZER_SWITCH="in_to_exists=OFF,materialization=OFF";
 ERROR HY000: At least one of the 'in_to_exists' or 'materialization' optimizer_switch flags must be 'on'
 PREPARE stmt FROM @cmd;
 set @@SESSION.OPTIMIZER_SWITCH=@old_optimizer_switch;
-# End of 10.2 Test
+# End of 10.2 tests
+#
+# MDEV-30555 The server does not detect changes in NULL-ability of system table columns
+#
+call mtr.add_suppression("Incorrect definition of table mysql\\.proc");
+RENAME TABLE mysql.proc TO proc_backup;
+CREATE TABLE mysql.proc LIKE proc_backup;
+ALTER TABLE mysql.proc MODIFY definer
+varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL;
+CREATE PROCEDURE p1() SET @x = 1;
+ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
+DROP TABLE mysql.proc;
+RENAME TABLE proc_backup TO mysql.proc;
+# End of 10.11 tests

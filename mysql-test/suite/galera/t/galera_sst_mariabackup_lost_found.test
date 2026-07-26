@@ -25,7 +25,8 @@ CREATE TABLE t1(id INT);
 INSERT INTO t1 VALUES (1), (2);
 SELECT * FROM `lost+found`.t1;
 
-CREATE DATABASE `#mysql50#not_lost+found`;
+--let $datadir= `SELECT @@datadir`
+--mkdir $datadir/not_lost+found
 USE `#mysql50#not_lost+found`;
 CREATE TABLE t1(id INT);
 INSERT INTO t1 VALUES (1), (2);

@@ -1,0 +1,40 @@
+# mariabackup SST must treat ssl-mode=VERIFY_CA differently from
+# VERIFY_IDENTITY - verify the CA chain only, without a peer-name check.
+#
+# Steps:
+# 1. Start a 2-node cluster using mariabackup SST with ssl-mode=VERIFY_CA
+#    (configured in the .cnf).
+# 2. Force SSTs on node 2 (clean restart, empty datadir, kill) to exercise
+#    the VERIFY_CA transfer path.
+# 3. Check the cluster reconverges and data is consistent after each SST.
+# 4. Confirm the donor took the VERIFY_CA (chain-only) path, not the
+#    VERIFY_IDENTITY peer-name check.
+#
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+# Verify the donor logs this line only when it distinguishes VERIFY_CA from
+# VERIFY_IDENTITY and verifies the chain only.
+--connection node_1
+--disable_result_log
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = Verifying peer certificate chain for ssl-mode=VERIFY_CA
+--let SEARCH_ABORT = NOT FOUND
+--source include/search_pattern_in_file.inc
+--enable_result_log
+
+--source include/auto_increment_offset_restore.inc

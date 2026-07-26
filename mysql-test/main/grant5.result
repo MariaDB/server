@@ -472,6 +472,29 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 ERROR HY000: Plugin 'not_installed_plugin' is not loaded
 # End of 10.5 tests
+# MDEV-40470 GRANT PROXY with empty password incorrectly checks grantor's privileges
+#
+create user u1@localhost;
+create user u2@localhost identified by 'pwd';
+grant all privileges on *.* to u2@localhost with grant option;
+show create user u2@localhost;
+CREATE USER for u2@localhost
+CREATE USER `u2`@`localhost` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
+connect u,localhost,u1;
+show grants;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+grant proxy on u1@localhost to u2@localhost identified via 'foo';
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysql'
+grant proxy on u1@localhost to u2@localhost identified via '';
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'mysql'
+connection default;
+show create user u2@localhost;
+CREATE USER for u2@localhost
+CREATE USER `u2`@`localhost` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
+drop user u1@localhost;
+drop user u2@localhost;
+# End of 10.6 tests
 #
 # MDEV-37256: The permission check of LOAD INDEX INTO CACHE and CACHE INDEX is broken
 #

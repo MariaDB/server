@@ -3573,6 +3573,20 @@ SELECT ST_GeomFromWKB(x'01070000000100000001070000000100000001070000000100000001
 --echo #
 SELECT HEX(ST_GeometryN(0x000000000107000000010000000101000000, 1));
 
+--echo #
+--echo # MDEV-40328 ASAN error on malformed WKB multipolygon
+--echo #
+select st_area(x'0000000001060000000100000001030000');
+select st_centroid(x'0000000001060000000100000001030000');
+
+# similar on multilinestring
+select  glength(x'0000000001050000000100000001020000');
+
+--echo #
+--echo # MDEV-40329 Binary_string::qs_append(char): Assertion `str_length + (uint32) (1) <= Alloced_length' failed in AsText
+--echo #
+select astext(concat(x'00000000', repeat(x'010700000001000000', 200), x'010100000000000000000000000000000000000000')) as oops;
+
 --echo # End of 10.6 tests
 
 --echo #

@@ -108,7 +108,8 @@ static const LEX_CSTRING TABLE_clex_str= { STRING_WITH_LEN("TABLE") };
 static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *, const char *, KEY *, KEY *);
 static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
-                                        List<Virtual_column_info> *, uint *);
+                                        List<Virtual_column_info> *,
+                                        List<Create_field> *, uint *);
 static const char *make_unique_invisible_field_name(THD *, const char *,
                                                     List<Create_field> *);
 static int copy_data_between_tables(THD *, TABLE *,TABLE *, bool, uint,
@@ -119,13 +120,28 @@ static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
-                                  const HA_CREATE_INFO *);
+                                  List<Create_field> *, const HA_CREATE_INFO *);
 static bool wait_for_master(THD *thd);
 static int process_master_state(THD *thd, int alter_result,
                                 uint64 &start_alter_id, bool if_exists);
 static bool
 write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
                                    bool &partial_alter, bool if_exists);
+
+static bool append_table_to_dir(THD *thd, const char **filename_ptr,
+                                const LEX_CSTRING *table_name)
+{
+  char buf[FN_REFLEN];
+  LEX_CSTRING fname;
+  DBUG_ASSERT(table_name->str[table_name->length] == 0);
+  fname.str= buf;
+  fname.length= tablename_to_filename(table_name->str, buf, sizeof(buf));
+  if (fname.length)
+    return append_file_to_dir(thd, filename_ptr, &fname);
+
+  my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name->str);
+  return 1;
+}
 
 /**
   @brief Helper function for explain_filename
@@ -465,6 +481,15 @@ bool check_mysql50_prefix(const char *name)
 }
 
 
+bool error_if_mysql50_prefix(const char *name, uint error)
+{
+  if (!check_mysql50_prefix(name))
+    return 0;
+  my_error(error, MYF(0), name);
+  return 1;
+}
+
+
 /**
   Check if given string begins with "#mysql50#" prefix, cut it if so.
   
@@ -583,8 +608,10 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
   DBUG_ENTER("build_table_filename");
   DBUG_PRINT("enter", ("db: '%s'  table_name: '%s'  ext: '%s'  flags: %x",
                        db, table_name, ext, flags));
+  DBUG_ASSERT(*db);
 
-  (void) tablename_to_filename(db, dbbuff, sizeof(dbbuff));
+  if (!tablename_to_filename(db, dbbuff, sizeof(dbbuff)))
+    DBUG_RETURN(*buff= 0);
 
   /*
     Check if this is a temporary table name. Allow it if a corresponding .frm
@@ -598,8 +625,10 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
 
   if (flags & FN_IS_TMP) // FN_FROM_IS_TMP | FN_TO_IS_TMP
     strmake(tbbuff, table_name, sizeof(tbbuff)-1);
-  else
-    (void) tablename_to_filename(table_name, tbbuff, sizeof(tbbuff));
+  else if (!*table_name)
+    *tbbuff= 0; // table_name="" hack is used very often
+  else if (!tablename_to_filename(table_name, tbbuff, sizeof(tbbuff)))
+    DBUG_RETURN(*buff= 0);
 
   char *end = buff + bufflen;
   char *pos= strnmov(buff, mysql_data_home, bufflen-3);
@@ -3208,6 +3237,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
+  if (alter_info->table_name.length &&
+      error_if_mysql50_prefix(alter_info->table_name.str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(TRUE);
+
   select_field_pos= get_select_field_pos(alter_info, select_field_count,
                                          create_info->versioned());
   null_fields= 0;
@@ -3999,6 +4032,17 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           }
         }
 
+        /* Check that there's no column-level CHECK constraint with same name. */
+        it.rewind();
+        while (const Create_field *cf= it++)
+        {
+          if (cf->check_constraint && check->name.streq(cf->field_name))
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+            DBUG_RETURN(TRUE);
+          }
+        }
+
         if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN, scs, 1))
         {
           my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
@@ -4587,7 +4631,7 @@ int create_table_impl(THD *thd,
   }
 
   if (fix_constraints_names(thd, &alter_info->check_constraint_list,
-                            create_info))
+                            &alter_info->create_list, create_info))
     DBUG_RETURN(1);
 
   if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
@@ -5363,14 +5407,19 @@ make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
 static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
                                         const char *own_name_base,
                                         List<Virtual_column_info> *vcol,
+                                        List<Create_field> *create_list,
                                         uint *nr)
 {
   char buff[MAX_FIELD_NAME], *end;
   List_iterator_fast<Virtual_column_info> it(*vcol);
+  List_iterator_fast<Create_field> cf_it(*create_list);
   end=strmov(buff, own_name_base ? own_name_base : "CONSTRAINT_");
   for (int round= 0;; round++)
   {
-    Virtual_column_info *check;
+    const Virtual_column_info *check;
+    const Create_field *cf;
+    Lex_ident n(buff, 0);
+    bool conflict= false;
     char *real_end= end;
     if (round == 1 && own_name_base)
         *end++= '_';
@@ -5378,18 +5427,17 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (round != 0 || !own_name_base)
       real_end= int10_to_str((*nr)++, end, 10);
     it.rewind();
-    while ((check= it++))
+    cf_it.rewind();
+    n.length= real_end - buff;
+    while (!conflict && ((check= it++)))
+      conflict= check->name.str && check->name.streq(n);
+    while (!conflict && ((cf= cf_it++)))
+      conflict= cf->check_constraint && cf->field_name.streq(n);
+    if (!conflict)                              // Found unique name
     {
-      if (check->name.str &&
-          !my_strcasecmp(system_charset_info, buff, check->name.str))
-        break;
-    }
-    if (!check)                                 // Found unique name
-    {
-      name->length= (size_t) (real_end - buff);
-      name->str= thd->strmake(buff, name->length);
-
-      return (name->str == NULL);
+      name->length= n.length;
+      name->str= thd->strmake(buff, n.length);
+      return name->str == NULL;
     }
   }
   return FALSE;
@@ -6665,15 +6713,16 @@ remove_key:
 }
 
 
-static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
-                                  *check_constraint_list,
+static bool fix_constraints_names(THD *thd,
+                                  List<Virtual_column_info> *check_list,
+                                  List<Create_field> *create_list,
                                   const HA_CREATE_INFO *create_info)
 {
-  List_iterator<Virtual_column_info> it((*check_constraint_list));
+  List_iterator<Virtual_column_info> it((*check_list));
   Virtual_column_info *check;
   uint nr= 1;
   DBUG_ENTER("fix_constraints_names");
-  if (!check_constraint_list)
+  if (!check_list)
     DBUG_RETURN(FALSE);
   // Prevent accessing freed memory during generating unique names
   while ((check=it++))
@@ -6695,10 +6744,8 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
       const char *own_name_base= create_info->period_info.constr == check
         ? create_info->period_info.name.str : NULL;
 
-      if (make_unique_constraint_name(thd, &check->name,
-                                      own_name_base,
-                                      check_constraint_list,
-                                      &nr))
+      if (make_unique_constraint_name(thd, &check->name, own_name_base,
+                                      check_list, create_list, &nr))
         DBUG_RETURN(TRUE);
     }
   }
@@ -10566,6 +10613,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 #endif
   }
 
+  if (new_name->str &&
+      error_if_mysql50_prefix(new_name->str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(true);
+
   THD_STAGE_INFO(thd, stage_init_update);
   bzero(&ddl_log_state, sizeof(ddl_log_state));
 
@@ -10975,7 +11026,7 @@ do_continue:;
   if (handle_if_exists_options(thd, table, alter_info,
                                &create_info->period_info) ||
       fix_constraints_names(thd, &alter_info->check_constraint_list,
-                            create_info))
+                            &alter_info->create_list, create_info))
     DBUG_RETURN(true);
 
   /* Check if rename of triggers are supported */
@@ -12975,9 +13026,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   create_info.alias= create_table->alias;
 
   /* Fix names if symlinked or relocated tables */
-  if (append_file_to_dir(thd, &create_info.data_file_name,
+  if (append_table_to_dir(thd, &create_info.data_file_name,
                          &create_table->table_name) ||
-      append_file_to_dir(thd, &create_info.index_file_name,
+      append_table_to_dir(thd, &create_info.index_file_name,
                          &create_table->table_name))
     goto end_with_restore_list;
 

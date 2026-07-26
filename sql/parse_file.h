@@ -27,7 +27,9 @@ typedef struct st_mem_root MEM_ROOT;
 #define PARSE_FILE_TIMESTAMPLENGTH 19
 
 enum file_opt_type {
+#if MYSQL_VERSION_ID < 101120
   FILE_OPTIONS_STRING,		/**< String (LEX_STRING) */
+#endif
   FILE_OPTIONS_ESTRING,		/**< Escaped string (LEX_STRING) */
   FILE_OPTIONS_ULONGLONG,	/**< ulonglong parameter (ulonglong) */
   FILE_OPTIONS_VIEW_ALGO,	/**< Similar to longlong, but needs conversion */

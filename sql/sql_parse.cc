@@ -7207,7 +7207,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      &thd->col_access, NULL, FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd, dst_db_name))
+    if (!(thd->col_access & ~GRANT_ACL) && check_grant_db(thd, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -8320,14 +8320,11 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)))))
+  if (unlikely(!(order = (ORDER *) thd->calloc(sizeof(ORDER)))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
-  order->used=0;
-  order->counter_used= 0;
-  order->fast_field_copier_setup= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))

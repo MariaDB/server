@@ -942,6 +942,7 @@ public:
   my_decimal *val_decimal_from_time_op(my_decimal *dec);
 
   longlong val_int_from_str_op();
+  longlong val_int_from_hex_hybrid_str_op();
   longlong val_int_from_real_op();
   longlong val_int_from_date_op();
   longlong val_int_from_time_op();

@@ -37,3 +37,18 @@ drop user foo3@test;
 drop user foo2@test;
 drop user foo@test;
 drop user foo;
+# End of 10.2 tests
+#
+# MDEV-40308 single quotes make SHOW CREATE USER invalid
+#
+create user 'x''y'@localhost identified via unix_socket using 'x''1' require issuer 'x''2' subject 'x''3' cipher 'x''4';
+grant proxy on 'x''y'@localhost to 'x''y'@localhost;
+show create user 'x''y'@localhost;
+CREATE USER for x'y@localhost
+CREATE USER `x'y`@`localhost` IDENTIFIED VIA unix_socket USING 'x''1' REQUIRE ISSUER 'x''2' SUBJECT 'x''3' CIPHER 'x''4'
+show grants for 'x''y'@localhost;
+Grants for x'y@localhost
+GRANT USAGE ON *.* TO `x'y`@`localhost` IDENTIFIED VIA unix_socket USING 'x''1' REQUIRE ISSUER 'x''2' SUBJECT 'x''3' CIPHER 'x''4'
+GRANT PROXY ON `x'y`@`localhost` TO `x'y`@`localhost`
+drop user 'x''y'@localhost;
+# End of 10.6 tests

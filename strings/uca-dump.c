@@ -417,14 +417,20 @@ static int process_option(OPT *options, const char *opt)
   static const LEX_CSTRING opt_levels= {STRING_WITH_LEN("--levels=")};
   static const LEX_CSTRING opt_no_contractions= {STRING_WITH_LEN("--no-contractions")};
   static const LEX_CSTRING opt_case_first= {STRING_WITH_LEN("--case-first=")};
+  const char *eq= strchr(opt, '=');
   if (!lstrncmp(opt, opt_name_prefix))
   {
-    options->name_prefix= opt + opt_name_prefix.length;
+    if (!eq)
+      return 1;
+
+    options->name_prefix= eq + 1;
     return 0;
   }
   if (!lstrncmp(opt, opt_levels))
   {
-    options->levels= (uint) strtoul(opt + opt_levels.length, NULL, 10);
+    if (!eq)
+      return 1;
+    options->levels= (uint) strtoul(eq + 1, NULL, 10);
     if (options->levels < 1 || options->levels > 3)
     {
       printf("Bad --levels value\n");
@@ -434,13 +440,15 @@ static int process_option(OPT *options, const char *opt)
   }
   if (!lstrncmp(opt, opt_case_first))
   {
-    const char *value= opt + opt_case_first.length;
-    if (!strcasecmp(value, "upper"))
+    if (!eq)
+      return 1;
+    eq++;
+    if (!strcasecmp(eq, "upper"))
     {
       options->case_first_upper= TRUE;
       return 0;
     }
-    if (!strcasecmp(value, "lower"))
+    if (!strcasecmp(eq, "lower"))
     {
       options->case_first_upper= FALSE;
       return 0;

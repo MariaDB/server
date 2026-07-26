@@ -128,7 +128,7 @@ if (`SELECT $server_3_sync_slave_reply AND $server_3_expect_row_count`)
 
 --echo # Reaping transaction..
 --connection server_1
---error 2013
+--error 2013,2026
 --reap
 --source include/wait_until_disconnected.inc
 

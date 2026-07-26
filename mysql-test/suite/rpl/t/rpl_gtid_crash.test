@@ -56,7 +56,7 @@ while ($1)
 --source include/save_master_gtid.inc
 
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 SELECT 1;
 --source include/wait_until_disconnected.inc
 
@@ -114,7 +114,7 @@ wait
 EOF
 
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 SELECT 1;
 --source include/wait_until_disconnected.inc
 
@@ -168,7 +168,7 @@ EOF
 wait
 EOF
 START SLAVE;
---error 0,2006,2013
+--error 0,2006,2013,2026
 SET GLOBAL debug_dbug="+d,crash_commit_before";
 
 --connection server_1
@@ -193,7 +193,7 @@ EOF
 wait
 EOF
 START SLAVE;
---error 0,2006,2013
+--error 0,2006,2013,2026
 SET GLOBAL debug_dbug="+d,crash_commit_after";
 
 --connection server_1
@@ -218,7 +218,7 @@ EOF
 wait
 EOF
 SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
---error 0,2006,2013
+--error 0,2006,2013,2026
 START SLAVE;
 
 --connection server_1
@@ -243,7 +243,7 @@ EOF
 wait
 EOF
 SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
---error 0,2006,2013
+--error 0,2006,2013,2026
 START SLAVE;
 
 --connection server_1
@@ -329,7 +329,7 @@ INSERT INTO t1 VALUES (11);
 --error ER_ERROR_ON_WRITE
 COMMIT;
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 COMMIT;
 
 --source include/wait_until_disconnected.inc
@@ -390,7 +390,7 @@ INSERT INTO t1 VALUES (12);
 --error ER_ERROR_ON_WRITE
 COMMIT;
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 COMMIT;
 
 --source include/wait_until_disconnected.inc
@@ -425,7 +425,7 @@ INSERT INTO t1 VALUES (21);
 --error ER_ERROR_ON_WRITE
 COMMIT;
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 COMMIT;
 
 --source include/wait_until_disconnected.inc
@@ -487,7 +487,7 @@ INSERT INTO t1 VALUES (22);
 --error ER_ERROR_ON_WRITE
 COMMIT;
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 COMMIT;
 
 --source include/wait_until_disconnected.inc
@@ -522,7 +522,7 @@ INSERT INTO t1 VALUES (25);
 --error ER_ERROR_ON_WRITE
 COMMIT;
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 COMMIT;
 
 --source include/wait_until_disconnected.inc

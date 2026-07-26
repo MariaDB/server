@@ -54,7 +54,7 @@ table_status_by_thread::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE status_by_thread("
   "THREAD_ID BIGINT unsigned not null comment 'The thread identifier of the session in which the status variable is defined.',"
   "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
-  "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
+  "VARIABLE_VALUE VARCHAR(4096) comment 'Aggregated status variable value.' )") },
   false, /* m_perpetual */
   false, /* m_optional */
   &m_share_state

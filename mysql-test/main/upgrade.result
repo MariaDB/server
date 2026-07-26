@@ -1,13 +1,7 @@
 call mtr.add_suppression("Invalid .old.. table or database name");
-drop database if exists `mysqltest1`;
-drop database if exists `mysqltest-1`;
-drop database if exists `#mysql50#mysqltest-1`;
 create database `mysqltest1`;
-create database `#mysql50#mysqltest-1`;
 create table `mysqltest1`.`t1` (a int);
-create table `mysqltest1`.`#mysql50#t-1` (a int);
 create table `#mysql50#mysqltest-1`.`t1` (a int);
-create table `#mysql50#mysqltest-1`.`#mysql50#t-1` (a int);
 show create database `mysqltest1`;
 Database	Create Database
 mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
@@ -16,6 +10,8 @@ ERROR 42000: Unknown database 'mysqltest-1'
 show create database `#mysql50#mysqltest-1`;
 Database	Create Database
 #mysql50#mysqltest-1	CREATE DATABASE `#mysql50#mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+Warnings:
+Note	1105	Database '#mysql50#mysqltest-1' does not have a db.opt file. You can create one with ALTER DATABASE if needed
 show tables in `mysqltest1`;
 Tables_in_mysqltest1
 #mysql50#t-1
@@ -151,3 +147,144 @@ Tables_in_test	Table_type
 ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com	BASE TABLE
 drop table `ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com`;
 # End of 5.1 tests
+#
+# MDEV-40362 #mysql50# mixes up with table names in the table cache
+#
+drop table if exists `#mysql50#t`;
+ERROR 42000: Incorrect table name '#mysql50#t'
+drop table if exists `#mysql50#a@002fb`;
+ERROR 42000: Incorrect table name '#mysql50#a@002fb'
+drop table if exists `#mysql50#COM1@@@`;
+ERROR 42000: Incorrect table name '#mysql50#COM1@@@'
+create table `#mysql50#t-1`(a int);
+ERROR 42000: Incorrect table name '#mysql50#t-1'
+create table `t-1`(a int);
+drop table if exists `#mysql50#t-1`;
+Warnings:
+Note	1051	Unknown table 'test.#mysql50#t-1'
+drop table `t-1`;
+create table t1 (a int);
+rename table t1 to `#mysql50#t-1`;
+ERROR 42000: Incorrect table name '#mysql50#t-1'
+rename table `#mysql50#t-1` to t1;
+alter table t1 rename to `#mysql50#t-1`;
+ERROR 42000: Incorrect table name '#mysql50#t-1'
+drop table t1;
+drop database if exists `#mysql50#db`;
+ERROR 42000: Incorrect database name '#mysql50#db'
+drop database if exists `#mysql50#db-1`;
+Warnings:
+Note	1008	Can't drop database '#mysql50#db-1'; database doesn't exist
+create database `#mysql50#mysqltest-1`;
+ERROR 42000: Incorrect database name '#mysql50#mysqltest-1'
+create table t1 (a int) partition by list (a) (
+partition p0 values in (3),
+partition p1 values in (5)
+);
+alter table t1 convert partition p0 to table `#mysql50#t-1`;
+ERROR 42000: Incorrect table name '#mysql50#t-1'
+drop table t1;
+create table t1 (a int) partition by list (a) (
+partition p0 values in (3),
+partition `p-1` values in (5),
+partition `#mysql50#p-2` values in (7)
+);
+ERROR HY000: Incorrect partition name
+create table t1 (a integer) partition by list(a) subpartition by key(a) (
+partition p1 values in (0) (subpartition sp1, subpartition `#mysql50#sp-2`),
+partition p2 values in (1) (subpartition sp3, subpartition `sp-4`)
+);
+ERROR HY000: Incorrect partition name
+select * from t1;
+a
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` VALUES IN (3) ENGINE = MyISAM,
+ PARTITION `p-1` VALUES IN (5) ENGINE = MyISAM,
+ PARTITION `#mysql50#p-2` VALUES IN (7) ENGINE = MyISAM)
+alter table t1 reorganize partition `#mysql50#p-2` into (partition t2 values in (7));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` VALUES IN (3) ENGINE = MyISAM,
+ PARTITION `p-1` VALUES IN (5) ENGINE = MyISAM,
+ PARTITION `t2` VALUES IN (7) ENGINE = MyISAM)
+drop table t1;
+select * from t1;
+a
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` VALUES IN (3) ENGINE = MyISAM,
+ PARTITION `p-1` VALUES IN (5) ENGINE = MyISAM,
+ PARTITION `#mysql50#p-2` VALUES IN (7) ENGINE = MyISAM)
+alter table t1 convert partition `#mysql50#p-2` to table t2;
+alter table t1 convert table t2 to partition p2 values in (7);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` VALUES IN (3) ENGINE = MyISAM,
+ PARTITION `p-1` VALUES IN (5) ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN (7) ENGINE = MyISAM)
+drop table t1;
+create table t1(id int, c1 varchar(64));
+create table t2(id int, c1 varchar(64)) partition by range(id) (
+partition p0 values less than (10),
+partition pmax values less than maxvalue
+);
+insert into t1 values (7, 'foobar');
+insert into t2 values (1, 'pewpewpew');
+flush tables;
+select * from t1;
+id	c1
+7	foobar
+rename table t1 to `#mysql50#t2#p#p0`;
+ERROR 42000: Incorrect table name '#mysql50#t2#p#p0'
+select * from t1;
+id	c1
+7	foobar
+drop table t1, t2;
+create view `#mysql50#v-1` as select 1;
+ERROR 42000: Incorrect table name '#mysql50#v-1'
+create view v1 as select 1;
+show tables;
+Tables_in_test
+#mysql50#v-1
+select * from `#mysql50#v-1`;
+1
+1
+show create view `#mysql50#v-1`;
+View	Create View	character_set_client	collation_connection
+#mysql50#v-1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `#mysql50#v-1` AS select 1 AS `1`	latin1	latin1_swedish_ci
+drop view `#mysql50#v-1`;
+create sequence `#mysql50#s-1`;
+ERROR 42000: Incorrect table name '#mysql50#s-1'
+create sequence s1;
+select nextval(`#mysql50#s-1`);
+nextval(`#mysql50#s-1`)
+1
+drop sequence `#mysql50#s-1`;
+create table t1 (a int);
+create trigger `#mysql50#trg-1` before insert on t1 for each row set @a=1;
+ERROR 42000: Incorrect routine name '#mysql50#trg-1'
+drop table t1;
+drop trigger `#mysql50#a/b`;
+ERROR HY000: Trigger does not exist
+show create trigger `#mysql50#a/b`;
+ERROR HY000: Trigger does not exist
+select * from information_schema.schemata where schema_name='#mysql50#/';
+CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
+# End of 10.6 tests

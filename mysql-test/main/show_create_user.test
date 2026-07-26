@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/have_unix_socket.inc
 
 create user foo;
 show create user foo;
@@ -32,3 +33,16 @@ drop user foo3@test;
 drop user foo2@test;
 drop user foo@test;
 drop user foo;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-40308 single quotes make SHOW CREATE USER invalid
+--echo #
+create user 'x''y'@localhost identified via unix_socket using 'x''1' require issuer 'x''2' subject 'x''3' cipher 'x''4';
+grant proxy on 'x''y'@localhost to 'x''y'@localhost;
+show create user 'x''y'@localhost;
+show grants for 'x''y'@localhost;
+drop user 'x''y'@localhost;
+
+--echo # End of 10.6 tests

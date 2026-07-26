@@ -1824,6 +1824,18 @@ je
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_exists' at position 6
+#
+# MDEV-39817 JSON_ARRAYAGG() returns garbage because of off-by-one error
+#
+set session group_concat_max_len = 9;
+create temporary table t (c varchar(20) character set latin1);
+insert into t values ('ab'), ('cd'), ('ef');
+select json_arrayagg(c order by c) from t;
+json_arrayagg(c order by c)
+["ab","cd"]
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+drop temporary table t;
 # End of 10.6 tests
 SELECT json_extract(t.j, '$')
 FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
@@ -2937,5 +2949,14 @@ JSON_EXTRACT('0E+0','$')
 #
 SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
 j
+NULL
+#
+# MDEV-40414 Server crash in Charset::charset upon JSON operations
+#
+SELECT JSON_EQUALS('[]', JSON_ARRAY_INSERT(NULL,'$[0]',1)) AS x;
+x
+NULL
+SELECT JSON_OVERLAPS(JSON_ARRAY_INSERT(NULL,'$[0]',1), '[]') AS x;
+x
 NULL
 # End of 10.11 Test

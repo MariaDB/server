@@ -8,8 +8,8 @@ Warning	1911	Unknown option 'tkey1'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey`=vvv,
-  KEY `akey` (`a`) `dff`=vvv
+  `a` int(11) DEFAULT NULL `fkey`='vvv',
+  KEY `akey` (`a`) `dff`='vvv'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='1v1'
 drop table t1;
 #reassiginig options in the same line
@@ -22,9 +22,9 @@ Warning	1911	Unknown option 'tkey2'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey`=vvv,
-  KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1
+  `a` int(11) DEFAULT NULL `fkey`='vvv',
+  KEY `akey` (`a`) `dff`='vvv'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='1v2' `tkey2`='2v1'
 #add option
 alter table t1 tkey4=4v1;
 Warnings:
@@ -32,9 +32,9 @@ Warning	1911	Unknown option 'tkey4'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey`=vvv,
-  KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1 `tkey4`=4v1
+  `a` int(11) DEFAULT NULL `fkey`='vvv',
+  KEY `akey` (`a`) `dff`='vvv'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='1v2' `tkey2`='2v1' `tkey4`='4v1'
 #remove options 
 alter table t1 tkey3=DEFAULT tkey4=DEFAULT;
 Warnings:
@@ -43,9 +43,9 @@ Warning	1911	Unknown option 'tkey4'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey`=vvv,
-  KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1
+  `a` int(11) DEFAULT NULL `fkey`='vvv',
+  KEY `akey` (`a`) `dff`='vvv'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='1v2' `tkey2`='2v1'
 drop table t1;
 create table t1 (a int fkey1=v1, key akey (a) kkey1=v1) tkey1=1v1 tkey1=1v2 TKEY1=DEFAULT tkey2=2v1 tkey3=3v1;
 Warnings:
@@ -57,9 +57,9 @@ Warning	1911	Unknown option 'tkey3'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v1,
-  KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  `a` int(11) DEFAULT NULL `fkey1`='v1',
+  KEY `akey` (`a`) `kkey1`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #change field with option with the same value
 alter table t1 change a a int `FKEY1`='v1';
 Warnings:
@@ -68,8 +68,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `FKEY1`='v1',
-  KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  KEY `akey` (`a`) `kkey1`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #change field with option with a different value
 alter table t1 change a a int fkey1=v2;
 Warnings:
@@ -77,18 +77,18 @@ Warning	1911	Unknown option 'fkey1'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
-  KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
+  KEY `akey` (`a`) `kkey1`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #new column no options
 alter table t1 add column b int;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
   `b` int(11) DEFAULT NULL,
-  KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  KEY `akey` (`a`) `kkey1`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #new key with options
 alter table t1 add key bkey (b) kkey2=v1;
 Warnings:
@@ -96,11 +96,11 @@ Warning	1911	Unknown option 'kkey2'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
   `b` int(11) DEFAULT NULL,
-  KEY `akey` (`a`) `kkey1`=v1,
-  KEY `bkey` (`b`) `kkey2`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  KEY `akey` (`a`) `kkey1`='v1',
+  KEY `bkey` (`b`) `kkey2`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #new column with options
 alter table t1 add column c int fkey1=v1 fkey2=v2;
 Warnings:
@@ -109,34 +109,34 @@ Warning	1911	Unknown option 'fkey2'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
-  KEY `akey` (`a`) `kkey1`=v1,
-  KEY `bkey` (`b`) `kkey2`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  `c` int(11) DEFAULT NULL `fkey1`='v1' `fkey2`='v2',
+  KEY `akey` (`a`) `kkey1`='v1',
+  KEY `bkey` (`b`) `kkey2`='v1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #new key no options
 alter table t1 add key ckey (c);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
-  KEY `akey` (`a`) `kkey1`=v1,
-  KEY `bkey` (`b`) `kkey2`=v1,
+  `c` int(11) DEFAULT NULL `fkey1`='v1' `fkey2`='v2',
+  KEY `akey` (`a`) `kkey1`='v1',
+  KEY `bkey` (`b`) `kkey2`='v1',
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #drop column
 alter table t1 drop b;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
-  `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
-  KEY `akey` (`a`) `kkey1`=v1,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
+  `c` int(11) DEFAULT NULL `fkey1`='v1' `fkey2`='v2',
+  KEY `akey` (`a`) `kkey1`='v1',
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #add column with options after delete
 alter table t1 add column b int fkey2=v1;
 Warnings:
@@ -144,12 +144,12 @@ Warning	1911	Unknown option 'fkey2'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
-  `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
-  `b` int(11) DEFAULT NULL `fkey2`=v1,
-  KEY `akey` (`a`) `kkey1`=v1,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
+  `c` int(11) DEFAULT NULL `fkey1`='v1' `fkey2`='v2',
+  `b` int(11) DEFAULT NULL `fkey2`='v1',
+  KEY `akey` (`a`) `kkey1`='v1',
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 #add key 
 alter table t1 add key bkey (b) kkey2=v2;
 Warnings:
@@ -157,13 +157,13 @@ Warning	1911	Unknown option 'kkey2'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `fkey1`=v2,
-  `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
-  `b` int(11) DEFAULT NULL `fkey2`=v1,
-  KEY `akey` (`a`) `kkey1`=v1,
+  `a` int(11) DEFAULT NULL `fkey1`='v2',
+  `c` int(11) DEFAULT NULL `fkey1`='v1' `fkey2`='v2',
+  `b` int(11) DEFAULT NULL `fkey2`='v1',
+  KEY `akey` (`a`) `kkey1`='v1',
   KEY `ckey` (`c`),
-  KEY `bkey` (`b`) `kkey2`=v2
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+  KEY `bkey` (`b`) `kkey2`='v2'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`='2v1' `tkey3`='3v1'
 drop table t1;
 create table t1 (a int) tkey1=100;
 Warnings:
@@ -172,7 +172,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=100
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='100'
 drop table t1;
 #error on unknown option
 SET SQL_MODE='';
@@ -260,13 +260,13 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `foo`=bar
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `foo`='bar'
 set sql_mode=default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `foo`=bar */
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `foo`='bar' */
 alter table t1 engine=aria bar=foo;
 ERROR HY000: Unknown option 'bar'
 alter table t1 engine=aria;
@@ -274,8 +274,35 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* `foo`=bar */
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* `foo`='bar' */
 drop table t1;
-#
 # End of 10.5 tests
 #
+# MDEV-39776 SHOW CREATE TABLE corrupts `-quoted table options
+#
+set sql_mode='ignore_bad_table_options';
+create table t1 (a int) `bad opt`=1;
+ERROR HY000: Unknown option 'bad opt'
+create table t1 (a int) `opt`=`two words`, opt1='*/ oops1 ';
+Warnings:
+Warning	1911	Unknown option 'opt'
+Warning	1911	Unknown option 'opt1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `opt`='two words' `opt1`='*/ oops1 '
+set sql_mode=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `opt`='two words' `opt1`='*\/ oops1 ' */
+show table status like 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	.	0	0	0	.	1024	0	NULL	.	.	NULL	latin1_swedish_ci	NULL	`opt`='two words' `opt1`='*/ oops1 '		.	N
+select create_options from information_schema.tables where table_name='t1';
+create_options
+`opt`='two words' `opt1`='*/ oops1 '
+drop table t1;
+# End of 10.6 tests

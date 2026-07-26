@@ -250,20 +250,27 @@ if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
     fi
-    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-        CHECK_OPT="checkHost = $(safe WSREP_SST_OPT_REMOTE_USER)"
-    elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
-        # check if the address is an ip-address (v4 or v6):
-        if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
-        then
-            CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
-        else
-            CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+    # Only VERIFY_IDENTITY checks the peer name; VERIFY_CA verifies
+    # the chain only.
+    if [ "$SSLMODE" = 'VERIFY_IDENTITY' ]; then
+        if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+            CHECK_OPT="checkHost = $(safe WSREP_SST_OPT_REMOTE_USER)"
+        elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+            # check if the address is an ip-address (v4 or v6):
+            if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
+               grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
+            then
+                CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
+            else
+                CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+            fi
+            if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                CHECK_OPT_LOCAL='checkHost = localhost'
+            fi
         fi
-        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-            CHECK_OPT_LOCAL='checkHost = localhost'
-        fi
+    else
+        wsrep_log_info \
+            "Verifying peer certificate chain for ssl-mode=VERIFY_CA"
     fi
 fi
 
