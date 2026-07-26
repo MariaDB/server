@@ -391,8 +391,14 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
-                ha_rows                 limit,
+		page_range*		pr,
+		ha_rows                 limit,
 		Cost_estimate*		cost) override;
+
+	/** Remember the leaf-page extent of an upcoming range
+	scan so that multi_range_read_init() can size the
+	read-ahead. */
+	void advise_page_range(const page_range *scan_range) override;
 
 	/** Initialize multi range read and get information.
 	@see DsMrr_impl::dsmrr_info
@@ -545,6 +551,80 @@ protected:
 	/** If true, disable the Rowid Filter. It is disabled when
 	the engine is intialized for making rnd_pos() calls */
 	bool                    m_disable_rowid_filter;
+
+	/** Current range scan is estimated to touch, as advised
+	by the optimizer via advise_page_range(). */
+	page_range	m_scanned_page_range= unused_page_range;
+
+	/** Read-ahead initial batch size for the first batch */
+	static constexpr uint RA_INITIAL_BATCH_SIZE= 4;
+
+	/** Current read-ahead window.
+	Leaves to prefetch in the next batch.
+	Starts small and readahead_refill() moves it toward
+	m_ra_max_pages. */
+	uint		m_readahead_pages= 0;
+
+	/** Read-ahead maximum limit for the current scan,
+	derived from the scan's estimated extent. */
+	uint		m_ra_max_pages= 0;
+
+	/** Enable read-ahead for a scan whose full window
+	is 'max_pages' leaves. */
+	void init_readahead_window(uint max_pages)
+	{
+		m_ra_max_pages= max_pages;
+		m_readahead_pages=
+		  max_pages
+		  ? std::min<uint>(RA_INITIAL_BATCH_SIZE, max_pages)
+		  : 0;
+	}
+
+	/** Marker for read-ahead mechanism. After first positioning,
+	read ahead prefetches only RA_INITIAL_BATCH_SIZE and these
+	fields acts as a marker and makes general_fetch() keep prefetching
+	further as the scan advances */
+	/** PAGE_LEVEL=1 page to resume read ahead from */
+	uint32_t	m_ra_l1_page= 0xFFFFFFFF;
+
+	/** child page number of the last node pointer read ahead was
+	requested from m_ra_l1_page; FIL_NULL = resume from the page edge. */
+	uint32_t	m_ra_l1_child= 0xFFFFFFFF;
+
+	/** true if the scan runs in descending key order */
+	bool		m_ra_desc= false;
+	/** After m_ra_countdown rows returned, trigger next batch of
+	read ahead */
+	ha_rows		m_ra_countdown= 0;
+
+	/** Estimate the average number of records per leaf page (>= 1). */
+	uint records_per_leaf() const;
+
+	/** Prefetch the next batch of leaves for the ongoing scan,
+	resuming from the read-ahead cursor. */
+	void readahead_refill() noexcept;
+
+	/** Start read-ahead for a just-positioned scan.
+	Set the marker like m_ra_l1_page, m_ra_l1_child during inital
+	positioning. so general_fetch() can continue prefetching
+	as the scan advances.
+	@param ra          Read ahead context filled during the
+			   positioning descent
+	@param descending  whether the scan proceeds in key order */
+	void start_readahead(const btr_read_ahead_t &ra,
+                             bool descending) noexcept;
+
+	/** Estimate how many leaf pages to prefetch for a
+	positioning read.
+	@param limit  estimated rows to fetch,
+	@return leaf pages to read ahead */
+	uint mrr_readahead_pages(ha_rows limit) const;
+
+	/** Estimate the read-ahead page count from the scan's
+	advised leaf-page extent (m_scanned_page_range),
+	falling back to the LIMIT.
+	@return leaf pages to read ahead */
+	uint mrr_readahead_from_scan_range() const;
 };
 
 
