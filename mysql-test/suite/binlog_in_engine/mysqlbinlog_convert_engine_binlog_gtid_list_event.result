@@ -40,9 +40,16 @@ FOUND 1 /Rotate to gtid_conv.000004/ in gtid_conv_listing.txt
 FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]/ in gtid_conv_listing.txt
 *** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format in random order
 *** Verify synthesized Gtid_list events in converted legacy binlogs
-NOT FOUND /Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]/ in gtid_conv_listing.txt
+FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]/ in gtid_conv_listing.txt
 FOUND 1 /Rotate to gtid_conv.000002/ in gtid_conv_listing.txt
+FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]/ in gtid_conv_listing.txt
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
+*** Verify a large initial GTID state
+include/reset_master.inc
+FOUND 1 /Gtid list \[10-1-1,/ in large_gtid_conv_listing.txt
+FOUND 1 /70-1-1,/ in large_gtid_conv_listing.txt
+FOUND 1 /80-1-1,/ in large_gtid_conv_listing.txt
+FOUND 1 /109-1-1\]/ in large_gtid_conv_listing.txt
