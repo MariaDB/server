@@ -7840,6 +7840,8 @@ public:
   Item_trigger_row *check_if_settable()
   { return read_only ? nullptr : this; }
   bool check_cols(uint c) override;
+  Item* element_index(uint i) override
+  { return m_fields.elem(i); }
 
 public:
   row_version_type row_version;
