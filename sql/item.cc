@@ -10918,27 +10918,9 @@ void Item_trigger_row::print(String *str, enum_query_type query_type)
   str->append((row_version == NEW_ROW) ? "NEW" : "OLD", 3);
 }
 
-Item* Item_trigger_row::get_element_at_index_or_next(uint i)
-{
-  if (i == index)
-  {
-    index++;
-    return m_fields_iterator++;
-  }
-  else
-  {
-    return (Item*)m_fields.elem(i);
-  }
-}
-
 Item** Item_trigger_row::addr(uint i)
 {
-  if (index > m_fields.elements)
-  {
-    index= 0;
-    m_fields_iterator.rewind();
-  }
-  m_last_item_ptr= get_element_at_index_or_next(i);
+  m_last_item_ptr= (Item*)m_fields.elem(i);
   return &m_last_item_ptr;
 }
 
