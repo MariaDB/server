@@ -248,11 +248,11 @@ bool DuckdbManager::Initialize()
     /* strcmp(s1, s2) — returns 0, -1 or 1 */
     init_query("CREATE OR REPLACE MACRO strcmp(a, b) AS "
                "CASE WHEN a = b THEN 0 WHEN a < b THEN -1 ELSE 1 END");
-    /* MID() registered as C++ UDF in register_mysql_compat_functions() */
+    /* MID() registered as C++ UDF in register_mariadb_compat_functions() */
     /* oct, bin, hex, locate are now registered as native C++ scalar functions
-       in register_mysql_compat_functions() -- no SQL macros needed. */
+       in register_mariadb_compat_functions() -- no SQL macros needed. */
     /* Register MySQL-compatible function overloads */
-    register_mysql_compat_functions(*m_database->instance);
+    register_mariadb_compat_functions(*m_database->instance);
 
     /* Register cross-engine scan support (_mdb_scan + replacement scan) */
     register_cross_engine_scan(*m_database->instance);

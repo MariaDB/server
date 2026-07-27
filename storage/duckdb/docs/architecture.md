@@ -39,7 +39,7 @@ DuckDB is embedded into MariaDB as a **storage engine plugin** (`ha_duckdb`). Ma
 1. Registers handlerton callbacks: `create`, `commit`, `rollback`, `close_connection`, `drop_database`, `create_select`, `create_unit`.
 2. `DuckdbManager::CreateInstance()` opens a single `duckdb.db` file in the MariaDB datadir, creating the `duckdb::DuckDB` instance.
 3. Registers SQL macros for MySQL compatibility (`adddate`, `datediff`, `curdate`, `convert_tz`, `substring_index`, `strcmp`, etc.).
-4. Registers C++ UDFs via `register_mysql_compat_functions()` — `mid`, `oct`, `bin`, `hex`, `locate`, `addtime`, `subtime`, `regexp_replace`, etc.
+4. Registers C++ UDFs via `register_mariadb_compat_functions()` — `mid`, `oct`, `bin`, `hex`, `locate`, `addtime`, `subtime`, `regexp_replace`, etc.
 5. Registers cross-engine scan infrastructure: `_mdb_scan` table function + replacement scan callback.
 
 ### Shutdown (`duckdb_deinit_func`)

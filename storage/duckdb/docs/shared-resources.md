@@ -32,7 +32,7 @@ All MariaDB threads sharing DuckDB tables operate against a **single `duckdb::Du
 | WAL (write-ahead log) | on disk | One WAL per instance |
 | Temp/swap directory | on disk | Shared spill area |
 | SQL macros (adddate, datediff, …) | DuckDB catalog | Registered once at init |
-| C++ UDFs (`register_mysql_compat_functions`) | DuckDB catalog | Registered once at init |
+| C++ UDFs (`register_mariadb_compat_functions`) | DuckDB catalog | Registered once at init |
 | Table function `_mdb_scan` + replacement scan | DuckDB catalog | Cross-engine scan infrastructure |
 | `Duckdb_share` (per TABLE_SHARE) | `Handler_share` | Contains `THR_LOCK` for MariaDB table-level locking |
 | Global sysvar values | `duckdb_config.h` globals | `memory_limit`, `max_threads`, `checkpoint_threshold`, etc. |
