@@ -498,3 +498,23 @@ DROP TRIGGER t1_bu;
 DROP TABLE t1;
 DROP TABLE t2;
 
+--echo #
+--echo # MDEV-40124: Assertion `m_sp == m_thd->spcont->m_sp' failed virtual
+--echo # Item *Item_splocal::this_item(), UBSAN : member call on null
+--echo # pointer of type 'Sp_rcontext_handler' in sql/item.cc
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+delimiter |;
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF NEW = OLD THEN
+    SET @x = 1;
+  END IF;
+END|
+delimiter ;|
+
+UPDATE t1 SET a = 9;
+
+DROP TABLE t1;
