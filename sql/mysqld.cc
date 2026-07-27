@@ -863,6 +863,9 @@ bool metadata_lock_info_plugin_loaded= 0;
 
 my_bool opt_stack_trace;
 my_bool opt_expect_abort= 0, opt_bootstrap= 0;
+#ifndef DBUG_OFF
+my_bool dbug_crash_expected;
+#endif
 static my_bool opt_myisam_log;
 static int cleanup_done;
 static ulong opt_specialflag;
@@ -3163,6 +3166,11 @@ static LONG WINAPI my_unhandler_exception_filter(EXCEPTION_POINTERS *ex_pointers
     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),msg, sizeof(msg)-1, 
       &written,NULL);
   }
+#ifndef DBUG_OFF
+  /* Prevent JIT debugger popup, and/or WER report  on expected crash. */
+  if (dbug_crash_expected)
+    return EXCEPTION_EXECUTE_HANDLER;
+#endif
   /*
     Return EXCEPTION_CONTINUE_SEARCH to give JIT debugger
     (drwtsn32 or vsjitdebugger) possibility to attach,

@@ -5109,7 +5109,7 @@ sub mysqld_arguments ($$$) {
     {
       $found_skip_core= 1;
     }
-    elsif ($skip_binlog and mtr_match_prefix($arg, "--binlog-format"))
+    if ($skip_binlog and mtr_match_prefix($arg, "--binlog-format"))
     {
       ; # Dont add --binlog-format when running without binlog
     }

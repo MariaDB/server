@@ -982,6 +982,9 @@ extern char *opt_log_basename;
 extern my_bool opt_master_verify_checksum;
 extern my_bool opt_stack_trace, disable_log_notes;
 extern my_bool opt_expect_abort;
+#ifndef DBUG_OFF
+extern my_bool dbug_crash_expected;
+#endif
 extern my_bool opt_slave_sql_verify_checksum;
 extern my_bool opt_mysql56_temporal_format, strict_password_validation;
 extern ulong binlog_checksum_options;

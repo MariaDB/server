@@ -783,8 +783,8 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
       error|= var->update(thd);         // Returns 0, -1 or 1
   }
 
-  DBUG_EXECUTE_IF("set_skip_name_resolve", opt_skip_name_resolve= 0;);
-  DBUG_EXECUTE_IF("set_bind_address_buf", my_bind_addr_str[0]= '2';);
+  DBUG_EXECUTE_IF("set_skip_name_resolve", dbug_crash_expected= 1; opt_skip_name_resolve= 0;);
+  DBUG_EXECUTE_IF("set_bind_address_buf", dbug_crash_expected= 1; my_bind_addr_str[0]= '2';);
 
 err:
   if (free)

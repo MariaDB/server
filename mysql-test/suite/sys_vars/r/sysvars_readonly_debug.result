@@ -1,7 +1,7 @@
 #
 # MDEV-40341 store read-only sysvars in a read-only root and a read-only segment
 #
-call mtr.add_suppression('mariadbd got signal 11');
+call mtr.add_suppression('mariadbd.*got (signal 11|exception 0xc0000005)');
 call mtr.add_suppression('Attempting backtrace');
 select @@global.skip_name_resolve;
 @@global.skip_name_resolve
