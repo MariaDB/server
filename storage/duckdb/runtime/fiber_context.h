@@ -31,12 +31,22 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define FIBER_ASAN_ENABLED 1
+#endif
+#elif defined(__SANITIZE_ADDRESS__)
+#define FIBER_ASAN_ENABLED 1
+#endif
+
 /*
   Platform selection — same priority order as ma_context.h but without
   boost::context and ASAN overrides (those need extra source files).
 */
 #ifdef _WIN32
 #define FIBER_USE_WIN32_FIBERS 1
+#elif defined(FIBER_ASAN_ENABLED) && (defined(__unix__) || defined(__APPLE__))
+#define FIBER_USE_UCONTEXT
 #elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__x86_64__) && !defined(__ILP32__)
 #define FIBER_USE_X86_64_GCC_ASM
 #elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__i386__)
@@ -118,6 +128,19 @@ struct fiber_context {
   int dummy;
 };
 #endif
+
+static inline void *fiber_context_stack_top(struct fiber_context *c)
+{
+#ifdef FIBER_USE_UCONTEXT
+  return (char *)c->stack + c->stack_size;
+#elif defined(FIBER_USE_X86_64_GCC_ASM) || \
+      defined(FIBER_USE_I386_GCC_ASM) || \
+      defined(FIBER_USE_AARCH64_GCC_ASM)
+  return c->stack_top;
+#else
+  return NULL;
+#endif
+}
 
 /*
   Initialize a fiber context object.

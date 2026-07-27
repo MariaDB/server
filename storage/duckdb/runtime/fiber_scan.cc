@@ -304,8 +304,8 @@ void fiber_scan_func(void *arg)
   */
 
   /* Set thread_stack for check_stack_overrun() — point to fiber's stack */
-  char stack_top;
-  thd->thread_stack= &stack_top;
+  thd->thread_stack= reinterpret_cast<char *>(
+    fiber_context_stack_top(&state->ctx));
 
   state->result= new select_to_duckdb(thd, &state->ctx,
                                       &state->buffer,
