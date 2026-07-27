@@ -2477,6 +2477,8 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     copy_crypto_data(rli->relay_log.description_event_for_exec);
     delete rli->relay_log.description_event_for_exec;
     rli->relay_log.description_event_for_exec= this;
+    if (created > 0 && server_id != (uint32) global_system_variables.server_id)
+      rli->calc_master_bug_bitmask(this);
   }
 
   DBUG_RETURN(ret);

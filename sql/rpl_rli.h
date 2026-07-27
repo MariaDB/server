@@ -534,8 +534,20 @@ public:
   int32 get_sql_delay() { return sql_delay; }
   void set_sql_delay(int32 _sql_delay) { sql_delay= _sql_delay; }
   time_t get_sql_delay_end() { return sql_delay_end; }
+  void calc_master_bug_bitmask(const Format_description_log_event * fd_event);
   rpl_gtid last_seen_gtid;
   ulong last_trans_retry_count;
+  /**
+    Bitmask of bugs present in the master version of the current
+    description_event_for_exec.
+
+    Note that this must only be used to initialize
+    rpl_group_info::rpl_master_bug_bitmask. Other code must use the copy
+    stored in the rpl_group_info, as the rli is not concurrency safe to access
+    from SQL worker threads, only from the SQL driver thread.
+  */
+  rpl_bug_id_t rpl_master_bug_bitmask;
+
 private:
 
 
@@ -995,5 +1007,19 @@ int find_gtid_slave_pos_tables(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                      Log_event_type typ, Log_event *ev);
+
+bool
+rpl_master_has_bug_ext(const Relay_log_info *rli, /* rpl_bug_id_t */ uint bug_id,
+                       bool report,
+                       bool (*pred)(const void *), const void *param);
+static inline bool
+rpl_master_has_bug(const Relay_log_info *rli, /* rpl_bug_id_t */ uint bug_id,
+                   bool report, bool (*pred)(const void *), const void *param,
+		   bool maria_master= false)
+{
+  if (likely(!(rli->rpl_master_bug_bitmask & (1 << bug_id))))
+    return false;
+  return rpl_master_has_bug_ext(rli, bug_id, report, pred, param);
+}
 
 #endif /* RPL_RLI_H */
