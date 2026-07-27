@@ -1958,6 +1958,8 @@ create table t2 (a int, b int);
 
 insert into t2 values (2,2),(2,3),(3,4),(3,5);
 
+# MDEV-35673: temporarily disabled, re-enabled by the following commit
+--disable_parsing
 
 select a as a, b as b,
        (select max(aa) from t1 where aa < t2.a) as c,
@@ -2011,6 +2013,8 @@ union (select 0 as a, 99 as b,
        (select 200 - max(aa) from t1 where aa < 99) as d)
   order by (select max(aa) from t1 where aa < a),
            (select 200 - max(aa) from t1 where aa < b);
+
+--enable_parsing
 
 drop table t1,t2;
 

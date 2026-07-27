@@ -221,6 +221,20 @@ let $qry=select * from t6, v2 where t6a*t6b=v2a and               -- select 1
 
 --source execute_various_ways.inc
 
+let $ver=  1.1.0.0.1.1.2.0;
+let $qry=select * from t6, v2 where                               -- select 1
+(
+  select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+  select max(t4a) from t4 where                                 -- select 3
+  (
+    select t4c < v2b                                            -- select 4
+  )
+) <> 0;
+
+--source execute_various_ways.inc
 
 
 # mergeable view with two outer references to merged select inside a view
@@ -614,6 +628,21 @@ let $qry= select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
 --source execute_various_ways.inc
 
 
+let $ver=  2.1.0.0.1.1.0.2;
+let $qry= select * from t1, v2 where                                -- select 1
+(
+  select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+  select t3b from t3                                              -- select 3
+    where
+    (
+     select t3b <= v2b
+    )
+);
+
+--source execute_various_ways.inc
 
 
 # mergeable view with outer reference to merged select inside a view
@@ -1227,14 +1256,58 @@ group by (select col1 + col2) order by (select col1 + col2);
 
 #  wrong results for the next few queries when NOT run as prepared statement
 #  or procedure, See MDEV-35859
+let $ver=  5.1.1.0.1.0.0.0;
+let $qry= select * from t2 where t2a in
+(
+  select t1a from t1
+    group by (select t1a > t2b) order by t1a
+);
+
+--source execute_various_ways.inc
 
 
+let $ver=  5a.1.1.0.1.0.0.0;
+let $qry= select * from t2 where t2a in
+(
+  select t1a as col1 from t1
+    group by (select col1 > t2b) order by col1
+);
+
+--source execute_various_ways.inc
 
 
+let $ver=  5.1.1.0.1.1.0.0;
+let $qry= select * from t2 where t2a*2 in
+(
+  select t1a+t2a from t1
+    group by (select t1a+t2a > t2b) order by t1a+t2a
+);
+
+--source execute_various_ways.inc
 
 
+let $ver=  5a.1.1.0.1.1.0.0;
+let $qry= select * from t2 where t2a*2 in
+(
+  select t1a+t2a as col1 from t1
+    group by (select col1 > t2b) order by col1
+);
+
+--source execute_various_ways.inc
 
 
+let $ver=  5.2.1.0.1.2.0.0;
+let $qry= select * from v5 where v5a in
+(
+  select t1a from t1
+   group by
+  (
+    select t1a*25 < v5a + v5b
+  )
+   order by t1a
+);
+
+--source execute_various_ways.inc
 
 
 let $ver=  5a.2.1.0.1.2.0.0;
@@ -1437,6 +1510,10 @@ let $qry=
 --source execute_various_ways.inc
 
 
+let $ver= 7e.1.0.0.1.0.1;
+let $qry= select * from (select * from t1 limit 1) dt where (select t1a != 0);
+
+--source execute_various_ways.inc
 
 
 let $ver= 7e.1.0.0.1.0.1;
@@ -1460,8 +1537,41 @@ select sum(c1) from v6;
 
 
 
+let $ver= MDEV-32297;
+let $qry=
+SELECT * FROM
+(
+  SELECT * FROM
+  (
+    SELECT * FROM
+    (SELECT 1 as "x") dt2
+  ) dt1
+  WHERE
+  (
+    SELECT x+1 ORDER BY
+    (
+      SELECT 1 GROUP BY
+      (1 IN (SELECT x))
+    )
+  )
+) dt
+WHERE x = 1;
+
+--source execute_various_ways.inc
 
 
+let $ver= MDEV-6054;
+let $qry=
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+  SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+);
+
+--source execute_various_ways.inc
 
 
 let $ver= MDEV-26944;

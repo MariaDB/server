@@ -1133,6 +1133,115 @@ t6a	t6b	t6c	v2a	v2b
 6	6	6	36	36
 drop procedure p;
 "END GROUP"
+test 1.1.0.0.1.1.2.0.0
+select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+test 1.1.0.0.1.1.2.0.1
+prepare s from 'select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0';
+execute s;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+execute s;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+deallocate prepare s;
+test 1.1.0.0.1.1.2.0.2
+select * from (select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0) dt;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+test 1.1.0.0.1.1.2.0.3
+create view v as select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0;
+select * from v;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+select * from v;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+drop view v;
+test 1.1.0.0.1.1.2.0.4
+with cte as (select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0) select * from cte;
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+test 1.1.0.0.1.1.2.0.5
+create procedure p() select * from t6, v2 where                               -- select 1
+(
+select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+select max(t4a) from t4 where                                 -- select 3
+(
+select t4c < v2b                                            -- select 4
+)
+) <> 0;
+call p();
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+call p();
+t6a	t6b	t6c	v2a	v2b
+5	5	5	25	25
+6	6	6	36	36
+drop procedure p;
+"END GROUP"
 test 1.2.0.0.1.1.0.0
 select * from t6, v1, v2 where t6a=v1a and t6b * t6a  = v2b and   -- select 1
 (
@@ -3593,6 +3702,139 @@ test 2.1.0.0.1.1.0.1.5
 create procedure p() select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
 (
 select t3b from t3                                              -- select 2
+where
+(
+select t3b <= v2b
+)
+);
+call p();
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+call p();
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+drop procedure p;
+"END GROUP"
+test 2.1.0.0.1.1.0.2.0
+select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
+where
+(
+select t3b <= v2b
+)
+);
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+test 2.1.0.0.1.1.0.2.1
+prepare s from 'select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
+where
+(
+select t3b <= v2b
+)
+)';
+execute s;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+execute s;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+deallocate prepare s;
+test 2.1.0.0.1.1.0.2.2
+select * from (select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
+where
+(
+select t3b <= v2b
+)
+)) dt;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+test 2.1.0.0.1.1.0.2.3
+create view v as select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
+where
+(
+select t3b <= v2b
+)
+);
+select * from v;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+select * from v;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+drop view v;
+test 2.1.0.0.1.1.0.2.4
+with cte as (select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
+where
+(
+select t3b <= v2b
+)
+)) select * from cte;
+t1a	t1b	t1c	v2a	v2b
+1	1	1	25	25
+1	1	1	36	36
+2	2	2	25	25
+2	2	2	36	36
+test 2.1.0.0.1.1.0.2.5
+create procedure p() select * from t1, v2 where                                -- select 1
+(
+select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+select t3b from t3                                              -- select 3
 where
 (
 select t3b <= v2b
@@ -7673,6 +7915,395 @@ col1	col2
 4	4
 drop procedure p;
 "END GROUP"
+test 5.1.1.0.1.0.0.0.0
+select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+);
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.0.0.0.1
+prepare s from 'select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+)';
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+deallocate prepare s;
+test 5.1.1.0.1.0.0.0.2
+select * from (select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+)) dt;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.0.0.0.3
+create view v as select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+);
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop view v;
+test 5.1.1.0.1.0.0.0.4
+with cte as (select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+)) select * from cte;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.0.0.0.5
+create procedure p() select * from t2 where t2a in
+(
+select t1a from t1
+group by (select t1a > t2b) order by t1a
+);
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop procedure p;
+"END GROUP"
+test 5a.1.1.0.1.0.0.0.0
+select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.0.0.0.1
+prepare s from 'select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+)';
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+deallocate prepare s;
+test 5a.1.1.0.1.0.0.0.2
+select * from (select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+)) dt;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.0.0.0.3
+create view v as select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop view v;
+test 5a.1.1.0.1.0.0.0.4
+with cte as (select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+)) select * from cte;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.0.0.0.5
+create procedure p() select * from t2 where t2a in
+(
+select t1a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop procedure p;
+"END GROUP"
+test 5.1.1.0.1.1.0.0.0
+select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+);
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.1.0.0.1
+prepare s from 'select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+)';
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+deallocate prepare s;
+test 5.1.1.0.1.1.0.0.2
+select * from (select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+)) dt;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.1.0.0.3
+create view v as select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+);
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop view v;
+test 5.1.1.0.1.1.0.0.4
+with cte as (select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+)) select * from cte;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5.1.1.0.1.1.0.0.5
+create procedure p() select * from t2 where t2a*2 in
+(
+select t1a+t2a from t1
+group by (select t1a+t2a > t2b) order by t1a+t2a
+);
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop procedure p;
+"END GROUP"
+test 5a.1.1.0.1.1.0.0.0
+select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.1.0.0.1
+prepare s from 'select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+)';
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+execute s;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+deallocate prepare s;
+test 5a.1.1.0.1.1.0.0.2
+select * from (select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+)) dt;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.1.0.0.3
+create view v as select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+select * from v;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop view v;
+test 5a.1.1.0.1.1.0.0.4
+with cte as (select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+)) select * from cte;
+t2a	t2b	t2c
+1	1	1
+2	2	2
+test 5a.1.1.0.1.1.0.0.5
+create procedure p() select * from t2 where t2a*2 in
+(
+select t1a+t2a as col1 from t1
+group by (select col1 > t2b) order by col1
+);
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+call p();
+t2a	t2b	t2c
+1	1	1
+2	2	2
+drop procedure p;
+"END GROUP"
+test 5.2.1.0.1.2.0.0.0
+select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+);
+v5a	v5b	v5c
+1	1	1
+2	2	2
+test 5.2.1.0.1.2.0.0.1
+prepare s from 'select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+)';
+execute s;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+execute s;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+deallocate prepare s;
+test 5.2.1.0.1.2.0.0.2
+select * from (select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+)) dt;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+test 5.2.1.0.1.2.0.0.3
+create view v as select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+);
+select * from v;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+select * from v;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+drop view v;
+test 5.2.1.0.1.2.0.0.4
+with cte as (select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+)) select * from cte;
+v5a	v5b	v5c
+1	1	1
+2	2	2
+test 5.2.1.0.1.2.0.0.5
+create procedure p() select * from v5 where v5a in
+(
+select t1a from t1
+group by
+(
+select t1a*25 < v5a + v5b
+)
+order by t1a
+);
+call p();
+v5a	v5b	v5c
+1	1	1
+2	2	2
+call p();
+v5a	v5b	v5c
+1	1	1
+2	2	2
+drop procedure p;
+"END GROUP"
 test 5a.2.1.0.1.2.0.0.0
 select * from v2 where v2a in
 (
@@ -8844,6 +9475,46 @@ t1a	t1b	t1c
 drop procedure p;
 "END GROUP"
 test 7e.1.0.0.1.0.1.0
+select * from (select * from t1 limit 1) dt where (select t1a != 0);
+t1a	t1b	t1c
+1	1	1
+test 7e.1.0.0.1.0.1.1
+prepare s from 'select * from (select * from t1 limit 1) dt where (select t1a != 0)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+execute s;
+t1a	t1b	t1c
+1	1	1
+deallocate prepare s;
+test 7e.1.0.0.1.0.1.2
+select * from (select * from (select * from t1 limit 1) dt where (select t1a != 0)) dt;
+t1a	t1b	t1c
+1	1	1
+test 7e.1.0.0.1.0.1.3
+create view v as select * from (select * from t1 limit 1) dt where (select t1a != 0);
+select * from v;
+t1a	t1b	t1c
+1	1	1
+select * from v;
+t1a	t1b	t1c
+1	1	1
+drop view v;
+test 7e.1.0.0.1.0.1.4
+with cte as (select * from (select * from t1 limit 1) dt where (select t1a != 0)) select * from cte;
+t1a	t1b	t1c
+1	1	1
+test 7e.1.0.0.1.0.1.5
+create procedure p() select * from (select * from t1 limit 1) dt where (select t1a != 0);
+call p();
+t1a	t1b	t1c
+1	1	1
+call p();
+t1a	t1b	t1c
+1	1	1
+drop procedure p;
+"END GROUP"
+test 7e.1.0.0.1.0.1.0
 select * from t1 AS ta where ta.t1a IN
 (
 select t2a from t2 AS tb where tb.t2b >= SOME
@@ -8966,6 +9637,233 @@ sum(c1)
 call p();
 sum(c1)
 3
+drop procedure p;
+"END GROUP"
+test MDEV-32297.0
+SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1;
+x
+1
+test MDEV-32297.1
+prepare s from 'SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1';
+execute s;
+x
+1
+execute s;
+x
+1
+deallocate prepare s;
+test MDEV-32297.2
+select * from (SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1) dt;
+x
+1
+test MDEV-32297.3
+create view v as SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1;
+select * from v;
+x
+1
+select * from v;
+x
+1
+drop view v;
+test MDEV-32297.4
+with cte as (SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1) select * from cte;
+x
+1
+test MDEV-32297.5
+create procedure p() SELECT * FROM
+(
+SELECT * FROM
+(
+SELECT * FROM
+(SELECT 1 as "x") dt2
+) dt1
+WHERE
+(
+SELECT x+1 ORDER BY
+(
+SELECT 1 GROUP BY
+(1 IN (SELECT x))
+)
+)
+) dt
+WHERE x = 1;
+call p();
+x
+1
+call p();
+x
+1
+drop procedure p;
+"END GROUP"
+test MDEV-6054.0
+SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+test MDEV-6054.1
+prepare s from 'SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+deallocate prepare s;
+test MDEV-6054.2
+select * from (SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+test MDEV-6054.3
+create view v as SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+);
+select * from v;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+select * from v;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+drop view v;
+test MDEV-6054.4
+with cte as (SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+)) select * from cte;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+test MDEV-6054.5
+create procedure p() SELECT * FROM
+(
+SELECT DISTINCT * FROM t1
+) AS sq
+WHERE t1a in
+(
+SELECT t2c FROM t2 WHERE t2c <= sq.t1b
+);
+call p();
+t1a	t1b	t1c
+1	1	1
+2	2	2
+call p();
+t1a	t1b	t1c
+1	1	1
+2	2	2
 drop procedure p;
 "END GROUP"
 test MDEV-26944.0

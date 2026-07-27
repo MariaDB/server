@@ -487,16 +487,16 @@ public:
 
 
 /*
-  Recalculate used_tables_cache 
+  Recalculate used_tables_cache
 */
 
-void Item_subselect::recalc_used_tables(st_select_lex *new_parent, 
+void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
                                         bool after_pullout)
 {
   List_iterator_fast<Ref_to_outside> it(upper_refs);
   Ref_to_outside *upper;
   DBUG_ENTER("recalc_used_tables");
-  
+
   used_tables_cache= 0;
   while ((upper= it++))
   {
@@ -514,15 +514,15 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
     */
     for (st_select_lex *sel= upper->select; sel; sel= sel->outer_select())
     {
-      /* 
+      /*
         If we've reached the new parent select by walking upwards from
-        reference's original select, this means that the reference is now 
+        reference's original select, this means that the reference is now
         referring to the direct parent:
       */
       if (sel == new_parent)
       {
         found= TRUE;
-        /* 
+        /*
           upper->item may be NULL when we've referred to a grouping function,
           in which case we don't care about what it's table_map really is,
           because item->with_sum_func==1 will ensure correct placement of the
@@ -537,18 +537,13 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
           used_tables_cache |= fixer.used_tables;
           upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
-/*
-          if (after_pullout)
-            upper->item->fix_after_pullout(new_parent, &(upper->item));
-          upper->item->update_used_tables();
-*/          
         }
       }
     }
     if (!found)
       used_tables_cache|= OUTER_REF_TABLE_BIT;
   }
-  /* 
+  /*
     Don't update const_tables_cache yet as we don't yet know which of the
     parent's tables are constant. Parent will call update_used_tables() after
     he has done const table detection, and that will be our chance to update
@@ -1237,9 +1232,16 @@ void Item_singlerow_subselect::reset()
 bool
 Item_singlerow_subselect::select_transformer(JOIN *join)
 {
+  /*
+    We cannot perform this transform for query preparation, for example
+    prepare s from 'select * from t6, v2 where ( select t6a*t6b=v2a ) != 0';
+    v2a is substituted during prepare, but being an outer reference, when
+    it is substituted again during the 1st execution, it's context is wrong.
+  */
+  if (!thd->is_first_query_execution())
+    return false;
+
   DBUG_ENTER("Item_singlerow_subselect::select_transformer");
-  if (changed)
-    DBUG_RETURN(false);
   DBUG_ASSERT(join->thd == thd);
 
   SELECT_LEX *select_lex= join->select_lex;
@@ -1276,8 +1278,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       !join->conds && !join->having &&
       need_to_pull_out_item(
         join->select_lex->outer_select()->context_analysis_place,
-        select_lex->item_list.head()) &&
-      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP)
+        select_lex->item_list.head()))
   {
     have_to_be_excluded= 1;
     if (thd->lex->describe)
@@ -1294,6 +1295,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     */
     substitution->fix_after_pullout(select_lex->outer_select(),
                                     &substitution, TRUE);
+    select_lex->nest_level_base= select_lex->outer_select()->nest_level_base;
+    select_lex->merged_into= select_lex->outer_select();
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -7183,6 +7186,26 @@ Item_subselect::subselect_table_finder_processor(void *arg)
     {
       param->dup= dup;
       return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+/*
+  See SELECT_LEX::merge_subquery for details of usage
+*/
+
+bool
+Item_subselect::select_update_base_processor(void *arg)
+{
+  nest_updater *update= (nest_updater*) arg;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    if (sl->nest_level_base != update->base)
+    {
+      sl->nest_level_base= update->base;
+      sl->nest_level+= update->inc;
     }
   }
   return FALSE;
