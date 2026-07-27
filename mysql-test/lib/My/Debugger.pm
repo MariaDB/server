@@ -44,6 +44,7 @@ my %debuggers = (
     term => 1,
     options => '-x {script} {exe}',
     script => 'set args {args} < {input}',
+    exec => 'gdb --args',
   },
   ddd => {
     interactive => 1,
@@ -80,6 +81,7 @@ my %debuggers = (
   rr => {
     options => '_RR_TRACE_DIR={log} rr record {exe} {args} --loose-skip-innodb-use-native-aio --loose-innodb-flush-method=fsync',
     run => 'env',
+    exec => 'rr record',
     pre => sub {
       push @::global_suppressions, qr/InnoDB: native AIO failed/;
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
@@ -134,6 +136,8 @@ for my $k (sort keys %debuggers) {
   register_opt "client-", $k, "Start mysqltest client";
   register_opt "boot-", $k, "Start bootstrap server";
   register_opt "manual-", "$k", "Before running test(s) let user manually start mariadbd";
+  register_opt "exec-", $k, "Run every mysqltest --exec command"
+    if $v->{exec};
 }
 
 sub subst($%) {
@@ -254,6 +258,40 @@ sub pre_setup() {
   $debugger= (keys %options)[0];
   $boot_debugger= (keys %boot_options)[0];
   $client_debugger= (keys %client_options)[0];
+
+  # --exec-<debugger>: wrap every mysqltest '--exec' command line by exporting
+  # MYSQLTEST_EXEC_WRAP, which do_exec() injects after any leading NAME=VALUE
+  # assignments.  Independent of the mysqld/client/boot debuggers above.
+  my %exec_options;
+  for my $k (keys %debuggers) {
+    my $val= $opt_vals{"exec-$k"};
+    next unless $val;
+    mtr_error "--exec-$k is not supported" unless $debuggers{$k}->{exec};
+    $exec_options{$k}= $val;
+  }
+  if ((keys %exec_options) > 1) {
+    mtr_error "Multiple exec debuggers specified: ",
+        join (" ", map { "--exec-$_" } keys %exec_options);
+  }
+  if (my ($k)= keys %exec_options) {
+    my $v= $debuggers{$k};
+    # Run the debugger's one-time setup hook (a code ref, e.g. rr's
+    # perf_event_paranoid check and suppression registration).  delete()
+    # after calling it so it runs only once even when the same debugger is
+    # also selected for another role (e.g. --rr together with --exec-rr) -
+    # the hook has side effects (push @global_suppressions, env vars) that
+    # must not be applied twice.
+    if ($v->{pre}) {
+      $v->{pre}->();
+      delete $v->{pre};
+    }
+    my $wrap= $v->{exec};
+    $ENV{_RR_TRACE_DIR}= "$::opt_vardir/log" if $k eq 'rr';
+    $wrap= "xterm -title exec -e $wrap" if $v->{term};
+    $ENV{MYSQLTEST_EXEC_WRAP}= $wrap;
+    $used= 1;
+    $interactive ||= $v->{term};
+  }
 
   if ($used) {
     $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');

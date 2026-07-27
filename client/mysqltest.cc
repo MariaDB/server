@@ -3775,6 +3775,58 @@ static int execute_in_background(char *cmd)
   mysqltest command(s) like "remove_file" for that
 */
 
+/*
+  Find where a wrapper command (e.g. "rr record", "gdb --args") must be
+  injected into an --exec command line.  Leading shell environment-variable
+  assignments (NAME=VALUE ...) must stay in front of the wrapper so that the
+  wrapped tool - not the assignment word - is what gets traced/debugged.
+  Returns the byte offset of the first non-assignment token.
+*/
+
+static size_t exec_wrap_offset(const char *cmd)
+{
+  const char *p= cmd;
+  for (;;)
+  {
+    const char *tok;
+    while (*p == ' ' || *p == '\t')
+      p++;
+    tok= p;
+    /* A leading token counts as an assignment only if it is NAME= */
+    if (!(my_isalpha(charset_info, (uchar) *p) || *p == '_'))
+      return (size_t) (tok - cmd);
+    while (my_isalnum(charset_info, (uchar) *p) || *p == '_')
+      p++;
+    if (*p != '=')
+      return (size_t) (tok - cmd);
+    /* Skip the VALUE up to unquoted whitespace, honouring quotes/backslash */
+    for (p++; *p && *p != ' ' && *p != '\t'; )
+    {
+      if (*p == '\'')
+      {
+        for (p++; *p && *p != '\''; p++)
+          ;
+        if (*p)
+          p++;
+      }
+      else if (*p == '"')
+      {
+        for (p++; *p && *p != '"'; p++)
+        {
+          if (*p == '\\' && p[1])
+            p++;
+        }
+        if (*p)
+          p++;
+      }
+      else if (*p == '\\' && p[1])
+        p+= 2;
+      else
+        p++;
+    }
+  }
+}
+
 void do_exec(struct st_command *command)
 {
   int error;
@@ -3822,6 +3874,28 @@ void do_exec(struct st_command *command)
   {
     /* Collect stderr output as well, for the case app. crashes or returns error.*/
     dynstr_append_mem(&ds_cmd, STRING_WITH_LEN(" 2>&1"));
+  }
+
+  /*
+    --exec-rr / --exec-gdb: mariadb-test-run.pl sets MYSQLTEST_EXEC_WRAP to a
+    wrapper command (e.g. "rr record") that every --exec is run under.  It is
+    injected after any leading NAME=VALUE assignments so the tool is wrapped,
+    not the assignment.
+  */
+  {
+    const char *wrap= getenv("MYSQLTEST_EXEC_WRAP");
+    if (wrap && *wrap)
+    {
+      size_t off= exec_wrap_offset(ds_cmd.str);
+      DYNAMIC_STRING ds_wrap;
+      init_dynamic_string(&ds_wrap, "", ds_cmd.length + 64, 256);
+      dynstr_append_mem(&ds_wrap, ds_cmd.str, off);
+      dynstr_append_mem(&ds_wrap, wrap, strlen(wrap));
+      dynstr_append_mem(&ds_wrap, STRING_WITH_LEN(" "));
+      dynstr_append_mem(&ds_wrap, ds_cmd.str + off, ds_cmd.length - off);
+      dynstr_set(&ds_cmd, ds_wrap.str);
+      dynstr_free(&ds_wrap);
+    }
   }
 
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
