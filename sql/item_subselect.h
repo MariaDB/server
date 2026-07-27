@@ -197,7 +197,7 @@ public:
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
-  void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
+  void recalc_used_tables(st_select_lex *new_parent);
   virtual bool exec();
   /*
     If subquery optimization or execution determines that the subquery has

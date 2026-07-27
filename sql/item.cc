@@ -5880,6 +5880,24 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 }
 
 
+void Field_fixer::visit_field(Item_field *item)
+{
+  if (item->fixed())                            // item may not yet be (re)fixed
+  {
+    st_select_lex *cmp= select;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list &&
+        (item->field->table->pos_in_table_list->select_lex == cmp))
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
+  }
+  else
+    not_ready= TRUE;
+}
+
+
 /**
   @brief
   Whether a table belongs to an outer select.
@@ -11527,7 +11545,8 @@ void Item_direct_view_ref::update_used_tables()
 
 table_map Item_direct_view_ref::used_tables() const
 {
-  DBUG_ASSERT(fixed());
+  if (!fixed())
+    return (table_map) 0;
 
   if (get_depended_from())
     return OUTER_REF_TABLE_BIT;

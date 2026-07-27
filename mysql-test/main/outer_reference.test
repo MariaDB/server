@@ -1606,3 +1606,11 @@ SELECT * FROM t1 k WHERE 1 IN
 drop view v1, v2, v3, v4, v5, v6;
 drop table t1, t2, t3, t4, t5, t6, t7, ambiguous;
 
+--echo #
+--echo # MDEV-32766
+--echo #
+
+CREATE TABLE t0 (a int) ;
+INSERT INTO `t0` VALUES (1),(2),(3);
+( SELECT a c28 FROM t0 LIMIT 5 ) ORDER BY  ( SELECT c28 FROM t0 limit 1);
+DROP TABLE t0;

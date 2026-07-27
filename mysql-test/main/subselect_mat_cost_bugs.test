@@ -222,8 +222,6 @@ WHERE (
 )
 ORDER BY field1 ;
 
-# MDEV-35673: warnings re-enabled by the following commit
---disable_warnings
 SELECT alias2.f2 AS field1
 FROM t1 AS alias1 JOIN ( SELECT * FROM t2 ) AS alias2 ON alias2.f3 = alias1.f1
 WHERE (
@@ -232,7 +230,6 @@ WHERE (
         WHERE (t1.f1>0 or t1.f1<0) AND alias2.f10
 )
 ORDER BY field1 ;
---enable_warnings
 
 set optimizer_switch=@tmp_optimizer_switch;
 drop table t1,t2;

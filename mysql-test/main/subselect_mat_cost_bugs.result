@@ -208,6 +208,9 @@ WHERE (t1.f1>0 or t1.f1<0) AND alias2.f10
 )
 ORDER BY field1 ;
 field1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect DECIMAL value: 'd'
 set optimizer_switch=@tmp_optimizer_switch;
 drop table t1,t2;
 #
