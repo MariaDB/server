@@ -8051,7 +8051,6 @@ public:
   bool fix_fields(THD *, Item **) override;
   bool populate_with_trigger_fields(THD *thd);
   Item** this_item_addr(THD *thd, Item **it) override { return it; }
-  Item* get_element_at_index_or_next(uint i);
   Item** addr(uint i) override;
   const Type_handler *type_handler() const override
   { return &type_handler_row; }
@@ -8060,6 +8059,19 @@ public:
   bool check_cols(uint c) override;
   Item* element_index(uint i) override
   { return m_fields.elem(i); }
+  void cleanup() override
+  {
+    List_iterator<Item_trigger_field> it(m_fields);
+    Item *curr_item;
+
+    while ((curr_item= it++))
+    {
+      curr_item->cleanup();
+    }
+    m_fields.empty();
+
+    Item_fixed_hybrid::cleanup();
+  }
 
 public:
   row_version_type row_version;
