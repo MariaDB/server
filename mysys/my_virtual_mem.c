@@ -204,12 +204,14 @@ void my_virtual_mem_release(char *ptr, size_t size)
 
 void my_virtual_mem_protect(void *ptr, size_t size, enum my_vmem_prot prot)
 {
-  int res __attribute__((unused));
 #ifdef _WIN32
   DWORD old_prot;
-  res= VirtualProtect(ptr, size, prot ? PAGE_READWRITE : PAGE_READONLY, &old_prot);
+  BOOL res= VirtualProtect(ptr, size, prot ? PAGE_READWRITE : PAGE_READONLY, &old_prot);
+  (void) res;
+  DBUG_ASSERT(res);
 #else
+  int res __attribute__((unused));
   res= mprotect(ptr, size, prot ? PROT_READ | PROT_WRITE : PROT_READ);
-#endif
   DBUG_ASSERT(res == 0); // bad ptr or size alignment, neither should be possible
+#endif
 }
