@@ -12408,7 +12408,7 @@ jd
                             }
                         },
                         {
-                            "expanded_query": "/* select#2 */ select tvc_0._col_1 from (values (1),(2),(3),(4),(5),(6)) tvc_0"
+                            "expanded_query": "/* select#2 */ select tvc_0.column_0 from (values (1),(2),(3),(4),(5),(6)) tvc_0"
                         }
                     ]
                 }

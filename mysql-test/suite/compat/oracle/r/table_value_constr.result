@@ -23,7 +23,7 @@ values (1,2);
 values (1,2)
 union
 select 1,2;
-1	2
+column_0	column_1
 1	2
 select 1,2
 union
@@ -71,14 +71,14 @@ values (1,2),(3,6);
 values (1,2.4),(3,6)
 union
 select 2.8,9;
-1	2.4
+column_0	column_1
 1.0	2.4
 3.0	6.0
 2.8	9.0
 values (1,2),(3,4),(5,6),(7,8)
 union
 select 5,6;
-1	2
+column_0	column_1
 1	2
 3	4
 5	6
@@ -93,18 +93,18 @@ we	q
 values ('ab', 'cdf')
 union
 select 'ab','cdf';
-ab	cdf
+column_0	column_1
 ab	cdf
 values (1,2)
 union
 values (1,2),(5,6);
-1	2
+column_0	column_1
 1	2
 5	6
 values (1,2)
 union
 values (3,4),(5,6);
-1	2
+column_0	column_1
 1	2
 3	4
 5	6
@@ -112,21 +112,21 @@ values (1,2)
 union
 values (1,2)
 union values (4,5);
-1	2
+column_0	column_1
 1	2
 4	5
 # UNION ALL that uses VALUES structure
 values (1,2),(3,4)
 union all
 select 5,6;
-1	2
+column_0	column_1
 1	2
 3	4
 5	6
 values (1,2),(3,4)
 union all
 select 1,2;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
@@ -147,14 +147,14 @@ values (1,2),(3,4);
 values (1,2)
 union all
 values (1,2),(5,6);
-1	2
+column_0	column_1
 1	2
 1	2
 5	6
 values (1,2)
 union all
 values (3,4),(5,6);
-1	2
+column_0	column_1
 1	2
 3	4
 5	6
@@ -163,7 +163,7 @@ union all
 values (1,2)
 union all
 values (4,5);
-1	2
+column_0	column_1
 1	2
 1	2
 4	5
@@ -171,14 +171,14 @@ values (1,2)
 union all
 values (1,2)
 union values (1,2);
-1	2
+column_0	column_1
 1	2
 values (1,2)
 union
 values (1,2)
 union all
 values (1,2);
-1	2
+column_0	column_1
 1	2
 1	2
 # EXCEPT that uses VALUES structure(s)
@@ -194,24 +194,24 @@ values (1,2),(3,4);
 values (1,2),(3,4)
 except
 select 5,6;
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
 except
 select 1,2;
-1	2
+column_0	column_1
 3	4
 values (1,2),(3,4)
 except
 values (5,6);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
 except
 values (1,2);
-1	2
+column_0	column_1
 3	4
 # INTERSECT that uses VALUES structure(s)
 select 1,2
@@ -226,27 +226,27 @@ values (1,2),(3,4);
 values (1,2),(3,4)
 intersect
 select 5,6;
-1	2
+column_0	column_1
 values (1,2),(3,4)
 intersect
 select 1,2;
-1	2
+column_0	column_1
 1	2
 values (1,2),(3,4)
 intersect
 values (5,6);
-1	2
+column_0	column_1
 values (1,2),(3,4)
 intersect
 values (1,2);
-1	2
+column_0	column_1
 1	2
 # combination of different structures that uses VALUES structures : UNION + EXCEPT
 values (1,2),(3,4)
 except
 select 1,2
 union values (1,2);
-1	2
+column_0	column_1
 3	4
 1	2
 values (1,2),(3,4)
@@ -254,7 +254,7 @@ except
 values (1,2)
 union
 values (1,2);
-1	2
+column_0	column_1
 3	4
 1	2
 values (1,2),(3,4)
@@ -262,14 +262,14 @@ except
 values (1,2)
 union
 values (3,4);
-1	2
+column_0	column_1
 3	4
 values (1,2),(3,4)
 union
 values (1,2)
 except
 values (1,2);
-1	2
+column_0	column_1
 3	4
 # combination of different structures that uses VALUES structures : UNION ALL + EXCEPT
 values (1,2),(3,4)
@@ -277,7 +277,7 @@ except
 select 1,2
 union all
 values (1,2);
-1	2
+column_0	column_1
 3	4
 1	2
 values (1,2),(3,4)
@@ -285,7 +285,7 @@ except
 values (1,2)
 union all
 values (1,2);
-1	2
+column_0	column_1
 3	4
 1	2
 values (1,2),(3,4)
@@ -293,7 +293,7 @@ except
 values (1,2)
 union all
 values (3,4);
-1	2
+column_0	column_1
 3	4
 3	4
 values (1,2),(3,4)
@@ -301,7 +301,7 @@ union all
 values (1,2)
 except
 values (1,2);
-1	2
+column_0	column_1
 3	4
 # combination of different structures that uses VALUES structures : UNION + INTERSECT
 values (1,2),(3,4)
@@ -309,21 +309,21 @@ intersect
 select 1,2
 union
 values (1,2);
-1	2
+column_0	column_1
 1	2
 values (1,2),(3,4)
 intersect
 values (1,2)
 union
 values (1,2);
-1	2
+column_0	column_1
 1	2
 values (1,2),(3,4)
 intersect
 values (1,2)
 union
 values (3,4);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
@@ -331,7 +331,7 @@ union
 values (1,2)
 intersect
 values (1,2);
-1	2
+column_0	column_1
 1	2
 # combination of different structures that uses VALUES structures : UNION ALL + INTERSECT
 values (1,2),(3,4)
@@ -339,7 +339,7 @@ intersect
 select 1,2
 union all
 values (1,2);
-1	2
+column_0	column_1
 1	2
 1	2
 values (1,2),(3,4)
@@ -347,7 +347,7 @@ intersect
 values (1,2)
 union all
 values (1,2);
-1	2
+column_0	column_1
 1	2
 1	2
 values (1,2),(3,4)
@@ -355,7 +355,7 @@ intersect
 values (1,2)
 union all
 values (3,4);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
@@ -363,7 +363,7 @@ union all
 values (1,2)
 intersect
 values (1,2);
-1	2
+column_0	column_1
 1	2
 # combination of different structures that uses VALUES structures : UNION + UNION ALL
 values (1,2),(3,4)
@@ -371,7 +371,7 @@ union all
 select 1,2
 union
 values (1,2);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
@@ -379,7 +379,7 @@ union all
 values (1,2)
 union
 values (1,2);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
@@ -387,7 +387,7 @@ union all
 values (1,2)
 union
 values (3,4);
-1	2
+column_0	column_1
 1	2
 3	4
 values (1,2),(3,4)
@@ -395,7 +395,7 @@ union
 values (1,2)
 union all
 values (1,2);
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
@@ -404,7 +404,7 @@ union
 values (1,2)
 union all
 values (1,2);
-1	2
+column_0	column_1
 1	2
 1	2
 # CTE that uses VALUES structure(s) : non-recursive CTE
@@ -413,7 +413,7 @@ with t2 as
 values (1,2),(3,4)
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 3	4
 with t2 as
@@ -442,7 +442,7 @@ union
 select 1,2
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 with t2 as
 (
@@ -451,7 +451,7 @@ union
 select 1,2
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 3	4
 with t2 as
@@ -461,7 +461,7 @@ union
 values (1,2),(3,4)
 )
 select * from t2;
-5	6
+column_0	column_1
 5	6
 1	2
 3	4
@@ -472,7 +472,7 @@ union
 values (1,2),(3,4)
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 3	4
 with t2 as
@@ -493,7 +493,7 @@ union all
 select 1,2
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
@@ -504,7 +504,7 @@ union all
 values (1,2),(3,4)
 )
 select * from t2;
-1	2
+column_0	column_1
 1	2
 1	2
 3	4
@@ -592,7 +592,7 @@ n	f
 10	362880
 # Derived table that uses VALUES structure(s) : singe VALUES structure
 select * from (values (1,2),(3,4)) as t2;
-1	2
+column_0	column_1
 1	2
 3	4
 # Derived table that uses VALUES structure(s) : UNION with VALUES structure(s)
@@ -604,19 +604,19 @@ select * from (select 1,2 union values (1,2),(3,4)) as t2;
 1	2
 3	4
 select * from (values (1,2) union select 1,2) as t2;
-1	2
+column_0	column_1
 1	2
 select * from (values (1,2),(3,4) union select 1,2) as t2;
-1	2
+column_0	column_1
 1	2
 3	4
 select * from (values (5,6) union values (1,2),(3,4)) as t2;
-5	6
+column_0	column_1
 5	6
 1	2
 3	4
 select * from (values (1,2) union values (1,2),(3,4)) as t2;
-1	2
+column_0	column_1
 1	2
 3	4
 # Derived table that uses VALUES structure(s) : UNION ALL with VALUES structure(s)
@@ -626,19 +626,19 @@ select * from (select 1,2 union all values (1,2),(3,4)) as t2;
 1	2
 3	4
 select * from (values (1,2),(3,4) union all select 1,2) as t2;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
 select * from (values (1,2) union all values (1,2),(3,4)) as t2;
-1	2
+column_0	column_1
 1	2
 1	2
 3	4
 # CREATE VIEW that uses VALUES structure(s) : singe VALUES structure
 create view v1 as values (1,2),(3,4);
 select * from v1;
-1	2
+column_0	column_1
 1	2
 3	4
 drop view v1;
@@ -665,7 +665,7 @@ values (1,2)
 union
 select 1,2;
 select * from v1;
-1	2
+column_0	column_1
 1	2
 drop view v1;
 create view v1 as
@@ -673,7 +673,7 @@ values (1,2),(3,4)
 union
 select 1,2;
 select * from v1;
-1	2
+column_0	column_1
 1	2
 3	4
 drop view v1;
@@ -682,7 +682,7 @@ values (5,6)
 union
 values (1,2),(3,4);
 select * from v1;
-5	6
+column_0	column_1
 5	6
 1	2
 3	4
@@ -693,7 +693,7 @@ values (1,2)
 union
 values (1,2),(3,4);
 select * from v1;
-1	2
+column_0	column_1
 1	2
 3	4
 drop view v1;
@@ -712,7 +712,7 @@ values (1,2),(3,4)
 union all
 select 1,2;
 select * from v1;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
@@ -722,7 +722,7 @@ values (1,2)
 union all
 values (1,2),(3,4);
 select * from v1;
-1	2
+column_0	column_1
 1	2
 1	2
 3	4
@@ -745,7 +745,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1)) "tvc_0" join "test"."t1" where "tvc_0"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1)) "tvc_0" join "test"."t1" where "tvc_0"."column_0" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -753,7 +753,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1)) "tvc_0" join "test"."t1" where "tvc_0"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1)) "tvc_0" join "test"."t1" where "tvc_0"."column_0" = "test"."t1"."a"
 # IN-subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1
 where a in (values (1) union select 2);
@@ -777,7 +777,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1) union /* select#3 */ select 2 AS "2") "__4" join "test"."t1" where "__4"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1) union /* select#3 */ select 2 AS "2") "__4" join "test"."t1" where "__4"."column_0" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0 union 
 select 2);
@@ -789,7 +789,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5" join "test"."t1" where "__5"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5" join "test"."t1" where "__5"."column_0" = "test"."t1"."a"
 # IN-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a in (select 2 union values (1));
@@ -825,7 +825,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."2" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."2" = "test"."t1"."a"
 # IN-subquery with VALUES structure(s) : UNION ALL
 select * from t1
 where a in (values (1) union all select b from t1);
@@ -850,7 +850,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1) union all /* select#3 */ select "test"."t1"."b" AS "b" from "test"."t1") "__4") where "__4"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1) union all /* select#3 */ select "test"."t1"."b" AS "b" from "test"."t1") "__4") where "__4"."column_0" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0 union all 
 select b from t1);
@@ -861,7 +861,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union all /* select#4 */ select "test"."t1"."b" AS "b" from "test"."t1") "__5") where "__5"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0" union all /* select#4 */ select "test"."t1"."b" AS "b" from "test"."t1") "__5") where "__5"."column_0" = "test"."t1"."a"
 # NOT IN subquery with VALUES structure(s) : simple case
 select * from t1 
 where a not in (values (1),(2));
@@ -882,7 +882,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DEPENDENT SUBQUERY	<derived2>	unique_subquery	distinct_key	distinct_key	4	func	1	100.00	Using where; Full scan on NULL key
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "tvc_0"."column_0")))))
 explain extended select * from t1 
 where a not in (select * from (values (1),(2)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -890,7 +890,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	4	func	1	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "tvc_0"."column_0")))))
 # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1
 where a not in (values (1) union select 2);
@@ -914,7 +914,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "__4"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "__4"."column_0")))))
 explain extended select * from t1
 where a not in (select * from (values (1)) as tvc_0 union 
 select 2);
@@ -926,7 +926,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "__5"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<primary_index_lookup>(<cache>("test"."t1"."a") in <temporary table> on distinct_key where trigcond(<cache>("test"."t1"."a") = "__5"."column_0")))))
 # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a not in (select 2 union values (1));
@@ -983,7 +983,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1),(2)) "tvc_0" join "test"."t1" where "tvc_0"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1),(2)) "tvc_0" join "test"."t1" where "tvc_0"."column_0" = "test"."t1"."a"
 explain extended select * from t1 
 where a = any (select * from (values (1),(2)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -991,7 +991,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1),(2)) "tvc_0" join "test"."t1" where "tvc_0"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1),(2)) "tvc_0" join "test"."t1" where "tvc_0"."column_0" = "test"."t1"."a"
 # ANY-subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1 
 where a = any (values (1) union select 2);
@@ -1015,7 +1015,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1) union /* select#3 */ select 2 AS "2") "__4" join "test"."t1" where "__4"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (values (1) union /* select#3 */ select 2 AS "2") "__4" join "test"."t1" where "__4"."column_0" = "test"."t1"."a"
 explain extended select * from t1
 where a = any (select * from (values (1)) as tvc_0 union 
 select 2);
@@ -1027,7 +1027,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5" join "test"."t1" where "__5"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5" join "test"."t1" where "__5"."column_0" = "test"."t1"."a"
 # ANY-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a = any (select 2 union values (1));
@@ -1063,7 +1063,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."2" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."2" = "test"."t1"."a"
 # ALL-subquery with VALUES structure(s) : simple case
 select * from t1 
 where a = all (values (1));
@@ -1082,7 +1082,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#3 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#3 */ select "tvc_0"."column_0" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."column_0")))))
 explain extended select * from t1 
 where a = all (select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -1090,7 +1090,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."column_0" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."column_0")))))
 # ALL-subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1 
 where a = all (values (1) union select 1);
@@ -1112,7 +1112,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "__4"."1" from (values (1) union /* select#3 */ select 1 AS "1") "__4" where trigcond(<cache>("test"."t1"."a") <> "__4"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "__4"."column_0" from (values (1) union /* select#3 */ select 1 AS "1") "__4" where trigcond(<cache>("test"."t1"."a") <> "__4"."column_0")))))
 explain extended select * from t1
 where a = all (select * from (values (1)) as tvc_0 union 
 select 1);
@@ -1124,7 +1124,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#5 */ select "__5"."1" from (/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 1 AS "1") "__5" where trigcond(<cache>("test"."t1"."a") <> "__5"."1")))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#5 */ select "__5"."column_0" from (/* select#2 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0" union /* select#4 */ select 1 AS "1") "__5" where trigcond(<cache>("test"."t1"."a") <> "__5"."column_0")))))
 # ALL-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a = any (select 1 union values (1));
@@ -1158,7 +1158,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 1 AS "1" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."1" = "test"."t1"."a"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from (/* select#2 */ select 1 AS "1" union /* select#3 */ select "tvc_0"."column_0" AS "column_0" from (values (1)) "tvc_0") "__5" join "test"."t1" where "__5"."1" = "test"."t1"."a"
 # prepare statement that uses VALUES structure(s): single VALUES structure
 prepare stmt1 from '
 values (1,2);
@@ -1191,11 +1191,11 @@ prepare stmt1 from '
   select 1,2;
 ';
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 3	4
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 3	4
 deallocate prepare stmt1;
@@ -1221,12 +1221,12 @@ prepare stmt1 from '
   values (1,2),(3,4);
 ';
 execute stmt1;
-5	6
+column_0	column_1
 5	6
 1	2
 3	4
 execute stmt1;
-5	6
+column_0	column_1
 5	6
 1	2
 3	4
@@ -1252,12 +1252,12 @@ prepare stmt1 from '
   select 1,2;
 ';
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 3	4
 1	2
@@ -1286,12 +1286,12 @@ prepare stmt1 from '
   values (1,2),(3,4);
 ';
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 1	2
 3	4
 execute stmt1;
-1	2
+column_0	column_1
 1	2
 1	2
 3	4
@@ -2613,7 +2613,7 @@ ERROR HY000: Row with no elements is not allowed in table value constructor in t
 create table t1 (a int);
 insert into t1 values (9), (3), (2);
 select * from (values (7), (5), (8), (1), (3), (8), (1)) t;
-7
+column_0
 7
 5
 8
@@ -2626,7 +2626,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select * from (values (1,11), (7,77), (3,31), (4,42)) t;
-1	11
+column_0	column_1
 1	11
 7	77
 3	31
@@ -2636,7 +2636,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
-7
+column_0
 7
 5
 8
@@ -2649,7 +2649,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 select * from (values (7), (5), (8), (1) union select * from t1) t;
-7
+column_0
 7
 5
 8
@@ -2689,7 +2689,7 @@ VALUES(1 + 1,2,'abc');
 1 + 1	2	abc
 2	2	abc
 SELECT * FROM (VALUES(1 + 1,2,'abc')) t;
-1 + 1	2	abc
+column_0	column_1	column_2
 2	2	abc
 #
 # MDEV-17894: tvc with ORDER BY ... LIMIT
@@ -2797,7 +2797,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
 2
 2
@@ -2811,9 +2811,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2)) "__3"
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2) union select 2;
-5
+column_0
 5
 7
 2
@@ -2824,9 +2824,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 2) union /* select#3 */ select 2 AS "2") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
-5
+column_0
 7
 1
 2
@@ -2837,9 +2837,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
-5
+column_0
 1
 3
 2
@@ -2851,9 +2851,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union /* select#3 */ select 2 AS "2") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
-5
+column_0
 3
 4
 2
@@ -2865,7 +2865,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
 select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
 3
 3
@@ -2879,7 +2879,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	/* select#1 */ select "__3"."3" AS "3" from (/* select#2 */ select 3 AS "3" union all (values (5),(7),(1),(3),(4) limit 3,2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
-5
+column_0
 3
 4
 3
@@ -2889,7 +2889,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3"
 select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
 3
 3
@@ -2902,9 +2902,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."3" AS "3" from (/* select#2 */ select 3 AS "3" union all (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
+Note	1003	/* select#1 */ select "__3"."3" AS "3" from (/* select#2 */ select 3 AS "3" union all (/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
-5
+column_0
 1
 3
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
@@ -2915,11 +2915,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union all /* select#3 */ select 3 AS "3") "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union all /* select#3 */ select 3 AS "3") "__3"
 ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
 union
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
-5
+column_0
 7
 1
 3
@@ -2933,11 +2933,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 1,2) union (/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
 union all
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
-5
+column_0
 7
 1
 3
@@ -2951,9 +2951,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
-5
+column_0
 3
 3
 4
@@ -2963,9 +2963,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3" order by 1
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3" order by 1
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
-5
+column_0
 3
 4
 5
@@ -2977,10 +2977,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
 order by 1 limit 2 offset 1;
-5
+column_0
 4
 5
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
@@ -2992,7 +2992,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1 limit 1,2
+Note	1003	/* select#1 */ select "__3"."column_0" AS "column_0" from ((/* select#4 */ select "tvc_0"."column_0" AS "column_0" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1 limit 1,2
 values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
 ERROR 42S22: Unknown column '3' in 'ORDER BY'
 create view v1 as values (5), (7), (1), (3), (4) order by 1 limit 2;
@@ -3000,7 +3000,7 @@ show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE VIEW "v1" AS values (5),(7),(1),(3),(4) order by 1 limit 2	latin1	latin1_swedish_ci
 select * from v1;
-5
+column_0
 1
 3
 drop view v1;
@@ -3010,9 +3010,9 @@ union
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS select "__4"."5" AS "5" from (select "__5"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union (values (5),(7),(1),(3),(4) order by 1 limit 2)) "__5") "__4"	latin1	latin1_swedish_ci
+v1	CREATE VIEW "v1" AS select "__4"."column_0" AS "column_0" from (select "__5"."column_0" AS "column_0" from ((values (5),(7),(1),(3),(4) limit 1,2) union (values (5),(7),(1),(3),(4) order by 1 limit 2)) "__5") "__4"	latin1	latin1_swedish_ci
 select * from v1;
-5
+column_0
 7
 1
 3

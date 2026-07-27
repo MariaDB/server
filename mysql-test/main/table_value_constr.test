@@ -1837,3 +1837,75 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-19941 "Duplicate column name" while using VALUES table constructor
+--echo #
+
+SELECT * from (VALUES (1,1),(2,2)) t;
+
+--echo # explicit column list takes precedence over generated names
+select * from (values (1,1)) t(a,b);
+
+--echo # generated names can be referenced
+select column_0 from (values (1,2)) t;
+
+--echo # first select of a union determines the names
+select * from (values (1,1) union select 2,3) t;
+
+select * from (values (1,1) except values (2,2)) t;
+
+--echo # generated names become table column names in CTAS
+create table t1 as select * from (values (1,1)) x;
+show create table t1;
+drop table t1;
+
+--echo # view over a TVC derived table
+create view v1 as select * from (values (1,1)) t;
+show create view v1;
+select * from v1;
+drop view v1;
+
+--echo # prepared statement re-execution
+prepare s from 'select * from (values (1,1)) t';
+execute s;
+execute s;
+deallocate prepare s;
+
+--echo # CTE without a column list gets generated names
+with t as (values (1,1)) select * from t;
+
+--echo # explicit CTE column list takes precedence
+with t(a,b) as (values (1,1)) select * from t;
+
+with t as (values (1,2)) select column_1 from t;
+
+--echo # CTE referenced more than once
+with t as (values (1,1)) select * from t a, t b;
+
+with t as (values (1,1) union all values (2,2)) select * from t;
+
+--echo # recursive CTE with a TVC anchor
+with recursive t as (
+  values (1,1) union
+  select column_0+1, column_1 from t where column_0 < 3)
+select * from t;
+
+--echo # TVC CTE inside a derived table, derived TVC inside a CTE
+select * from (with t as (values (1,1)) select * from t) d;
+
+with t as (select * from (values (1,1)) x) select * from t;
+
+prepare s from 'with t as (values (1,1)) select * from t';
+execute s;
+execute s;
+deallocate prepare s;
+
+create view v1 as with t as (values (1,1)) select * from t;
+show create view v1;
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
