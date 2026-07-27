@@ -483,3 +483,11 @@ nid	nstate	check_row(row_start, row_end)
 commit;
 drop tables t1;
 # End of 10.4 tests
+#
+# MDEV-38854 Assertion table->vers_write fails upon ODKU into table with versioned column
+#
+create table t (a int, b int, c int with system versioning, unique(b));
+insert into t (b) values (1);
+insert into t (b) values (1),(1) on duplicate key update a = 3;
+drop table t;
+# End of 10.11 tests
