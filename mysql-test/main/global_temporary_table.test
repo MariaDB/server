@@ -1123,6 +1123,7 @@ select * from t;
 set max_session_mem_used=8192;
 --error ER_OPTION_PREVENTS_STATEMENT
 truncate t;
+set max_session_mem_used= 32768;
 set max_session_mem_used= default;
 unlock tables;
 select * from t;

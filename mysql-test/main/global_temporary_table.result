@@ -1251,6 +1251,7 @@ c
 set max_session_mem_used=8192;
 truncate t;
 ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+set max_session_mem_used= 32768;
 set max_session_mem_used= default;
 unlock tables;
 select * from t;
