@@ -1812,14 +1812,15 @@ static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
   return false;
 }
 
-/* 
-  TODO: Tarun get this reviewed. should i pass the event to this function
-  or alternatively i can just pass the required args 
-  (binlog_file_name, binlog_file_len) to this function
-  and we don't have to extract the constructor for BINLOG_CHECKPOINT_EVENT
+/*
+  Writes the BINLOG_CHECKPOINT_EVENT to the output legacy binlog file.
+  @param outfile: The output legacy binlog file
+  @param filename: The basename of the binlog file
+  @param length: The length of the basename
+  @return: true if failed, false if successful
 */
 static bool write_binlog_checkpoint_event_to_legacy_binlog(
-    FILE *outfile, Binlog_checkpoint_log_event *bcle)
+    FILE *outfile, const char *filename, uint32 length)
 {
   my_bool do_checksum;
   ha_checksum crc= 0;
@@ -1831,14 +1832,14 @@ static bool write_binlog_checkpoint_event_to_legacy_binlog(
      to_packet() method used in case of FORMAT_DESCRIPTION_EVENT,
      GTID_LIST_EVENT, etc.) */
   uchar header_buf[BINLOG_CHECKPOINT_HEADER_LEN];
-  int4store(header_buf, bcle->binlog_file_len);
+  int4store(header_buf, length);
   if (str.append((char *) header_buf, BINLOG_CHECKPOINT_HEADER_LEN))
   {
     error("Failed due to out-of-memory writing BINLOG_CHECKPOINT_EVENT body");
     return true;
   }
 
-  if (str.append((char *) bcle->binlog_file_name, bcle->binlog_file_len))
+  if (str.append((char *) filename, length))
   {
     error("Failed due to out-of-memory writing BINLOG_CHECKPOINT_EVENT body");
     return true;
@@ -1988,15 +1989,9 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
   size_t off= dirname_length(out_name);
   uint32 length= (uint32) (strlen(out_name) - off);
 
-  // Write the BINLOG_CHECKPOINT_EVENT to the output legacy binlog file
-  Binlog_checkpoint_log_event bcle=
-      Binlog_checkpoint_log_event(out_name + off, length);
-  if (!bcle.is_valid())
-  {
-    error("Failed to create BINLOG_CHECKPOINT_EVENT");
-    return true;
-  }
-  if (write_binlog_checkpoint_event_to_legacy_binlog(*out_file, &bcle))
+  /* Write the BINLOG_CHECKPOINT_EVENT to the output legacy binlog file */
+  if (write_binlog_checkpoint_event_to_legacy_binlog(*out_file, out_name + off,
+                                                     length))
   {
     error("Could not write BINLOG_CHECKPOINT_EVENT to output legacy binlog "
           "file");

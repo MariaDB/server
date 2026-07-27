@@ -3330,15 +3330,14 @@ public:
   uint binlog_file_len;
 
 #ifdef MYSQL_SERVER
-  
+  Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
+                              uint binlog_file_len_arg);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol) override;
 #endif
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
-  Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
-                              uint binlog_file_len_arg);
   Binlog_checkpoint_log_event(const uchar *buf, uint event_len,
                               const Format_description_log_event
                               *description_event);

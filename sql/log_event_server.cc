@@ -2830,6 +2830,17 @@ Binlog_checkpoint_log_event::do_shall_skip(rpl_group_info *rgi)
 #endif
 
 
+Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
+        const char *binlog_file_name_arg,
+        uint binlog_file_len_arg)
+  :Log_event(),
+   binlog_file_name(my_strndup(PSI_INSTRUMENT_ME, binlog_file_name_arg, binlog_file_len_arg,
+                               MYF(MY_WME))),
+   binlog_file_len(binlog_file_len_arg)
+{
+  cache_type= EVENT_NO_CACHE;
+}
+
 
 bool Binlog_checkpoint_log_event::write(Log_event_writer *writer)
 {

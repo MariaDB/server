@@ -2615,16 +2615,6 @@ Rotate_log_event::Rotate_log_event(const uchar *buf, uint event_len,
 **************************************************************************/
 
 Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
-    const char *binlog_file_name_arg, uint binlog_file_len_arg)
-    : Log_event(),
-      binlog_file_name(my_strndup(PSI_INSTRUMENT_ME, binlog_file_name_arg,
-                                  binlog_file_len_arg, MYF(MY_WME))),
-      binlog_file_len(binlog_file_len_arg)
-{
-  cache_type= EVENT_NO_CACHE;
-}
-
-Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
        const uchar *buf, uint event_len,
        const Format_description_log_event *description_event)
   :Log_event(buf, description_event), binlog_file_name(0)
