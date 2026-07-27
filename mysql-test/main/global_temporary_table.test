@@ -875,6 +875,7 @@ drop table t0;
 --disable_ps_protocol
 create global temporary table t (t text);
 set max_session_mem_used= 8192;
+
 --error ER_OPTION_PREVENTS_STATEMENT
 insert t values (0);
 lock table t write;
