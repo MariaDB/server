@@ -1406,7 +1406,7 @@ maria_declare_plugin(duckdb)
     duckdb_status_variables,       /* status variables */
     duckdb_system_variables,       /* system variables */
     "1.0",                         /* string version */
-    MariaDB_PLUGIN_MATURITY_ALPHA  /* maturity */
+    MariaDB_PLUGIN_MATURITY_GAMMA  /* maturity */
 },
 {
     MariaDB_FUNCTION_PLUGIN,
@@ -1421,6 +1421,6 @@ maria_declare_plugin(duckdb)
     NULL,                          /* status variables */
     NULL,                          /* system variables */
     "1.0",                         /* string version */
-    MariaDB_PLUGIN_MATURITY_ALPHA  /* maturity */
+    MariaDB_PLUGIN_MATURITY_GAMMA  /* maturity */
 }
 maria_declare_plugin_end;

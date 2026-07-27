@@ -21,7 +21,7 @@ SELECT pushdown (`ha_duckdb_pushdown.cc`) uses the original SQL text from `THD::
 
 ## 2. Function Compatibility
 
-MariaDB function semantics differ from DuckDB in several areas. These are handled by **runtime function overrides** registered at startup via `register_mysql_compat_functions()` in `duckdb_mysql_compat.cc`. No DuckDB source patches are used.
+MariaDB function semantics differ from DuckDB in several areas. These are handled by **runtime function overrides** registered at startup via `register_mariadb_compat_functions()` in `duckdb_mysql_compat.cc`. No DuckDB source patches are used.
 
 ### Overridden functions (registered in `duckdb_mysql_compat.cc`)
 

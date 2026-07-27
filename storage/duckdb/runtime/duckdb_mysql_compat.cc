@@ -22,7 +22,7 @@
 
   These add missing type overloads to DuckDB builtins so that pushdown
   queries from MariaDB work without SQL text rewriting.  Registered
-  once at DuckdbManager::Initialize() via register_mysql_compat_functions().
+  once at DuckdbManager::Initialize() via register_mariadb_compat_functions().
 
 */
 
@@ -1832,7 +1832,7 @@ static void register_dow_functions(duckdb::Catalog &catalog,
   }
 }
 
-void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
+void register_mariadb_compat_functions(duckdb::DatabaseInstance &db)
 {
   auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
   auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
@@ -1850,7 +1850,7 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
   register_dow_functions(catalog, transaction);
 
   sql_print_information(
-      "DuckDB: registered MySQL-compatible function overloads "
+      "DuckDB: registered MariaDB-compatible function overloads "
       "(octet_length, length, ascii, ord, hex, oct, bin, locate, mid, "
       "rtrim, ltrim, regexp_instr, regexp_replace, regexp_substr, "
       "json_unquote, json_contains, week, yearweek, to_days, dayofweek, "
