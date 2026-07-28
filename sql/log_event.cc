@@ -3501,6 +3501,8 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   uchar *ptr_after_colcnt= (uchar*) ptr_colcnt;
   VALIDATE_BYTES_READ(ptr_after_colcnt, buf, event_len);
   m_colcnt= net_field_length(&ptr_after_colcnt);
+  DBUG_EXECUTE_IF("corrupt_table_map_colcnt_read",
+                  m_colcnt= (1 << 20););
 
   DBUG_PRINT("info",("m_dblen: %lu  off: %ld  m_tbllen: %lu  off: %ld  m_colcnt: %lu  off: %ld",
                      (ulong) m_dblen, (long) (ptr_dblen - vpart),
@@ -3519,11 +3521,19 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     /* Copy the different parts into their memory */
     strncpy(const_cast<char*>(m_dbnam), (const char*)ptr_dblen  + 1, m_dblen + 1);
     strncpy(const_cast<char*>(m_tblnam), (const char*)ptr_tbllen + 1, m_tbllen + 1);
+    if (unlikely(ptr_after_colcnt + m_colcnt > buf + event_len))
+    {
+      my_free(m_memory);
+      m_memory= NULL;
+      DBUG_VOID_RETURN;
+    }
     memcpy(m_coltype, ptr_after_colcnt, m_colcnt);
 
     ptr_after_colcnt= ptr_after_colcnt + m_colcnt;
     VALIDATE_BYTES_READ(ptr_after_colcnt, buf, event_len);
     m_field_metadata_size= net_field_length(&ptr_after_colcnt);
+    DBUG_EXECUTE_IF("corrupt_table_map_field_metadata_size_read",
+                    m_field_metadata_size= (1 << 20););
     if (m_field_metadata_size <= (m_colcnt * 2))
     {
       uint num_null_bytes= (m_colcnt + 7) / 8;
@@ -3531,8 +3541,24 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
           &m_null_bits, num_null_bytes,
           &m_field_metadata, m_field_metadata_size,
           NULL);
+      if (unlikely(ptr_after_colcnt + m_field_metadata_size > buf + event_len))
+      {
+        my_free(m_meta_memory);
+        m_meta_memory= NULL;
+        my_free(m_memory);
+        m_memory= NULL;
+        DBUG_VOID_RETURN;
+      }
       memcpy(m_field_metadata, ptr_after_colcnt, m_field_metadata_size);
       ptr_after_colcnt= (uchar*)ptr_after_colcnt + m_field_metadata_size;
+      if (unlikely(ptr_after_colcnt + num_null_bytes > buf + event_len))
+      {
+        my_free(m_meta_memory);
+        m_meta_memory= NULL;
+        my_free(m_memory);
+        m_memory= NULL;
+        DBUG_VOID_RETURN;
+      }
       memcpy(m_null_bits, ptr_after_colcnt, num_null_bytes);
       ptr_after_colcnt= (unsigned char*)ptr_after_colcnt + num_null_bytes;
     }
@@ -3604,12 +3630,19 @@ static void parse_default_charset(Table_map_log_event::Optional_metadata_fields:
                                   unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
   default_charset.default_charset= net_field_length(&p);
-  while (p < field + length)
+  if (unlikely(p > end))
+    return;
+  while (p < end)
   {
     unsigned int col_index= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
     unsigned int col_charset= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
 
     default_charset.charset_pairs.push_back(std::make_pair(col_index,
                                                            col_charset));
@@ -3627,9 +3660,15 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
                                  unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
-    vec.push_back(net_field_length(&p));
+  while (p < end)
+  {
+    unsigned int charset= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
+    vec.push_back(charset);
+  }
 }
 
 /**
@@ -3643,10 +3682,13 @@ static void parse_column_name(std::vector<std::string> &vec,
                               unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
+  while (p < end)
   {
     unsigned len= net_field_length(&p);
+    if (unlikely(p + len > end))
+      return;
     vec.push_back(std::string(reinterpret_cast<char *>(p), len));
     p+= len;
   }
@@ -3667,15 +3709,20 @@ static void parse_set_str_value(std::vector<Table_map_log_event::
                                 unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
+  while (p < end)
   {
     unsigned int count= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
 
     vec.push_back(std::vector<std::string>());
     for (unsigned int i= 0; i < count; i++)
     {
       unsigned len1= net_field_length(&p);
+      if (unlikely(p + len1 > end))
+        return;
       vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
       p+= len1;
     }
@@ -3693,9 +3740,15 @@ static void parse_geometry_type(std::vector<unsigned int> &vec,
                                 unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
-    vec.push_back(net_field_length(&p));
+  while (p < end)
+  {
+    unsigned int geom_type= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
+    vec.push_back(geom_type);
+  }
 }
 
 /**
@@ -3713,9 +3766,15 @@ static void parse_simple_pk(std::vector<Table_map_log_event::
                             unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
-    vec.push_back(std::make_pair(net_field_length(&p), 0));
+  while (p < end)
+  {
+    unsigned int col_index= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
+    vec.push_back(std::make_pair(col_index, (unsigned int) 0));
+  }
 }
 
 /**
@@ -3733,11 +3792,16 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
                                  unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
+  while (p < end)
   {
     unsigned int col_index= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
     unsigned int col_prefix= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
     vec.push_back(std::make_pair(col_index, col_prefix));
   }
 }

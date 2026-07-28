@@ -21997,7 +21997,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
-                        &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &m_bitmaps, bitmap_buffer_size(field_count)*5,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {
@@ -22914,7 +22914,7 @@ bool Virtual_tmp_table::init(uint field_count)
                         &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count + 1) * sizeof(uint),
-                        &bitmaps, bitmap_buffer_size(field_count) * 6,
+                        &bitmaps, bitmap_buffer_size(field_count) * 5,
                         NullS))
     DBUG_RETURN(true);
   s->reset();

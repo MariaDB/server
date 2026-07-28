@@ -1,7 +1,5 @@
 call mtr.add_suppression("table or database name 'abc`def'");
-drop table if exists t1;
-drop database if exists mysqltest;
-drop database if exists client_test_db;
+call mtr.add_suppression("Invalid .old.. table or database name 'a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234'");
 drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
 create table t1(n int);
@@ -79,8 +77,6 @@ show tables;
 Tables_in_test
 t1
 drop table t1;
-drop database if exists mysqltest;
-drop table if exists t1;
 create table t1 (i int);
 create database mysqltest;
 lock tables t1 read;
@@ -100,7 +96,6 @@ disconnect addconroot2;
 connection addconroot1;
 disconnect addconroot1;
 connection default;
-drop table if exists t1,t2;
 create table t1 (a int);
 create table t2 (a int);
 lock table t1 read;
@@ -126,7 +121,7 @@ disconnect addconroot;
 connection default;
 unlock tables;
 drop table t1,t2;
-End of 5.0 tests
+# End of 5.0 tests
 create database mysql_test;
 create table mysql_test.t1(f1 int);
 create table mysql_test.`#sql-347f_7` (f1 int);
@@ -147,56 +142,44 @@ database()
 NULL
 use test;
 
-# --
-# -- Bug#29958: Weird message on DROP DATABASE if mysql.proc does not
-# -- exist.
-# --
-DROP DATABASE IF EXISTS mysql_test;
+#
+# Bug#29958: Weird message on DROP DATABASE if mysql.proc does not exist
+#
 CREATE DATABASE mysql_test;
 DROP TABLE mysql.proc;
 DROP DATABASE mysql_test;
 Warnings:
 Error	1146	Table 'mysql.proc' doesn't exist
-
-# --
-# -- End of Bug#29958.
-# --
-
+#
+# Bug#26703: DROP DATABASE fails if database contains a #mysql50# table with backticks
+#
 create database mysqltestbug26703;
 use mysqltestbug26703;
-create table `#mysql50#abc``def` ( id int );
-create table `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-ERROR 42000: Incorrect table name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-create table `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234` (a int);
-create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345` (a int);
-ERROR 42000: Incorrect table name '#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345'
+create table t1 (id int);
 show tables;
 Tables_in_mysqltestbug26703
+#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234
 #mysql50#abc`def
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+show create table `#mysql50#abc``def`;
+Table	Create Table
+#mysql50#abc`def	CREATE TABLE `#mysql50#abc``def` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 use test;
 drop database mysqltestbug26703;
-End of 5.1 tests
+# End of 5.1 tests
 
-# --
-# -- Bug#37431 (DROP TABLE does not report errors correctly).
-# --
-DROP TABLE IF EXISTS t1;
+#
+# Bug#37431 (DROP TABLE does not report errors correctly).
+#
 DROP TABLE t1;
 ERROR 42S02: Unknown table 'test.t1'
 SHOW WARNINGS;
 Level	Code	Message
 Error	1051	Unknown table 'test.t1'
-
-# --
-# -- End of Bug#37431.
-# --
 #
 # Bug#54282 Crash in MDL_context::upgrade_shared_lock_to_exclusive
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT);
 LOCK TABLE t1 WRITE;
 DROP TABLE t1, t1;
@@ -234,7 +217,6 @@ INSERT INTO table2 SELECT t.notable.*;
 INSERT INTO table1 VALUES (1);
 ERROR 42S02: Unknown table 't.notable'
 DROP TABLE table1,table2;
-# End BUG#34750
 #
 # MDEV-11105 Table named 'db' has weird side effect.
 #

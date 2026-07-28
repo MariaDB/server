@@ -25,7 +25,7 @@ SELECT 1;
 SELECT 2;
 --disable_query_log
 --error ER_CON_COUNT_ERROR
---connect (con3,localhost,root,,)
+--connect con3,localhost,root,,,,,NOSSL
 --enable_query_log
 
 --connection default

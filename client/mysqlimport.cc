@@ -711,7 +711,7 @@ int table_load_params::load_data(MYSQL *mysql)
    DBUG_RETURN(1);
 
   if (!opt_local_file)
-    strmov(hard_path,filename);
+    strmake_buf(hard_path, filename);
   else
     my_load_path(hard_path, filename, NULL); /* filename includes the path */
 

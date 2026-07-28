@@ -77,16 +77,39 @@ class Opt_trace_start
  public:
   Opt_trace_start(THD *thd_arg): ctx(&thd_arg->opt_trace), traceable(false) {}
 
+  /*
+    Fast path for the common case where optimizer trace is disabled: this
+    inlines at the call site so a non-traced statement pays only a flag load
+    and a predicted-not-taken branch, instead of an out-of-line call with a
+    full prologue/epilogue. The actual context setup lives in init_traceable().
+  */
   void init(THD *thd, TABLE_LIST *tbl,
             enum enum_sql_command sql_command,
             List<set_var_base> *set_vars,
             const char *query,
             size_t query_length,
-            const CHARSET_INFO *query_charset);
+            const CHARSET_INFO *query_charset)
+  {
+    /*
+      traceable was set false by the constructor; assert that invariant
+      instead of re-storing it, so the disabled hot path stays store-free.
+    */
+    DBUG_ASSERT(!traceable);
+    if (unlikely(thd->variables.optimizer_trace & Opt_trace_context::FLAG_ENABLED))
+      init_traceable(thd, tbl, sql_command, set_vars, query, query_length,
+                     query_charset);
+  }
 
   ~Opt_trace_start();
 
  private:
+  void init_traceable(THD *thd, TABLE_LIST *tbl,
+                      enum enum_sql_command sql_command,
+                      List<set_var_base> *set_vars,
+                      const char *query,
+                      size_t query_length,
+                      const CHARSET_INFO *query_charset);
+
   Opt_trace_context *const ctx;
   /*
     True: the query will be traced

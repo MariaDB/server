@@ -44,7 +44,7 @@ INSERT INTO t1 VALUES(1),(2),(3);
 
 --write_line wait $_expect_file_name
 SET SESSION debug_dbug="+d,ib_discard_before_commit_crash";
---error 2013
+--error 2013,2026
 ALTER TABLE t1 DISCARD TABLESPACE;
 
 --source include/start_mysqld.inc
@@ -56,7 +56,7 @@ INSERT INTO t1 VALUES(1),(2),(3);
 
 --write_line wait $_expect_file_name
 SET SESSION debug_dbug="+d,ib_discard_after_commit_crash";
---error 2013
+--error 2013,2026
 ALTER TABLE t1 DISCARD TABLESPACE;
 
 --source include/start_mysqld.inc
@@ -98,7 +98,7 @@ SELECT * FROM t1;
 
 --write_line wait $_expect_file_name
 SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
---error 2013
+--error 2013,2026
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 --source include/start_mysqld.inc
@@ -110,7 +110,7 @@ SELECT COUNT(*) FROM t1;
 
 --exec echo wait > $_expect_file_name
 SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
---error 2013
+--error 2013,2026
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 # After the above test the results are non-deterministic,

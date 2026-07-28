@@ -3726,8 +3726,12 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
-                         table->s->db.str, ref_table_name.str, "", 0);
+    if (!build_table_filename(ref_path, sizeof(ref_path) - 1,
+                              table->s->db.str, ref_table_name.str, "", 0))
+    {
+      my_error(ER_WRONG_TABLE_NAME, MYF(0), ref_table_name.str);
+      DBUG_RETURN(false);
+    }
 
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
     error = mrn_change_encoding(ctx, system_charset_info);
@@ -16570,8 +16574,12 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
-                         table_share->db.str, ref_table_buff, "", 0);
+    if (!build_table_filename(ref_path, sizeof(ref_path) - 1,
+                              table_share->db.str, ref_table_buff, "", 0))
+    {
+      my_error(ER_WRONG_TABLE_NAME, MYF(0), ref_table_buff);
+      DBUG_RETURN(NULL);
+    }
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
 
     LEX_CSTRING table_name= { ref_table_buff, (size_t) ref_table_name_length };
@@ -16774,8 +16782,12 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
     TABLE_SHARE *tmp_ref_table_share;
-    build_table_filename(ref_path, sizeof(ref_path) - 1,
-                         table_share->db.str, ref_table_buff, "", 0);
+    if (!build_table_filename(ref_path, sizeof(ref_path) - 1,
+                              table_share->db.str, ref_table_buff, "", 0))
+    {
+      my_error(ER_WRONG_TABLE_NAME, MYF(0), ref_table_buff);
+      DBUG_RETURN(false);
+    }
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
 
     LEX_CSTRING table_name= { ref_table_buff, (size_t) ref_table_name_length };

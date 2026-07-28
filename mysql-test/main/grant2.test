@@ -15,19 +15,6 @@ SET NAMES binary;
 # (usually it's GRANT, reconnect as another user, try something)
 #
 
-
-# prepare playground before tests
---disable_warnings
-drop database if exists mysqltest;
-drop database if exists mysqltest_1;
---enable_warnings
-delete from mysql.user where user like 'mysqltest\_%';
-delete from mysql.db where user like 'mysqltest\_%';
-delete from mysql.tables_priv where user like 'mysqltest\_%';
-delete from mysql.columns_priv where user like 'mysqltest\_%';
-flush privileges;
-
-
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
 create user mysqltest_2@localhost;
@@ -1021,8 +1008,46 @@ DROP USER mysqltest_u2@localhost;
 DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
-
-
 set GLOBAL sql_mode=default;
-# Wait till we reached the initial number of concurrent sessions
+
+--echo # End of 10.1 tests
+
+--echo #
+--echo # MDEV-37951 SHOW TABLES allows users with only GRANT OPTION privilege to read all table names in the database "mysql"
+--echo #
+create user u@localhost;
+grant grant option on *.* to u@localhost;
+connect con1, localhost, u;
+show grants;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from mysql;
+select * from information_schema.tables where table_schema='mysql';
+disconnect con1;
+connection default;
+revoke grant option on *.* from u@localhost;
+
+grant select (host) on mysql.user to u@localhost with grant option;
+revoke select (host) on mysql.user from u@localhost;
+connect con1, localhost, u;
+show grants;
+show tables from mysql;
+select * from information_schema.tables where table_schema='mysql';
+disconnect con1;
+connection default;
+revoke grant option on mysql.user from u@localhost;
+
+create procedure mysql.p1() select 1;
+grant execute on procedure mysql.p1 to u@localhost with grant option;
+revoke execute on procedure mysql.p1 from u@localhost;
+connect con1, localhost, u;
+show grants;
+show tables from mysql;
+select * from information_schema.tables where table_schema='mysql';
+disconnect con1;
+connection default;
+
+drop procedure mysql.p1;
+drop user u@localhost;
+
+--echo # End of 10.11 tests
 --source include/wait_until_count_sessions.inc

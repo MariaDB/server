@@ -446,6 +446,9 @@ std::string FieldConvertor::convert_type(const Field *field)
 {
   std::string ret;
 
+  if (is_uuid_field(field))
+    return "UUID";
+
   enum_field_types field_type= field->real_type();
   bool is_unsigned= (field->flags & UNSIGNED_FLAG) != 0;
   bool has_charset= field->has_charset();

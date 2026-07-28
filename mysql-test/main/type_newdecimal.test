@@ -2105,4 +2105,123 @@ select 12345678 * 987.000000000000000000000000000000000002 as 'truncate 1';
 select 12345678.000000000000000000000000000000000001 * 987 as 'truncate 2';
 select '12185184186.000000000000000000000000000024692343000000000000000000000000000000000002' as 'exact result';
 
+--echo #
+--echo # MDEV-39744: Assertion `buf != end` failed in `decimal_mul`
+--echo #
+
+SET @old_prec_incr= @@SESSION.div_precision_increment;
+
+SET @@SESSION.div_precision_increment=0;
+SELECT ((273 / 941) * (-299 / 450)) as x;
+SELECT (-299 / 450) AS neg_div;
+
+SET @@SESSION.div_precision_increment=@old_prec_incr;
+
+--echo #
+--echo # MDEV-23444 ASAN dynamic-stack-buffer-overflow or Assertion `precision > 0' failed in decimal_bin_size with div_precision_increment=0
+--echo #
+
+SET @save_div_precision_increment= @@div_precision_increment;
+SET div_precision_increment= 0;
+SELECT * FROM (SELECT AVG(@x := 0)) sq;
+SELECT * FROM (SELECT WEEKDAY (0)/0) AS a0;
+
+CREATE TABLE t (c INT);
+SET @a=(MOD (-1,62)) / (695 * 312);
+INSERT INTO t VALUES (@a:=0),(@a:=@a+1),(@a:=@a+1);
+
+CREATE VIEW c AS SELECT 2 DIV 3/3,2 DIV(3/3),(2 DIV 3)/3;
+SELECT 2 LIKE 3 IN (0,1),2 LIKE (3 IN (0,1)),(2 LIKE 3) IN (0,1) UNION SELECT * FROM c;
+
+SELECT DAYOFWEEK( MAX( 'A' ) ) AS c13
+UNION SELECT LAST_INSERT_ID( GROUP_CONCAT( IFNULL( '2025' , '2025' ) ) ) AS c16 ;
+
+# GROUP BY / ORDER BY size the decimal group/sort key directly, bypassing
+# tmp-table field creation
+SELECT 1 FROM t GROUP BY WEEKDAY(c)/0;
+SELECT c FROM t ORDER BY WEEKDAY(c)/0;
+
+SET SESSION div_precision_increment=-2;
+SELECT * FROM (SELECT AVG(@x :=0)) sq;
+
+SET div_precision_increment= @save_div_precision_increment;
+DROP VIEW c;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-39380 Assertion `arg2_int >= 0' failed in Item_func_additive_op::result_precision
+--echo #
+
+SELECT 3.14159 - SUM(COALESCE(b'101010')) / 42 AS c;
+SELECT SUM(COALESCE(b'101010')) + 1 AS c;
+SELECT ROUND(COALESCE(b'101010'), 2) AS a;
+SELECT TRUNCATE(COALESCE(0x2A), 2) AS b;
+SELECT ROUND(IFNULL(b'101010', b'0'), 2) AS c;
+SELECT TRUNCATE(IFNULL(b'101010', b'0'), 2) AS d;
+SELECT ROUND(CASE WHEN 1 THEN b'101010' END, 2) AS e;
+SELECT TRUNCATE(CASE WHEN 1 THEN b'101010' END, 2) AS f;
+SELECT TRUNCATE(CASE NULL WHEN 1 THEN 0x7F0D END, 2);
+
+SELECT 10 + coalesce(b'00110001')  AS co_int,  10 + b'00110001'  AS bare_int;
+SELECT coalesce(0x31) + 0e0        AS co_real, 0x31 + 0e0        AS bare_real;
+SELECT coalesce(0x31) + 0.0        AS co_dec,  0x31 + 0.0        AS bare_dec;
+SELECT sum(coalesce(0x31))         AS co_sum,  sum(0x31)         AS bare_sum;
+SELECT avg(coalesce(0x31))         AS co_avg,  avg(0x31)         AS bare_avg;
+SELECT 10 + if(1, 0x31, 0x30)  AS if_int,  10 + 0x31 AS bare_int;
+SELECT if(1, 0x31, 0x30) + 0e0 AS if_real, 0x31 + 0e0 AS bare_real;
+SELECT if(1, 0x31, 0x30) + 0.0 AS if_dec,  0x31 + 0.0 AS bare_dec;
+SELECT (CASE WHEN 1 THEN 0x31 END) + 0.0 AS case_dec;
+SELECT least(0x31, 0x39) + 0e0     AS least_real;
+SELECT coalesce(0x41)  AS co_str,  if(1, 0x41, 0x42) AS if_str,  0x41 AS bare_str;
+SELECT if(0, 0x30, 0x31) + 0.0 AS if_else_dec;
+SELECT 10 + if(1, b'00110001', b'0')  AS if_int_bit;
+SELECT if(1, b'00110001', b'0') + 0.0 AS if_dec_bit;
+SELECT 10 + ifnull(0x31, 0x30)              AS ifnull_int;
+SELECT ifnull(0x31, 0x30) + 0.0             AS ifnull_dec;
+SELECT 10 + nvl(0x31, 0x30)                 AS nvl_int;
+SELECT 10 + nvl2(1, 0x31, 0x30)             AS nvl2_int;
+SELECT 10 + nullif(0x31, 0x30)              AS nullif_int;
+SELECT 10 + ifnull(b'00110001', b'0')       AS ifnull_int_bit;
+
+CREATE TABLE t1 (i INT, b BIGINT UNSIGNED, d DECIMAL(10,2),
+                 v VARCHAR(10), c CHAR(4));
+# b'00110001' == 0x31 == 49 ; the byte is '1' (0x31) in string context.
+INSERT INTO t1 VALUES
+  (coalesce(0x31),          coalesce(0x31),          coalesce(0x31),
+   coalesce(0x31),          coalesce(0x31)),
+  (0x31,                    0x31,                    0x31,
+   0x31,                    0x31),
+  (if(1,b'00110001',b'0'),  if(1,b'00110001',b'0'),  if(1,b'00110001',b'0'),
+   if(1,b'00110001',b'0'),  if(1,b'00110001',b'0')),
+  (b'00110001',             b'00110001',             b'00110001',
+   b'00110001',             b'00110001');
+SELECT i, b, d, v, HEX(v) AS hv, c, HEX(c) AS hc FROM t1;
+
+# large unsigned value stored like the bare literal
+INSERT INTO t1 (b) VALUES (coalesce(0xFFFFFFFFFFFFFFFF)), (0xFFFFFFFFFFFFFFFF);
+SELECT b FROM t1 WHERE b > 100;
+DROP TABLE t1;
+
+SELECT coalesce(NULL, 0x31) + 0 a, coalesce(NULL, NULL, 0x31) + 0 b,
+          ifnull(NULL, 0x31) + 0 c, (CASE WHEN 1 THEN 0x31 ELSE NULL END) + 0 d;
+SELECT avg(coalesce(NULL, 0x31)) e;
+
+SELECT COLLATION(0x41)                        AS bare,
+       COLLATION(COALESCE(0x41))              AS co1,
+       COLLATION(COALESCE(0x41, NULL))        AS co_null,
+       COLLATION(CASE WHEN 1 THEN 0x41 END)   AS case_hex,
+       COLLATION(COALESCE(b'01000001', NULL)) AS co_bit;
+CREATE TABLE t1 AS SELECT 0x41 AS bare, COALESCE(0x41, NULL) AS co_null;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  COALESCE(0xFF)                  AS c1,
+  COALESCE(0xFF, 0xFFFFFF)        AS c2,
+  COALESCE(0xFFFFFF, 0xFF)        AS c3,
+  COALESCE(0xFFFF, NULL)          AS c4,
+  CASE WHEN 1 THEN 0xFFFFFFFF END AS c5;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
 --echo # End of 10.11 tests

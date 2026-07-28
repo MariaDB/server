@@ -685,11 +685,17 @@ class Item_sum_ntile : public Item_sum_int,
 
   longlong val_int() override
   {
-    if (get_row_count() == 0)
+    if (partition_row_count_ == 0)
     {
       null_value= true;
       return 0;
     }
+    /*
+      The current row count in the partition should not exceed the
+      total row count of the partition
+    */
+    DBUG_ASSERT(current_row_count_ <= partition_row_count_);
+    DBUG_ASSERT(current_row_count_ > 0);
 
     longlong num_quantiles= get_num_quantiles();
 
@@ -701,9 +707,14 @@ class Item_sum_ntile : public Item_sum_int,
     }
     n_old_val_= static_cast<ulonglong>(num_quantiles);
     null_value= false;
-    ulonglong quantile_size = get_row_count() / num_quantiles;
-    ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles;
+    ulonglong quantile_size = partition_row_count_ / num_quantiles;
+    ulonglong extra_rows = partition_row_count_ - quantile_size * num_quantiles;
 
+    /*
+      Say there are n extra rows i.e. extra_rows == n, then each of
+      these n rows is placed in the first n tiles, effectively
+      incrementing the size of the first n tiles by 1.
+    */
     if (current_row_count_ <= extra_rows * (quantile_size + 1))
       return (current_row_count_ - 1) / (quantile_size + 1) + 1;
 

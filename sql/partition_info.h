@@ -498,7 +498,9 @@ bool partition_info::vers_fix_field_list(THD * thd)
   Field *row_end= table->vers_end_field();
   // needed in handle_list_of_fields()
   row_end->flags|= GET_FIXED_FIELDS_FLAG;
-  Name_resolution_context *context= &thd->lex->current_select->context;
+  Name_resolution_context *context= (thd->lex && thd->lex->current_select)
+                                    ? &thd->lex->current_select->context
+                                    : nullptr;
   Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
   Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
   set_part_expr(thd, row_end_ts, false);

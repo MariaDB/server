@@ -1,6 +1,6 @@
 --- main/mysqld--help.result
 +++ main/mysqld--help,win.reject
-@@ -228,6 +228,7 @@
+@@ -231,6 +231,7 @@
   --console           Write error output on screen; don't remove the console
   window on Windows
   --core-file         Write core on crashes
@@ -8,7 +8,7 @@
   -h, --datadir=name  Path to the database root directory
   --deadlock-search-depth-long=# 
   Long search depth for the two-step deadlock detection
-@@ -738,6 +739,7 @@
+@@ -763,6 +764,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -1451,6 +1453,10 @@
+@@ -1475,6 +1477,10 @@
   Alias for log_slow_query_file. Log slow queries to given
   log file. Defaults logging to 'hostname'-slow.log. Must
   be enabled to activate other slow log options
@@ -27,15 +27,15 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1475,6 +1481,7 @@
+@@ -1494,6 +1500,7 @@
+  aborted. Prevents the common mistake of accidentally
   deleting or updating every row in a table
   --stack-trace       Print a symbolic stack trace on failure
-  (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT)
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1554,6 +1561,12 @@
+@@ -1573,6 +1580,12 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
@@ -48,7 +48,7 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed
-@@ -1595,8 +1608,8 @@
+@@ -1614,7 +1627,7 @@
   background for binlogging by user threads are placed in a
   separate location (see `binlog_large_commit_threshold`
   option). Several paths may be specified, separated by a
@@ -58,8 +58,7 @@
 + round-robin fashion
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
-  binary log
-@@ -1826,6 +1839,7 @@
+@@ -1848,6 +1861,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -67,7 +66,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -2002,6 +2016,7 @@
+@@ -2025,6 +2039,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -75,7 +74,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  sql-safe-updates FALSE
-@@ -2029,6 +2044,8 @@
+@@ -2051,6 +2066,8 @@
  thread-pool-exact-stats FALSE
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536

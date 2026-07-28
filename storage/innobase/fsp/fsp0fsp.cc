@@ -5317,6 +5317,32 @@ func_exit:
     return FIL_NULL;
   }
 
+  /** A B-tree root page cannot be relocated: its page number
+  is recorded in SYS_INDEXES and the dictionary cache, and it
+  stores the FSEG segment headers(PAGE_BTR_SEG_LEAF and
+  PAGE_BTR_SEG_TOP).  The system tablespace cannot shrink below
+  the highest root page, and relocating any page at or below
+  it would not reduce the tablespace size.
+  @return the highest extent that holds such a root page, or 0 */
+  uint32_t max_root_extent() noexcept
+  {
+    uint32_t max_extent= 0;
+    for (dict_table_t *table :
+         {dict_sys.sys_tables, dict_sys.sys_columns, dict_sys.sys_indexes,
+          dict_sys.sys_fields, dict_sys.sys_foreign,
+          dict_sys.sys_foreign_cols, dict_sys.sys_virtual})
+    {
+      if (!table)
+        continue;
+      for (dict_index_t *index= dict_table_get_first_index(table);
+           index; index= dict_table_get_next_index(index))
+        if (index->page != FIL_NULL)
+          max_extent= std::max(max_extent,
+                               (index->page / m_extent_size) * m_extent_size);
+    }
+    return max_extent;
+  }
+
   /** Defragment the indexes */
   dberr_t defragment_index(dict_index_t &index) noexcept
   {
@@ -5327,6 +5353,9 @@ func_exit:
   /** Defragment the table */
   dberr_t defragment_table(const dict_table_t *table) noexcept
   {
+    if (!table)
+      return DB_SUCCESS;
+
     for (dict_index_t *index= dict_table_get_first_index(table);
          index; index= dict_table_get_next_index(index))
     {
@@ -5358,7 +5387,11 @@ public:
 
     uint32_t free_limit= fil_system.sys_space->free_limit;
     uint32_t fixed_size= srv_sys_space.get_min_size();
-    while (free_limit > fixed_size)
+    /* A root page cannot be relocated, so the tablespace cannot
+    shrink below the highest root.  Never map an extent at or
+    below that floor */
+    uint32_t floor= std::max(fixed_size, max_root_extent());
+    while (free_limit > floor)
     {
       uint32_t state= m_extent_info[free_limit];
 
@@ -5566,6 +5599,11 @@ fetch_next_page:
     }
 
     uint32_t new_extent= space_defrag->get_new_extent(cur_extent);
+    /* The root page has no parent node pointer cannot be relocated.
+    find_new_extents() never maps an extent at or below the highest
+    root, so a root is never scheduled for relocation. */
+    ut_ad(cur_page_no != m_index.page || new_extent == cur_extent);
+
     /* There is no need for extent to be changed */
     if (new_extent == cur_extent)
     {

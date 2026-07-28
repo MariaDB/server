@@ -68,6 +68,8 @@ JSON_VALID('{"address": "Trondheim"}')
 select JSON_VALID('12 3');
 JSON_VALID('12 3')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 4
 
 # String literal not in UTF-8
 set names 'ascii';
@@ -107,15 +109,21 @@ set names 'utf8';
 select JSON_VALID( CAST('2015-01-15' AS DATE) );
 JSON_VALID( CAST('2015-01-15' AS DATE) )
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
 
 # The date string doesn't parse as JSON text, so wrong:
 select JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8') );
 JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8') )
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
 # OK, though:
 select JSON_VALID( json_compact(CURDATE()) );
 JSON_VALID( json_compact(CURDATE()) )
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
 
 # Function result - NULL
 select JSON_VALID( UPPER(NULL) );
@@ -3423,18 +3431,26 @@ error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('[', 100000));
 JSON_VALID(REPEAT('[', 100000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('{"a":', 100000));
 JSON_VALID(REPEAT('{"a":', 100000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 156
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('{"a":[', 100000));
 JSON_VALID(REPEAT('{"a":[', 100000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 96
 error ER_JSON_DOCUMENT_TOO_DEEP
 SELECT JSON_VALID(REPEAT('[{"a":', 100000));
 JSON_VALID(REPEAT('[{"a":', 100000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 92
 #
 # Bug#21381806 JSON: ASSERTION FAILED: ARG->NULL_VALUE
 #

@@ -1,11 +1,6 @@
 #
 # Test how DROP TABLE works if the index or data file doesn't exists
 
-# Initialise
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 create table t1 (a int) engine=myisam;
 let $MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLD_DATADIR/test/t1.MYI
@@ -27,3 +22,12 @@ select * from t1;
 drop table t1;
 --error ER_BAD_TABLE_ERROR
 drop table t1;
+
+--echo #
+--echo # MDEV-39816 MyISAM crash on corrupted MYI with invalid keyseg length
+--echo #
+--replace_result $MYISAMCHK MYISAMCHK $MYSQLTEST_VARDIR VARDIR
+--error 1
+--exec $MYISAMCHK -dvv $MYSQLTEST_VARDIR/std_data/MDEV-39816.MYI 2>&1
+
+--echo # End of 10.6 tests

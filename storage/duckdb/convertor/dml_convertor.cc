@@ -127,6 +127,15 @@ void append_field_value_to_sql(String &target_str, Field *field)
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_LONG_BLOB: {
     field->val_str(&field_value);
+
+    if (is_uuid_field(field))
+    {
+      target_str.append(STRING_WITH_LEN("'"));
+      target_str.append(field_value);
+      target_str.append(STRING_WITH_LEN("'::UUID"));
+      break;
+    }
+
     std::string hex_str= toHex(field_value.c_ptr_safe(), field_value.length());
 
     if (FieldConvertor::convert_type(field) == "BLOB")

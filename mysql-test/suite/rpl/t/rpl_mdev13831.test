@@ -31,11 +31,33 @@ DROP TEMPORARY TABLE t1;
 --connection master
 CREATE TEMPORARY TABLE t1 (i INT) ENGINE=InnoDB;
 
---sync_slave_with_master
+# Since MDEV-34135, the SQL thread no longer silently rolls back the
+# incomplete event group left by the write error above; it stops with
+# ER_BINLOG_LOGICAL_CORRUPTION instead, to avoid masking possible data loss.
+# The original MDEV-13831 assertion/crash must still not happen.
+--connection slave
+--let $slave_sql_errno= 1866
+--source include/wait_for_slave_sql_error.inc
+--source include/stop_slave_io.inc
+
+# Recover by repositioning past the incomplete group, as suggested for this
+# scenario (no real relay log corruption, just a deliberately incomplete
+# group from the injected write error).
+--connection master
+--let $master_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $master_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--connection slave
+--replace_result $master_file MASTER_FILE $master_pos MASTER_POS
+eval CHANGE MASTER TO MASTER_LOG_FILE='$master_file', MASTER_LOG_POS=$master_pos;
+--source include/start_slave.inc
+CALL mtr.add_suppression("The binary log file .* is logically corrupted: Incomplete event group found in relay log.*Error_code: 1866");
 
 --connection master
 SET GLOBAL binlog_legacy_event_pos= @old_legacy;
 CALL mtr.add_suppression("Error writing file.*No space left on device");
 DROP TEMPORARY TABLE t1;
 DROP TABLE t1;
+
+--sync_slave_with_master
 --source include/rpl_end.inc

@@ -2885,7 +2885,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
         yylineno++;
     }
   }
-  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()] && !my_isdigit(cs, yyPeek()))
+  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
     next_state= MY_LEX_IDENT_SEP;
   else
   {                                    // '(' must follow directly if function
@@ -6611,14 +6611,15 @@ SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *att
     wrapper->set_linkage_and_distinct(wr_unit_type, wr_distinct);
     if (attach_to)
     {
-      wrapper->first_nested= attach_to->first_nested;
+      /* wraps whole prefix -> wrapper heads a fresh chain */
+      bool wraps_whole_prefix= (attach_to->first_nested == first_in_nest);
+      wrapper->first_nested= wraps_whole_prefix ? wrapper
+                                                : attach_to->first_nested;
       wrapper->set_master_unit(attach_to->master_unit());
       attach_to->link_neighbour(wrapper);
     }
     else
-    {
       wrapper->first_nested= wrapper;
-    }
   }
   DBUG_RETURN(wrapper);
 }
@@ -7109,7 +7110,14 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
                                                       spcont, offset,
                                                       pcursor->lex(),
-                                                      spvar->offset);
+                                                      spvar->offset,
+                        /*
+                          The first cursor in declaration
+                          of cursor row type variables is responsible for
+                          releasing the Item created on parsing the DEFAULT
+                          clause
+                        */
+                                                      (i == 0) ? def : nullptr);
     if (instr == NULL || sphead->add_instr(instr))
      return true;
 
@@ -10836,31 +10844,12 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   sel1->link_neighbour(sel2);
   sel2->set_linkage_and_distinct(unit_type, distinct);
   sel2->first_nested= sel1->first_nested= sel1;
-  const bool oracle= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
-  if (oracle &&
-      /*
-         Recursive CTE must have anchor defined as non-recursive set attached
-         via UNION, such anchor would be lost in wrapping. But in recursive CTE
-         all set operations either distinct or non-distinct
-         (see ER_NOT_SUPPORTED_YET limitation in st_select_lex_unit::prepare()),
-         so explicit prioritization via wrapping is not required.
-
-         Test: compat/oracle.func_concat
-      */
-      !(curr_with_clause && curr_with_clause->with_recursive) &&
-      !(sel1= create_priority_nest(sel1, NULL)))
-  {
-      return NULL;
-  }
   res= create_unit(sel1);
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
   res->distinct= distinct;
-  if (oracle)
-    push_select(sel1);
-  else
-    push_select(res->fake_select_lex);
+  push_select(res->fake_select_lex);
   return res;
 }
 
@@ -10874,7 +10863,38 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   SELECT_LEX *sel1= s2;
   SELECT_LEX *last= unit->pre_last_parse->next_select();
 
-  int cmp= oracle? 0 : cmp_unit_op(unit_type, last->get_linkage());
+  int cmp;
+  if (oracle)
+  {
+    if (unit_type != last->get_linkage())
+    {
+      /*
+        Oracle: equal-priority, left-to-right. Wrap whole prefix on op change.
+        Recursive CTEs use a single operator, so never wrap here (anchor kept).
+      */
+      SELECT_LEX *first_in_nest= unit->first_select();
+      last->cut_next();
+      if ((last= create_priority_nest(first_in_nest, NULL)) == NULL)
+        return NULL;
+      /*
+        Order matters: register_select_chain() re-points unit->slave at the
+        wrapper. Only then can fix_distinct()/reset_distinct() scan the new
+        outer chain instead of the pre-wrap selects that now belong to the
+        derived table's inner unit. Otherwise union_distinct is left pointing
+        into the inner unit (stale, non-NULL). Since optimize_bag_operation()
+        is skipped in Oracle mode, that value survives to execution and makes
+        the outer result temp table de-duplicating (MY_TEST(union_distinct)),
+        dropping rows that a trailing UNION ALL must keep.
+      */
+      unit->register_select_chain(last);
+      unit->fix_distinct();
+    }
+    cmp= 0;
+  }
+  else
+  {
+    cmp= cmp_unit_op(unit_type, last->get_linkage());
+  }
   if (cmp == 0)
   {
     sel1->first_nested= last->first_nested;
@@ -11947,7 +11967,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
        list of all its conjuncts saved in attach_to_conds. Otherwise,
        the condition is put into attach_to_conds as the only its element.
   */
-  List_iterator_fast<Item> it(attach_to_conds);
+  List_iterator<Item> it(attach_to_conds);
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having);
   if (build_pushable_cond_for_having_pushdown(thd, having))
@@ -12011,8 +12031,9 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
-        || item->fix_fields(thd, NULL))
+    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0,
+                   STOP_PTR) ||
+        item->fix_fields(thd, it.ref()))
     {
       attach_to_conds.empty();
       goto exit;

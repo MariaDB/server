@@ -144,7 +144,7 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
     Check if sort buffer is going to be out of space, if so write it
     out to disk in sorted order using offset tree.
   */
-  const uint total_offset = RDB_MERGE_CHUNK_LEN +
+  const ulonglong total_offset = RDB_MERGE_CHUNK_LEN +
                             m_rec_buf_unsorted->m_curr_offset +
                             RDB_MERGE_KEY_DELIMITER + RDB_MERGE_VAL_DELIMITER +
                             key.size() + val.size();

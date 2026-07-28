@@ -654,7 +654,7 @@ static int dump_all_udfs();
 static int dump_all_servers();
 static int dump_all_stats();
 static int dump_all_timezones();
-static char *quote_name(const char *name, char *buff, my_bool force);
+static char *quote_name_sz(const char *, char *, my_bool, size_t);
 char check_if_ignore_table(const char *table_name, char *table_type);
 static char *primary_key_fields(const char *table_name);
 static my_bool get_view_structure(char *table, char* db);
@@ -679,6 +679,10 @@ static inline int cmp_table(const char *a, const char *b)
 }
 
 static int dump_galera_info(MYSQL *mysql_con);
+
+#define quote_name(A,B,C)    quote_name_sz(A,type_assert_buf(B),C,sizeof(B))
+#define quote_for_equal(A,B) quote_for_equal_sz(A,type_assert_buf(B),sizeof(B))
+#define quote_for_like(A,B)  quote_for_like_sz(A,type_assert_buf(B),sizeof(B))
 
 /*
   Print the supplied message if in verbose mode
@@ -2239,7 +2243,7 @@ static my_bool test_if_special_chars(const char *str)
 
 
 /*
-  quote(name, buff, force, quote_c)
+  quote_name_sz(name, buff, force, buff_size)
 
   Quotes a string, if it requires quoting. To force quoting regardless
   of the characters within the string, the force flag can be set to true.
@@ -2249,21 +2253,24 @@ static my_bool test_if_special_chars(const char *str)
   name                 Unquoted string containing that which will be quoted
   buff                 The buffer that contains the quoted value, also returned
   force                Flag to make it ignore 'test_if_special_chars'
+  buff_size            Size of buff
 
   Returns
      A pointer to the quoted string, or the original string if nothing has
      changed.
 
 */
-static char *quote_name(const char *name, char *buff, my_bool force)
+static char *quote_name_sz(const char *name, char *buff, my_bool force,
+                            size_t buff_size)
 {
   char *to= buff;
   char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : '`';
+  const char *end= buff + buff_size - 4;
 
   if (!force && !opt_quoted && !test_if_special_chars(name))
     return (char*) name;
   *to++= qtype;
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == qtype)
       *to++= qtype;
@@ -2279,9 +2286,10 @@ static char *quote_name(const char *name, char *buff, my_bool force)
   Quote a table name so it can be used in "SHOW TABLES LIKE <tabname>"
 
   SYNOPSIS
-    quote_for_like()
+    quote_for_like_sz()
     name     name of the table
     buff     quoted name of the table
+    buff_size size of buff
 
   DESCRIPTION
     Quote \, _, ' and % characters
@@ -2297,11 +2305,12 @@ static char *quote_name(const char *name, char *buff, my_bool force)
     Example: "t\1" => "t\\\\1"
 
 */
-static char *quote_for_like(const char *name, char *buff)
+static char *quote_for_like_sz(const char *name, char *buff, size_t buff_size)
 {
   char *to= buff;
+  const char *end= buff + buff_size - 6;
   *to++= '\'';
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == '\\')
     {
@@ -2318,17 +2327,16 @@ static char *quote_for_like(const char *name, char *buff)
   return buff;
 }
 
-static char *quote_for_equal(const char *name, char *buff)
+static char *quote_for_equal_sz(const char *name, char *buff, size_t buff_size)
 {
   char *to= buff;
+  const char *end= buff + buff_size - 4;
   *to++= '\'';
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == '\\')
-    {
       *to++='\\';
-    }
-    if (*name == '\'')
+    else if (*name == '\'')
       *to++= '\'';
     *to++= *name++;
   }
@@ -2725,7 +2733,7 @@ static uint dump_events_for_db(char *db)
   char       *event_name;
   char       delimiter[QUERY_LENGTH];
   FILE       *sql_file= md_result_file;
-  MYSQL_RES  *event_res, *event_list_res;
+  MYSQL_RES  *event_res= NULL, *event_list_res= NULL;
   MYSQL_ROW  row, event_list_row;
 
   char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
@@ -2763,14 +2771,11 @@ static uint dump_events_for_db(char *db)
       /* Get database collation. */
 
       if (fetch_db_collation(db_name_buff, db_cl_name, sizeof (db_cl_name)))
-      {
-        mysql_free_result(event_list_res);
-        DBUG_RETURN(1);
-      }
+        goto err;
     }
 
     if (switch_character_set_results(mysql, "binary"))
-      DBUG_RETURN(1);
+      goto err;
 
     while ((event_list_row= mysql_fetch_row(event_list_res)) != NULL)
     {
@@ -2780,7 +2785,7 @@ static uint dump_events_for_db(char *db)
           event_name);
 
       if (mysql_query_with_error_report(mysql, &event_res, query_buff))
-        DBUG_RETURN(1);
+        goto err;
 
       while ((row= mysql_fetch_row(event_res)) != NULL)
       {
@@ -2807,7 +2812,7 @@ static uint dump_events_for_db(char *db)
           {
             fprintf(stderr, "%s: Warning: Can't create delimiter for event '%s'\n",
                     my_progname_short, event_name);
-            DBUG_RETURN(1);
+            goto err;
           }
 
           fprintf(sql_file, "DELIMITER %s\n", delimiter);
@@ -2816,9 +2821,7 @@ static uint dump_events_for_db(char *db)
           {
             if (switch_db_collation(sql_file, db_name_buff, delimiter,
                                     db_cl_name, row[6], &db_cl_altered))
-            {
-              DBUG_RETURN(1);
-            }
+              goto err;
 
             switch_cs_variables(sql_file, delimiter,
                                 row[4],   /* character_set_client */
@@ -2869,12 +2872,13 @@ static uint dump_events_for_db(char *db)
             {
               if (restore_db_collation(sql_file, db_name_buff, delimiter,
                                        db_cl_name))
-                DBUG_RETURN(1);
+                goto err;
             }
           }
         }
       } /* end of event printing */
       mysql_free_result(event_res);
+      event_res= NULL;
 
     } /* end of list of events */
     if (opt_xml)
@@ -2889,13 +2893,21 @@ static uint dump_events_for_db(char *db)
     }
 
     if (switch_character_set_results(mysql, default_charset))
-      DBUG_RETURN(1);
+      goto err;
   }
   mysql_free_result(event_list_res);
 
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
   DBUG_RETURN(0);
+
+err:
+  mysql_free_result(event_res);
+  mysql_free_result(event_list_res);
+  (void) switch_character_set_results(mysql, default_charset);
+  if (lock_tables)
+    (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
+  DBUG_RETURN(1);
 }
 
 
@@ -3926,7 +3938,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   if (opt_drop_trigger)
     fprintf(sql_file, "/*!50032 DROP TRIGGER IF EXISTS %s */;\n",
-    (*show_trigger_row)[0]);
+          quote_name((*show_trigger_row)[0], name_buff, 0));
 
   fprintf(sql_file,
           "DELIMITER ;;\n"
@@ -3983,6 +3995,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
 {
   MYSQL_ROW row;
   char *query_str;
+  char name_buff[NAME_LEN*4+3];
   int db_cl_altered= FALSE;
 
   DBUG_ENTER("dump_trigger");
@@ -4010,7 +4023,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
 
     if (opt_drop_trigger)
       fprintf(sql_file, "/*!50032 DROP TRIGGER IF EXISTS %s */;\n",
-          row[0]);
+          quote_name(row[0],name_buff,0));
 
     query_str= cover_definer_clause(row[2], strlen(row[2]),
                                     C_STRING_WITH_LEN("50017"),
@@ -5174,6 +5187,7 @@ static int dump_all_plugins()
   /* Name, Status, Type, Library, License */
   while ((row= mysql_fetch_row(tableres)))
   {
+    char name_buff[NAME_LEN*2+3];
     if (strcmp("ACTIVE", row[1]) != 0)
       continue;
     /* Should we be skipping builtins? */
@@ -5182,11 +5196,14 @@ static int dump_all_plugins()
     if (opt_replace_into)
     {
       fprintf(md_result_file, "/*M!100401 UNINSTALL PLUGIN IF EXIST %s */;\n",
-              row[0]);
+              quote_name(row[0], name_buff, 0));
     }
-    fprintf(md_result_file,
-       "INSTALL PLUGIN %s %s SONAME '%s';\n", row[0],
-       opt_ignore ? "/*M!100401 IF NOT EXISTS */" : "", row[3]);
+    fprintf(md_result_file, "INSTALL PLUGIN %s %s SONAME ",
+       quote_name(row[0], name_buff, 0),
+       opt_ignore ? "/*M!100401 IF NOT EXISTS */" : "");
+    unescape(md_result_file, row[3], strlen(row[3]));
+    fputs(";\n", md_result_file);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
 
@@ -5211,6 +5228,7 @@ static int dump_all_udfs()
   /* Name, ret, dl, type*/
   while ((row= mysql_fetch_row(tableres)))
   {
+    char name_buff[NAME_LEN*2+3];
     retresult= atoi(row[1]);
     if (retresult < 0 || array_elements(udf_types) <= (size_t) retresult)
     {
@@ -5222,13 +5240,17 @@ static int dump_all_udfs()
     if (opt_replace_into)
     {
       fprintf(md_result_file, "/*!50701 DROP FUNCTION IF EXISTS %s */;\n",
-              row[0]);
+              quote_name(row[0], name_buff, 0));
     }
     fprintf(md_result_file,
-            "CREATE %s%sFUNCTION %s%s RETURNS %s SONAME '%s';\n",
+            "CREATE %s%sFUNCTION %s%s RETURNS %s SONAME ",
             opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
-            (strcmp("AGGREGATE", row[2])==0 ? "AGGREGATE " : ""),
-            opt_ignore ? "IF NOT EXISTS " : "", row[0], udf_types[retresult], row[2]);
+            (strcmp("aggregate", row[3])==0 ? "AGGREGATE " : ""),
+            opt_ignore ? "IF NOT EXISTS " : "",
+            quote_name(row[0], name_buff, 0), udf_types[retresult]);
+    unescape(md_result_file, row[2], strlen(row[2]));
+    fputs(";\n", md_result_file);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
 
@@ -5252,7 +5274,9 @@ static int dump_all_servers()
   {
     /* row[0] is the server name */
     char buff[20+FN_REFLEN];
-    my_snprintf(buff, sizeof(buff), "show create server %s", row[0]);
+    char name_buff[NAME_LEN*2+3];
+    my_snprintf(buff, sizeof(buff), "show create server %s",
+               quote_name(row[0], name_buff, 0));
     if (mysql_query_with_error_report(mysql, &serverres, buff))
     {
       mysql_free_result(tableres);
@@ -5529,7 +5553,7 @@ static int dump_tablespaces(char* ts_where)
     if (first)
     {
       first= 0;
-      strxmov(buf, row[0], NullS);
+      strmake_buf(buf, row[0]);
     }
   }
   dynstr_free(&sqlbuf);
@@ -5593,7 +5617,7 @@ static int dump_tablespaces(char* ts_where)
     if (first)
     {
       first= 0;
-      strxmov(buf, row[0], NullS);
+      strmake_buf(buf, row[0]);
     }
   }
 
@@ -5872,7 +5896,7 @@ static int dump_all_tables_in_db(char *database)
   int using_mysql_db= !cmp_database(database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
-  afterdot= strmov(hash_key, database);
+  afterdot= strnmov(hash_key, database, NAME_LEN);
   *afterdot++= '.';
 
   if (opt_dir)
@@ -5893,7 +5917,7 @@ static int dump_all_tables_in_db(char *database)
     init_dynamic_string_checked(&query, "LOCK TABLES ", 256, 1024);
     for (numrows= 0 ; (table= getTableName(1, DUMP_TABLE_ALL)) ; )
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key,end - hash_key))
       {
         numrows++;
@@ -5932,14 +5956,14 @@ static int dump_all_tables_in_db(char *database)
     // First process sequences
     while ((table= getTableName(1, DUMP_TABLE_SEQUENCE)))
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key, end - hash_key))
         get_sequence_structure(table, database);
     }
   }
   while ((table= getTableName(0, DUMP_TABLE_TABLE)))
   {
-    char *end= strmov(afterdot, table);
+    char *end= strnmov(afterdot, table, NAME_LEN);
     if (include_table((uchar*) hash_key, end - hash_key))
     {
       dump_table(table, database, (uchar*) hash_key, end - hash_key);
@@ -6053,7 +6077,7 @@ static my_bool dump_all_views_in_db(char *database)
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
 
-  afterdot= strmov(hash_key, database);
+  afterdot= strnmov(hash_key, database, NAME_LEN);
   *afterdot++= '.';
 
   if (init_dumping(database, init_dumping_views))
@@ -6066,7 +6090,7 @@ static my_bool dump_all_views_in_db(char *database)
     init_dynamic_string_checked(&query, "LOCK TABLES ", 256, 1024);
     for (numrows= 0 ; (table= getTableName(1, DUMP_TABLE_TABLE)); )
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key,end - hash_key))
       {
         numrows++;
@@ -6089,7 +6113,7 @@ static my_bool dump_all_views_in_db(char *database)
   }
   while ((table= getTableName(0, DUMP_TABLE_TABLE)))
   {
-    char *end= strmov(afterdot, table);
+    char *end= strnmov(afterdot, table, NAME_LEN);
     if (include_table((uchar*) hash_key, end - hash_key))
       get_view_structure(table, database);
   }
@@ -6583,6 +6607,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
+  char name_buff[FN_REFLEN*2+3];
 
   if (show_slave_status(mysql_con, &slave))
   {
@@ -6633,8 +6658,9 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
       if (use_gtid)
       {
         if (multi_source)
-          fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix, row[0]);
+          fprintf(md_result_file, "%sCHANGE MASTER %s TO "
+                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix,
+                  quote_for_equal(row[0], name_buff));
         else
           fprintf(md_result_file, "%sCHANGE MASTER TO "
                   "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix);
@@ -6642,21 +6668,24 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
 
       /* SHOW MASTER STATUS reports file and position */
       if (multi_source)
-        fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
-                nogtid_comment_prefix, row[0]);
+        fprintf(md_result_file, "%sCHANGE MASTER %s TO ",
+                nogtid_comment_prefix, quote_for_equal(row[0], name_buff));
       else
         fprintf(md_result_file, "%sCHANGE MASTER TO ", nogtid_comment_prefix);
       
       if (opt_include_master_host_port)
       {
         if (row[1 + multi_source])
-          fprintf(md_result_file, "MASTER_HOST='%s', ", row[1 + multi_source]);
+          fprintf(md_result_file, "MASTER_HOST=%s, ",
+                  quote_for_equal(row[1 + multi_source], name_buff));
         if (row[3])
-          fprintf(md_result_file, "MASTER_PORT=%s, ", row[3 + multi_source]);
+          fprintf(md_result_file, "MASTER_PORT=%llu, ",
+                  atoll(row[3 + multi_source]));
       }
       fprintf(md_result_file,
-              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-              row[9 + multi_source], row[21 + multi_source]);
+              "MASTER_LOG_FILE=%s, MASTER_LOG_POS=%llu;\n",
+              quote_for_equal(row[9 + multi_source], name_buff),
+              atoll(row[21 + multi_source]));
 
       check_io(md_result_file);
     }
@@ -7080,8 +7109,8 @@ cleanup:
 */
 
 static int replace(DYNAMIC_STRING *ds_str,
-                   const char *search_str, ulong search_len,
-                   const char *replace_str, ulong replace_len)
+                   const char *search_str, size_t search_len,
+                   const char *replace_str, size_t replace_len)
 {
   DYNAMIC_STRING ds_tmp;
   const char *start= strstr(ds_str->str, search_str);
@@ -7090,7 +7119,7 @@ static int replace(DYNAMIC_STRING *ds_str,
   init_dynamic_string_checked(&ds_tmp, "",
                       ds_str->length + replace_len, 256);
   dynstr_append_mem_checked(&ds_tmp, ds_str->str, (uint)(start - ds_str->str));
-  dynstr_append_mem_checked(&ds_tmp, replace_str, replace_len);
+  dynstr_append_mem_checked(&ds_tmp, replace_str, (uint)replace_len);
   dynstr_append_checked(&ds_tmp, start + search_len);
   dynstr_set_checked(ds_str, ds_tmp.str);
   dynstr_free(&ds_tmp);
@@ -7197,10 +7226,9 @@ static my_bool get_view_structure(char *table, char* db)
   }
   else
   {
-    char *ptr;
     ulong *lengths;
     char search_buf[256], replace_buf[256];
-    ulong search_len, replace_len;
+    size_t search_len, replace_len;
     DYNAMIC_STRING ds_view;
 
     /* Save the result of SHOW CREATE TABLE in ds_view */
@@ -7228,13 +7256,10 @@ static my_bool get_view_structure(char *table, char* db)
     */
     if (strcmp(row[0], "NONE"))
     {
-
-      ptr= search_buf;
-      search_len= (ulong)(strxmov(ptr, "WITH ", row[0],
-                                  " CHECK OPTION", NullS) - ptr);
-      ptr= replace_buf;
-      replace_len=(ulong)(strxmov(ptr, "*/\n/*!50002 WITH ", row[0],
-                                  " CHECK OPTION", NullS) - ptr);
+      search_len= my_snprintf(search_buf, sizeof(search_buf),
+                              "WITH %s CHECK OPTION", row[0]);
+      replace_len= my_snprintf(replace_buf, sizeof(replace_buf),
+                              "*/\n/*!50002 WITH %s CHECK OPTION", row[0]);
       replace(&ds_view, search_buf, search_len, replace_buf, replace_len);
     }
 
@@ -7253,21 +7278,16 @@ static my_bool get_view_structure(char *table, char* db)
       parse_user(row[1], lengths[1], user_name_str, &user_name_len,
                  host_name_str, &host_name_len);
 
-      ptr= search_buf;
-      search_len=
-        (ulong)(strxmov(ptr, "DEFINER=",
-                        quote_name(user_name_str, quoted_user_name_str, FALSE),
-                        "@",
-                        quote_name(host_name_str, quoted_host_name_str, FALSE),
-                        " SQL SECURITY ", row[2], NullS) - ptr);
-      ptr= replace_buf;
-      replace_len=
-        (ulong)(strxmov(ptr, "*/\n/*!50013 DEFINER=",
-                        quote_name(user_name_str, quoted_user_name_str, FALSE),
-                        "@",
-                        quote_name(host_name_str, quoted_host_name_str, FALSE),
-                        " SQL SECURITY ", row[2],
-                        " */\n/*!50001", NullS) - ptr);
+      search_len= my_snprintf(search_buf, sizeof(search_buf),
+                    "DEFINER=%s@%s SQL SECURITY %s",
+                    quote_name(user_name_str, quoted_user_name_str, FALSE),
+                    quote_name(host_name_str, quoted_host_name_str, FALSE),
+                    row[2]);
+      replace_len= my_snprintf(replace_buf, sizeof(replace_buf),
+                    "*/\n/*!50013 DEFINER=%s@%s SQL SECURITY %s */\n/*!50001",
+                    quote_name(user_name_str, quoted_user_name_str, FALSE),
+                    quote_name(host_name_str, quoted_host_name_str, FALSE),
+                    row[2]);
       replace(&ds_view, search_buf, search_len, replace_buf, replace_len);
     }
 
@@ -7682,24 +7702,25 @@ int main(int argc, char **argv)
     }
   }
 
-  if (opt_system & OPT_SYSTEM_PLUGINS)
-    dump_all_plugins();
+  if ((opt_system & OPT_SYSTEM_PLUGINS) && dump_all_plugins() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_USERS)
-    dump_all_users_roles_and_grants();
+  if ((opt_system & OPT_SYSTEM_USERS) &&
+      dump_all_users_roles_and_grants() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_UDFS)
-    dump_all_udfs();
+  if ((opt_system & OPT_SYSTEM_UDFS) && dump_all_udfs() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_SERVERS)
-    dump_all_servers();
+  if ((opt_system & OPT_SYSTEM_SERVERS) && dump_all_servers() && !first_error)
+    first_error= EX_MYSQLERR;
 
   /* These must be last as they explicitly change the current database to mysql */
-  if (opt_system & OPT_SYSTEM_STATS)
-    dump_all_stats();
+  if ((opt_system & OPT_SYSTEM_STATS) && dump_all_stats() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_TIMEZONES)
-    dump_all_timezones();
+  if ((opt_system & OPT_SYSTEM_TIMEZONES) && dump_all_timezones() && !first_error)
+    first_error= EX_MYSQLERR;
 
   if (opt_master_data && master_set_gtid_pos[0])
     do_print_set_gtid_slave_pos(master_set_gtid_pos, TRUE);

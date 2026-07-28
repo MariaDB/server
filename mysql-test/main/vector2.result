@@ -82,7 +82,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(10) NOT NULL,
-  VECTOR KEY `v` (`v`) `distance`=euclidean
+  VECTOR KEY `v` (`v`) `distance`='euclidean'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set session mhnsw_default_m = @@mhnsw_default_m + 1;
 create table t2 like t;
@@ -112,7 +112,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(1) NOT NULL,
-  VECTOR KEY `v` (`v`) `m`=4
+  VECTOR KEY `v` (`v`) `m`='4'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table x like t;
 show create table x;
@@ -120,7 +120,7 @@ Table	Create Table
 x	CREATE TABLE `x` (
   `a` int(11) DEFAULT NULL,
   `v` vector(1) NOT NULL,
-  VECTOR KEY `v` (`v`) `m`=4
+  VECTOR KEY `v` (`v`) `m`='4'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (11,x'00000000');
 drop table t, x;

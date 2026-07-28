@@ -82,12 +82,12 @@ while ($e < $engine_count)
       --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
       let $errno=0;
       let $crashed=1;
-      --error 0,2013
+      --error 0,2013,2026
       DROP TRIGGER t1_trg;
       let $error=$errno;
       if ($error == 0)
       {
-        --error 0,2013
+        --error 0,2013,2026
         --eval DROP TRIGGER t2_trg /* $long_comment */;
         let $error=$errno;
       }

@@ -1,0 +1,138 @@
+#
+# UUID data type round-trip in the DuckDB storage engine.
+#
+DROP DATABASE IF EXISTS duckdb_uuid;
+CREATE DATABASE duckdb_uuid CHARACTER SET utf8mb4;
+USE duckdb_uuid;
+
+# (1) UUID primary key, non-batch insert (suite default)
+
+CREATE TABLE t1 (id UUID PRIMARY KEY, name VARCHAR(32)) ENGINE=DuckDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` uuid NOT NULL,
+  `name` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=DUCKDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO t1 VALUES
+('65297af6-6630-11f1-8ad2-5e1b9081e705', 'a'),
+('00000000-0000-0000-0000-000000000001', 'b'),
+('ffffffff-ffff-ffff-ffff-ffffffffffff', 'c');
+SELECT id, name FROM t1;
+id	name
+00000000-0000-0000-0000-000000000001	b
+65297af6-6630-11f1-8ad2-5e1b9081e705	a
+ffffffff-ffff-ffff-ffff-ffffffffffff	c
+SELECT name FROM t1 WHERE id = '65297af6-6630-11f1-8ad2-5e1b9081e705';
+name
+a
+SELECT id FROM t1 ORDER BY id;
+id
+00000000-0000-0000-0000-000000000001
+65297af6-6630-11f1-8ad2-5e1b9081e705
+ffffffff-ffff-ffff-ffff-ffffffffffff
+
+# (2) UPDATE / DELETE by UUID primary key
+
+UPDATE t1 SET name = 'B' WHERE id = '00000000-0000-0000-0000-000000000001';
+SELECT name FROM t1 WHERE id = '00000000-0000-0000-0000-000000000001';
+name
+B
+DELETE FROM t1 WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+SELECT id, name FROM t1;
+id	name
+00000000-0000-0000-0000-000000000001	B
+65297af6-6630-11f1-8ad2-5e1b9081e705	a
+DROP TABLE t1;
+
+# (3) UUID as non-key column, including NULL
+
+CREATE TABLE t2 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t2 VALUES
+(1, 'ffffffff-ffff-ffff-ffff-ffffffffffff'),
+(2, NULL);
+SELECT id, u FROM t2 ORDER BY id;
+id	u
+1	ffffffff-ffff-ffff-ffff-ffffffffffff
+2	NULL
+DROP TABLE t2;
+
+# (4) UUID DEFAULT literal
+
+CREATE TABLE t3 (
+id INT PRIMARY KEY,
+u UUID DEFAULT '00000000-0000-0000-0000-000000000000'
+) ENGINE=DuckDB;
+INSERT INTO t3 (id) VALUES (1);
+SELECT id, u FROM t3;
+id	u
+1	00000000-0000-0000-0000-000000000000
+DROP TABLE t3;
+
+# (5) UUID round-trip in batch insert mode
+
+SET @saved_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+CREATE TABLE t4 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t4 VALUES
+(1, '65297af6-6630-11f1-8ad2-5e1b9081e705'),
+(2, '00000000-0000-0000-0000-000000000001');
+SELECT id, u FROM t4 ORDER BY id;
+id	u
+1	65297af6-6630-11f1-8ad2-5e1b9081e705
+2	00000000-0000-0000-0000-000000000001
+DROP TABLE t4;
+SET GLOBAL duckdb_dml_in_batch = @saved_dml_in_batch;
+
+# (6) Cross-engine: InnoDB UUID column scanned via DuckDB join
+
+CREATE TABLE t_duck (id INT PRIMARY KEY, tag VARCHAR(16)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, u UUID) ENGINE=InnoDB;
+INSERT INTO t_duck VALUES (1, 'one'), (2, 'two');
+INSERT INTO t_inno VALUES
+(1, '65297af6-6630-11f1-8ad2-5e1b9081e705'),
+(2, '00000000-0000-0000-0000-000000000001');
+SELECT d.tag, i.u
+FROM t_duck d JOIN t_inno i ON d.id = i.id
+ORDER BY d.id;
+tag	u
+one	65297af6-6630-11f1-8ad2-5e1b9081e705
+two	00000000-0000-0000-0000-000000000001
+
+# (7) UUID() function — generate, store, round-trip
+
+CREATE TABLE t5 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t5 VALUES (1, UUID()), (2, UUID()), (3, UUID());
+SELECT COUNT(*) FROM t5 WHERE u IS NOT NULL;
+COUNT(*)
+3
+SELECT COUNT(DISTINCT u) FROM t5;
+COUNT(DISTINCT u)
+3
+
+# (8) UUID() as DEFAULT, batch mode
+
+SET @saved_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+CREATE TABLE t6 (id INT PRIMARY KEY, u UUID DEFAULT UUID()) ENGINE=DuckDB;
+INSERT INTO t6 (id) VALUES (1), (2), (3);
+SELECT COUNT(*) FROM t6 WHERE u IS NOT NULL;
+COUNT(*)
+3
+SELECT COUNT(DISTINCT u) FROM t6;
+COUNT(DISTINCT u)
+3
+DROP TABLE t6;
+SET GLOBAL duckdb_dml_in_batch = @saved_dml_in_batch;
+
+# (9) Self-join on generated UUID PK
+
+CREATE TABLE t7 (id UUID DEFAULT UUID() PRIMARY KEY, val INT) ENGINE=DuckDB;
+INSERT INTO t7 (val) VALUES (10), (20), (30);
+SELECT COUNT(*) FROM t7 a JOIN t7 b ON a.id = b.id;
+COUNT(*)
+3
+DROP TABLE t7;
+DROP TABLE t5;
+DROP DATABASE duckdb_uuid;

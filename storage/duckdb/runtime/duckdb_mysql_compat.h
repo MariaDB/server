@@ -20,6 +20,6 @@ namespace myduck
   Register DuckDB scalar function overloads for MariaDB compatibility.
   Called once during DuckdbManager::Initialize().
 */
-void register_mysql_compat_functions(duckdb::DatabaseInstance &db);
+void register_mariadb_compat_functions(duckdb::DatabaseInstance &db);
 
 } /* namespace myduck */

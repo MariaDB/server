@@ -145,13 +145,6 @@ write_parameter(IO_CACHE *file, const uchar* base, File_option *parameter)
   DBUG_ENTER("write_parameter");
 
   switch (parameter->type) {
-  case FILE_OPTIONS_STRING:
-  {
-    LEX_STRING *val_s= (LEX_STRING *)(base + parameter->offset);
-    if (my_b_write(file, (const uchar *)val_s->str, val_s->length))
-      DBUG_RETURN(TRUE);
-    break;
-  }
   case FILE_OPTIONS_ESTRING:
   {
     if (write_escaped_string(file, (LEX_STRING *)(base + parameter->offset)))
@@ -538,40 +531,6 @@ frm_error:
 
 
 /**
-  parse LEX_STRING.
-
-  @param ptr		  pointer on string beginning
-  @param end		  pointer on symbol after parsed string end (still owned
-                         by buffer and can be accessed
-  @param mem_root	  MEM_ROOT for parameter allocation
-  @param str		  pointer on string, where results should be stored
-
-  @retval
-    0	  error
-  @retval
-    \#	  pointer on symbol after string
-*/
-
-
-static const char *
-parse_string(const char *ptr, const char *end, MEM_ROOT *mem_root,
-             LEX_STRING *str)
-{
-  // get string length
-  const char *eol= strchr(ptr, '\n');
-
-  if (eol >= end)
-    return 0;
-
-  str->length= eol - ptr;
-
-  if (!(str->str= strmake_root(mem_root, ptr, str->length)))
-    return 0;
-  return eol+1;
-}
-
-
-/**
   read escaped string from ptr to eol in already allocated str.
 
   @param ptr		  pointer on string beginning
@@ -836,18 +795,6 @@ File_parser::parse(uchar* base, MEM_ROOT *mem_root,
 	// get value
 	ptr+= (len+1);
 	switch (parameter->type) {
-	case FILE_OPTIONS_STRING:
-	{
-	  if (!(ptr= parse_string(ptr, end, mem_root,
-				  (LEX_STRING *)(base +
-						 parameter->offset))))
-	  {
-	    my_error(ER_FPARSER_ERROR_IN_PARAMETER, MYF(0),
-                     parameter->name.str, line);
-	    DBUG_RETURN(TRUE);
-	  }
-	  break;
-	}
 	case FILE_OPTIONS_ESTRING:
 	{
 	  if (!(ptr= parse_escaped_string(ptr, end, mem_root,

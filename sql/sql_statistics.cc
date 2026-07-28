@@ -154,7 +154,7 @@ TABLE_FIELD_TYPE table_stat_fields[TABLE_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("cardinality") },
-    { STRING_WITH_LEN("bigint(21)") },
+    { STRING_WITH_LEN("bigint(21)") + CAN_BE_NULL },
     { NULL, 0 }
   },
 };
@@ -182,42 +182,42 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("min_value") },
-    { STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("varbinary(255)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("max_value") },
-    { STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("varbinary(255)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("nulls_ratio") },
-    { STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("decimal(12,4)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("avg_length") },
-    { STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("decimal(12,4)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("avg_frequency") },
-    { STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("decimal(12,4)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("hist_size") },
-    { STRING_WITH_LEN("tinyint(3)") },
+    { STRING_WITH_LEN("tinyint(3)") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
     { STRING_WITH_LEN("hist_type") },
-    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("histogram") },
-    { STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("longblob") + CAN_BE_NULL },
     { NULL, 0 }
   }
 };
@@ -250,7 +250,7 @@ TABLE_FIELD_TYPE index_stat_fields[INDEX_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("avg_frequency") },
-    { STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("decimal(12,4)") + CAN_BE_NULL },
     { NULL, 0 }
   }
 };

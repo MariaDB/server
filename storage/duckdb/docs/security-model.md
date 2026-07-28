@@ -7,11 +7,12 @@ for operators deciding whether and where to enable the engine, especially in
 shared or multi-tenant deployments.
 
 > **Summary:** `run_in_duckdb()` executes arbitrary DuckDB SQL, in-process,
-> as the server OS user, on a single shared DuckDB instance, and is **not**
-> gated by any MariaDB privilege or by DuckDB access control. Treat the ability
-> to call it as equivalent to granting `FILE` plus arbitrary code-adjacent
-> access on the server host. Do not expose it in untrusted or multi-tenant
-> environments.
+> as the server OS user, on a single shared DuckDB instance. It is gated by two
+> coarse checks: the `duckdb_allow_run_in_duckdb` system variable must be ON
+> (it is **OFF by default**), and the caller must hold the `SUPER` privilege.
+> DuckDB itself applies no access control. Treat the ability to call it as
+> equivalent to granting `FILE` plus arbitrary code-adjacent access on the
+> server host, and do not enable it in untrusted or multi-tenant environments.
 
 ## 1. DuckDB's security model and its limitations
 
@@ -43,6 +44,13 @@ See the upstream guidance: <https://duckdb.org/docs/operations_manual/securing_d
 `run_in_duckdb(sql_string)` is registered as a `MariaDB_FUNCTION_PLUGIN`
 alongside the storage engine (`duckdb_udf.cc`, `ha_duckdb.cc`). When called:
 
+0. It enforces two access checks before doing anything else:
+   - if the `duckdb_allow_run_in_duckdb` system variable is OFF (the default),
+     it fails with `ER_OPTION_PREVENTS_STATEMENT`
+     (`--duckdb-allow-run-in-duckdb`);
+   - otherwise it requires the caller to hold the global `SUPER` privilege
+     (`check_global_access(thd, SUPER_ACL)`); non-`SUPER` callers get an
+     access-denied error and a `NULL` result.
 1. It takes the single string argument **verbatim** (the only transformation is
    that backticks are rewritten to double quotes for identifier quoting).
 2. It opens a connection to the **single, server-wide** DuckDB instance
@@ -53,9 +61,11 @@ alongside the storage engine (`duckdb_udf.cc`, `ha_duckdb.cc`). When called:
 
 Two properties matter for security:
 
-- **No privilege check.** The function implementation performs no authorization
-  check of any kind. There is no dedicated MariaDB privilege for it; any account
-  that can evaluate a `SELECT` expression can call it.
+- **Coarse privilege gating only.** Callers must pass the two checks above
+  (`duckdb_allow_run_in_duckdb=ON` plus `SUPER`). There is still no *dedicated*
+  privilege: `SUPER` is a broad server-admin capability, so gating is all-or-
+  nothing rather than per-function or per-object. Any `SUPER` account can call
+  it once the sysvar is enabled.
 - **No schema scoping.** Unlike normal engine query paths, the function does
   **not** call `config_duckdb_env()`/`config_duckdb_session()`, so the statement
   is not confined to the caller's current database — it runs against the entire
@@ -77,7 +87,8 @@ checkpoint threshold). Relevant to security:
 
 These are reasonable defaults for a single-tenant analytical box, but they leave
 the DuckDB SQL surface fully open to anyone who can reach it via
-`run_in_duckdb()`.
+`run_in_duckdb()` — i.e. any `SUPER` account once
+`duckdb_allow_run_in_duckdb` is enabled.
 
 ## 4. Security side effects of `run_in_duckdb()`
 
@@ -107,7 +118,8 @@ performed inside DuckDB.
 
 ## 5. What is *not* enforced
 
-- No dedicated privilege gating `run_in_duckdb()`.
+- No *dedicated* (per-function/per-object) privilege: access is gated only by
+  `duckdb_allow_run_in_duckdb` plus the broad `SUPER` privilege.
 - No mapping of MariaDB users/grants onto DuckDB objects.
 - No `secure_file_priv` / `FILE`-privilege enforcement for DuckDB file I/O.
 - No restriction on extension install/load or on external (file/network) access.
@@ -119,28 +131,34 @@ performed inside DuckDB.
 For operators:
 
 - **Do not enable the engine in untrusted or multi-tenant environments** where
-  arbitrary accounts could call `run_in_duckdb()`. Treat the function as a
-  highly privileged, host-level capability.
-- **Restrict who can connect** and limit accounts to trusted operators when the
-  engine is loaded. Because no per-function privilege exists, access control
-  must be applied at the connection/account level.
+  untrusted `SUPER` accounts could call `run_in_duckdb()`. Treat the function as
+  a highly privileged, host-level capability.
+- **Keep `duckdb_allow_run_in_duckdb=OFF`** unless you actively need the
+  function; it is off by default. Enabling it exposes the full DuckDB SQL
+  surface to every `SUPER` account.
+- **Restrict who holds `SUPER`.** Because gating is coarse (`SUPER`, not a
+  per-function privilege), access control must be applied at the account level
+  by limiting `SUPER` grants to trusted operators.
 - **Run the server as a least-privileged OS user** and confine it (containers,
   systemd sandboxing, restrictive filesystem permissions), since DuckDB file I/O
   inherits the server process's rights.
 - **Isolate the data directory** so that files reachable by the server user do
   not include secrets unrelated to the database.
 
-Potential engine hardening (not currently implemented; out of scope for this
-document but worth tracking): applying and locking DuckDB security
-configuration at instance creation — `enable_external_access=false`,
-disabling extension autoinstall/autoload, `allow_community_extensions=false`,
-`allowed_directories`, and `lock_configuration=true` — and/or gating
-`run_in_duckdb()` behind a dedicated privilege.
+`run_in_duckdb()` is now gated behind the `duckdb_allow_run_in_duckdb` sysvar
+(OFF by default) and the `SUPER` privilege. Further engine hardening remains
+unimplemented (out of scope for this document but worth tracking): applying and
+locking DuckDB security configuration at instance creation —
+`enable_external_access=false`, disabling extension autoinstall/autoload,
+`allow_community_extensions=false`, `allowed_directories`, and
+`lock_configuration=true` — and/or replacing the coarse `SUPER` check with a
+dedicated per-function privilege.
 
 ## References
 
 - DuckDB — Securing DuckDB:
   <https://duckdb.org/docs/operations_manual/securing_duckdb/overview>
-- `duckdb_udf.cc` — `run_in_duckdb()` implementation
+- `duckdb_udf.cc` — `run_in_duckdb()` implementation and access checks
+- `ha_duckdb.cc` — `duckdb_allow_run_in_duckdb` system variable
 - `runtime/duckdb_manager.cc` — shared instance configuration
 - `runtime/duckdb_query.cc` — query execution path

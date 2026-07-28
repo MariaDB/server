@@ -906,7 +906,6 @@ static int handle_request_for_tables(char *tables, size_t length,
                                      my_bool view, my_bool dont_quote)
 {
   char *query, *end, options[100], message[100];
-  char table_name_buff[NAME_CHAR_LEN*2*2+1], *table_name;
   size_t query_length= 0, query_size= sizeof(char)*(length+110);
   const char *op = 0;
   const char *tab_view;
@@ -984,21 +983,13 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
 
     /* No backticks here as we added them before */
-    query_length= snprintf(query, query_size, "%s%s%s %s", op,
-                          tab_view, tables, options);
-    table_name= tables;
+    query_length= my_snprintf(query, query_size, "%s%s%s %s", op,
+                              tab_view, tables, options);
   }
   else
   {
-    char *ptr, *org;
-
-    org= ptr= strmov(strmov(query, op), tab_view);
-    ptr= fix_table_name(ptr, tables);
-    strmake(table_name_buff, org, MY_MIN((int) sizeof(table_name_buff)-1,
-                                         (int) (ptr - org)));
-    table_name= table_name_buff;
-    ptr= strxmov(ptr, " ", options, NullS);
-    query_length= (size_t) (ptr - query);
+    query_length= my_snprintf(query, query_size, "%s%s%sQ %s",
+                              op, tab_view, tables, options);
   }
   if (verbose >= 3)
     puts(query);
@@ -1013,7 +1004,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   print_result();
   if (opt_flush_tables)
   {
-    query_length= snprintf(query, query_size, "FLUSH TABLES %s", table_name);
+    query_length= my_snprintf(query, query_size, "FLUSH TABLES %sQ", tables);
     if (mysql_real_query(sock, query, (ulong)query_length))
     {
       DBerror(sock, query);
@@ -1105,7 +1096,7 @@ static void __attribute__((noinline)) print_result()
     }
     else
       printf("%-9s: %s\n", row[2], row[3]);
-    strmov(prev, row[0]);
+    strmake_buf(prev, row[0]);
   }
   /* add the last table to be repaired to the list */
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)

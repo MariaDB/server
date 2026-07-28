@@ -1,0 +1,2 @@
+--loose-duckdb-allow-run-in-duckdb=ON
+--plugin-maturity=alpha

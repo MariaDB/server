@@ -1463,16 +1463,31 @@ class sp_instr_cursor_copy_struct: public sp_lex_instr
   bool m_valid;
   LEX_CSTRING m_cursor_stmt;
 
+  /**
+    The pointer to an Item created on parsing the DEFAULT clause of
+    a cursor declaration. An instance of a class derived from the class Item
+    created for storing a value of the DEFAULT clause is created once and lives
+    until the cursor be deallocated on closing a stored routine.
+  */
+  Item *m_def= nullptr;
+
 public:
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
-                              sp_lex_cursor *lex, uint voffs)
+                              sp_lex_cursor *lex, uint voffs,
+                              Item *def= nullptr)
     : sp_lex_instr(ip, ctx, lex, false),
       m_cursor(coffs),
       m_var(voffs),
       m_valid(true),
-      m_cursor_stmt(lex->get_expr_str())
+      m_cursor_stmt(lex->get_expr_str()),
+      m_def(def)
   {}
-  virtual ~sp_instr_cursor_copy_struct() = default;
+  virtual ~sp_instr_cursor_copy_struct() override
+  {
+    if (m_def)
+      m_def->delete_self();
+  }
+
   int execute(THD *thd, uint *nextp) override;
   int exec_core(THD *thd, uint *nextp) override;
   void print(String *str) override;

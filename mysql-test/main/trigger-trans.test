@@ -245,7 +245,7 @@ DROP TABLE t3, t2, t1;
 CREATE TABLE t1 (id int(11)) ENGINE=InnoDB;
 LOCK TABLES t1 WRITE;
 SET max_statement_time= 0.001;
---error 0,1969,2013
+--error 0,1969,2013,2026
 --disable_warnings
 CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
 --enable_warnings

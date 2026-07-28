@@ -246,7 +246,7 @@ my $opt_tail_lines= 20;
 my $opt_dry_run;
 
 my $opt_compress;
-my $opt_ssl;
+our $opt_ssl;
 my $opt_skip_ssl;
 my @opt_skip_test_list;
 our $opt_ssl_supported;
@@ -5461,8 +5461,13 @@ sub stop_servers($$) {
 # Run a query against a server using mysql client. The output of
 # the query will be written into outfile.
 #
+# If $timeout (seconds) is given, the client is not waited for
+# indefinitely: a server stuck in an unstable state can accept the
+# connection but never answer the query, which would otherwise block forever.
+# In that case the client is killed and a non-zero status is returned.
+#
 sub run_query_output {
-  my ($mysqld, $query, $outfile)= @_;
+  my ($mysqld, $query, $outfile, $timeout)= @_;
   my $args;
 
   mtr_init_args(\$args);
@@ -5471,7 +5476,7 @@ sub run_query_output {
   mtr_add_arg($args, "--silent");
   mtr_add_arg($args, "--execute=%s", $query);
 
-  my $res= My::SafeProcess->run
+  my $proc= My::SafeProcess->new
   (
     name          => "run_query_output -> ".$mysqld->name(),
     path          => $exe_mysql,
@@ -5480,7 +5485,15 @@ sub run_query_output {
     error         => $outfile
   );
 
-  return $res
+  # wait_one() returns 1 while the process is still running,
+  # in which case we kill the hung client.
+  if ($proc->wait_one($timeout))
+  {
+    $proc->kill();
+    return 1;
+  }
+
+  return $proc->exit_status();
 }
 
 
@@ -5498,7 +5511,13 @@ sub wait_wsrep_ready($$) {
   my ($tinfo, $mysqld)= @_;
 
   my $sleeptime= 100; # Milliseconds
-  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  # Bound the whole wait by the server startup timeout. This must be a
+  # wall-clock deadline rather than a simple loop count: a single query
+  # against a wedged server can block indefinitely, which would otherwise
+  # defeat the loop bound and hang MTR until the surrounding suite timeout
+  # fires.
+  my $timeout= start_timer($opt_start_timeout);
 
   my $name= $mysqld->name();
   my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
@@ -5507,11 +5526,17 @@ sub wait_wsrep_ready($$) {
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
-  for (my $loop= 1; $loop <= $loops; $loop++)
+  while (1)
   {
+    # Cap each query by the time left so a hung client cannot exceed the
+    # overall startup budget. Integer seconds, and at least 1 (wait_one()
+    # treats 0 as a non-blocking poll).
+    my $remaining= int($timeout - time);
+    last if $remaining <= 0;
+
     # Careful... if MTR runs with option 'verbose' then the
     # file contains also SafeProcess verbose output
-    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+    if (run_query_output($mysqld, $query, $outfile, $remaining) == 0 &&
         mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
     {
       unlink($outfile);

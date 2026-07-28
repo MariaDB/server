@@ -6333,7 +6333,7 @@ static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->table->part_info;
   THD *thd= lpt->thd;
-  int error;
+  int error= 0;
   handler *file= get_new_handler(NULL, thd->mem_root, part_info->default_engine_type);
 
   DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
@@ -6352,9 +6352,8 @@ static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
     if (e.part_state != PART_TO_BE_DROPPED)
       continue;
 
-    if (unlikely((error= create_partition_name(from_name, sizeof(from_name),
-                                                path, e.partition_name,
-                                                NORMAL_PART_NAME, FALSE))))
+    if (create_partition_name(from_name, sizeof(from_name), path,
+                              e.partition_name, NORMAL_PART_NAME, TRUE))
     {
       DBUG_ASSERT(thd->is_error());
       return true;
@@ -9150,6 +9149,12 @@ static const char *longest_str(const char *s1, const char *s2,
     in1                       First part
     in2                       Second part
     name_variant              Normal, temporary or renamed partition name
+    translate                 If TRUE, in2 is a user-specified partition name
+                              and is encoded with tablename_to_filename()
+                              before use. If FALSE, in2 is already an on-disk
+                              filename and is used verbatim.
+
+
 
   RETURN VALUE
     0 if ok, error if name too long

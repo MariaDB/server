@@ -220,7 +220,7 @@ static File_option triggers_file_parameters[]=
     my_offsetof(class Table_triggers_list, hr_create_times),
     FILE_OPTIONS_ULLLIST
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 File_option sql_modes_parameters=
@@ -263,7 +263,7 @@ static File_option trigname_file_parameters[]=
     offsetof(struct st_trigname, trigger_table),
     FILE_OPTIONS_ESTRING
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 
@@ -952,6 +952,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     DBUG_RETURN(true);
   }
 
+  if (error_if_mysql50_prefix(lex->spname->m_name.str, ER_SP_WRONG_NAME))
+    DBUG_RETURN(true);
+
   if (sp_process_definer(thd))
     DBUG_RETURN(true);
 
@@ -1013,6 +1016,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
                                              lex->spname->m_name.str,
                                              TRN_EXT, 0);
   trigname_file.str= trigname_buff;
+
+  if (!trigname_file.length)
+    DBUG_RETURN(true);
 
   /* Use the filesystem to enforce trigger namespace constraints. */
   trigger_exists= !access(trigname_file.str, F_OK);
@@ -3031,7 +3037,7 @@ void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path)
 
 bool check_trn_exists(const LEX_CSTRING *trn_path)
 {
-  return access(trn_path->str, F_OK) != 0;
+  return !trn_path->length || access(trn_path->str, F_OK) != 0;
 }
 
 

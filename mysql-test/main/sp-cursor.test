@@ -947,4 +947,33 @@ CALL p();
 DROP PROCEDURE p;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-36481: Abnormal server termination on second execution of
+--echo #             stored routine that runs a cursor after table metadata
+--echo #             in the query was changed
+--echo #
+CREATE TABLE t (a INT);
+
+--delimiter $
+CREATE PROCEDURE p()
+BEGIN
+	DECLARE cur CURSOR FOR SELECT * FROM t;
+	BEGIN
+		DECLARE rec ROW(a INT,b INT) DEFAULT ROW(0,0);
+		DECLARE rec2 ROW TYPE OF cur DEFAULT rec;
+	END;
+END
+$
+
+--delimiter ;
+--error ER_OPERAND_COLUMNS
+CALL p();
+CREATE OR REPLACE TABLE t (a INT);
+--error ER_OPERAND_COLUMNS
+CALL p();
+
+--echo # Clean up
+DROP TABLE t;
+DROP PROCEDURE p;
+
 --echo # End of 11.4 tests

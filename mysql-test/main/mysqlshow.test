@@ -26,7 +26,7 @@ select "---- -v -v -t ------" as "";
 --exec $MYSQL_SHOW test -v -v -t
 DROP TABLE t1, t2;
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 # because of lp:1066512 this test shows xtradb I_S plugins, even when
 # xtradb is supposed to be disabled
@@ -38,3 +38,16 @@ DROP TABLE t1, t2;
 #--exec $MYSQL_SHOW INFORMATION_SCHEMA
 #--exec $MYSQL_SHOW inf_rmation_schema
 
+create table `t``1` (a int);
+insert `t``1` values (1),(2),(3),(4),(5);
+--exec $MYSQL_SHOW test -v -v
+--exec $MYSQL_SHOW test t\`1 -k --count
+drop table `t``1`;
+
+create schema `d``b`;
+create table `d``b`.`t``2` (a int);
+insert `d``b`.`t``2` values (1),(2),(3),(4),(5),(6),(7);
+--exec $MYSQL_SHOW "d*" -v -v
+--replace_regex /\d\d+/#/
+--exec $MYSQL_SHOW d\`b -v -v -i
+drop schema `d``b`;

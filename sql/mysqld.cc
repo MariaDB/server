@@ -6801,8 +6801,15 @@ struct my_option my_long_options[]=
    0, 0, 0, 0, 0, 0},
 #endif /* HAVE_des */
 #ifdef HAVE_STACKTRACE
-  {"stack-trace", 0 , "Print a symbolic stack trace on failure",
-   &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"stack-trace", 0, "Print a symbolic stack trace on failure",
+  &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG,
+#if defined(MY_ADDR_RESOLVE_FORK) && \
+  (defined(__SANITIZE_ADDRESS__) || __has_feature(memory_sanitizer))
+  0
+#else
+  1
+#endif
+  , 0, 0, 0, 0, 0},
 #endif /* HAVE_STACKTRACE */
   {"enforce-storage-engine", 0, "Force the use of a storage engine for new tables",
    &enforced_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,

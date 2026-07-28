@@ -494,3 +494,10 @@ SELECT ST_CROSSES( ST_GEOMFROMTEXT('point(1 1)'), st_geomfromtext('point(1 1)') 
 SELECT ST_CROSSES( ST_GEOMFROMTEXT('POLYGON ((59 18,67 18,67 13,59 13,59 18)) '), st_geomfromtext('polygon((2 2,2 4, 4 2,2 2))') ) a;
 SELECT ST_CROSSES( ST_GEOMFROMTEXT('POLYGON ((59 18,67 18,67 13,59 13,59 18)) '), st_geomfromtext('point(1 1)') ) a;
 
+--echo #
+--echo # MDEV-31267 Server crash or assertion failure in get_n_sincos with nested ST_BUFFER.
+--echo #
+
+set @geom=ST_BUFFER(ST_BUFFER(ST_POLYGONFROMTEXT('POLYGON((0 0, 5 5, 6 6, 0 0))'),1),2);
+select round(area(@geom), 5);
+

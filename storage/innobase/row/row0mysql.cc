@@ -2572,7 +2572,7 @@ row_rename_table_for_mysql(
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
 
-	ut_ad(fk != RENAME_IGNORE_FK || !new_is_tmp);
+	ut_ad(fk != RENAME_IGNORE_FK || !new_is_tmp || dict_is_partition(old_name));
 
 	table = dict_table_open_on_name(old_name, true,
 					DICT_ERR_IGNORE_FK_NOKEY);

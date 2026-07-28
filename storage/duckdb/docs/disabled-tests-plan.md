@@ -146,7 +146,8 @@ Error code fixes done: `ER_DUCKDB_TABLE_STRUCT_INVALID` for ALTER structural err
 
 | # | Task | Tests | Complexity |
 |---|------|-------|------------|
-| 1b | **More SQL macros**: `addtime`, `json_contains` | `duckdb_time_func`, `duckdb_json` | low — same pattern as adddate/oct |
+| 1b | **More SQL macros**: `json_contains` (`addtime` **DONE**; `duckdb_time_func` re-enabled) | `duckdb_json` | low — same pattern as adddate/oct |
+| 1b' | **Unsupported time functions** — split out from `duckdb_time_func` for functions DuckDB cannot yet match | `duckdb_time_func_unsupported` | tracks residual time-function gaps |
 | 1c | **Conditionless JOIN**: `SELECT * FROM t1 JOIN t2` — DuckDB requires ON clause | `duckdb_sql_syntax` | medium — SQL rewrite or refuse pushdown |
 | 1d | **oct(string)**: `oct('123.123a')` — MariaDB truncates to number, DuckDB casts strictly | `duckdb_fix_sql` | low — improve macro to handle strings |
 | 1e | **LENGTH(BLOB)**: DuckDB has no BLOB overload for `length()` | `duckdb_string_func` | low — add `octet_length` macro alias |

@@ -439,6 +439,13 @@ int DeltaAppender::append_mysql_field(const Field *field_arg,
     String tmp(buf, sizeof(buf), &my_charset_bin);
     field->val_str(&tmp);
 
+    if (is_uuid_field(field))
+    {
+      appender->Append(
+          duckdb::Value::UUID(std::string(tmp.ptr(), tmp.length())));
+      break;
+    }
+
     bool is_blob= false;
     if (blob_type_map != nullptr)
       is_blob= bitmap_is_set(blob_type_map, field->field_index);
@@ -534,6 +541,12 @@ bool DeltaAppender::flush(bool idempotent_flag)
   return false;
 }
 
+void DeltaAppender::discard()
+{
+  if (m_appender)
+    m_appender->Clear();
+}
+
 void DeltaAppender::cleanup()
 {
   if (m_use_tmp_table)
@@ -548,7 +561,18 @@ void DeltaAppender::cleanup()
 void DeltaAppenders::delete_appender(std::string &db, std::string &tb)
 {
   auto key= std::make_pair(db, tb);
-  m_append_infos.erase(key);
+  auto it= m_append_infos.find(key);
+  if (it == m_append_infos.end())
+    return;
+  it->second->discard();
+  m_append_infos.erase(it);
+}
+
+void DeltaAppenders::discard_all()
+{
+  for (auto &pair : m_append_infos)
+    pair.second->discard();
+  m_append_infos.clear();
 }
 
 bool DeltaAppenders::flush_all(bool idempotent_flag, std::string &error_msg)

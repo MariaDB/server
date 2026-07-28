@@ -1,0 +1,19 @@
+
+# This test requires that the ini subsystem of connect
+# hasn't been touched. Any call to PROFILE_Open will invalid
+# the that the MDEV causes.
+#
+--echo #
+--echo # MDEV-39513 connect table_type=INI memory leak
+--echo #
+
+--source include/force_restart.inc
+
+--replace_result $MYSQL_TMP_DIR TMP
+--eval CREATE TABLE t (c INT) ENGINE=CONNECT table_type=INI file_name='$MYSQL_TMP_DIR/foobar';
+UPDATE t SET c=0;
+
+--source include/force_restart.inc
+DROP TABLE t;
+
+--echo # End of 11.4 tests

@@ -207,7 +207,9 @@ SELECT COUNT(*) FROM t1;
 INSERT INTO t1 (a,tsv) VALUES (5,DEFAULT);
 INSERT DELAYED INTO t1 (a,tsv) VALUES (6,DEFAULT);
 FLUSH TABLES WITH READ LOCK;
+--disable_service_connection
 SELECT COUNT(*) FROM t1;
+--enable_service_connection
 set GLOBAL debug_dbug= @old_debug;
 unlock tables;
 DROP TABLE t1;
@@ -560,3 +562,46 @@ DROP TABLE t;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+# Charset difference required which inserts a charset converter, forcing the column value read later.
+SET character_set_connection=ucs2;
+CREATE TABLE t1 (d1 date not null, d2 date, gd text as (concat(d1,if(d1 <> d2, date_format(d2, 'to %y-%m-%d '), '' COLLATE uca1400_ai_ci))) );
+# Necessary to get table t1 into the cache.  Without this SELECT, the crash is not evident.
+--ERROR ER_NO_SUCH_TABLE
+SELECT (SELECT 1 FROM foo) FROM t1;
+INSERT INTO t1 (d1) VALUES ('2009-07-02');
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-34992 Assertion 'marked_for_read()' failed in virtual my_time_t Field_timestamp0::get_timestamp(const uchar*, ulong*) const
+--echo #
+
+SET @old_mysql56_temporal_format = @@GLOBAL.mysql56_temporal_format;
+SET @old_explicit_defaults_for_timestamp = @@SESSION.explicit_defaults_for_timestamp;
+
+SET GLOBAL mysql56_temporal_format = 0;
+SET explicit_defaults_for_timestamp = 0;
+
+CREATE TABLE t (b TIMESTAMP, a INT AS (1 IN (DAYOFMONTH(b BETWEEN '' AND current_user) = b)));
+
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t, t2;
+SELECT * FROM t;
+
+# Cleanup
+DROP TABLE t;
+
+SET GLOBAL mysql56_temporal_format = @old_mysql56_temporal_format;
+SET explicit_defaults_for_timestamp = @old_explicit_defaults_for_timestamp;
+
+--echo # End of 11.4 tests

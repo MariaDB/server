@@ -19,7 +19,7 @@ SHOW GRANTS;
 Grants for root@localhost
 GRANT `developers` TO `root`@`localhost` WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 # Test reexecution.
 EXECUTE stmtCreateRole;
 ERROR HY000: Operation CREATE ROLE failed for 'developers'
@@ -79,7 +79,7 @@ Host	User	Role	Admin_option
 SHOW GRANTS;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
 GRANT USAGE ON *.* TO `test_user`@`%`
@@ -98,7 +98,7 @@ SHOW GRANTS;
 Grants for root@localhost
 GRANT `developers` TO `root`@`localhost` WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
 GRANT USAGE ON *.* TO `test_user`@`%`

@@ -82,9 +82,16 @@ void json_get_normalized_string(json_engine_t *je, String *res,
       je->value_type == JSON_VALUE_ARRAY ||
       je->value_type == JSON_VALUE_OBJECT)
   {
-    if (json_normalize(&a_res, (const char*)val.ptr(),
-                       val_end-val_begin, je->s.cs))
+    json_engine_t je2;
+    memset(&je2, 0x00, sizeof(je2));
+    je2.killed_ptr= je->killed_ptr;
+    if (json_normalize_engine(&je2, &a_res, (const char*)val.ptr(),
+                              val_end-val_begin, je->s.cs))
+    {
+      je->s.error= je2.s.error;
+      je->s.c_str= je2.s.c_str;
       goto error;
+    }
   }
   else if(je->value_type == JSON_VALUE_STRING)
   {
