@@ -106,10 +106,15 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
       mysql = true;
 
   } else {
-    if (thd->is_error())
+    if (thd->is_error()) {
+      // open_table_def() already raised a specific error on the THD;
+      // prefer it over a generic message.
+      snprintf(g->Message, sizeof(g->Message), "%s",
+               thd->get_stmt_da()->message());
       thd->clear_error();  // Avoid stopping info commands
+    } else
+      snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
 
-    snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
     free_table_share(s);
     return NULL;
   } // endif open_table_def
