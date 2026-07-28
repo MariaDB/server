@@ -3,6 +3,7 @@ package My::Debugger;
 use strict;
 use warnings;
 use Text::Wrap;
+use Text::ParseWords;
 use Cwd;
 use My::Platform;
 use mtr_report;
@@ -20,8 +21,10 @@ use mtr_report;
 #       command file. If the first command starts from '-' it'll
 #       be for a command line, not for a command file.
 #
-# 2. terminal to use: xterm
-#       TODO MTR_TERM="xterm -title {title} -e {command}"
+# 2. terminal to use for interactive debuggers: configurable via the
+#    --terminal option or the $MTR_TERM environment variable (default
+#    "xterm -title {title} -e {command}").  {title} is the window title,
+#    {command} the debugger invocation.
 #
 # 3. debugger combinations are *not allowed*
 #       (thus no --valgrind --gdb)
@@ -116,6 +119,7 @@ my %opt_vals;
 my $debugger;
 my $boot_debugger;
 my $client_debugger;
+my $opt_terminal;
 
 my $help = "\n\nOptions for running debuggers\n\n";
 
@@ -138,6 +142,51 @@ for my $k (sort keys %debuggers) {
   register_opt "manual-", "$k", "Before running test(s) let user manually start mariadbd";
   register_opt "exec-", $k, "Run every mysqltest --exec command"
     if $v->{exec};
+}
+
+# Terminal emulator used to run interactive ({term}) debuggers.  The template
+# understands two placeholders: {title} (window title) and {command} (the
+# debugger invocation).  --terminal takes precedence over $MTR_TERM; the
+# default reproduces the former hard-coded xterm behaviour.
+$opts{"terminal=s"} = \$opt_terminal;
+$help .= wrap(sprintf("  %-23s", "terminal=TEMPL"), ' 'x25,
+              "Terminal for interactive debuggers, with {title} and {command} ".
+              "placeholders (default 'xterm -title {title} -e {command}', ".
+              "also from \$MTR_TERM)\n");
+
+sub term_template()
+{
+  my $t= $opt_terminal;
+  undef $t if defined $t and $t eq ';';  # bare --terminal sentinel, ignore
+  return $t || $ENV{MTR_TERM} || 'xterm -title {title} -e {command}';
+}
+
+# Expand the terminal template into an argv list that runs @cmd (the debugger
+# and its arguments) in a window titled $title.  {command} expands to the
+# words of @cmd; {title} is substituted textually within any word.
+sub term_argv($@)
+{
+  my $title= shift;
+  my @cmd= @_;
+  my $templ= term_template();
+  # Honour shell-style quoting: the argv is exec'd directly (no shell), so a
+  # quoted argument in the template must become a single argv element.
+  my @words= shellwords($templ);
+  mtr_error "Malformed --terminal template: $templ" unless @words;
+  my @argv;
+  for my $word (@words)
+  {
+    if ($word eq '{command}')
+    {
+      push @argv, @cmd;
+    }
+    else
+    {
+      $word =~ s/\{title\}/$title/g;
+      push @argv, $word;
+    }
+  }
+  return @argv;
 }
 
 sub subst($%) {
@@ -187,8 +236,9 @@ sub do_args($$$$$) {
     print "$run $options\n";
     $$exe= undef; # Indicate the exe should not be started
   } elsif ($v->{term}) {
-    unshift @$$args, '-title', $type, '-e', $run;
-    $$exe = 'xterm';
+    my @argv= term_argv($type, $run, @$$args);
+    $$exe = shift @argv;
+    @$$args = @argv;
   } else {
     $$exe = $run;
   }
@@ -287,7 +337,14 @@ sub pre_setup() {
     }
     my $wrap= $v->{exec};
     $ENV{_RR_TRACE_DIR}= "$::opt_vardir/log" if $k eq 'rr';
-    $wrap= "xterm -title exec -e $wrap" if $v->{term};
+    if ($v->{term}) {
+      # Here the wrapper is a shell string that do_exec() prepends before the
+      # tool, so expand the template textually; {command} must be last for the
+      # tool to end up as an argument of the debugger.
+      (my $t= term_template()) =~ s/\{title\}/exec/g;
+      $t =~ s/\{command\}/$wrap/;
+      $wrap= $t;
+    }
     $ENV{MYSQLTEST_EXEC_WRAP}= $wrap;
     $used= 1;
     $interactive ||= $v->{term};
