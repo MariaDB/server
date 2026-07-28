@@ -109,3 +109,84 @@ mtr/misc.empty,lcase_def,myisam,ps
 #### --suite with negation ####
 Using suites: 
 No tests to run...
+#### --exit-line (stop before line 5) ####
+Logging: <...cut...>
+VS config: 
+vardir: <...cut...>
+Checking leftover processes...
+Removing old var directory...
+Creating var directory <...cut...>
+Checking supported features...
+MariaDB Version <...cut...>
+ - SSL <...cut...>
+ - binaries <...cut...>
+Collecting tests...
+Installing system database...
+
+==============================================================================
+
+TEST                                      RESULT   TIME (ms) or COMMENT
+--------------------------------------------------------------------------
+
+worker <...cut...>
+main.1st                                 [ fail ]
+        Test ended at <...cut...>
+
+CURRENT_TEST: main.1st
+--- <...cut...>
++++ <...cut...>
+@@ -6,36 +6,3 @@
+ performance_schema
+ sys
+ test
+-show tables in mysql;
+-Tables_in_mysql
+-column_stats
+-columns_priv
+-db
+-event
+-func
+-general_log
+-global_priv
+-gtid_slave_pos
+-help_category
+-help_keyword
+-help_relation
+-help_topic
+-index_stats
+-innodb_index_stats
+-innodb_table_stats
+-plugin
+-proc
+-procs_priv
+-proxies_priv
+-roles_mapping
+-servers
+-slow_log
+-table_stats
+-tables_priv
+-time_zone
+-time_zone_leap_second
+-time_zone_name
+-time_zone_transition
+-time_zone_transition_type
+-transaction_registry
+-user
+
+Result length mismatch
+
+ - saving <...cut...>
+--------------------------------------------------------------------------
+The servers were restarted 0 times
+Spent <...cut...>
+
+Completed: Failed 1/1 tests, 0.00% were successful.
+
+Failing test(s): main.1st
+
+The log files in var/log may give you some hint of what went wrong.
+
+If you want to report this error, MariaDB's bug tracker is found at
+https://jira.mariadb.org
+
+mysql-test-run: *** ERROR: there were failing test cases

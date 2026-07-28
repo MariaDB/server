@@ -236,6 +236,7 @@ our $opt_staging_run= 0;
 
 our @opt_combinations;
 our $opt_comb_sel;
+our $opt_exit_line;
 
 our @opt_extra_mysqld_opt;
 our @opt_mysqld_envs;
@@ -1413,6 +1414,7 @@ sub command_line_setup {
              'big-test+'                => \$opt_big_test,
 	     'combination=s'            => \@opt_combinations,
 	     'combination-select|c=s'   => \$opt_comb_sel,
+	     'exit-line|l=i'            => \$opt_exit_line,
              'experimental=s'           => \@opt_experimentals,
              'staging-run'              => \$opt_staging_run,
 
@@ -6199,6 +6201,10 @@ sub start_mysqltest ($) {
 
   # Number of lines of resut to include in failure report
   mtr_add_arg($args, "--tail-lines=%d", $opt_tail_lines);
+
+  # Stop the test before the command at this line (like an --exit directive)
+  mtr_add_arg($args, "--exit-line=%d", $opt_exit_line)
+    if $opt_exit_line;
 
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
