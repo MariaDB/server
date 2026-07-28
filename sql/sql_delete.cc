@@ -1471,21 +1471,22 @@ int multi_delete::send_data(List<Item> &values)
       error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
       if (error)
       {
-          --found;
-          if (error != HA_ERR_FOUND_DUPP_KEY &&
-              error != HA_ERR_FOUND_DUPP_UNIQUE)
+        --found;
+        if (error != HA_ERR_FOUND_DUPP_KEY &&
+            error != HA_ERR_FOUND_DUPP_UNIQUE)
+        {
+          bool is_duplicate;
+          if (create_internal_tmp_table_from_heap(thd, tmp_table,
+                                                  tmp_table_param[offset].start_recinfo,
+                                                  &tmp_table_param[offset].recinfo,
+                                                  error, 1, &is_duplicate, NULL))
           {
-              if (create_internal_tmp_table_from_heap(thd, tmp_table,
-                                                      tmp_table_param[offset].start_recinfo,
-                                                      &tmp_table_param[offset].recinfo,
-                                                      error, 1, NULL))
-              {
-                  do_delete= 0;
-                  DBUG_RETURN(1);			// Not a table_is_full error
-              }
-              found++;
+            do_delete= 0;
+            DBUG_RETURN(1);			// Not a table_is_full error
           }
-          error= 0;
+          found++;
+        }
+        error= 0;
       }
     }
   }

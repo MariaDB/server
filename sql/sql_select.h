@@ -2678,11 +2678,111 @@ TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    bool do_not_open, bool keep_row_order);
 
 void free_tmp_table(THD *thd, TABLE *entry);
+
+/*
+  The row copying step of create_internal_tmp_table_from_heap(): copies
+  the data from a HEAP table to the Aria or MyISAM table that replaces it.
+
+  Callers that hold row positions of the in-memory table pass their own
+  copier that translates them into positions in the converted table, which
+  is only possible while both tables are open.
+*/
+class Tmp_table_row_copier
+{
+public:
+  virtual ~Tmp_table_row_copier() = default;
+  /*
+    Copy all rows of 'from' into 'to', including the pending record[0] that
+    did not fit into 'from'.
+
+    @retval 0   all rows copied
+    @retval -1  failed, the error has been reported
+    @retval >0  failed with this handler error, which the caller reports
+  */
+  virtual int copy_rows(TABLE *from, TABLE *to)= 0;
+  /* Set by copy_rows() when the pending record[0] was an ignored duplicate */
+  bool duplicate_row_error= false;
+};
+
+
+/*
+  Copy the rows of a window function tmp table that is converted from HEAP to
+  the disk-based tmp engine, translating the row positions that the running
+  computation is built on.
+
+  The filesort result of a window sort is a sequence of row positions that
+  covers every row of the table exactly once (the sort is set up without a
+  limit, @see Window_funcs_sort::setup()) and it is the only place where the
+  positions are kept: the row scan and all frame cursors read rows through it.
+
+  When the sort was set up with a deferred filter (a HAVING clause deferred
+  to the final ORDER BY sort, @see Window_funcs_computation::setup()), the
+  sequence omits the rows the filter rejected and the conversion drops them:
+  every later reader of the table applies the same filter, either directly
+  or by reading the table through a sort that does, so such rows can never
+  reach the result anyway.
+
+  The rows are copied in the order in which they appear in the sequence. The
+  new position of a row is then known as soon as the row has been written,
+  and is stored back into the slot the old position was read from: a window
+  sort stores the positions in slots that fit the position of any engine an
+  internal tmp table can use (@see Filesort::min_ref_length), so an
+  in-memory sequence is rewritten in place, keeping its layout. A sequence
+  kept in a temporary file is written and read through an IO_CACHE, which
+  encrypts the file when tmp file encryption is enabled, so it can not be
+  rewritten in place: the translated sequence is streamed into a new cached
+  temporary file that then replaces the old one under the cache.
+
+  The row whose update did not fit into the HEAP table is written from
+  record[0], which holds its new image, instead of being read from the
+  table. Blob values of record[0] that were read from the HEAP table can
+  point into the handler's shared blob reassembly buffer
+  (@see hp_read_blobs()), which reading the other rows overwrites, so they
+  are first given memory of their own.
+*/
+
+class Window_rowid_remapper : public Tmp_table_row_copier
+{
+public:
+  Window_rowid_remapper(SORT_INFO *sort_arg, const uchar *pending_ref_arg,
+                        uint ref_length_arg)
+    : sort(sort_arg), pending_ref(pending_ref_arg),
+      ref_length(ref_length_arg), new_ref_length(0), rows(0),
+      pending_blob_buf(NULL)
+  {
+    bzero(new_pending_ref_buf, sizeof(new_pending_ref_buf));
+  }
+
+  ~Window_rowid_remapper()
+  {
+    my_free(pending_blob_buf);
+  }
+
+  int copy_rows(TABLE *from, TABLE *to) override;
+
+  /* Position of the row that did not fit, in the converted table */
+  const uchar *new_pending_ref() const { return new_pending_ref_buf; }
+
+private:
+  int materialize_pending_blobs(TABLE *from);
+
+  SORT_INFO *sort;
+  const uchar *pending_ref;
+  uint ref_length;                              // Ref_length from heap table
+  uint new_ref_length;                          // Ref_length for Aria table
+  ha_rows rows;
+  /* Owned copies of the pending row's blob values */
+  uchar *pending_blob_buf;
+  uchar new_pending_ref_buf[TMP_TABLE_MAX_REF_LENGTH];
+};
+
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          TMP_ENGINE_COLUMNDEF *start_recinfo,
-                                         TMP_ENGINE_COLUMNDEF **recinfo, 
-                                         int error, bool ignore_last_dupp_key_error,
-                                         bool *is_duplicate);
+                                         TMP_ENGINE_COLUMNDEF **end_recinfo,
+                                         int error,
+                                         bool ignore_last_dupp_key_error,
+                                         bool *is_duplicate,
+                                         Tmp_table_row_copier *copier);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 

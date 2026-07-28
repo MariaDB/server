@@ -1,0 +1,224 @@
+#
+# Window function computation must spill HEAP tmp table to Aria
+# when storing computed values fills the table
+#
+# Window function results are written back into the sorted tmp
+# table with ha_update_row(). A blob result column (an expression
+# wider than 512 characters is promoted to TEXT in the tmp table)
+# makes each such update allocate a blob continuation record; once
+# this crosses max_heap_table_size the update fails with "table is
+# full" and the server must transparently convert the tmp table to
+# Aria, just as the write path already does, and carry the running
+# computation over to the converted table.
+#
+# latin1 is used so that actual data size ~= declared column width:
+# the memory arithmetic then holds whether or not the source VARCHAR
+# column itself is stored as a blob in the HEAP tmp table.
+#
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+#
+# Test 1: single window over all rows
+#
+# 800 rows of ~3KB fill the 4MB HEAP tmp table to ~2.4MB; storing
+# the ~3KB computed value adds a blob continuation chain per row
+# and overflows mid-computation.
+#
+CREATE TABLE t1 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t1 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('x', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+# Should overflow during computation and convert HEAP->Aria
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t1) dt;
+cnt	distinct_p	min_len	max_prefix
+800	1	2908	00000800xxxx
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+# Verify HEAP->Aria conversion happened
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+DROP TABLE t1;
+#
+# Test 2: partitioned window
+#
+# Same overflow, but the computation must also carry its partition
+# tracking over the conversion (values are per partition).
+#
+CREATE TABLE t2 (g INT, a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t2 SELECT seq % 4, CONCAT(LPAD(seq, 8, '0'), REPEAT('y', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS partitions_seen,
+MIN(LENGTH(p)) AS min_len, MAX(LENGTH(p)) AS max_len
+FROM (SELECT PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY a)
+OVER (PARTITION BY g) AS p
+FROM t2) dt;
+cnt	partitions_seen	min_len	max_len
+800	4	2908	2908
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+DROP TABLE t2;
+#
+# Test 3: side-effecting window expression is evaluated once per row
+#
+# A compound expression containing a window function is evaluated
+# row by row while the computed values are stored. The conversion
+# must not make that pass start over: the user variable assignment
+# below must be applied exactly once per row, the same as when the
+# table does not overflow.
+#
+CREATE TABLE t3 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t3 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('z', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+SET @c= 0;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT e) AS distinct_e,
+MIN(LENGTH(e)) AS min_len
+FROM (SELECT CONCAT(@c:= @c+1, ':',
+PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
+FROM t3) dt;
+cnt	distinct_e	min_len
+800	800	39
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+# One assignment per row, not one per row per pass
+SELECT @c AS assignments;
+assignments
+800
+# Verify the overflow really happened
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+# Same query without the overflow, for comparison
+SET max_heap_table_size = 64*1024*1024;
+SET tmp_table_size = 64*1024*1024;
+FLUSH STATUS;
+SET @c= 0;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT e) AS distinct_e,
+MIN(LENGTH(e)) AS min_len
+FROM (SELECT CONCAT(@c:= @c+1, ':',
+PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
+FROM t3) dt;
+cnt	distinct_e	min_len
+800	800	39
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+SELECT @c AS assignments;
+assignments
+800
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	0
+DROP TABLE t3;
+#
+# Test 4: row positions held in memory instead of a temporary file
+#
+# The sort result is a sequence of row positions, which the
+# conversion has to rewrite wherever it is kept. The tests above
+# sort more than fits in the sort buffer, so the sequence is a merge
+# file; with a sort buffer large enough it is an array in memory.
+#
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+SET @save_sort_buffer= @@sort_buffer_size;
+SET sort_buffer_size = 16*1024*1024;
+CREATE TABLE t4 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t4 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('w', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t4) dt;
+cnt	distinct_p	min_len	max_prefix
+800	1	2908	00000800wwww
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+DROP TABLE t4;
+SET sort_buffer_size= @save_sort_buffer;
+#
+# Test 5: ROWNUM() makes the tmp table keep_row_order; the conversion
+# must still happen and preserve the ROWNUM values
+#
+# ROWNUM() with ORDER BY asks the tmp table to preserve insertion
+# order. The converted table holds the rows in the window sort order
+# instead, which must not disturb the already-materialized ROWNUM
+# values: they are assigned in insertion order during the fill, so
+# with the reverse-ordered data below every row must satisfy
+# rn = 801 - number(a) no matter how the rows are stored.
+#
+CREATE TABLE t5 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t5 SELECT CONCAT(LPAD(801-seq, 8, '0'), REPEAT('v', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt, MIN(rn) AS rn_min, MAX(rn) AS rn_max,
+COUNT(DISTINCT rn) AS rn_distinct,
+SUM(rn = 801 - CAST(LEFT(a, 8) AS UNSIGNED)) AS rn_pairing_ok,
+MIN(LENGTH(p)) AS min_len
+FROM (SELECT ROWNUM() AS rn, a,
+PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t5 ORDER BY a) dt;
+cnt	rn_min	rn_max	rn_distinct	rn_pairing_ok	min_len
+800	1	800	800	800	2908
+Warnings:
+Warning	4202	1600 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+# Verify HEAP->Aria conversion happened
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	2
+DROP TABLE t5;
+#
+# Test 6: blob values larger than a HEAP allocation block
+#
+# A blob value that spans multiple allocation blocks is reassembled
+# into a buffer shared by all reads of the table. The row whose
+# update overflowed the table is written to the converted table from
+# its record buffer after the other rows have been read through that
+# buffer: its blob values must survive those reads. Three distinct
+# values must remain three distinct values.
+#
+SET max_heap_table_size = 12*1024*1024;
+SET tmp_table_size = 12*1024*1024;
+CREATE TABLE t6 (id INT, a MEDIUMTEXT) CHARACTER SET latin1;
+INSERT INTO t6 SELECT seq, CONCAT(LPAD(seq, 8, '0'), REPEAT('v', 2000000))
+FROM seq_1_to_3;
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt,
+SUM(a = CONCAT(LEFT(a, 8), REPEAT('v', 2000000))) AS a_intact,
+COUNT(DISTINCT LEFT(a, 8)) AS a_distinct,
+SUM(p IS NULL OR p = CONCAT(LEFT(p, 8), REPEAT('v', 2000000)))
+AS p_intact
+FROM (SELECT a, LAG(a) OVER (ORDER BY a) AS p FROM t6) dt;
+cnt	a_intact	a_distinct	p_intact
+3	3	3	3
+Warnings:
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+# Verify HEAP->Aria conversion happened
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+DROP TABLE t6;
+#
+# Cleanup
+#
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

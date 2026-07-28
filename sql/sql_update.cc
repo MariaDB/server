@@ -2554,10 +2554,11 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (error != HA_ERR_FOUND_DUPP_KEY &&
             error != HA_ERR_FOUND_DUPP_UNIQUE)
         {
+          bool is_duplicate;
           if (create_internal_tmp_table_from_heap(thd, tmp_table,
                                                   tmp_table_param[offset].start_recinfo,
                                                   &tmp_table_param[offset].recinfo,
-                                                  error, 1, NULL))
+                                                  error, 1, &is_duplicate, NULL))
           {
             do_update= 0;
             DBUG_RETURN(1);			// Not a table_is_full error

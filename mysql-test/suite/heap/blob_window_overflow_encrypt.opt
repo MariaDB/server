@@ -1,0 +1,3 @@
+--plugin-load-add=file_key_management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+--encrypt-tmp-files=ON

@@ -320,10 +320,11 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
       }
       else
       {
+        bool is_duplicate;
         if (create_internal_tmp_table_from_heap(table_thd, cache_table,
                                                 cache_table_param.start_recinfo,
                                                 &cache_table_param.recinfo,
-                                                error, 1, NULL))
+                                                error, 1, &is_duplicate, NULL))
           goto err2;
       }
     }

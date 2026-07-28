@@ -153,7 +153,8 @@ void Sort_param::init_for_filesort(TABLE *table, Filesort *filesort,
   }
   DBUG_ASSERT((using_addon_fields() == 0 || addon_length != 0));
 
-  setup_lengths_and_limit(table, sortlen, addon_length, limit_rows_arg);
+  setup_lengths_and_limit(table, sortlen, addon_length, limit_rows_arg,
+                          filesort->min_ref_length);
   accepted_rows= filesort->accepted_rows;
 }
 
@@ -161,12 +162,13 @@ void Sort_param::init_for_filesort(TABLE *table, Filesort *filesort,
 void Sort_param::setup_lengths_and_limit(TABLE *table,
                                          uint sort_len_arg,
                                          uint addon_length_arg,
-                                         ha_rows limit_rows_arg)
+                                         ha_rows limit_rows_arg,
+                                         uint min_ref_length_arg)
 {
   sort_form= table;
   sort_length= sort_len_arg;
   limit_rows= limit_rows_arg;
-  ref_length= table->file->ref_length;
+  ref_length= MY_MAX(table->file->ref_length, min_ref_length_arg);
 
   if (addon_length_arg)
   {
@@ -316,6 +318,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   sort->addon_fields=  param.addon_fields;
   sort->sort_keys= param.sort_keys;
+  sort->ref_length= param.ref_length;
 
   if (select && select->quick)
     thd->inc_status_sort_range();
@@ -1521,8 +1524,11 @@ static uint make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos,
   }
   else
   {
-    /* Save filepos last */
-    memcpy((uchar*) to, ref_pos, (size_t) param->ref_length);
+    /* Save filepos last, zero-padded to its slot (@see Filesort::min_ref_length) */
+    uint ref_length= param->sort_form->file->ref_length;
+    memcpy((uchar*) to, ref_pos, (size_t) ref_length);
+    if (param->ref_length != ref_length)
+      bzero((uchar*) to + ref_length, param->ref_length - ref_length);
     to+= param->ref_length;
   }
   return static_cast<uint>(to - orig_to);

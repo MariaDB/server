@@ -15686,11 +15686,13 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
+      bool is_duplicate;
       /* create_myisam_from_heap will generate error if needed */
       if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
           create_internal_tmp_table_from_heap(thd, table,
-                                              sjm->sjm_table_param.start_recinfo, 
-                                              &sjm->sjm_table_param.recinfo, error, 1, NULL))
+                                              sjm->sjm_table_param.start_recinfo,
+                                              &sjm->sjm_table_param.recinfo,
+                                              error, 1, &is_duplicate, NULL))
         DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     }
   }
@@ -23988,30 +23990,330 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 
 
 /*
-  If a HEAP table gets full, create a internal table in MyISAM or Maria
-  and copy all rows to this
+  Default row copier of create_internal_tmp_table_from_heap(): copy the
+  rows in table scan order, then append the pending record[0], whose write
+  filled the in-memory table, as a new row.
+*/
 
-  In case of error, my_error() or handler::print_error() will be called.
-  Note that in case of error, table->file->ha_rnd_end() may have been called!
+class Tmp_table_default_copier: public Tmp_table_row_copier
+{
+public:
+  Tmp_table_default_copier(bool ignore_last_dupp_key_error_arg)
+    : ignore_last_dupp_key_error(ignore_last_dupp_key_error_arg) {}
+
+  int copy_rows(TABLE *from, TABLE *to) override;
+
+private:
+  bool ignore_last_dupp_key_error;
+};
+
+
+int Tmp_table_default_copier::copy_rows(TABLE *from, TABLE *to)
+{
+  THD *thd= from->in_use;
+  int write_err;
+  DBUG_ENTER("Tmp_table_default_copier::copy_rows");
+
+  /*
+    copy all old rows from heap table to MyISAM table
+    This is the only code that uses record[1] to read/write but this
+    is safe as this is a temporary MyISAM table without timestamp/autoincrement
+    or partitioning.
+  */
+  while (!from->file->ha_rnd_next(to->record[1]))
+  {
+    write_err= to->file->ha_write_tmp_row(to->record[1]);
+    DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
+    if (write_err)
+      DBUG_RETURN(write_err);
+    if (unlikely(thd->check_killed()))
+      DBUG_RETURN(-1);                          // The error is already reported
+  }
+
+  /* copy row that filled HEAP table */
+  if (unlikely((write_err= to->file->ha_write_tmp_row(from->record[0]))))
+  {
+    if (to->file->is_fatal_error(write_err, HA_CHECK_DUP) ||
+        !ignore_last_dupp_key_error)
+      DBUG_RETURN(write_err);
+    duplicate_row_error= true;
+  }
+  DBUG_RETURN(0);
+}
+
+
+/*
+  The pending row is written from record[0], whose blob values can point
+  into the HEAP handler's shared reassembly buffer. Reading the other rows
+  of the table overwrites that buffer, so copy the values into memory that
+  stays valid until the pending row has been written.
+*/
+
+int Window_rowid_remapper::materialize_pending_blobs(TABLE *from)
+{
+  size_t total= 0;
+  uchar *pos;
+  uint *bf_end= from->s->blob_field + from->s->blob_fields;
+  DBUG_ENTER("Window_rowid_remapper::materialize_pending_blobs");
+
+  for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
+  {
+    Field_blob *fb= (Field_blob*) from->field[*bf];
+    if (!fb->is_null())
+      total+= fb->get_length();
+  }
+  if (!total)
+    DBUG_RETURN(0);
+
+  if (!(pending_blob_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, total,
+                                             MYF(MY_WME))))
+    DBUG_RETURN(-1);                            // The error is reported
+
+  pos= pending_blob_buf;
+  for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
+  {
+    Field_blob *fb= (Field_blob*) from->field[*bf];
+    uint32 length;
+    if (fb->is_null() || !(length= fb->get_length()))
+      continue;
+    memcpy(pos, fb->get_ptr(), length);
+    fb->set_ptr(length, pos);
+    pos+= length;
+  }
+  DBUG_RETURN(0);
+}
+
+
+int Window_rowid_remapper::copy_rows(TABLE *from, TABLE *to)
+{
+  THD *thd= from->in_use;
+  /* The rowid sequence is either an array in memory or a temporary file */
+  const bool in_file= !sort->has_filesort_result_in_memory();
+  /* A position occupies the first bytes of its possibly wider slot */
+  const uint pos_length= from->file->ref_length;
+  uchar ref_buf[TMP_TABLE_MAX_REF_LENGTH];
+  uchar new_slot[TMP_TABLE_MAX_REF_LENGTH];
+  uchar *read_slot, *next_read_slot;
+  IO_CACHE new_seq;
+  int error;
+  my_bool found_pending __attribute__((unused))= FALSE;
+  DBUG_ENTER("Window_rowid_remapper::copy_rows");
+
+  new_ref_length= to->file->ref_length;
+  rows= (in_file ?
+         (ha_rows) (sort->io_cache.end_of_file / ref_length) :
+         sort->return_rows);
+
+  DBUG_ASSERT(ref_length <= TMP_TABLE_MAX_REF_LENGTH);
+  /*
+    The sequence slots fit the position of any engine an internal tmp table
+    can use (@see Filesort::min_ref_length). Should that ever break, the
+    sequence can not be rewritten in place: give up on the conversion and
+    let the caller report that the table is full.
+  */
+  if (new_ref_length > ref_length)
+  {
+    DBUG_ASSERT(0);
+    DBUG_RETURN(HA_ERR_RECORD_FILE_FULL);
+  }
+
+  if (materialize_pending_blobs(from))
+    DBUG_RETURN(-1);                            // The error is reported
+
+  if (in_file)
+  {
+    if (open_cached_file(&new_seq, mysql_tmpdir, TEMP_PREFIX,
+                         DISK_CHUNK_SIZE, MYF(MY_WME)))
+      DBUG_RETURN(-1);                          // The error is reported
+    if (reinit_io_cache(&sort->io_cache, READ_CACHE, 0, 0, 0))
+    {
+      error= -1;                                // The error is reported
+      goto err;
+    }
+  }
+
+  /*
+    The slots keep their width: a new position, which the check above
+    guarantees to fit, replaces the old one in the very slot it was read
+    from, zero-padded to the slot by new_slot.
+  */
+  bzero(new_slot, sizeof(new_slot));
+  read_slot= ref_buf;
+  next_read_slot= sort->record_pointers;
+
+  for (ha_rows n= rows; n != 0; n--)
+  {
+    uchar *record;
+    my_bool is_pending;
+
+    if (in_file)
+    {
+      if (my_b_read(&sort->io_cache, read_slot, ref_length))
+      {
+        error= -1;                              // The error is reported
+        goto err;
+      }
+    }
+    else
+    {
+      read_slot= next_read_slot;
+      next_read_slot+= ref_length;
+    }
+
+    if ((is_pending= !memcmp(read_slot, pending_ref, pos_length)))
+      record= from->record[0];                  // Its new image, not stored yet
+    else
+    {
+      if ((error= from->file->ha_rnd_pos(from->record[1], read_slot)))
+        goto err;
+      record= from->record[1];
+    }
+
+    if ((error= to->file->ha_write_tmp_row(record)))
+      goto err;
+    to->file->position(record);
+
+    /*
+      To keep the data at the same size as before, we store all row
+      pointers at the original ref length. Because of that we need to
+      use 'new_slot' as a temporary space, as new_ref_length may be less
+      than ref_length.
+    */
+    memcpy(new_slot, to->file->ref, new_ref_length);
+    if (in_file)
+    {
+      if (my_b_write(&new_seq, new_slot, ref_length))
+      {
+        error= -1;                              // The error is reported
+        goto err;
+      }
+    }
+    else
+      memcpy(read_slot, new_slot, ref_length);
+
+    if (is_pending)
+    {
+      memcpy(new_pending_ref_buf, to->file->ref, new_ref_length);
+      found_pending= TRUE;
+    }
+  }
+  /* The row that did not fit is one of the rows of the sequence */
+  DBUG_ASSERT(found_pending);
+
+  if (unlikely(thd->check_killed()))
+  {
+    error= -1;                                  // The error is reported
+    goto err;
+  }
+
+  if (in_file)
+  {
+    /*
+      Frame cursors read the sequence through slave caches of the master
+      cache, linked to it through next_file_user. The link survives the
+      replacement of the master, on the same address, so that the slaves
+      can still be ended when the cursors are told that the rowids were
+      rewritten, which re-creates them from the new master.
+    */
+    IO_CACHE *file_users= sort->io_cache.next_file_user;
+    /*
+      Make sure the file exists behind the cache: the readers of the
+      sequence seek in it, also when everything fits in the cache buffer.
+    */
+    if (my_b_flush_io_cache(&new_seq, 1) ||
+        reinit_io_cache(&new_seq, READ_CACHE, 0, 0, 0))
+    {
+      error= -1;                                // The error is reported
+      goto err;
+    }
+    close_cached_file(&sort->io_cache);
+    sort->io_cache= new_seq;
+    /*
+      The new master lives at the same address as the old one, so the
+      circular next_file_user list of the slaves does not need adjusting.
+    */
+    sort->io_cache.next_file_user= file_users;
+  }
+  DBUG_RETURN(0);
+
+err:
+  if (in_file)
+    close_cached_file(&new_seq);
+  DBUG_RETURN(error);
+}
+
+
+/*
+  Convert a HEAP tmp table that got full to a table in the on-disk tmp engine
+
+  SYNOPSIS
+    create_internal_tmp_table_from_heap()
+
+    thd                         Thread handle
+    table                       The HEAP table that ran out of memory.
+                                On success it is converted in place to use
+                                the on-disk engine (its handler and share
+                                are swapped for the new table's).
+    start_recinfo               Pointer to the first column definition of
+                                the table (used to create the new table).
+    end_recinfo                 Pointer to the end of the column
+                                definitions; may be updated by
+                                create_internal_tmp_table().
+    error                       The handler error that triggered the call.
+                                Only HA_ERR_RECORD_FILE_FULL on a HEAP
+                                table is handled; any other error/engine
+                                is reported and treated as fatal.
+    ignore_last_dupp_key_error  If TRUE, a duplicate-key error while
+                                writing the pending row (see below) is not
+                                treated as fatal; *is_duplicate is set
+                                instead.  Used e.g. for GROUP BY / DISTINCT.
+    is_duplicate                Set to TRUE when the pending row was a
+                                duplicate and the error was ignored, to
+                                FALSE otherwise.  Must be non-NULL.
+    copier                      Copies the rows; NULL for the default
+                                copier, which appends the pending row:
+                                table->record[0] holds a new row that
+                                overflowed the HEAP table and still needs
+                                to be written to the new table.  A caller
+                                for which the overflow happened while
+                                updating an existing row passes its own
+                                copier: table->record[0] then holds the
+                                failed update's new image of a row that is
+                                already in the table and must not be
+                                appended as an extra row.
+
+  DESCRIPTION
+    Creates a new internal temporary table using the on-disk tmp engine
+    (MyISAM or Aria) and copies all rows of the full HEAP table into it
+    with 'copier'.  On success the HEAP table is dropped and 'table' is
+    updated in place to refer to the new on-disk table, so callers can
+    keep using the same TABLE pointer.
+
+  RETURN
+    0   Success; 'table' now uses the on-disk engine
+    1   Error.  my_error() or handler::print_error() has been called.
+        Note that in this case table->file->ha_rnd_end() may already have
+        been called.
 */
 
 
 bool
 create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                     TMP_ENGINE_COLUMNDEF *start_recinfo,
-                                    TMP_ENGINE_COLUMNDEF **recinfo, 
+                                    TMP_ENGINE_COLUMNDEF **end_recinfo,
                                     int error,
                                     bool ignore_last_dupp_key_error,
-                                    bool *is_duplicate)
+                                    bool *is_duplicate,
+                                    Tmp_table_row_copier *copier)
 {
   TABLE new_table;
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
   String tmp_alias;
+  Tmp_table_default_copier default_copier(ignore_last_dupp_key_error);
   DBUG_ENTER("create_internal_tmp_table_from_heap");
-  if (is_duplicate)
-    *is_duplicate= FALSE;
+  *is_duplicate= FALSE;
 
   if (table->s->db_type() != heap_hton || error != HA_ERR_RECORD_FILE_FULL)
   {
@@ -24041,7 +24343,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 
   new_table.no_rows= table->no_rows;
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
-                                recinfo,
+                                end_recinfo,
                                 thd->lex->first_select_lex()->options |
 			        thd->variables.option_bits))
     goto err2;
@@ -24064,37 +24366,24 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     new_table.file->ha_start_bulk_insert(table->file->stats.records);
   }
 
-  /*
-    copy all old rows from heap table to MyISAM table
-    This is the only code that uses record[1] to read/write but this
-    is safe as this is a temporary MyISAM table without timestamp/autoincrement
-    or partitioning.
-  */
-  while (!table->file->ha_rnd_next(new_table.record[1]))
+  if (!copier)
+    copier= &default_copier;
+  write_err= copier->copy_rows(table, &new_table);
+
+  if (!new_table.no_rows)
   {
-    write_err= new_table.file->ha_write_tmp_row(new_table.record[1]);
-    DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
-    if (write_err)
-      goto err;
-    if (unlikely(thd->check_killed()))
-      goto err_killed;
+    /* Also in case of errors, to end the bulk insert mode of the handler */
+    int end_err= new_table.file->ha_end_bulk_insert();
+    if (end_err && !write_err)
+      write_err= end_err;
   }
-  if (!new_table.no_rows && (write_err= new_table.file->ha_end_bulk_insert()))
+  if (write_err)
+  {
+    if (write_err < 0)
+      goto err_killed;                          // The error is already reported
     goto err;
-  /* copy row that filled HEAP table */
-  if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))
-  {
-    if (new_table.file->is_fatal_error(write_err, HA_CHECK_DUP) ||
-	!ignore_last_dupp_key_error)
-      goto err;
-    if (is_duplicate)
-      *is_duplicate= TRUE;
   }
-  else
-  {
-    if (is_duplicate)
-      *is_duplicate= FALSE;
-  }
+  *is_duplicate= copier->duplicate_row_error;
 
   /* remove heap table and change to use myisam table */
   (void) table->file->ha_rnd_end();
@@ -26582,10 +26871,10 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         if (likely(!table->file->is_fatal_error(error, HA_CHECK_DUP)))
 	  goto end;                             // Ignore duplicate keys
         bool is_duplicate;
-	if (create_internal_tmp_table_from_heap(join->thd, table, 
+	if (create_internal_tmp_table_from_heap(join->thd, table,
                                                 join_tab->tmp_table_param->start_recinfo,
                                                 &join_tab->tmp_table_param->recinfo,
-                                                error, 1, &is_duplicate))
+                                                error, 1, &is_duplicate, NULL))
 	  DBUG_RETURN(NESTED_LOOP_ERROR);        // Not a table_is_full error
         if (is_duplicate)
           goto end;
@@ -26659,7 +26948,7 @@ convert_heap_to_aria_update(JOIN *join, JOIN_TAB *join_tab,
   if (create_internal_tmp_table_from_heap(join->thd, table,
                                      join_tab->tmp_table_param->start_recinfo,
                                           &join_tab->tmp_table_param->recinfo,
-                                          error, 1, &is_duplicate))
+                                          error, 1, &is_duplicate, NULL))
     return -1;
   DBUG_ASSERT(is_duplicate);
   table->file->get_dup_key(HA_ERR_FOUND_DUPP_KEY);
@@ -26743,10 +27032,11 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
+    bool is_duplicate;
     if (create_internal_tmp_table_from_heap(join->thd, table,
                                        join_tab->tmp_table_param->start_recinfo,
                                             &join_tab->tmp_table_param->recinfo,
-                                            error, 0, NULL))
+                                            error, 0, &is_duplicate, NULL))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
     if (unlikely((error= table->file->ha_index_init(0, 0))))
@@ -26881,11 +27171,12 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	if (!join_tab->having || join_tab->having->val_bool())
 	{
           int error= table->file->ha_write_tmp_row(table->record[0]);
+          bool is_duplicate;
           if (unlikely(error) &&
               create_internal_tmp_table_from_heap(join->thd, table,
                                           join_tab->tmp_table_param->start_recinfo,
                                           &join_tab->tmp_table_param->recinfo,
-                                                   error, 0, NULL))
+                                          error, 0, &is_duplicate, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
         if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
@@ -31176,11 +31467,13 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
       if (unlikely((write_error=
                     table_arg->file->ha_write_tmp_row(table_arg->record[0]))))
       {
-	if (create_internal_tmp_table_from_heap(thd, table_arg, 
+        bool is_duplicate;
+	if (create_internal_tmp_table_from_heap(thd, table_arg,
                                                 tmp_table_param_arg->start_recinfo,
                                                 &tmp_table_param_arg->recinfo,
-                                                write_error, 0, NULL))
-	  return 1;		     
+                                                write_error, 0, &is_duplicate,
+                                                NULL))
+	  return 1;
       }
     }
   }

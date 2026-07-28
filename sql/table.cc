@@ -9982,7 +9982,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
           create_internal_tmp_table_from_heap(thd, tmp_table,
                                               tmp_table_param->start_recinfo, 
                                               &tmp_table_param->recinfo,
-                                              write_err, 1, &is_duplicate))
+                                              write_err, 1, &is_duplicate,
+                                              NULL))
 	DBUG_RETURN(1);
        
     }  
