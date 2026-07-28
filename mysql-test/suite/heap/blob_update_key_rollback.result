@@ -1,0 +1,186 @@
+#
+# Index consistency after a failed UPDATE on a HEAP table with BLOB
+#
+# heap_update() moves changed key entries to the new key values
+# before writing the new blob chains.  When a blob chain write then
+# fails with "table is full", the key entries must be moved back to
+# the old values, otherwise the index refers to records whose
+# columns no longer match the indexed values.
+#
+SET @save_max_heap= @@max_heap_table_size;
+SET max_heap_table_size = 16384;
+#
+# Hash index: single-row UPDATE fails writing the new blob chain
+#
+CREATE TABLE t1 (
+id INT,
+k VARCHAR(20),
+b BLOB,
+KEY k1 (k)
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, CONCAT('key', seq), REPEAT('a', 300)
+FROM seq_1_to_10;
+UPDATE t1 SET k= 'moved', b= REPEAT('z', 60000) WHERE id = 1;
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# The row must still be found through the index under the old value
+SELECT id, k, LENGTH(b) FROM t1 FORCE INDEX(k1) WHERE k = 'key1';
+id	k	LENGTH(b)
+1	key1	300
+SELECT COUNT(*) FROM t1 FORCE INDEX(k1) WHERE k = 'moved';
+COUNT(*)
+0
+DROP TABLE t1;
+#
+# BTREE index: same failure, rb-tree entries must be restored
+#
+CREATE TABLE t1 (
+id INT,
+k VARCHAR(20),
+b BLOB,
+KEY k1 (k) USING BTREE
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, CONCAT('key', seq), REPEAT('a', 300)
+FROM seq_1_to_10;
+UPDATE t1 SET k= 'moved', b= REPEAT('z', 60000) WHERE id = 1;
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT id, k, LENGTH(b) FROM t1 FORCE INDEX(k1) WHERE k = 'key1';
+id	k	LENGTH(b)
+1	key1	300
+SELECT COUNT(*) FROM t1 FORCE INDEX(k1) WHERE k = 'moved';
+COUNT(*)
+0
+DROP TABLE t1;
+#
+# Two indexed columns changed by the same failing UPDATE:
+# entries in both indexes must be rolled back
+#
+CREATE TABLE t1 (
+id INT,
+k VARCHAR(20),
+m VARCHAR(20),
+b BLOB,
+KEY k1 (k),
+KEY k2 (m) USING BTREE
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, CONCAT('key', seq), CONCAT('mem', seq),
+REPEAT('a', 300)
+FROM seq_1_to_10;
+UPDATE t1 SET k= 'moved', m= 'gone', b= REPEAT('z', 60000) WHERE id = 2;
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT id, k, m FROM t1 FORCE INDEX(k1) WHERE k = 'key2';
+id	k	m
+2	key2	mem2
+SELECT id, k, m FROM t1 FORCE INDEX(k2) WHERE m = 'mem2';
+id	k	m
+2	key2	mem2
+SELECT COUNT(*) FROM t1 FORCE INDEX(k1) WHERE k = 'moved';
+COUNT(*)
+0
+SELECT COUNT(*) FROM t1 FORCE INDEX(k2) WHERE m = 'gone';
+COUNT(*)
+0
+DROP TABLE t1;
+#
+# A second index on a column the UPDATE does NOT touch must be left
+# alone by the rollback: only the changed key is moved back, the
+# unchanged key's entries stay put and keep finding the row.
+#
+CREATE TABLE t1 (
+id INT,
+k VARCHAR(20),
+fixed VARCHAR(20),
+b BLOB,
+KEY k1 (k),
+KEY k2 (fixed)
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, CONCAT('key', seq), CONCAT('fix', seq),
+REPEAT('a', 300)
+FROM seq_1_to_10;
+# Only k and b change; 'fixed' is untouched
+UPDATE t1 SET k= 'moved', b= REPEAT('z', 60000) WHERE id = 3;
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Changed key rolled back to old value
+SELECT id, k, fixed FROM t1 FORCE INDEX(k1) WHERE k = 'key3';
+id	k	fixed
+3	key3	fix3
+SELECT COUNT(*) FROM t1 FORCE INDEX(k1) WHERE k = 'moved';
+COUNT(*)
+0
+# Untouched key still resolves the row through its own index
+SELECT id, k, fixed FROM t1 FORCE INDEX(k2) WHERE fixed = 'fix3';
+id	k	fixed
+3	key3	fix3
+DROP TABLE t1;
+#
+# Multi-row UPDATE that fails part-way: rows updated before the
+# failure keep their new key values, the failing row keeps its old
+# ones, and every row must be reachable through the index by its
+# current key value
+#
+CREATE TABLE t1 (
+id INT,
+k VARCHAR(20),
+b BLOB,
+KEY k1 (k)
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, CONCAT('key', seq), REPEAT('a', 300)
+FROM seq_1_to_15;
+# Each row grows its blob; the table fills up after some rows
+UPDATE t1 SET k= CONCAT('new', id), b= REPEAT('z', 1500);
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Every row must be found via the index under its current key value
+SELECT t.id FROM t1 t
+WHERE NOT EXISTS (SELECT 1 FROM t1 i FORCE INDEX(k1)
+WHERE i.k = t.k AND i.id = t.id)
+ORDER BY t.id;
+id
+# Old and new key values must partition the table, with the
+# failure hitting neither the first row nor after the last one.
+# The exact fill point depends on platform record layout, so only
+# the invariants are checked.
+SELECT COUNT(*) AS total,
+COUNT(IF(k LIKE 'new%', 1, NULL)) > 0 AS some_updated,
+COUNT(IF(k LIKE 'key%', 1, NULL)) > 0 AS some_old,
+COUNT(IF(k LIKE 'new%', 1, NULL)) +
+COUNT(IF(k LIKE 'key%', 1, NULL)) = COUNT(*) AS partitioned
+FROM t1;
+total	some_updated	some_old	partitioned
+15	1	1	1
+DROP TABLE t1;
+#
+# Table with no indexes at all: the failed blob write must leave the
+# record intact with nothing to roll back in the (empty) key set
+#
+CREATE TABLE t1 (
+id INT,
+b BLOB
+) ENGINE=HEAP;
+INSERT INTO t1 SELECT seq, REPEAT('a', 300) FROM seq_1_to_10;
+UPDATE t1 SET b= REPEAT('z', 60000) WHERE id = 1;
+ERROR HY000: The table 't1' is full
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT id, LENGTH(b) FROM t1 WHERE id = 1;
+id	LENGTH(b)
+1	300
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+10
+DROP TABLE t1;
+SET max_heap_table_size = @save_max_heap;
