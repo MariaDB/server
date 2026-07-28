@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+call mtr.add_suppression("\\[Error\\] InnoDB: \\(Operation interrupted\\) while reading FTS index.");
 
 CREATE TABLE t1 (a VARCHAR(7), b text, FULLTEXT KEY idx (a,b)) ENGINE=InnoDB;
 

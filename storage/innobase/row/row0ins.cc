@@ -644,8 +644,10 @@ row_ins_cascade_calc_update_vec(
 
 			ut_ad(!doc_id_updated);
 			ufield = update->fields + n_fields_updated;
-			fts_get_next_doc_id(table, next_doc_id);
-			doc_id = fts_update_doc_id(table, ufield, next_doc_id);
+			fts_get_next_doc_id(table, next_doc_id,
+					    trx->mysql_thd);
+			doc_id = fts_update_doc_id(table, ufield, next_doc_id,
+						   trx->mysql_thd);
 			n_fields_updated++;
 			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
 		} else  {

@@ -612,20 +612,22 @@ dict_table_t *dict_sys_t::find_table(const span<const char> &name)
     });
 }
 
-/** Acquire MDL shared for the table name.
-@tparam trylock whether to use non-blocking operation
+/** Acquire MDL for the table name.
+By default, acquires MDL_SHARED lock. Use exclusive=true for MDL_EXCLUSIVE.
+@tparam trylock   whether to use non-blocking operation
+@tparam exclusive MDL Exclusive lock (default: false, MDL_SHARED)
 @param[in,out]  table           table object
 @param[in,out]  mdl_context     MDL context
 @param[out]     mdl             MDL ticket
 @param[in]      table_op        operation to perform when opening
-@return table object after locking MDL shared
+@return table object after locking MDL
 @retval nullptr if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock>
+template<bool trylock, bool exclusive>
 __attribute__((nonnull, warn_unused_result))
 dict_table_t*
-dict_acquire_mdl_shared(dict_table_t *table,
-                        MDL_context *mdl_context, MDL_ticket **mdl,
-                        dict_table_op_t table_op)
+dict_acquire_mdl(dict_table_t *table,
+                 MDL_context *mdl_context, MDL_ticket **mdl,
+                 dict_table_op_t table_op)
 {
   char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
@@ -658,14 +660,16 @@ retry:
     {
       bool error;
       *mdl= mdl_context->MDL_TRY_ACQUIRE_LOCK(MDL_key::TABLE, db_buf, tbl_buf,
-                                               MDL_SHARED, MDL_EXPLICIT, error);
+                                              exclusive ? MDL_EXCLUSIVE : MDL_SHARED,
+					      MDL_EXPLICIT, error);
       if (!*mdl)
         return nullptr;
     }
     else
     {
       *mdl= mdl_context->MDL_ACQUIRE_LOCK(MDL_key::TABLE, db_buf, tbl_buf,
-                                           MDL_SHARED, MDL_EXPLICIT,
+                                           exclusive ? MDL_EXCLUSIVE : MDL_SHARED,
+                                           MDL_EXPLICIT,
                                            static_cast<double>(
                                              global_system_variables
                                              .lock_wait_timeout));
@@ -750,23 +754,27 @@ lookup:
   goto retry;
 }
 
-template dict_table_t* dict_acquire_mdl_shared<false>
-(dict_table_t*,MDL_context*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<false, true>
+  (dict_table_t*,MDL_context*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<false, false>
+  (dict_table_t*,MDL_context*,MDL_ticket**,dict_table_op_t);
 
-/** Acquire MDL shared for the table name.
+/** Acquire MDL for the table name.
+By default, acquires MDL_SHARED lock. Use exclusive=true for MDL_EXCLUSIVE.
 @tparam trylock whether to use non-blocking operation
+@tparam exclusive Used to take MDL_EXCLUSIVE lock (default: false, MDL_SHARED)
 @param[in,out]  table           table object
 @param[in,out]  thd             background thread
 @param[out]     mdl             mdl ticket
 @param[in]      table_op        operation to perform when opening
-@return table object after locking MDL shared
+@return table object after locking MDL
 @retval nullptr if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock>
+template<bool trylock, bool exclusive>
 dict_table_t*
-dict_acquire_mdl_shared(dict_table_t *table,
-                        THD *thd,
-                        MDL_ticket **mdl,
-                        dict_table_op_t table_op)
+dict_acquire_mdl(dict_table_t *table,
+                 THD *thd,
+                 MDL_ticket **mdl,
+                 dict_table_op_t table_op)
 {
   if (!table || !mdl)
     return table;
@@ -788,13 +796,18 @@ dict_acquire_mdl_shared(dict_table_t *table,
   if (db_len == 0)
     return table; /* InnoDB system tables are not covered by MDL */
 
-  return dict_acquire_mdl_shared<trylock>(table, &thd->mdl_context, mdl, table_op);
+  return dict_acquire_mdl<trylock, exclusive>(
+           table, &thd->mdl_context, mdl, table_op);
 }
 
-template dict_table_t* dict_acquire_mdl_shared<false>
-(dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
-template dict_table_t* dict_acquire_mdl_shared<true>
-(dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<false, false>
+  (dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<false, true>
+  (dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<true, true>
+  (dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
+template dict_table_t* dict_acquire_mdl<true, false>
+  (dict_table_t*,THD*,MDL_ticket**,dict_table_op_t);
 
 /** Look up a table by numeric identifier.
 @param[in]      table_id        table identifier
@@ -819,7 +832,7 @@ retry:
     {
       if (thd)
       {
-        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+        table= dict_acquire_mdl<false>(table, thd, mdl, table_op);
         if (table)
           goto acquire;
       }
@@ -1518,7 +1531,7 @@ dict_table_rename_in_cache(
 
 	if (keep_mdl_name) {
 		/* Preserve the original table name for
-		dict_table_t::parse_name() and dict_acquire_mdl_shared(). */
+		dict_table_t::parse_name() and dict_acquire_mdl(). */
 		table->mdl_name.m_name = mem_heap_strdup(table->heap,
 							 table->name.m_name);
 	}

@@ -195,7 +195,7 @@ struct fts_node_t {
 					special memory allocator will have
 					to be written */
 
-	ulint		doc_count;	/*!< Number of doc ids in ilist */
+	uint32_t	doc_count;	/*!< Number of doc ids in ilist */
 
 	ulint		ilist_size;	/*!< Used size of ilist in bytes. */
 
@@ -313,7 +313,7 @@ fts_get_suffix(
 @param[in]	len	string length in bytes
 @return the index to use for the string */
 UNIV_INLINE
-ulint
+uint8_t
 fts_select_index(
 	const CHARSET_INFO*	cs,
 	const byte*		str,

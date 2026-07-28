@@ -35,6 +35,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "pars0sym.h"
 #include "btr0pcur.h"
 #include "row0mysql.h"
+#include "row0query.h"
 
 /*********************************************************************//**
 Creates a select node struct.
@@ -118,6 +119,18 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		key_len)	/*!< in: MySQL key value length */
 	MY_ATTRIBUTE((nonnull(1,4,5)));
 
+/* Forward declarations for callback policy classes */
+template<bool NeedsConversion, bool ManagesMtr>
+struct InnoDBPolicy;
+
+/* Type aliases for different row_search_mvcc use cases */
+/** MySQL format conversion and manages its own mtr */
+using MySQLRowCallback= InnoDBPolicy<true, true>;
+/** Used for internal read purpose */
+using InnoDBReadPolicy= InnoDBPolicy<false, true>;
+/** Used for internal update/delete purpose */
+using InnoDBDMLPolicy= InnoDBPolicy<false, false>;
+
 /** Search for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
@@ -138,6 +151,7 @@ It also has optimization such as pre-caching the rows, using AHI, etc.
 				cursor 'direction' should be 0.
 @return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
 DB_LOCK_TABLE_FULL, DB_CORRUPTION, or DB_TOO_BIG_RECORD */
+template<typename Callback = MySQLRowCallback>
 dberr_t
 row_search_mvcc(
 	byte*		buf,
@@ -146,6 +160,57 @@ row_search_mvcc(
 	ulint		match_mode,
 	ulint		direction)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Convenience wrapper for InnoDB callback (read-only, manages own mtr).
+Used for FTS queries and other read-only operations where row_search_mvcc
+manages its own mini-transaction lifecycle.
+@param callback  RecordCallback instance
+@param mode      search mode
+@param prebuilt  prebuilt structure
+@param match_mode match mode
+@param direction search direction
+@return DB_SUCCESS or error code */
+inline dberr_t row_search_mvcc_callback(
+	RecordCallback*	callback,
+	page_cur_mode_t	mode,
+	row_prebuilt_t*	prebuilt,
+	ulint		match_mode,
+	ulint		direction) noexcept
+{
+	/* output_record() always invokes compare_record(); a callback
+	without a comparator would be a null std::function call. */
+	ut_ad(callback);
+	ut_ad(callback->compare_record);
+	return row_search_mvcc<InnoDBReadPolicy>(
+		reinterpret_cast<byte*>(callback), mode, prebuilt,
+		match_mode, direction);
+}
+
+/** Convenience wrapper for InnoDB callback (DML, external mtr).
+Used for SELECT FOR UPDATE and other DML operations where the caller
+manages the mini-transaction lifecycle (e.g., needs to keep mtr open
+across select_for_update() and update_record()).
+@param callback  RecordCallback instance
+@param mode      search mode
+@param prebuilt  prebuilt structure with external mtr set
+@param match_mode match mode
+@param direction search direction
+@return DB_SUCCESS or error code */
+inline dberr_t row_search_mvcc_callback_dml(
+	RecordCallback*	callback,
+	page_cur_mode_t	mode,
+	row_prebuilt_t*	prebuilt,
+	ulint		match_mode,
+	ulint		direction) noexcept
+{
+	/* output_record() always invokes compare_record(); a callback
+	without a comparator would be a null std::function call. */
+	ut_ad(callback);
+	ut_ad(callback->compare_record);
+	return row_search_mvcc<InnoDBDMLPolicy>(
+		reinterpret_cast<byte*>(callback), mode, prebuilt,
+		match_mode, direction);
+}
 
 /********************************************************************//**
 Count rows in a R-Tree leaf level.
