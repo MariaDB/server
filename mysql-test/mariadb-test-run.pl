@@ -1189,7 +1189,8 @@ sub get_defaults_options
     \@ARGV,
     'no-defaults'             => \$opt{no_defaults},
     'defaults-group-suffix=s' => \$opt{group_suffix},
-    'print-defaults'          => \$opt{print_defaults});
+    'print-defaults'          => \$opt{print_defaults},
+    'mtr-config-only|M'       => \$opt{mtr_config_only});
 
   # Peek the file options without removing them (parse a copy)
   my @copy= @ARGV;
@@ -1258,6 +1259,7 @@ sub load_defaults
   # A later file's option overrides an earlier one (My::Config is last-wins),
   # matching "if an option is set multiple times, the later setting wins".
   my @opts;
+  my $mtr_config_only= $args->{mtr_config_only};
   my $group_re= join('|', map { quotemeta } @groups);
   for my $file (@files)
   {
@@ -1275,11 +1277,32 @@ sub load_defaults
     {
       # Match group names case-insensitively, like libmariadb's find_type()
       next unless $group->name() =~ /^(?:$group_re)$/i;
-      # Skip commented-out (#...) options: a "#suite=..." line in the config
-      # is a comment, not an MTR option (it would become an invalid "--#...").
-      push @opts, map { $_->option() }
-                  grep { $_->name() !~ /^#/ } $group->options();
+      for my $option ($group->options())
+      {
+        # Skip commented-out (#...) options: a "#suite=..." line in the config
+        # is a comment, not an MTR option (it would become an invalid "--#...").
+        next if $option->name() =~ /^#/;
+        # mtr-config-only (-M) may be set inside [mtr] itself; it is a
+        # directive, not a pass-through option, so consume it here.
+        if ($option->name() =~ /^mtr[-_]config[-_]only$/)
+        {
+          $mtr_config_only= 1;
+          next;
+        }
+        push @opts, $option->option();
+      }
     }
+  }
+
+  # --mtr-config-only (-M): the --defaults-file / --defaults-extra-file we just
+  # read for [mtr] must NOT also become the server config template, so drop
+  # them from @ARGV before the main GetOptions/collect_option sees them.
+  if ($mtr_config_only)
+  {
+    Getopt::Long::GetOptionsFromArray(
+      \@ARGV,
+      'defaults-file=s'       => sub {},
+      'defaults-extra-file=s' => sub {});
   }
 
   # --print-defaults: show the [mtr] options picked up from config, then exit
