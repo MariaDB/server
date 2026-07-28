@@ -85,7 +85,7 @@ int Pushdown_query::execute(JOIN *join)
                                                   start_recinfo,
                                                   &join->tmp_table_param.
                                                   recinfo,
-                                                  err, 1, &is_duplicate))
+                                                  err, 1, &is_duplicate, NULL))
             DBUG_RETURN(1);
           if (is_duplicate)
             continue;

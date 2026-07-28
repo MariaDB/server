@@ -290,7 +290,7 @@ int select_union_recursive::send_data(List<Item> &values)
       rc= create_internal_tmp_table_from_heap(thd, incr_table,
                                               tmp_table_param.start_recinfo, 
                                               &tmp_table_param.recinfo,
-					      err, 1, &is_duplicate);
+					      err, 1, &is_duplicate, NULL);
     }
   }
   
@@ -429,9 +429,10 @@ int select_unit::write_record()
     if (table->file->is_fatal_error(write_err, HA_CHECK_DUP))
     {
       if (!create_internal_tmp_table_from_heap(thd, table,
-                                              tmp_table_param.start_recinfo,
-                                              &tmp_table_param.recinfo,
-                                              write_err, 1, &is_duplicate))
+                                               tmp_table_param.start_recinfo,
+                                               &tmp_table_param.recinfo,
+                                               write_err, 1, &is_duplicate,
+                                               NULL))
         return -2;
       return 1;
     }

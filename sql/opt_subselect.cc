@@ -5180,7 +5180,8 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
 
     bool is_duplicate;
     if (create_internal_tmp_table_from_heap(thd, tmp_table, start_recinfo,
-                                            &recinfo, error, 1, &is_duplicate))
+                                            &recinfo, error, 1, &is_duplicate,
+                                            NULL))
       DBUG_RETURN(-1);
     if (is_duplicate)
       DBUG_RETURN(1);

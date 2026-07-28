@@ -204,7 +204,15 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else
   {
     empty_record(table);
-    info->ref_length= (uint)table->file->ref_length;
+    /*
+      A sort can store the row positions in slots wider than a position of
+      the table's engine (@see Filesort::min_ref_length): read them at the
+      width they were stored with. The engine reads a position from the
+      first ref_length bytes of a slot, and handler::ref always has room
+      for a whole slot (@see handler::ha_open()).
+    */
+    info->ref_length= ((filesort && filesort->ref_length) ?
+                       filesort->ref_length : (uint)table->file->ref_length);
   }
   info->select=select;
   info->print_error=print_error;

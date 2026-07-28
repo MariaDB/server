@@ -500,6 +500,20 @@ typedef struct st_io_cache		/* Used when caching files */
   char prefix[3];
   File file; /* file descriptor */
 
+  /*
+    Circular, singly-linked list of IO_CACHEs that share the same
+    underlying file (the same 'file' descriptor and file position).
+    It links a master READ_CACHE to the slave caches created from it by
+    init_slave_io_cache(): each slave gets a private copy of the buffer
+    but reads from the master's file. NULL, the default, when
+    init_slave_io_cache() is not used.
+
+    Because all members of the list share one file position, a seek done
+    through one cache affects the others: whenever a cache in the list
+    performs a real seek it walks the list and sets seek_not_done on
+    every other member so that they re-seek before their next I/O.
+    end_slave_io_cache() unlinks a cache from the list.
+  */
   struct st_io_cache *next_file_user;
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
