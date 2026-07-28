@@ -14,6 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
+#include "sql_db.h"
 #if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
@@ -109,7 +110,12 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     if (thd->is_error())
       thd->clear_error();  // Avoid stopping info commands
 
-    snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
+    if (s->error == OPEN_FRM_OPEN_ERROR && s->open_errno == ENOENT &&
+        check_db_dir_existence(db))
+      snprintf(g->Message, sizeof(g->Message), "Unknown database '%s'", db);
+    else
+      snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
+
     free_table_share(s);
     return NULL;
   } // endif open_table_def
