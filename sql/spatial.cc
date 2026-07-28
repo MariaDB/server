@@ -3406,6 +3406,9 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
     return 0;
   n_geom= wkb_get_uint(wkb, bo);
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&wkb_orig))
+    return 1;
+
   if (res->reserve(4, 512))
     return 0;
   res->q_append(n_geom);
