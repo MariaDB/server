@@ -456,4 +456,33 @@ show create user u2@localhost;
 drop user u1@localhost;
 drop user u2@localhost;
 
+--echo #
+--echo # MDEV-40541 role vs user@localhost acl_cache key confusion
+--echo #
+create database db;
+create table db.t1(a varchar(40));
+insert into db.t1 values ('role-cache-collision-row');
+
+create role r1;
+create user r1@localhost identified by 'r1pass';
+create user u1@'127.0.0.1' identified by 'u1pass';
+
+grant select on db.* to r1@localhost;
+grant r1 to u1@'127.0.0.1';
+#flush privileges;
+
+connect r1,localhost,r1,r1pass;
+select a as precache from db.t1;
+
+connect u1,127.0.0.1,u1,u1pass;
+set role r1;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select a from db.t1;
+
+connection default;
+drop database db;
+drop role r1;
+drop user r1@localhost, u1@'127.0.0.1';
+
 --echo # End of 10.6 tests
