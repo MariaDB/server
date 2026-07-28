@@ -64,6 +64,14 @@ public:
   */
   bool sort_positions;
   /*
+    Minimum width of the row position slots stored with sort_positions.
+    A position shorter than its slot is zero-padded to it. Set to
+    TMP_TABLE_MAX_REF_LENGTH when the sorted table can be converted to
+    another engine while the sort result is in use, so that the positions
+    of the new engine fit into the slots (@see Window_rowid_remapper).
+  */
+  uint min_ref_length;
+  /*
     TRUE means all the fields of table of whose bitmap read_set is set
          need to be read while reading records in the sort buffer.
     FALSE otherwise
@@ -86,6 +94,7 @@ public:
     own_select(false), 
     using_pq(false),
     sort_positions(sort_positions_arg),
+    min_ref_length(0),
     set_all_read_bits(false),
     sort_keys(NULL),
     unpack(NULL)
@@ -109,7 +118,7 @@ class SORT_INFO
 
 public:
   SORT_INFO()
-    :addon_fields(NULL), record_pointers(0),
+    :addon_fields(NULL), record_pointers(0), ref_length(0),
      sort_keys(NULL),
      sorted_result_in_fsbuf(FALSE)
   {
@@ -144,6 +153,13 @@ public:
   LEX_STRING buffpek;           /* Buffer for buffpek structures */
   Addon_fields *addon_fields;   /* Addon field descriptors */
   uchar     *record_pointers;    /* If sorted in memory */
+  /*
+    Width of the row position slots of io_cache / record_pointers.
+    filesort() sets it to Sort_param::ref_length; it stays 0 in a SORT_INFO
+    filled elsewhere, whose positions (if any) have the width of
+    handler::ref_length (@see init_read_record()).
+  */
+  uint      ref_length;
   Sort_keys *sort_keys;         /* Sort key descriptors*/
 
   /**

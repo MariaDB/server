@@ -464,7 +464,7 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
 
   /* Fill in the Sort_param structure so we can compute the sort costs */
   param.setup_lengths_and_limit(table, sort_len, addon_field_length,
-                                limit_rows);
+                                limit_rows, 0);
 
   costs.compute_sort_costs(&param, rows_to_read, memory_available,
                            with_addon_fields);

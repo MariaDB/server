@@ -1,0 +1,286 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # Window function computation must spill HEAP tmp table to Aria
+--echo # when storing computed values fills the table
+--echo #
+--echo # Window function results are written back into the sorted tmp
+--echo # table with ha_update_row(). A blob result column (an expression
+--echo # wider than 512 characters is promoted to TEXT in the tmp table)
+--echo # makes each such update allocate a blob continuation record; once
+--echo # this crosses max_heap_table_size the update fails with "table is
+--echo # full" and the server must transparently convert the tmp table to
+--echo # Aria, just as the write path already does, and carry the running
+--echo # computation over to the converted table.
+--echo #
+--echo # latin1 is used so that actual data size ~= declared column width:
+--echo # the memory arithmetic then holds whether or not the source VARCHAR
+--echo # column itself is stored as a blob in the HEAP tmp table.
+--echo #
+
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+
+--echo #
+--echo # Test 1: single window over all rows
+--echo #
+--echo # 800 rows of ~3KB fill the 4MB HEAP tmp table to ~2.4MB; storing
+--echo # the ~3KB computed value adds a blob continuation chain per row
+--echo # and overflows mid-computation.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t1 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('x', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+--echo # Should overflow during computation and convert HEAP->Aria
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+       MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+      FROM t1) dt;
+
+--echo # Verify HEAP->Aria conversion happened
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 2: partitioned window
+--echo #
+--echo # Same overflow, but the computation must also carry its partition
+--echo # tracking over the conversion (values are per partition).
+--echo #
+
+CREATE TABLE t2 (g INT, a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t2 SELECT seq % 4, CONCAT(LPAD(seq, 8, '0'), REPEAT('y', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS partitions_seen,
+       MIN(LENGTH(p)) AS min_len, MAX(LENGTH(p)) AS max_len
+FROM (SELECT PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY a)
+             OVER (PARTITION BY g) AS p
+      FROM t2) dt;
+
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t2;
+
+--echo #
+--echo # Test 3: side-effecting window expression is evaluated once per row
+--echo #
+--echo # A compound expression containing a window function is evaluated
+--echo # row by row while the computed values are stored. The conversion
+--echo # must not make that pass start over: the user variable assignment
+--echo # below must be applied exactly once per row, the same as when the
+--echo # table does not overflow.
+--echo #
+
+CREATE TABLE t3 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t3 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('z', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+SET @c= 0;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT e) AS distinct_e,
+       MIN(LENGTH(e)) AS min_len
+FROM (SELECT CONCAT(@c:= @c+1, ':',
+                    PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
+      FROM t3) dt;
+--echo # One assignment per row, not one per row per pass
+SELECT @c AS assignments;
+
+--echo # Verify the overflow really happened
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+
+--echo # Same query without the overflow, for comparison
+SET max_heap_table_size = 64*1024*1024;
+SET tmp_table_size = 64*1024*1024;
+FLUSH STATUS;
+
+SET @c= 0;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT e) AS distinct_e,
+       MIN(LENGTH(e)) AS min_len
+FROM (SELECT CONCAT(@c:= @c+1, ':',
+                    PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
+      FROM t3) dt;
+SELECT @c AS assignments;
+
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t3;
+
+--echo #
+--echo # Test 4: row positions held in memory instead of a temporary file
+--echo #
+--echo # The sort result is a sequence of row positions, which the
+--echo # conversion has to rewrite wherever it is kept. The tests above
+--echo # sort more than fits in the sort buffer, so the sequence is a merge
+--echo # file; with a sort buffer large enough it is an array in memory.
+--echo #
+
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+SET @save_sort_buffer= @@sort_buffer_size;
+SET sort_buffer_size = 16*1024*1024;
+
+CREATE TABLE t4 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t4 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('w', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+       MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+      FROM t4) dt;
+
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t4;
+SET sort_buffer_size= @save_sort_buffer;
+
+--echo #
+--echo # Test 5: ROWNUM() makes the tmp table keep_row_order; the conversion
+--echo # must still happen and preserve the ROWNUM values
+--echo #
+--echo # ROWNUM() with ORDER BY asks the tmp table to preserve insertion
+--echo # order. The converted table holds the rows in the window sort order
+--echo # instead, which must not disturb the already-materialized ROWNUM
+--echo # values: they are assigned in insertion order during the fill, so
+--echo # with the reverse-ordered data below every row must satisfy
+--echo # rn = 801 - number(a) no matter how the rows are stored.
+--echo #
+
+CREATE TABLE t5 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t5 SELECT CONCAT(LPAD(801-seq, 8, '0'), REPEAT('v', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+SELECT COUNT(*) AS cnt, MIN(rn) AS rn_min, MAX(rn) AS rn_max,
+       COUNT(DISTINCT rn) AS rn_distinct,
+       SUM(rn = 801 - CAST(LEFT(a, 8) AS UNSIGNED)) AS rn_pairing_ok,
+       MIN(LENGTH(p)) AS min_len
+FROM (SELECT ROWNUM() AS rn, a,
+             PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+      FROM t5 ORDER BY a) dt;
+
+--echo # Verify HEAP->Aria conversion happened
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t5;
+
+--echo #
+--echo # Test 6: blob values larger than a HEAP allocation block
+--echo #
+--echo # A blob value that spans multiple allocation blocks is reassembled
+--echo # into a buffer shared by all reads of the table. The row whose
+--echo # update overflowed the table is written to the converted table from
+--echo # its record buffer after the other rows have been read through that
+--echo # buffer: its blob values must survive those reads. Three distinct
+--echo # values must remain three distinct values.
+--echo #
+
+SET max_heap_table_size = 12*1024*1024;
+SET tmp_table_size = 12*1024*1024;
+
+CREATE TABLE t6 (id INT, a MEDIUMTEXT) CHARACTER SET latin1;
+INSERT INTO t6 SELECT seq, CONCAT(LPAD(seq, 8, '0'), REPEAT('v', 2000000))
+FROM seq_1_to_3;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+SELECT COUNT(*) AS cnt,
+       SUM(a = CONCAT(LEFT(a, 8), REPEAT('v', 2000000))) AS a_intact,
+       COUNT(DISTINCT LEFT(a, 8)) AS a_distinct,
+       SUM(p IS NULL OR p = CONCAT(LEFT(p, 8), REPEAT('v', 2000000)))
+         AS p_intact
+FROM (SELECT a, LAG(a) OVER (ORDER BY a) AS p FROM t6) dt;
+
+--echo # Verify HEAP->Aria conversion happened
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t6;
+
+--echo #
+--echo # Cleanup
+--echo #
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

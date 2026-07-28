@@ -73,7 +73,7 @@ int Pushdown_derived::execute()
       if (create_internal_tmp_table_from_heap(thd, table,
                                               tmp_table_param->start_recinfo,
                                               &tmp_table_param->recinfo,
-                                              err, 1, &is_duplicate))
+                                              err, 1, &is_duplicate, NULL))
         DBUG_RETURN(1);
       if (is_duplicate)
         continue;
