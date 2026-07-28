@@ -858,6 +858,47 @@ public:
     }
   }
 
+  /*
+    The rowid sequence has been rewritten: the table was converted from HEAP
+    to a disk-based engine, all its rows got new positions and the sequence
+    was rebuilt from 'info', which is positioned at its start.
+
+    The positions are rewritten in place, in slots that fit the positions
+    of either engine (@see Filesort::min_ref_length), so the layout of the
+    sequence and the place of this cursor in it do not change; only what
+    the cursor has cached from the old sequence has to be taken again.
+  */
+  bool rowids_rewritten(READ_RECORD *info)
+  {
+    DBUG_ASSERT(info->ref_length == ref_length);
+
+    /*
+      io_cache is a slave of the cache of the sequence file when the
+      sequence is kept in a temporary file, and NULL when the sequence is
+      an array in memory, @see init(). The array is rewritten in place, so
+      there is nothing to do for it; the file is replaced together with its
+      cache, and the slave has to be re-created from the new master.
+    */
+    if (io_cache)
+    {
+      end_slave_io_cache(io_cache);
+      if (DBUG_IF("simulate_window_seq_slave_oom") ||
+          init_slave_io_cache(info->io_cache, io_cache))
+      {
+        /*
+          The cache is already ended: forget it, so that the destructor
+          does not end it a second time.
+        */
+        my_free(io_cache);
+        io_cache= NULL;
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        return true;
+      }
+      ref_buffer_valid= false;                 // The positions changed
+    }
+    return false;
+  }
+
   virtual int next()
   {
     /* Allow multiple next() calls in EOF state. */
@@ -1111,9 +1152,19 @@ private:
 class Frame_cursor : public Sql_alloc
 {
 public:
-  Frame_cursor() : sum_functions(), perform_no_action(false) {}
+  Frame_cursor() : sum_functions(), seq_cursor(NULL), perform_no_action(false)
+  {}
 
   virtual void init(READ_RECORD *info) {};
+
+  /*
+    @see Rowid_seq_cursor::rowids_rewritten(). A cursor that reads the rowid
+    sequence registers its reader in seq_cursor, in its constructor.
+  */
+  virtual bool rowids_rewritten(READ_RECORD *info)
+  {
+    return seq_cursor ? seq_cursor->rowids_rewritten(info) : false;
+  }
 
   bool add_sum_func(Item_sum* item)
   {
@@ -1204,6 +1255,9 @@ protected:
   /* Sum functions that this cursor handles. */
   List<Item_sum> sum_functions;
 
+  /* The rowid sequence reader of this cursor, if it has one */
+  Rowid_seq_cursor *seq_cursor;
+
 private:
   bool perform_no_action;
 };
@@ -1225,6 +1279,17 @@ public:
     Frame_cursor *fc;
     while ((fc= iter++))
       fc->init(info);
+  }
+
+  /* @see Rowid_seq_cursor::rowids_rewritten() */
+  bool notify_cursors_rowids_rewritten(READ_RECORD *info)
+  {
+    List_iterator_fast<Frame_cursor> iter(cursors);
+    Frame_cursor *fc;
+    while ((fc= iter++))
+      if (fc->rowids_rewritten(info))
+        return true;
+    return false;
   }
 
   void notify_cursors_partition_changed(ha_rows rownum)
@@ -1301,6 +1366,7 @@ public:
     cursor(thd, partition_list), n_val(n_val_arg), item_add(NULL),
     is_preceding(is_preceding_arg)
   {
+    seq_cursor= &cursor;
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
     if (order_list->first->direction == ORDER::ORDER_ASC)
@@ -1440,6 +1506,7 @@ public:
     cursor(thd, partition_list), n_val(n_val_arg), item_add(NULL),
     is_preceding(is_preceding_arg), added_values(false)
   {
+    seq_cursor= &cursor;
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
 
@@ -1569,6 +1636,7 @@ public:
                                  SQL_I_List<ORDER> *order_list) :
     cursor(thd, partition_list), peer_tracker(thd, order_list)
   {
+    seq_cursor= &cursor;
   }
 
   void init(READ_RECORD *info) override
@@ -1666,7 +1734,9 @@ public:
                               SQL_I_List<ORDER> *order_list) :
     bound_tracker(thd, partition_list), cursor(), peer_tracker(thd, order_list),
     move(false)
-  {}
+  {
+    seq_cursor= &cursor;
+  }
 
   void init(READ_RECORD *info) override
   {
@@ -1744,6 +1814,12 @@ public:
 
   void init(READ_RECORD *info) override {}
 
+  /*
+    The bound tracks its position as a row number only, which the rewrite
+    preserves: it holds nothing that is derived from the rowid sequence.
+  */
+  bool rowids_rewritten(READ_RECORD *info) override { return false; }
+
   void next_partition(ha_rows rownum) override
   {
     /*
@@ -1782,7 +1858,10 @@ public:
   Frame_unbounded_following(THD *thd,
       SQL_I_List<ORDER> *partition_list,
       SQL_I_List<ORDER> *order_list) :
-    cursor(thd, partition_list) {}
+    cursor(thd, partition_list)
+  {
+    seq_cursor= &cursor;
+  }
 
   void init(READ_RECORD *info) override
   {
@@ -1912,7 +1991,9 @@ class Frame_n_rows_preceding : public Frame_cursor
 public:
   Frame_n_rows_preceding(bool is_top_bound_arg, ha_rows n_rows_arg) :
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg), n_rows_behind(0)
-  {}
+  {
+    seq_cursor= &cursor;
+  }
 
   void init(READ_RECORD *info) override
   {
@@ -2017,6 +2098,12 @@ public:
 
   Frame_rows_current_row_bottom() : curr_rownum(0) {}
 
+  /*
+    The bound tracks its position as a row number only, which the rewrite
+    preserves: it holds nothing that is derived from the rowid sequence.
+  */
+  bool rowids_rewritten(READ_RECORD *info) override { return false; }
+
   void pre_next_partition(ha_rows rownum) override
   {
     add_value_to_items();
@@ -2091,6 +2178,7 @@ public:
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg),
     cursor(thd, partition_list)
   {
+    seq_cursor= &cursor;
   }
 
   void init(READ_RECORD *info) override
@@ -2218,7 +2306,10 @@ class Frame_scan_cursor : public Frame_cursor
 public:
   Frame_scan_cursor(const Frame_cursor &top_bound,
                     const Frame_cursor &bottom_bound) :
-    top_bound(top_bound), bottom_bound(bottom_bound) {}
+    top_bound(top_bound), bottom_bound(bottom_bound)
+  {
+    seq_cursor= &cursor;
+  }
 
   void init(READ_RECORD *info) override
   {
@@ -2300,7 +2391,10 @@ class Frame_positional_cursor : public Frame_cursor
   Frame_positional_cursor(const Frame_cursor &position_cursor) :
     position_cursor(position_cursor), top_bound(NULL),
     bottom_bound(NULL), offset(NULL), overflowed(false),
-    negative_offset(false) {}
+    negative_offset(false)
+  {
+    seq_cursor= &cursor;
+  }
 
   Frame_positional_cursor(const Frame_cursor &position_cursor,
                           const Frame_cursor &top_bound,
@@ -2309,7 +2403,10 @@ class Frame_positional_cursor : public Frame_cursor
                           bool negative_offset) :
     position_cursor(position_cursor), top_bound(&top_bound),
     bottom_bound(&bottom_bound), offset(&offset),
-    negative_offset(negative_offset) {}
+    negative_offset(negative_offset)
+  {
+    seq_cursor= &cursor;
+  }
 
   void init(READ_RECORD *info) override
   {
@@ -2789,17 +2886,107 @@ bool get_window_functions_required_cursors(
   return false;
 }
 
+
+/*
+  The tmp table got full while storing the computed window function values of
+  the current row. Convert it to the disk-based tmp engine and let the
+  computation continue on the converted table.
+
+  The rows keep their identity and their contents, only their positions
+  change, and those are translated in the rowid sequence that the row scan
+  and the frame cursors read (@see Window_rowid_remapper).
+
+  @param rowid_buf  IN:  position of the current row in the HEAP table
+                    OUT: its position in the converted table
+
+  @retval false  the table was converted, the computation can go on
+  @retval true   the conversion did not happen, the error is reported
+*/
+
+static bool spill_window_tmp_table(THD *thd, TABLE *tbl, SORT_INFO *sort,
+                                   READ_RECORD *info,
+                                   List<Cursor_manager> &cursor_managers,
+                                   uchar *rowid_buf, int error)
+{
+  TMP_TABLE_PARAM *param= tbl->reginfo.join_tab->tmp_table_param;
+  const bool in_file= !sort->has_filesort_result_in_memory();
+  const uint ref_length= info->ref_length;      // Of a rowid sequence slot
+  Cursor_manager *cursor_manager;
+  ha_rows scan_rownum;
+  bool is_duplicate;
+  DBUG_ENTER("spill_window_tmp_table");
+
+  /*
+    The rows are copied in the order of the rowid sequence, which becomes
+    the order of the converted table: ask the tmp engine to keep it, instead
+    of letting a scan of the converted table return the rows in whatever
+    order the freed space happens to produce.
+  */
+  tbl->keep_row_order= true;
+
+  /* The row the scan is about to read, in the sequence */
+  scan_rownum= in_file ? (ha_rows) (my_b_tell(info->io_cache) / ref_length) :
+                         (ha_rows) ((info->cache_pos - sort->record_pointers) /
+                                    ref_length);
+
+  Window_rowid_remapper remapper(sort, rowid_buf, ref_length);
+
+  /* Release the scan of the handler that the conversion replaces */
+  end_read_record(info);
+
+  if (create_internal_tmp_table_from_heap(thd, tbl, param->start_recinfo,
+                                          &param->recinfo, error, 0,
+                                          &is_duplicate, &remapper))
+    DBUG_RETURN(true);
+
+  memcpy(rowid_buf, remapper.new_pending_ref(), tbl->file->ref_length);
+
+  /* Read the rewritten sequence, and the rows through the new handler */
+  if (init_read_record(info, thd, tbl, NULL, sort, 0, 1, FALSE))
+    DBUG_RETURN(true);
+
+  List_iterator_fast<Cursor_manager> it(cursor_managers);
+  while ((cursor_manager= it++))
+    if (cursor_manager->notify_cursors_rowids_rewritten(info))
+      DBUG_RETURN(true);                        // Out of memory, reported
+
+  /* Put the scan back on the row it was about to read */
+  if (in_file)
+  {
+    if (reinit_io_cache(info->io_cache, READ_CACHE,
+                        scan_rownum * info->ref_length, 0, 0))
+      DBUG_RETURN(true);
+  }
+  else
+    info->cache_pos+= scan_rownum * info->ref_length;
+
+  DBUG_RETURN(false);
+}
+
+
 /**
   Helper function that takes a list of window functions and writes
   their values in the current table record.
+
+  @param[out] out_error  Set to the handler error code if the updated row
+                         could not be stored because the in-memory tmp table
+                         got full; the error is then not reported and the
+                         caller is expected to convert the table to a
+                         disk-based one and go on with the computation.
 */
 static
 bool save_window_function_values(List<Item_window_func>& window_functions,
-                                 TABLE *tbl, uchar *rowid_buf)
+                                 TABLE *tbl, uchar *rowid_buf, int *out_error)
 {
+  int err;
   List_iterator_fast<Item_window_func> iter(window_functions);
   JOIN_TAB *join_tab= tbl->reginfo.join_tab;
-  tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
+  *out_error= 0;
+  if ((err= tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf)))
+  {
+    tbl->file->print_error(err, MYF(0));
+    return true;
+  }
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
     item_win->save_in_field(item_win->result_field, true);
@@ -2830,9 +3017,15 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
       func->save_in_result_field(true);
   }
 
-  int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+  err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
   if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+  {
+    if (err == HA_ERR_RECORD_FILE_FULL && tbl->s->db_type() == heap_hton)
+      *out_error= err;
+    else
+      tbl->file->print_error(err, MYF(0));
     return true;
+  }
 
   return false;
 }
@@ -2883,7 +3076,7 @@ bool compute_window_func(THD *thd,
   List_iterator_fast<Item_window_func> iter_win_funcs(window_functions);
   List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
   bool ret= false;
-  uint err;
+  int err;
 
   READ_RECORD info;
 
@@ -2909,12 +3102,22 @@ bool compute_window_func(THD *thd,
 
   List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
-  uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, tbl->file->ref_length, MYF(0));
+  /* With room for a position of the engine the table can be converted to */
+  uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                                       filesort_result->ref_length, MYF(0));
 
   while (true)
   {
     if ((err= info.read_record()))
-      break; // End of file.
+    {
+      /*
+        read_record() returns -1 at end of file; positive values are read
+        errors, for which the error has already been reported.
+      */
+      if (err > 0)
+        ret= true;
+      break;
+    }
 
     /* Remember current row so that we can restore it before computing
        each window function. */
@@ -2952,19 +3155,35 @@ bool compute_window_func(THD *thd,
 
       /* Return to current row after notifying cursors for each window
          function. */
-      if (tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf))
+      if ((err= tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf)))
       {
+        tbl->file->print_error(err, MYF(0));
         ret= true;
         break;
       }
     }
 
+    if (ret)
+      break;
+
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
-    if (save_window_function_values(window_functions, tbl, rowid_buf))
+    int spill_error;
+    if (save_window_function_values(window_functions, tbl, rowid_buf,
+                                    &spill_error))
     {
-      ret= true;
-      break;
+      /*
+        The in-memory tmp table got full while storing the values: convert it
+        to a disk-based one, which gives every row a new position, and go on
+        with the computation on the converted table.
+      */
+      if (!spill_error ||
+          spill_window_tmp_table(thd, tbl, filesort_result, &info,
+                                 cursor_managers, rowid_buf, spill_error))
+      {
+        ret= true;
+        break;
+      }
     }
     rownum++;
   }
@@ -3181,6 +3400,13 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     sort_order= order;
   }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
+  /*
+    The sorted tmp table can be converted from HEAP to the disk-based tmp
+    engine while the computation runs on this sort's result: store the row
+    positions in slots that fit the positions of both engines, so that the
+    conversion can rewrite them in place (@see Window_rowid_remapper).
+  */
+  filesort->min_ref_length= TMP_TABLE_MAX_REF_LENGTH;
 
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;

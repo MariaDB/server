@@ -1,0 +1,33 @@
+#
+# Failure to rebind the row position sequence during the HEAP to
+# Aria conversion of a window function tmp table
+#
+# When re-creating a frame cursor's slave cache of the rewritten
+# position sequence fails, the statement must fail with a reported
+# error, and the cursor must not release the half-initialized cache
+# a second time when it is destroyed.
+#
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+CREATE TABLE t1 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t1 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('x', 2900))
+FROM seq_1_to_800;
+SET debug_dbug='+d,simulate_window_seq_slave_oom';
+SELECT COUNT(*) FROM
+(SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t1) dt;
+ERROR HY000: Out of memory.
+SET debug_dbug='';
+# The same query must work after the failed attempt
+SELECT COUNT(*) FROM
+(SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t1) dt;
+COUNT(*)
+800
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+DROP TABLE t1;
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

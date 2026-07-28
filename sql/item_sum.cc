@@ -1003,6 +1003,7 @@ bool Aggregator_distinct::add()
     }
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
+      bool is_duplicate;
       if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
         return FALSE;                           // duplicate, not an error
       /*
@@ -1015,7 +1016,7 @@ bool Aggregator_distinct::add()
       if (create_internal_tmp_table_from_heap(table->in_use, table,
                                               tmp_table_param->start_recinfo,
                                               &tmp_table_param->recinfo,
-                                              error, 0, NULL))
+                                              error, 0, &is_duplicate, NULL))
         return TRUE;
     }
     return FALSE;

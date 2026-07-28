@@ -1,0 +1,48 @@
+--source include/have_file_key_management.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # Window function computation spilling a HEAP tmp table to Aria with
+--echo # encrypted temporary files
+--echo #
+--echo # The sorted row positions the computation runs over live in an
+--echo # IO_CACHE temporary file, which is encrypted here: the conversion
+--echo # must go through the cache instead of the file to translate them.
+--echo #
+
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+
+CREATE TABLE t1 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t1 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('x', 2900))
+FROM seq_1_to_800;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+--echo # Should overflow during computation and convert HEAP->Aria
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+       MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+      FROM t1) dt;
+
+--echo # Verify HEAP->Aria conversion happened
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name = 'Created_tmp_disk_tables';
+--enable_warnings
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t1;
+
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

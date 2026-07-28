@@ -597,7 +597,8 @@ public:
   void setup_lengths_and_limit(TABLE *table,
                                uint sortlen,
                                uint addon_length,
-                               ha_rows limit_rows_arg);
+                               ha_rows limit_rows_arg,
+                               uint min_ref_length_arg);
   void  (*unpack)(TABLE *);
   /// Enables the packing of addons if possible.
   void try_to_pack_addons(ulong max_length_for_sort_data);

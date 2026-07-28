@@ -6946,6 +6946,13 @@ inline uint tmp_table_max_key_parts() { return MI_MAX_KEY_SEG; }
 #endif
 
 /*
+  The longest row position (handler::ref) of the engines that can hold an
+  internal temporary table: a pointer into memory (HEAP) or an offset in a
+  data file (Aria and MyISAM row pointers take at most 7 bytes).
+*/
+#define TMP_TABLE_MAX_REF_LENGTH 8
+
+/*
   Param to create temporary tables when doing SELECT:s
   NOTE
     This structure is copied using memcpy as a part of JOIN.

@@ -4212,10 +4212,11 @@ bool schema_table_store_record(THD *thd, TABLE *table)
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     TMP_TABLE_PARAM *param= table->pos_in_table_list->schema_table_param;
+    bool is_duplicate;
     if (unlikely(create_internal_tmp_table_from_heap(thd, table,
                                                      param->start_recinfo,
                                                      &param->recinfo, error, 0,
-                                                     NULL)))
+                                                     &is_duplicate, NULL)))
 
       return 1;
   }
