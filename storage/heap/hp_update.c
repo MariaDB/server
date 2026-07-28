@@ -20,7 +20,7 @@
 
 int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
 {
-  HP_KEYDEF *keydef, *end, *p_lastinx;
+  HP_KEYDEF *keydef, *keydef_end, *p_lastinx;
   uchar *pos, *recovery_ptr;
   struct st_hp_hash_info *recovery_hash_ptr;
   my_bool auto_key_changed= 0, key_changed= 0;
@@ -41,7 +41,9 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   recovery_hash_ptr= info->current_hash_ptr;
 
   p_lastinx= share->keydef + info->lastinx;
-  for (keydef= share->keydef, end= keydef + share->keys; keydef < end; keydef++)
+  for (keydef= share->keydef, keydef_end= keydef + share->keys;
+       keydef < keydef_end;
+       keydef++)
   {
     if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
     {
@@ -253,20 +255,39 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   DBUG_RETURN(0);
 
  err:
-  if (my_errno == HA_ERR_FOUND_DUPP_KEY)
+  info->errkey= -1;                             /* If not a key error */
+  if (my_errno == HA_ERR_FOUND_DUPP_KEY || my_errno == HA_ERR_OUT_OF_MEM ||
+      my_errno == ENOMEM || my_errno == HA_ERR_RECORD_FILE_FULL)
   {
-    info->errkey = (int) (keydef - share->keydef);
-    if (keydef->algorithm == HA_KEY_ALG_BTREE)
+    int org_error= my_errno;
+    if (keydef == keydef_end)
     {
-      /* we don't need to delete non-inserted key from rb-tree */
-      if ((*keydef->write_key)(info, keydef, old, pos))
-      {
-        if (++(share->records) == share->blength)
-	  share->blength+= share->blength;
-        DBUG_RETURN(my_errno);
-      }
+      /*
+        We got a failure after all key parts have been written, like
+        while writing blobs. Alternatively there are no keys.
+        Decrement keydef so that it points at the last key part or
+        before share->keydef.
+      */
+      DBUG_ASSERT(share->keydef);
       keydef--;
     }
+    else
+    {
+      /* keydef points to the last key that failed */
+      info->errkey = (int) (keydef - share->keydef);
+      if (keydef->algorithm == HA_KEY_ALG_BTREE)
+      {
+        /* we don't need to delete non-inserted key from rb-tree */
+        if ((*keydef->write_key)(info, keydef, old, pos))
+        {
+          if (++(share->records) == share->blength)
+            share->blength+= share->blength;
+          DBUG_RETURN(my_errno);
+        }
+        keydef--;
+      }
+    }
+    /* Restore all modified keys */
     while (keydef >= share->keydef)
     {
       if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
@@ -279,6 +300,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     }
     info->current_ptr= recovery_ptr;
     info->current_hash_ptr= recovery_hash_ptr;
+    my_errno= org_error;
   }
   if (++(share->records) == share->blength)
     share->blength+= share->blength;
