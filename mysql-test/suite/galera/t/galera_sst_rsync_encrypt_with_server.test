@@ -23,4 +23,13 @@
 --let $assert_only_after = CURRENT_TEST
 --source include/assert_grep.inc
 
+# ssl-mode is VERIFY_CA here: confirm the donor verified the certificate
+# chain only and did not fall back to the VERIFY_IDENTITY peer-name check.
+--disable_result_log
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = Verifying peer certificate chain for ssl-mode=VERIFY_CA
+--let SEARCH_ABORT = NOT FOUND
+--source include/search_pattern_in_file.inc
+--enable_result_log
+
 --source include/auto_increment_offset_restore.inc

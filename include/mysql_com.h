@@ -466,7 +466,10 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   unsigned char compress;
   my_bool pkt_nr_can_be_reset;
+  /* Bits: NET_PROXY_PROTOCOL, NET_PROXY_PROTOCOL_CONNECT_ERRORS */
   my_bool using_proxy_protocol;
+#define NET_PROXY_PROTOCOL 1
+#define NET_PROXY_PROTOCOL_CONNECT_ERRORS 2
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet

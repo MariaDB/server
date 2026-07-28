@@ -1809,6 +1809,7 @@ public:
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
   int save_str_in_field(Field *field, bool no_conversions);
+  int save_hex_hybrid_in_field(Field *field, bool no_conversions);
   int save_real_in_field(Field *field, bool no_conversions);
   int save_int_in_field(Field *field, bool no_conversions);
   int save_bool_in_field(Field *field, bool no_conversions);
@@ -2849,13 +2850,13 @@ protected:
 MEM_ROOT *get_thd_memroot(THD *thd);
 
 template <class T>
-inline Item* get_item_copy (THD *thd, const T* item)
+inline T* get_item_copy (THD *thd, const T* item)
 {
-  Item *copy= new (get_thd_memroot(thd)) T(*item);
+  T *copy= new (get_thd_memroot(thd)) T(*item);
   if (likely(copy))
     copy->register_in(thd);
   return copy;
-}	
+}
 
 
 #ifndef DBUG_OFF
@@ -3520,6 +3521,10 @@ public:
   const Type_handler *type_handler() const override
   {
     return value_item->type_handler();
+  }
+  decimal_digits_t decimal_precision() const override
+  {
+    return value_item->decimal_precision();
   }
 
   bool const_item() const override { return true; }
@@ -5211,7 +5216,6 @@ public:
     Item_hex_constant(thd, str, str_length) {}
   const Type_handler *type_handler() const override
   { return &type_handler_hex_hybrid; }
-  decimal_digits_t decimal_precision() const override;
   bool val_bool() override
   {
     return longlong_from_hex_hybrid(str_value.ptr(), str_value.length()) != 0;
@@ -6668,7 +6672,7 @@ public:
   bool found_in_select_list;
   bool found_in_group_by;
   Item_outer_ref(THD *thd, Name_resolution_context *context_arg,
-                 Item_field *outer_field_arg):
+                 Item_ident *outer_field_arg):
     Item_direct_ref(thd, context_arg, 0, outer_field_arg->table_name,
                     outer_field_arg->field_name),
     outer_ref(outer_field_arg), in_sum_func(0),
@@ -7273,8 +7277,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   {
-    Item_default_value *new_item=
-      (Item_default_value *) get_item_copy<Item_default_value>(thd, this);
+    Item_default_value *new_item= get_item_copy<Item_default_value>(thd, this);
     // This is a copy so do not manage the field and should not delete it
     new_item->m_share_field= 1;
     return new_item;

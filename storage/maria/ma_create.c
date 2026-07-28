@@ -28,6 +28,8 @@
 #endif
 #include <m_ctype.h>
 
+#define COMMON_FLAGS (MY_UNPACK_FILENAME | MY_SAFE_PATH | MY_REPLACE_EXT)
+
 static int compare_columns(const void *a, const void *b);
 
 
@@ -860,8 +862,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   */
   if (ci->index_file_name)
   {
-    const char *iext= strrchr(ci->index_file_name, '.');
-    int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
     if (tmp_table)
     {
       char *path;
@@ -871,18 +871,18 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       */
       if ((path= strrchr((char *)ci->index_file_name, FN_LIBCHAR)))
         *path= '\0';
-      fn_format(kfilename, name, ci->index_file_name, MARIA_NAME_IEXT,
-                MY_REPLACE_DIR | MY_UNPACK_FILENAME |
-                MY_RETURN_REAL_PATH | MY_APPEND_EXT);
+      if (!fn_format(kfilename, name, ci->index_file_name, MARIA_NAME_IEXT,
+                     COMMON_FLAGS | MY_REPLACE_DIR | MY_RETURN_REAL_PATH))
+        goto err;
     }
     else
     {
-      fn_format(kfilename, ci->index_file_name, "", MARIA_NAME_IEXT,
-                MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
-                (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
+      if (!fn_format(kfilename, ci->index_file_name, "", MARIA_NAME_IEXT,
+                     COMMON_FLAGS | MY_RETURN_REAL_PATH))
+        goto err;
     }
-    fn_format(klinkname, name, "", MARIA_NAME_IEXT,
-              MY_UNPACK_FILENAME|MY_APPEND_EXT);
+    if (!fn_format(klinkname, name, "", MARIA_NAME_IEXT, COMMON_FLAGS))
+      goto err;
     klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
@@ -895,11 +895,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   }
   else
   {
-    const char *iext= strrchr(name, '.');
-    int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
-    fn_format(kfilename, name, "", MARIA_NAME_IEXT, MY_UNPACK_FILENAME |
-              (internal_table ? 0 : MY_RETURN_REAL_PATH) |
-              (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
+    if (!fn_format(kfilename, name, "", MARIA_NAME_IEXT,
+                   COMMON_FLAGS | (internal_table ? 0 : MY_RETURN_REAL_PATH)))
+      goto err;
     klinkname_ptr= NullS;
     /*
       Replace the current file.
@@ -1186,9 +1184,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     if (ci->data_file_name)
     {
-      const char *dext= strrchr(ci->data_file_name, '.');
-      int have_dext= dext && !strcmp(dext, MARIA_NAME_DEXT);
-
       if (tmp_table)
       {
         char *path;
@@ -1198,24 +1193,25 @@ int maria_create(const char *name, enum data_file_type datafile_type,
         */
         if ((path= strrchr((char *)ci->data_file_name, FN_LIBCHAR)))
           *path= '\0';
-        fn_format(dfilename, name, ci->data_file_name, MARIA_NAME_DEXT,
-                  MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_APPEND_EXT);
+        if (!fn_format(dfilename, name, ci->data_file_name, MARIA_NAME_DEXT,
+                       COMMON_FLAGS | MY_REPLACE_DIR))
+          goto err;
       }
       else
       {
-        fn_format(dfilename, ci->data_file_name, "", MARIA_NAME_DEXT,
-                  MY_UNPACK_FILENAME |
-                  (have_dext ? MY_REPLACE_EXT : MY_APPEND_EXT));
+        if (!fn_format(dfilename, ci->data_file_name, "", MARIA_NAME_DEXT,
+                       COMMON_FLAGS))
+          goto err;
       }
-      fn_format(dlinkname, name, "",MARIA_NAME_DEXT,
-                MY_UNPACK_FILENAME | MY_APPEND_EXT);
+      if (!fn_format(dlinkname, name, "",MARIA_NAME_DEXT, COMMON_FLAGS))
+        goto err;
       dlinkname_ptr= dlinkname;
       create_flag=0;
     }
     else
     {
-      fn_format(dfilename,name,"", MARIA_NAME_DEXT,
-                MY_UNPACK_FILENAME | MY_APPEND_EXT);
+      if (!fn_format(dfilename,name,"", MARIA_NAME_DEXT, COMMON_FLAGS))
+        goto err;
       create_flag= (flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
     }
     ma_debug_crash_here("storage_engine_middle_of_create");

@@ -460,7 +460,7 @@ list_dbs(MYSQL *mysql,const char *wild)
 	    while ((trow = mysql_fetch_row(tresult)))
 	    {
               my_snprintf(query, sizeof(query),
-                          "SELECT COUNT(*) FROM `%s`", trow[0]);
+                          "SELECT COUNT(*) FROM %`s", trow[0]);
 	      if (!(mysql_query(mysql,query)))
 	      {
 		MYSQL_RES *rresult;
@@ -602,7 +602,7 @@ list_tables(MYSQL *mysql,const char *db,const char *table)
 	  if (opt_verbose > 1)
 	  {
             /* Print the count of rows for each table */
-            my_snprintf(query, sizeof(query), "SELECT COUNT(*) FROM `%s`",
+            my_snprintf(query, sizeof(query), "SELECT COUNT(*) FROM %`s",
                         row[0]);
 	    if (!(mysql_query(mysql,query)))
 	    {
@@ -669,15 +669,13 @@ list_table_status(MYSQL *mysql,const char *db,const char *wild)
   MYSQL_ROW row;
 
   len= sizeof(query);
-  len-= my_snprintf(query, len, "show table status from `%s`", db);
+  len-= my_snprintf(query, len, "show table status from %`s", db);
   if (wild && wild[0] && len)
     strxnmov(query + strlen(query), len - 1, " like '", wild, "'", NullS);
   if (mysql_query(mysql,query) || !(result=mysql_store_result(mysql)))
   {
     fprintf(stderr,"%s: Cannot get status for db: %s, table: %s: %s\n",
 	    my_progname,db,wild ? wild : "",mysql_error(mysql));
-    if (mysql_errno(mysql) == ER_PARSE_ERROR)
-      fprintf(stderr,"This error probably means that your MariaDB server doesn't support the\n\'show table status' command.\n");
     return 1;
   }
 
@@ -718,7 +716,7 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
 
   if (opt_count)
   {
-    my_snprintf(query, sizeof(query), "select count(*) from `%s`", table);
+    my_snprintf(query, sizeof(query), "select count(*) from %`s", table);
     if (mysql_query(mysql,query) || !(result=mysql_store_result(mysql)))
     {
       fprintf(stderr,"%s: Cannot get record count for db: %s, table: %s: %s\n",
@@ -731,7 +729,7 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
   }
 
   len= sizeof(query);
-  len-= my_snprintf(query, len, "show /*!32332 FULL */ columns from `%s`",
+  len-= my_snprintf(query, len, "show /*!32332 FULL */ columns from %`s",
                     table);
   if (wild && wild[0] && len)
     strxnmov(query + strlen(query), len - 1, " like '", wild, "'", NullS);
@@ -757,7 +755,7 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
   {
     mysql_free_result(result);          /* free the columns result set */
     result= NULL;
-    my_snprintf(query, sizeof(query), "show keys from `%s`", table);
+    my_snprintf(query, sizeof(query), "show keys from %`s", table);
     if (mysql_query(mysql,query) || !(result=mysql_store_result(mysql)))
     {
       fprintf(stderr,"%s: Cannot list keys in db: %s, table: %s: %s\n",

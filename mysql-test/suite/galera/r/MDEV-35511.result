@@ -15,7 +15,6 @@ TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SELECT COUNT(*) = 1 FROM test.t1',0
-TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SELECT @@datadir',0
 # resetting the test state
 SET GLOBAL server_audit_logging=DEFAULT;
 connection node_1;

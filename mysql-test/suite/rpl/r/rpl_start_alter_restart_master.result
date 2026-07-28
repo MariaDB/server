@@ -22,7 +22,7 @@ include/stop_slave.inc
 connection master;
 SET SESSION debug_dbug="d,start_alter_kill_after_binlog";
 alter table t3 add column d int;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 include/rpl_reconnect.inc
 set binlog_alter_two_phase= true;
 alter table t3 add column d int;

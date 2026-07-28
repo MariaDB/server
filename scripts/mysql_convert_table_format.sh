@@ -96,8 +96,8 @@ foreach $table (@tables)
   my ($sth,$row);
 
   # Check if table is already converted
-  $sth=$dbh->prepare("show table status like '$table'");  
-  if ($sth->execute && ($row = $sth->fetchrow_arrayref))
+  $sth=$dbh->prepare("show table status like ?");
+  if ($sth->execute($table) && ($row = $sth->fetchrow_arrayref))
   {
     if (uc($row->[1]) eq uc($opt_engine))
     {

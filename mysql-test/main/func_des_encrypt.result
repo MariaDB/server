@@ -99,3 +99,27 @@ DROP TABLE t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-27104 deprecate DES_ENCRYPT/DECRYPT functions
+#
+# just show how to disable deprecation note
+set sql_notes=0;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
+select hex(des_encrypt('a'));
+hex(des_encrypt('a'))
+80E4DE4136BA6CD7F3
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+#
+# End of 10.10 tests
+#
+#
+# MDEV-27561: Valgrind/MSAN errors in Item_func_des_encrypt::val_str
+#
+SELECT VARIANCE(0), HEX(DES_ENCRYPT('foo', ExtractValue('<foo></foo>', '/foo')));
+VARIANCE(0)	HEX(DES_ENCRYPT('foo', ExtractValue('<foo></foo>', '/foo')))
+0.0000	FF616B9B4B9D89348C
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+# End of 10.11 tests

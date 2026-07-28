@@ -554,10 +554,10 @@ int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   size_t nbytes;
   myf utf8_flag= thd->get_utf8_flag();
 
-  bzero((char*) create,sizeof(*create));
+  create->init();
 
   /* Check if options for this database are already in the hash */
-  if (!get_dbopt(thd, path, create))
+  if (!*path || !get_dbopt(thd, path, create))
   {
     if (!create->default_table_charset)
       error= -1;                                // db.opt did not exists
@@ -683,9 +683,11 @@ int load_db_opt_by_name(THD *thd, const char *db_name,
     Pass an empty file name, and the database options file name as extension
     to avoid table name to file name encoding.
   */
-  (void) build_table_filename(db_opt_path, sizeof(db_opt_path) - 1,
-                              db_name, "", MY_DB_OPT_FILE, 0);
-
+  if (*db_name)
+    build_table_filename(db_opt_path, sizeof(db_opt_path) - 1,
+                         db_name, "", MY_DB_OPT_FILE, 0);
+  else
+    db_opt_path[0]= 0;
   return load_db_opt(thd, db_opt_path, db_create_info);
 }
 
@@ -763,6 +765,8 @@ mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
     my_error(ER_DB_CREATE_EXISTS, MYF(0), db.str);
     DBUG_RETURN(-1);
   }
+  if (error_if_mysql50_prefix(db.str, ER_WRONG_DB_NAME))
+    DBUG_RETURN(-1);
 
   const DBNameBuffer dbnorm_buffer(db, lower_case_table_names);
   Lex_ident_db_normalized dbnorm(dbnorm_buffer.to_lex_cstring());

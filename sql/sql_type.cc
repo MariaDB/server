@@ -9068,7 +9068,7 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
 {
   const MYSQL_TIME *ta= a->const_ptr_mysql_time();
   const MYSQL_TIME *tb= b->const_ptr_mysql_time();
-  return !my_time_compare(ta, tb) &&
+  return ta && tb && !my_time_compare(ta, tb) &&
          (!binary_cmp ||
           a->get_type_all_attributes_from_const()->decimals ==
           b->get_type_all_attributes_from_const()->decimals);
@@ -9117,6 +9117,85 @@ const Type_handler *
 Type_handler_hex_hybrid::cast_to_int_type_handler() const
 {
   return &type_handler_ulonglong;
+}
+
+
+bool Type_handler_hex_hybrid::
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const LEX_CSTRING &func_name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
+                                       Item **items, uint nitems) const
+{
+  /* Result stayed a hex hybrid: attribute it like the bare literal (binary,
+     unsigned, scale 0), not as a string. Operands are only hybrids and NULLs,
+     so the collation is binary. */
+  if (handler->type_handler() == this)
+  {
+    func->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    func->decimals= 0;
+    func->unsigned_flag= true;
+    func->fix_char_length(func->find_max_octet_length(items, nitems));
+    return false;
+  }
+  return Type_handler_varchar::Item_hybrid_func_fix_attributes(thd, func_name,
+                                                               handler, func,
+                                                               items, nitems);
+}
+
+
+decimal_digits_t Type_handler_hex_hybrid::
+       Item_decimal_precision(const Item *item) const
+{
+  /* Digits of an N-byte unsigned integer (2^(8*N)-1). The string handler
+     returns the byte length (1 for 0xFF), too small for DECIMAL sizing. */
+  switch (item->max_length) {// HEX                              DEC
+  case 0:                    // ----                             ---
+  case 1: return 3;          // 0xFF                             255
+  case 2: return 5;          // 0xFFFF                         65535
+  case 3: return 8;          // 0xFFFFFF                    16777215
+  case 4: return 10;         // 0xFFFFFFFF                4294967295
+  case 5: return 13;         // 0xFFFFFFFFFF           1099511627775
+  case 6: return 15;         // 0xFFFFFFFFFFFF       281474976710655
+  case 7: return 17;         // 0xFFFFFFFFFFFFFF   72057594037927935
+  }
+  return 20;                 // 0xFFFFFFFFFFFFFFFF 18446744073709551615
+}
+
+
+int Type_handler_hex_hybrid::
+      Item_save_in_field(Item *item, Field *field, bool no_conversions) const
+{
+  return item->save_hex_hybrid_in_field(field, no_conversions);
+}
+
+
+longlong Type_handler_hex_hybrid::
+       Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *item)
+                                           const
+{
+  /* Read bytes as a hex hybrid integer (0x31 -> 49), not as a string ("1"). */
+  return item->val_int_from_hex_hybrid_str_op();
+}
+
+
+double Type_handler_hex_hybrid::
+       Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *item)
+                                            const
+{
+  return (double) (ulonglong) item->val_int_from_hex_hybrid_str_op();
+}
+
+
+my_decimal *Type_handler_hex_hybrid::
+       Item_func_hybrid_field_type_val_decimal(Item_func_hybrid_field_type *item,
+                                               my_decimal *dec) const
+{
+  longlong nr= item->val_int_from_hex_hybrid_str_op();
+  if (item->null_value)
+    return 0;                                   // NULL: return no decimal
+  int2my_decimal(E_DEC_FATAL_ERROR, nr, true, dec);
+  return dec;
 }
 
 
@@ -9261,8 +9340,9 @@ int Type_handler_temporal_with_date::stored_field_cmp_to_item(THD *thd,
                                                               Item *item) const
 {
   MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
-  field->get_date(&field_time, Datetime::Options(TIME_INVALID_DATES, thd));
-  item->get_date(thd, &item_time, Datetime::Options(TIME_INVALID_DATES, thd));
+  if (field->get_date(&field_time, Datetime::Options(TIME_INVALID_DATES, thd))
+      || item->get_date(thd, &item_time, Datetime::Options(TIME_INVALID_DATES, thd)))
+    return -1;
   if (item_time.time_type == MYSQL_TIMESTAMP_TIME &&
       time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
     return 1;
@@ -9275,8 +9355,9 @@ int Type_handler_time_common::stored_field_cmp_to_item(THD *thd,
                                                        Item *item) const
 {
   MYSQL_TIME field_time, item_time;
-  field->get_date(&field_time, Time::Options(thd));
-  item->get_date(thd, &item_time, Time::Options(thd));
+  if (field->get_date(&field_time, Time::Options(thd))
+      || item->get_date(thd, &item_time, Time::Options(thd)))
+    return -1; /* !=0 is important, and avoid my_time_compare */
   return my_time_compare(&field_time, &item_time);
 }
 

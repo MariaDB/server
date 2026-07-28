@@ -3433,6 +3433,9 @@ public:
 
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer) override;
+#ifdef HAVE_REPLICATION
+  bool is_part_of_group() override { return 1; }
+#endif
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, enum_binlog_checksum_alg checksum_alg);
   static bool peek(const uchar *event_start, size_t event_len,

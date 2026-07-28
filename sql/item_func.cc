@@ -1016,6 +1016,12 @@ longlong Item_func_hybrid_field_type::val_int_from_str_op()
   return res ? longlong_from_string_with_check(res) : 0;
 }
 
+longlong Item_func_hybrid_field_type::val_int_from_hex_hybrid_str_op()
+{
+  String *res= str_op_with_null_check(&str_value);
+  return res ? longlong_from_hex_hybrid(res->ptr(), res->length()) : 0;
+}
+
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_str_op(my_decimal *decimal_value)
 {
@@ -3726,7 +3732,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
                u_d->name.str, init_msg_buff);
       goto err_exit;
     }
-    func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
+    func->max_length= MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
+    func->max_length= func->type_handler()->max_display_length(func);
     func->set_maybe_null(initid.maybe_null);
     /*
       The above call for init() can reset initid.const_item to "false",
@@ -7256,11 +7263,16 @@ longlong Item_func_lastval::val_int()
 {
   const char *key;
   SEQUENCE_LAST_VALUE *entry;
+  DBUG_ENTER("Item_func_lastval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_lastval::val_int");
   update_table();
   thd= table->in_use;
 
@@ -7310,6 +7322,11 @@ longlong Item_func_setval::val_int()
   int error;
   THD *thd;
   DBUG_ENTER("Item_func_setval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
 
   update_table();
   DBUG_ASSERT(table && table->s->sequence);

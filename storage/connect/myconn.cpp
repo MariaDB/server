@@ -117,6 +117,11 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
 } // end of connect_use_result
 #endif   // !MYSQL_PREPARED_STATEMENTS
 
+#define BUF_SIZE 127
+#define NUM_SIZE 15
+#define _BUF STRINGIFY_ARG(BUF_SIZE)
+#define _NUM STRINGIFY_ARG(NUM_SIZE)
+
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
@@ -138,7 +143,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
   //unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
 	PCSZ    fmt;
-	char   *fld, *colname, *chset, v, buf[128], uns[16], zero[16];
+	char   *fld, *colname, *chset, v, buf[BUF_SIZE+1], uns[NUM_SIZE+1], zero[NUM_SIZE+1];
   int     i, n, nf = 0, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc;
 	bool    b;
@@ -261,15 +266,15 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 			v = 'V';
 			strcpy(buf, "set");
 			b = true;
-		} else switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
+		} else switch ((nf = sscanf(fld, "%" _BUF "[^(](%d,%d", buf, &len, &prec))) {
       case 3:
-        nf = sscanf(fld, "%[^(](%d,%d) %s %s", buf, &len, &prec, uns, zero);
+        nf = sscanf(fld, "%" _BUF "[^(](%d,%d) %" _NUM "s %" _NUM "s", buf, &len, &prec, uns, zero);
         break;
       case 2:
-        nf = sscanf(fld, "%[^(](%d) %s %s", buf, &len, uns, zero) + 1;
+        nf = sscanf(fld, "%" _BUF "[^(](%d) %" _NUM "s %" _NUM "s", buf, &len, uns, zero) + 1;
         break;
       case 1:
-        nf = sscanf(fld, "%s %s %s", buf, uns, zero) + 2;
+        nf = sscanf(fld, "%" _BUF "s %" _NUM "s %" _NUM "s", buf, uns, zero) + 2;
         break;
       default:
         snprintf(g->Message, sizeof(g->Message), MSG(BAD_FIELD_TYPE), fld);
@@ -312,7 +317,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       } // endswitch nf
 
 		if (b)																 // enum or set
-  		nf = sscanf(fld, "%s ", buf);				 // get values
+			nf = sscanf(fld, "%" _BUF "s ", buf);				 // get values
 
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(buf, i);

@@ -81,7 +81,10 @@ char * fn_format(char * to, const char *name, const char *dir,
     /* To long path, return original or NULL */
     size_t tmp_length;
     if (flag & MY_SAFE_PATH)
+    {
+      my_errno= ENAMETOOLONG;
       DBUG_RETURN(NullS);
+    }
     tmp_length= strlength(startpos);
     DBUG_PRINT("error",("dev: '%s'  ext: '%s'  length: %u",dev,ext,
                         (uint) length));

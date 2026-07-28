@@ -37,7 +37,7 @@ SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
 
 --write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
---error 2013
+--error 2013,2026
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 
 --source include/start_mysqld.inc

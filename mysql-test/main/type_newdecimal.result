@@ -3116,4 +3116,155 @@ AVG(@x :=0)
 SET div_precision_increment= @save_div_precision_increment;
 DROP VIEW c;
 DROP TABLE t;
+#
+# MDEV-39380 Assertion `arg2_int >= 0' failed in Item_func_additive_op::result_precision
+#
+SELECT 3.14159 - SUM(COALESCE(b'101010')) / 42 AS c;
+c
+2.14159
+SELECT SUM(COALESCE(b'101010')) + 1 AS c;
+c
+43
+SELECT ROUND(COALESCE(b'101010'), 2) AS a;
+a
+42
+SELECT TRUNCATE(COALESCE(0x2A), 2) AS b;
+b
+42
+SELECT ROUND(IFNULL(b'101010', b'0'), 2) AS c;
+c
+42
+SELECT TRUNCATE(IFNULL(b'101010', b'0'), 2) AS d;
+d
+42
+SELECT ROUND(CASE WHEN 1 THEN b'101010' END, 2) AS e;
+e
+42
+SELECT TRUNCATE(CASE WHEN 1 THEN b'101010' END, 2) AS f;
+f
+42
+SELECT TRUNCATE(CASE NULL WHEN 1 THEN 0x7F0D END, 2);
+TRUNCATE(CASE NULL WHEN 1 THEN 0x7F0D END, 2)
+NULL
+SELECT 10 + coalesce(b'00110001')  AS co_int,  10 + b'00110001'  AS bare_int;
+co_int	bare_int
+59	59
+SELECT coalesce(0x31) + 0e0        AS co_real, 0x31 + 0e0        AS bare_real;
+co_real	bare_real
+49	49
+SELECT coalesce(0x31) + 0.0        AS co_dec,  0x31 + 0.0        AS bare_dec;
+co_dec	bare_dec
+49.0	49.0
+SELECT sum(coalesce(0x31))         AS co_sum,  sum(0x31)         AS bare_sum;
+co_sum	bare_sum
+49	49
+SELECT avg(coalesce(0x31))         AS co_avg,  avg(0x31)         AS bare_avg;
+co_avg	bare_avg
+49.0000	49.0000
+SELECT 10 + if(1, 0x31, 0x30)  AS if_int,  10 + 0x31 AS bare_int;
+if_int	bare_int
+59	59
+SELECT if(1, 0x31, 0x30) + 0e0 AS if_real, 0x31 + 0e0 AS bare_real;
+if_real	bare_real
+49	49
+SELECT if(1, 0x31, 0x30) + 0.0 AS if_dec,  0x31 + 0.0 AS bare_dec;
+if_dec	bare_dec
+49.0	49.0
+SELECT (CASE WHEN 1 THEN 0x31 END) + 0.0 AS case_dec;
+case_dec
+49.0
+SELECT least(0x31, 0x39) + 0e0     AS least_real;
+least_real
+49
+SELECT coalesce(0x41)  AS co_str,  if(1, 0x41, 0x42) AS if_str,  0x41 AS bare_str;
+co_str	if_str	bare_str
+A	A	A
+SELECT if(0, 0x30, 0x31) + 0.0 AS if_else_dec;
+if_else_dec
+49.0
+SELECT 10 + if(1, b'00110001', b'0')  AS if_int_bit;
+if_int_bit
+59
+SELECT if(1, b'00110001', b'0') + 0.0 AS if_dec_bit;
+if_dec_bit
+49.0
+SELECT 10 + ifnull(0x31, 0x30)              AS ifnull_int;
+ifnull_int
+59
+SELECT ifnull(0x31, 0x30) + 0.0             AS ifnull_dec;
+ifnull_dec
+49.0
+SELECT 10 + nvl(0x31, 0x30)                 AS nvl_int;
+nvl_int
+59
+SELECT 10 + nvl2(1, 0x31, 0x30)             AS nvl2_int;
+nvl2_int
+59
+SELECT 10 + nullif(0x31, 0x30)              AS nullif_int;
+nullif_int
+59
+SELECT 10 + ifnull(b'00110001', b'0')       AS ifnull_int_bit;
+ifnull_int_bit
+59
+CREATE TABLE t1 (i INT, b BIGINT UNSIGNED, d DECIMAL(10,2),
+v VARCHAR(10), c CHAR(4));
+INSERT INTO t1 VALUES
+(coalesce(0x31),          coalesce(0x31),          coalesce(0x31),
+coalesce(0x31),          coalesce(0x31)),
+(0x31,                    0x31,                    0x31,
+0x31,                    0x31),
+(if(1,b'00110001',b'0'),  if(1,b'00110001',b'0'),  if(1,b'00110001',b'0'),
+if(1,b'00110001',b'0'),  if(1,b'00110001',b'0')),
+(b'00110001',             b'00110001',             b'00110001',
+b'00110001',             b'00110001');
+SELECT i, b, d, v, HEX(v) AS hv, c, HEX(c) AS hc FROM t1;
+i	b	d	v	hv	c	hc
+49	49	49.00	1	31	1	31
+49	49	49.00	1	31	1	31
+49	49	49.00	1	31	1	31
+49	49	49.00	1	31	1	31
+INSERT INTO t1 (b) VALUES (coalesce(0xFFFFFFFFFFFFFFFF)), (0xFFFFFFFFFFFFFFFF);
+SELECT b FROM t1 WHERE b > 100;
+b
+18446744073709551615
+18446744073709551615
+DROP TABLE t1;
+SELECT coalesce(NULL, 0x31) + 0 a, coalesce(NULL, NULL, 0x31) + 0 b,
+ifnull(NULL, 0x31) + 0 c, (CASE WHEN 1 THEN 0x31 ELSE NULL END) + 0 d;
+a	b	c	d
+49	49	49	49
+SELECT avg(coalesce(NULL, 0x31)) e;
+e
+49.0000
+SELECT COLLATION(0x41)                        AS bare,
+COLLATION(COALESCE(0x41))              AS co1,
+COLLATION(COALESCE(0x41, NULL))        AS co_null,
+COLLATION(CASE WHEN 1 THEN 0x41 END)   AS case_hex,
+COLLATION(COALESCE(b'01000001', NULL)) AS co_bit;
+bare	co1	co_null	case_hex	co_bit
+binary	binary	binary	binary	binary
+CREATE TABLE t1 AS SELECT 0x41 AS bare, COALESCE(0x41, NULL) AS co_null;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `bare` varbinary(1) NOT NULL,
+  `co_null` varbinary(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+COALESCE(0xFF)                  AS c1,
+COALESCE(0xFF, 0xFFFFFF)        AS c2,
+COALESCE(0xFFFFFF, 0xFF)        AS c3,
+COALESCE(0xFFFF, NULL)          AS c4,
+CASE WHEN 1 THEN 0xFFFFFFFF END AS c5;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varbinary(1) NOT NULL,
+  `c2` varbinary(3) NOT NULL,
+  `c3` varbinary(3) NOT NULL,
+  `c4` varbinary(2) NOT NULL,
+  `c5` varbinary(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
 # End of 10.11 tests

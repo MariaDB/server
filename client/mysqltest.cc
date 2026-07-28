@@ -4679,9 +4679,12 @@ void do_write_file_command(struct st_command *command, my_bool append)
   static DYNAMIC_STRING ds_content;
   static DYNAMIC_STRING ds_filename;
   static DYNAMIC_STRING ds_delimiter;
+  static DYNAMIC_STRING ds_eval_flag;
+  my_bool eval_content;
   const struct command_arg write_file_args[] = {
     { "filename", ARG_STRING, TRUE, &ds_filename, "File to write to" },
-    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" }
+    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" },
+    { "eval", ARG_STRING, FALSE, &ds_eval_flag, "Evaluate the content" }
   };
   DBUG_ENTER("do_write_file");
 
@@ -4693,6 +4696,14 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   if (bad_path(ds_filename.str))
     DBUG_VOID_RETURN;
+
+  if ((eval_content= (ds_eval_flag.length != 0)) &&
+      strcasecmp(ds_eval_flag.str, "eval"))
+  {
+    report_or_die("Invalid argument '%s' to '%.*b', only 'eval' is allowed",
+                  ds_eval_flag.str, command->first_word_len, command->query);
+    DBUG_VOID_RETURN;
+  }
 
   if (!append && access(ds_filename.str, F_OK) == 0)
   {
@@ -4716,10 +4727,24 @@ void do_write_file_command(struct st_command *command, my_bool append)
   if (cur_block->ok)
   {
     DBUG_PRINT("info", ("Writing to file: %s", ds_filename.str));
-    str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
+    if (eval_content)
+    {
+      /* Evaluate on every execution, keep command->content unevaluated */
+      DYNAMIC_STRING ds_eval_content;
+      if (init_dynamic_string(&ds_eval_content, "", ds_content.length + 256, 256))
+        die("Out of memory");
+      do_eval(&ds_eval_content, ds_content.str,
+              ds_content.str + ds_content.length, FALSE);
+      str_to_file2(ds_filename.str, ds_eval_content.str, ds_eval_content.length,
+                   append);
+      dynstr_free(&ds_eval_content);
+    }
+    else
+      str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   }
   dynstr_free(&ds_filename);
   dynstr_free(&ds_delimiter);
+  dynstr_free(&ds_eval_flag);
   DBUG_VOID_RETURN;
 }
 
@@ -4730,11 +4755,11 @@ void do_write_file_command(struct st_command *command, my_bool append)
   command	called command
 
   DESCRIPTION
-  write_file <file_name> [<delimiter>];
+  write_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --write_file <file_name>;
   <what to write line 1>
@@ -4744,6 +4769,9 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   Write everything between the "write_file" command and 'delimiter'
   to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   NOTE! Will fail if <file_name> exists
 
@@ -4806,11 +4834,11 @@ void do_write_line(struct st_command *command)
   command	called command
 
   DESCRIPTION
-  append_file <file_name> [<delimiter>];
+  append_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --append_file <file_name>;
   <what to write line 1>
@@ -4820,6 +4848,9 @@ void do_write_line(struct st_command *command)
 
   Append everything between the "append_file" command
   and 'delimiter' to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   Default <delimiter> is EOF
 

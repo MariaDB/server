@@ -418,6 +418,11 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         switch (f->type()) {
           case MYSQL_TYPE_TIMESTAMP:
           {
+            if (opt_secure_timestamp > SECTIME_REPL && f->unireg_check)
+            {
+              f->set_time();
+              break;
+            }
             ulong microseconds;
             my_time_t seconds= f->get_timestamp(&microseconds);
             if (likely(microseconds <= TIME_MAX_SECOND_PART))

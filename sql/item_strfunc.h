@@ -801,8 +801,10 @@ protected:
 class Item_func_sformat :public Item_str_func
 {
   String *val_arg;
+  void alloc(THD *thd);
 public:
-  Item_func_sformat(THD *thd, List<Item> &list);
+  Item_func_sformat(THD *thd, List<Item> &list) : Item_str_func(thd, list)
+  { alloc(thd); }
   ~Item_func_sformat() { delete [] val_arg; }
   String *val_str(String*) override;
   bool fix_length_and_dec(THD *thd) override;
@@ -812,7 +814,11 @@ public:
     return name;
   }
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_func_sformat>(thd, this); }
+  {
+    auto *sf= get_item_copy<Item_func_sformat>(thd, this);
+    sf->alloc(thd);
+    return sf;
+  }
 };
 
 class Item_func_substr_oracle :public Item_func_substr

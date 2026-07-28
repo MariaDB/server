@@ -3309,30 +3309,15 @@ innobase_quote_identifier(
 	const trx_t*	trx,
 	const char*	id)
 {
-	const int	q = trx != NULL && trx->mysql_thd != NULL
-		? get_quote_char_for_identifier(trx->mysql_thd, id, strlen(id))
-		: '`';
-
-	if (q == EOF) {
-		fputs(id, file);
-	} else {
-		putc(q, file);
-
-		while (int c = *id++) {
-			if (c == q) {
-				putc(c, file);
-			}
-			putc(c, file);
-		}
-
-		putc(q, file);
-	}
+  std::string str = innobase_quote_identifier(trx, id);
+  fputs(str.c_str(), file);
 }
 
-/** Quote a standard SQL identifier like tablespace, index or column name.
+/** Quote a standard SQL identifier
 @param[in]	trx	InnoDB transaction, or NULL
 @param[in]	id	identifier to quote
-@return quoted identifier */
+@return quoted identifier
+Assumes the identifier in utf8mb4 character set (cf. append_identifier()) */
 std::string
 innobase_quote_identifier(
 /*======================*/
@@ -3348,7 +3333,12 @@ innobase_quote_identifier(
 		quoted_identifier.append(id);
 	} else {
 		quoted_identifier += char(q);
-		quoted_identifier.append(id);
+		while (int c = *id++) {
+			if (c == q) {
+				quoted_identifier += char(c);
+			}
+			quoted_identifier += char(c);
+		}
 		quoted_identifier += char(q);
 	}
 
@@ -3751,7 +3741,7 @@ static int innodb_init_params()
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
 
   if ((srv_encrypt_tables || srv_encrypt_log ||
        innodb_encrypt_temporary_tables) &&

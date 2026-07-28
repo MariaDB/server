@@ -1,0 +1,14 @@
+CHANGE MASTER TO master_host='127.0.0.1';
+# restart: --skip-slave-start
+Master_Log_File = 'mysqld-bin.000002'
+Read_Master_Log_Pos = '2147483648'
+Master_SSL_Key = ''
+Using_Gtid = 'Current_Pos'
+Relay_Master_Log_File = 'mysqld-bin.000001'
+Exec_Master_Log_Pos = '2147483648'
+SQL_Delay = '5'
+# restart: --skip-slave-start
+Master_Log_File = 'mysqld-bin.000003'
+Using_Gtid = 'No'
+SQL_Delay = '10'
+RESET SLAVE ALL;

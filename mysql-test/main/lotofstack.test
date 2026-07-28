@@ -138,3 +138,13 @@ drop procedure bug10100pc|
 drop view v1|
 drop table t3|
 delimiter ;|
+
+--echo #
+--echo # MDEV-40409 ST_GeomFromText stack overrun on deeply nested GeometryCollection
+--echo #
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ST_GeomFromText(CONCAT(REPEAT('GEOMETRYCOLLECTION(',5000),'POINT(1 1)',REPEAT(')',5000)));
+--enable_result_log
+
+--echo # End of 10.6 tests

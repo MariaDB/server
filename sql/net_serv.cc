@@ -792,11 +792,14 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
     /* proxy header indicates LOCAL connection, no action necessary */
     return RETRY;
   /* Change peer address in THD and ACL structures.*/
-  uint host_errors;
-  net->using_proxy_protocol= 1;
-  return (handle_proxy_header_result)thd_set_peer_addr(thd,
-                         &(peer_info.peer_addr), NULL, peer_info.port,
-                         false, &host_errors);
+  uint host_errors= 0;
+  net->using_proxy_protocol= NET_PROXY_PROTOCOL;
+  handle_proxy_header_result res=
+    (handle_proxy_header_result) thd_set_peer_addr(thd, &(peer_info.peer_addr),
+                                 NULL, peer_info.port, false, &host_errors);
+  if (host_errors)
+    net->using_proxy_protocol |= NET_PROXY_PROTOCOL_CONNECT_ERRORS;
+  return res;
 #endif
 }
 

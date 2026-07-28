@@ -65,13 +65,23 @@
 extern "C" {
 #endif
 
-#ifdef DBUG_OFF
 #if defined(HAVE_STPCPY) && defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))
 #elif defined(HAVE_STPCPY)
 #define strmov(A,B) stpcpy((A),(B))
-#endif
-#endif
+#else
+__attribute__((nonnull))
+static inline char *strmov(char *dst, const char *src)
+{
+  size_t l;
+  DBUG_ASSERT(dst != NULL);
+  DBUG_ASSERT(src != NULL);
+
+  l= strlen(src);
+  memmove(dst, src, l + 1);
+  return dst + l;
+}
+#endif /* strmov */
 
 /* Declared in int2str() */
 extern const char _dig_vec_base62[];
@@ -92,13 +102,15 @@ extern	char *strfill(char * s,size_t len,pchar fill);
 extern	char *strmake(char *dst,const char *src,size_t length);
 
 #if !defined(__GNUC__) || (__GNUC__ < 4)
-#define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
+#define type_assert_buf(D) (D)
 #else
-#define strmake_buf(D,S) ({                             \
+#define type_assert_buf(D) ({                           \
   __typeof__ (D) __x __attribute__((unused)) = { 2 };   \
-  strmake(D, S, sizeof(D) - 1);                         \
+  (D);                                                  \
   })
 #endif
+
+#define strmake_buf(D,S) strmake(type_assert_buf(D), S, sizeof(D) - 1)
 
 #ifndef strmov
 extern	char *strmov(char *dst,const char *src);

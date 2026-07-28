@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+if (!$PROVIDER_LZ4_SO) {
+  skip Requires provider_lz4 plugin;
+}
+
+--echo #
+--echo # MDEV-36147 MariaDB cannot open page-compressed InnoDB tables at startup if innodb_compression_algorithm other than zlib is specified
+--echo #
+
+call mtr.add_suppression("InnoDB: compression algorithm lz4 .* is not available");
+install plugin provider_lz4 soname 'provider_lz4';
+set global innodb_compression_algorithm = lz4;
+create table t1 (a int) engine=innodb page_compressed=1;
+insert t1 values (1),(2),(3);
+
+let $restart_parameters = --innodb-compression-algorithm=lz4;
+source include/restart_mysqld.inc;
+
+select plugin_name, plugin_status from information_schema.plugins
+  where plugin_name = 'provider_lz4';
+select @@innodb_compression_algorithm;
+select * from t1;
+
+drop table t1;
+set global innodb_compression_algorithm = default;
+uninstall plugin provider_lz4;

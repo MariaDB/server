@@ -956,6 +956,12 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
     }
     return a;
   }
+  /* Keep a hex hybrid through a typeless NULL (as the rules keep BIT); the
+     merge below has no hybrid type and would demote it to VARCHAR. */
+  if (a == &type_handler_hex_hybrid && b == &type_handler_null)
+    return a;
+  if (b == &type_handler_hex_hybrid && a == &type_handler_null)
+    return b;
   enum_field_types ta= a->traditional_merge_field_type();
   enum_field_types tb= b->traditional_merge_field_type();
   enum_field_types res= field_types_merge_rules[merge_type2index(ta)]

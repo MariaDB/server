@@ -403,7 +403,13 @@ get_transfer()
             else
                 # CA verification
                 verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
-                if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                if [ "$tmode" = 'VERIFY_CA' ]; then
+                    # VERIFY_CA verifies the chain only, not the peer
+                    # name, so leave "commonname" empty.
+                    CN_option=",commonname=''"
+                    wsrep_log_info \
+                        "Verifying peer certificate chain for ssl-mode=VERIFY_CA"
+                elif [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                     CN_option=",commonname='$(safe WSREP_SST_OPT_REMOTE_USER)'"
                 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
                 then
