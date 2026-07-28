@@ -104,7 +104,9 @@
 #define DUMP_TABLE_SEQUENCE 1
 
 /* until MDEV-35831 is implemented, we'll have to detect VECTOR by name */
-#define MYSQL_TYPE_VECTOR "V"
+#define MYSQL_TYPE_VECTOR 1
+#define MYSQL_TYPE_VERS_COL 2
+#define MYSQL_TYPE_GENERATED 4
 
 static my_bool ignore_table_data(const uchar *hash_key, size_t len);
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
@@ -3196,13 +3198,14 @@ static void get_sequence_structure(const char *seq, const char *db)
     ignore_flag - what we must particularly ignore - see IGNORE_ defines above
 
   RETURN
-    number of fields in table, 0 if error
+    number of fields to dump, -1 if error
 */
 
-static uint get_table_structure(const char *table, const char *db, char *table_type,
+static int get_table_structure(const char *table, const char *db, char *table_type,
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
+  my_bool    is_generated=0;
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
@@ -3225,7 +3228,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   *ignore_flag= check_if_ignore_table(table, table_type);
 
   if (!opt_copy_s3_tables && *ignore_flag == IGNORE_S3_TABLE)
-    DBUG_RETURN(0);
+    DBUG_RETURN(-1);
 
   delayed= opt_delayed;
   if (delayed && (*ignore_flag & IGNORE_INSERT_DELAYED))
@@ -3325,7 +3328,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       {
         my_free(order_by);
         order_by= 0;
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       if (multi_file_output)
@@ -3334,7 +3337,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         {
           my_free(order_by);
           order_by= 0;
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         write_header(sql_file, db);
       }
@@ -3405,7 +3408,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
           if (multi_file_output)
             my_fclose(sql_file, MYF(MY_WME));
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         else
           my_free(scv_buff);
@@ -3466,7 +3469,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           my_fclose(sql_file, MYF(MY_WME));
 
         seen_views= 1;
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       row= mysql_fetch_row(result);
@@ -3516,14 +3519,21 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     {
       if (multi_file_output)
         my_fclose(sql_file, MYF(MY_WME));
-      DBUG_RETURN(0);
+      DBUG_RETURN(-1);
     }
 
     while ((row= mysql_fetch_row(result)))
     {
-      if (strstr(row[1],"INVISIBLE"))
+      bool is_row_start= row[2] && strcmp(row[2], "ROW START") == 0;
+      bool is_row_end= row[2] && strcmp(row[2], "ROW END") == 0;
+
+      is_generated= 0;
+      if (strstr(row[1], "GENERATED") && !is_row_start && !is_row_end)
+        is_generated= 1;
+      if (strstr(row[1], "INVISIBLE"))
         complete_insert= 1;
-      if (vers_hidden && row[2] && strcmp(row[2], "ROW START") == 0)
+
+      if (vers_hidden && is_row_start)
       {
         vers_hidden= 0;
         if (row[3] && strcmp(row[3], "bigint") == 0)
@@ -3533,6 +3543,24 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           *versioned= 0;
         }
       }
+
+      /*
+        When complete_insert is enabled, skip generated columns entirely.
+        Otherwise, include them and mark them so DEFAULT is emitted.
+      */
+      if (is_generated && !path && !opt_dir && !opt_dump_history &&
+          complete_insert)
+        continue;
+
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      if (is_generated)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_GENERATED;
+      if (row[3] && strcmp(row[3], "vector") == 0)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VECTOR;
+      /* Mark system versioning columns */
+      if (is_row_start || is_row_end)
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
+
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
@@ -3543,8 +3571,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       init=1;
 
       last_name= quote_name(row[0], name_buff, 0);
-      if (opt_dump_history && *versioned && opt_update_history &&
-          row[2] && strcmp(row[2], "ROW END") == 0)
+      if (opt_dump_history && *versioned && opt_update_history && is_row_end)
       {
         dynstr_append_checked(&select_field_names, "if(");
         dynstr_append_checked(&select_field_names, last_name);
@@ -3561,11 +3588,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[0], name_buff));
-      /* VECTOR doesn't have a type code yet, must be detected by name */
-      if (row[3] && strcmp(row[3], "vector") == 0)
-        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
-      else
-        dynstr_append_checked(&field_flags, " ");
     }
 
     if (vers_hidden)
@@ -3579,7 +3601,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                             "row_end" :
                             "row_end");
       dynstr_append_checked(&insert_field_names, ", row_start, row_end");
-      dynstr_append_checked(&field_flags, "  ");
+      /* Mark both row_start and row_end as versioning columns */
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
+      dynstr_append_mem_checked(&field_flags, "", 1);
+      field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
     }
 
     /*
@@ -3598,9 +3624,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       dynstr_append_checked(&insert_pat, "INTO ");
       dynstr_append_checked(&insert_pat, opt_quoted_table);
       if (complete_insert)
-      {
         dynstr_append_checked(&insert_pat, " (");
-      }
       else
       {
         if (extended_insert)
@@ -3612,7 +3636,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     if (complete_insert)
       dynstr_append_checked(&insert_pat, insert_field_names.str);
-    num_fields= mysql_num_rows(result) + (vers_hidden ? 2 : 0);
+    num_fields= field_flags.length;
+    if (!num_fields)
+      dynstr_append_checked(&select_field_names, "0");
     mysql_free_result(result);
   }
   else
@@ -3636,7 +3662,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 quote_for_equal(table, temp_buff2));
 
     if (mysql_query_with_error_report(mysql, &result, query_buff))
-      DBUG_RETURN(0);
+      DBUG_RETURN(-1);
 
     /* Make an sql-file, if path was given iow. option -T was given */
     if (!opt_no_create_info)
@@ -3646,7 +3672,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
         {
           mysql_free_result(result);
-          DBUG_RETURN(0);
+          DBUG_RETURN(-1);
         }
         write_header(sql_file, db);
       }
@@ -3686,11 +3712,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     while ((row= mysql_fetch_row(result)))
     {
       ulong *lengths= mysql_fetch_lengths(result);
+      dynstr_append_mem_checked(&field_flags, "", 1);
       /* VECTOR doesn't have a type code yet, must be detected by name */
       if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
-        dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
-      else
-        dynstr_append_checked(&field_flags, " ");
+        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VECTOR;
       if (init)
       {
         if (!opt_xml && !opt_no_create_info)
@@ -3703,11 +3728,12 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       dynstr_append_checked(&select_field_names,
-              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+                            quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[SHOW_FIELDNAME], name_buff));
       init=1;
+
       if (!opt_no_create_info)
       {
         if (opt_xml)
@@ -3721,7 +3747,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                   quote_name(row[SHOW_FIELDNAME],name_buff, 0), row[SHOW_TYPE]);
         else
           fprintf(sql_file, "  %s %s",
-                quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
+                  quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
         if (row[SHOW_DEFAULT])
         {
           fputs(" DEFAULT ", sql_file);
@@ -3756,7 +3782,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 my_progname_short, result_table, mysql_error(mysql));
         if (multi_file_output)
           my_fclose(sql_file, MYF(MY_WME));
-        DBUG_RETURN(0);
+        DBUG_RETURN(-1);
       }
 
       /* Find first which key is primary key */
@@ -4271,11 +4297,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   char table_type[NAME_LEN];
   char *result_table, table_buff2[NAME_LEN*2+3], *opt_quoted_table;
   int error= 0;
-  ulong         rownr, row_break;
-  uint num_fields;
+  ulong rownr, row_break;
+  int num_fields;
   size_t total_length, init_length;
   my_bool versioned= 0;
-
   MYSQL_RES     *res= NULL;
   MYSQL_FIELD   *field;
   MYSQL_ROW     row;
@@ -4286,6 +4311,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
   num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
+
+  if (num_fields < 0)
+    DBUG_VOID_RETURN;
 
   /*
     The "table" could be a view.  If so, we don't do anything here.
@@ -4309,8 +4337,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     DBUG_VOID_RETURN;
   }
 
-  DBUG_PRINT("info",
-             ("ignore_flag: %x  num_fields: %d", (int) ignore_flag,
+  DBUG_PRINT("info", ("ignore_flag: %x  num_fields: %d", (int) ignore_flag,
               num_fields));
   /*
     If the table type is a merge table or any type that has to be
@@ -4320,13 +4347,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   {
     verbose_msg("-- Warning: Skipping data for table '%s' because " \
                 "it's of type %s\n", table, table_type);
-    DBUG_VOID_RETURN;
-  }
-  /* Check that there are any fields in the table */
-  if (num_fields == 0)
-  {
-    verbose_msg("-- Skipping dump data for table '%s', it has no fields\n",
-                table);
     DBUG_VOID_RETURN;
   }
 
@@ -4502,7 +4522,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
 
     verbose_msg("-- Retrieving rows...\n");
-    if (mysql_num_fields(res) != num_fields)
+    if (num_fields && mysql_num_fields(res) != (uint)num_fields)
     {
       fprintf(stderr,"%s: Error in field count for table: %s !  Aborting.\n",
               my_progname_short, result_table);
@@ -4560,8 +4580,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         fputs("\t<row>\n", md_result_file);
         check_io(md_result_file);
       }
+      else if (extended_insert)
+        dynstr_set_checked(&extended_row,"(");
 
-      for (i= 0; i < mysql_num_fields(res); i++)
+      for (i= 0; i < (uint)num_fields; i++)
       {
         int is_blob;
         ulong length= lengths[i];
@@ -4579,7 +4601,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         */
         is_blob= field->type == MYSQL_TYPE_GEOMETRY ||
                  field->type == MYSQL_TYPE_BIT ||
-                 field_flags.str[i] == MYSQL_TYPE_VECTOR[0] ||
+                 field_flags.str[i] & MYSQL_TYPE_VECTOR ||
                  (opt_hex_blob && field->charsetnr == 63 &&
                    (field->type == MYSQL_TYPE_STRING ||
                     field->type == MYSQL_TYPE_VAR_STRING ||
@@ -4590,12 +4612,12 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                     field->type == MYSQL_TYPE_TINY_BLOB));
         if (extended_insert && !opt_xml)
         {
-          if (i == 0)
-            dynstr_set_checked(&extended_row,"(");
-          else
+          if (i != 0)
             dynstr_append_checked(&extended_row,",");
 
-          if (row[i])
+          if (field_flags.str[i] & MYSQL_TYPE_GENERATED)
+            dynstr_append_checked(&extended_row, "DEFAULT");
+          else if (row[i])
           {
             if (length)
             {
@@ -4665,7 +4687,18 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
             fputc(',', md_result_file);
             check_io(md_result_file);
           }
-          if (row[i])
+          if (field_flags.str[i] & MYSQL_TYPE_GENERATED)
+          {
+            if (opt_xml)
+            {
+              print_xml_tag(md_result_file, "\t\t", "", "field", "name=",
+                            field->name, NullS);
+              fputs("DEFAULT</field>\n", md_result_file);
+            }
+            else
+              fputs("DEFAULT", md_result_file);
+          }
+          else if (row[i])
           {
             if (!(field->flags & NUM_FLAG))
             {
@@ -5729,12 +5762,12 @@ static void dump_first_mysql_tables(char *database)
   char ignore_flag;
   DBUG_ENTER("dump_first_mysql_tables");
 
-  if (!get_table_structure((char *) "general_log",
-                           database, table_type, &ignore_flag, NULL) )
+  if (get_table_structure("general_log",
+                          database, table_type, &ignore_flag, NULL) <= 0)
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'general_log' table\n");
-  if (!get_table_structure((char *) "slow_log",
-                           database, table_type, &ignore_flag, NULL) )
+  if (get_table_structure("slow_log",
+                          database, table_type, &ignore_flag, NULL) <= 0)
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'slow_log' table\n");
   /* general and slow query logs exist now */
@@ -5996,8 +6029,8 @@ static int dump_all_tables_in_db(char *database)
     {
        char table_type[NAME_LEN];
        char ignore_flag;
-      if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag, NULL) )
+      if (get_table_structure("transaction_registry",
+                              database, table_type, &ignore_flag, NULL) <= 0)
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
