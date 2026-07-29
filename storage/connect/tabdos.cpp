@@ -363,6 +363,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
 	if (Recfm == RECFM_DBF) {
 		if (Catfunc == FNC_NO) {
+#ifdef ZIP_SUPPORT
 			if (Zipped) {
 				if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
 					txfp = new(g) UZDFAM(this);
@@ -371,7 +372,9 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 					return NULL;
 				}	// endif's mode
 
-			} else if (map)
+			} else
+#endif
+			if (map)
 				txfp = new(g) DBMFAM(this);
 			else
 				txfp = new(g) DBFFAM(this);

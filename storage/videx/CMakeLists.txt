@@ -20,14 +20,22 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-# Check necessary dependencies
-FIND_PACKAGE(CURL)
-IF(NOT CURL_FOUND)
-  MESSAGE(STATUS "CURL not found. VIDEX will not be compiled")
-  RETURN()
-ENDIF()
+FOREACH(pkg CURL)
+  FIND_PACKAGE(${pkg})
+  IF(NOT ${pkg}_FOUND)
+    MESSAGE(STATUS "Videx requires ${pkg} package, and its missing, so skipping")
+    RETURN()
+  ENDIF()
+  SET_PACKAGE_PROPERTIES(${pkg} PROPERTIES TYPE REQUIRED)
+ENDFOREACH()
 
-SET_PACKAGE_PROPERTIES(CURL PROPERTIES TYPE REQUIRED)
+FOREACH(tgt MariaDB::zlib CURL::libcurl)
+  IF(NOT TARGET ${tgt})
+    MESSAGE(STATUS "Videx requires ${tgt}, and its missing, so skipping")
+    RETURN()
+  ENDIF()
+ENDFOREACH()
+
 SET(CPACK_RPM_videx-engine_PACKAGE_SUMMARY "VIDEX AI-enhanced virtual index engine for MariaDB" PARENT_SCOPE)
 SET(CPACK_RPM_videx-engine_PACKAGE_DESCRIPTION "VIDEX enables What-If Analysis via virtual indexes to simulate
 query plans, forwarding requests via HTTP to external AI servers for enhanced cost estimation." PARENT_SCOPE)
@@ -35,8 +43,6 @@ query plans, forwarding requests via HTTP to external AI servers for enhanced co
 INCLUDE_DIRECTORIES(
         ${CMAKE_SOURCE_DIR}/sql
         ${CMAKE_SOURCE_DIR}/include
-        ${CURL_INCLUDE_DIRS}
-        ${ZLIB_INCLUDE_DIRS}
 )
 
 SET(VIDEX_SOURCES
@@ -47,6 +53,6 @@ SET(VIDEX_SOURCES
 MYSQL_ADD_PLUGIN(videx
         ${VIDEX_SOURCES}
         STORAGE_ENGINE
-        LINK_LIBRARIES ${ZLIB_LIBRARIES} ${CURL_LIBRARIES}
+        LINK_LIBRARIES CURL::libcurl MariaDB::zlib
         COMPONENT videx-engine
 )

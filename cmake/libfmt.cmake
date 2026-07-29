@@ -47,6 +47,15 @@ MACRO (CHECK_LIBFMT)
   ELSE()
     FIND_FILE(Libfmt_core_h fmt/core.h) # for build_depends.cmake
   ENDIF()
+  # MariaDB::fmt - header-only fmt, pointing at the bundled or the system copy.
+  # (the sources that use it #define FMT_HEADER_ONLY themselves)
+  ADD_LIBRARY(mariadb_fmt INTERFACE)
+  TARGET_INCLUDE_DIRECTORIES(mariadb_fmt INTERFACE ${LIBFMT_INCLUDE_DIR})
+  IF(TARGET libfmt)
+    # bundled: make sure the headers are downloaded before consumers compile
+    ADD_DEPENDENCIES(mariadb_fmt libfmt)
+  ENDIF()
+  ADD_LIBRARY(MariaDB::fmt ALIAS mariadb_fmt)
 ENDMACRO()
 
 MARK_AS_ADVANCED(LIBFMT_INCLUDE_DIR)

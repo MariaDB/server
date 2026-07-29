@@ -143,6 +143,9 @@ if(MSVC)
 endif()
 
 set_property(TARGET wolfssl PROPERTY POSITION_INDEPENDENT_CODE ON)
+# Usage requirements: wolfssl's headers are configured by these macros
+# (user_settings.h), so consumers must compile with the same set.
+target_compile_definitions(wolfssl PUBLIC HAVE_WOLFSSL WOLFSSL_USER_SETTINGS)
 
 CONFIGURE_FILE(user_settings.h.in user_settings.h)
 
