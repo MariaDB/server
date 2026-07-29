@@ -209,15 +209,81 @@ protected:
     int error() const { return m_error; }
   };
 
+  /**
+    Strip valid underscores from a numeric string for conversion.
+
+    @param[in]  str       Original input string
+    @param[in]  length    Length of original string
+    @param[out] buf       Buffer used when stripping is needed
+    @param[out] out_str   Set to either str or buf->ptr()
+    @param[out] out_len   Set to either length or buf->length()
+  */
+  static void strip_numeric_underscores(const char *str, size_t length,
+                                        StringBuffer<STRING_BUFFER_USUAL_SIZE>
+                                          *buf,
+                                        const char **out_str,
+                                        size_t *out_len)
+  {
+    if (!memchr(str, '_', length))
+    {
+      *out_str= str;
+      *out_len= length;
+      return;
+    }
+
+    buf->length(0);
+    for (size_t i= 0; i < length; i++)
+    {
+      if (str[i] == '_' &&
+          i > 0 && i + 1 < length &&
+          my_isdigit(&my_charset_latin1, str[i - 1]) &&
+          my_isdigit(&my_charset_latin1, str[i + 1]))
+        continue;
+      buf->append(str[i]);
+    }
+    *out_str= buf->ptr();
+    *out_len= buf->length();
+  }
+
+  /**
+    Map end-of-number pointer from the (possibly stripped) conversion
+    string back to the equivalent position in the original string.
+
+    Example: original '1_000   ' (len 8), stripped '1000   ' (len 7)
+      Converter stops at index 4 in stripped (the space).
+      remaining = 7 - 4 = 3
+      result    = str + 8 - 3 = str + 5  ->  first space in original.
+
+    If no stripping was done (conv_str == str), returns end_of_num as-is.
+  */
+  static char *map_endnum_to_original(const char *str, size_t length,
+                                      const char *conv_str,
+                                      size_t conv_len,
+                                      const char *end_of_num)
+  {
+    if (conv_str == str)
+      return (char *) end_of_num;
+    size_t remaining= conv_len - (size_t) (end_of_num - conv_str);
+    return (char *) (str + length - remaining);
+  }
+
+
   class Converter_strntod: public Converter_string_to_number
   {
     double m_result;
   public:
     Converter_strntod(CHARSET_INFO *cs, const char *str, size_t length)
     {
-      m_result= cs->strntod((char *) str, length, &m_end_of_num, &m_error);
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+      const char *conv_str;
+      size_t conv_len;
+      strip_numeric_underscores(str, length, &buf, &conv_str, &conv_len);
+      m_result= cs->strntod((char *) conv_str, conv_len,
+                            &m_end_of_num, &m_error);
+      m_end_of_num= map_endnum_to_original(str, length, conv_str,
+                                           conv_len, m_end_of_num);
       // strntod() does not set an error if the input string was empty
-      m_edom= m_error !=0 || str == m_end_of_num;
+      m_edom= m_error != 0 || str == m_end_of_num;
     }
     double result() const { return m_result; }
   };
@@ -251,8 +317,14 @@ protected:
   public:
     Converter_strtoll10(CHARSET_INFO *cs, const char *str, size_t length)
     {
-      m_end_of_num= (char *) str + length;
-      m_result= cs->strtoll10(str, &m_end_of_num, &m_error);
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+      const char *conv_str;
+      size_t conv_len;
+      strip_numeric_underscores(str, length, &buf, &conv_str, &conv_len);
+      m_end_of_num= (char *) conv_str + conv_len;
+      m_result= cs->strtoll10(conv_str, &m_end_of_num, &m_error);
+      m_end_of_num= map_endnum_to_original(str, length, conv_str,
+                                           conv_len, m_end_of_num);
       /*
         Negative error means "good negative number".
         Only a positive m_error value means a real error.
@@ -271,8 +343,14 @@ protected:
                              my_decimal *buf)
     {
       DBUG_ASSERT(length < UINT_MAX32);
-      m_error= str2my_decimal(mask, str, length, cs,
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf;
+      const char *conv_str;
+      size_t conv_len;
+      strip_numeric_underscores(str, length, &strbuf, &conv_str, &conv_len);
+      m_error= str2my_decimal(mask, conv_str, conv_len, cs,
                               buf, (const char **) &m_end_of_num);
+      m_end_of_num= map_endnum_to_original(str, length, conv_str,
+                                           conv_len, m_end_of_num);
       // E_DEC_TRUNCATED means a very minor truncation: '1e-100' -> 0
       m_edom= m_error && m_error != E_DEC_TRUNCATED;
     }
