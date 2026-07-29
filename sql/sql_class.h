@@ -4780,6 +4780,11 @@ public:
   const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, date_mode_t fuzzydate);
+  bool timestamp_to_string(String *str, uint dec, my_timespec_t ts);
+  bool timestamp_to_string(String *str, uint dec, my_time_t ts)
+  {
+    return timestamp_to_string(str, dec, {ts, 0});
+  }
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
@@ -8720,6 +8725,45 @@ public:
   }
 };
 
+
+class TimestampString : public String
+{
+  THD *thd;
+  my_timespec_t ts;
+
+public:
+  /**
+    Construct a lazily formatted timestamp from a high-precision value.
+
+    @param thd  Current thread.
+    @param ts   Timestamp value (seconds + microseconds) to format on demand.
+  */
+  TimestampString(THD *thd, my_timespec_t ts) : thd{thd}, ts{ts} {}
+  /**
+    Construct a lazily formatted timestamp from a whole-seconds value.
+
+    @param thd  Current thread.
+    @param sec  Timestamp in seconds since epoch.
+  */
+  TimestampString(THD *thd, my_time_t sec) : thd{thd}, ts{sec, 0} {}
+
+  /**
+    Return the timestamp formatted as a null-terminated C string.
+
+    Formats the stored timestamp into this String object on demand.
+
+    @param dec  Number of fractional second digits to include (default 0).
+
+    @return  Pointer to the formatted string, or @c "ERROR" on failure.
+  */
+  const char * cstr(uint dec= 0)
+  {
+    if (thd->timestamp_to_string(this, dec, ts))
+      return "ERROR";
+    else
+      return c_ptr_safe();
+  }
+};
 
 /**
   Make a new string allocated on THD's mem-root.

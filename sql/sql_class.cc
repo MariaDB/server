@@ -9134,6 +9134,28 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
 }
 
 
+/**
+  Format a timestamp as a string using the session time zone.
+
+  Converts @p ts to a Temporal_hybrid value in the current session time zone
+  and stores its string representation with @p dec fractional second digits
+  in @p str. Sets the @c TIME_ZONE_USED flag on the current statement.
+
+  @param str  Destination string.
+  @param dec  Number of fractional second digits (0-6).
+  @param ts   Timestamp value to format.
+
+  @retval false  Success.
+  @retval true   Conversion or formatting error.
+*/
+bool THD::timestamp_to_string(String *str, uint dec, my_timespec_t ts)
+{
+  Temporal_hybrid th(this, ts);
+  used|= TIME_ZONE_USED;
+  return th.to_string(str, dec) == nullptr;
+}
+
+
 void THD::my_ok_with_recreate_info(const Recreate_info &info,
                                    ulong warn_count)
 {

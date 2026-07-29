@@ -429,6 +429,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   i= 0;
   do
   {
+    // TODO (newbie): how is it freed? Explain in comment or remake via table->mem_root.
     partition_element *part_elem= new partition_element();
     if (likely(part_elem != 0 && !partitions.push_back(part_elem)))
     {
@@ -448,7 +449,10 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       }
     }
     else
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
+    }
   } while (++i < num_parts);
   result= FALSE;
 end:
@@ -2824,6 +2828,7 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
   /* 2. assign STARTS to interval.start */
   if (starts)
   {
+    vers_info->starts_clause= true;
     if (starts->fix_fields_if_needed_for_scalar(thd, &starts))
       return true;
     switch (starts->result_type())
@@ -2852,30 +2857,21 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
     }
     if (!table)
     {
-      if (thd->query_start() < vers_info->interval.start) {
+      if (thd->query_start() < vers_info->interval.start &&
+          !(auto_hist && (thd->lex->alter_info.flags & ALTER_RECREATE)))
+      {
+        TimestampString str_interval(thd, vers_info->interval.start);
+        TimestampString str_query(thd, thd->query_start());
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_PART_STARTS_BEYOND_INTERVAL,
-                            ER_THD(thd, ER_PART_STARTS_BEYOND_INTERVAL),
-                            table_name);
+                            WARN_VERS_STARTS_BEYOND_INTERVAL,
+                            ER_THD(thd, WARN_VERS_STARTS_BEYOND_INTERVAL),
+                            table_name, str_interval.cstr(), str_query.cstr());
       }
     }
   }
   else // calculate default STARTS depending on INTERVAL
   {
-    thd->variables.time_zone->gmt_sec_to_TIME(&ltime, thd->query_start());
-    if (vers_info->interval.step.second)
-      goto interval_set_starts;
-    ltime.second= 0;
-    if (vers_info->interval.step.minute)
-      goto interval_set_starts;
-    ltime.minute= 0;
-    if (vers_info->interval.step.hour)
-      goto interval_set_starts;
-    ltime.hour= 0;
-
-interval_set_starts:
-    vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
-    if (err)
+    if (vers_set_starts(thd, thd->query_start()))
       goto interval_starts_error;
   }
 
@@ -2884,6 +2880,41 @@ interval_set_starts:
 interval_starts_error:
   my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
   return true;
+}
+
+
+/**
+  Round down the STARTS value to the partition interval boundary.
+
+  Converts @p ts to broken-down local time in the current session time zone,
+  then clears time components (second, minute, hour) until the value aligns
+  with the coarsest unit present in @c vers_info->interval.step. The
+  result is stored back in @c vers_info->interval.start.
+
+  @param thd  Current thread.
+  @param ts   Timestamp to align.
+
+  @retval false  Success.
+  @retval true   Error while converting the rounded value back to TIMESTAMP.
+*/
+bool partition_info::vers_set_starts(THD *thd, my_time_t ts)
+{
+  MYSQL_TIME ltime;
+  uint err;
+  thd->variables.time_zone->gmt_sec_to_TIME(&ltime, ts);
+  if (vers_info->interval.step.second)
+    goto interval_set_starts;
+  ltime.second= 0;
+  if (vers_info->interval.step.minute)
+    goto interval_set_starts;
+  ltime.minute= 0;
+  if (vers_info->interval.step.hour)
+    goto interval_set_starts;
+  ltime.hour= 0;
+
+interval_set_starts:
+  vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+  return (bool) err;
 }
 
 

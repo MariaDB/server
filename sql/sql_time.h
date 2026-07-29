@@ -165,4 +165,36 @@ longlong pack_time(const MYSQL_TIME *my_time);
 void unpack_time(longlong packed, MYSQL_TIME *my_time,
                  enum_mysql_timestamp_type ts_type);
 
+/**
+  Convert an interval value to a total number of seconds.
+
+  The template parameter @c T must provide @c day, @c hour, @c minute, and
+  @c second members.
+
+  @param x  Pointer to an interval-like value.
+
+  @return  Total number of seconds represented by @p x.
+*/
+template <typename T>
+inline longlong interval2sec(T x)
+{
+  return ((x->day * 24LL + x->hour) * 60LL + x->minute) * 60LL + x->second;
+}
+
+/**
+  Convert an interval value to a total number of microseconds.
+
+  Delegates to interval2sec() and adds @c x->second_part. The template
+  parameter @c T must provide all members required by interval2sec() plus
+  a @c second_part member.
+
+  @param x  Pointer to an interval-like value.
+
+  @return  Total number of microseconds represented by @p x.
+*/
+template <typename T>
+inline longlong interval2usec(T x)
+{
+  return interval2sec(x) * 1000000LL + x->second_part;
+}
 #endif /* SQL_TIME_INCLUDED */
