@@ -628,6 +628,9 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         arg= T_GEOMETRIES;
         argje= *je;
         je_arg= &argje;
+        /* skip geometries for now and search for type */
+        if (json_skip_level(je))
+          goto err_return;
       }
       else
         break; /* geometries needs to be an array */
@@ -656,6 +659,9 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         arg= T_FEATURE;
         argje= *je;
         je_arg= &argje;
+        /* skip features for now and search for type */
+        if (json_skip_level(je))
+          goto err_return;
       }
       else
         break; /* feature collections needs to be an array */
@@ -677,6 +683,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         arg= T_GEOMETRY;
         argje= *je;
         je_arg= &argje;
+        if (json_skip_level(je))
+          goto err_return;
       }
       else
         break; /* geometry needs to be an object */

@@ -147,4 +147,41 @@ SET @doc := CONCAT(
 
 SELECT ST_AsText(ST_GeomFromGeoJSON(@doc)) AS expr;
 
+--echo #
+--echo # MDEV-39981: ST_GEOMFROMGEOJSON returns wrong result with reversed key order
+--echo #
+
+--echo # GeometryCollection: type before geometries (baseline)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"GeometryCollection","geometries":[]}')) as expr;
+
+--echo # GeometryCollection: geometries before type (empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[],"type":"GeometryCollection"}')) as expr;
+
+--echo # GeometryCollection: geometries before type (non-empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[0,1]}],"type":"GeometryCollection"}')) as expr;
+
+--echo # GeometryCollection: multiple geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[1,2]},{"type":"Point","coordinates":[3,4]}],"type":"GeometryCollection"}')) as expr;
+
+--echo # Point: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[0,1],"type":"Point"}')) as expr;
+
+--echo # LineString: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[0,0],[1,1],[2,2]],"type":"LineString"}')) as expr;
+
+--echo # Polygon: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]],"type":"Polygon"}')) as expr;
+
+--echo # FeatureCollection: features before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"features":[{"geometry":{"type":"Point","coordinates":[5,6]},"type":"Feature","properties":{}}],"type":"FeatureCollection"}')) as expr;
+
+--echo # Feature: geometry before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometry":{"coordinates":[7,8],"type":"Point"},"type":"Feature","properties":{}}')) as expr;
+
+--echo # Unknown keys interspersed (should be ignored)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"foo":"bar","geometries":[],"type":"GeometryCollection","extra":123}')) as expr;
+
+--echo # Deeply nested geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"geometries":[{"type":"Point","coordinates":[9,10]}],"type":"GeometryCollection"}],"type":"GeometryCollection"}')) as expr;
+
 --echo # End of 10.6 tests
