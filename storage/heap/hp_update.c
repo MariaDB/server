@@ -27,6 +27,8 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   HP_SHARE *share= info->s;
   DBUG_ENTER("heap_update");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
   hp_flush_pending_blob_free(info);
   pos=info->current_ptr;
@@ -274,12 +276,14 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     else
     {
       /* keydef points to the last key that failed */
-      info->errkey = (int) (keydef - share->keydef);
+      if (org_error == HA_ERR_FOUND_DUPP_KEY)
+        info->errkey = (int) (keydef - share->keydef);
       if (keydef->algorithm == HA_KEY_ALG_BTREE)
       {
         /* we don't need to delete non-inserted key from rb-tree */
         if ((*keydef->write_key)(info, keydef, old, pos))
         {
+          heap_mark_crashed(share);
           if (++(share->records) == share->blength)
             share->blength+= share->blength;
           DBUG_RETURN(my_errno);
@@ -294,13 +298,26 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       {
 	if ((*keydef->delete_key)(info, keydef, heap_new, pos, 0) ||
 	    (*keydef->write_key)(info, keydef, old, pos))
+	{
+	  heap_mark_crashed(share);
 	  break;
+	}
       }
       keydef--;
     }
     info->current_ptr= recovery_ptr;
     info->current_hash_ptr= recovery_hash_ptr;
     my_errno= org_error;
+  }
+  else
+  {
+    /*
+      An error we do not know how to recover from.  The changed keys have
+      been moved to the new values, or could not be removed from them,
+      while the record keeps the old ones, so the index no longer
+      describes the data.
+    */
+    heap_mark_crashed(share);
   }
   if (++(share->records) == share->blength)
     share->blength+= share->blength;
