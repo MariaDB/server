@@ -28,6 +28,8 @@
 int heap_scan_init(register HP_INFO *info)
 {
   DBUG_ENTER("heap_scan_init");
+  if (heap_is_crashed(info->s))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   info->lastinx= -1;
   info->current_record= (ulong) ~0L;		/* No current record */
   info->update=0;
@@ -43,6 +45,8 @@ int heap_scan(register HP_INFO *info, uchar *record)
   ulong pos;
   DBUG_ENTER("heap_scan");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   /*
     Scan boundary: total_records + deleted == block.last_allocated.
 

@@ -24,7 +24,9 @@ int heap_rnext(HP_INFO *info, uchar *record)
   HP_SHARE *share=info->s;
   HP_KEYDEF *keyinfo;
   DBUG_ENTER("heap_rnext");
-  
+
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   if (info->lastinx < 0)
     DBUG_RETURN(my_errno=HA_ERR_WRONG_INDEX);
 

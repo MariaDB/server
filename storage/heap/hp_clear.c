@@ -43,6 +43,7 @@ void hp_clear(HP_SHARE *info)
   info->data_length= 0;
   info->blength=1;
   info->changed=0;
+  info->state_changed=0;
   info->del_link=0;
   info->key_version++;
   info->file_version++;

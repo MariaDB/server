@@ -143,6 +143,18 @@ typedef struct st_hp_blob_desc
   uint packlength;   /* 1, 2, 3, or 4: length prefix size */
 } HP_BLOB_DESC;
 
+/*
+  Bits for HP_SHARE::state_changed, modeled on the state.changed bitmaps
+  of Maria and MyISAM (see storage/maria/maria_def.h).  A table marked
+  crashed refuses every read and write with HA_ERR_CRASHED until it is
+  re-created or emptied (hp_clear()).
+*/
+#define HEAP_STATE_CRASHED 1U
+
+#define heap_mark_crashed(share) ((share)->state_changed|= HEAP_STATE_CRASHED)
+#define heap_is_crashed(share)   ((share)->state_changed & HEAP_STATE_CRASHED)
+#define heap_clear_state(share)  ((share)->state_changed= 0)
+
 typedef struct st_heap_share
 {
   HP_BLOCK block;
@@ -160,6 +172,7 @@ typedef struct st_heap_share
   uint reclength;			/* Length of one record */
   uint visible;     /* Offset to the flags byte (active/deleted/continuation) */
   uint changed;
+  uint state_changed;                   /* Bitmap of HEAP_STATE_* flags */
   uint keys,max_key_length;
   uint currently_disabled_keys;    /* saved value from "keys" when disabled */
   uint open_count;

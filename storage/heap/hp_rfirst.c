@@ -24,6 +24,8 @@ int heap_rfirst(HP_INFO *info, uchar *record, int inx)
   HP_KEYDEF *keyinfo = share->keydef + inx;
   
   DBUG_ENTER("heap_rfirst");
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   info->lastinx= inx;
   info->key_version= info->s->key_version;
 

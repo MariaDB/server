@@ -52,6 +52,8 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
 
+  heap_clear_state(share);
+
   for (error=key= 0 ; key < share->keys ; key++)
   {
     if (share->keydef[key].algorithm == HA_KEY_ALG_BTREE)
@@ -252,6 +254,9 @@ next_record: ;
                         (ulong) share->total_records));
     error= 1;
   }
+
+  if (error)
+    heap_mark_crashed(info->s);
   DBUG_RETURN(error);
 }
 
@@ -327,6 +332,7 @@ static int check_one_key(HP_INFO *info, HP_KEYDEF *keydef, uint keynr,
            hash_buckets_found);
   return error;
 }
+
 
 static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
 			    my_bool print_status)
