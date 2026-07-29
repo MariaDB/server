@@ -106,6 +106,7 @@ void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
   tree->custom_arg = custom_arg;
   tree->my_flags= my_flags;
   tree->flag= 0;
+  tree->error= TREE_ERROR_NONE;
   if (!free_element && size >= 0 &&
       ((uint) size <= sizeof(void*) || ((uint) size & (sizeof(void*)-1))))
   {
@@ -274,13 +275,35 @@ TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size,
     }
 
     key_size+=tree->size_of_element;
+    /*
+      Debug hooks that make this node allocation fail as if the allocator
+      had returned NULL.  "simulate_tree_insert_oom" fails every insert
+      until the caller disarms it; "once_simulate_tree_insert_oom" fails
+      only the next one and disarms itself.  Neither name may be a prefix
+      of the other: DBUG_SET() matches an existing list entry by prefix
+      and would merge into it instead of adding the keyword.
+    */
+    DBUG_EXECUTE_IF("once_simulate_tree_insert_oom",
+                    {
+                      DBUG_SET("-d,once_simulate_tree_insert_oom");
+                      tree->error= TREE_ERROR_OOM;
+                      return(NULL);
+                    });
+    DBUG_EXECUTE_IF("simulate_tree_insert_oom",
+                    {
+                      tree->error= TREE_ERROR_OOM;
+                      return(NULL);
+                    });
     if (tree->with_delete)
       element=(TREE_ELEMENT *) my_malloc(key_memory_TREE, alloc_size,
                                          MYF(tree->my_flags | MY_WME));
     else
       element=(TREE_ELEMENT *) alloc_root(&tree->mem_root,alloc_size);
     if (!element)
+    {
+      tree->error= TREE_ERROR_OOM;
       return(NULL);
+    }
     **parent=element;
     element->left=element->right= &null_element;
     if (!tree->offset_to_key)
@@ -303,7 +326,10 @@ TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size,
   else
   {
     if (tree->flag & TREE_NO_DUPS)
+    {
+      tree->error= TREE_ERROR_DUP_KEY;
       return(NULL);
+    }
     element->count++;
     /* Avoid a wrap over of the count. */
     if (! element->count)

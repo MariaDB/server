@@ -26,6 +26,8 @@ int heap_rprev(HP_INFO *info, uchar *record)
   HP_KEYDEF *keyinfo;
   DBUG_ENTER("heap_rprev");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   if (info->lastinx < 0)
     DBUG_RETURN(my_errno=HA_ERR_WRONG_INDEX);
   keyinfo = share->keydef + info->lastinx;

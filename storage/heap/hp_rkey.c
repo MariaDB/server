@@ -25,6 +25,8 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
   DBUG_ENTER("heap_rkey");
   DBUG_PRINT("enter",("info: %p  inx: %d", info, inx));
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   if ((uint) inx >= share->keys)
   {
     DBUG_RETURN(my_errno= HA_ERR_WRONG_INDEX);
