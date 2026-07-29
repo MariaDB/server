@@ -8230,7 +8230,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   int error= 0;
   bool is_table_scan= false, is_index_scan= false;
   Check_level_instant_set clis(table->in_use, CHECK_FIELD_IGNORE);
-
+  bool do_compare_records= slave_exec_mode == SLAVE_EXEC_MODE_STRINGENT;
   /*
     rpl_row_tabledefs.test specifies that
     if the extra field on the slave does not have a default value
@@ -8295,6 +8295,10 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       if (error == HA_ERR_KEY_NOT_FOUND)
         error= row_not_found_error(rgi);
       table->file->print_error(error, MYF(0));
+    }
+    else
+    {
+      goto comp_rec;
     }
     DBUG_RETURN(error);
   }
@@ -8489,6 +8493,18 @@ end:
   if (is_table_scan || is_index_scan)
     issue_long_find_row_warning(get_general_type_code(), m_table->alias.c_ptr(), 
                                 is_index_scan, rgi);
+comp_rec:
+   if (error == 0 && do_compare_records && rgi->rli->mi /* !online alter */)
+   {
+     if (record_compare(table, m_vers_from_plain))
+     {
+       my_error(ER_INCONSISTENT_SLAVE_RECORD, MYF(0),
+		get_type_str(get_type_code()),
+		table->s->db.str, table->s->table_name.str);
+       error= 1; // not HA error, the caller will catch it as already reported
+     }
+   }
+
   DBUG_RETURN(error);
 }
 

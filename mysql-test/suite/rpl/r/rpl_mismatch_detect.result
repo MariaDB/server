@@ -1,0 +1,66 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-39500: Replicated UPDATE silently succeeds despite row divergence on slave
+#
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'initial_state');
+connection slave;
+connection slave;
+set @save_slave_exec_mode = @@global.slave_exec_mode;
+set @@global.slave_exec_mode = STRICT;
+UPDATE t1 SET c = 'diverged_to_pass';
+SELECT * FROM t1;
+a	c
+1	diverged_to_pass
+connection master;
+UPDATE t1 SET c = 'master_update1';
+#
+# Expect it to succeed (slave gets in sync to have applied it).
+# Exposing MDEV-39500: The slave applier uses the PK to find the row but 
+# fails to reject the update despite the before-image mismatch, applying it 
+# silently without throwing HA_ERR_RECORD_CHANGED (or similar).
+#
+connection slave;
+connection slave;
+# The slave has silently synced and overwritten the local changes
+SELECT * FROM t1;
+a	c
+1	master_update1
+include/diff_tables.inc [master:t1, slave:t1]
+connection slave;
+set @@global.slave_exec_mode = STRINGENT;
+call mtr.add_suppression("Slave: Replicated 'Update_rows_v1' record.s before-image on table");
+UPDATE t1 SET c = 'diverged_to_fail';
+SELECT * FROM t1;
+a	c
+1	diverged_to_fail
+connection master;
+UPDATE t1 SET c = 'master_update2';
+connection slave;
+#
+# Expect it to fail.
+#
+include/wait_for_slave_sql_error.inc [errno=4264]
+connection slave;
+# the stopped slave deverges
+SELECT * FROM t1;
+a	c
+1	diverged_to_fail
+set @@global.slave_exec_mode = STRICT;
+include/start_slave.inc
+Not anymore in STRICT mode
+SELECT * FROM t1;
+a	c
+1	master_update2
+connection master;
+connection slave;
+#
+# Cleanup
+#
+connection master;
+DROP TABLE t1;
+connection slave;
+set @@global.slave_exec_mode = @save_slave_exec_mode;
+include/rpl_end.inc

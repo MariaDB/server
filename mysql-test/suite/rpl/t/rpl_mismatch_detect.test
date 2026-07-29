@@ -1,0 +1,87 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-39500: Replicated UPDATE silently succeeds despite row divergence on slave
+--echo #
+
+# Having two slave_exec_mode modes conduct the following.
+# 0. initially populate a PK-defined table with a record
+# 1. makes slave data inconsistent with master via UPDATEing locally a
+# replicated record, and run
+# 2. a replicated UPDATE from master and expect, it to succeed
+#    in the default STRICT mode, or
+#    fail in the new STRINGENT.
+
+
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'initial_state');
+sync_slave_with_master;
+
+connection slave;
+set @save_slave_exec_mode = @@global.slave_exec_mode;
+set @@global.slave_exec_mode = STRICT;
+# Modify the non-PK columns to simulate divergence
+UPDATE t1 SET c = 'diverged_to_pass';
+SELECT * FROM t1;
+
+connection master;
+UPDATE t1 SET c = 'master_update1';
+
+--echo #
+--echo # Expect it to succeed (slave gets in sync to have applied it).
+--echo # Exposing MDEV-39500: The slave applier uses the PK to find the row but 
+--echo # fails to reject the update despite the before-image mismatch, applying it 
+--echo # silently without throwing HA_ERR_RECORD_CHANGED (or similar).
+--echo #
+sync_slave_with_master;
+
+connection slave;
+--echo # The slave has silently synced and overwritten the local changes
+SELECT * FROM t1;
+
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+# the new mode
+connection slave;
+set @@global.slave_exec_mode = STRINGENT;
+call mtr.add_suppression("Slave: Replicated 'Update_rows_v1' record.s before-image on table");
+
+# Modify the non-PK columns to simulate divergence
+UPDATE t1 SET c = 'diverged_to_fail';
+SELECT * FROM t1;
+
+connection master;
+UPDATE t1 SET c = 'master_update2';
+
+connection slave;
+--echo #
+--echo # Expect it to fail.
+--echo #
+# ER_INCONSISTENT_SLAVE_RECORD
+--let $slave_sql_errno = 4264
+--source include/wait_for_slave_sql_error.inc
+
+connection slave;
+--echo # the stopped slave deverges
+SELECT * FROM t1;
+
+set @@global.slave_exec_mode = STRICT;
+--source include/start_slave.inc
+--echo Not anymore in STRICT mode
+SELECT * FROM t1;
+
+connection master;
+sync_slave_with_master;
+
+--echo #
+--echo # Cleanup
+--echo #
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+set @@global.slave_exec_mode = @save_slave_exec_mode;
+--source include/rpl_end.inc

@@ -119,7 +119,8 @@ enum enum_ha_read_modes { RFIRST, RNEXT, RPREV, RLAST, RKEY, RNEXT_SAME };
 enum enum_duplicates { DUP_ERROR, DUP_REPLACE, DUP_UPDATE };
 enum enum_delay_key_write { DELAY_KEY_WRITE_NONE, DELAY_KEY_WRITE_ON,
 			    DELAY_KEY_WRITE_ALL };
-enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRICT,
+enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRINGENT,
+                            SLAVE_EXEC_MODE_STRICT,
                             SLAVE_EXEC_MODE_IDEMPOTENT,
                             SLAVE_EXEC_MODE_LAST_BIT };
 enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,

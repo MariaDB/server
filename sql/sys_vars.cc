@@ -3684,7 +3684,8 @@ Sys_slave_compressed_protocol(
        DEFAULT(FALSE));
 
 #ifdef HAVE_REPLICATION
-static const char *slave_exec_mode_names[]= {"STRICT", "IDEMPOTENT", 0};
+static const char *slave_exec_mode_names[]=
+		    {"STRINGENT", "STRICT", "IDEMPOTENT", 0};
 static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_EXEC_MODE>
 Slave_exec_mode(
