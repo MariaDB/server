@@ -4520,6 +4520,7 @@ public:
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
+  uint       fk_cascade_depth;
 
   NET*       slave_net;			// network connection from slave -> m.
 
