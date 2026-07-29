@@ -4146,7 +4146,7 @@ public:
   bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
-  const sp_type_def *find_type_def(const LEX_CSTRING &name) const;
+  const sp_type_def *find_type_def(const Lex_ident_sys_st& name) const;
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -5271,19 +5271,30 @@ public:
                                 Spvar_definition *value);
   bool declare_type_ref_cursor(THD *thd,
                                const Lex_ident_sys_st &type_name,
-                               const Lex_ident_sys_st &return_type_name,
                                const Qualified_column_ident *rowtype,
                                const Qualified_column_ident *vartype,
                                const Lex_ident_cli_st &syntax_error_token);
+  bool declare_type_ref_cursor_return_typedef(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &db/*can be null ident*/,
+                               const Lex_ident_sys_st &package,
+                               const Lex_ident_sys_st &type);
   bool set_field_type_typedef(Lex_field_type_st *type,
-                              const LEX_CSTRING &name,
+                              const Lex_ident_sys_st &name,
                               const Lex_length_and_dec_st &attr,
                               const Lex_column_charset_collation_attrs_st &coll,
                               bool *is_typedef);
   bool set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                             const LEX_CSTRING &name,
+                             const Lex_ident_sys_st &name,
                              const Lex_length_and_dec_st &attr,
                              const Lex_column_charset_collation_attrs_st &coll);
+  bool set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                              const Lex_ident_sys_st &package,
+                              const Lex_ident_sys_st &type);
+  bool set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                              const Lex_ident_sys_st &db,
+                              const Lex_ident_sys_st &package,
+                              const Lex_ident_sys_st &type);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;

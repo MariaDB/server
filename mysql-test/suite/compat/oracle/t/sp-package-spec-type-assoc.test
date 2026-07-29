@@ -1,0 +1,556 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo # A too long identifier chain in the TABLE OF type
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  TYPE assoc0_t IS TABLE OF cat1.db1.pkg1.rec1_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Assoc array cannot have attributes
+--echo # Currently this is not allowed by the parser in qualified types
+--echo # If we ever allow, make sure to call check_data_type_attributes()
+--echo # which will raise ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INTEGER;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.assoc0_t (0); -- Length attribute
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.assoc0_t (0,0); -- Length and dec attributes
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.assoc0_t CHARACTER SET latin1;
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.assoc0_t COLLATE latin1_bin;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # PACKAGE spec types cannot be used in schema routine parameters
+--echo # and schema function RETURN
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INTEGER;
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1(a pkg1.assoc0_t) AS
+BEGIN
+  NULL;
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE FUNCTION f1 RETURN pkg1.assoc0_t AS
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # A package routine parameter and a package function RETURN
+--echo # 2-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INTEGER;
+END;
+$$
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+# Assoc array is not supported as a routine parameter and RETURN anyway
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(a pkg1.assoc0_t) AS
+  BEGIN
+    SELECT a(0).a, a(0).b;
+  END;
+  FUNCTION f1 RETURN pkg1.assoc0_t AS
+    res pkg1.assoc0_t;
+  BEGIN
+    res(0).a:= 10;
+    res(0).b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+
+--echo # RECORD as a package routine parameter and a package function RETURN
+--echo # 3-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+# Assoc array is not supported as a routine parameter and RETURN anyway
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(a test.pkg1.assoc0_t) AS
+  BEGIN
+    SELECT a(0).a, a(0).b;
+  END;
+  FUNCTION f1 RETURN test.pkg1.assoc0_t AS
+    res test.pkg1.assoc0_t;
+  BEGIN
+    res(0).a:= 10;
+    res(0).b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;
+
+
+--echo # A self-reference to the current spec with error: 2-step
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  TYPE assoc0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE test1.pkg1 AS
+  TYPE assoc0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+DROP DATABASE test1;
+
+
+--echo # A self-reference to the current spec with success: 2-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE assoc0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t;
+  a0 pkg1.assoc0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+
+CREATE DATABASE test1;
+DELIMITER $$;
+CREATE PACKAGE test1.pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE assoc0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+CREATE PROCEDURE test1.p1 AS
+  r0 pkg1.rec0_t;   -- This refers to test1.pkg1.rec0_t
+  a0 pkg1.assoc0_t; -- This refers to test1.pkg1.assoc0_t
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL test1.p1;
+DROP PROCEDURE test1.p1;
+DROP PACKAGE test1.pkg1;
+DROP DATABASE test1;
+USE test;
+
+
+--echo # A self-reference to the current spec with error: 3-step
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  TYPE assoc0_t IS TABLE OF test.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE test1.pkg1 AS
+  TYPE assoc0_t IS TABLE OF test1.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+DROP DATABASE test1;
+
+
+--echo # A self-reference to the current spec with success: 3-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE assoc0_t IS TABLE OF test.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t;
+  a0 pkg1.assoc0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+
+
+CREATE DATABASE test1;
+DELIMITER $$;
+CREATE PACKAGE test1.pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE assoc0_t IS TABLE OF test1.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+CREATE PROCEDURE test1.p1 AS
+  r0 pkg1.rec0_t;   -- This refers to test1.pkg1.rec0_t
+  a0 pkg1.assoc0_t; -- This refers to test1.pkg1.assoc0_t
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL test1.p1;
+DROP PROCEDURE test1.p1;
+DROP PACKAGE test1.pkg1;
+DROP DATABASE test1;
+
+
+--echo # Various working examples
+CREATE TABLE t1 (a INT, b VARCHAR(30));
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE varchar_array IS TABLE OF VARCHAR(2000) INDEX BY INTEGER;
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+  TYPE array0_t IS TABLE OF rec0_t INDEX BY INTEGER;
+  TYPE array1_t IS TABLE OF test.t1.a%TYPE INDEX BY INTEGER;
+  TYPE array2_t IS TABLE OF test.t1%ROWTYPE INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+--echo # 2-Step + PROCEDURE
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 pkg1.varchar_array;
+  v1 pkg1.rec0_t;
+  v2 pkg1.array0_t;
+  v3 pkg1.array1_t;
+  v4 pkg1.array2_t;
+BEGIN
+  v0(0):='test';
+  SELECT v0(0);
+  v1.a:= 1;
+  v1.b:= 'b';
+  SELECT v1.a, v1.b;
+  v2(0):= v1;
+  SELECT v2(0).a, v2(0).b;
+  v3(0):= 10;
+  SELECT v3(0);
+  v4(0):= v1;
+  SELECT v4(0).a, v4(0).b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # 3-Step + PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 test.pkg1.varchar_array;
+  v1 test.pkg1.rec0_t;
+  v2 test.pkg1.array0_t;
+  v3 test.pkg1.array1_t;
+  v4 test.pkg1.array2_t;
+BEGIN
+  v0(0):='test';
+  SELECT v0(0);
+  v1.a:= 1;
+  v1.b:= 'b';
+  SELECT v1.a, v1.b;
+  v2(0):= v1;
+  SELECT v2(0).a, v2(0).b;
+  v3(0):= 10;
+  SELECT v3(0);
+  v4(0):= v1;
+  SELECT v4(0).a, v4(0).b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+
+--echo # 2-Step + PACKAGE + Declarations in package PROCEDURE
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p1 AS
+    v0 pkg1.varchar_array;
+    v1 pkg1.rec0_t;
+    v2 pkg1.array0_t;
+    v3 pkg1.array1_t;
+    v4 pkg1.array2_t;
+  BEGIN
+    v0(0):='test';
+    SELECT v0(0);
+    v1.a:= 1;
+    v1.b:= 'b';
+    SELECT v1.a, v1.b;
+    v2(0):= v1;
+    SELECT v2(0).a, v2(0).b;
+    v3(0):= 10;
+    SELECT v3(0);
+    v4(0):= v1;
+    SELECT v4(0).a, v4(0).b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+
+--echo # 3-Step + PACKAGE + Declarations in package PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p1 AS
+    v0 test.pkg1.varchar_array;
+    v1 test.pkg1.rec0_t;
+    v2 test.pkg1.array0_t;
+    v3 test.pkg1.array1_t;
+    v4 test.pkg1.array2_t;
+  BEGIN
+    v0(0):='test';
+    SELECT v0(0);
+    v1.a:= 1;
+    v1.b:= 'b';
+    SELECT v1.a, v1.b;
+    v2(0):= v1;
+    SELECT v2(0).a, v2(0).b;
+    v3(0):= 10;
+    SELECT v3(0);
+    v4(0):= v1;
+    SELECT v4(0).a, v4(0).b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+
+--echo # 3-Step + PACKAGE + Declarations in PACKAGE BODY
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  v0 test.pkg1.varchar_array;
+  v1 test.pkg1.rec0_t;
+  v2 test.pkg1.array0_t;
+  v3 test.pkg1.array1_t;
+  v4 test.pkg1.array2_t;
+  PROCEDURE p1 AS
+  BEGIN
+    v0(0):='test';
+    SELECT v0(0);
+    v1.a:= 1;
+    v1.b:= 'b';
+    SELECT v1.a, v1.b;
+    v2(0):= v1;
+    SELECT v2(0).a, v2(0).b;
+    v3(0):= 10;
+    SELECT v3(0);
+    v4(0):= v1;
+    SELECT v4(0).a, v4(0).b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+
+
+--echo # RECORD + Assoc array in different packages: 2-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  TYPE array0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t;
+  a0 pkg2.array0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  a0(0):= r0;
+  SELECT a0(0).a, a0(0).b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD + Assoc array in different packages: 3-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  TYPE array0_t IS TABLE OF test.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test2;
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 test.pkg1.rec0_t;
+  a0 test1.pkg2.array0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  a0(0):= r0;
+  SELECT a0(0).a, a0(0).b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP DATABASE test2;
+
+USE test1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;

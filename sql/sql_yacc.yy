@@ -1377,7 +1377,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db opt_nls_param
-        udt_name
 
 %ifdef ORACLE
 %type <lex_str>
@@ -1396,6 +1395,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_for_loop_index
         select_or_ps_name
         fetch_statement_source
+        udt_name
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -6655,8 +6655,8 @@ qualified_field_type:
 
 udt_name:
           IDENT_sys                     { $$= $1; }
-        | reserved_keyword_udt          { $$= $1; }
-        | non_reserved_keyword_udt      { $$= $1; }
+        | reserved_keyword_udt          { $$= Lex_ident_sys($1.str, $1.length); }
+        | non_reserved_keyword_udt      { $$= Lex_ident_sys($1.str, $1.length); }
         ;
 
 field_type_all_builtin:
@@ -6684,6 +6684,16 @@ field_type_all_with_typedefs:
         | udt_name float_options srid_option opt_binary
           {
             if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, $4)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident
+          {
+            if (Lex->set_field_type_typedef_package_spec(&$$, $1, $3))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (Lex->set_field_type_typedef_package_spec(&$$, $1, $3, $5))
               MYSQL_YYABORT;
           }
         ;
@@ -20507,7 +20517,7 @@ package_implementation_routine_definition:
             pkg->m_current_routine= NULL;
             $$.init();
           }
-        | package_specification_element { $$.init(); }
+        | package_specification_routine { $$.init(); }
         ;
 
 
@@ -20560,7 +20570,7 @@ package_specification_element_list:
         | package_specification_element_list package_specification_element
         ;
 
-package_specification_element:
+package_specification_routine:
           FUNCTION_SYM package_specification_function ';'
           {
             sp_package *pkg= Lex->get_sp_package();
@@ -20575,6 +20585,13 @@ package_specification_element:
               MYSQL_YYABORT;
             pkg->m_current_routine= NULL;
           }
+        ;
+
+package_specification_element:
+          package_specification_routine
+%ifdef ORACLE
+        | sp_decl_type ';'
+%endif
         ;
 
 
@@ -20951,15 +20968,22 @@ sp_decl_type:
           }
         | typed_ident IS REF_SYM CURSOR_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       nullptr, nullptr, $4)))
               MYSQL_YYABORT;
             $$.init();
           }
-        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM sp_decl_ident
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, $6,
-                                                      nullptr, nullptr, $5)))
+            /*
+              Conversion of $6 components to Lex_ident_sys is safe,
+              according to the grammar.
+            */
+            if (unlikely(Lex->declare_type_ref_cursor_return_typedef(thd, $1,
+                       Lex_ident_sys($6->db.str, $6->db.length),
+                       Lex_ident_sys($6->table.str, $6->table.length),
+                       Lex_ident_sys($6->m_column.str, $6->m_column.length))))
               MYSQL_YYABORT;
             $$.init();
           }
@@ -20967,7 +20991,7 @@ sp_decl_type:
           optionally_qualified_column_ident
           PERCENT_ORACLE_SYM TYPE_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       nullptr, $6, $8)))
               MYSQL_YYABORT;
             $$.init();
@@ -20976,7 +21000,7 @@ sp_decl_type:
           optionally_qualified_column_ident
           PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       $6, nullptr, $8)))
               MYSQL_YYABORT;
             $$.init();

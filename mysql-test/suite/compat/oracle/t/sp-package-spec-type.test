@@ -1,0 +1,151 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb3;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo # raise_unknown_data_type
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # PACKAGE gets dropped making an orphan type reference: 2-step
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PACKAGE pkg1;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL p1;
+SHOW WARNINGS;
+DROP PROCEDURE p1;
+
+
+--echo # PACKAGE gets dropped making an orphan type reference: 3-step
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 test.pkg1.rec0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PACKAGE test.pkg1;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL p1;
+SHOW WARNINGS;
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+
+
+--echo # Too long identifier chain
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  v1 cat1.db1.pkg1.type1;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$

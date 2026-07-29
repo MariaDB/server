@@ -1,0 +1,22 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE assoc0_t IS TABLE OF test.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE assoc0_t IS TABLE OF TEST.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+ERROR HY000: Unknown data type: '`TEST`.`pkg1`.`rec0_t`'
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE assoc0_t IS TABLE OF tttt.pkg1.rec0_t INDEX BY INTEGER;
+END;
+$$
+ERROR HY000: Unknown data type: '`tttt`.`pkg1`.`rec0_t`'

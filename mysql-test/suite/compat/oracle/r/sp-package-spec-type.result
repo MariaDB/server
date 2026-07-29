@@ -1,0 +1,117 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb3;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+# raise_unknown_data_type
+CREATE PROCEDURE p1 AS
+a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
+CREATE PROCEDURE p1 AS
+a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
+CREATE PROCEDURE p1 AS
+a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå`.`åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå`'
+CREATE PROCEDURE p1 AS
+a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå`.`åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå`.'
+CREATE PROCEDURE p1 AS
+a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€`.'
+CREATE PROCEDURE p1 AS
+a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€`..'
+# PACKAGE gets dropped making an orphan type reference: 2-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t;
+BEGIN
+r0.a:= 10;
+r0.b:= 'b';
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b
+DROP PACKAGE pkg1;
+CALL p1;
+ERROR HY000: Failed to load routine test.p1 (internal code -6). For more details, run SHOW WARNINGS
+SHOW WARNINGS;
+Level	Code	Message
+Error	4161	Unknown data type: '`pkg1`.`rec0_t`'
+Error	1457	Failed to load routine test.p1 (internal code -6). For more details, run SHOW WARNINGS
+DROP PROCEDURE p1;
+# PACKAGE gets dropped making an orphan type reference: 3-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+CREATE DATABASE test1;
+USE test1;
+CREATE PROCEDURE p1 AS
+r0 test.pkg1.rec0_t;
+BEGIN
+r0.a:= 10;
+r0.b:= 'b';
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b
+DROP PACKAGE test.pkg1;
+CALL p1;
+ERROR HY000: Failed to load routine test1.p1 (internal code -6). For more details, run SHOW WARNINGS
+SHOW WARNINGS;
+Level	Code	Message
+Error	4161	Unknown data type: '`test`.`pkg1`.`rec0_t`'
+Error	1457	Failed to load routine test1.p1 (internal code -6). For more details, run SHOW WARNINGS
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+# Too long identifier chain
+CREATE PROCEDURE p1 AS
+v1 cat1.db1.pkg1.type1;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`cat1`.`db1`.`pkg1`'

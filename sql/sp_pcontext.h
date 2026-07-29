@@ -775,6 +775,25 @@ public:
     return sp_type_def_list::type_defs_add(def);
   }
 
+  /*
+    Add a new TYPE for REF CURSOR, e.g.:
+      TYPE type1 IS REF CURSOR;
+      TYPE type1 IS REF CURSOR RETURN t1%ROWTYPE;
+      TYPE type1 IS REF CURSOR RETURN pkg1.rec1;
+    @param THD         - The THD
+    @param name        - The name of the new data type
+    @param th          - The type handler of the new TYPE
+                         (usually &type_handler_sys_refcursor)
+    @param return_def  - The definition of the RETURN type
+    @param is_prepared - If sp_prepare_create_field() has already
+                         been called for return_def.
+                         See details in class sp_type_def_ref.
+  */
+  bool type_defs_add_ref_cursor(THD *thd, const Lex_ident_column &name,
+                                const Type_handler *th,
+                                const Spvar_definition &return_def,
+                                bool is_prepared);
+
 private:
   /// Constructor for a tree node.
   /// @param prev the parent parsing context

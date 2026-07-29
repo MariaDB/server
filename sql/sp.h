@@ -137,6 +137,9 @@ public:
     const Sp_handler *sph= handler(type);
     return sph ? sph->sp_handler_mysql_proc() : NULL;
   }
+  static sp_package *find_package_spec(THD *thd,
+                                       const Lex_ident_db &db,
+                                       const LEX_CSTRING &package);
 
   const char *type_str() const { return type_lex_cstring().str; }
   virtual const char *show_create_routine_col1_caption() const
@@ -210,6 +213,10 @@ public:
   int sp_cache_routine_reentrant(THD *thd,
                                  const Database_qualified_name *nm,
                                  sp_head **sp) const;
+
+  int sp_cache_routine_reentrant_suppress_errors(THD *thd,
+                                           const Database_qualified_name *nm,
+                                           sp_head **sp) const;
 
   bool sp_exist_routines(THD *thd, TABLE_LIST *procs) const;
   bool sp_show_create_routine(THD *thd,

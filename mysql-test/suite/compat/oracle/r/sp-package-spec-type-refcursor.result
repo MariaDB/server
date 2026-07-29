@@ -1,0 +1,539 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+# REFCURSOR cannot have attributes
+# Currently this is not allowed by the parser in qualified types
+# If we ever allow, make sure to call check_data_type_attributes()
+# which will raise ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+CREATE PROCEDURE p1 AS
+r0 pkg1.cur0_t (0); -- Length attribute
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(0); -- Length attribute
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.cur0_t (0,0); -- Length and dec attributes
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(0,0); -- Length and dec attributes
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.cur0_t CHARACTER SET latin1;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHARACTER SET latin1;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.cur0_t COLLATE latin1_bin;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE latin1_bin;
+BEGIN
+NULL;
+END' at line 2
+DROP PACKAGE pkg1;
+# PACKAGE spec types cannot be used in schema routine parameters
+# and schema function RETURN
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+CREATE PROCEDURE p1(a pkg1.cur0_t) AS
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of parameter_declaration and package_name.type_name
+CREATE FUNCTION f1 RETURN pkg1.cur0_t AS
+BEGIN
+RETURN NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of RETURN and package_name.type_name
+DROP PACKAGE pkg1;
+# A package routine parameter and a package function RETURN
+# 2-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p2(c pkg1.cur0_t) AS
+v0 INT;
+v1 VARCHAR(32);
+BEGIN
+FETCH c INTO v0, v1;
+SELECT v0, v1;
+CLOSE c;
+END;
+FUNCTION f1 RETURN pkg1.cur0_t AS
+res pkg1.cur0_t;
+BEGIN
+OPEN res FOR SELECT 1,'b';
+RETURN res;
+END;
+PROCEDURE p1 AS
+BEGIN
+CALL p2(f1());
+END;
+END;
+$$
+CALL pkg2.p1();
+v0	v1
+1	b
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+# A package routine parameter and a package function RETURN
+# 3-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p2(c test.pkg1.cur0_t) AS
+v0 INT;
+v1 VARCHAR(32);
+BEGIN
+FETCH c INTO v0, v1;
+SELECT v0, v1;
+CLOSE c;
+END;
+FUNCTION f1 RETURN test.pkg1.cur0_t AS
+res test.pkg1.cur0_t;
+BEGIN
+OPEN res FOR SELECT 1, 'b';
+RETURN res;
+END;
+PROCEDURE p1 AS
+BEGIN
+CALL p2(f1());
+END;
+END;
+$$
+CALL pkg2.p1();
+v0	v1
+1	b
+CALL test1.pkg2.p1();
+v0	v1
+1	b
+USE test;
+CALL test1.pkg2.p1();
+v0	v1
+1	b
+USE test1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;
+# A self-reference to the current spec with success: 2-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE cur0_t IS REF CURSOR RETURN pkg1.rec0_t; -- Self ref
+END;
+$$
+# Using from the same database
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t;
+c0 pkg1.cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO r0;
+CLOSE c0;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+1	b
+DROP PROCEDURE p1;
+# Using from a different database
+CREATE DATABASE test1;
+CREATE PROCEDURE test1.p1 AS
+r0 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO r0;
+CLOSE c0;
+SELECT r0.a, r0.b;
+NULL;
+END;
+$$
+CALL test1.p1;
+r0.a	r0.b
+1	b
+DROP DATABASE test1;
+DROP PACKAGE pkg1;
+# A self-reference to the current spec with success: 3-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE cur0_t IS REF CURSOR RETURN test.pkg1.rec0_t; -- Self ref
+END;
+$$
+# Using from the same database
+CREATE PROCEDURE p1 AS
+r0 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO r0;
+CLOSE c0;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+1	b
+DROP PROCEDURE p1;
+# Using from a different database
+CREATE DATABASE test1;
+CREATE PROCEDURE test1.p1 AS
+r0 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO r0;
+CLOSE c0;
+SELECT r0.a, r0.b;
+NULL;
+END;
+$$
+CALL test1.p1;
+r0.a	r0.b
+1	b
+DROP DATABASE test1;
+DROP PACKAGE pkg1;
+# Various working examples
+CREATE TABLE t1 (a INT, b VARCHAR(30));
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+TYPE cur0_t IS REF CURSOR;
+TYPE cur1_t IS REF CURSOR RETURN rec0_t;
+TYPE cur2_t IS REF CURSOR RETURN test.t1%ROWTYPE;
+END;
+$$
+# 2-Step + PROCEDURE
+CREATE PROCEDURE p1 AS
+v1 pkg1.rec0_t;
+c0 pkg1.cur0_t;
+c1 pkg1.cur1_t;
+c2 pkg1.cur2_t;
+fetch0 INT;
+fetch1 VARCHAR(30);
+BEGIN
+v1.a:= 1;
+v1.b:= 'b';
+OPEN c0 FOR SELECT 10,'bb0';
+FETCH c0 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c0;
+OPEN c1 FOR SELECT 11,'bb1';
+FETCH c1 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c1;
+OPEN c2 FOR SELECT 12,'bb2';
+FETCH c2 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c2;
+END;
+$$
+CALL p1;
+fetch0	fetch1
+10	bb0
+fetch0	fetch1
+11	bb1
+fetch0	fetch1
+12	bb2
+DROP PROCEDURE p1;
+# 3-Step + PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+CREATE PROCEDURE p1 AS
+v1 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+c1 test.pkg1.cur1_t;
+c2 test.pkg1.cur2_t;
+fetch0 INT;
+fetch1 VARCHAR(30);
+BEGIN
+v1.a:= 1;
+v1.b:= 'b';
+OPEN c0 FOR SELECT 10,'bb0';
+FETCH c0 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c0;
+OPEN c1 FOR SELECT 11,'bb1';
+FETCH c1 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c1;
+OPEN c2 FOR SELECT 12,'bb2';
+FETCH c2 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c2;
+END;
+$$
+CALL p1;
+fetch0	fetch1
+10	bb0
+fetch0	fetch1
+11	bb1
+fetch0	fetch1
+12	bb2
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+# 2-Step + PACKAGE + Declarations in package PROCEDURE
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p1 AS
+v1 pkg1.rec0_t;
+c0 pkg1.cur0_t;
+c1 pkg1.cur1_t;
+c2 pkg1.cur2_t;
+fetch0 INT;
+fetch1 VARCHAR(30);
+BEGIN
+v1.a:= 1;
+v1.b:= 'b';
+OPEN c0 FOR SELECT 10,'bb0';
+FETCH c0 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c0;
+OPEN c1 FOR SELECT 11,'bb1';
+FETCH c1 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c1;
+OPEN c2 FOR SELECT 12,'bb2';
+FETCH c2 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c2;
+END;
+END;
+$$
+CALL pkg2.p1;
+fetch0	fetch1
+10	bb0
+fetch0	fetch1
+11	bb1
+fetch0	fetch1
+12	bb2
+DROP PACKAGE pkg2;
+# 3-Step + PACKAGE + Declarations in package PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p1 AS
+v1 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+c1 test.pkg1.cur1_t;
+c2 test.pkg1.cur2_t;
+fetch0 INT;
+fetch1 VARCHAR(30);
+BEGIN
+v1.a:= 1;
+v1.b:= 'b';
+OPEN c0 FOR SELECT 10,'bb0';
+FETCH c0 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c0;
+OPEN c1 FOR SELECT 11,'bb1';
+FETCH c1 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c1;
+OPEN c2 FOR SELECT 12,'bb2';
+FETCH c2 INTO fetch0, fetch1;
+SELECT fetch0, fetch1;
+CLOSE c2;
+END;
+END;
+$$
+CALL pkg2.p1;
+fetch0	fetch1
+10	bb0
+fetch0	fetch1
+11	bb1
+fetch0	fetch1
+12	bb2
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+# 3-Step + PACKAGE + Declarations in PACKAGE BODY
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+v1 test.pkg1.rec0_t;
+c0 test.pkg1.cur0_t;
+c1 test.pkg1.cur1_t;
+c2 test.pkg1.cur2_t;
+fetch0 INT;
+fetch1 VARCHAR(30);
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+ERROR HY000: 'sys_refcursor' is not allowed in this context
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+# RECORD and REFCURSOR in different packages
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+# 2-step type in RETURN in a schema procedure
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN pkg1.rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b',3;
+END;
+$$
+ERROR HY000: Illegal parameter data types row<2> and row<3> for operation 'OPEN..FOR'
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN pkg1.rec0_t;
+c0 cur0_t;
+v0 INT;
+v1 VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO v0, v1;
+SELECT v0, v1;
+CLOSE c0;
+END;
+$$
+CALL p1;
+v0	v1
+1	b
+DROP PROCEDURE p1;
+# 3-step type in RETURN in a schema procedure
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN test.pkg1.rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b',3;
+END;
+$$
+ERROR HY000: Illegal parameter data types row<2> and row<3> for operation 'OPEN..FOR'
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN test.pkg1.rec0_t;
+c0 cur0_t;
+v0 INT;
+v1 VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO v0, v1;
+SELECT v0, v1;
+CLOSE c0;
+END;
+$$
+CALL p1;
+v0	v1
+1	b
+DROP PROCEDURE p1;
+# 2-step type in RETURN in another package
+CREATE PACKAGE pkg2 AS
+TYPE cur0_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+# 2-step cursor type with 2-step type in RETURN
+CREATE PROCEDURE p1 AS
+c0 pkg2.cur0_t;
+v0 INT;
+v1 VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO v0, v1;
+SELECT v0, v1;
+CLOSE c0;
+END;
+$$
+CALL p1;
+v0	v1
+1	b
+DROP PROCEDURE p1;
+# 3-step cursor type with 2-step type in RETURN
+CREATE PROCEDURE p1 AS
+c0 test.pkg2.cur0_t;
+v0 INT;
+v1 VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO v0, v1;
+SELECT v0, v1;
+CLOSE c0;
+END;
+$$
+CALL p1;
+v0	v1
+1	b
+DROP PROCEDURE p1;
+# 3-step cursor type (different db) with 2-step type in RETURN
+CREATE DATABASE test1;
+USE test1;
+CREATE PROCEDURE p1 AS
+c0 test.pkg2.cur0_t;
+v0 INT;
+v1 VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b';
+FETCH c0 INTO v0, v1;
+SELECT v0, v1;
+CLOSE c0;
+END;
+$$
+CALL p1;
+v0	v1
+1	b
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;

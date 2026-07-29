@@ -172,6 +172,58 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
 }
 
 
+/*
+  Iterate through all schemas in @@path and find a package "package" with the
+  type "type"
+
+  @param thd     - The THD
+  @param OUT db  - The found database which contains a type package.type
+                   If db->str is nullptr the nothing was found.
+  @param package - The package to find.
+  @param type    - The type to find.
+  @retval true   - If error happened during resolution.
+  @retval false  - If no errors happened during resolution.
+                   Note, if nothing was found and no errors happened,
+                   the return value is false.
+*/
+bool Sql_path::find_package_spec_type(THD *thd,
+                                      Lex_ident_db_normalized *db,
+                                      const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type)
+{
+  *db= Lex_ident_db_normalized();
+  for (size_t i= 0; i < m_count; i++)
+  {
+    sp_package *pkg;
+    Lex_ident_db_normalized ncdb;
+    if (is_cur_schema(i))
+    {
+      if (!thd->db.str)
+        continue;
+      if (!(ncdb= thd->copy_db_normalized()).str)
+        return true; // EOM
+    }
+    else
+    {
+      /*
+        Conversion to Lex_ident_db_normalized is safe because
+        database names get into Sql_path in normalized form.
+      */
+      ncdb= Lex_ident_db_normalized(m_schemas[i].str, m_schemas[i].length);
+    }
+    if (!(pkg= Sp_handler::find_package_spec(thd, ncdb, package)))
+      continue;
+    sp_type_def *tdef= pkg->find_type_def(type);
+    if (tdef)
+    {
+      *db= ncdb;
+      return false; // Found a TYPE declaration in a CREATE PACKAGE
+    }
+  }
+  return false; // Nothing found
+}
+
+
 void Sql_path::free()
 {
   if (m_count)

@@ -1,0 +1,153 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo # RECORD cannot have attributes
+--echo # Currently this is not allowed by the parser in qualified types
+--echo # If we ever allow, make sure to call check_data_type_attributes()
+--echo # which will raise ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t (0); -- Length attribute
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t (0,0); -- Length and dec attributes
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t CHARACTER SET latin1;
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t COLLATE latin1_bin;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # PACKAGE spec types cannot be used in schema routine parameters
+--echo # and schema function RETURN
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1(a pkg1.rec0_t) AS
+BEGIN
+  NULL;
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE FUNCTION f1 RETURN pkg1.rec0_t AS
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package routine parameter and a package function RETURN
+--echo # 2-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(r pkg1.rec0_t) AS
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  FUNCTION f1 RETURN pkg1.rec0_t AS
+    res pkg1.rec0_t;
+  BEGIN
+    res.a:= 10;
+    res.b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1();
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+
+--echo # RECORD as a package routine parameter and a package function RETURN
+--echo # 3-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(r test.pkg1.rec0_t) AS
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  FUNCTION f1 RETURN test.pkg1.rec0_t AS
+    res test.pkg1.rec0_t;
+  BEGIN
+    res.a:= 10;
+    res.b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1();
+CALL test1.pkg2.p1();
+USE test;
+CALL test1.pkg2.p1();
+USE test1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;

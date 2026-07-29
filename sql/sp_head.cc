@@ -4284,3 +4284,247 @@ ulong sp_head::sp_cache_version() const
 {
   return m_parent ? m_parent->sp_cache_version() : m_sp_cache_version;
 }
+
+
+/*
+  Check if the column definition "def" with type "type" can be used in "this".
+
+  These kind of declarations are not allowed in schema routines:
+    PROCEDURE p1(a pkg1.type1)       - a schema routine parameter type
+    FUNCTION f1() RETURN pkg1.type1; - a schema function RETURN types
+  because they show up in INFORMATION_SCHEMA.PARAMETERS.
+  The code is not ready to handle this correctly.
+
+  Note, using them for package routines are OK, because package routines
+  are not displayed in INFORMATION_SCHEMA.
+*/
+bool sp_head::check_applicability(THD *thd,
+                                  const Lex_field_type_st &def,
+                                  column_definition_type_t type)
+{
+  if (def.foreign_module_type())
+  {
+    if ((m_handler == &sp_handler_procedure ||
+         m_handler == &sp_handler_function)/*i.e. not a package routine*/ &&
+        (type == COLUMN_DEFINITION_ROUTINE_PARAM ||
+         type == COLUMN_DEFINITION_FUNCTION_RETURN))
+    {
+      my_error(ER_WRONG_USAGE, MYF(0),
+               type == COLUMN_DEFINITION_ROUTINE_PARAM ?
+               "parameter_declaration" : "RETURN",
+               "package_name.type_name");
+      return true;
+    }
+  }
+  return false;
+}
+
+
+// The format size in "Unknown data type: '%-.384s'" in errmsg-utf8.txt
+#define UNKNOWN_DATA_TYPE_FORMAT_LENGTH 384
+
+void sp_head::raise_unknown_data_type(const Lex_ident_db_normalized &db,
+                                      const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type)
+{
+  char buf[UNKNOWN_DATA_TYPE_FORMAT_LENGTH + 1];
+  my_snprintf(buf, sizeof(buf), "%.*sQ.%.*sQ.%.*sQ",
+              (int) db.length, db.str,
+              (int) package.length, package.str,
+              (int) type.length, type.str);
+  my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), buf);
+}
+
+
+void sp_head::raise_unknown_data_type(const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type)
+{
+  char buf[UNKNOWN_DATA_TYPE_FORMAT_LENGTH + 1];
+  my_snprintf(buf, sizeof(buf), "%.*sQ.%.*sQ",
+              (int) package.length, package.str,
+              (int) type.length, type.str);
+  my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), buf);
+}
+
+
+/*
+  Get the definition of the TYPE  `dbn`.`package`.`type`.
+  If the definition is not found, then an error message is raises.
+
+  @param OUT tdef - The pointer to the found TYPE definition
+  @param dbn      - The nornamized database name (used for error messages)
+  @param package  - The package name (used for error messages)
+  @param type     - The data type name
+
+  @retval false   - If the TYPE definition was found and written to "tdef"
+  @retval true    - If the data type was found found or some error happened.
+*/
+
+bool sp_package::get_typedef_or_error(THD *thd,
+                                      const sp_type_def **tdef,
+                                      const Lex_ident_db_normalized dbn,
+                                      const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type)
+{
+  if (!(tdef[0]= find_type_def(type)))
+  {
+    if (dbn.str)
+      raise_unknown_data_type(dbn, package, type);
+    else
+      raise_unknown_data_type(package, type);
+    return true;
+  }
+  return false;
+}
+
+
+/*
+  Find a package-wide TYPE definition.
+  No errors are raised on failure.
+*/
+sp_type_def *sp_package::find_type_def(const Lex_ident_sys_st &type)
+{
+  if (!get_parse_context() || !get_parse_context()->child_context(0))
+    return nullptr;
+  return get_parse_context()->child_context(0)->find_type_def(type, false);
+}
+
+
+/*
+  Get a 2-step qualified TYPE defined in a PACKAGE
+  consisting by the package name and type name.
+  Handles the following cases:
+  - A PACKAGE refers to its own type using a qualified name
+  - A routine refers to the PACKAGE in the database of the routine
+    using a qualified type
+  - Otherwise, the database which contains a package "package" with the type
+    "type" is resolved using the @@PATH variable.
+
+  @param OUT tdef - The pointer to the TYPE definition
+  @param package  - The package name
+  @param type     - The data type name
+
+  @retval false  - The package "package" with the data type "type" was found,
+                   and tdef[0] was set to the pointer of the found type.
+  @retval true   - The data type was not found, or some error happened
+                   during type resolution.
+*/
+bool sp_head::get_typedef_package_spec_or_error(THD *thd,
+                                            const sp_type_def **tdef,
+                                            const Lex_ident_sys_st &package,
+                                            const Lex_ident_sys_st &type)
+{
+  /*
+    Catch a special case first: a reference to the current package spec.
+    Note, cast to Lex_ident_routine is safe below because m_name gets
+    to sp_head after Lex_ident_routine::check_name_with_error().
+  */
+  if (m_handler == &sp_handler_package_spec &&
+      Lex_ident_routine(m_name).streq(package))
+  {
+    /*
+      The data type pkg1.type1 refers the current package specifications
+      for the packge pkg1:
+        CREATE PACKAGE pkg1 AS
+          TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+          TYPE assoc0_t IS TABLE OF pkg1.rec0_t INDEX BY INTEGER;
+        END;
+      Avoid a recursive find_package_spec_type().
+    */
+    sp_package *spec= get_package();
+    DBUG_ASSERT(spec);
+    return spec->get_typedef_or_error(thd, tdef,
+                                      Lex_ident_db_normalized(), package, type);
+  }
+
+  /*
+    Another special case - a two step reference to a type
+    in the package of the db of the current routine (test1 in this example):
+      CREATE OR REPLACE PROCEDURE test1.p1 AS
+        r0 pkg1.rec0_t;  -- A reference to test1.pkg1.rec0_t
+      BEGIN ...
+  */
+  if (m_db.str)
+  {
+    Lex_ident_db_normalized ndb;
+    if (!(ndb= thd->to_ident_db_normalized_with_error(m_db)).str)
+      return true;
+    sp_package *spec;
+    if ((spec= Sp_handler::find_package_spec(thd, ndb, package)) &&
+        (tdef[0]= spec->find_type_def(type)))
+      return false;
+  }
+
+  // Now go with the general case
+  Lex_ident_db_normalized resolved_db;
+  if (thd->variables.path.find_package_spec_type(thd, &resolved_db,
+                                                 package, type))
+    return true; // An internal error
+  if (!resolved_db.str)
+  {
+    raise_unknown_data_type(package, type);
+    return true; // 2-step package spec was not found
+  }
+  return get_typedef_package_spec_or_error(thd, tdef,
+                                           Lex_ident_sys(resolved_db.str,
+                                                         resolved_db.length),
+                                           package, type);
+}
+
+
+/*
+  Get a 3-step qualified TYPE defines in a PACKAGE
+
+  @param OUT tdef - The pointer to the TYPE definition
+  @param db       - The database name
+  @param package  - The package name
+  @param type     - The data type name
+
+  @retval false   - The database "db" with the package "package"
+                    with the data type "type" was found,
+                    and tdef was set to the pointer of the found type.
+  @retval true    - The data type was not found, or some error happened
+                    during type resolution.
+*/
+bool sp_head::get_typedef_package_spec_or_error(THD *thd,
+                                            const sp_type_def **tdef,
+                                            const Lex_ident_sys_st &db,
+                                            const Lex_ident_sys_st &package,
+                                            const Lex_ident_sys_st &type)
+{
+  Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(db);
+  if (!dbn.str)
+    return true;
+
+  /*
+    Catch a special case first: a reference to the current package spec.
+    Note, cast to Lex_ident_routine is safe below because m_name gets
+    to sp_head after Lex_ident_routine::check_name_with_error().
+  */
+  if (m_handler == &sp_handler_package_spec &&
+      dbn.streq(m_db) &&
+      Lex_ident_routine(m_name).streq(package))
+  {
+    /*
+      The data type db1.pkg1.type1 refers the current package specifications
+      for the packge pkg1:
+        USE db1;
+        CREATE PACKAGE pkg1 AS
+          TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+          TYPE assoc0_t IS TABLE OF db1.pkg1.rec0_t INDEX BY INTEGER;
+        END;
+      Avoid a recursive find_package_spec_type().
+    */
+    sp_package *spec= get_package();
+    DBUG_ASSERT(spec);
+    return spec->get_typedef_or_error(thd, tdef, dbn, package, type);
+  }
+
+  sp_package *spec= Sp_handler::find_package_spec(thd, dbn, package);
+  if (!spec)
+  {
+    raise_unknown_data_type(dbn, package, type);
+    return true; // 3-step package spec was not found
+  }
+  return spec->get_typedef_or_error(thd, tdef, dbn, package, type);
+}

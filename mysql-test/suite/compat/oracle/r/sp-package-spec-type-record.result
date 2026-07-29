@@ -1,0 +1,150 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+# RECORD cannot have attributes
+# Currently this is not allowed by the parser in qualified types
+# If we ever allow, make sure to call check_data_type_attributes()
+# which will raise ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+END;
+$$
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t (0); -- Length attribute
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(0); -- Length attribute
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t (0,0); -- Length and dec attributes
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(0,0); -- Length and dec attributes
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t CHARACTER SET latin1;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHARACTER SET latin1;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+r0 pkg1.rec0_t COLLATE latin1_bin;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE latin1_bin;
+BEGIN
+NULL;
+END' at line 2
+DROP PACKAGE pkg1;
+# PACKAGE spec types cannot be used in schema routine parameters
+# and schema function RETURN
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+CREATE PROCEDURE p1(a pkg1.rec0_t) AS
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of parameter_declaration and package_name.type_name
+CREATE FUNCTION f1 RETURN pkg1.rec0_t AS
+BEGIN
+RETURN NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of RETURN and package_name.type_name
+DROP PACKAGE pkg1;
+# RECORD as a package routine parameter and a package function RETURN
+# 2-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p2(r pkg1.rec0_t) AS
+BEGIN
+SELECT r.a, r.b;
+END;
+FUNCTION f1 RETURN pkg1.rec0_t AS
+res pkg1.rec0_t;
+BEGIN
+res.a:= 10;
+res.b:= 'b';
+RETURN res;
+END;
+PROCEDURE p1 AS
+BEGIN
+CALL p2(f1());
+END;
+END;
+$$
+CALL pkg2.p1();
+r.a	r.b
+10	b
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+# RECORD as a package routine parameter and a package function RETURN
+# 3-step
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p2(r test.pkg1.rec0_t) AS
+BEGIN
+SELECT r.a, r.b;
+END;
+FUNCTION f1 RETURN test.pkg1.rec0_t AS
+res test.pkg1.rec0_t;
+BEGIN
+res.a:= 10;
+res.b:= 'b';
+RETURN res;
+END;
+PROCEDURE p1 AS
+BEGIN
+CALL p2(f1());
+END;
+END;
+$$
+CALL pkg2.p1();
+r.a	r.b
+10	b
+CALL test1.pkg2.p1();
+r.a	r.b
+10	b
+USE test;
+CALL test1.pkg2.p1();
+r.a	r.b
+10	b
+USE test1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;

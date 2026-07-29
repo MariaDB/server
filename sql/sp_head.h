@@ -1015,6 +1015,25 @@ public:
 
   virtual void init_psi_share();
 
+  static void raise_unknown_data_type(const Lex_ident_db_normalized &db,
+                                      const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type);
+  static void raise_unknown_data_type(const Lex_ident_sys_st &package,
+                                      const Lex_ident_sys_st &type);
+  bool check_applicability(THD *thd, const Lex_field_type_st &def,
+                           column_definition_type_t type);
+
+
+  bool get_typedef_package_spec_or_error(THD *thd,
+                                         const sp_type_def **tdef,
+                                         const Lex_ident_sys_st &package,
+                                         const Lex_ident_sys_st &type);
+
+  bool get_typedef_package_spec_or_error(THD *thd,
+                                         const sp_type_def **tdef,
+                                         const Lex_ident_sys_st &db,
+                                         const Lex_ident_sys_st &package,
+                                         const Lex_ident_sys_st &type);
 protected:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
@@ -1198,6 +1217,13 @@ public:
     sp_pcontext *ctx= m_pcont->child_context(0);
     return ctx ? ctx->find_variable(name, true) : NULL;
   }
+  sp_type_def *find_type_def(const Lex_ident_sys_st &type);
+  bool get_typedef_or_error(THD *thd,
+                            const sp_type_def **tdef,
+                            const Lex_ident_db_normalized dbn,
+                            const Lex_ident_sys_st &package,
+                            const Lex_ident_sys_st &type);
+
   bool validate_after_parser(THD *thd);
   bool instantiate_if_needed(THD *thd);
 };

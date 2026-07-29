@@ -6823,8 +6823,10 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 bool LEX::sp_param_fill_definition(sp_variable *spvar,
                                    const Lex_field_type_st &def)
 {
+  constexpr column_definition_type_t dtype= COLUMN_DEFINITION_ROUTINE_PARAM;
   return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    sphead->check_applicability(thd, def, dtype) ||
+    last_field->set_attributes(thd, def, dtype) ||
     sphead->fill_spvar_definition(thd, last_field, &spvar->name);
 }
 
@@ -6883,8 +6885,10 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
 
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
+  constexpr column_definition_type_t dtype= COLUMN_DEFINITION_FUNCTION_RETURN;
   return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    sphead->check_applicability(thd, def, dtype) ||
+    last_field->set_attributes(thd, def, dtype) ||
     sphead->fill_field_definition(thd, last_field);
 }
 
@@ -6944,7 +6948,7 @@ void LEX::set_stmt_init()
   @param IN name - the data type name
   @retval        - the data type (if found), or NULL otherwise.
 */
-const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
+const sp_type_def *LEX::find_type_def(const Lex_ident_sys_st &name) const
 {
   DBUG_ASSERT(spcont);
   const sp_type_def *def= spcont->find_type_def(name, false);
@@ -6953,8 +6957,7 @@ const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
   if (sphead->m_parent)
   {
     // Find a package body type definition
-    return sphead->m_parent->get_parse_context()->
-             child_context(0)->find_type_def(name, true);
+    return sphead->m_parent->find_type_def(name);
   }
   return nullptr;
 }
@@ -13376,9 +13379,90 @@ bool LEX::declare_type_assoc_array(THD *thd,
 }
 
 
+/*
+  Declare a new REF CURSOR type with these semantics:
+    TYPE t IS REF CURSOR RETURN db.package.type; -- a 3-step package spec type
+    TYPE t IS REF CURSOR RETURN package.type;    -- a 2-step package spec type
+    TYPE t IS REF CURSOR RETURN type;            -- a 1-step semantic
+  I.e. the data type in RETURN refers to a previously defined TYPE.
+
+  @param thd       - The thd
+  @param type_name - The name of the new data type
+  @param db        - The database name. Can be a null identifier {0,0}.
+  @param package   - The package name. Can be a null identifier {0,0}.
+  @param type      - The type name.
+
+  @retval true     - If could not create a new TYPE. Possible reasons:
+                     * the data type specified by [db.]package.type
+                       was not found
+                     * something went wrong during mysql.proc reading.
+                     * EOM happened
+  @retval false    - If the new TYPE was successfully created.
+*/
+bool LEX::declare_type_ref_cursor_return_typedef(THD *thd,
+                             const Lex_ident_sys_st &type_name,
+                             const Lex_ident_sys_st &db,
+                             const Lex_ident_sys_st &package,
+                             const Lex_ident_sys_st &type)
+{
+  const Lex_ident_plugin sr= "sys_refcursor"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, sr);
+  if (unlikely(!th))
+    return true;
+
+  const sp_type_def *rt= nullptr; // The typedef of the RETURN type
+  if (db.str) // A 3-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN db1.pkg1.rec1_t;
+    if (sphead->get_typedef_package_spec_or_error(thd, &rt, db, package, type))
+      return true;
+  }
+  else if (package.str) // A 2-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN pkg1.rec1_t;
+    if (sphead->get_typedef_package_spec_or_error(thd, &rt, package, type))
+      return true;
+  }
+  else // A 1-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN rec1_t;
+    if (!(rt= find_type_def(type)))
+    {
+      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), type.str);
+      return true;
+    }
+  }
+  const sp_type_def_record *type_def_rec=
+                                   dynamic_cast<const sp_type_def_record*>(rt);
+  if (!type_def_rec ||
+      !dynamic_cast<const Type_handler_row*>(rt->type_handler()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type.str, "REF CURSOR RETURN");
+    return true;
+  }
+  Row_definition_list *row= type_def_rec->field->deep_copy(thd);
+  if (!row)
+    return true; // EOM
+
+  if (check_ref_cursor_components(row))
+    return true;
+
+  const Spvar_definition return_def(&type_handler_row, row);
+  return spcont->type_defs_add_ref_cursor(thd, Lex_ident_column(type_name), th,
+                                          return_def, false/*is_prepared*/);
+}
+
+
+/*
+  Declare a new REF CURSOR type with these semantics:
+    TYPE t IS REF CURSOR;
+    TYPE t IS REF CURSOR RETURN db1.t1%ROWTYPE;
+    TYPE t IS REF CURSOR RETURN t1%ROWTYPE;
+    TYPE t IS REF CURSOR RETURN rec_var%TYPE;
+*/
 bool LEX::declare_type_ref_cursor(THD *thd,
                                   const Lex_ident_sys_st &type_name,
-                                  const Lex_ident_sys_st &return_type_name,
                                   const Qualified_column_ident *rowtype,
                                   const Qualified_column_ident *vartype,
                                   const Lex_ident_cli_st &syntax_error_token)
@@ -13452,41 +13536,9 @@ bool LEX::declare_type_ref_cursor(THD *thd,
       return_def= Spvar_definition(ti, sp_rcontext_addr(nullptr, 0));
     }
   }
-  else if (!return_type_name.is_null())
-  {
-    /*
-      An explicit data type in the RETURN clause:
-        TYPE c0 IS REF CURSOR RETURN rec0_t;
-    */
-    const sp_type_def *rt= find_type_def(return_type_name);
-    if (!rt)
-    {
-      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), return_type_name.str);
-      return true;
-    }
-    if (!dynamic_cast<const Type_handler_row*>(rt->type_handler()))
-    {
-      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-               return_type_name.str, "REF CURSOR RETURN");
-      return true;
-    }
-    Row_definition_list *row= static_cast<const sp_type_def_record*>(rt)->
-                                field->deep_copy(thd);
-    if (!row)
-      return true; // EOM
 
-    if (check_ref_cursor_components(row))
-      return true;
-
-    return_def= Spvar_definition(&type_handler_row, row);
-  }
-  sp_type_def_ref *tdef=
-    new (thd->mem_root) sp_type_def_ref(Lex_ident_column(type_name), th,
-                                        return_def, is_prepared);
-  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
-    return true; // EOM
-
-  return false;
+  return spcont->type_defs_add_ref_cursor(thd, Lex_ident_column(type_name), th,
+                                          return_def, is_prepared);
 }
 
 
@@ -13509,7 +13561,7 @@ bool LEX::check_ref_cursor_components(Row_definition_list *row) const
 
 
 bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                             const LEX_CSTRING &name,
+                             const Lex_ident_sys_st &name,
                              const Lex_length_and_dec_st &attr,
                              const Lex_column_charset_collation_attrs_st &coll)
 {
@@ -13570,7 +13622,7 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
 
 
 bool LEX::set_field_type_typedef(Lex_field_type_st *type,
-                              const LEX_CSTRING &name,
+                              const Lex_ident_sys_st &name,
                               const Lex_length_and_dec_st &attr,
                               const Lex_column_charset_collation_attrs_st &coll,
                               bool *is_typedef)
@@ -13593,6 +13645,68 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
     }
   }
 
+  return false;
+}
+
+
+/*
+  Set a PACKAGE data type to "res" for a 2-step qualified name,
+  consisting by the package name and type name.
+  Handles the following cases:
+  - A PACKAGE refers to its own type using a qualified name
+  - A routine refers to the PACKAGE in the same database with the routine
+    using a qualified type
+  - Otherwise, the database which contains a package "package" with the type
+    "type" is resolved using the @@PATH variable.
+
+  @param OUT res - The data type to write to
+  @param package - The package name
+  @param type    - The data type name
+
+  @retval false  - The package "package" with the data type "type" was found,
+                   and res[0] was set to the found type.
+  @retval true   - The data type was not found, or some error happened
+                   during type resolution.
+*/
+bool LEX::set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                                              const Lex_ident_sys_st &package,
+                                              const Lex_ident_sys_st &type)
+{
+  const sp_type_def *tdef= nullptr;
+  if (sphead->get_typedef_package_spec_or_error(thd, &tdef, package, type))
+    return true;
+  res->set(tdef->type_handler(), nullptr/*CHARSET_INFO*/);
+  res->set_foreign_module_type(true);
+  last_field->set_attr_const_generic_ptr(0, tdef);
+  return false;
+}
+
+
+/*
+  Set a PACKAGE data type to "res" by a 3-step qualified name,
+  consisting by the database name, package name and type name.
+
+  @param OUT res - The data type to write to
+  @param db      - The database name
+  @param package - The package name
+  @param type    - The data type name
+
+  @retval false  - The package "package" with the data type "type" was found,
+                   and res[0] was set to the found type.
+  @retval true   - The data type was not found, or some error happened
+                   during type resolution.
+*/
+bool LEX::set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                                              const Lex_ident_sys_st &db,
+                                              const Lex_ident_sys_st &package,
+                                              const Lex_ident_sys_st &type)
+{
+  const sp_type_def *tdef= nullptr;
+  if (sphead->get_typedef_package_spec_or_error(thd, &tdef, db, package, type))
+    return true;
+  res->set(tdef->type_handler(), nullptr/*CHARSET_INFO*/);
+  res->set_foreign_module_type(true);
+  last_field->set_attr_const_generic_ptr(0, tdef);
   return false;
 }
 
