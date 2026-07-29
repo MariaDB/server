@@ -25,6 +25,8 @@ int heap_rlast(HP_INFO *info, uchar *record, int inx)
   HP_KEYDEF *keyinfo= share->keydef + inx;
 
   DBUG_ENTER("heap_rlast");
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   info->lastinx= inx;
   info->key_version= info->s->key_version;
   if (keyinfo->algorithm == HA_KEY_ALG_BTREE)

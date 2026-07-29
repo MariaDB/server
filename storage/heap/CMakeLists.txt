@@ -32,7 +32,8 @@ IF(WITH_UNIT_TESTS)
   TARGET_LINK_LIBRARIES(hp_test1 heap mysys dbug strings)
   ADD_EXECUTABLE(hp_test2 hp_test2.c)
   TARGET_LINK_LIBRARIES(hp_test2 heap mysys dbug strings)
-  MY_ADD_TESTS(hp_test_hash hp_test_scan hp_test_freelist hp_test_concurrent LINK_LIBRARIES heap mysys dbug strings)
+  MY_ADD_TESTS(hp_test_hash hp_test_scan hp_test_freelist hp_test_concurrent
+               hp_test_update LINK_LIBRARIES heap mysys dbug strings)
 
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                       ${CMAKE_SOURCE_DIR}/include)

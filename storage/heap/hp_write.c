@@ -35,6 +35,8 @@ int heap_write(HP_INFO *info, const uchar *record)
   uchar *pos;
   HP_SHARE *share=info->s;
   DBUG_ENTER("heap_write");
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
 #ifndef DBUG_OFF
   if (info->mode & O_RDONLY)
   {
@@ -123,11 +125,12 @@ err_delete_written_keys:
   Write a key to rb_tree-index 
 */
 
-int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record, 
+int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record,
 		    uchar *recpos)
 {
   heap_rb_param custom_arg;
   size_t old_allocated;
+  TREE_ELEMENT *element;
 
   custom_arg.keyseg= keyinfo->seg;
   custom_arg.key_length= hp_rb_make_key(keyinfo, info->recbuf, record, recpos);
@@ -142,10 +145,16 @@ int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record,
     keyinfo->rb_tree.flag= 0;
   }
   old_allocated= keyinfo->rb_tree.allocated;
-  if (!tree_insert(&keyinfo->rb_tree, (void*)info->recbuf,
-		   custom_arg.key_length, &custom_arg))
+  element= tree_insert(&keyinfo->rb_tree, (void*) info->recbuf,
+                       custom_arg.key_length, &custom_arg);
+  if (!element)
   {
-    my_errno= HA_ERR_FOUND_DUPP_KEY;
+    if (keyinfo->rb_tree.error == TREE_ERROR_OOM)
+      my_errno= HA_ERR_OUT_OF_MEM;
+    else if (keyinfo->rb_tree.error == TREE_ERROR_DUP_KEY)
+      my_errno= HA_ERR_FOUND_DUPP_KEY;
+    else
+      my_errno= HA_ERR_INTERNAL_ERROR;
     return 1;
   }
   info->s->index_length+= (keyinfo->rb_tree.allocated-old_allocated);

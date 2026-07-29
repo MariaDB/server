@@ -51,6 +51,9 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(1);                     /* Already known to be damaged */
+
   for (error=key= 0 ; key < share->keys ; key++)
   {
     if (share->keydef[key].algorithm == HA_KEY_ALG_BTREE)

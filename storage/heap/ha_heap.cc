@@ -528,7 +528,15 @@ int ha_heap::reset_auto_increment(ulonglong value)
 int ha_heap::external_lock(THD *thd, int lock_type)
 {
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
-  if (lock_type == F_UNLCK && file->s->changed && heap_check_heap(file, 0))
+  /*
+    A table already marked crashed is knowingly inconsistent; every data
+    access on it fails with HA_ERR_CRASHED, so re-detecting the damage
+    here would only raise a second error into a diagnostics area that
+    can already be OK (e.g. after UNLOCK TABLES) and fire the
+    Diagnostics_area assertion.
+  */
+  if (lock_type == F_UNLCK && file->s->changed &&
+      !heap_is_crashed(file->s) && heap_check_heap(file, 0))
     return HA_ERR_CRASHED;
 #endif
   if (lock_type == F_UNLCK)
