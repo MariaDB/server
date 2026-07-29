@@ -164,7 +164,6 @@ private:
 static HCData data;
 static bool loaded= true;
 
-static clock_t cache_max_time;
 static clock_t cache_max_ver_time;
 
 /*
@@ -254,17 +253,11 @@ unsigned int
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_get: key_id = %u, key_version = %u, "
-                  "effective version = %u, key data timestamp = %u, "
-                  "current time = %u, diff = %u",
+                  "effective version = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  version, info.timestamp, current_time,
-                  current_time - info.timestamp);
+                  version);
 #endif
   unsigned int length= info.length;
-  if (with_timeouts && current_time - info.timestamp > cache_max_time)
-  {
-    return ENCRYPTION_KEY_VERSION_INVALID;
-  }
   unsigned int max_length = *buflen;
   *buflen = length;
   if (max_length >= length)
@@ -353,10 +346,6 @@ static int timeout;
 static int max_retries;
 static char caching_enabled;
 static char check_kv_version;
-#if MYSQL_VERSION_ID < 130300
-static long long cache_timeout;         // for KEY_MAP key_info_cache
-static char use_cache_on_timeout;
-#endif
 static long cache_version_timeout;      // for VER_MAP latest_version_cache
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
@@ -398,21 +387,6 @@ static MYSQL_SYSVAR_BOOL(check_kv_version, check_kv_version,
   "Enable kv storage version check during plugin initialization",
   NULL, NULL, 1);
 
-static void cache_timeout_update (MYSQL_THD thd,
-                                  struct st_mysql_sys_var *var,
-                                  void *var_ptr,
-                                  const void *save)
-{
-  long long timeout = * (long long *) save;
-  * (long long *) var_ptr = timeout;
-  cache_max_time = ms_to_ticks(timeout);
-}
-
-static MYSQL_SYSVAR_LONGLONG(cache_timeout, cache_timeout,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Cache timeout for key data (in milliseconds)",
-  NULL, cache_timeout_update, INT64_MAX, 0, INT64_MAX, 1);
-
 static void
   cache_version_timeout_update (MYSQL_THD thd,
                                 struct st_mysql_sys_var *var,
@@ -429,12 +403,6 @@ static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
   "Cache timeout for key version (in milliseconds)",
   NULL, cache_version_timeout_update, 60*1000, 0, LONG_MAX, 1);
 
-static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "In case of an error when accessing the vault server "
-  "use the value taken from the cache",
-  NULL, NULL, 1);
-
 static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(vault_url),
   MYSQL_SYSVAR(token),
@@ -442,9 +410,7 @@ static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(timeout),
   MYSQL_SYSVAR(max_retries),
   MYSQL_SYSVAR(caching_enabled),
-  MYSQL_SYSVAR(cache_timeout),
   MYSQL_SYSVAR(cache_version_timeout),
-  MYSQL_SYSVAR(use_cache_on_timeout),
   MYSQL_SYSVAR(check_kv_version),
   NULL
 };
@@ -759,7 +725,7 @@ unsigned int HCData::get_latest_version (unsigned int key_id)
   size_t buf_len = vault_url_len + (20 + 6 + 1);
   char *url = (char *) alloca(buf_len);
   snprintf(url, buf_len, "%s%u", vault_url_data, key_id);
-  bool use_cache= caching_enabled && use_cache_on_timeout;
+  bool use_cache= caching_enabled;
   int rc;
   if ((rc= curl_run(url, &response_str, use_cache)) != OPERATION_OK)
   {
@@ -841,7 +807,7 @@ unsigned int HCData::get_key_from_vault (unsigned int key_id,
              vault_url_data, key_id, key_version);
   else
     snprintf(url, buf_len, "%s%u", vault_url_data, key_id);
-  bool use_cache= caching_enabled && use_cache_on_timeout;
+  bool use_cache= caching_enabled;
   int rc;
   if ((rc= curl_run(url, &response_str, use_cache)) != OPERATION_OK)
   {
@@ -1162,7 +1128,6 @@ No_Secret:
   }
   memcpy(vault_url_data, vault_url, vault_url_len);
   memcpy(vault_url_data + vault_url_len, "/data/", 7);
-  cache_max_time = ms_to_ticks(cache_timeout);
   cache_max_ver_time = ms_to_ticks(cache_version_timeout);
   /* Initialize curl: */
   CURLcode curl_res = curl_global_init(CURL_GLOBAL_ALL);
