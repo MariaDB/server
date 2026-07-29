@@ -146,6 +146,8 @@ int heap_delete(HP_INFO *info, const uchar *record)
   DBUG_ENTER("heap_delete");
   DBUG_PRINT("enter",("info: %p  record: %p", info, record));
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
   hp_flush_pending_blob_free(info);
 

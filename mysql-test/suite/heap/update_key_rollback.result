@@ -1,0 +1,112 @@
+#
+# Index consistency after a failed UPDATE on a HEAP table
+#
+# heap_update() moves the changed key entries to their new key values
+# before it updates the record.  A failure raised after that has to
+# move them back.  An rb-tree node allocation failure used to be
+# reported as a duplicate key, and when the recovery itself cannot
+# restore a key the table is now marked crashed, so that no statement
+# can use an index that no longer describes the data.
+#
+# The keyword lists armed below always carry the inert
+# "heap_test_guard" keyword: the one-shot injection removes its own
+# keyword when it fires, and a keyword list that becomes empty while
+# debugging is on matches every keyword.
+#
+CALL mtr.add_suppression("Index for table .t1. is corrupt");
+#
+# The hash key k1 is moved to the new value, then the rb-tree node
+# allocation for k2 fails once: the failure is reported as out of
+# memory, not as a duplicate, and both keys are moved back
+#
+CREATE TABLE t1 (
+id INT,
+a INT,
+b INT,
+KEY k1 (a),
+KEY k2 (b) USING BTREE
+) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, 10, 100), (2, 20, 200);
+SET SESSION debug_dbug="+d,once_simulate_tree_insert_oom,heap_test_guard";
+UPDATE t1 SET a= 11, b= 101 WHERE id = 1;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug="";
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Both indexes must still find the row under its unchanged values
+SELECT id, a, b FROM t1 FORCE INDEX(k1) WHERE a = 10;
+id	a	b
+1	10	100
+SELECT id, a, b FROM t1 FORCE INDEX(k2) WHERE b = 100;
+id	a	b
+1	10	100
+SELECT COUNT(*) FROM t1 FORCE INDEX(k1) WHERE a = 11;
+COUNT(*)
+0
+SELECT COUNT(*) FROM t1 FORCE INDEX(k2) WHERE b = 101;
+COUNT(*)
+0
+SELECT id, a, b FROM t1 ORDER BY id;
+id	a	b
+1	10	100
+2	20	200
+#
+# A duplicate key is still reported as a duplicate
+#
+CREATE TABLE t2 (
+id INT,
+a INT,
+UNIQUE KEY k1 (a) USING BTREE
+) ENGINE=HEAP;
+INSERT INTO t2 VALUES (1, 10), (2, 20);
+UPDATE t2 SET a= 20 WHERE id = 1;
+ERROR 23000: Duplicate entry '20' for key 'k1'
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+SELECT id, a FROM t2 ORDER BY id;
+id	a
+1	10
+2	20
+DROP TABLE t2;
+#
+# The allocation failure persists, so restoring the old k2 entry
+# fails as well: the already moved k1 no longer describes the
+# record, the table is marked crashed, and every read and write on
+# it is refused until it is emptied
+#
+SET SESSION debug_dbug="+d,simulate_tree_insert_oom,heap_test_guard";
+UPDATE t1 SET a= 11, b= 101 WHERE id = 1;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug="";
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Index for table 't1' is corrupt; try to repair it
+test.t1	check	error	Corrupt
+SELECT id, a, b FROM t1 ORDER BY id;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SELECT id, a, b FROM t1 FORCE INDEX(k1) WHERE a = 10;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+INSERT INTO t1 VALUES (3, 30, 300);
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+UPDATE t1 SET a= 12 WHERE id = 2;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+DELETE FROM t1 WHERE id = 2;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+# A repeated check re-validates the structure, finds it still
+# damaged and keeps the table marked crashed
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Index for table 't1' is corrupt; try to repair it
+test.t1	check	error	Corrupt
+# Emptying the table rebuilds the indexes from nothing
+TRUNCATE TABLE t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+INSERT INTO t1 VALUES (5, 50, 500);
+SELECT id, a, b FROM t1 FORCE INDEX(k2) WHERE b = 500;
+id	a	b
+5	50	500
+DROP TABLE t1;

@@ -31,6 +31,8 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
   HP_SHARE *share=info->s;
   DBUG_ENTER("heap_rsame");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
   if (info->current_ptr[share->visible])
   {

@@ -31,6 +31,8 @@ int heap_rrnd(register HP_INFO *info, uchar *record, uchar *pos)
   DBUG_ENTER("heap_rrnd");
   DBUG_PRINT("enter",("info: %p  pos: %p", info, pos));
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   info->lastinx= -1;
   if (!(info->current_ptr= pos))
   {
