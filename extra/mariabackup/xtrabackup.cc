@@ -3502,9 +3502,9 @@ static bool xtrabackup_copy_mmap_logfile()
   const size_t seq_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const char one{'\1'};
   const byte *start= &log_sys.buf[recv_sys.offset];
-  ut_d(recv_sys_t::parse_mtr_result r);
+  recv_sys_t::parse_mtr_result r;
 
-  if ((ut_d(r=) backup_log_parse()) == recv_sys_t::OK)
+  if ((r= backup_log_parse()) == recv_sys_t::OK)
   {
     do
     {
@@ -3522,7 +3522,7 @@ static bool xtrabackup_copy_mmap_logfile()
         start = seq + 1;
       }
     }
-    while ((ut_d(r=) backup_log_parse()) == recv_sys_t::OK);
+    while ((r= backup_log_parse()) == recv_sys_t::OK);
 
     if (xtrabackup_copy_mmap_snippet(dst_log_file, start,
                                      &log_sys.buf[recv_sys.offset]))
@@ -3533,6 +3533,45 @@ static bool xtrabackup_copy_mmap_logfile()
     }
 
     pthread_cond_broadcast(&scanned_lsn_cond);
+  }
+  else if (!reached_parse_limit && log_sys.buf[recv_sys.offset] > 1)
+  {
+    /* The parse failed at a position that does look like the start of a
+    mini-transaction, and it was not the parse limit (MDEV-39468) that
+    rejected it: report the stall once per LSN. */
+    static lsn_t reported_stall_lsn;
+    if (recv_sys.lsn != reported_stall_lsn)
+    {
+      reported_stall_lsn= recv_sys.lsn;
+      static const char *const res[]=
+        {"OK", "PREMATURE_EOF", "GOT_EOF", "GOT_OOM"};
+      char bytes[16 * 3 + 1];
+      size_t avail= size_t(log_sys.file_size) > recv_sys.offset
+        ? size_t(log_sys.file_size) - recv_sys.offset : 0;
+      size_t n= avail < 16 ? avail : 16;
+      for (size_t i= 0; i < n; i++)
+        snprintf(bytes + i * 3, 4, " %02x", log_sys.buf[recv_sys.offset + i]);
+      bytes[n ? n * 3 : 0]= '\0';
+      const unsigned expected= log_sys.get_sequence_bit(recv_sys.lsn);
+      /* Drift check: recv_sys.offset should sit right after the previous
+      mtr's 5-byte trailer (1 sequence byte + 4 CRC), so the byte at
+      offset-5 must be <=1. If it is not, recv_sys.lsn is not on an mtr
+      boundary -- the copier drifted mid-mtr rather than genuinely stalling
+      at a boundary. */
+      const size_t cap= size_t(log_sys.file_size - log_sys.START_OFFSET);
+      const size_t toff= recv_sys.offset >= size_t(log_sys.START_OFFSET) + 5
+        ? recv_sys.offset - 5 : recv_sys.offset - 5 + cap;
+      const byte tb= log_sys.buf[toff];
+      msg("Retrying read of log at LSN=" LSN_PF
+          " (mmap) parse=%s offset=%zu file_size=" LSN_PF
+          " first_lsn=" LSN_PF " checkpoint=" LSN_PF
+          " parse_limit=" LSN_PF
+          " expected_seq_bit=%u prev_trailer=0x%02x(%s) bytes=%s",
+          recv_sys.lsn, res[r], recv_sys.offset, log_sys.file_size,
+          log_sys.get_first_lsn(), log_sys.last_checkpoint_lsn.load(),
+          max_parse_lsn, expected, tb, tb <= 1 ? "boundary" : "MID-MTR-drift",
+          bytes);
+    }
   }
 
   ut_ad(r == recv_sys_t::GOT_EOF);
@@ -3595,7 +3634,8 @@ static bool xtrabackup_copy_logfile(bool early_exit)
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (backup_log_parse() == recv_sys_t::OK)
+      r= backup_log_parse();
+      if (r == recv_sys_t::OK)
       {
         do
         {
@@ -3640,7 +3680,41 @@ static bool xtrabackup_copy_logfile(bool early_exit)
 
         mysql_mutex_unlock(&recv_sys.mutex);
         if (!retry_count++)
-          msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
+        {
+          static const char *const res[]=
+            {"OK", "PREMATURE_EOF", "GOT_EOF", "GOT_OOM"};
+          char bytes[16 * 3 + 1];
+          size_t avail= recv_sys.len > recv_sys.offset
+            ? recv_sys.len - recv_sys.offset : 0;
+          size_t n= avail < 16 ? avail : 16;
+          for (size_t i= 0; i < n; i++)
+            snprintf(bytes + i * 3, 4, " %02x",
+                     log_sys.buf[recv_sys.offset + i]);
+          bytes[n ? n * 3 : 0]= '\0';
+          const unsigned expected= log_sys.get_sequence_bit(recv_sys.lsn);
+          /* Drift check: the previous mtr's 5-byte trailer (1 sequence byte +
+          4 CRC) must end right before recv_sys.offset, so the byte at
+          offset-5 must be <=1. If not, recv_sys.lsn is not on an mtr boundary
+          -- the copier drifted mid-mtr rather than stalling at a boundary. */
+          char trailer[32];
+          if (recv_sys.offset >= 5)
+            snprintf(trailer, sizeof trailer, "0x%02x(%s)",
+                     log_sys.buf[recv_sys.offset - 5],
+                     log_sys.buf[recv_sys.offset - 5] <= 1
+                       ? "boundary" : "MID-MTR-drift");
+          else
+            snprintf(trailer, sizeof trailer, "n/a");
+          msg("Retrying read of log at LSN=" LSN_PF
+              " parse=%s offset=%zu len=%zu source_offset=" LSN_PF
+              " first_lsn=" LSN_PF " file_size=" LSN_PF
+              " checkpoint=" LSN_PF " parse_limit=" LSN_PF
+              " expected_seq_bit=%u prev_trailer=%s bytes=%s",
+              recv_sys.lsn, res[r], recv_sys.offset, recv_sys.len,
+              log_sys.calc_lsn_offset(recv_sys.lsn - recv_sys.offset),
+              log_sys.get_first_lsn(), log_sys.file_size,
+              log_sys.last_checkpoint_lsn.load(), max_parse_lsn, expected,
+              trailer, bytes);
+        }
         my_sleep(1000);
       }
     }
@@ -3673,11 +3747,27 @@ static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
       ", not " LSN_PF, checkpoint_lsn, last_lsn, lsn);
 
   if (needed <= capacity)
+  {
     msg("mariabackup: The required redo still fits within the log "
         "capacity, so it has not been overwritten; check whether the "
         "server and backup configuration are the same.");
+    msg("log copier diagnostics: needed redo [" LSN_PF " .. " LSN_PF "] = "
+        LSN_PF " bytes fits within log capacity " LSN_PF " (file_size "
+        LSN_PF "); the redo at the stalled LSN is still in the log, so "
+        "increasing innodb_log_file_size will not help. Copier stalled "
+        LSN_PF " bytes short of target, parse_limit=" LSN_PF
+        ", last_parse_limited=%d.",
+        checkpoint_lsn, lsn, needed, capacity, log_sys.file_size,
+        lsn - last_lsn, max_parse_lsn, reached_parse_limit);
+  }
   else
+  {
     msg("mariabackup: Try increasing the innodb_log_file_size.");
+    msg("log copier diagnostics: needed redo " LSN_PF " bytes exceeds log "
+        "capacity " LSN_PF " (file_size " LSN_PF "); part of the required "
+        "redo may have been overwritten.",
+        needed, capacity, log_sys.file_size);
+  }
   return false;
 }
 

@@ -2956,6 +2956,9 @@ recv_sys_t::parse_tail(const byte *begin, bool if_exists, size_t size) noexcept
                                 begin + size - (8 + 4), 8))
     : nullptr;
   start_lsn= lsn;
+  sql_print_information("InnoDB: mtr start_lsn=%llu size=%zu offset=%llu",
+                        (ulonglong) lsn, size,
+                        (ulonglong) log_sys.calc_lsn_offset(lsn));
 restart:
   lsn+= size;
   ut_d(const byte *const el{begin + size});
