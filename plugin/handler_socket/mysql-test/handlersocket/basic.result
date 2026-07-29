@@ -1,0 +1,41 @@
+call mtr.add_suppression('handlersocket: open_files_limit is too small');
+install plugin handlersocket soname 'handlersocket.so';
+select plugin_name, plugin_version, plugin_status, plugin_type, plugin_library, plugin_library_version, plugin_author, plugin_description, plugin_license, plugin_maturity, plugin_auth_version from information_schema.plugins where plugin_name = 'handlersocket';
+plugin_name	handlersocket
+plugin_version	1.1
+plugin_status	ACTIVE
+plugin_type	DAEMON
+plugin_library	handlersocket.so
+plugin_library_version	1.15
+plugin_author	higuchi dot akira at dena dot jp
+plugin_description	Direct access into InnoDB
+plugin_license	BSD
+plugin_maturity	Beta
+plugin_auth_version	1.1
+select * from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLERSOCKET_ACCEPT_BALANCE	0
+HANDLERSOCKET_ADDRESS	
+HANDLERSOCKET_BACKLOG	32768
+HANDLERSOCKET_EPOLL	1
+HANDLERSOCKET_PLAIN_SECRET	HS_SECRET
+HANDLERSOCKET_PLAIN_SECRET_WR	HS_SECRET
+HANDLERSOCKET_PORT	HS_PORT
+HANDLERSOCKET_PORT_WR	
+HANDLERSOCKET_RCVBUF	0
+HANDLERSOCKET_READSIZE	0
+HANDLERSOCKET_SNDBUF	0
+HANDLERSOCKET_THREADS	16
+HANDLERSOCKET_THREADS_WR	1
+HANDLERSOCKET_TIMEOUT	300
+HANDLERSOCKET_VERBOSE	10
+HANDLERSOCKET_WRLOCK_TIMEOUT	12
+select length(@@handlersocket_plain_secret), @@handlersocket_plain_secret = @@handlersocket_plain_secret_wr;
+length(@@handlersocket_plain_secret)	@@handlersocket_plain_secret = @@handlersocket_plain_secret_wr
+16	1
+create table t1 (id int primary key, name varchar(100)) engine=innodb;
+auth: 0	1
+open: 0	1
+bad read: 2	1	fldnum
+uninstall plugin handlersocket;
+drop table t1;

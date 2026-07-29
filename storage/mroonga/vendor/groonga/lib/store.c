@@ -261,9 +261,12 @@ struct _grn_ja_einfo {
   (e)->u.h.seg = (_seg);\
   (e)->u.h.size = (_size);\
 } while (0)
+#define EHUGE_DEC_SIZE(e, _size) do {\
+  (_size) = (e)->u.h.size;\
+} while (0)
 #define EHUGE_DEC(e,_seg,_size) do {\
   (_seg) = (e)->u.h.seg;\
-  (_size) = (e)->u.h.size;\
+  EHUGE_DEC_SIZE((e), (_size));\
 } while (0)
 #define EINFO_ENC(e,_seg,_pos,_size) do {\
   (e)->u.n.c1 = (_pos) >> 16;\
@@ -272,10 +275,13 @@ struct _grn_ja_einfo {
   (e)->u.n.pos = (_pos);\
   (e)->u.n.size = (_size);\
 } while (0)
-#define EINFO_DEC(e,_seg,_pos,_size) do {\
-  (_seg) = (e)->u.n.seg;\
+#define EINFO_DEC_POS_SIZE(e, _pos, _size) do {\
   (_pos) = ((e)->u.n.c1 << 16) + (e)->u.n.pos;\
   (_size) = ((e)->u.n.c2 << 16) + (e)->u.n.size;\
+} while (0)
+#define EINFO_DEC(e,_seg,_pos,_size) do {\
+  (_seg) = (e)->u.n.seg;\
+  EINFO_DEC_POS_SIZE((e), (_pos), (_size));\
 } while (0)
 
 typedef struct {
@@ -1186,12 +1192,11 @@ grn_ja_element_info(grn_ctx *ctx, grn_ja *ja, grn_id id,
         ETINY_DEC(ei, *size);
         *pos = 0;
       } else {
-        uint32_t jag;
         if (EHUGE_P(ei)) {
-          EHUGE_DEC(ei, jag, *size);
+          EHUGE_DEC_SIZE(ei, *size);
           *pos = 0;
         } else {
-          EINFO_DEC(ei, jag, *pos, *size);
+          EINFO_DEC_POS_SIZE(ei, *pos, *size);
         }
       }
       GRN_IO_SEG_UNREF(ja->io, pseg);

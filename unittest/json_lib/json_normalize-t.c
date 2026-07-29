@@ -231,7 +231,8 @@ check_number_normalize(const char *in, const char *expected)
   int err;
   DYNAMIC_STRING buf;
 
-  init_dynamic_string(&buf, NULL, 0, 0);
+  if (init_dynamic_string(&buf, NULL, 0, 0))
+    BAIL_OUT("init_dynamic_string failed (out of memory)");
 
   err= json_normalize_number(&buf, in, strlen(in));
   ok(err == 0, "normalize number err: %d", err);
@@ -255,6 +256,7 @@ main(int argc, char** argv)
   MEM_ROOT_DYNAMIC_ARRAY stack;
   json_engine_t je;
 
+  je.killed_ptr= NULL;
   init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                     BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,

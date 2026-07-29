@@ -1,6 +1,7 @@
 # This test should work in embedded server after we fix mysqltest
--- source include/not_embedded.inc
--- source include/have_openssl.inc
+--source include/not_embedded.inc
+--source include/have_openssl.inc
+--source include/not_ssl.inc
 
 --echo # try logging in with a certificate not in the server's --ssl-crl : should succeed
 --replace_result TLSv1.3 TLS_VERSION TLSv1.2 TLS_VERSION TLSv1.1 TLS_VERSION TLSv1 TLS_VERSION

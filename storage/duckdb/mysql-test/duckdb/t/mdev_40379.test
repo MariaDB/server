@@ -1,0 +1,19 @@
+#
+# MDEV-40379: Assertion failure in CreateTableConvertor::translate
+# upon CREATE TEMPORARY TABLE with ENGINE=DuckDB
+#
+
+--disable_query_log
+--disable_warnings
+DROP DATABASE IF EXISTS mdev_40379;
+--enable_warnings
+--enable_query_log
+
+CREATE DATABASE mdev_40379;
+USE mdev_40379;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t (c INT KEY) ENGINE=DuckDB;
+
+USE test;
+DROP DATABASE mdev_40379;

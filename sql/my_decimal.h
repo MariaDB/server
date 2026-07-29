@@ -288,10 +288,9 @@ inline decimal_digits_t my_decimal_length_to_precision(decimal_digits_t length,
                                                        decimal_digits_t scale,
                                                        bool unsigned_flag)
 {
-  /* Precision can't be negative thus ignore unsigned_flag when length is 0. */
+  /* Subtract the dot and the sign; clamp to a minimum of 1. */
   DBUG_ASSERT(length || !scale);
-  return (decimal_digits_t) (length - (scale>0 ? 1:0) -
-                             (unsigned_flag || !length ? 0:1));
+  return (decimal_digits_t) MY_MAX(1, (int)length - (scale>0) - !unsigned_flag);
 }
 
 inline decimal_digits_t
@@ -300,8 +299,8 @@ my_decimal_precision_to_length_no_truncation(decimal_digits_t precision,
                                              bool unsigned_flag)
 {
   /*
-    When precision is 0 it means that original length was also 0. Thus
-    unsigned_flag is ignored in this case.
+    precision 0 (only from direct callers; my_decimal_length_to_precision()
+    no longer emits it) means length was 0 too, so ignore unsigned_flag.
   */
   DBUG_ASSERT(precision || !scale);
   return (decimal_digits_t)(precision + (scale > 0 ? 1 : 0) +
@@ -314,8 +313,8 @@ my_decimal_precision_to_length(decimal_digits_t precision,
                                bool unsigned_flag)
 {
   /*
-    When precision is 0 it means that original length was also 0. Thus
-    unsigned_flag is ignored in this case.
+    precision 0 (only from direct callers; my_decimal_length_to_precision()
+    no longer emits it) means length was 0 too, so ignore unsigned_flag.
   */
   DBUG_ASSERT(precision || !scale);
   set_if_smaller(precision, DECIMAL_MAX_PRECISION);

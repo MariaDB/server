@@ -263,6 +263,9 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   bool res= TRUE;
   DBUG_ENTER("create_view_precheck");
 
+  if (error_if_mysql50_prefix(view->table_name.str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(TRUE);
+
   /*
     Privilege check for view creation:
     - user has CREATE VIEW privilege on view table
@@ -852,7 +855,7 @@ static File_option view_parameters[]=
   FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("md5")},
   my_offsetof(TABLE_LIST, md5),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("updatable")},
   my_offsetof(TABLE_LIST, updatable_view),
   FILE_OPTIONS_ULONGLONG},
@@ -861,10 +864,10 @@ static File_option view_parameters[]=
   FILE_OPTIONS_VIEW_ALGO},
  {{ STRING_WITH_LEN("definer_user")},
   my_offsetof(TABLE_LIST, definer.user),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("definer_host")},
   my_offsetof(TABLE_LIST, definer.host),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("suid")},
   my_offsetof(TABLE_LIST, view_suid),
   FILE_OPTIONS_ULONGLONG},
@@ -882,10 +885,10 @@ static File_option view_parameters[]=
   FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("client_cs_name")},
   my_offsetof(TABLE_LIST, view_client_cs_name),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("connection_cl_name")},
   my_offsetof(TABLE_LIST, view_connection_cl_name),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("view_body_utf8")},
   my_offsetof(TABLE_LIST, view_body_utf8),
   FILE_OPTIONS_ESTRING},
@@ -896,7 +899,7 @@ static File_option view_parameters[]=
   my_offsetof(TABLE_LIST, mariadb_version),
   FILE_OPTIONS_ULONGLONG},
  {{NullS, 0},			0,
-  FILE_OPTIONS_STRING}
+  FILE_OPTIONS_ESTRING}
 };
 
 
@@ -904,7 +907,7 @@ static File_option view_timestamp_parameters[]=
 {
 
  {{ C_STRING_WITH_LEN("timestamp")}, 0, FILE_OPTIONS_TIMESTAMP},
- {{NullS, 0}, 0, FILE_OPTIONS_STRING}
+ {{NullS, 0}, 0, FILE_OPTIONS_ESTRING}
 };
 
 

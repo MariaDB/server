@@ -495,19 +495,20 @@ public:
   }
 
 
-  void print_grant(String *str)
+  void print_grant(THD *thd, String *str)
   {
-    str->append(STRING_WITH_LEN("GRANT PROXY ON '"));
-    str->append(proxied_user, strlen(proxied_user));
-    str->append(STRING_WITH_LEN("'@'"));
-    if (proxied_host.hostname)
-      str->append(proxied_host.hostname, strlen(proxied_host.hostname));
-    str->append(STRING_WITH_LEN("' TO '"));
-    str->append(user, strlen(user));
-    str->append(STRING_WITH_LEN("'@'"));
-    if (host.hostname)
-      str->append(host.hostname, strlen(host.hostname));
-    str->append(STRING_WITH_LEN("'"));
+    str->append(STRING_WITH_LEN("GRANT PROXY ON "));
+    append_identifier(thd, str, proxied_user, strlen(proxied_user));
+    str->append(STRING_WITH_LEN("@"));
+    DBUG_ASSERT(proxied_host.hostname);
+    if (proxied_host.hostname) // Why?
+      append_identifier(thd, str, proxied_host.hostname, strlen(proxied_host.hostname));
+    str->append(STRING_WITH_LEN(" TO "));
+    append_identifier(thd, str, user, strlen(user));
+    str->append(STRING_WITH_LEN("@"));
+    DBUG_ASSERT(host.hostname);
+    if (host.hostname) // Why?
+      append_identifier(thd, str, host.hostname, strlen(host.hostname));
     if (with_grant)
       str->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
   }
@@ -1837,6 +1838,7 @@ class User_table_json: public User_table
     json_engine_t temp_je;
     MEM_ROOT current_mem_root;
 
+    temp_je.killed_ptr= NULL;
     init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                     BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
@@ -6461,6 +6463,7 @@ struct PRIVS_TO_MERGE
     ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC, PACKAGE_SPEC, PACKAGE_BODY
   } what;
   const char *db, *name;
+  bool initial_load; // acl_reload(): grants are calculated, not updated
 };
 
 
@@ -6515,7 +6518,7 @@ static void propagate_role_grants(ACL_ROLE *role,
     return;
 
   mysql_mutex_assert_owner(&acl_cache->lock);
-  PRIVS_TO_MERGE data= { what, db, name };
+  PRIVS_TO_MERGE data= { what, db, name, false };
 
   /*
      Before updating grants to roles that inherit from this role, ensure that
@@ -7324,7 +7327,7 @@ static int merge_role_privileges(ACL_USER_BASE *,
     changed|= merge_role_routine_grant_privileges(grantee,
                             data->db, data->name, &role_hash,
                             &package_body_priv_hash);
-  return !changed; // don't recurse into the subgraph if privs didn't change
+  return !changed && !data->initial_load;
 }
 
 static
@@ -8114,6 +8117,22 @@ bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
     db= tmp_db.to_lex_cstring();
   }
 
+  if (db.str)
+  {
+    /*
+      Reject a db name that would not fit in the mysql.db.Db column instead of
+      silently truncating it into a non-functional grant (MDEV-39047). Escaping
+      wildcards (\_ \%) can make the stored name longer than the actual db name.
+    */
+    Lex_cstring_strlen db_str(db.str);
+    if (check_string_char_length(&db_str, 0, max_dbname_length,
+                                 system_charset_info, 1))
+    {
+      my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
   if (is_proxy)
   {
     DBUG_ASSERT(!db.str);
@@ -8404,7 +8423,7 @@ static my_bool propagate_role_grants_action(void *role_ptr,
     return 0;
 
   mysql_mutex_assert_owner(&acl_cache->lock);
-  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
+  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0, true };
   traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
   return 0;
 }
@@ -9373,9 +9392,8 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
   {
     if (acl_user->auth->auth_string.length)
     {
-      result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-      result->append(&acl_user->auth->auth_string);
-      result->append('\'');
+      result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD "));
+      append_unescaped(result, acl_user->auth->auth_string);
     }
   }
   else
@@ -9388,9 +9406,8 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
       result->append(&acl_user->auth[i].plugin);
       if (acl_user->auth[i].auth_string.length)
       {
-        result->append(STRING_WITH_LEN(" USING '"));
-        result->append(&acl_user->auth[i].auth_string);
-        result->append('\'');
+        result->append(STRING_WITH_LEN(" USING "));
+        append_unescaped(result, acl_user->auth[i].auth_string);
       }
     }
   }
@@ -9406,27 +9423,25 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
     if (acl_user->x509_issuer[0])
     {
       ssl_options++;
-      result->append(STRING_WITH_LEN("ISSUER \'"));
-      result->append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
-      result->append('\'');
+      result->append(STRING_WITH_LEN("ISSUER "));
+      append_unescaped(result, acl_user->x509_issuer,
+                       strlen(acl_user->x509_issuer));
     }
     if (acl_user->x509_subject[0])
     {
       if (ssl_options++)
         result->append(' ');
-      result->append(STRING_WITH_LEN("SUBJECT \'"));
-      result->append(acl_user->x509_subject,strlen(acl_user->x509_subject),
-                    system_charset_info);
-      result->append('\'');
+      result->append(STRING_WITH_LEN("SUBJECT "));
+      append_unescaped(result, acl_user->x509_subject,
+                       strlen(acl_user->x509_subject));
     }
     if (acl_user->ssl_cipher)
     {
       if (ssl_options++)
         result->append(' ');
-      result->append(STRING_WITH_LEN("CIPHER '"));
-      result->append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
-                    system_charset_info);
-      result->append('\'');
+      result->append(STRING_WITH_LEN("CIPHER "));
+      append_unescaped(result, acl_user->ssl_cipher,
+                       strlen(acl_user->ssl_cipher));
     }
   }
   if (with_grant ||
@@ -12379,7 +12394,7 @@ show_proxy_grants(THD *thd, const char *username, const char *hostname,
     {
       String global(buff, buffsize, system_charset_info);
       global.length(0);
-      proxy->print_grant(&global);
+      proxy->print_grant(thd, &global);
       protocol->prepare_for_resend();
       protocol->store(global.ptr(), global.length(), global.charset());
       if (protocol->write())

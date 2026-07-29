@@ -77,7 +77,7 @@ disconnect con1;
 disconnect con2;
 connection default;
 # This connection should notice the crash as well.
---error 2013
+--error 2013,2026
 reap;
 
 --enable_reconnect
@@ -153,7 +153,7 @@ connection con2;
 disconnect con2;
 connection default;
 # This connection should notice the crash as well.
---error 2013
+--error 2013,2026
 reap;
 
 --enable_reconnect
@@ -193,7 +193,7 @@ WHERE state = 'debug sync point: after_row_upd_extern';
 disconnect con2;
 connection default;
 # This connection should notice the crash as well.
---error 2013
+--error 2013,2026
 reap;
 
 --enable_reconnect

@@ -1442,6 +1442,7 @@ err_exit:
   }
   if (!sys_virtual)
   {
+    DBUG_EXECUTE_IF("defer_sys_virtual", goto commit_trx;);
     error= que_eval_sql(nullptr, "PROCEDURE CREATE_VIRTUAL() IS\n"
                         "BEGIN\n"
                         "CREATE TABLE\n"
@@ -1477,7 +1478,9 @@ err_exit:
                       goto err_exit;
                     }
                   });
-
+#ifndef DBUG_OFF
+commit_trx:
+#endif /* !DBUG_OFF */
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);
   trx->clear_and_free();
@@ -1505,6 +1508,12 @@ load_fail:
   }
   else
     prevent_eviction(sys_foreign_cols);
+
+  DBUG_EXECUTE_IF("defer_sys_virtual",
+                  {
+                    unlock();
+                    return DB_SUCCESS;
+                  });
 
   if (sys_virtual);
   else if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL])))

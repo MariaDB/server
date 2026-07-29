@@ -945,13 +945,15 @@ String *Item_func_des_encrypt::val_str(String *str)
   }
   else
   {
-    String *keystr= args[1]->val_str(str);
+    String key_value;
+    String *keystr= args[1]->val_str(&key_value);
     if (!keystr)
       goto error;
     key_number=127;				// User key string
 
     /* We make good 24-byte (168 bit) key from given plaintext key with MD5 */
     bzero((char*) &ivec,sizeof(ivec));
+    bzero((char*) &keyblock,sizeof(keyblock));
     if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
 		   (uchar*) keystr->ptr(), (int) keystr->length(),
 		   1, (uchar*) &keyblock,ivec))
@@ -1054,11 +1056,13 @@ String *Item_func_des_decrypt::val_str(String *str)
   else
   {
     // We make good 24-byte (168 bit) key from given plaintext key with MD5
-    String *keystr= args[1]->val_str(str);
+    String key_value;
+    String *keystr= args[1]->val_str(&key_value);
     if (!keystr)
       goto error;
 
     bzero((char*) &ivec,sizeof(ivec));
+    bzero((char*) &keyblock,sizeof(keyblock));
     if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
 		   (uchar*) keystr->ptr(),(int) keystr->length(),
 		   1,(uchar*) &keyblock,ivec))
@@ -1499,8 +1503,7 @@ bool Item_func_replace::fix_length_and_dec(THD *thd)
   this is done in the constructor to be in the same memroot as
   the item itself
 */
-Item_func_sformat::Item_func_sformat(THD *thd, List<Item> &list)
-  : Item_str_func(thd, list)
+void Item_func_sformat::alloc(THD *thd)
 {
   val_arg= new (thd->mem_root) String[arg_count];
 }

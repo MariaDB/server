@@ -99,7 +99,7 @@ connection server_3;
 set debug_sync= "now signal io_thd_do_reply";
 # Reaping transaction..
 connection server_1;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection server_2;
 # Reaping shutdown..
 connection server_1_con2;
@@ -206,7 +206,7 @@ connection server_2;
 FOUND 2 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 # Reaping transaction..
 connection server_1;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection server_2;
 # Reaping shutdown..
 connection server_1_con2;
@@ -330,7 +330,7 @@ connection server_3;
 set debug_sync= "now signal io_thd_do_reply";
 # Reaping transaction..
 connection server_1;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection server_2;
 # Reaping shutdown..
 connection server_1_con2;
@@ -454,7 +454,7 @@ connection server_3;
 set debug_sync= "now signal io_thd_do_reply";
 # Reaping transaction..
 connection server_1;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection server_2;
 # Reaping shutdown..
 connection server_1_con2;

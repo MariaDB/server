@@ -1,0 +1,64 @@
+# Verify that the post-WL#344 format of `*.info` can be parsed.
+# * Verify that the line count includes the line-count line in
+#   `@@master_info_file` while excludes it in `@@relay_log_info_file`
+#   (Reference: MDEV-39788 master.info is read and
+#    written one line too many compared to before)
+# * Verify that position values > 2^31 can be read
+#   (MDEV-38020: Master & relay log info files read 2^31 and above incorrectly)
+
+--source include/not_embedded.inc
+CHANGE MASTER TO master_host='127.0.0.1'; # have_info_files
+
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+
+# the new version of relay_log.info comes in two versions: with path
+# separator '/' (most systems) and with path separator '\' (windows)
+if ($SYSTEM_PATH_SEPARATOR != /) {
+  --let $file_suffix= -win
+}
+
+
+# Format established in 10.0
+
+--source include/shutdown_mysqld.inc
+
+  --remove_file $MYSQLD_DATADIR/master.info
+  # `Using_Gtid` is the `key=value` section, not the 33rd option.
+  --copy_file $MYSQL_TEST_DIR/std_data/master-10.0.info $MYSQLD_DATADIR/master.info
+
+  # Check that the 5th option (`SQL_Delay`) is included.
+  --remove_file $MYSQLD_DATADIR/relay-log.info
+  --copy_file $MYSQL_TEST_DIR/std_data/relay-log-10.0$file_suffix.info $MYSQLD_DATADIR/relay-log.info
+
+--let $restart_parameters= --skip-slave-start
+--source include/start_mysqld.inc
+
+--let $status_items= Master_Log_File, Read_Master_Log_Pos, Master_SSL_Key, Using_Gtid, Relay_Master_Log_File, Exec_Master_Log_Pos, SQL_Delay
+--source include/show_slave_status.inc
+
+
+
+# Compatibility test with erroneous files from 12.3.0-12.3.2
+# (from MDEV-37530, fixed in MDEV-39788)
+
+--source include/shutdown_mysqld.inc
+
+  --remove_file $MYSQLD_DATADIR/master.info
+  # `relay-log.info`-style `master.info`, where line 34 is a blank line,
+  # and the `key=value` section starts on line 35.
+  --copy_file $MYSQL_TEST_DIR/std_data/master-12.3.2.info $MYSQLD_DATADIR/master.info
+
+  # Extra ignored blank line in the file
+  --remove_file $MYSQLD_DATADIR/relay-log.info
+  --copy_file $MYSQL_TEST_DIR/std_data/relay-log-12.3.2$file_suffix.info $MYSQLD_DATADIR/relay-log.info
+
+--source include/start_mysqld.inc
+
+--let $status_items= Master_Log_File, Using_Gtid, SQL_Delay
+--source include/show_slave_status.inc
+
+
+# Reset
+--disable_warnings
+  RESET SLAVE ALL;
+--enable_warnings

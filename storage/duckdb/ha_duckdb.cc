@@ -187,14 +187,20 @@ static int duckdb_close_connection(handlerton *hton, THD *thd)
 
 static int duckdb_register_trx(THD *thd)
 {
+  auto *ctx= get_duckdb_context(thd);
+  std::string error_msg;
+  if (ctx->duckdb_trans_begin(error_msg))
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, error_msg.c_str(),
+             "DuckDB");
+    return HA_ERR_GENERIC;
+  }
+
   trans_register_ha(thd, false, duckdb_hton, 0);
 
   if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trans_register_ha(thd, true, duckdb_hton, 0);
 
-  auto *ctx= get_duckdb_context(thd);
-  if (!ctx->has_transaction())
-    ctx->duckdb_trans_begin();
   return 0;
 }
 
@@ -209,7 +215,8 @@ static void duckdb_drop_database(handlerton *hton, char *path)
   query.append(db.name);
   query.append("\"");
 
-  duckdb_register_trx(thd);
+  if (duckdb_register_trx(thd))
+    DBUG_VOID_RETURN;
   auto *ctx= get_duckdb_context(thd);
   auto query_result= myduck::duckdb_query(ctx->get_connection(), query);
   DBUG_VOID_RETURN;
@@ -224,7 +231,7 @@ static int duckdb_init_func(void *p)
   duckdb_hton= (handlerton *) p;
   duckdb_hton->db_type= DB_TYPE_AUTOASSIGN;
   duckdb_hton->create= duckdb_create_handler;
-  duckdb_hton->flags= HTON_NO_FLAGS;
+  duckdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   duckdb_hton->prepare= duckdb_prepare;
   duckdb_hton->commit= duckdb_commit;
   duckdb_hton->rollback= duckdb_rollback;
@@ -647,6 +654,9 @@ int ha_duckdb::rnd_init(bool)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
 
+  current_chunk.reset();
+  current_row_index= 0;
+
   for (auto *field= table->field; *field; ++field)
     bitmap_set_bit(table->write_set, (*field)->field_index);
 
@@ -678,7 +688,15 @@ int ha_duckdb::rnd_next(uchar *buf)
     current_chunk= query_result->Fetch();
 
     if (!current_chunk)
+    {
+      if (query_result->HasError())
+      {
+        my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR,
+                 query_result->GetError().c_str(), "DuckDB");
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
       DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
     current_row_index= 0;
   }
 
@@ -1187,7 +1205,15 @@ bool ha_duckdb::commit_inplace_alter_table(TABLE *altered_table,
 
 /* ----- Plugin declaration ----- */
 
-/* ---- AliSQL-specific global variables (no DuckDB push) ---- */
+my_bool allow_run_in_duckdb= FALSE;
+
+/* ---- global variables (no DuckDB push) ---- */
+
+static MYSQL_SYSVAR_BOOL(allow_run_in_duckdb, allow_run_in_duckdb,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Allow execution of run_in_duckdb() function "
+                         "(requires SUPER privilege)",
+                         NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(copy_ddl_in_batch, copy_ddl_in_batch,
                          PLUGIN_VAR_RQCMDARG,
@@ -1289,6 +1315,13 @@ static MYSQL_THDVAR_SET(disabled_optimizers, PLUGIN_VAR_RQCMDARG,
                         "Disable specific DuckDB optimizer rules", NULL, NULL,
                         0, &myduck::disabled_optimizers_typelib);
 
+static MYSQL_THDVAR_BOOL(cross_engine_ryow, PLUGIN_VAR_RQCMDARG,
+                         "In cross-engine joins, read own uncommitted writes "
+                         "from non-DuckDB tables via a direct handler scan in "
+                         "the parent transaction (disables predicate pushdown "
+                         "and index access path for those tables)",
+                         NULL, NULL, FALSE);
+
 /* ---- THDVAR accessor functions (used from duckdb_context.cc) ---- */
 
 namespace myduck
@@ -1311,9 +1344,15 @@ ulonglong get_thd_disabled_optimizers(THD *thd)
   return THDVAR(thd, disabled_optimizers);
 }
 
+my_bool get_thd_cross_engine_ryow(THD *thd)
+{
+  return THDVAR(thd, cross_engine_ryow);
+}
+
 } // namespace myduck
 
 static struct st_mysql_sys_var *duckdb_system_variables[]= {
+    MYSQL_SYSVAR(allow_run_in_duckdb),
     MYSQL_SYSVAR(copy_ddl_in_batch), MYSQL_SYSVAR(dml_in_batch),
     MYSQL_SYSVAR(update_modified_column_only),
     /* Global proxy */
@@ -1326,7 +1365,8 @@ static struct st_mysql_sys_var *duckdb_system_variables[]= {
     MYSQL_SYSVAR(log_options),
     /* Session proxy */
     MYSQL_SYSVAR(merge_join_threshold), MYSQL_SYSVAR(force_no_collation),
-    MYSQL_SYSVAR(explain_output), MYSQL_SYSVAR(disabled_optimizers), NULL};
+    MYSQL_SYSVAR(explain_output), MYSQL_SYSVAR(disabled_optimizers),
+    MYSQL_SYSVAR(cross_engine_ryow), NULL};
 
 static struct st_mysql_show_var duckdb_status_variables[]= {
     {"Duckdb_rows_insert", (char *) &srv_duckdb_status.duckdb_rows_insert,
@@ -1366,7 +1406,7 @@ maria_declare_plugin(duckdb)
     duckdb_status_variables,       /* status variables */
     duckdb_system_variables,       /* system variables */
     "1.0",                         /* string version */
-    MariaDB_PLUGIN_MATURITY_ALPHA  /* maturity */
+    MariaDB_PLUGIN_MATURITY_GAMMA  /* maturity */
 },
 {
     MariaDB_FUNCTION_PLUGIN,
@@ -1381,6 +1421,6 @@ maria_declare_plugin(duckdb)
     NULL,                          /* status variables */
     NULL,                          /* system variables */
     "1.0",                         /* string version */
-    MariaDB_PLUGIN_MATURITY_ALPHA  /* maturity */
+    MariaDB_PLUGIN_MATURITY_GAMMA  /* maturity */
 }
 maria_declare_plugin_end;

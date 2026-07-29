@@ -4309,6 +4309,7 @@ public:
                    unireg_check_arg, field_name_arg, collation),
      length_bytes(length_bytes_arg)
   {
+    DBUG_ASSERT(len_arg <= MAX_FIELD_VARCHARLENGTH);
     share->varchar_fields++;
   }
   Field_varstring(uint32 len_arg,bool maybe_null_arg,
@@ -4318,6 +4319,7 @@ public:
                    NONE, field_name_arg, collation),
      length_bytes(len_arg < 256 ? 1 :2)
   {
+    DBUG_ASSERT(len_arg <= MAX_FIELD_VARCHARLENGTH);
     share->varchar_fields++;
   }
 

@@ -2081,6 +2081,10 @@ drop table 1a, `select`;
 --echo # End of 10.11 tests
 
 --echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
 --echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
 --echo #
 

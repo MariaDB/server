@@ -2328,13 +2328,14 @@ err_return:
 
 /** Check if json is valid (well-formed)
 
-  @retval 0 - success, json is well-formed
-  @retval 1 - error, json is invalid
+  @retval 1 - success, json is well-formed
+  @retval 0 - error, json is invalid
 */
 int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs, json_engine_t *je)
 {
-
+  volatile const uint32_t *killed_ptr= je->killed_ptr;
   json_scan_start(je, cs, (const uchar *) js, (const uchar *) js + js_len);
+  je->killed_ptr= killed_ptr;
   while (json_scan_next(je) == 0) /* no-op */ ;
 
   return je->s.error == 0;

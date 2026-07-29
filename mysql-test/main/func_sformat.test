@@ -260,3 +260,18 @@ create table t1 (a text, b int, c text);
 insert t1 values ('[{} -> {}]', 10, '{}'), ('[{:20} <- {}]', 1, '{:30}');
 select sformat(a,b,c) from t1;
 drop table t1;
+
+echo # End of 10.8 tests;
+
+echo #;
+echo # MDEV-31024 Server crash / ASAN use-after-poison in Binary_string::free_buffer / Item_func_sformat::~Item_func_sformat;
+echo #;
+
+create table t (a char(8), i int);
+insert into t values ('foo',1),('bar',2);
+create view v as select a, sum(i) as s from t group by a;
+select * from v where a != sformat('{}', 'qux');
+drop view v;
+drop table t;
+
+echo # End of 10.11 tests;

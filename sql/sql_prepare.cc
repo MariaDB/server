@@ -221,7 +221,7 @@ public:
   Query_arena::Type type() const override;
   bool cleanup_stmt(bool restore_set_statement_vars) override;
   bool set_name(const LEX_CSTRING *name);
-  inline void close_cursor() { delete cursor; cursor= 0; }
+  inline void close_cursor() { cdestroy(cursor); cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
   inline bool is_sql_prepare() const { return flags & (uint) IS_SQL_PREPARE; }
   void set_sql_prepare() { flags|= (uint) IS_SQL_PREPARE; }
@@ -4205,7 +4205,7 @@ Prepared_statement::~Prepared_statement()
 
   MYSQL_DESTROY_PS(m_prepared_stmt);
 
-  delete cursor;
+  cdestroy(cursor);
   /*
     We have to call free on the items even if cleanup is called as some items,
     like Item_param, don't free everything until free_items()

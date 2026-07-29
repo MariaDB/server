@@ -101,7 +101,7 @@ flush logs;
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_before_update_index";
 --source include/wait_for_binlog_checkpoint.inc
---error 2013
+--error 2013,2026
 purge binary logs TO 'master-bin.000002';
 
 --enable_reconnect
@@ -122,7 +122,7 @@ flush logs;
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_non_critical_after_update_index";
 --source include/wait_for_binlog_checkpoint.inc
---error 2013
+--error 2013,2026
 purge binary logs TO 'master-bin.000004';
 
 --enable_reconnect
@@ -146,7 +146,7 @@ flush logs;
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_critical_after_update_index";
 --source include/wait_for_binlog_checkpoint.inc
---error 2013
+--error 2013,2026
 purge binary logs TO 'master-bin.000006';
 
 --enable_reconnect
@@ -169,7 +169,7 @@ SELECT @index;
 --echo # crash_create_non_critical_before_update_index
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_non_critical_before_update_index";
---error 2013
+--error 2013,2026
 flush logs;
 
 --enable_reconnect
@@ -187,7 +187,7 @@ SELECT @index;
 --echo # crash_create_critical_before_update_index
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_critical_before_update_index";
---error 2013
+--error 2013,2026
 flush logs;
 
 --enable_reconnect
@@ -207,7 +207,7 @@ SELECT @index;
 --echo # crash_create_after_update_index
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_after_update_index";
---error 2013
+--error 2013,2026
 flush logs;
 
 --enable_reconnect

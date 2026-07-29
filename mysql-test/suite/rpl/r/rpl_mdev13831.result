@@ -21,9 +21,17 @@ ERROR 42S02: Unknown table 'test.t1'
 connection master;
 CREATE TEMPORARY TABLE t1 (i INT) ENGINE=InnoDB;
 connection slave;
+include/wait_for_slave_sql_error.inc [errno=1866]
+include/stop_slave_io.inc
+connection master;
+connection slave;
+CHANGE MASTER TO MASTER_LOG_FILE='MASTER_FILE', MASTER_LOG_POS=MASTER_POS;
+include/start_slave.inc
+CALL mtr.add_suppression("The binary log file .* is logically corrupted: Incomplete event group found in relay log.*Error_code: 1866");
 connection master;
 SET GLOBAL binlog_legacy_event_pos= @old_legacy;
 CALL mtr.add_suppression("Error writing file.*No space left on device");
 DROP TEMPORARY TABLE t1;
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

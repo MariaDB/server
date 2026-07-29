@@ -889,4 +889,11 @@ NULL
 SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))')) a;
 a
 0
+#
+# MDEV-31267 Server crash or assertion failure in get_n_sincos with nested ST_BUFFER.
+#
+set @geom=ST_BUFFER(ST_BUFFER(ST_POLYGONFROMTEXT('POLYGON((0 0, 5 5, 6 6, 0 0))'),1),2);
+select round(area(@geom), 5);
+round(area(@geom), 5)
+79.16890
 # End of 12.3 tests

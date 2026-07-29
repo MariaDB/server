@@ -2,6 +2,14 @@ source include/have_innodb.inc;
 source include/have_partition.inc;
 # The absolute path names in the embedded server hit the limit earlier.
 source include/not_embedded.inc;
+
+# Windows MAX_PATH=260; the test creates an .ibd file of length 209
+# (198 + db part) under datadir, so skip when datadir is too long.
+if (`SELECT @@version_compile_os LIKE 'Win%' AND LENGTH(@@datadir) + 209 >= 260`)
+{
+  --skip Hits Windows MAX_PATH limit, use shorter build directory
+}
+
 set names utf8;
 
 create database mysqltest1;

@@ -18,7 +18,7 @@ PARTITION BY LIST (a)
 let $insert_statement= INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 
 let $crash_statement= ALTER TABLE t1 ADD PARTITION
-(PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
+(PARTITION Pa20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 if ($do_crash)
 {
 --source suite/parts/inc/partition_crash_add.inc

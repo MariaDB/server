@@ -1,3 +1,4 @@
+--source include/not_ssl.inc
 --source include/not_embedded.inc
 # A smoke test for tcp_nodelay option
 SET tcp_nodelay=0;

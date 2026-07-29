@@ -58,6 +58,15 @@ void clear_external_tables();
 TABLE *find_external_table(const std::string &name);
 
 /**
+  Per-query Read-Your-Own-Writes toggle for cross-engine scans.
+  When enabled, external tables are read via a direct handler scan in the
+  parent transaction (RYOW), instead of a fiber running a synthetic SELECT
+  in a separate background transaction.  Set once per query in init_scan.
+*/
+void register_cross_engine_ryow(bool enabled);
+bool cross_engine_ryow_enabled();
+
+/**
   DuckDB replacement scan callback.
   When DuckDB cannot find a table in its catalog, this callback checks the
   thread-local registry.  If the table is registered, it returns a

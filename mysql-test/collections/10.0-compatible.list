@@ -214,7 +214,6 @@ main.group_by_null
 main.group_min_max
 main.group_min_max_innodb
 main.handler_read_last
-main.handlersocket
 main.having
 main.help
 main.host_cache_size_functionality

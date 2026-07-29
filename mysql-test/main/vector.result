@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,
   PRIMARY KEY (`id`),
-  VECTOR KEY `v` (`v`) `m`=7
+  VECTOR KEY `v` (`v`) `m`='7'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,
   PRIMARY KEY (`id`),
-  VECTOR KEY `v` (`v`) `m`=5
+  VECTOR KEY `v` (`v`) `m`='5'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -442,7 +442,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `v` vector(5) NOT NULL,
   PRIMARY KEY (`id`),
-  VECTOR KEY `v` (`v`) `distance`=cosine
+  VECTOR KEY `v` (`v`) `distance`='cosine'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
 (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
@@ -889,7 +889,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `v` vector(1) NOT NULL,
-  VECTOR KEY `v` (`v`) `distance`=cosine
+  VECTOR KEY `v` (`v`) `distance`='cosine'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 #

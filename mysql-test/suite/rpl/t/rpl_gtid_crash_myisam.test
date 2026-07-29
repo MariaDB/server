@@ -38,7 +38,7 @@ EOF
 
 FLUSH TABLES;
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2026
 SELECT 1;
 
 --source include/wait_until_disconnected.inc

@@ -21,6 +21,7 @@
 #include "gstream.h"                            // Gis_read_stream
 #include "sql_string.h"                         // String
 #include <vector>
+#include "sql_parse.h"
 
 /* This is from item_func.h. Didn't want to #include the whole file. */
 double my_double_round(double value, longlong dec, bool dec_unsigned,
@@ -437,7 +438,7 @@ int Geometry::as_wkt(String *wkt, const char **end)
   if (get_data_as_wkt(wkt, end))
     return 1;
   if (get_class_info() != &geometrycollection_class)
-    wkt->qs_append(')');
+    wkt->append(')'); // NOT qs_append, get_data_as_wkt consumed reserved space
   return 0;
 }
 
@@ -559,7 +560,7 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
   uint32 geom_type;
   Geometry *geom;
 
-  if (len < WKB_HEADER_SIZE)
+  if (len < WKB_HEADER_SIZE || (uchar) wkb[0] > wkb_ndr)
     return NULL;
   wkbByteOrder bo= (wkbByteOrder)wkb[0];
   geom_type= wkb_get_uint(wkb+1, bo);
@@ -3205,6 +3206,9 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
     Gis_line_string ls;
     int ls_len;
 
+    if ((uchar) wkb[0] > wkb_ndr) /* invalid */
+      return 0;
+
     if ((len < WKB_HEADER_SIZE) ||
         res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
@@ -3383,8 +3387,7 @@ bool Gis_multi_line_string::get_mbr(MBR *mbr, const char **end) const
 
   while (n_line_strings--)
   {
-    data+= WKB_HEADER_SIZE;
-    if (!(data= get_mbr_for_points(mbr, data, 0)))
+    if (!(data= get_mbr_for_points(mbr, data + WKB_HEADER_SIZE, 0)))
       return 1;
   }
   *end= data;
@@ -3446,6 +3449,8 @@ int Gis_multi_line_string::geom_length(double *len, const char **end) const
   {
     double ls_len;
     Gis_line_string ls;
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     ls.set_data_ptr(data, (uint32) (m_data_end - data));
     if (ls.geom_length(&ls_len, &line_end))
@@ -3645,8 +3650,9 @@ uint Gis_multi_polygon::init_from_wkb(const char *wkb, uint len,
     Gis_polygon p;
     int p_len;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
     res->q_append((char) wkb_ndr);
     res->q_append((uint32) wkb_polygon);
@@ -4090,6 +4096,8 @@ int Gis_multi_polygon::area(double *ar,  const char **end_of_data) const
     double p_area;
     Gis_polygon p;
 
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     p.set_data_ptr(data, (uint32) (m_data_end - data));
     if (p.area(&p_area, &data))
@@ -4161,6 +4169,8 @@ int Gis_multi_polygon::centroid(String *result) const
 
   while (n_polygons--)
   {
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     p.set_data_ptr(data, (uint32) (m_data_end - data));
     if (p.area(&cur_area, &data) ||
@@ -4331,6 +4341,9 @@ bool Gis_geometry_collection::init_from_wkt(Gis_read_stream *trs, String *wkb)
     return 1;
   wkb->length(wkb->length()+4);			// Reserve space for points
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
+
   if (!(next_sym= trs->next_symbol()))
     return 1;
 
@@ -4439,8 +4452,9 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
     int g_len;
     uint32 wkb_type;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
 
     wkbByteOrder bo= (wkbByteOrder)wkb[0];
@@ -4519,7 +4533,7 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
     goto exit;
   }
 
-  txt->qs_append('(');
+  txt->append('(');
   while (n_objects--)
   {
     uint32 wkb_type;
@@ -4537,7 +4551,7 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
     if (n_objects && txt->append(STRING_WITH_LEN(","), 512))
       return 1;
   }
-  txt->qs_append(')');
+  txt->append(')');
 exit:
   *end= data;
   return 0;

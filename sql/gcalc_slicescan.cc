@@ -918,6 +918,16 @@ void Gcalc_heap::Info::calc_intersection_xy(double *x, double *y) const
 
   t/= b0xb1;
 
+  /*
+    That can fail when the intersecting lines are almost parallel.
+    Here the t can go to positive or negetive infinity.
+    We have to correct this.
+  */
+  if (t < 0.0)
+    t= 0.0;
+  else if (t > 1.0)
+    t= 1.0;
+
   *x= node.intersection.p1->node.shape.x + b0_x * t;
   *y= node.intersection.p1->node.shape.y + b0_y * t;
 }

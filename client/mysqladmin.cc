@@ -849,7 +849,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	{
           /* We don't use mysql_kill(), since it only handles 32-bit IDs. */
           char buff[26], *out; /* "KILL " + max 20 digs + NUL */
-          out= strxmov(buff, "KILL ", NullS);
+          out= strmov(buff, "KILL ");
           ullstr(strtoull(pos, NULL, 0), out);
 
           if (mysql_query(mysql, buff))
@@ -1498,7 +1498,7 @@ static my_bool get_pidfile(MYSQL *mysql, char *pidfile)
   {
     MYSQL_ROW row=mysql_fetch_row(result);
     if (row)
-      strmov(pidfile, row[1]);
+      strmake(pidfile, row[1], FN_REFLEN-1);
     mysql_free_result(result);
     return row == 0;				/* Error if row = 0 */
   }

@@ -3211,7 +3211,7 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
 
 
 /**
-  Add instruction to SP.
+  Add any instruction to SP except declaration of row type.
 
   @param instr   Instruction
 */
@@ -3220,6 +3220,38 @@ int sp_head::add_instr(sp_instr *instr)
 {
   instr->free_list= m_thd->free_list;
   m_thd->free_list= 0;
+
+  return add_instr_core(instr);
+}
+
+
+/**
+   Add instruction for %ROWTYPE declaration. Handle this SP instruction
+   specially to exclude an item created for the DEFAULT clause to be freed
+   on re-parsing of SP instruction
+
+   @param instr   SP instruction for %ROWTYPE declaration
+
+   @return false on success, true on error
+*/
+
+int sp_head::add_instr(sp_instr_cursor_copy_struct *instr)
+{
+  instr->free_list= 0;
+  m_thd->free_list= 0;
+
+  return add_instr_core(instr);
+}
+
+
+/**
+  Add instruction to SP.
+
+  @param instr   Instruction
+*/
+
+int sp_head::add_instr_core(sp_instr *instr)
+{
   /*
     Memory root of every instruction is designated for permanent
     transformations (optimizations) made on the parsed tree during

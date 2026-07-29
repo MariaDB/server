@@ -3611,4 +3611,24 @@ PREPARE stmt FROM @cmd;
 
 set @@SESSION.OPTIMIZER_SWITCH=@old_optimizer_switch;
 
---echo # End of 10.2 Test
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-30555 The server does not detect changes in NULL-ability of system table columns
+--echo #
+
+call mtr.add_suppression("Incorrect definition of table mysql\\.proc");
+
+RENAME TABLE mysql.proc TO proc_backup;
+CREATE TABLE mysql.proc LIKE proc_backup;
+
+ALTER TABLE mysql.proc MODIFY definer
+  varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL;
+
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+CREATE PROCEDURE p1() SET @x = 1;
+
+DROP TABLE mysql.proc;
+RENAME TABLE proc_backup TO mysql.proc;
+
+--echo # End of 10.11 tests

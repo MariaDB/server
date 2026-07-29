@@ -1,0 +1,792 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @binlog_row_image.save = @@global.binlog_row_image;
+connection master;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = MINIMAL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= MINIMAL;
+*** Testing master: MINIMAL slave: MINIMAL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = NOBLOB;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= MINIMAL;
+*** Testing master: MINIMAL slave: NOBLOB ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= MINIMAL;
+*** Testing master: MINIMAL slave: FULL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL_NODUP;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= MINIMAL;
+*** Testing master: MINIMAL slave: FULL_NODUP ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = MINIMAL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= NOBLOB;
+*** Testing master: NOBLOB slave: MINIMAL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = NOBLOB;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= NOBLOB;
+*** Testing master: NOBLOB slave: NOBLOB ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= NOBLOB;
+*** Testing master: NOBLOB slave: FULL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL_NODUP;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= NOBLOB;
+*** Testing master: NOBLOB slave: FULL_NODUP ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = MINIMAL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL;
+*** Testing master: FULL slave: MINIMAL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = NOBLOB;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL;
+*** Testing master: FULL slave: NOBLOB ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL;
+*** Testing master: FULL slave: FULL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL_NODUP;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL;
+*** Testing master: FULL slave: FULL_NODUP ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = MINIMAL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL_NODUP;
+*** Testing master: FULL_NODUP slave: MINIMAL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = NOBLOB;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL_NODUP;
+*** Testing master: FULL_NODUP slave: NOBLOB ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL_NODUP;
+*** Testing master: FULL_NODUP slave: FULL ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL binlog_row_image = FULL_NODUP;
+include/start_slave.inc
+connection master;
+SET SESSION binlog_row_image= FULL_NODUP;
+*** Testing master: FULL_NODUP slave: FULL_NODUP ***
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(16), b TEXT, UNIQUE KEY (a,b));
+INSERT INTO t1 VALUES (1,'foo','bar');
+UPDATE t1 SET a = 'qux';
+CREATE TABLE t2 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1),
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1),
+UNIQUE INDEX(e));
+INSERT INTO t2 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t2 SET a = 120 WHERE e=33;
+DELETE FROM t2 WHERE b=50;
+CREATE TABLE t3 (a INT,
+b VARCHAR(10),
+c TEXT,
+d INT,
+e TEXT GENERATED ALWAYS AS (CONCAT(b, c)),
+UNIQUE INDEX (b, c, d)) ENGINE=InnoDB;
+INSERT INTO t3(a, b, c, d) VALUES (1, 'a', REPEAT('x',100), 5),
+(2, 'bra', REPEAT('y',100), 10), (3, 'ca', REPEAT('z',100), 15),
+(4, 'da', REPEAT('z',100), 20), (5, 'bra', REPEAT('y',100), 25);
+UPDATE t3 SET d=d+2 WHERE a IN (1, 4);
+UPDATE t3 SET b=CONCAT('_', b) WHERE a IN (2, 3, 5);
+DELETE FROM t3 WHERE b LIKE 'bra%';
+CREATE TABLE t4 (a INT NOT NULL,
+b INT NOT NULL,
+c INT GENERATED ALWAYS AS (b+1) STORED,
+d INT GENERATED ALWAYS AS (c+1),
+e INT GENERATED ALWAYS AS (d+1) STORED,
+UNIQUE INDEX(e));
+INSERT INTO t4 (a,b) VALUES (10, 20), (20, 30), (30, 40), (40, 50), (50, 60);
+UPDATE t4 SET a = 120 WHERE e=33;
+DELETE FROM t4 WHERE b=50;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+DROP TABLE t1, t2, t3, t4;
+connection slave;
+SET GLOBAL binlog_row_image = @binlog_row_image.save;
+include/rpl_end.inc

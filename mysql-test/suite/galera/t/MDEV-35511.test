@@ -6,6 +6,7 @@ if (!$SERVER_AUDIT_SO) {
 
 # enable audit loggin in node 2
 --connection node_2
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
 SET GLOBAL server_audit_logging=ON;
 
 # replicate CREATE and INSERT, these should be seen in the audit log

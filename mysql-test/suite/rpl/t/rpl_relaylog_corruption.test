@@ -1,0 +1,86 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_server_skip_log_bin= 1
+--source include/master-slave.inc
+
+--echo *** MDEV-34135: Parallel replication hangs on corrupt binlog with partial event group
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+# The original report was with RocksDB, but the problem is not RocksDB-specific.
+# Use non-GTID, conservative parallel replication with no binlogging, as in the
+# original report (binlogging disabled in .opt file).
+# The parallel replication config is in .combinations, and we also run a
+# non-parallel config for better coverage.
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CHANGE MASTER TO master_use_gtid=No;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t1 VALUES (0, 0);
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+INSERT INTO t1 VALUES (3, 0);
+
+--sync_slave_with_master
+# Stop the SQL thread before crashing the server in the IO thread.
+# This is so that we have a stable SQL thread position in the relay log.
+# Otherwise if we crash just after the position has been updated in memory,
+# but before it's been written to disk, we can get a corrupt SQL thread
+# position and a sporadic test failure.
+--source include/stop_slave_sql.inc
+
+# Crash the slave at a point that corrupts the relay log so that it ends up
+# with an incomplete event group.
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+SET @@global.debug_dbug="+d,crash_after_enqueue_gtid_event";
+
+--connection master
+INSERT INTO t1 VALUES (4, 0);
+
+--connection slave
+--source include/wait_until_disconnected.inc
+
+--connection master
+INSERT INTO t1 VALUES (5, 0);
+
+--save_master_pos
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --relay-log-recovery=0
+EOF
+--let $rpl_server_number= 2
+--source include/rpl_reconnect.inc
+
+--connection slave
+START SLAVE;
+--source include/wait_for_slave_io_to_start.inc
+# Check that the slave stops with error on the incomplete event group.
+# The bug was that the incomplete group was not detected, and it caused the
+# the SQL driver thread to switch to a new GCO. This new GCO would never be
+# able to start, as the prior worker thread is stuck on its incomplete event
+# group waiting for a COMMIT event that doesn't arrive. This caused replication
+# to hang hard.
+--let $slave_sql_errno= 1866
+--source include/wait_for_slave_sql_error.inc
+--source include/stop_slave_io.inc
+
+# Restart the slave with relay_log_recovery=1 to re-fetch the correct
+# relay log content.
+--let $rpl_server_number= 2
+--let $rpl_server_parameters= --relay-log-recovery=1
+--source include/rpl_restart_server.inc
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+CALL mtr.add_suppression("The binary log file .* is logically corrupted: Incomplete event group found in relay log.*Error_code: 1866");
+CALL mtr.add_suppression("Recovery from master pos .* and file");
+
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

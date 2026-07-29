@@ -29,6 +29,26 @@
 #include "sql_class.h"
 #include "field.h"
 
+static inline const Type_collection *duckdb_uuid_type_collection()
+{
+  static const Type_collection *const coll=
+      []() -> const Type_collection *
+      {
+        static const LEX_CSTRING uuid_name= {STRING_WITH_LEN("uuid")};
+        const Type_handler *th=
+            Type_handler::handler_by_name(current_thd, uuid_name);
+        return th ? th->type_collection() : nullptr;
+      }();
+  return coll;
+}
+
+static inline bool is_uuid_field(const Field *field)
+{
+  const Type_collection *uuid_coll= duckdb_uuid_type_collection();
+  return uuid_coll &&
+         field->type_handler()->type_collection() == uuid_coll;
+}
+
 class BaseConvertor
 {
 public:

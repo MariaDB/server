@@ -25,7 +25,7 @@ select sum(a),sum(b),sum(c) from t1;
 
 SET GLOBAL debug_dbug="+d,crash_end_bulk_insert";
 
---error 2013
+--error 2013,2026
 REPLACE into t1 select seq+20,seq+95, seq + 300 from seq_1_to_10;
 
 # Wait until restarted

@@ -1,0 +1,167 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-39689: Slave Overflow on Malformed Table_map_log_event
+#
+# All tests verify that corrupted optional metadata lengths in
+# parse_* functions are handled gracefully. The slave should fall
+# back to positional column mapping and replicate successfully.
+#
+connection master;
+SET @saved_binlog_row_metadata= @@GLOBAL.binlog_row_metadata;
+SET GLOBAL binlog_row_metadata= FULL;
+connection slave;
+CALL mtr.add_suppression("Error in Log_event::read_log_event.*Found invalid event");
+CALL mtr.add_suppression("Relay log read failure");
+#
+# Test 1: parse_column_name - corrupted column name length
+#
+connection master;
+CREATE TABLE t1 (c1 INT PRIMARY KEY);
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_column_name_length";
+INSERT INTO t1 VALUES (1);
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1
+1
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 2: parse_default_charset - corrupted default charset length
+#
+connection master;
+CREATE TABLE t1 (c1 VARCHAR(10) CHARSET latin1, c2 VARCHAR(10) CHARSET latin1, c3 VARCHAR(10) CHARSET utf8mb4);
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_default_charset_length";
+INSERT INTO t1 VALUES ('a', 'b', 'c');
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1	c2	c3
+a	b	c
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 3: parse_column_charset - corrupted column charset length
+#
+connection master;
+CREATE TABLE t1 (c1 VARCHAR(10) CHARSET latin1);
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_column_charset_length";
+INSERT INTO t1 VALUES ('a');
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1
+a
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 4: parse_set_str_value - corrupted SET string value length
+#
+connection master;
+CREATE TABLE t1 (c1 SET('a','b','c'));
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_set_str_value_length";
+INSERT INTO t1 VALUES ('a');
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1
+a
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 5: parse_geometry_type - corrupted geometry type length
+#
+connection master;
+CREATE TABLE t1 (c1 GEOMETRY NOT NULL);
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_geometry_type_length";
+INSERT INTO t1 VALUES (PointFromText('POINT(0 0)'));
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT ST_AsText(c1) FROM t1;
+ST_AsText(c1)
+POINT(0 0)
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 6: parse_simple_pk - corrupted simple primary key length
+#
+connection master;
+CREATE TABLE t1 (c1 INT PRIMARY KEY);
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_simple_pk_length";
+INSERT INTO t1 VALUES (1);
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1
+1
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 7: parse_pk_with_prefix - corrupted prefix primary key length
+#
+connection master;
+CREATE TABLE t1 (c1 VARCHAR(100), PRIMARY KEY(c1(10)));
+SET @@SESSION.debug_dbug="+d,corrupt_table_map_pk_prefix_length";
+INSERT INTO t1 VALUES ('hello');
+SET @@SESSION.debug_dbug= "";
+connection slave;
+SELECT * FROM t1;
+c1
+hello
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 8: Table_map_log_event constructor - corrupted column count
+#         (slave-side injection) - slave rejects event gracefully
+#
+connection slave;
+include/stop_slave.inc
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="+d,corrupt_table_map_colcnt_read";
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (c1 INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1594]
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+include/stop_slave_io.inc
+SET GLOBAL sql_slave_skip_counter= 1;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Test 9: Table_map_log_event constructor - corrupted field metadata size
+#         (slave-side injection) - slave rejects event gracefully
+#
+connection slave;
+include/stop_slave.inc
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="+d,corrupt_table_map_field_metadata_size_read";
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (c1 INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1594]
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+include/stop_slave_io.inc
+SET GLOBAL sql_slave_skip_counter= 1;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+SET GLOBAL binlog_row_metadata= @saved_binlog_row_metadata;
+include/rpl_end.inc

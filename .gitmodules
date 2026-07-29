@@ -6,8 +6,7 @@
 	url = https://github.com/facebook/rocksdb.git
 [submodule "wsrep-lib"]
 	path = wsrep-lib
-	url = https://github.com/codership/wsrep-lib.git
-	branch = master
+	url = https://github.com/mariadb-corporation/wsrep-lib.git
 [submodule "extra/wolfssl/wolfssl"]
 	path = extra/wolfssl/wolfssl
 	url = https://github.com/wolfSSL/wolfssl.git

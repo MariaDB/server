@@ -750,13 +750,6 @@ bool wsrep_address_char(const unsigned char c)
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
 
-bool wsrep_shell_char(const unsigned char c)
-{
-  return (c != '`') && (c != '\'') && (c != '$') &&
-         (c != ' ') && (c != '\t') && (c != '\n') &&
-         (c != '\r') && (c != '\v') && (c != '\f');
-}
-
 /* return true if character can be a part of an address string list */
 bool wsrep_names_list(const unsigned char c)
 {

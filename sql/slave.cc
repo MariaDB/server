@@ -2738,7 +2738,6 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
     }
     if (rli->ign_gtids.count())
     {
-      DBUG_ASSERT(!rli->is_in_group());         // Ensure no active transaction
       glev= new Gtid_list_log_event(&rli->ign_gtids,
                                     Gtid_list_log_event::FLAG_IGN_GTIDS);
       rli->ign_gtids.reset();
@@ -3965,11 +3964,29 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
   }
   if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT)
     rli->clear_flag(Relay_log_info::IN_TRANSACTION);
-  if (typ == GTID_EVENT &&
-      !(((Gtid_log_event*) ev)->flags2 & Gtid_log_event::FL_STANDALONE))
+  else if (typ == GTID_EVENT)
   {
-    /* This GTID_EVENT will generate a BEGIN event */
-    rli->set_flag(Relay_log_info::IN_TRANSACTION);
+    if (!(((Gtid_log_event*) ev)->flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* This GTID_EVENT will generate a BEGIN event */
+      rli->set_flag(Relay_log_info::IN_TRANSACTION);
+    }
+  }
+  else if (unlikely(typ == FORMAT_DESCRIPTION_EVENT))
+  {
+    Format_description_log_event *fdev=
+      static_cast<Format_description_log_event *>(ev);
+    if(fdev->created && !fdev->is_relay_log_event())
+    {
+      /* A master restart can implicitly end an incomplete event group. */
+      rli->clear_flag(Relay_log_info::IN_STMT);
+      rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+    }
+  }
+  else if (unlikely(typ == INCIDENT_EVENT))
+  {
+    rli->clear_flag(Relay_log_info::IN_STMT);
+    rli->clear_flag(Relay_log_info::IN_TRANSACTION);
   }
 
   DBUG_PRINT("info", ("event: %u  IN_STMT: %d  IN_TRANSACTION: %d",
@@ -4142,6 +4159,21 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         serial_rgi->inc_event_relay_log_pos();
                         DBUG_RETURN(0);
                       };);
+    }
+
+    if (typ == GTID_EVENT && unlikely(rli->is_in_group()))
+    {
+      const Gtid_log_event *gtid_ev= static_cast<const Gtid_log_event *>(ev);
+      char buf[FN_REFLEN];
+      my_snprintf(buf, sizeof(buf), "Incomplete event group found in relay "
+                  "log offset %llu, next GTID %u-%u-%llu",
+                  (ulonglong)rli->event_relay_log_pos, gtid_ev->domain_id,
+                  gtid_ev->server_id, gtid_ev->seq_no);
+      my_error(ER_BINLOG_LOGICAL_CORRUPTION, MYF(0),
+               rli->event_relay_log_name, buf);
+      mysql_mutex_unlock(&rli->data_lock);
+      delete ev;
+      DBUG_RETURN(1);
     }
 
     update_state_of_relay_log(rli, ev);
@@ -5837,6 +5869,11 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   const uchar *save_buf= NULL; // needed for checksumming the fake Rotate event
   uchar rot_buf[LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN + FN_REFLEN];
 
+#ifndef DBUG_OFF
+  bool dbg_crash_after_enqueue_gtid_flag= false;
+#endif
+
+
   DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_OFF || 
               checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF || 
               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32); 
@@ -6276,6 +6313,10 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
   case GTID_EVENT:
   {
+    DBUG_EXECUTE_IF("crash_after_enqueue_gtid_event",
+                    {
+                      dbg_crash_after_enqueue_gtid_flag= true;
+                    });
     DBUG_EXECUTE_IF("kill_slave_io_after_2_events",
                     {
                       mi->dbug_do_disconnect= true;
@@ -6837,6 +6878,8 @@ dbug_gtid_accept:
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
     }
+  IF_DBUG(if (dbg_crash_after_enqueue_gtid_flag) DBUG_SUICIDE();,)
+
     rli->ign_master_log_name_end[0]= 0; // last event is not ignored
     if (got_gtid_event)
       rli->ign_gtids.remove_if_present(&event_gtid);

@@ -6,7 +6,7 @@ sum(a)	sum(b)	sum(c)
 1055	2055	3055
 SET GLOBAL debug_dbug="+d,crash_end_bulk_insert";
 REPLACE into t1 select seq+20,seq+95, seq + 300 from seq_1_to_10;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

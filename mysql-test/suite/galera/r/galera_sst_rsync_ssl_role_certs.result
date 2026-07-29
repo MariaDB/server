@@ -1,0 +1,8 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+connection node_1;
+connection node_2;
+include/assert_grep.inc [SST used stunnel for SSL encryption]

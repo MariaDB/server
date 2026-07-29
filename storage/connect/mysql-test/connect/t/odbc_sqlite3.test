@@ -1,3 +1,5 @@
+# MDEV-40488 memory leak connect.odbc_sqlite3
+--source include/not_asan.inc
 --source have_odbc_sqlite3.inc
 
 #
