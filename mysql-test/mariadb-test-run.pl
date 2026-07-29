@@ -5080,7 +5080,7 @@ sub start_check_warnings ($$) {
 
     # Get the args needed for the embedded server
     # and append them to args prefixed
-    # with --sever-arg=
+    # with --server-arg=
 
     my $mysqld=  $config->group('embedded')
       or mtr_error("Could not get [embedded] section");
@@ -6167,7 +6167,7 @@ sub start_mysqltest ($) {
 
     # Get the args needed for the embedded server
     # and append them to args prefixed
-    # with --sever-arg=
+    # with --server-arg=
 
     my $mysqld=  $config->group('embedded')
       or mtr_error("Could not get [embedded] section");
