@@ -3385,10 +3385,11 @@ static void wsrep_mdl_log(wsrep_mdl_log_t level,
 */
 static void wsrep_log_state(const char *msg, const THD *thd, bool granted)
 {
-  char buff[2048];
+  char buff[2048]={'\0'};
   String buffer(buff, sizeof(buff), system_charset_info);
+  buffer.length(0);
   wsrep_get_state(thd, granted, &buffer);
-  WSREP_DEBUG(msg, buffer.c_ptr());
+  WSREP_DEBUG("%s %s", msg, buffer.c_ptr());
 }
 
 /** This function handles MDL-conflict when thread holding MDL-lock
@@ -3417,8 +3418,8 @@ static void wsrep_handle_granted_bf(
 
   if (wsrep_debug)
   {
-    wsrep_log_state("wsrep_handle_granted_bf() : (%s)", request_thd, false);
-    wsrep_log_state("wsrep_handle_granted_bf() : (%s)", granted_thd, true);
+    wsrep_log_state("wsrep_handle_granted_bf(): ", request_thd, false);
+    wsrep_log_state("wsrep_handle_granted_bf(): ", granted_thd, true);
   }
 
   if (wsrep_thd_is_aborting(granted_thd))
@@ -3469,8 +3470,8 @@ static void wsrep_handle_locked(THD* request_thd,
 
   if (wsrep_debug)
   {
-    wsrep_log_state("wsrep_handle_locked() : (%s)", request_thd, false);
-    wsrep_log_state("wsrep_handle_locked() : (%s)", granted_thd, true);
+    wsrep_log_state("wsrep_handle_locked(): ", request_thd, false);
+    wsrep_log_state("wsrep_handle_locked(): ", granted_thd, true);
   }
 
   if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
@@ -3509,8 +3510,8 @@ static void wsrep_abort_granted(THD* request_thd,
 
   if (wsrep_debug)
   {
-    wsrep_log_state("wsrep_abort_granted() : (%s)", request_thd, false);
-    wsrep_log_state("wsrep_abort_granted() : (%s)", granted_thd, true);
+    wsrep_log_state("wsrep_abort_granted(): ", request_thd, false);
+    wsrep_log_state("wsrep_abort_granted(): ", granted_thd, true);
   }
 
   wsrep_mdl_log(WSREP_MDL_DEBUG, "MDL conflict-> BF abort",
@@ -3583,8 +3584,8 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
 
   if (wsrep_debug)
   {
-    wsrep_log_state("wsrep_handle_mdl_conflict() : (%s)", request_thd, false);
-    wsrep_log_state("wsrep_handle_mdl_conflict() : (%s)", granted_thd, true);
+    wsrep_log_state("wsrep_handle_mdl_conflict(): ", request_thd, false);
+    wsrep_log_state("wsrep_handle_mdl_conflict(): ", granted_thd, true);
   }
 
   if (granted_thd->wsrep_aborter != 0)
