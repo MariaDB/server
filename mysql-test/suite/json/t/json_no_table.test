@@ -1842,12 +1842,10 @@ select json_unquote(convert('"abc"' using utf8mb4));
 select json_quote('"');
 select json_unquote('"');                        # should do nothing
 
---echo error ER_INCORRECT_TYPE
-select json_quote(123);                          # integer not allowed
+select json_quote(123);                          # integer is now allowed, returns "123"
 # Enable after fix MDEV-31554
 --disable_cursor_protocol
---echo error ER_INCORRECT_TYPE
-select json_unquote(123);                        # integer not allowed
+select json_unquote(123);                        # integer is now allowed, returns "123"
 --enable_cursor_protocol
 
 select json_unquote('""');                       # empty string
@@ -1903,7 +1901,6 @@ SELECT JSON_UNQUOTE( '"abc"' );
 # returns the SQL string literal "abc
 SELECT JSON_UNQUOTE( '"abc' );
 
---echo error ER_INCORRECT_TYPE
 SELECT JSON_UNQUOTE( 123 );
 --enable_cursor_protocol
 
@@ -1930,7 +1927,6 @@ SELECT
 # returns "abc"
 SELECT JSON_QUOTE( 'abc' );
 
---echo error ER_INCORRECT_TYPE
 SELECT JSON_QUOTE( 123 );
 
 # returns the JSON document consisting of the string scalar "123"

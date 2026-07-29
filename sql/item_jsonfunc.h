@@ -1130,4 +1130,90 @@ public:
 };
 
 
+/*
+  Implements the SQL standard "value MEMBER OF (json_doc)" operator, and its
+  negation "value NOT MEMBER OF (json_doc)" via the inherited negated flag from
+  Item_func_opt_neg.
+
+  This follows the same pattern used by Item_func_between and Item_func_in:
+  a single item class represents both the positive and negated form, with
+  neg_transformer() toggling the negated flag and val_bool() honouring it.
+
+  Design: composition, not reimplementation.  fix_length_and_dec() builds
+  an internal JSON_QUOTE(args[0]) item (when args[0] is not already JSON-
+  typed) and an internal JSON_CONTAINS(args[1], ...) item.  val_bool()
+  pre-validates both operands and then delegates the actual containment
+  test to json_contains_item, then negates only when negated==true and
+  null_value==false, matching the Item_func_between pattern exactly.
+
+  je_val (a persistent json_engine_t) exists solely for that pre-validation
+  pass.  Its purpose is twofold: (1) errors are attributed to "member of"
+  with the correct argument index, not to "json_contains"; (2) the full-
+  document scan catches malformed trailing bytes that json_contains would
+  miss if it found an early match and returned before scanning to EOF.
+  je_val.stack is wired once in fix_length_and_dec() via
+  mem_root_dynamic_array_init(), mirroring the pattern used by
+  Item_func_json_contains::fix_length_and_dec().
+
+  walk / transform / compile / propagate_equal_fields / update_used_tables
+  are overridden to expose json_quote_item and json_contains_item to the
+  optimizer.  Those two helper items live outside the normal args[] array
+  that Item_func_opt_neg would otherwise walk automatically, so without these
+  overrides the optimizer would never see them.  This follows the precedent
+  set by Item_in_optimizer, which similarly maintains hidden child items and
+  explicitly threads them through every tree-traversal method.
+*/
+class Item_func_member_of : public Item_func_opt_neg
+{
+  Item *json_quote_item;
+  Item *json_contains_item;
+  /* Persistent engine for manual validation of args[1] in val_bool().
+     je_val.stack must be wired via mem_root_dynamic_array_init() in
+     fix_length_and_dec() before any call to json_scan_start(&je_val,...). */
+  json_engine_t je_val;
+  String tmp_js_doc;
+  String tmp_candidate;
+  /* Caching constant container document validation */
+  bool a1_constant;
+  bool a1_parsed;
+  String *js_doc_cached;
+public:
+  Item_func_member_of(THD *thd, Item *a, Item *b):
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL),
+    je_val{}, a1_constant(false), a1_parsed(false), js_doc_cached(NULL)
+    {}
+
+  bool val_bool() override;
+  bool fix_length_and_dec(THD *thd) override;
+  void print(String *str, enum_query_type query_type) override;
+  enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name=     {STRING_WITH_LEN("member of") };
+    static LEX_CSTRING neg_name= {STRING_WITH_LEN("not member of") };
+    return negated ? neg_name : name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  {
+    Item_func_member_of *copy= (Item_func_member_of *) get_item_copy<Item_func_member_of>(thd, this);
+    if (copy)
+    {
+      copy->json_quote_item= NULL;
+      copy->json_contains_item= NULL;
+      memset(&copy->je_val, 0, sizeof(copy->je_val));
+      copy->js_doc_cached= NULL;
+      copy->a1_parsed= false;
+    }
+    return copy;
+  }
+
+  bool walk(Item_processor processor, void *arg, item_walk_flags flags) override;
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                Item_transformer transformer, uchar *arg_t) override;
+  Item *propagate_equal_fields(THD *thd, const Item::Context &ctx, COND_EQUAL *cond) override;
+  void update_used_tables() override;
+};
+
+
 #endif /* ITEM_JSONFUNC_INCLUDED */

@@ -133,6 +133,37 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+#
+# MDEV-13645 JSON_QUOTE should handle numeric and NULL arguments
+#
+# Integer literal: must return the unquoted number, not SQL NULL
+select json_quote(17);
+# Decimal literal: must return the unquoted decimal, not SQL NULL
+select json_quote(3.14);
+# Double/float literal: must return the unquoted value text, not SQL NULL
+select json_quote(1.5e2);
+# NULL input: must return the JSON null literal as a non-NULL string result
+select json_quote(NULL);
+select isnull(json_quote(NULL));
+# String regression: must still quote and escape exactly as before
+select json_quote('hello');
+select json_quote('"already_quoted"');
+# JSON_QUOTE(NULL) must compose correctly inside another JSON function
+# as the JSON null literal, not break the outer call with SQL NULL
+select json_contains(json_quote(NULL), 'null');
+# Column-sourced NULL: result must match literal NULL case (JSON null literal)
+create table t1 (a int);
+insert into t1 values (NULL), (5);
+select json_quote(a) from t1 order by a;
+drop table t1;
+# SQL-NULL propagation checks: json_quote(NULL) must NOT propagate SQL NULL
+# - IS NULL must return 0 (the string "null" is not SQL NULL)
+select json_quote(NULL) is NULL;
+# - equality with the string 'null' must return 1
+select json_quote(NULL) = 'null';
+# - COALESCE must return 'null', NOT 'fallback' (result is not SQL NULL)
+select coalesce(json_quote(NULL), 'fallback');
+
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 select json_merge('string');
 select json_merge('string', 123);
