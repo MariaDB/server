@@ -4135,7 +4135,24 @@ int main(int argc, char** argv)
             "with --flashback");
       die(1);
     }
-    
+    if (stop_datetime_given)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --stop-datetime");
+      die(1);
+    }
+    if (static_cast<longlong>(stop_position) != stop_position_default)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --stop-position");
+      die(1);
+    }
+    if (position_gtid_filter)
+    {
+      error("The --convert-engine-binlog option does not support GTID values "
+            "for --start-position or --stop-position");
+      die(1);
+    }
   }
   else if (opt_raw_mode)
   {
@@ -4237,16 +4254,14 @@ int main(int argc, char** argv)
     if we finished processing input before reaching the stop
     boundaries indicated by --stop-datetime or --stop-position.
   */
-  if (!opt_convert_engine_binlog &&
-      stop_datetime_given && stop_datetime > last_processed_ev.datetime)
+  if (stop_datetime_given && stop_datetime > last_processed_ev.datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
-  if (!opt_convert_engine_binlog &&
-      (static_cast<longlong>(stop_position) != stop_position_default) &&
+  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
       stop_position > last_processed_ev.position)
     warning("Did not reach stop position %llu before end of input",
             stop_position);
-  if (!opt_convert_engine_binlog && position_gtid_filter)
+  if (position_gtid_filter)
     position_gtid_filter->verify_final_state();
 
   /*
