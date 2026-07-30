@@ -5038,10 +5038,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     {
       if (thd->variables.query_cache_wlock_invalidate)
 	query_cache_invalidate_locked_for_write(thd, first_table);
-      if (!thd->killed)
-      {
-        my_ok(thd);
-      }
+      my_ok(thd);
     }
     break;
   case SQLCOM_BACKUP:

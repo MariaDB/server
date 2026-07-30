@@ -2672,7 +2672,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
                            &db.str, (size_t) db.length + 1,
                            &table_name.str, (size_t) table_name.length + 1,
                            &alias.str, (size_t) alias.length + 1,
-                           NullS))
+                           NullS) || thd->killed)
     {
       reset();
       return TRUE;
