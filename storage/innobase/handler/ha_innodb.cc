@@ -1587,6 +1587,16 @@ innobase_start_trx_and_assign_read_view(
 					user for whom the transaction should
 					be committed */
 
+/*****************************************************************//**
+Gives thd's transaction the same read view as from_thd's transaction.
+@return 0 or HA_ERR_UNSUPPORTED */
+static
+int
+innobase_clone_consistent_snapshot(
+/*===============================*/
+	THD*	thd,		/* in: thread that is to adopt the snapshot */
+	THD*	from_thd);	/* in: thread whose snapshot to adopt */
+
 /** Flush InnoDB redo logs to the file system.
 @return false */
 static bool innobase_flush_logs(handlerton*)
@@ -4289,6 +4299,8 @@ static int innodb_init(void* p)
 
 	innobase_hton->start_consistent_snapshot =
 		innobase_start_trx_and_assign_read_view;
+	innobase_hton->clone_consistent_snapshot =
+		innobase_clone_consistent_snapshot;
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
@@ -4566,6 +4578,60 @@ innobase_start_trx_and_assign_read_view(
 	}
 
 	/* Set the MySQL flag to mark that there is an active transaction */
+
+	innobase_register_trx(innodb_hton_ptr, thd, trx);
+
+	DBUG_RETURN(0);
+}
+
+/*****************************************************************//**
+Gives thd's transaction the same read view as from_thd's transaction, so that
+both read the same snapshot. See the clone_consistent_snapshot description in
+handler.h; called on thd's own thread before thd has read anything.
+@return 0 on success, HA_ERR_UNSUPPORTED if from_thd has no snapshot */
+static
+int
+innobase_clone_consistent_snapshot(
+/*===============================*/
+	THD*	thd,		/*!< in: thread that is to adopt the snapshot */
+	THD*	from_thd)	/*!< in: thread whose snapshot to adopt */
+{
+	DBUG_ENTER("innobase_clone_consistent_snapshot");
+	ut_ad(thd != from_thd);
+
+	/* from_thd belongs to another thread, so its handlerton data may only
+	be read under its LOCK_thd_data. The transaction it points to stays
+	alive without that mutex: the caller keeps from_thd's transaction, and
+	its snapshot, for at least as long as this one reads. */
+	mysql_mutex_lock(&from_thd->LOCK_thd_data);
+	trx_t*	from_trx = thd_to_trx(from_thd);
+	mysql_mutex_unlock(&from_thd->LOCK_thd_data);
+
+	if (!from_trx || !from_trx->is_started()) {
+		/* Nothing to share: the source has not read anything through
+		InnoDB, so it holds no snapshot this thread could diverge
+		from. Fail rather than silently read a different one. */
+		DBUG_RETURN(HA_ERR_UNSUPPORTED);
+	}
+
+	trx_t*	trx = check_trx_exists(thd);
+
+	ut_ad(!trx->is_started());
+
+	/* Read at the source's isolation level, not this thread's: at READ
+	UNCOMMITTED the source ignores its read view, and the copy has to do
+	the same to return the same rows. */
+	trx->isolation_level = from_trx->isolation_level;
+
+	trx_start_if_not_started(trx, false);
+
+	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
+		/* Consistent reads do not consult a read view at this
+		isolation level: both transactions read the latest version of
+		every record, so there is no snapshot to copy. */
+	} else if (!trx->read_view.clone(from_trx->read_view)) {
+		DBUG_RETURN(HA_ERR_UNSUPPORTED);
+	}
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
@@ -14634,7 +14700,14 @@ int ha_innobase::parallel_init_coordinator(size_t n_threads,
 	  entirely, leaving the transaction with no snapshot — a later SELECT
 	  in the same RR transaction would then see uncommitted (to us) writes
 	  from other transactions. Open the ReadView here to match serial
-	  semantics. open() is a no-op if already open. */
+	  semantics.
+
+	  This view is also the one the workers adopt (see
+	  innobase_clone_consistent_snapshot): they read in their own
+	  transactions, so the snapshot the chunk boundaries below are computed
+	  from has to exist before any of them starts.
+
+	  open() is a no-op if already open. */
 	if (m_prebuilt->select_lock_type == LOCK_NONE) {
 		trx_start_if_not_started(m_prebuilt->trx, false);
 		m_prebuilt->trx->read_view.open(m_prebuilt->trx);

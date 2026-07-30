@@ -1358,6 +1358,23 @@ struct transaction_participant
   void (*signal_tc_log_recovery_done)();
   int (*start_consistent_snapshot)(THD *thd);
   /*
+    Make thd's transaction read the same snapshot as from_thd's transaction,
+    so that both sessions see exactly the same data. Parallel query uses this
+    to give each worker thread the snapshot of the session that owns the
+    query: the workers run in their own THDs, hence in their own transactions,
+    and would otherwise each take their own snapshot at their first read.
+
+    Called on thd's own thread, before thd has read anything. from_thd's
+    transaction must stay alive, and keep the same snapshot, until thd has
+    finished reading: that is also what stops the engine from discarding the
+    older row versions thd still needs. NULL means the engine cannot share a
+    snapshot.
+
+    Returns 0 if thd now reads from_thd's snapshot, HA_ERR_UNSUPPORTED if
+    from_thd has no snapshot to share.
+  */
+  int (*clone_consistent_snapshot)(THD *thd, THD *from_thd);
+  /*
     The commit_ordered() method is called prior to the commit() method, after
     the transaction manager has decided to commit (not rollback) the
     transaction. Unlike commit(), commit_ordered() is called only when the
@@ -5962,6 +5979,7 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache, KEY_CACHE *new_key_cache);
 
 /* transactions: interface to handlerton functions */
 int ha_start_consistent_snapshot(THD *thd);
+bool ha_clone_consistent_snapshot(THD *thd, THD *from_thd);
 int ha_commit_or_rollback_by_xid(XID *xid, bool commit);
 int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
