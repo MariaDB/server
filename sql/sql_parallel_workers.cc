@@ -351,6 +351,84 @@ void pwt_worker::close_worker_tables()
     table read once during optimization) are left untouched -- they are
     read-only and safely shared across workers.
 */
+/*
+  Looks for one particular Item_field object in an item tree.
+*/
+class Pwt_field_ref_finder : public Field_enumerator
+{
+  const Item_field *target;
+public:
+  bool found;
+  Pwt_field_ref_finder(const Item_field *target_arg)
+    : target(target_arg), found(false) {}
+  void visit_field(Item_field *item) override
+  {
+    if (item == target)
+      found= true;
+  }
+};
+
+
+/*
+  Looks for an Item_field object that a clone and the item it was copied from
+  both reach, walking the same way the rebinder does.
+*/
+class Pwt_shared_field_finder : public Field_enumerator
+{
+  Item *source;
+public:
+  bool shared;
+  Pwt_shared_field_finder(Item *source_arg)
+    : source(source_arg), shared(false) {}
+  void visit_field(Item_field *item) override
+  {
+    if (shared)
+      return;
+    Pwt_field_ref_finder finder(item);
+    source->walk(&Item::enumerate_field_refs_processor, (void*) &finder, 0);
+    if (finder.found)
+      shared= true;
+  }
+};
+
+
+/*
+  @brief
+    Whether 'clone' still reaches an Item_field object belonging to 'src'.
+
+  @description
+    A copy is only usable by a worker if it shares nothing with the item it came
+    from, because the worker repoints the copy's Item_field leaves at its own
+    tables. Several classes implement deep_copy() as a shallow copy while still
+    holding child items, every Item_cache and Item_outer_ref among them, so their
+    copy keeps pointing at the original's children. Rebinding one of those moves
+    the manager's own items onto a worker's tables, and the next worker moves
+    them again, which is what the in_use assertion in Field::val_int() catches.
+*/
+static bool pwt_clone_shares_fields(Item *src, Item *clone)
+{
+  Pwt_shared_field_finder finder(src);
+  clone->walk(&Item::enumerate_field_refs_processor, (void*) &finder, 0);
+  return finder.shared;
+}
+
+
+/*
+  @brief
+    Whether this item can be copied into something a worker can own.
+
+  @description
+    Clonable, and the copy independent of the original (see
+    pwt_clone_shares_fields). Called from the gate, at optimize time, where a
+    query that fails either test still falls back to serial execution for free.
+*/
+static bool pwt_item_is_clonable(THD *thd, Item *item)
+{
+  Item *clone= item->deep_copy_with_checks(thd);
+  return clone && !pwt_clone_shares_fields(item, clone);
+}
+
+
 class Pwt_field_rebinder : public Field_enumerator
 {
   TABLE **from_tables, **to_tables;
@@ -401,7 +479,10 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
   /*
     1. Rebind every field reference to the worker's table copy. The fields stay
        fixed and keep their column position, so no name re-resolution happens.
+       The gate rejected anything whose copy is not independent, so the walk
+       below can only reach fields this clone owns.
   */
+  DBUG_ASSERT(!pwt_clone_shares_fields(src, clone));
   Pwt_field_rebinder rebinder(from, to, n);
   clone->walk(&Item::enumerate_field_refs_processor, (void*) &rebinder, 0);
 
@@ -1893,14 +1974,14 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
             DBUG_PRINT("info", ("cond_guards, %s",tab->table->alias.ptr()));
             DBUG_RETURN(false);
           }
-          if (!tab->ref.items[p]->deep_copy_with_checks(thd))   // clonable?
+          if (!pwt_item_is_clonable(thd, tab->ref.items[p]))
           {
             DBUG_PRINT("info", ("ref unclonable, %s",tab->table->alias.ptr()));
             DBUG_RETURN(false);
           }
         }
     }
-    if (tab->select_cond && !tab->select_cond->deep_copy_with_checks(thd))
+    if (tab->select_cond && !pwt_item_is_clonable(thd, tab->select_cond))
     {
       DBUG_PRINT("info", ("cond unclonable, %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
@@ -1911,7 +1992,7 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
   List_iterator_fast<Item> li(join->fields_list);
   Item *item;
   while ((item= li++))
-    if (!item->deep_copy_with_checks(thd))
+    if (!pwt_item_is_clonable(thd, item))
     {
       DBUG_PRINT("info", ("scan table fields unclonable"));
       DBUG_RETURN(false);

@@ -1,0 +1,52 @@
+#
+# MDEV-39492 Parallel Query: a worker's copy of an expression has to own its
+# Item_field leaves.
+#
+# Several item classes implement deep_copy() as a shallow copy while still
+# holding child items, every Item_cache and Item_outer_ref among them, so their
+# copy keeps pointing at the original's children. A worker repoints the leaves
+# of its copy at its own tables, so sharing one with the manager moves the
+# manager's items onto a worker's tables. The gate refuses such an item, which
+# leaves the query running serially and answering correctly.
+#
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (9),(0),(7);
+CREATE TABLE t2 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (9),(0),(7),(4),(5),(1),(2),(3),(6),(8);
+CREATE TABLE t3 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (9),(0),(7),(4),(5);
+CREATE TABLE t4 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (0),(7);
+CREATE TABLE t5 (f1 INT NOT NULL, PRIMARY KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t5 VALUES (7);
+
+--echo #
+--echo # semijoin conversion leaves a cached reference behind in the condition
+--echo #
+SET SESSION parallel_worker_threads=0;
+SELECT STRAIGHT_JOIN count(*) FROM t1 JOIN t2 JOIN t3
+  WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+--echo # same answer with workers enabled
+SET SESSION parallel_worker_threads=4;
+SELECT STRAIGHT_JOIN count(*) FROM t1 JOIN t2 JOIN t3
+  WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+
+--echo #
+--echo # a correlated reference in the select list, and one in the condition
+--echo #
+SET SESSION parallel_worker_threads=0;
+--sorted_result
+SELECT f1, (SELECT COUNT(*) FROM t4 WHERE t4.f1 = t2.f1) AS c FROM t2;
+--sorted_result
+SELECT f1 FROM t2 WHERE EXISTS (SELECT 1 FROM t4 WHERE t4.f1 = t2.f1);
+--echo # same answers with workers enabled
+SET SESSION parallel_worker_threads=4;
+--sorted_result
+SELECT f1, (SELECT COUNT(*) FROM t4 WHERE t4.f1 = t2.f1) AS c FROM t2;
+--sorted_result
+SELECT f1 FROM t2 WHERE EXISTS (SELECT 1 FROM t4 WHERE t4.f1 = t2.f1);
+
+DROP TABLE t1,t2,t3,t4,t5;
