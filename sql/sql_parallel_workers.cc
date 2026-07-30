@@ -1937,6 +1937,33 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
   for (uint j= join->const_tables; j < join->table_count; j++)
   {
     JOIN_TAB *tab= &join->join_tab[j];
+    if (!tab->table)
+    {
+      DBUG_PRINT("info", ("join tab %u has no table", j));
+      DBUG_RETURN(false);
+    }
+    /*
+      A worker opens its own copy of every one of these tables, not just the one
+      it scans in chunks, so each has to pass the same test the driving table
+      does. The name reads oddly for a table the worker only looks rows up in,
+      but every condition it checks is one a worker-read table needs.
+
+      An internal tmp table, a materialized derived table or subquery, has a
+      share built in memory rather than read from a .frm, and
+      open_table_from_share() walks off the end of it. Blob payloads live outside
+      the record buffer, so they do not survive the by-value row transport
+      whichever table they come from. A partitioned table cannot be opened as a
+      plain copy. The engine flag is what tells us the engine can also hand the
+      worker the manager's snapshot, so requiring it here closes the second half
+      of this hole as well, a join whose inner table is in an engine that cannot
+      share one and would be read outside the manager's snapshot.
+    */
+    if (!table_can_be_parallel_scanned(tab->table))
+    {
+      DBUG_PRINT("info", ("%s cannot be read by a worker",
+                          tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
     if (tab->bush_children)                       // semijoin materialization
     {
       DBUG_PRINT("info", ("SJM on %s",tab->table->alias.ptr()));

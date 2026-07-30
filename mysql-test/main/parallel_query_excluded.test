@@ -77,5 +77,30 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
   FROM information_schema.optimizer_trace;
 
 DROP TABLE t_plain, t_blob, t_text, t_merge, t_m1, t_m2, t_ft;
+
+--echo #
+--echo # A table the worker cannot open its own copy of is excluded. The query
+--echo # answers as it does serially, because it runs serially.
+--echo #
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES (1),(2),(3),(4);
+CREATE TABLE tb (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO tb VALUES (1,10),(1,11),(2,20),(3,30),(3,31),(4,40);
+
+--echo # materialized derived table as an inner table: not chosen (expect 0)
+SET SESSION optimizer_switch='derived_merge=off';
+--disable_result_log
+SELECT ta.a, d.n FROM ta, (SELECT a AS k, COUNT(*) AS n FROM tb GROUP BY a) d
+  WHERE d.k = ta.a;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen_for_parallel_scan
+  FROM information_schema.optimizer_trace;
+--sorted_result
+SELECT ta.a, d.n FROM ta, (SELECT a AS k, COUNT(*) AS n FROM tb GROUP BY a) d
+  WHERE d.k = ta.a;
+SET SESSION optimizer_switch=DEFAULT;
+
+DROP TABLE ta, tb;
 SET optimizer_trace= @save_optimizer_trace;
 set session parallel_worker_threads=default;
