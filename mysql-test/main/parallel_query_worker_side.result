@@ -2,27 +2,40 @@ CREATE TABLE t1 (a INT, b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1
 SELECT seq, seq * 10, CONCAT('row-', seq) FROM seq_1_to_5000;
 SET @save= @@session.parallel_worker_threads;
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+# serial fingerprint
 SET SESSION parallel_worker_threads= 0;
-CREATE TEMPORARY TABLE t_serial ENGINE=InnoDB AS
-SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b,c))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b,c))) AS crc_xor FROM (SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100) d;
+n	crc_sum	crc_xor
+713	1526663308994	1378748566
+# parallel fingerprint, must be identical to the serial one above
 SET SESSION parallel_worker_threads= 4;
-CREATE TEMPORARY TABLE t_par ENGINE=InnoDB AS
-SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
-# same number of rows serially and in parallel (expect equal, non-zero)
-SELECT (SELECT COUNT(*) FROM t_serial) AS serial_rows,
-(SELECT COUNT(*) FROM t_par)    AS par_rows;
-serial_rows	par_rows
-713	713
-# symmetric difference of the two result sets is empty (expect 0 and 0)
-SELECT COUNT(*) AS only_in_serial
-FROM (SELECT a,b,c FROM t_serial EXCEPT SELECT a,b,c FROM t_par) x;
-only_in_serial
-0
-SELECT COUNT(*) AS only_in_parallel
-FROM (SELECT a,b,c FROM t_par EXCEPT SELECT a,b,c FROM t_serial) y;
-only_in_parallel
-0
-DROP TEMPORARY TABLE t_serial, t_par;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b,c))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b,c))) AS crc_xor FROM (SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100) d;
+n	crc_sum	crc_xor
+713	1526663308994	1378748566
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
+# projection of expressions over the whole table
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_xor FROM (SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1) d;
+n	crc_sum	crc_xor
+5000	10741355709508	3442214842
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_xor FROM (SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1) d;
+n	crc_sum	crc_xor
+5000	10741355709508	3442214842
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
+SET SESSION optimizer_switch= @save_os;
 # projected expressions, sorted for a stable comparison
 SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
 a	sum_ab	uc

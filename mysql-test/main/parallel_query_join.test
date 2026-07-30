@@ -27,64 +27,38 @@ INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
 
 SET @s= @@session.parallel_worker_threads;
 
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
 --echo #
 --echo # eq_ref: fact STRAIGHT_JOIN d1 on PK
 --echo #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
---echo # equal row count (expect 1, non-zero) and empty symmetric difference (0,0)
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-DROP TEMPORARY TABLE ser, par;
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100
+--let $pq_cols= id,name
+--source include/parallel_query_fingerprint.inc
 
 --echo #
 --echo # ref with fan-out: fact STRAIGHT_JOIN d2 on a non-unique key
 --echo #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-DROP TEMPORARY TABLE ser, par;
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000
+--let $pq_cols= id,label
+--source include/parallel_query_fingerprint.inc
 
 --echo #
 --echo # 3-table chain: fact STRAIGHT_JOIN d1 STRAIGHT_JOIN d2
 --echo #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
-   WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
-   WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-DROP TEMPORARY TABLE ser, par;
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2 WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000
+--let $pq_cols= id,name,label
+--source include/parallel_query_fingerprint.inc
 
 --echo #
 --echo # non-indexed inner table (d3, full scan): fact STRAIGHT_JOIN d3
 --echo #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-  SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-DROP TEMPORARY TABLE ser, par;
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500
+--let $pq_cols= id,descr
+--source include/parallel_query_fingerprint.inc
+
+SET SESSION optimizer_switch= @save_os;
 
 --echo #
 --echo # small deterministic spot-check, run worker-side (sorted for stability)

@@ -19,28 +19,19 @@ INSERT INTO t1
 SET @save= @@session.parallel_worker_threads;
 
 # --- correctness: worker-side result set == serial result set ----------------
-# Build the same query's output once serially and once with 4 workers; the two
-# result sets must be identical (same rows, same multiplicity).
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
 
-SET SESSION parallel_worker_threads= 0;
-CREATE TEMPORARY TABLE t_serial ENGINE=InnoDB AS
-  SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
+--let $pq_query= SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100
+--let $pq_cols= a,b,c
+--source include/parallel_query_fingerprint.inc
 
-SET SESSION parallel_worker_threads= 4;
-CREATE TEMPORARY TABLE t_par ENGINE=InnoDB AS
-  SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
+--echo # projection of expressions over the whole table
+--let $pq_query= SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1
+--let $pq_cols= sum_ab,uc
+--source include/parallel_query_fingerprint.inc
 
---echo # same number of rows serially and in parallel (expect equal, non-zero)
-SELECT (SELECT COUNT(*) FROM t_serial) AS serial_rows,
-       (SELECT COUNT(*) FROM t_par)    AS par_rows;
-
---echo # symmetric difference of the two result sets is empty (expect 0 and 0)
-SELECT COUNT(*) AS only_in_serial
-  FROM (SELECT a,b,c FROM t_serial EXCEPT SELECT a,b,c FROM t_par) x;
-SELECT COUNT(*) AS only_in_parallel
-  FROM (SELECT a,b,c FROM t_par EXCEPT SELECT a,b,c FROM t_serial) y;
-
-DROP TEMPORARY TABLE t_serial, t_par;
+SET SESSION optimizer_switch= @save_os;
 
 # --- projection of expressions, and a no-WHERE scan --------------------------
 --echo # projected expressions, sorted for a stable comparison

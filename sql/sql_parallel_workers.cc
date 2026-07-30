@@ -657,10 +657,8 @@ int pwt_worker::worker_run_query()
   int err= 0;
   uint i;
 
-  src->use_all_columns();                  // read every source column
+  // the source tables were marked in open_worker_tables; this one is ours
   result_table->use_all_columns();         // we write every result column
-  for (i= 1; i < nt; i++)
-    worker_tables[i]->use_all_columns();
 
   /*
     Adopt the manager's snapshot before touching any table. We run in our own
@@ -1578,6 +1576,22 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
     }
     st->in_use= worker->thd;
     st->file->ha_handler_stats_reset();
+    /*
+      Give the copy the manager table's place in the join: its bit in the table
+      map and its join position. Items cloned onto this table take used_tables()
+      from TABLE::map, so with a zero map a rebound predicate looks like a
+      constant -- Item_cond::fix_fields() then evaluates it while we are still
+      cloning it (can_eval_in_optimize()), reading a record buffer that no row
+      has been read into yet.
+    */
+    st->map= src->map;
+    st->tablenr= src->tablenr;
+    /*
+      The worker reads every column of every table it opens. Marked here, before
+      the conditions and the select list are cloned onto these tables, so the
+      read_set is already in place if anything evaluates a field during cloning.
+    */
+    st->use_all_columns();
     worker->worker_tables[t]= st;
   }
   worker->our_scan_table= worker->worker_tables[0];   // the driving table

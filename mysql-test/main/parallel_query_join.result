@@ -8,85 +8,81 @@ INSERT INTO d2 SELECT seq % 20 + 1, CONCAT('L', seq) FROM seq_1_to_60;
 CREATE TABLE d3 (x INT, descr VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
 SET @s= @@session.parallel_worker_threads;
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
 #
 # eq_ref: fact STRAIGHT_JOIN d1 on PK
 #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
-# equal row count (expect 1, non-zero) and empty symmetric difference (0,0)
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-same	n
-1	4967
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-only_ser
-0
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-only_par
-0
-DROP TEMPORARY TABLE ser, par;
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,name))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,name))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100) d;
+n	crc_sum	crc_xor
+4967	10669458711950	378878442
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,name))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,name))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100) d;
+n	crc_sum	crc_xor
+4967	10669458711950	378878442
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
 #
 # ref with fan-out: fact STRAIGHT_JOIN d2 on a non-unique key
 #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-same	n
-1	6000
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-only_ser
-0
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-only_par
-0
-DROP TEMPORARY TABLE ser, par;
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,label))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,label))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000) d;
+n	crc_sum	crc_xor
+6000	12894493646349	175871363
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,label))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,label))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000) d;
+n	crc_sum	crc_xor
+6000	12894493646349	175871363
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
 #
 # 3-table chain: fact STRAIGHT_JOIN d1 STRAIGHT_JOIN d2
 #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
-WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
-WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-same	n
-1	3000
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-only_ser
-0
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-only_par
-0
-DROP TEMPORARY TABLE ser, par;
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,name,label))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,name,label))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2 WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000) d;
+n	crc_sum	crc_xor
+3000	6480938084639	1121476651
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,name,label))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,name,label))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2 WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000) d;
+n	crc_sum	crc_xor
+3000	6480938084639	1121476651
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
 #
 # non-indexed inner table (d3, full scan): fact STRAIGHT_JOIN d3
 #
-SET SESSION parallel_worker_threads=0;
-CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
-SET SESSION parallel_worker_threads=4;
-CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
-SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
-SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
-same	n
-1	500
-SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
-only_ser
-0
-SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
-only_par
-0
-DROP TEMPORARY TABLE ser, par;
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,descr))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,descr))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500) d;
+n	crc_sum	crc_xor
+500	1068012338039	1358147935
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,descr))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,descr))) AS crc_xor FROM (SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500) d;
+n	crc_sum	crc_xor
+500	1068012338039	1358147935
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
+SET SESSION optimizer_switch= @save_os;
 #
 # small deterministic spot-check, run worker-side (sorted for stability)
 #
