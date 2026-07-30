@@ -204,6 +204,23 @@ public:
 
 
   /**
+    Opens this view as an exact copy of another transaction's open view, so
+    that both transactions read the same snapshot.
+
+    Intended to be called by the owner thread of this view, on a view that is
+    not open yet. 'from' may be owned by another thread: it is read under its
+    own m_mutex, the same protection trx_sys_t::clone_oldest_view() uses. The
+    caller must guarantee that 'from' stays open for at least as long as this
+    copy, which is also what keeps purge from removing the undo records the
+    copy needs.
+
+    @param[in] from  the view to copy the snapshot from
+    @return whether the snapshot was copied ('from' was open)
+  */
+  bool clone(const ReadView &from);
+
+
+  /**
     Closes the view.
 
     View becomes not visible to purge thread. Intended to be called by the
