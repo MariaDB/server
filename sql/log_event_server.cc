@@ -8374,7 +8374,11 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     We need to retrieve all fields
     TODO: Move this out from this function to main loop 
    */
-  table->use_all_columns();
+  /*
+    This MDEV-39774 change must be null-merged from 10.11 to 11.4, IOW the
+    following line should be removed in the merge.
+  */
+  bitmap_set_all(table->read_set);
 
   /*
     Save copy of the record in table->record[1]. It might be needed 
