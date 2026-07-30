@@ -1885,12 +1885,19 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
   int err= mgr->init_parallel_workers(thd, join, scan_tab);
   if (err == HA_ERR_UNSUPPORTED)
   {
-    // the engine declined the parallel scan; run the query serially instead
+    /*
+      The engine declined the parallel scan -- e.g. this is a locking read, so
+      not a consistent read (see pscan_init_coordinator). Nothing was set up
+      and no error was raised: return the "declined" code so do_select() runs
+      the query serially. Returning an error here would fail the statement with
+      an empty diagnostics area.
+    */
+    DBUG_PRINT("info", ("engine declined the parallel scan, running serially"));
     join->parallel_work_manager= nullptr;
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   }
   if (err)
-    DBUG_RETURN(1);
+    DBUG_RETURN(1);           // init_parallel_workers has raised the error
 
   DBUG_RETURN(mgr->manager_collect_and_send(join));
 }

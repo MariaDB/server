@@ -105,8 +105,7 @@ id	dim1	name	label
 21	22	n22	L21
 21	22	n22	L41
 #
-# confirm worker-side is chosen for a multi-table join, and that
-# CREATE ... AS SELECT (used above) also runs worker-side
+# confirm the optimizer chooses worker-side for a multi-table join
 #
 SET @ot= @@optimizer_trace;
 SET optimizer_trace='enabled=on';
@@ -118,7 +117,7 @@ chosen
 1
 CREATE TEMPORARY TABLE ctas ENGINE=InnoDB AS
 SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
-# CTAS worker-side too (expect 1)
+# CTAS chosen by the optimizer (expect 1); it runs serially, see parallel_query_fallback
 SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_chosen
 FROM information_schema.optimizer_trace;
 ctas_chosen
