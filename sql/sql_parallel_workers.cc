@@ -663,6 +663,28 @@ int pwt_worker::worker_run_query()
     worker_tables[i]->use_all_columns();
 
   /*
+    Adopt the manager's snapshot before touching any table. We run in our own
+    THD, hence in our own transaction, so without this every worker would open
+    its own read view at its first read: the workers, and the manager they work
+    for, could each see a different version of the tables, and the chunk
+    boundaries the manager's engine computed would not even belong to the
+    snapshot we scan. The manager pinned its snapshot in
+    pscan_init_coordinator() before any worker was created, and holds it until
+    the workers have been reaped (quiesce_workers), which is also what keeps
+    purge from removing the versions we still need.
+
+    This covers every table we read, not just the parallel-scanned one: the
+    snapshot belongs to the transaction, so the inner tables of the join are
+    read at the same point in time as the driving table.
+  */
+  if (ha_clone_consistent_snapshot(thd, mgr->thd))
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "parallel worker: cannot read the manager's snapshot");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
+  /*
     Our handles bypassed lock_tables(), so take the engine-level read lock on
     every table ourselves; InnoDB needs this to register a table with its trx
     before reading it. All-or-nothing: unlock the locked prefix on failure.

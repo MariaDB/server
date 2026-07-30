@@ -3488,6 +3488,42 @@ int ha_start_consistent_snapshot(THD *thd)
 }
 
 
+static bool clone_snapshot_handlerton(THD *thd, transaction_participant *hton,
+                                      void *arg)
+{
+  return hton->clone_consistent_snapshot &&
+         hton->clone_consistent_snapshot(thd, (THD*) arg);
+}
+
+
+/**
+  @brief
+    Make thd's transaction read the same snapshot as from_thd's transaction.
+
+  @description
+    Every engine that can share a snapshot and has a transaction in from_thd
+    is asked to give thd the same read view. Used by parallel query: the
+    worker threads have their own THDs, hence their own transactions, and
+    without this each of them would take its own snapshot at its first read --
+    so the workers, and the session they work for, could each see a different
+    version of the table.
+
+    Must be called on thd's own thread, before thd has read anything through
+    any engine, and from_thd must hold a snapshot for the whole time thd reads
+    (which is what stops purge from removing the versions thd still needs).
+
+  @return
+    true   an engine could not give thd from_thd's snapshot (an error is
+           raised); the caller must not read anything
+    false  thd now reads from_thd's snapshot in every engine that supports it
+*/
+
+bool ha_clone_consistent_snapshot(THD *thd, THD *from_thd)
+{
+  return tp_foreach(thd, clone_snapshot_handlerton, from_thd);
+}
+
+
 static my_bool flush_handlerton(THD *thd, plugin_ref plugin,
                                 void *arg)
 {
