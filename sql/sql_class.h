@@ -1574,7 +1574,7 @@ public:
   void
   restore_security_context(THD *thd, Security_context *backup);
 #endif
-  bool user_matches(Security_context *);
+  bool priv_user_matches(const Security_context *) const;
   /**
     Check global access
     @param want_access The required privileges
@@ -1583,7 +1583,7 @@ public:
     @return True if the security context fulfills the access requirements.
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
-  bool is_priv_user(const char *user, const char *host);
+  bool is_priv_user(const char *user, const char *host) const;
   bool is_user_defined() const
     { return user && user != delayed_user && user != slave_user && user != wsrep_user; };
 };
