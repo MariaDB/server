@@ -730,7 +730,8 @@ struct transaction_participant MHNSW_Trx::tp=
   nullptr,                        /* recover */
   nullptr, nullptr,               /* commit/rollback_by_xid */
   nullptr, nullptr,               /* recover_rollback_by_xid/recovery_done */
-  nullptr, nullptr, nullptr,      /* snapshot, commit/prepare_ordered */
+  nullptr, nullptr,               /* start/clone snapshot */
+  nullptr, nullptr,               /* commit/prepare_ordered */
   nullptr, nullptr                /* checkpoint, versioned */
 };
 
