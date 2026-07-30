@@ -2180,6 +2180,8 @@ uint Gis_multi_point::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
   {
     res->q_append((char)wkb_ndr);
     res->q_append((uint32)wkb_point);
+    if ((uchar) wkb[0] > wkb_ndr) /* invalid */
+      return 0;
     if (!p.init_from_wkb(wkb + WKB_HEADER_SIZE,
                          POINT_DATA_SIZE, (wkbByteOrder) wkb[0], res))
       return 0;
