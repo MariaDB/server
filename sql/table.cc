@@ -113,10 +113,8 @@ static std::atomic<ulonglong> last_table_id;
 
 	/* Functions defined in this file */
 
-static bool fix_type_pointers(const char ***typelib_value_names,
-                              uint **typelib_value_lengths,
-                              TYPELIB *point_to_type, uint types,
-                              char *names, size_t names_length);
+static bool fix_type_pointers(const char ***, const char **, uint **,
+                              TYPELIB *, uint, char *, size_t);
 
 static field_index_t find_field(Field **fields, uchar *record, uint start,
                                 uint length);
@@ -767,7 +765,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
   ulong *rec_per_key= NULL;
-  KEY_PART_INFO *first_key_part= NULL;
+  KEY_PART_INFO *first_key_part= NULL, *key_part_end;
   uint first_key_parts= 0;
 
   if (!keys)
@@ -775,7 +773,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     if (!(keyinfo = (KEY*) alloc_root(&share->mem_root, len)))
       return 1;
     bzero((char*) keyinfo, len);
-    key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
+    key_part_end= key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
 
   /*
@@ -831,6 +829,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                                              sizeof(ulong) * *ext_key_parts)))
         return 1;
       first_key_part= key_part;
+      key_part_end= key_part + *ext_key_parts;
       first_key_parts= first_keyinfo->user_defined_key_parts;
       keyinfo->flags= first_keyinfo->flags;
       keyinfo->key_length= first_keyinfo->key_length;
@@ -844,6 +843,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->rec_per_key= rec_per_key;
     for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
     {
+      if (key_part >= key_part_end)
+        return 1;
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
       if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
@@ -901,6 +902,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
         }
         if (curr_key_part == curr_key_part_end)
         {
+          if (key_part >= key_part_end)
+            return 1;
           *key_part++= first_key_part[j];
           *rec_per_key++= 0;
           keyinfo->ext_key_parts++;
@@ -914,13 +917,17 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->ext_key_parts++;
     share->ext_key_parts+= keyinfo->ext_key_parts;
   }
-  keynames->str= (char*) key_part;
-  keynames->length= strnmov(keynames->str, (char *) strpos,
-                            frm_image_end - strpos) - keynames->str;
-  strpos+= keynames->length;
-  if (*strpos++) // key names are \0-terminated
+  if (key_part > key_part_end)
     return 1;
-  keynames->length++; // Include '\0', to make fix_type_pointers() happy.
+  size_t max_keyname_len= MY_MIN(len, (uint)(frm_image_end - strpos));
+  keynames->str= (char*) key_part;
+  keynames->length= strnmov(keynames->str, (char *)strpos,
+                            max_keyname_len) - keynames->str;
+  if (keynames->length >= max_keyname_len)
+    return 1;         // meaning key name was not \0-terminated
+  keynames->length++; // include '\0', to make fix_type_pointers() happy.
+  strpos+= keynames->length;
+  len-= (uint)keynames->length;
 
   //reading index comments
   for (keyinfo= share->key_info, i=0; i < keys; i++, keyinfo++)
@@ -932,11 +939,13 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->comment.length= uint2korr(strpos);
       strpos+= 2;
 
-      if (strpos + keyinfo->comment.length >= frm_image_end)
+      if (strpos + keyinfo->comment.length >= frm_image_end ||
+          keyinfo->comment.length > len)
         return 1;
       keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
+      len-= (uint)keyinfo->comment.length;
     } 
     DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
                 (keyinfo->comment.length > 0));
@@ -1055,7 +1064,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
                                             uchar **null_pos,
                                             uint *null_bit_pos,
                                             const uchar *strpos,
-                                            const uchar *vcol_screen_pos)
+                                            const uchar *vcol_screen_pos,
+                                            const uchar *vcol_screen_end)
 {
   uint field_pack_length= 17;
 
@@ -1066,6 +1076,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
 
     if ((strpos[10] & MYSQL57_GENERATED_FIELD))
     {
+      if (vcol_screen_pos + MYSQL57_GCOL_HEADER_SIZE >= vcol_screen_end)
+        return;
       /* Skip virtual (not stored) generated field */
       bool stored_in_db= vcol_screen_pos[3];
       vcol_screen_pos+= (uint2korr(vcol_screen_pos + 1) +
@@ -1786,6 +1798,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *forminfo;
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
+  uchar *data_start, *data_end;
+  uchar *first_stored= 0, *first_virtual= 0, *next_stored= 0, *next_virtual= 0;
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset;
   ulong rec_buff_length;
@@ -1793,13 +1807,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   KEY	*keyinfo;
   KEY_PART_INFO *key_part= NULL;
   Field  **field_ptr, *reg_field;
-  const char **interval_array;
+  const char **interval_array, **interval_array_end;
   uint *typelib_value_lengths= NULL;
   enum legacy_db_type legacy_db_type;
   my_bitmap_map *bitmaps;
   bool null_bits_are_used;
   uint vcol_screen_length;
-  uchar *vcol_screen_pos;
+  uchar *vcol_screen_pos, *vcol_screen_end;
   LEX_CUSTRING options;
   LEX_CSTRING se_name= empty_clex_str;
   KEY first_keyinfo;
@@ -1809,7 +1823,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bool vers_can_native= false, frm_created= 0;
   Field_data_type_info_array field_data_type_info_array;
   MEM_ROOT *old_root= thd->mem_root;
-  Virtual_column_info **table_check_constraints;
+  Virtual_column_info **table_check_constr;
   bool *interval_unescaped= NULL;
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
@@ -1850,6 +1864,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Length of the MariaDB extra2 segment in the form file. */
   len = uint2korr(frm_image+4);
 
+  if (frm_length < FRM_HEADER_SIZE + len ||
+      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
+    goto err;
+
+  forminfo= frm_image + pos;
+  if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
+    goto err;
+
   if (read_extra2(frm_image, len, &extra2))
     goto err;
 
@@ -1869,17 +1891,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (!share->default_part_plugin)
       goto err;
   }
-#endif
 
-  if (frm_length < FRM_HEADER_SIZE + len ||
-      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
-    goto err;
-
-  forminfo= frm_image + pos;
-  if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
-    goto err;
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
@@ -1970,6 +1982,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->ignored_indexes.init(0);
   share->keys_in_use.init(keys);
   ext_key_parts= key_parts;
+
+  if ((key_parts && !keys) || key_parts < keys)
+    goto err;
 
   if (extra2.index_flags.str && extra2.index_flags.length != keys)
     goto err;
@@ -2127,12 +2142,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     {
       //reading long table comment
       if (next_chunk + 2 > buff_end)
-      {
-          DBUG_PRINT("error",
-                     ("long table comment is not defined in .frm"));
           goto err;
-      }
       share->comment.length = uint2korr(next_chunk);
+      if (next_chunk + 2 + share->comment.length > buff_end)
+          goto err;
       if (! (share->comment.str= strmake_root(&share->mem_root,
              (char*)next_chunk + 2, share->comment.length)))
       {
@@ -2141,17 +2154,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       next_chunk+= 2 + share->comment.length;
     }
 
-    DBUG_ASSERT(next_chunk <= buff_end);
-
     if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS_legacy)
     {
       if (options.str)
         goto err;
+      if (next_chunk + 4 > buff_end)
+          goto err;
       options.length= uint4korr(next_chunk);
       options.str= next_chunk + 4;
       next_chunk+= options.length + 4;
+      if (next_chunk > buff_end)
+        goto err;
     }
-    DBUG_ASSERT(next_chunk <= buff_end);
   }
   else
   {
@@ -2162,7 +2176,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   share->key_block_size= uint2korr(frm_image+62);
   keyinfo= share->key_info;
-
 
   if (extra2.index_flags.str)
     extra_index_flags_present= TRUE;
@@ -2208,6 +2221,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
   share->fields= uint2korr(forminfo+258);
+  if (share->fields > MAX_FIELDS)
+    goto err;
   if (extra2.field_flags.str && extra2.field_flags.length != share->fields)
     goto err;
   pos= uint2korr(forminfo+260);   /* Length of all screens */
@@ -2228,6 +2243,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->comment.str= strmake_root(&share->mem_root, (char*) forminfo+47,
                                      share->comment.length);
   }
+
+  if (hash_fields > share->fields || share->null_fields > share->fields)
+    goto err;
 
   DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
@@ -2253,12 +2271,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                         &share->field, (uint)(share->fields+1)*sizeof(Field*),
                         &share->intervals, (uint)interval_count*sizeof(TYPELIB),
                         &share->check_constraints, (uint) share->table_check_constraints * sizeof(Virtual_column_info*),
-                        /*
-                           This looks wrong: shouldn't it be (+2+interval_count)
-                           instread of (+3) ?
-                        */
-                        &interval_array, (uint) (share->fields+interval_parts+ keys+3)*sizeof(char *),
-                        &typelib_value_lengths, total_typelib_value_count * sizeof(uint *),
+                        &interval_array, (uint)total_typelib_value_count * sizeof(char *),
+                        &typelib_value_lengths, (uint)total_typelib_value_count * sizeof(uint),
                         &names, (uint) (n_length+int_length),
                         &comment_pos, (uint) com_length,
                         &vcol_screen_pos, vcol_screen_length,
@@ -2274,10 +2288,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   field_ptr= share->field;
-  table_check_constraints= share->check_constraints;
+  interval_array_end= interval_array + total_typelib_value_count;
+  table_check_constr= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
 		      pos+ (uint) (n_length+int_length+com_length+
 		                   vcol_screen_length));
+  if (disk_buff + read_length > frm_image_end)
+    goto err;
   strpos= disk_buff+pos;
 
   if (!interval_count)
@@ -2291,21 +2308,24 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
          com_length);
   memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length, 
          vcol_screen_length);
+  vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
-  if (fix_type_pointers(&interval_array, &typelib_value_lengths,
-                        &share->fieldnames, 1, names, n_length) ||
+  if (fix_type_pointers(&interval_array, interval_array_end,
+                        &typelib_value_lengths, &share->fieldnames, 1, names,
+                        n_length) ||
       share->fieldnames.count != share->fields)
     goto err;
 
-  if (fix_type_pointers(&interval_array, &typelib_value_lengths,
-                        share->intervals, interval_count,
-                        names + n_length, int_length))
+  if (fix_type_pointers(&interval_array, interval_array_end,
+                        &typelib_value_lengths, share->intervals,
+                        interval_count, names + n_length, int_length))
     goto err;
 
-  if (keynames.length &&
-      (fix_type_pointers(&interval_array, &typelib_value_lengths,
-                         &share->keynames, 1, keynames.str, keynames.length) ||
-      share->keynames.count != keys))
+  if ((keynames.length &&
+       fix_type_pointers(&interval_array, interval_array_end,
+                          &typelib_value_lengths, &share->keynames, 1,
+                          keynames.str, keynames.length)) ||
+      share->keynames.count != keys)
     goto err;
 
  /* Allocate handler */
@@ -2329,14 +2349,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     */
     share->null_bytes= (share->null_fields + null_bit_pos + 7) / 8;
   }
-#ifndef WE_WANT_TO_SUPPORT_VERY_OLD_FRM_FILES
   else
   {
     share->null_bytes= (share->null_fields+7)/8;
     null_flags= null_pos= record + 1 + share->reclength - share->null_bytes;
     null_bit_pos= 0;
   }
-#endif
 
   use_hash= share->fields >= MAX_FIELDS_BEFORE_HASH;
   if (use_hash)
@@ -2357,7 +2375,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     mysql57_vcol_null_bit_pos= null_bit_pos;
     mysql57_calculate_null_position(share, &mysql57_vcol_null_pos,
                                     &mysql57_vcol_null_bit_pos,
-                                    strpos, vcol_screen_pos);
+                                    strpos, vcol_screen_pos, vcol_screen_end);
   }
 
   /* Set system versioning information. */
@@ -2406,20 +2424,22 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.without_overlaps.str)
   {
-    if (extra2.application_period.str == NULL)
+    if (extra2.application_period.str == NULL ||
+        extra2.without_overlaps.length < frm_keyno_size)
       goto err;
     const uchar *key_pos= extra2.without_overlaps.str;
     period.unique_keys= read_frm_keyno(key_pos);
+    if (period.unique_keys > keys ||
+        extra2.without_overlaps.length != (period.unique_keys+1)*frm_keyno_size)
+      goto err;
     for (uint k= 0; k < period.unique_keys; k++)
     {
       key_pos+= frm_keyno_size;
       uint key_nr= read_frm_keyno(key_pos);
+      if (key_nr >= keys)
+        goto err;
       key_info[key_nr].without_overlaps= true;
     }
-
-    if ((period.unique_keys + 1) * frm_keyno_size
-        != extra2.without_overlaps.length)
-      goto err;
   }
 
   if (extra2.field_data_type_info.length &&
@@ -2453,6 +2473,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment.str=    (char*) comment_pos;
 	comment.length= comment_length;
 	comment_pos+=   comment_length;
+        if (com_length < comment_length)
+          goto err;
+        com_length-= comment_length;
       }
 
       if (strpos[13] == MYSQL_TYPE_VIRTUAL &&
@@ -2465,7 +2488,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         */
         uint vcol_info_length= (uint) strpos[12];
 
-        if (!vcol_info_length) // Expect non-null expression
+        if (vcol_info_length < 4 ||
+            vcol_screen_pos + vcol_info_length > vcol_screen_end)
           goto err;
 
         attr.frm_unpack_basic(strpos);
@@ -2567,15 +2591,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           byte 4        = stored_in_db
           byte 5..      = expr
         */
-        if ((uint)(vcol_screen_pos)[0] != 1)
+        if (vcol_screen_pos + MYSQL57_GCOL_HEADER_SIZE > vcol_screen_end ||
+            vcol_screen_pos[0] != 1)
           goto err;
         vcol_info= new (&share->mem_root) Virtual_column_info();
         uint vcol_info_length= uint2korr(vcol_screen_pos + 1);
-        if (!vcol_info_length) // Expect non-empty expression
-          goto err;
         vcol_info->stored_in_db= vcol_screen_pos[3];
         vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
+        if (!vcol_info_length ||                // Expect non-empty expression
+            vcol_screen_pos > vcol_screen_end)
+          goto err;
         share->virtual_fields++;
       }
     }
@@ -2631,6 +2657,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       share->keep_original_mysql_version= 1;
       attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
     }
+
+    if (interval_nr > interval_count)
+      goto err;
 
     if (interval_nr && attr.charset->mbminlen > 1 &&
         !interval_unescaped[interval_nr - 1])
@@ -2727,6 +2756,52 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (!reg_field)				// Not supported field type
       goto err;
 
+    /*
+      Verify that fields follow one another in the record without overlaps.
+      That is the next field starts where the previous field ended.
+      Virtual fields complicate the check. Stored fields follow each other in
+      the record order, virtual fields also follow each in the record order
+      but they're always at the end of the record, and can be interleaved
+      with normal fields in the table.
+
+      We detect this dynamically - as long as the next field starts where the
+      previous ended, assume they're normal fields. When the next field starts
+      with a gap - it's the first virtual (and the future virtual fields must
+      follow that field). If the next field starts before the previous - it
+      means the table started from virtual fields and this is the first stored
+      field. Either ("gap" or "before") can happen only once.
+    */
+    if (!next_stored)                       // first field, i == 0
+    {
+      first_stored= reg_field->ptr;
+      next_stored= first_stored + reg_field->pack_length_in_rec();
+    }
+    else if (reg_field->ptr == next_stored) // next stored field
+      next_stored+= reg_field->pack_length_in_rec();
+    else if (reg_field->ptr > next_stored)  // virtual
+    {
+      if (next_virtual)
+      {
+        if (reg_field->ptr != next_virtual)
+          goto err;
+        next_virtual+= reg_field->pack_length_in_rec();
+      }
+      else
+      {
+        first_virtual= reg_field->ptr;
+        next_virtual= first_virtual + reg_field->pack_length_in_rec();
+      }
+    }
+    else // reg_field < next_stored. can happen if the i=0 field was virtual
+    {
+      if (next_virtual)
+        goto err;
+      first_virtual= first_stored;
+      next_virtual= next_stored;
+      first_stored= reg_field->ptr;
+      next_stored= first_stored + reg_field->pack_length_in_rec();
+    }
+
     if (attr.unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
         attr.unireg_check == Field::TIMESTAMP_DN_FIELD)
     {
@@ -2810,7 +2885,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     /* We want to store the value for the last bits */
     swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
     swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
-    DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
+    if ((null_pos + (null_bit_pos + 7) / 8) > share->field[0]->ptr)
+      goto err;
   }
 
   /* Fix key->name and key_part->field */
@@ -2838,7 +2914,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
-        DBUG_ASSERT(hash_field->invisible == INVISIBLE_FULL);
+        if (hash_field->invisible != INVISIBLE_FULL ||
+            hash_field->pack_length() != HA_HASH_FIELD_LENGTH)
+          goto err;
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;
@@ -2867,7 +2945,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       key_part= keyinfo->key_part;
       for (i=0 ; i < keyinfo->user_defined_key_parts ;i++)
       {
-        DBUG_ASSERT(key_part[i].fieldnr > 0);
+        if (key_part[i].fieldnr <= 0 || key_part[i].fieldnr > share->fields)
+          goto err;
         // Table field corresponding to the i'th key part.
         Field *table_field= share->field[key_part[i].fieldnr - 1];
 
@@ -2935,6 +3014,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	for (i= 0; i < first_keyinfo.user_defined_key_parts; i++)
 	{
           uint fieldnr= keyinfo[0].key_part[i].fieldnr;
+          if (fieldnr <= 0 || fieldnr > share->fields)
+            goto err;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo[0].key_part[i].length)
 	  {
@@ -2982,6 +3063,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           uint length_bytes= 0;
           uint fieldnr= keyinfo->key_part[i].fieldnr;
+          if (fieldnr <= 0 || fieldnr > share->fields)
+            goto err;
           field= share->field[fieldnr-1];
 
           if (field->null_ptr)
@@ -3059,7 +3142,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                         share->default_values,
                                         (uint) key_part->offset,
                                         (uint) key_part->length);
-	if (!key_part->fieldnr)
+	if (key_part->fieldnr <= 0 || key_part->fieldnr > share->fields)
           goto err;
 
         field= key_part->field= share->field[key_part->fieldnr-1];
@@ -3211,7 +3294,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
     share->primary_key= MAX_KEY;
-  if (new_field_pack_flag <= 1)
+  if (new_field_pack_flag <= 1 && share->null_fields)
   {
     /* Old file format with default as not null */
     uint null_length= (share->null_fields+7)/8;
@@ -3224,8 +3307,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Handle virtual expressions */
   if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
   {
-    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
-
     /* Skip header */
     vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
     share->vcol_defs.str+= FRM_VCOL_NEW_BASE_SIZE;
@@ -3238,6 +3319,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     while (vcol_screen_pos < vcol_screen_end)
     {
       Virtual_column_info *vcol_info;
+      if (vcol_screen_end - vcol_screen_pos < FRM_VCOL_NEW_HEADER_SIZE)
+        goto err;
+
       uint type=         (uint) vcol_screen_pos[0];
       uint field_nr=     uint2korr(vcol_screen_pos+1);
       uint expr_length=  uint2korr(vcol_screen_pos+3);
@@ -3250,17 +3334,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (field_nr != UINT_MAX16)
       {
-        DBUG_ASSERT(field_nr < share->fields);
+        if (field_nr >= share->fields)
+          goto err;
         reg_field= share->field[field_nr];
       }
       else
       {
         reg_field= 0;
-        DBUG_ASSERT(name_length);
+        if (!name_length || type != VCOL_CHECK_TABLE)
+          goto err;
       }
 
       vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
       vcol_info->set_vcol_type((enum_vcol_info_type) type);
+      if ((uint)(vcol_screen_end-vcol_screen_pos) < name_length+expr_length)
+        goto err;
       if (name_length)
       {
         vcol_info->name.str= strmake_root(&share->mem_root,
@@ -3274,7 +3362,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       switch (type) {
       case VCOL_GENERATED_VIRTUAL:
       {
-        uint recpos;
+        if (reg_field->vcol_info)
+          goto err;
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         share->stored_fields--;
@@ -3283,37 +3372,43 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (reg_field->flags & PART_KEY_FLAG)
           vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL_INDEXED);
         /* Correct stored_rec_length as non stored fields are last */
-        recpos= (uint) (reg_field->ptr - record);
+        uint recpos= (uint) (reg_field->ptr - record);
         if (share->stored_rec_length >= recpos)
           share->stored_rec_length= recpos-1;
         break;
       }
       case VCOL_GENERATED_STORED:
         vcol_info->stored_in_db= 1;
-        DBUG_ASSERT(!reg_field->vcol_info);
+        if (reg_field->vcol_info)
+          goto err;
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         break;
       case VCOL_DEFAULT:
         vcol_info->stored_in_db= 1;
-        DBUG_ASSERT(!reg_field->default_value);
+        if (reg_field->default_value)
+          goto err;
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
         break;
       case VCOL_CHECK_FIELD:
-        DBUG_ASSERT(!reg_field->check_constraint);
+        if (reg_field->check_constraint)
+          goto err;
         reg_field->check_constraint= vcol_info;
         share->field_check_constraints++;
         break;
       case VCOL_CHECK_TABLE:
-        *(table_check_constraints++)= vcol_info;
+        if ((uint)(table_check_constr - share->check_constraints) >=
+            share->table_check_constraints)
+          goto err;
+        *(table_check_constr++)= vcol_info;
         break;
       }
     }
   }
-  DBUG_ASSERT((uint) (table_check_constraints - share->check_constraints) ==
-              (uint) (share->table_check_constraints -
-                      share->field_check_constraints));
+  if (table_check_constr - share->check_constraints !=
+      (int)share->table_check_constraints - (int)share->field_check_constraints)
+    goto err;
 
   if (options.str)
   {
@@ -3365,6 +3460,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->null_bytes_for_compare= null_bits_are_used ? share->null_bytes : 0;
   share->can_cmp_whole_record= (share->blob_fields == 0 &&
                                 share->varchar_fields == 0);
+
+  data_start= share->default_values;
+  data_end= data_start + share->reclength;
+  if (share->null_field_first)
+    data_start+= share->null_bytes;
+  else
+    data_end-= share->null_bytes;
+
+  if (data_end < data_start ||
+      (first_virtual && first_virtual != next_stored) ||
+      first_stored < data_start ||
+      (next_virtual ? next_virtual : next_stored) > data_end)
+    goto err;
 
   share->column_bitmap_size= bitmap_buffer_size(share->fields);
 
@@ -4817,19 +4925,20 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
 } /* open_table_error */
 
 
-	/*
-	** fix a str_type to a array type
-	** typeparts separated with some char. differents types are separated
-	** with a '\0'
-	*/
+/*
+  fix a str_type to a array type
+  typeparts separated with some char. differents types are separated
+  with a '\0'
+*/
 
 static bool
-fix_type_pointers(const char ***typelib_value_names,
+fix_type_pointers(const char ***typelib_value_names, const char **names_end,
                   uint **typelib_value_lengths,
                   TYPELIB *point_to_type, uint types,
                   char *ptr, size_t length)
 {
   const char *end= ptr + length;
+  names_end--; // simplify the check below, reserve place for 0 at the end
 
   while (types--)
   {
@@ -4861,7 +4970,7 @@ fix_type_pointers(const char ***typelib_value_names,
       {
         // Now scan the next value+sep pair
         char *vend= (char*) memchr(ptr, sep, end - ptr);
-        if (!vend)
+        if (!vend || *typelib_value_names >= names_end)
           return true;            // Bad format
         *((*typelib_value_names)++)= ptr;
         *((*typelib_value_lengths)++)= (uint) (vend - ptr);
