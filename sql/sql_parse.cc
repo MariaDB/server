@@ -1482,25 +1482,29 @@ out:
 
   @note SQLCOM_MULTI_UPDATE is an exception and dealt with elsewhere.
 
+  @param read_only The opt_readonly value to check against. The caller reads
+                   it once and also passes it to mariadb_error_read_only(),
+                   so that the decision and the error message are based on
+                   the same value even if SET GLOBAL read_only changes it.
+
   @see mysql_execute_command
   @returns Status code
     @retval TRUE The statement should be denied.
     @retval FALSE The statement isn't updating any relevant tables.
 */
 
-static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
+static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables,
+                                             ulong read_only)
 {
   DBUG_ENTER("deny_updates_if_read_only_option");
   DBUG_ASSERT(!thd->slave_thread);              // Checked by caller
-
-  if (!opt_readonly)
-    DBUG_RETURN(FALSE);
+  DBUG_ASSERT(read_only);                       // Checked by caller
 
   LEX *lex= thd->lex;
 
   /* Super user is allowed to do changes in some cases */
   if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL &&
-      opt_readonly < READONLY_NO_LOCK_NO_ADMIN)
+      read_only < READONLY_NO_LOCK_NO_ADMIN)
     DBUG_RETURN(FALSE);
 
   /* Check if command doesn't update anything */
@@ -3679,11 +3683,23 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /*
       When option readonly is set deny operations which change non-temporary
       tables. Except for the replication thread and the 'super' users.
+
+      opt_readonly is read once here and passed on, so that the check and
+      the error message use the same value even if SET GLOBAL read_only
+      changes it in between. The block keeps read_only out of the function
+      scope also when HAVE_REPLICATION is not defined and the enclosing
+      'else' is compiled away.
     */
-    if (deny_updates_if_read_only_option(thd, all_tables))
     {
-      mariadb_error_read_only();
-      DBUG_RETURN(-1);
+      ulong read_only= opt_readonly;
+
+      if (unlikely(read_only) &&
+          deny_updates_if_read_only_option(thd, all_tables, read_only))
+      {
+        DEBUG_SYNC(thd, "after_read_only_check");
+        mariadb_error_read_only(read_only);
+        DBUG_RETURN(-1);
+      }
     }
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */

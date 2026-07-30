@@ -104,15 +104,19 @@ extern const char *read_only_mode_names[];
 
 /*
   Give an error in case if users violates read only state
+
+  @param read_only  The opt_readonly value the caller made its decision on.
+
+  The caller has to pass the value it tested, not opt_readonly, as a
+  concurrent SET GLOBAL read_only can change opt_readonly at any time.
+  Reading it again here could report a value that no one was denied for,
+  or, if read_only was just turned off, no value at all.
 */
 
-void mariadb_error_read_only()
+void mariadb_error_read_only(ulong read_only)
 {
   char msg[60];
-  int read_only= opt_readonly;
   DBUG_ASSERT(read_only);
-  if (unlikely(read_only == 0))
-    read_only= 1;                     // If global readonly changed during call
 
   strxnmov(msg, sizeof(msg), "--read-only=",
            read_only_mode_names[read_only],
@@ -200,12 +204,21 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
       Prevent modifications to base tables if READ_ONLY is activated.
       In any case, read only does not apply to temporary tables or slave
       threads.
+
+      Read opt_readonly once per table, so that this table is checked and
+      reported against one value even if SET GLOBAL read_only changes it
+      while we are here. It is read per table, not once for the whole lock
+      request, so that a read_only that is turned on while we are looping
+      still stops the remaining tables.
     */
-    if (unlikely(opt_readonly) &&
+    ulong read_only= opt_readonly;
+
+    if (unlikely(read_only) &&
         !(flags & MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY) && !t->s->tmp_table &&
         !thd->slave_thread)
     {
-      switch (opt_readonly)
+      DEBUG_SYNC(thd, "after_lock_tables_read_only_check");
+      switch (read_only)
       {
       case READONLY_OFF:                     // Impossible
         DBUG_ASSERT(0);
@@ -214,7 +227,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
         if (!(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
             t->reginfo.lock_type >= TL_FIRST_WRITE)
         {
-          mariadb_error_read_only();
+          mariadb_error_read_only(read_only);
           DBUG_RETURN(1);
         }
         break;
@@ -223,7 +236,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
             (thd->lex->sql_command == SQLCOM_LOCK_TABLES ||
              t->reginfo.lock_type >= TL_BLOCKS_READONLY))
         {
-          mariadb_error_read_only();
+          mariadb_error_read_only(read_only);
           DBUG_RETURN(1);
         }
         break;
@@ -231,7 +244,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
         if (thd->lex->sql_command == SQLCOM_LOCK_TABLES ||
             t->reginfo.lock_type >= TL_BLOCKS_READONLY)
         {
-          mariadb_error_read_only();
+          mariadb_error_read_only(read_only);
           DBUG_RETURN(1);
         }
         break;
