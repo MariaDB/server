@@ -249,6 +249,44 @@ void ReadView::open(trx_t *trx)
 
 
 /**
+  Opens this view as an exact copy of another transaction's open view, so that
+  both transactions read the same snapshot.
+
+  @param[in] from  the view to copy the snapshot from
+  @return whether the snapshot was copied ('from' was open)
+*/
+bool ReadView::clone(const ReadView &from)
+{
+  ut_ad(this != &from);
+  ut_ad(!is_open());
+
+  if (srv_read_only_mode)
+    /* Nothing can be modified, so every transaction already reads the same
+    data and open() would not have created a view either. */
+    return true;
+
+  bool copied= false;
+  /* 'from' is normally owned by another thread; take its mutex, as
+  ReadView::append_to() does for the purge coordinator. */
+  from.m_mutex.wr_lock();
+  if (from.is_open())
+  {
+    m_mutex.wr_lock();
+    static_cast<ReadViewBase&>(*this)= static_cast<const ReadViewBase&>(from);
+    /* Inherit the source's creator id rather than keeping our own: rows
+    written by the sharing transaction itself must stay visible through the
+    copy, which is what changes_visible() uses m_creator_trx_id for. */
+    m_creator_trx_id= from.m_creator_trx_id;
+    m_open.store(true, std::memory_order_relaxed);
+    m_mutex.wr_unlock();
+    copied= true;
+  }
+  from.m_mutex.wr_unlock();
+  return copied;
+}
+
+
+/**
   Clones the oldest view and stores it in view.
 
   No need to call ReadView::close(). The caller owns the view that is passed
