@@ -1,0 +1,57 @@
+#
+# MDEV-38056 CHECK TABLE ... EXTENDED must keep purge_sys.view frozen
+# across the dereference of an externally stored column of a version it
+# rebuilt. It reaches versions that purge_sys.view already permits to be
+# freed, deciding reachability from the lagging purge_sys.end_view.
+#
+InnoDB		0 transactions not purged
+CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=COMPRESSED;
+INSERT INTO t VALUES (1, CONCAT('z', REPEAT('z', @@innodb_page_size)));
+SET GLOBAL innodb_monitor_reset_all='purge_upd_exist_or_extern_records';
+SET GLOBAL innodb_monitor_enable='purge_upd_exist_or_extern_records';
+connect  purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = CONCAT('y', REPEAT('y', @@innodb_page_size)) WHERE a = 1;
+connect  victim,localhost,root,,;
+BEGIN;
+UPDATE t SET b = CONCAT('x', REPEAT('x', @@innodb_page_size)) WHERE a = 1;
+connect  checker,localhost,root,,;
+SET DEBUG_SYNC='row_check_index_extended_match SIGNAL parked WAIT_FOR resume EXECUTE 2';
+CHECK TABLE t EXTENDED;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR parked TIMEOUT 60';
+SET DEBUG_SYNC='now SIGNAL resume';
+SET DEBUG_SYNC='now WAIT_FOR parked TIMEOUT 60';
+connection purge_control;
+COMMIT;
+disconnect purge_control;
+connection default;
+SELECT count AS upd_records_purged_while_parked FROM information_schema.innodb_metrics
+WHERE name = 'purge_upd_exist_or_extern_records';
+upd_records_purged_while_parked
+0
+SET DEBUG_SYNC='now SIGNAL resume';
+connection checker;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+connection default;
+disconnect checker;
+connection victim;
+COMMIT;
+connection default;
+disconnect victim;
+SET DEBUG_SYNC='RESET';
+SELECT a FROM t FORCE INDEX(b) WHERE b LIKE 'xx%';
+a
+1
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_monitor_disable='purge_upd_exist_or_extern_records';
+SET GLOBAL innodb_monitor_reset_all='purge_upd_exist_or_extern_records';
+SET GLOBAL innodb_monitor_enable=default;
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;

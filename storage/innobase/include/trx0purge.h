@@ -478,9 +478,6 @@ public:
 
     /** @return purge_sys.view or purge_sys.end_view */
     inline const ReadViewBase &view() const;
-
-    /** @return whether this is part of CHECK TABLE ... EXTENDED */
-    bool is_extended() const noexcept { return latch < END_VIEW; }
   };
 
   struct end_view_guard
@@ -524,6 +521,7 @@ purge_sys_t::view_guard::view_guard(purge_sys_t::view_guard::guard latch) :
 {
   switch (latch) {
   case VIEW:
+    ut_ad(!purge_sys.latch.have_any()); /* nesting would hang on a writer */
     purge_sys.latch.rd_lock(SRW_LOCK_CALL);
     break;
   case END_VIEW:
