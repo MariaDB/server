@@ -1,0 +1,65 @@
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq*2, seq FROM seq_1_to_1000;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+connect  reader,localhost,root,,test;
+SET parallel_worker_threads=4;
+SET optimizer_trace='enabled=on';
+#
+# A row committed by another session after our snapshot was taken must
+# not appear in the parallel result set (expect 999, 1000).
+#
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES (1, 1001);
+connection reader;
+SELECT a FROM t1 WHERE a > 998;
+a
+1000
+999
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS ran_in_parallel
+FROM information_schema.optimizer_trace;
+ran_in_parallel
+1
+COMMIT;
+#
+# Our own uncommitted row must appear: the snapshot the workers adopt
+# keeps the sharing transaction as its creator (expect 1002 among them).
+#
+START TRANSACTION;
+SELECT b FROM t2;
+b
+1
+INSERT INTO t1 VALUES (3, 1002);
+SELECT a FROM t1 WHERE a > 998;
+a
+1000
+1001
+1002
+999
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS ran_in_parallel
+FROM information_schema.optimizer_trace;
+ran_in_parallel
+1
+ROLLBACK;
+#
+# Rows another session commits all over the table while we scan it stay
+# invisible to every worker (expect empty).
+#
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 SELECT seq*2+1, 9999 FROM seq_1_to_999;
+connection reader;
+SELECT a FROM t1 WHERE a = 9999;
+a
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS ran_in_parallel
+FROM information_schema.optimizer_trace;
+ran_in_parallel
+1
+COMMIT;
+disconnect reader;
+connection default;
+DROP TABLE t1, t2;
