@@ -62,12 +62,12 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("execute_at") },
-    { STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("datetime") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
     { STRING_WITH_LEN("interval_value") },
-    { STRING_WITH_LEN("int(11)") },
+    { STRING_WITH_LEN("int(11)") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
@@ -76,7 +76,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     "'HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR',"
     "'DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND',"
     "'DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND',"
-    "'SECOND_MICROSECOND')") },
+    "'SECOND_MICROSECOND')") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
@@ -91,17 +91,17 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("last_executed") },
-    { STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("datetime") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
     { STRING_WITH_LEN("starts") },
-    { STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("datetime") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
     { STRING_WITH_LEN("ends") },
-    { STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("datetime") + CAN_BE_NULL },
     {NULL, 0}
   },
   {
@@ -145,22 +145,22 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("character_set_client") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(32)") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
-    { STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("longblob") + CAN_BE_NULL },
     { NULL, 0 }
   }
 };

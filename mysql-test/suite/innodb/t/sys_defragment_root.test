@@ -1,0 +1,66 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+--source include/not_windows.inc
+--source include/not_valgrind.inc
+
+--echo #
+--echo # MDEV-40332 InnoDB: Defragmentation of BASE_IDX in
+--echo #	SYS_VIRTUAL failed: Data structure corruption
+--echo #
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/root_datadir;
+--mkdir $bugdir
+let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_directory=$bugdir;
+
+let $restart_parameters=$dirs --debug_dbug=+d,defer_sys_virtual;
+--source include/restart_mysqld.inc
+
+--echo # SYS_VIRTUAL is absent for now
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE SPACE=0 AND NAME='SYS_VIRTUAL';
+
+SET GLOBAL innodb_file_per_table= 0;
+SET GLOBAL innodb_limit_optimistic_insert_debug= 2;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL, f3 INT NOT NULL,
+                INDEX(f1), INDEX(f2), INDEX(f3))
+  STATS_PERSISTENT=0 ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+
+--echo # Restart without the flag: SYS_VIRTUAL is now created
+--echo # into the grown tablespace, so its BASE_IDX root page
+--echo # lands in a high extent.
+let $restart_parameters=$dirs;
+--source include/restart_mysqld.inc
+
+--echo # SYS_VIRTUAL now exists, and its BASE_IDX root landed
+--echo # above the 10M (640-page) shrink floor
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE SPACE=0 AND NAME='SYS_VIRTUAL';
+
+SELECT PAGE_NO > 640 AS root_above_shrink_floor
+FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME='BASE_IDX';
+
+SET GLOBAL innodb_limit_optimistic_insert_debug= 2;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_32;
+DROP TABLE t1;
+--source include/wait_all_purged.inc
+
+let $fsize=`SELECT FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES
+            WHERE SPACE=0`;
+
+let $restart_parameters=$dirs --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink --innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+
+evalp SELECT FILE_SIZE < $fsize AS shrunk
+FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
+
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+--rmdir $bugdir

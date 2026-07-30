@@ -2270,6 +2270,9 @@ select select.1c from test.select;
 drop table 1a, `select`;
 # End of 10.11 tests
 #
+# Start of 11.7 tests
+#
+#
 # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
 #
 CREATE TABLE nocopy (a INT);

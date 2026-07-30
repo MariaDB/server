@@ -1,0 +1,66 @@
+--source include/have_sequence.inc
+
+--disable_warnings
+DROP DATABASE IF EXISTS duckdb_streaming_select;
+--enable_warnings
+CREATE DATABASE duckdb_streaming_select;
+USE duckdb_streaming_select;
+
+CREATE TABLE source_table (
+  id INT PRIMARY KEY,
+  value VARCHAR(32)
+) ENGINE=DuckDB;
+CREATE TABLE target_table (
+  id INT PRIMARY KEY,
+  `select` VARCHAR(32)
+) ENGINE=InnoDB;
+
+INSERT INTO source_table
+SELECT seq, CONCAT('value-', seq) FROM seq_1_to_3000;
+
+--disable_result_log
+SELECT id, value FROM source_table ORDER BY id;
+--enable_result_log
+SELECT COUNT(*), SUM(id) FROM source_table;
+
+SET @last_id= 0;
+--disable_result_log
+SELECT @last_id:= id FROM source_table;
+--enable_result_log
+SELECT @last_id BETWEEN 1 AND 3000;
+
+INSERT /* SELECT 'ignored' FROM (ignored) */ INTO target_table
+  (id, `select`)
+SELECT id, value FROM source_table WHERE id <= 1500;
+SELECT COUNT(*), SUM(id) FROM target_table;
+
+TRUNCATE TABLE target_table;
+INSERT INTO target_table (id, `select`)
+WITH selected_rows AS (
+  SELECT id, value FROM source_table WHERE id > 1500
+)
+SELECT id, value FROM selected_rows;
+SELECT COUNT(*), MIN(id), MAX(id) FROM target_table;
+
+TRUNCATE TABLE target_table;
+SET sql_mode= 'NO_BACKSLASH_ESCAPES';
+INSERT /* 'SELECT \\'ignored' */ INTO target_table (id, `select`)
+SELECT id, value FROM source_table WHERE id <= 10;
+SET sql_mode= DEFAULT;
+SELECT COUNT(*) FROM target_table;
+
+TRUNCATE TABLE target_table;
+INSERT INTO target_table VALUES (1, 'old');
+INSERT INTO target_table (id, `select`)
+SELECT id, value FROM source_table WHERE id <= 2
+ON DUPLICATE KEY UPDATE `select`= CONCAT('updated-', source_table.value);
+SELECT * FROM target_table ORDER BY id;
+
+TRUNCATE TABLE target_table;
+INSERT INTO target_table (id, `select`)
+SELECT id, value FROM source_table WHERE value = 'value-3'
+UNION ALL
+SELECT id, value FROM source_table WHERE value = 'value-4'
+RETURNING id, `select`;
+
+DROP DATABASE duckdb_streaming_select;

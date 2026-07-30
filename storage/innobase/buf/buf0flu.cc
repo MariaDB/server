@@ -94,6 +94,8 @@ public:
   void try_clear_if_at_most(lsn_t threshold) noexcept
   {
     lsn_t snapshot= m_lsn.load();
+    if (!snapshot)
+      return; /* already cleared: avoid a redundant atomic CAS */
     if (threshold >= snapshot)
       m_lsn.compare_exchange_strong(snapshot, 0);
   }

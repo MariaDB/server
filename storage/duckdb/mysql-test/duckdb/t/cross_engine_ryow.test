@@ -1,0 +1,66 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # Cross-engine RYOW: duckdb_cross_engine_ryow toggles visibility of
+--echo # uncommitted parent-transaction writes to non-DuckDB tables
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS cross_engine_ryow;
+--enable_warnings
+CREATE DATABASE cross_engine_ryow CHARACTER SET utf8mb4;
+USE cross_engine_ryow;
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, name VARCHAR(50), score INT) ENGINE=InnoDB;
+INSERT INTO t_duck VALUES (1,'alpha'),(2,'beta'),(3,'gamma'),(4,'delta'),(5,'epsilon'),(6,'zeta');
+INSERT INTO t_inno VALUES (1,'Alice',90),(2,'Bob',80),(3,'Carol',70),(4,'Dave',60),(5,'Eve',50);
+
+--echo
+--echo # (1) RYOW disabled (default): uncommitted writes are NOT visible
+--echo
+SET SESSION duckdb_cross_engine_ryow=0;
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+INSERT INTO t_inno VALUES (6,'Frank',100);
+--sorted_result
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+ROLLBACK;
+
+--echo
+--echo # (2) RYOW enabled: uncommitted writes ARE visible (read own writes)
+--echo
+SET SESSION duckdb_cross_engine_ryow=1;
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+INSERT INTO t_inno VALUES (6,'Frank',100);
+--sorted_result
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+ROLLBACK;
+
+--echo
+--echo # (3) After rollback, committed state is intact
+--echo
+--sorted_result
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+
+--echo
+--echo # (4) RYOW enabled + large external table (rows > DuckDB vector size):
+--echo #     the direct handler scan spans multiple chunks and must still expose
+--echo #     the parent transaction's uncommitted write on re-read.
+--echo
+CREATE TABLE t_inno_big (id INT PRIMARY KEY, score INT) ENGINE=InnoDB;
+INSERT INTO t_inno_big SELECT seq, seq FROM seq_1_to_3000;
+SET SESSION duckdb_cross_engine_ryow=1;
+BEGIN;
+UPDATE t_inno_big SET score=999 WHERE id=1;
+SELECT i.score FROM t_duck d JOIN t_inno_big i ON d.id=i.id WHERE i.id=1;
+ROLLBACK;
+DROP TABLE t_inno_big;
+
+--echo
+--echo # Cleanup
+--echo
+SET SESSION duckdb_cross_engine_ryow=DEFAULT;
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP DATABASE cross_engine_ryow;

@@ -36,8 +36,12 @@ update mysql.innodb_table_stats set last_update="2020-01-01" where database_name
 update mysql.column_stats set histogram=json_replace(histogram, '$.collected_by', replace(json_value(histogram, '$.collected_by'), @@version, 'version'));
 set global innodb_stats_persistent= @save_innodb_stats_persistent;
 alter table mysql.time_zone_name ORDER BY Name;
-CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(Host 'localhost');
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
+CREATE SERVER `s'2` FOREIGN DATA WRAPPER 'my''sql'
+  OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
+CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
 #
 # mysqldump of system tables with --system=all
 #
@@ -53,8 +57,8 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
-INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
-INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN `test_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN `cleartext_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER `root`@`localhost`;
 CREATE USER `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
@@ -74,7 +78,7 @@ GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
@@ -89,8 +93,10 @@ GRANT USAGE ON *.* TO `role_2`;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
-CREATE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
+CREATE FUNCTION `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE AGGREGATE FUNCTION `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
+CREATE SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
+CREATE SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
 
 USE mysql;
 
@@ -650,10 +656,10 @@ UNLOCK TABLES;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
-/*M!100401 UNINSTALL PLUGIN IF EXIST test_plugin_server */;
-INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
-/*M!100401 UNINSTALL PLUGIN IF EXIST cleartext_plugin_server */;
-INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+/*M!100401 UNINSTALL PLUGIN IF EXIST `test_plugin_server` */;
+INSTALL PLUGIN `test_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
+/*M!100401 UNINSTALL PLUGIN IF EXIST `cleartext_plugin_server` */;
+INSTALL PLUGIN `cleartext_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
 DELIMITER |
 /*M!100101 IF current_user()='''mariadb.sys''@''localhost''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
@@ -693,7 +699,7 @@ GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
@@ -708,9 +714,12 @@ GRANT USAGE ON *.* TO `role_2`;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
-/*!50701 DROP FUNCTION IF EXISTS metaphon */;
-CREATE /*M!100103 OR REPLACE */ FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE /*M!100103 OR REPLACE */ SERVER `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
+/*!50701 DROP FUNCTION IF EXISTS `metaphon` */;
+CREATE /*M!100103 OR REPLACE */ FUNCTION `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+/*!50701 DROP FUNCTION IF EXISTS `avgcost` */;
+CREATE /*M!100103 OR REPLACE */ AGGREGATE FUNCTION `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
+CREATE /*M!100103 OR REPLACE */ SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
+CREATE /*M!100103 OR REPLACE */ SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
 
 USE mysql;
 
@@ -1270,8 +1279,8 @@ UNLOCK TABLES;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
-INSTALL PLUGIN test_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
-INSTALL PLUGIN cleartext_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN `test_plugin_server` /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN `cleartext_plugin_server` /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER IF NOT EXISTS `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER IF NOT EXISTS `root`@`localhost`;
 CREATE USER IF NOT EXISTS `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
@@ -1291,7 +1300,7 @@ GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
@@ -1306,8 +1315,10 @@ GRANT USAGE ON *.* TO `role_2`;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
-CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER /*M!100103 IF NOT EXISTS */ `s1` FOREIGN DATA WRAPPER mysql OPTIONS (Host 'localhost');
+CREATE FUNCTION IF NOT EXISTS `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE AGGREGATE FUNCTION IF NOT EXISTS `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
 
 USE mysql;
 
@@ -1865,8 +1876,8 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	3232626815
-mysql.func	3241572444
+mysql.servers	1109359608
+mysql.func	2140302938
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388
 # Opps....
@@ -1883,7 +1894,9 @@ delete from mysql.time_zone;
 delete from mysql.time_zone_name;
 delete from mysql.time_zone_leap_second;
 DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
+DROP SERVER `s'2`;
 set time_zone= @@global.time_zone;
 # Restore from mysqldump
 DROP USER mariadb_test_restore;
@@ -1900,12 +1913,14 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	3232626815
-mysql.func	3241572444
+mysql.servers	1109359608
+mysql.func	2140302938
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388
 DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
+DROP SERVER `s'2`;
 DELETE FROM mysql.column_stats WHERE db_name='mysql';
 DELETE FROM mysql.index_stats  WHERE db_name='mysql';
 DELETE FROM mysql.table_stats  WHERE db_name='mysql';

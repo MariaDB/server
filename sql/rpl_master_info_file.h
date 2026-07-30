@@ -88,6 +88,11 @@ inline uint64_t master_retry_count= 100000;
 /// }@
 
 
+/**
+  @note The line count includes the line-count line.
+    Master_info_file::load_from_file() implements this
+    using @ref Master_info_file::LINE_COUNT_FIX.
+*/
 struct Master_info_file: Info_file
 {
 
@@ -540,6 +545,21 @@ struct Master_info_file: Info_file
   /// }@
 
 
+protected:
+  /**
+    Info_file::load_from_file() does not include
+    the line-count "value" in the line count.
+    The Master_info_file::load_from_file() overload utilizes the presence
+    of this no-op pseudo-value to emulating counting the line-count "value" -
+    The driver loop will increment the line counter while this reads nothing.
+  */
+  struct: Persistent
+  {
+    bool load_from(IO_CACHE *file) override { return false; } ///< No-op
+    void save_to(IO_CACHE *file) override {} ///< No-op
+  } LINE_COUNT_FIX;
+public:
+
   inline static const Mem_fn VALUE_LIST[] {
     &Master_info_file::master_log_file,
     &Master_info_file::master_log_pos,
@@ -561,7 +581,9 @@ struct Master_info_file: Info_file
     nullptr, // MySQL `master_uuid`, which MariaDB ignores.
     &Master_info_file::master_retry_count,
     &Master_info_file::master_ssl_crl,
-    &Master_info_file::master_ssl_crlpath
+    &Master_info_file::master_ssl_crlpath,
+    // This must be last, so its blank line blend into trailing blank line(s).
+    &Master_info_file::LINE_COUNT_FIX
   };
 
   /**

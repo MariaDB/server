@@ -29,7 +29,7 @@ SET SESSION debug_dbug="d,crash_before_flush_keys";
 --write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --echo # Run the crashing query
---error 2013
+--error 2013,2026
 FLUSH TABLE t1;
 
 --echo # Write file to make mysql-test-run.pl start the server 

@@ -26,6 +26,9 @@
   DOESN'T CONTAIN WARNINGS/ERRORS BEFORE YOU PUSH.
 */
 
+/* Real leaks are reported by ASAN, which we run regularly. */
+// @infer-ignore-every MEMORY_LEAK_C
+
 
 /*
   The fw.c file includes all the mysql_client_test framework; this file
@@ -38,6 +41,9 @@
 #include "mysql_client_fw.c"
 #ifndef _WIN32
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #endif
 
 #include "my_valgrind.h"
@@ -15739,6 +15745,7 @@ static void test_bug16143()
   myheader("test_bug16143");
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   /* Check mysql_stmt_sqlstate return "no error" */
   DIE_UNLESS(strcmp(mysql_stmt_sqlstate(stmt), "00000") == 0);
 
@@ -15757,6 +15764,7 @@ static void test_bug16144()
 
   /* Check that attr_get returns correct data on little and big endian CPUs */
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (const void*) &flag);
   mysql_stmt_attr_get(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &flag);
   DIE_UNLESS(flag == flag_orig);
@@ -18410,6 +18418,7 @@ static void test_bug38486(void)
   myheader("test_bug38486");
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*)&type);
   stmt_text= "CREATE TABLE t1 (a INT)";
   mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
@@ -18417,6 +18426,7 @@ static void test_bug38486(void)
   mysql_stmt_close(stmt);
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*)&type);
   stmt_text= "INSERT INTO t1 VALUES (1)";
   mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
@@ -20882,6 +20892,227 @@ static void test_proxy_header_dbug_remote_connection()
 }
 
 
+/*
+  Open a raw TCP connection and let the handshake fail (server reads EOF) to
+  add one max_connect_errors error. With a header it counts against 'client_ip';
+  with NULL no header is sent, so against the socket peer (the proxy host).
+*/
+static void proxy_send_handshake_error(const char *client_ip)
+{
+  struct addrinfo hints, *ai= NULL, *p;
+  char portbuf[20], header[128];
+  int connected= 0;
+  my_socket s= INVALID_SOCKET;
+
+  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family= AF_UNSPEC;
+  hints.ai_socktype= SOCK_STREAM;
+  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
+                         &hints, &ai) == 0);
+
+  for (p= ai; p; p= p->ai_next)
+  {
+    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (s == INVALID_SOCKET)
+      continue;
+    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
+    {
+      connected= 1;
+      break;
+    }
+    closesocket(s);
+    s= INVALID_SOCKET;
+  }
+  freeaddrinfo(ai);
+  DIE_UNLESS(connected);
+
+  if (client_ip)
+  {
+    snprintf(header, sizeof(header),
+                          "PROXY TCP4 %s 127.0.0.1 12345 %u\r\n",
+                          client_ip, opt_port);
+    DIE_UNLESS(send(s, header, strlen(header), 0) > 0);
+  }
+  /* Half-close our write side so the server's handshake read hits EOF. */
+  DIE_UNLESS(shutdown(s, IF_WIN(SD_SEND,SHUT_WR)) == 0);
+  /* Drain until the server closes, ensuring the error has been accounted. */
+  {
+    char buf[256];
+    while (recv(s, buf, sizeof(buf), 0) > 0)
+      ;
+  }
+  closesocket(s);
+}
+
+/*
+  Connect through PROXY protocol, advertising 'client_ip' as the client.
+  On success returns the connection (caller closes it); on failure returns NULL
+  and stores the client error code in *out_errno.
+*/
+static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
+                               const char *passwd, unsigned int *out_errno)
+{
+  MYSQL *m= mysql_client_init(NULL);
+  char header[128];
+  int proto= MYSQL_PROTOCOL_TCP;
+  int v6= strchr(client_ip, ':') != NULL;
+  DIE_UNLESS(m != NULL);
+  snprintf(header, sizeof(header), "PROXY %s %s %s 12345 %u\r\n",
+           v6 ? "TCP6" : "TCP4", client_ip, v6 ? "::1" : "127.0.0.1", opt_port);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header, strlen(header));
+  mysql_optionsv(m, MYSQL_OPT_PROTOCOL, &proto);
+  if (!mysql_real_connect(m, opt_host, user, passwd, NULL, opt_port, NULL, 0))
+  {
+    if (out_errno)
+      *out_errno= mysql_errno(m);
+    mysql_close(m);
+    return NULL;
+  }
+  if (out_errno)
+    *out_errno= 0;
+  return m;
+}
+
+/*
+  MDEV-25817: with PROXY protocol a successful login must reset the proxied
+  client's connect-error counter; the reset used to be gated on the proxy
+  host's count, so it never fired.
+*/
+static void test_proxy_header_connect_errors_reset()
+{
+  const char *client_ip= "192.0.2.50";
+  char query[256];
+  unsigned int conn_errno= 0;
+  int rc, i;
+  MYSQL *m;
+
+  myheader("test_proxy_header_connect_errors_reset");
+
+  rc= mysql_query(mysql,
+                  "SET @saved_max_connect_errors= @@global.max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @@global.max_connect_errors=3");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  snprintf(query, sizeof(query),
+           "CREATE USER 'u'@'%s' IDENTIFIED BY 'password'", client_ip);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+
+  /* max_connect_errors handshake errors block the host. */
+  for (i= 0; i < 3; i++)
+    proxy_send_handshake_error(client_ip);
+  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
+
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  /* Two handshake errors, still below max_connect_errors (3). */
+  proxy_send_handshake_error(client_ip);
+  proxy_send_handshake_error(client_ip);
+
+  /* Below the limit: must connect, and this success must reset the counter. */
+  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  DIE_UNLESS(m != NULL);
+  mysql_close(m);
+
+  /* Two more: with the reset count is 2 (<3, connectable); without it 4
+     (>=3, blocked). */
+  proxy_send_handshake_error(client_ip);
+  proxy_send_handshake_error(client_ip);
+
+  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED with unfixed MDEV-25817 */
+  mysql_close(m);
+
+  snprintf(query, sizeof(query), "DROP USER 'u'@'%s'", client_ip);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+  rc= mysql_query(mysql,
+                 "SET global max_connect_errors=@saved_max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+}
+
+/*
+  A successful proxied login must also reset the proxy host (socket peer), not
+  only the proxied client - else connections that never finish the handshake
+  (e.g. port checks) could block the proxy and lock out everyone behind it.
+  Debug injection fakes the socket peer to a non-loopback address (2001:db8::6:6,
+  which is in proxy_protocol_networks of both .opt files) and name resolution so
+  it is accounted.
+*/
+static void test_proxy_header_proxy_host_connect_errors_reset()
+{
+#ifndef DBUG_OFF
+  const char *proxied_client= "2001:db8::6:7"; /* in getaddrinfo_fake_good_ipv6 */
+  unsigned int conn_errno= 0;
+  int rc, i;
+  MYSQL *m;
+
+  myheader("test_proxy_header_proxy_host_connect_errors_reset");
+
+  rc= mysql_query(mysql, "SET @save_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug='+d,vio_peer_addr_fake_ipv6,"
+                         "getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6'");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET @save_max_connect_errors= @@global.max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @@global.max_connect_errors=3");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+    "CREATE USER 'u'@'santa.claus.ipv6.example.com' IDENTIFIED BY 'password'");
+  myquery(rc);
+
+  /* Errors with no header count against the socket peer (proxy host);
+     max_connect_errors of them block it. */
+  for (i= 0; i < 3; i++)
+    proxy_send_handshake_error(NULL);
+  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
+
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  /* Two proxy-host handshake errors, below max_connect_errors (3). */
+  proxy_send_handshake_error(NULL);
+  proxy_send_handshake_error(NULL);
+
+  /* Success: client has no errors, so this must reset the proxy host's two. */
+  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  DIE_UNLESS(m != NULL);
+  mysql_close(m);
+
+  /* Two more: with the reset proxy host is at 2 (<3); without it 4 (>=3). */
+  proxy_send_handshake_error(NULL);
+  proxy_send_handshake_error(NULL);
+
+  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED if proxy host not reset */
+  mysql_close(m);
+
+  rc= mysql_query(mysql, "DROP USER 'u'@'santa.claus.ipv6.example.com'");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL max_connect_errors= @save_max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+#endif /* !DBUG_OFF */
+}
+
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
@@ -20892,6 +21123,8 @@ static void test_proxy_header()
   test_proxy_header_ignore();
   test_proxy_header_limits();
   test_proxy_header_dbug_remote_connection();
+  test_proxy_header_connect_errors_reset();
+  test_proxy_header_proxy_host_connect_errors_reset();
 }
 
 

@@ -485,3 +485,17 @@ sformat(a,b,c)
 [10 -> {}]
 [                   1 <- {:30}]
 drop table t1;
+# End of 10.8 tests
+#
+# MDEV-31024 Server crash / ASAN use-after-poison in Binary_string::free_buffer / Item_func_sformat::~Item_func_sformat
+#
+create table t (a char(8), i int);
+insert into t values ('foo',1),('bar',2);
+create view v as select a, sum(i) as s from t group by a;
+select * from v where a != sformat('{}', 'qux');
+a	s
+bar	2
+foo	1
+drop view v;
+drop table t;
+# End of 10.11 tests

@@ -3309,30 +3309,15 @@ innobase_quote_identifier(
 	const trx_t*	trx,
 	const char*	id)
 {
-	const int	q = trx != NULL && trx->mysql_thd != NULL
-		? get_quote_char_for_identifier(trx->mysql_thd, id, strlen(id))
-		: '`';
-
-	if (q == EOF) {
-		fputs(id, file);
-	} else {
-		putc(q, file);
-
-		while (int c = *id++) {
-			if (c == q) {
-				putc(c, file);
-			}
-			putc(c, file);
-		}
-
-		putc(q, file);
-	}
+  std::string str = innobase_quote_identifier(trx, id);
+  fputs(str.c_str(), file);
 }
 
-/** Quote a standard SQL identifier like tablespace, index or column name.
+/** Quote a standard SQL identifier
 @param[in]	trx	InnoDB transaction, or NULL
 @param[in]	id	identifier to quote
-@return quoted identifier */
+@return quoted identifier
+Assumes the identifier in utf8mb4 character set (cf. append_identifier()) */
 std::string
 innobase_quote_identifier(
 /*======================*/
@@ -3348,7 +3333,12 @@ innobase_quote_identifier(
 		quoted_identifier.append(id);
 	} else {
 		quoted_identifier += char(q);
-		quoted_identifier.append(id);
+		while (int c = *id++) {
+			if (c == q) {
+				quoted_identifier += char(c);
+			}
+			quoted_identifier += char(c);
+		}
 		quoted_identifier += char(q);
 	}
 
@@ -3799,7 +3789,7 @@ static int innodb_init_params()
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
 
   if ((srv_encrypt_tables || srv_encrypt_log ||
        innodb_encrypt_temporary_tables) &&
@@ -11316,7 +11306,13 @@ create_table_info_t::check_table_options()
 				" ENCRYPTION_KEY_ID=1");
 			compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
 		}
-		if (srv_encrypt_tables != 2) {
+		/* m_trx is non-NULL because TRUNCATE that
+		passes its own transaction. TRUNCATE recreates
+		the table preserving the original ENCRYPTED=NO
+		attribute; bypass the innodb_encrypt_tables=FORCE
+		check here so the encryption state does not
+		silently change across a TRUNCATE. */
+		if (m_trx || srv_encrypt_tables != 2) {
 			break;
 		}
 		push_warning(
@@ -13919,6 +13915,24 @@ int ha_innobase::truncate()
   if (ib_table->is_temporary())
   {
     info.options|= HA_LEX_CREATE_TMP_TABLE;
+
+    /* Validate the create options before dropping the existing
+    table, so that a validation failure leaves the original table
+    intact instead of dropping it and then failing in create(),
+    which would leave the handler without a table. */
+    {
+      create_table_info_t validate(m_user_thd, table, &info, true, trx);
+      int err= validate.initialize();
+      if (!err)
+        err= validate.prepare_create_table(ib_table->name.m_name, false);
+      if (err)
+      {
+        trx_rollback_for_mysql(trx);
+        trx->free();
+        DBUG_RETURN(err);
+      }
+    }
+
     btr_drop_temporary_table(trx, *ib_table);
     m_prebuilt->table= nullptr;
     row_prebuilt_free(m_prebuilt);

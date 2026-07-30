@@ -1,0 +1,29 @@
+set use_stat_tables='preferably';
+CREATE TABLE t1(
+class   INT,
+id      INT,
+title   VARCHAR(100)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq, concat('a', seq) from seq_1_to_500;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+500
+set @@max_heap_table_size=16384;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP TABLE t1;
+#
+# MDEV-39848 MSAN use-of-uninitialized-value in btr_sea::hash_table::lock_get()
+#
+SET @save_ahi = @@GLOBAL.innodb_adaptive_hash_index;
+CREATE TABLE t2 (
+c1 SMALLINT,
+c2 TINYINT UNSIGNED,
+c3 INT AS(c1) VIRTUAL
+) ENGINE=InnoDB PARTITION BY HASH(c2) PARTITIONS 565;
+SET GLOBAL innodb_adaptive_hash_index=1;
+ALTER TABLE t2 CHANGE c1 c1_renamed INT FIRST;
+DROP TABLE t2;
+SET GLOBAL innodb_adaptive_hash_index=@save_ahi;

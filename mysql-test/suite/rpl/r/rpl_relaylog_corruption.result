@@ -1,0 +1,45 @@
+include/master-slave.inc
+[connection master]
+*** MDEV-34135: Parallel replication hangs on corrupt binlog with partial event group
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CHANGE MASTER TO master_use_gtid=No;
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (0, 0);
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+INSERT INTO t1 VALUES (3, 0);
+connection slave;
+include/stop_slave_sql.inc
+SET @@global.debug_dbug="+d,crash_after_enqueue_gtid_event";
+connection master;
+INSERT INTO t1 VALUES (4, 0);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (5, 0);
+include/rpl_reconnect.inc
+connection slave;
+START SLAVE;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_error.inc [errno=1866]
+include/stop_slave_io.inc
+include/rpl_restart_server.inc [server_number=2 parameters: --relay-log-recovery=1]
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+0	0
+1	0
+2	0
+3	0
+4	0
+5	0
+CALL mtr.add_suppression("The binary log file .* is logically corrupted: Incomplete event group found in relay log.*Error_code: 1866");
+CALL mtr.add_suppression("Recovery from master pos .* and file");
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

@@ -139,8 +139,8 @@ a	JSON_COMPACT(a)	COALESCE(a)
 {"a":"b"}	{"a":"b"}	{"a":"b"}
 SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					JSON_ARRAYAGG(1)	252 (format=json)	9437184	3	Y	0	0	192
-def					JSON_ARRAYAGG(a)	252 (format=json)	12582912	11	Y	128	0	192
+def					JSON_ARRAYAGG(1)	252 (format=json)	9437190	3	Y	0	0	192
+def					JSON_ARRAYAGG(a)	252 (format=json)	12582918	11	Y	128	0	192
 JSON_ARRAYAGG(1)	JSON_ARRAYAGG(a)
 [1]	[{"a":"b"}]
 SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;

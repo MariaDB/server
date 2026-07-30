@@ -1,9 +1,17 @@
 connection node_2;
 connection node_1;
 connection node_1;
-connection node_2;
-connection node_1;
+SET SESSION auto_increment_increment=2;
+SET SESSION auto_increment_offset=1;
 SET SESSION binlog_row_image=minimal;
+SELECT VARIABLE_NAME, SESSION_VALUE, GLOBAL_VALUE FROM
+INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME IN
+('auto_increment_increment','auto_increment_offset','binlog_row_image')
+ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	SESSION_VALUE	GLOBAL_VALUE
+AUTO_INCREMENT_INCREMENT	2	2
+AUTO_INCREMENT_OFFSET	1	1
+BINLOG_ROW_IMAGE	MINIMAL	FULL
 CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
 SHOW CREATE TABLE seq_test;
 Table	Create Table
@@ -24,4 +32,12 @@ SELECT NEXT VALUE FOR seq_test;
 NEXT VALUE FOR seq_test
 3
 connection node_2;
+SELECT VARIABLE_VALUE AS expect_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+expect_2
+2
+SELECT VARIABLE_VALUE expect_Primary FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+expect_Primary
+Primary
 DROP SEQUENCE seq_test;
+disconnect node_2;
+disconnect node_1;

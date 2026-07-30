@@ -33,6 +33,7 @@
 
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
+--source include/not_ssl.inc
 
 #Suppress warning by the server certificate verification check: unrelated CA
 call mtr.add_suppression("Server SSL certificate doesn't verify");

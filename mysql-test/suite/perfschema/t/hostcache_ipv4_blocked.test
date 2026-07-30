@@ -29,7 +29,7 @@ grant select on test.* to 'root'@'santa.claus.ipv4.example.com';
 create user 'quota'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv4.example.com';
 
-connect (con1,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 select current_user();
 disconnect con1;
@@ -40,7 +40,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddr
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con2a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con2a,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -48,7 +48,7 @@ connect (con2a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con2b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con2b,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -56,7 +56,7 @@ connect (con2b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con2c,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con2c,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -64,7 +64,7 @@ connect (con2c,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_IS_BLOCKED
-connect (con2d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con2d,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -72,7 +72,7 @@ connect (con2d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_IS_BLOCKED
-connect (con2e,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con2e,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -83,7 +83,7 @@ flush hosts;
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con3a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con3a,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -91,7 +91,7 @@ connect (con3a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con3b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con3b,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -101,7 +101,7 @@ connect (con3b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 set global debug_dbug= "-d,native_password_bad_reply";
 
 --disable_query_log
-connect (con4,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con4,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 select "Valid connection should reset SUM_CONNECT_ERROR counter" as message;
 --disconnect con4
 --enable_query_log
@@ -114,7 +114,7 @@ set global debug_dbug= "+d,native_password_bad_reply";
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con5a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con5a,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -122,7 +122,7 @@ connect (con5a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con5b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con5b,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -130,7 +130,7 @@ connect (con5b,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HANDSHAKE_ERROR
-connect (con5c,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con5c,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -138,7 +138,7 @@ connect (con5c,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_IS_BLOCKED
-connect (con5d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con5d,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -146,7 +146,7 @@ connect (con5d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_IS_BLOCKED
-connect (con5e,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect con5e,"127.0.0.1",quota,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default

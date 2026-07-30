@@ -14,7 +14,7 @@ BEGIN;
 SELECT * FROM t1;
 sleep 2;
 
---error 2006,2013
+--error 2006,2013,2026
 SELECT * FROM t1;
 disconnect c0;
 
@@ -28,7 +28,7 @@ BEGIN;
 SELECT * FROM t1;
 sleep 2;
 
---error 2006,2013 # Gone away
+--error 2006,2013,2026 # Gone away
 SELECT * FROM t1;
 disconnect c1;
 
@@ -46,7 +46,7 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES (1);
 sleep 2;
 
---error 2006, 2013 # Gone away
+--error 2006, 2013,2026 # Gone away
 SELECT * FROM t1;
 disconnect c2;
 

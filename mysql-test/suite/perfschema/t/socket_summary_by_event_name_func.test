@@ -20,13 +20,14 @@
 --source include/have_perfschema.inc
 
 # Wait for any clients from previous tests to disconnect
---source ../include/wait_for_pfs_thread_count.inc
+--source include/wait_for_pfs_thread_count.inc
 
 # The values in the performance_schema tables depend on how much communication
 # happens per SQL statement within our MTR tests. And there is a significant
 # difference between standard statement execution and execution via
 # prepared statement.
 --source include/no_protocol.inc
+--source include/not_ssl.inc
 
 #--source include/turn_off_only_full_group_by.inc
 

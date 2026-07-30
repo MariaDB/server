@@ -1,0 +1,23 @@
+--source ../include/have_duckdb.inc
+
+--disable_query_log
+SET @saved_duckdb_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+DROP TABLE IF EXISTS batch_rollback;
+CREATE TABLE batch_rollback (id INT PRIMARY KEY) ENGINE=DuckDB;
+--enable_query_log
+
+BEGIN;
+INSERT INTO batch_rollback VALUES (1);
+ROLLBACK;
+
+BEGIN;
+INSERT INTO batch_rollback VALUES (2);
+COMMIT;
+
+SELECT * FROM batch_rollback ORDER BY id;
+
+--disable_query_log
+DROP TABLE batch_rollback;
+SET GLOBAL duckdb_dml_in_batch = @saved_duckdb_dml_in_batch;
+--enable_query_log

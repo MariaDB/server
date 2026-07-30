@@ -29,24 +29,24 @@ Warning	1911	Unknown option 'too'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) NOT NULL AUTO_INCREMENT `foo`=bar,
+  `f1` int(11) NOT NULL AUTO_INCREMENT `foo`='bar',
   `f2` int(11) DEFAULT 3 INVISIBLE,
   `f3` text DEFAULT NULL,
   `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
   PRIMARY KEY (`f1`),
-  UNIQUE KEY `f1` (`f1`) `koo`=12,
+  UNIQUE KEY `f1` (`f1`) `koo`='12',
   FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `too`=yes
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `too`='yes'
 set sql_mode=no_table_options;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`=bar */,
+  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`='bar' */,
   `f2` int(11) DEFAULT 3 INVISIBLE,
   `f3` text DEFAULT NULL,
   `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
   PRIMARY KEY (`f1`),
-  UNIQUE KEY `f1` (`f1`) /* `koo`=12 */,
+  UNIQUE KEY `f1` (`f1`) /* `koo`='12' */,
   FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
 )
 set sql_mode=no_field_options;
@@ -58,21 +58,21 @@ t1	CREATE TABLE `t1` (
   `f3` text DEFAULT NULL,
   `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL,
   PRIMARY KEY (`f1`),
-  UNIQUE KEY `f1` (`f1`) /* `koo`=12 */,
+  UNIQUE KEY `f1` (`f1`) /* `koo`='12' */,
   FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`=yes */
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`='yes' */
 set sql_mode=no_key_options;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`=bar */,
+  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`='bar' */,
   `f2` int(11) DEFAULT 3 INVISIBLE,
   `f3` text DEFAULT NULL,
   `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
   PRIMARY KEY (`f1`),
   UNIQUE KEY `f1` (`f1`),
   FULLTEXT KEY `f3` (`f3`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`=yes */
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`='yes' */
 drop table t1;
 set sql_mode=default;
 uninstall soname 'mypluglib';

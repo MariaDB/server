@@ -1,7 +1,7 @@
 # MariaDB - DuckDB Incompatibilities
 
 Discovered during porting the DuckDB storage engine plugin to MariaDB 12.
-DuckDB upstream version: **v1.5.2** (submodule at `third_parties/duckdb/`).
+DuckDB upstream version: **v1.5.4** (submodule at `third_parties/duckdb/`).
 
 ---
 
@@ -21,7 +21,7 @@ SELECT pushdown (`ha_duckdb_pushdown.cc`) uses the original SQL text from `THD::
 
 ## 2. Function Compatibility
 
-MariaDB function semantics differ from DuckDB in several areas. These are handled by **runtime function overrides** registered at startup via `register_mysql_compat_functions()` in `duckdb_mysql_compat.cc`. No DuckDB source patches are used.
+MariaDB function semantics differ from DuckDB in several areas. These are handled by **runtime function overrides** registered at startup via `register_mariadb_compat_functions()` in `duckdb_mysql_compat.cc`. No DuckDB source patches are used.
 
 ### Overridden functions (registered in `duckdb_mysql_compat.cc`)
 
@@ -46,6 +46,11 @@ MariaDB function semantics differ from DuckDB in several areas. These are handle
 | `regexp_substr(VARCHAR, VARCHAR)` | Not in DuckDB | Custom implementation using RE2 |
 | `json_unquote(VARCHAR)` | Not in DuckDB | Custom implementation (strip quotes + unescape) |
 | `json_contains(VARCHAR, VARCHAR, VARCHAR)` | DuckDB only has 2-arg form | 3-arg placeholder (returns false — needs proper implementation) |
+| `week(DATE/TIMESTAMP, INTEGER)` | DuckDB `week()` has no MariaDB mode argument | Added 2-arg overloads honoring the MariaDB week `mode` |
+| `yearweek(DATE/TIMESTAMP, INTEGER)` | DuckDB `yearweek()` has no MariaDB mode argument | Added 2-arg overloads returning `year*100 + week` per MariaDB mode |
+| `to_days(DATE/VARCHAR)` | DuckDB `to_days(BIGINT)` builds an INTERVAL; no date/string overload | Added DATE/VARCHAR→BIGINT overloads returning MariaDB day number (epoch_days + 719528) |
+| `dayofweek(DATE/TIMESTAMP)` | DuckDB is 0=Sunday..6=Saturday | Overloads returning MariaDB 1=Sunday..7=Saturday |
+| `weekday(DATE/TIMESTAMP)` | Not in DuckDB with MariaDB semantics | Overloads returning MariaDB 0=Monday..6=Sunday |
 
 ### Compatible aliases (already work in DuckDB)
 

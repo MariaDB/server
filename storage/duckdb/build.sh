@@ -29,6 +29,7 @@ usage() {
     echo "  -n          No clean: keep existing data files"
     echo "  -D          Install build prerequisites (requires root/sudo)"
     echo "  -u          Build unit tests"
+    echo "  -a          Enable ASAN/UBSAN (WITH_ASAN, WITH_ASAN_SCOPE, WITH_UBSAN)"
     echo "  -R          Use gcc-toolset-\${GCC_VERSION} on Rocky 8"
     echo "  -h          Show this help"
     exit 0
@@ -41,9 +42,10 @@ BUILD_PACKAGES=false
 INSTALL_DEPS=false
 GCC_TOOLSET=false
 UNIT_TESTS=false
+WITH_ASAN=false
 OS=""
 
-while getopts "t:d:j:cpSnDRuh" opt; do
+while getopts "t:d:j:cpSnDRuah" opt; do
     case $opt in
         t) BUILD_TYPE="$OPTARG" ;;
         d) OS="$OPTARG" ;;
@@ -55,6 +57,7 @@ while getopts "t:d:j:cpSnDRuh" opt; do
         D) INSTALL_DEPS=true ;;
         R) GCC_TOOLSET=true ;;
         u) UNIT_TESTS=true ;;
+        a) WITH_ASAN=true ;;
         h) usage ;;
         *) usage ;;
     esac
@@ -106,6 +109,8 @@ info "Source:     ${_CLR_YELLOW}$MDB_SOURCE_PATH"
 info "Build dir:  ${_CLR_YELLOW}$BUILD_PATH"
 info "Build type: ${_CLR_YELLOW}$BUILD_TYPE"
 info "Jobs:       ${_CLR_YELLOW}$CPUS"
+info "ASAN/UBSAN: ${_CLR_YELLOW}$WITH_ASAN"
+info "Unit tests: ${_CLR_YELLOW}$UNIT_TESTS"
 if [[ $BUILD_PACKAGES = true ]]; then
     info "Packages:   ${_CLR_YELLOW}$PKG_FORMAT ($OS)"
 fi
@@ -134,7 +139,7 @@ clean_old_installation() {
 
 bootstrap_mdb() {
     info "Bootstrap MariaDB"
-    "$INSTALL_PREFIX/bin/mariadb-install-db" \
+    ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}detect_leaks=0" "$INSTALL_PREFIX/bin/mariadb-install-db" \
         --datadir="$DEFAULT_MDB_DATADIR" \
         --user="$USER" --group="$GROUP" > /dev/null
 }
@@ -218,6 +223,15 @@ construct_cmake_flags() {
 
     if [[ $UNIT_TESTS = true ]]; then
         MDB_CMAKE_FLAGS+=(-DDUCKDB_UNIT_TESTS=ON)
+    fi
+
+    if [[ $WITH_ASAN = true ]]; then
+        MDB_CMAKE_FLAGS+=(
+            -DWITH_ASAN=ON
+            -DWITH_ASAN_SCOPE=ON
+            -DWITH_UBSAN=ON
+            -DWITH_UNIT_TESTS=OFF
+        )
     fi
 
     if [[ $BUILD_PACKAGES = true ]]; then

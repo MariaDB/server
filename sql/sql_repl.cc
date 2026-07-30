@@ -5747,7 +5747,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
     if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
                                                 &num_binlog_gtids))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return true;
     }
     for (i= 0; i < num_binlog_gtids; ++i)

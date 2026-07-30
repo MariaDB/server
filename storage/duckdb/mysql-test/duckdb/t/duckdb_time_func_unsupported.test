@@ -1,0 +1,698 @@
+--source ../include/have_duckdb.inc
+
+# Unsupported / incompatible date-time functions for DuckDB pushdown.
+# This is the companion of duckdb_time_func.test which keeps only the
+# supported (deterministic and matching) cases.
+#
+# The queries below are collected here because their "FROM t" pushdown to
+# DuckDB either:
+#   (a) is non-deterministic  - current-time functions return DuckDB's real
+#       clock, which never matches MariaDB's SET timestamp value;
+#   (b) is a hard error        - DuckDB lacks the signature (TIME input,
+#       different function meaning, unsupported format specifier);
+#   (c) produces a mismatch    - different convention (WEEKDAY numbering,
+#       default_week_format not honoured by DuckDB).
+#
+# Incompatibility references (see duckdb_time_func.test header):
+#   3 - MySQL time range -838:59:59..838:59:59 vs DuckDB 00:00:00..23:59:59
+#   6 - DuckDB does not honour default_week_format
+#   7 - TIME implicitly converted to TIMESTAMP: MySQL uses current_date,
+#       DuckDB uses 1970-01-01 or cannot convert
+#   8 - fsp argument not supported for current-time functions
+
+CREATE DATABASE test_duckdb;
+USE test_duckdb;
+CREATE TABLE t (id INT PRIMARY KEY) ENGINE = DuckDB;
+INSERT INTO t VALUES (1);
+
+--echo ---------------------------
+--echo 1. ADDDATE() - TIME input (incompatibility 7)
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT ADDDATE(TIME '12:00:00', interval 1 hour);
+SELECT ADDDATE(TIME '12:00:00', interval 1 hour) FROM t;
+SELECT ADDDATE(TIME '12:00:00', interval 1 day);
+SELECT ADDDATE(TIME '12:00:00', interval 1 day) FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 2. ADDTIME() - TIME input (incompatibility 3)
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT addtime(TIME '23:59:59.999999', '1 1:1:1.000002');
+SELECT addtime(TIME '23:59:59.999999', '1 1:1:1.000002') FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 3. CONVERT_TZ() - numeric offset unsupported
+--echo ---------------------------
+
+SELECT CONVERT_TZ(TIMESTAMP '2004-01-01 12:00:00','+00:00','+10:00');
+--error ER_GET_ERRMSG
+SELECT CONVERT_TZ(TIMESTAMP '2004-01-01 12:00:00','+00:00','+10:00') FROM t;
+
+--echo ---------------------------
+--echo 4. CURDATE() - non-deterministic
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT CURDATE();
+SELECT CURDATE() FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 5. CURRENT_DATE, CURRENT_TIME() - non-deterministic
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT CURRENT_DATE;
+SELECT CURRENT_DATE FROM t;
+SELECT CURRENT_DATE();
+SELECT CURRENT_DATE() FROM t;
+
+SELECT CURRENT_TIME;
+SELECT CURRENT_TIME FROM t;
+SELECT CURRENT_TIME();
+SELECT CURRENT_TIME() FROM t;
+
+SELECT CURRENT_TIME(1);
+SELECT CURRENT_TIME(1) FROM t;
+
+SELECT CURRENT_TIME(6);
+SELECT CURRENT_TIME(6) FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 6. CURRENT_TIMESTAMP, CURRENT_TIMESTAMP() - non-deterministic
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT CURRENT_TIMESTAMP;
+SELECT CURRENT_TIMESTAMP FROM t;
+SELECT CURRENT_TIMESTAMP();
+SELECT CURRENT_TIMESTAMP() FROM t;
+
+SELECT CURRENT_TIMESTAMP(1);
+SELECT CURRENT_TIMESTAMP(1) FROM t;
+SELECT CURRENT_TIMESTAMP(6);
+SELECT CURRENT_TIMESTAMP(6) FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 7. CURTIME() - non-deterministic
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT CURTIME();
+SELECT CURTIME() FROM t;
+
+SELECT CURTIME(1);
+SELECT CURTIME(1) FROM t;
+SELECT CURTIME(6);
+SELECT CURTIME(6) FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 8. DATE() - TIME input (incompatibility 7)
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT DATE(TIME '01:02:03');
+--error ER_GET_ERRMSG
+SELECT DATE(TIME '01:02:03') FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 9. DATEDIFF() - TIME input (incompatibility 7)
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT DATEDIFF(TIMESTAMP '2007-12-31 23:59:59', TIME '23:59:59');
+SELECT DATEDIFF(TIMESTAMP '2007-12-31 23:59:59', TIME '23:59:59') FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 10. DATE_ADD(),DATE_SUB() - TIME input (incompatibility 3,7)
+--echo ---------------------------
+
+SELECT DATE_ADD(TIME '12:00:00', interval 1 hour);
+SELECT DATE_ADD(TIME '12:00:00', interval 1 hour) FROM t;
+
+SET timestamp = 1753226301;
+SELECT DATE_ADD(TIME '12:00:00', interval 1 day);
+SELECT DATE_ADD(TIME '12:00:00', interval 1 day) FROM t;
+SET timestamp = default;
+
+SET timestamp = 1753226301;
+SELECT DATE_SUB(TIME '12:00:00', interval 1 hour);
+SELECT DATE_SUB(TIME '12:00:00', interval 1 hour) FROM t;
+
+SELECT DATE_SUB(TIME '12:00:00', interval 1 day);
+SELECT DATE_SUB(TIME '12:00:00', interval 1 day) FROM t;
+SET timestamp = default;
+
+--echo ---------------------------
+--echo 11. DATE_FORMAT() - TIME input & unsupported specifiers (incompatibility 3,6)
+--echo ---------------------------
+
+SET timestamp = 1753226301;
+SELECT DATE_FORMAT(TIME '22:23:00.123456', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v');
+SELECT DATE_FORMAT(TIME '22:23:00.123456', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v') FROM t;
+SET timestamp = default;
+
+# %u, %V, %X are not supported
+SELECT DATE_FORMAT(TIMESTAMP '2009-10-04 22:23:00.123456', '%V, %X, %u');
+--error ER_GET_ERRMSG
+SELECT DATE_FORMAT(TIMESTAMP '2009-10-04 22:23:00.123456', '%V, %X, %u') FROM t;
+
+--echo --------------------------
+--echo 12. DAY() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT DAY(TIME '22:23:00.123456');
+SELECT DAY(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 13. DAYNAME() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT DAYNAME(TIME '22:23:00.123456');
+SELECT DAYNAME(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 14. DAYOFMONTH() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT DAYOFMONTH(TIME '22:23:00.123456');
+SELECT DAYOFMONTH(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 15. DAYOFWEEK() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT DAYOFWEEK(TIME '22:23:00.123456');
+SELECT DAYOFWEEK(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 16. DAYOFYEAR() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT DAYOFYEAR(TIME '22:23:00.123456');
+SELECT DAYOFYEAR(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 17. EXTRACT() - YEAR FROM TIME (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT EXTRACT(YEAR FROM TIME '01:02:03');
+SELECT EXTRACT(YEAR FROM TIME '01:02:03') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 22. LAST_DAY() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT LAST_DAY(TIME '01:01:01');
+SELECT LAST_DAY(TIME '01:01:01') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 23. LOCALTIME, LOCALTIME() - non-deterministic
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT LOCALTIME;
+SELECT LOCALTIME FROM t;
+SELECT LOCALTIME();
+SELECT LOCALTIME() FROM t;
+
+SELECT LOCALTIME(1);
+SELECT LOCALTIME(1) FROM t;
+SELECT LOCALTIME(6);
+SELECT LOCALTIME(6) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 24. LOCALTIMESTAMP, LOCALTIMESTAMP() - non-deterministic
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT LOCALTIMESTAMP;
+SELECT LOCALTIMESTAMP FROM t;
+SELECT LOCALTIMESTAMP();
+SELECT LOCALTIMESTAMP() FROM t;
+
+SELECT LOCALTIMESTAMP(1);
+SELECT LOCALTIMESTAMP(1) FROM t;
+SELECT LOCALTIMESTAMP(6);
+SELECT LOCALTIMESTAMP(6) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 26. MAKETIME() - out of DuckDB time range (incompatibility 3)
+--echo --------------------------
+
+SELECT MAKETIME(838,59,59);
+--error ER_GET_ERRMSG
+SELECT MAKETIME(838,59,59) FROM t;
+
+--echo --------------------------
+--echo 29. MONTHNAME() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT MONTHNAME(TIME '22:23:00.123456');
+SELECT MONTHNAME(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 30. NOW() - non-deterministic
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT NOW();
+SELECT NOW() FROM t;
+
+SELECT NOW(1);
+SELECT NOW(1) FROM t;
+
+SELECT NOW(6);
+SELECT NOW(6) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 33. QUARTER() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT QUARTER(TIME '22:23:00.123456');
+SELECT QUARTER(TIME '22:23:00.123456') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 37. SUBDATE() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT SUBDATE(TIME '12:00:00', interval 1 hour);
+SELECT SUBDATE(TIME '12:00:00', interval 1 hour) FROM t;
+
+SELECT SUBDATE(TIME '12:00:00', interval 1 day);
+SELECT SUBDATE(TIME '12:00:00', interval 1 day) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 35. SEC_TO_TIME() - out of DuckDB time range (incompatibility 3)
+--echo --------------------------
+
+SELECT SEC_TO_TIME(100000);
+SELECT SEC_TO_TIME(100000) FROM t;
+
+--echo --------------------------
+--echo 38. SUBTIME() - TIME input (incompatibility 3)
+--echo --------------------------
+
+SELECT SUBTIME(TIME '23:59:59.999999', '1 1:1:1.000002');
+SELECT SUBTIME(TIME '23:59:59.999999', '1 1:1:1.000002') FROM t;
+
+--echo --------------------------
+--echo 39. SYSDATE() - not supported yet
+--echo --------------------------
+
+# SELECT SYSDATE();
+# SELECT SYSDATE() FROM t;
+
+--echo --------------------------
+--echo 40. TIME() - not supported yet
+--echo --------------------------
+
+--echo --------------------------
+--echo 41. TIMEDIFF() - not supported yet
+--echo --------------------------
+
+--echo --------------------------
+--echo 42. TIMESTAMP() - not supported yet
+--echo --------------------------
+
+--echo --------------------------
+--echo 42. TIMESTAMPADD() - not in DuckDB; unit keyword unbindable
+--echo --------------------------
+
+SELECT TIMESTAMPADD(MINUTE, 1, DATE '2003-01-02');
+--error ER_GET_ERRMSG
+SELECT TIMESTAMPADD(MINUTE, 1, DATE '2003-01-02') FROM t;
+
+SELECT TIMESTAMPADD(WEEK, 1, DATE '2003-01-02');
+--error ER_GET_ERRMSG
+SELECT TIMESTAMPADD(WEEK, 1, DATE '2003-01-02') FROM t;
+
+--echo --------------------------
+--echo 43. TIMESTAMPDIFF() - not in DuckDB; unit keyword unbindable
+--echo --------------------------
+
+SELECT TIMESTAMPDIFF(MONTH, DATE '2003-02-01', DATE '2003-05-01');
+--error ER_GET_ERRMSG
+SELECT TIMESTAMPDIFF(MONTH, DATE '2003-02-01', DATE '2003-05-01') FROM t;
+
+SELECT TIMESTAMPDIFF(YEAR, DATE '2002-05-01', DATE '2001-01-01');
+--error ER_GET_ERRMSG
+SELECT TIMESTAMPDIFF(YEAR, DATE '2002-05-01', DATE '2001-01-01') FROM t;
+
+SELECT TIMESTAMPDIFF(MINUTE, DATE '2003-02-01', TIMESTAMP '2003-05-01 12:05:55');
+--error ER_GET_ERRMSG
+SELECT TIMESTAMPDIFF(MINUTE, DATE '2003-02-01', TIMESTAMP '2003-05-01 12:05:55') FROM t;
+
+--echo --------------------------
+--echo 44. TIME_FORMAT() - time_format() not in DuckDB (also incompatibility 3 for >24h)
+--echo --------------------------
+
+SELECT TIME_FORMAT(TIME '01:02:03', '%H %k %h %I %l');
+--error ER_GET_ERRMSG
+SELECT TIME_FORMAT(TIME '01:02:03', '%H %k %h %I %l') FROM t;
+
+SELECT TIME_FORMAT(TIME '100:02:03', '%H %k %h %I %l');
+--error ER_GET_ERRMSG
+SELECT TIME_FORMAT(TIME '100:02:03', '%H %k %h %I %l') FROM t;
+
+--echo --------------------------
+--echo 44. TIME_TO_SEC() - out of DuckDB time range (incompatibility 3)
+--echo --------------------------
+
+SELECT TIME_TO_SEC(TIME '220:23:00');
+--error ER_GET_ERRMSG
+SELECT TIME_TO_SEC(TIME '220:23:00') FROM t;
+
+--echo --------------------------
+--echo 45. TO_DAYS() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT TO_DAYS(TIME '12:00:00');
+--error ER_GET_ERRMSG
+SELECT TO_DAYS(TIME '12:00:00') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 46. TO_SECONDS() - DuckDB to_seconds() builds an INTERVAL, not seconds
+--echo --------------------------
+
+SELECT TO_SECONDS(DATE '2009-11-29');
+--error ER_GET_ERRMSG
+SELECT TO_SECONDS(DATE '2009-11-29') FROM t;
+
+SELECT TO_SECONDS(TIMESTAMP '2009-11-29 13:43:32');
+--error ER_GET_ERRMSG
+SELECT TO_SECONDS(TIMESTAMP '2009-11-29 13:43:32') FROM t;
+
+SET timestamp = 1753226301;
+SELECT TO_SECONDS(TIME '12:00:00');
+--error ER_GET_ERRMSG
+SELECT TO_SECONDS(TIME '12:00:00') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 47. UNIX_TIMESTAMP() - no-arg form is non-deterministic
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT UNIX_TIMESTAMP();
+SELECT UNIX_TIMESTAMP() FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 48. UTC_DATE() - non-deterministic; bareword resolved as column
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT UTC_DATE();
+SELECT UTC_DATE() FROM t;
+SELECT UTC_DATE;
+--error ER_GET_ERRMSG
+SELECT UTC_DATE FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 49. UTC_TIME() - non-deterministic; bareword resolved as column
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT UTC_TIME();
+SELECT UTC_TIME() FROM t;
+SELECT UTC_TIME;
+--error ER_GET_ERRMSG
+SELECT UTC_TIME FROM t;
+SELECT UTC_TIME(1);
+SELECT UTC_TIME(1) FROM t;
+SELECT UTC_TIME(6);
+SELECT UTC_TIME(6) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 50. UTC_TIMESTAMP() - non-deterministic; bareword resolved as column
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT UTC_TIMESTAMP();
+SELECT UTC_TIMESTAMP() FROM t;
+SELECT UTC_TIMESTAMP;
+--error ER_GET_ERRMSG
+SELECT UTC_TIMESTAMP FROM t;
+
+SELECT UTC_TIMESTAMP(1);
+SELECT UTC_TIMESTAMP(1) FROM t;
+SELECT UTC_TIMESTAMP(6);
+SELECT UTC_TIMESTAMP(6) FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 51. WEEK() - single-arg default_week_format not honoured (incompatibility 6)
+--echo --------------------------
+
+SELECT WEEK(DATE '2009-01-01');
+SELECT WEEK(DATE '2009-01-01') FROM t;
+set @old_default_week_format = @@default_week_format;
+set default_week_format = 1;
+SELECT WEEK(DATE '2009-01-01');
+SELECT WEEK(DATE '2009-01-01') FROM t;
+set default_week_format = 2;
+SELECT WEEK(DATE '2009-01-01');
+SELECT WEEK(DATE '2009-01-01') FROM t;
+set default_week_format = 3;
+SELECT WEEK(DATE '2009-01-01');
+SELECT WEEK(DATE '2009-01-01') FROM t;
+set default_week_format = @old_default_week_format;
+
+--echo --------------------------
+--echo 53. WEEKOFYEAR() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT WEEKOFYEAR(TIME '12:20:22');
+--error ER_GET_ERRMSG
+SELECT WEEKOFYEAR(TIME '12:20:22') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 54. YEAR() - TIME input (incompatibility 7)
+--echo --------------------------
+
+SET timestamp = 1753226301;
+SELECT YEAR(TIME '12:20:22');
+--error ER_GET_ERRMSG
+SELECT YEAR(TIME '12:20:22') FROM t;
+SET timestamp = default;
+
+--echo --------------------------
+--echo 55. YEARWEEK() - single-arg default_week_format not honoured (incompatibility 6)
+--echo --------------------------
+
+SELECT YEARWEEK(DATE '2009-01-01');
+SELECT YEARWEEK(DATE '2009-01-01') FROM t;
+
+set @old_default_week_format = @@default_week_format;
+set default_week_format = 1;
+SELECT YEARWEEK(DATE '2009-01-01');
+SELECT YEARWEEK(DATE '2009-01-01') FROM t;
+set default_week_format = @old_default_week_format;
+
+--echo ==========================================================
+--echo Functions absent in DuckDB (base DATE/TIMESTAMP/numeric cases)
+--echo ==========================================================
+
+--echo --------------------------
+--echo 3. CONVERT_TZ() - named zone: MariaDB returns NULL without tz tables
+--echo --------------------------
+
+SELECT CONVERT_TZ(TIMESTAMP '2004-01-01 12:00:00','GMT','MET');
+SELECT CONVERT_TZ(TIMESTAMP '2004-01-01 12:00:00','GMT','MET') FROM t;
+
+--echo --------------------------
+--echo 10. DATE_SUB() - date_sub(DATE/TIMESTAMP, INTERVAL) not in DuckDB
+--echo --------------------------
+
+SELECT DATE_SUB(DATE '2020-01-01', interval 1 day);
+--error ER_GET_ERRMSG
+SELECT DATE_SUB(DATE '2020-01-01', interval 1 day) FROM t;
+SELECT DATE_SUB(DATE '2020-01-01', interval 1 hour);
+--error ER_GET_ERRMSG
+SELECT DATE_SUB(DATE '2020-01-01', interval 1 hour) FROM t;
+SELECT DATE_SUB(TIMESTAMP '2020-01-01 12:00:00', interval 1 day);
+--error ER_GET_ERRMSG
+SELECT DATE_SUB(TIMESTAMP '2020-01-01 12:00:00', interval 1 day) FROM t;
+
+--echo --------------------------
+--echo 11. DATE_FORMAT() - date_format() not in DuckDB
+--echo --------------------------
+
+SELECT DATE_FORMAT(TIMESTAMP '2009-10-04 22:23:00.123456', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v');
+--error ER_GET_ERRMSG
+SELECT DATE_FORMAT(TIMESTAMP '2009-10-04 22:23:00.123456', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v') FROM t;
+
+SELECT DATE_FORMAT(DATE '2009-10-04', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v');
+--error ER_GET_ERRMSG
+SELECT DATE_FORMAT(DATE '2009-10-04', '%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %W %w %Y %y %U %x %v') FROM t;
+
+--echo --------------------------
+--echo 18. FROM_DAYS() - from_days() not in DuckDB
+--echo --------------------------
+
+SELECT FROM_DAYS(0);
+--error ER_GET_ERRMSG
+SELECT FROM_DAYS(0) FROM t;
+SELECT FROM_DAYS(730669);
+--error ER_GET_ERRMSG
+SELECT FROM_DAYS(730669) FROM t;
+
+--echo --------------------------
+--echo 19. FROM_UNIXTIME() - from_unixtime() not in DuckDB
+--echo --------------------------
+
+SELECT FROM_UNIXTIME(1447430881);
+--error ER_GET_ERRMSG
+SELECT FROM_UNIXTIME(1447430881) FROM t;
+
+SELECT FROM_UNIXTIME(1447430881, '%Y %D %M %h:%i:%s');
+--error ER_GET_ERRMSG
+SELECT FROM_UNIXTIME(1447430881, '%Y %D %M %h:%i:%s') FROM t;
+
+--echo --------------------------
+--echo 25. MAKEDATE() - makedate() not in DuckDB (has make_date)
+--echo --------------------------
+
+SELECT MAKEDATE(2011,31), MAKEDATE(2011,32);
+--error ER_GET_ERRMSG
+SELECT MAKEDATE(2011,31), MAKEDATE(2011,32) FROM t;
+SELECT MAKEDATE(2011,365), MAKEDATE(2014,365);
+--error ER_GET_ERRMSG
+SELECT MAKEDATE(2011,365), MAKEDATE(2014,365) FROM t;
+SELECT MAKEDATE(2011,0);
+--error ER_GET_ERRMSG
+SELECT MAKEDATE(2011,0) FROM t;
+
+--echo --------------------------
+--echo 26. MAKETIME() - maketime() not in DuckDB (has make_time)
+--echo --------------------------
+
+SELECT MAKETIME(12,15,30);
+--error ER_GET_ERRMSG
+SELECT MAKETIME(12,15,30) FROM t;
+
+--echo --------------------------
+--echo 31. PERIOD_ADD() - period_add() not in DuckDB
+--echo --------------------------
+
+SELECT PERIOD_ADD(200801,2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(200801,2) FROM t;
+SELECT PERIOD_ADD(801,2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(801,2) FROM t;
+SELECT PERIOD_ADD(8801,2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(8801,2) FROM t;
+SELECT PERIOD_ADD(1,2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(1,2) FROM t;
+SELECT PERIOD_ADD(10101, 2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(10101, 2) FROM t;
+SELECT PERIOD_ADD(12340101, 2);
+--error ER_GET_ERRMSG
+SELECT PERIOD_ADD(12340101, 2) FROM t;
+
+--echo --------------------------
+--echo 32. PERIOD_DIFF() - period_diff() not in DuckDB
+--echo --------------------------
+
+SELECT PERIOD_DIFF(200801,801);
+--error ER_GET_ERRMSG
+SELECT PERIOD_DIFF(200801,801) FROM t;
+SELECT PERIOD_DIFF(200801,8801);
+--error ER_GET_ERRMSG
+SELECT PERIOD_DIFF(200801,8801) FROM t;
+SELECT PERIOD_DIFF(200801,1);
+--error ER_GET_ERRMSG
+SELECT PERIOD_DIFF(200801,1) FROM t;
+SELECT PERIOD_DIFF(200801,10101);
+--error ER_GET_ERRMSG
+SELECT PERIOD_DIFF(200801,10101) FROM t;
+SELECT PERIOD_DIFF(200801, 12340101);
+--error ER_GET_ERRMSG
+SELECT PERIOD_DIFF(200801, 12340101) FROM t;
+
+--echo --------------------------
+--echo 35. SEC_TO_TIME() - sec_to_time() not in DuckDB
+--echo --------------------------
+
+SELECT SEC_TO_TIME(10000);
+--error ER_GET_ERRMSG
+SELECT SEC_TO_TIME(10000) FROM t;
+
+--echo --------------------------
+--echo 36. STR_TO_DATE() - str_to_date() not in DuckDB
+--echo --------------------------
+
+SELECT STR_TO_DATE('01,5,2013','%d,%m,%Y');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('01,5,2013','%d,%m,%Y') FROM t;
+
+SELECT STR_TO_DATE('a09:30:17','a%h:%i:%s');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('a09:30:17','a%h:%i:%s') FROM t;
+
+SELECT STR_TO_DATE('May 1, 2013','%M %d,%Y');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('May 1, 2013','%M %d,%Y') FROM t;
+
+SELECT STR_TO_DATE('a09:30:17','%h:%i:%s');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('a09:30:17','%h:%i:%s') FROM t;
+
+SELECT STR_TO_DATE('abc','abc');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('abc','abc') FROM t;
+
+SELECT STR_TO_DATE('9','%m');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('9','%m') FROM t;
+
+SELECT STR_TO_DATE('09:30:17a','%h:%i:%s');
+--error ER_GET_ERRMSG
+SELECT STR_TO_DATE('09:30:17a','%h:%i:%s') FROM t;
+
+DROP TABLE t;
+DROP DATABASE test_duckdb;

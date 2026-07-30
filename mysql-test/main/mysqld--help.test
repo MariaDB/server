@@ -28,7 +28,8 @@ perl;
                table-open-cache table-open-cache-instances max-connections
                server-uid tls-version version.* password-reuse-check
                provider-bzip2 provider-lzma provider-lzo
-               password-reuse-check-interval analyze-max-length thread-stack/;
+               password-reuse-check-interval analyze-max-length thread-stack
+               stack-trace/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition s3
@@ -58,6 +59,7 @@ perl;
     next if /Value \(after reading options\)/; # skip table header
     next if /^($re1) /;
     next if /^($re2)-/;
+    next if /^\s*\(Defaults to on; use --skip-($re1) to disable\./;
     $skip=0 if /^  -/ or /^$/;
     $skip=1 if / --($re2)\b/;
     y!\\!/!;

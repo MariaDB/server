@@ -788,19 +788,19 @@ show grants for root@localhost;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT SELECT ON `ÂÄ`.* TO `root`@`localhost`
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 flush privileges;
 show grants for root@localhost;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT SELECT ON `ÂÄ`.* TO `root`@`localhost`
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 drop database ÂÄ;
 revoke all privileges on ÂÄ.* from root@localhost;
 show grants for root@localhost;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 set names latin1;
 create user mysqltest_7@;
 set password for mysqltest_7@ = password('systpass');
@@ -2864,4 +2864,24 @@ RENAME USER 'name' to 'a';
 DROP USER foo;
 DROP USER a;
 # End of 10.4 tests
+#
+# MDEV-39047 Impossible to create DB grant for long escaped DB name
+#
+CREATE USER u@localhost;
+CREATE DATABASE very_long_database_name_with_underscore_symbols_inside_the_name;
+GRANT ALL ON `very\_long\_database\_name\_with\_underscore\_symbols\_inside\_the\_name`.* TO u@localhost;
+ERROR 42000: Incorrect database name 'very\_long\_database\_name\_with\_underscore\_symbols\_inside\_the\_name'
+GRANT ALL ON `very_long_database_name_with_underscore_symbols_inside_the_name`.* TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT ALL PRIVILEGES ON `very_long_database_name_with_underscore_symbols_inside_the_name`.* TO `u`@`localhost`
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT ALL PRIVILEGES ON `very_long_database_name_with_underscore_symbols_inside_the_name`.* TO `u`@`localhost`
+DROP DATABASE very_long_database_name_with_underscore_symbols_inside_the_name;
+DROP USER u@localhost;
+# End of 10.6 tests
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

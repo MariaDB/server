@@ -63,9 +63,11 @@ replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
 error ER_ACCESS_DENIED_ERROR;
 connect con3, localhost, test2, "wrong_pwd";
 connection default;
+--disable_warnings
 drop user test2@localhost;
 
 drop user test1@localhost;
+--enable_warnings
 uninstall plugin ed25519;
 error ER_CANT_INITIALIZE_UDF;
 select ed25519_password("foo");

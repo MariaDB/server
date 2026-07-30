@@ -8,7 +8,7 @@
 #   $statement     The statement to be checked.
 #   $cleanup_stmt1 The 1st statement to be run in order to revert effects
 #                  of statement to be checked.
-#   $cleanup_stmt2 The 2nd statement to be run in order to revert effects
+#   $mkdir_db      The 2nd statement to be run in order to revert effects
 #                  of statement to be checked.
 #   $skip_3rd_chk  Skip the 3rd stage of checking. The purpose of the third
 #                  stage is to check that metadata locks taken by this
@@ -45,9 +45,9 @@ if ($cleanup_stmt1)
 {
 --eval $cleanup_stmt1;
 }
-if ($cleanup_stmt2)
+if ($mkdir_db)
 {
---eval $cleanup_stmt2;
+--mkdir $mkdir_db
 }
 }
 
@@ -91,9 +91,9 @@ if ($cleanup_stmt1)
 {
 --eval $cleanup_stmt1;
 }
-if ($cleanup_stmt2)
+if ($mkdir_db)
 {
---eval $cleanup_stmt2;
+--mkdir $mkdir_db
 }
 
 if (!$skip_3rd_check)
@@ -143,9 +143,9 @@ if ($cleanup_stmt1)
 {
 --eval $cleanup_stmt1;
 }
-if ($cleanup_stmt2)
+if ($mkdir_db)
 {
---eval $cleanup_stmt2;
+--mkdir $mkdir_db
 }
 }
 

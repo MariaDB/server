@@ -52,6 +52,7 @@ static thread_local std::unordered_map<std::string, TABLE *>
     tls_external_tables;
 static thread_local std::unordered_map<std::string, std::string>
     tls_external_where;
+static thread_local bool tls_cross_engine_ryow= false;
 
 void register_external_table(const std::string &name, TABLE *table)
 {
@@ -76,6 +77,7 @@ void clear_external_tables()
 {
   tls_external_tables.clear();
   tls_external_where.clear();
+  tls_cross_engine_ryow= false;
 }
 
 TABLE *find_external_table(const std::string &name)
@@ -85,6 +87,10 @@ TABLE *find_external_table(const std::string &name)
     return it->second;
   return nullptr;
 }
+
+void register_cross_engine_ryow(bool enabled) { tls_cross_engine_ryow= enabled; }
+
+bool cross_engine_ryow_enabled() { return tls_cross_engine_ryow; }
 
 /* ----------------------------------------------------------------
    MariaDB Field → DuckDB LogicalType mapping
@@ -147,6 +153,8 @@ static duckdb::LogicalType field_to_logical_type(const Field *field)
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_ENUM:
+    if (is_uuid_field(field))
+      return duckdb::LogicalType::UUID;
     return duckdb::LogicalType::VARCHAR;
   default:
     return duckdb::LogicalType::VARCHAR;
@@ -218,6 +226,8 @@ static duckdb::Value field_to_duckdb_value(Field *field)
   default: {
     String buf;
     field->val_str(&buf);
+    if (is_uuid_field(field))
+      return duckdb::Value::UUID(std::string(buf.ptr(), buf.length()));
     return duckdb::Value(std::string(buf.ptr(), buf.length()));
   }
   }
@@ -233,6 +243,7 @@ struct MdbScanBindData : duckdb::FunctionData
   std::string table_key;
   std::string where_sql;
   TABLE *table= nullptr;
+  bool direct= false;
 
   duckdb::unique_ptr<duckdb::FunctionData> Copy() const override
   {
@@ -240,6 +251,7 @@ struct MdbScanBindData : duckdb::FunctionData
     copy->table_key= table_key;
     copy->where_sql= where_sql;
     copy->table= table;
+    copy->direct= direct;
     return duckdb::unique_ptr<duckdb::FunctionData>(std::move(copy));
   }
 
@@ -258,6 +270,7 @@ struct MdbScanGlobalState : duckdb::GlobalTableFunctionState
   duckdb::vector<duckdb::idx_t> column_ids;
   std::string table_key;
   std::string where_sql;
+  bool direct= false;
 
   /* Fiber-based scan for predicate pushdown */
   std::unique_ptr<FiberScanState> fiber;
@@ -289,6 +302,7 @@ mdb_scan_bind(duckdb::ClientContext &context,
   data->table_key= key;
   data->where_sql= find_external_where(key);
   data->table= tbl;
+  data->direct= cross_engine_ryow_enabled();
   return duckdb::unique_ptr<duckdb::FunctionData>(std::move(data));
 }
 
@@ -302,6 +316,7 @@ mdb_scan_init_global(duckdb::ClientContext &context,
   state->column_ids= input.column_ids;
   state->table_key= bind_data.table_key;
   state->where_sql= bind_data.where_sql;
+  state->direct= bind_data.direct;
 
   if ((myduck::duckdb_log_options & LOG_DUCKDB_QUERY) && input.filters)
   {
@@ -359,7 +374,9 @@ static void mdb_scan_function(duckdb::ClientContext &context,
   if (!state.scan_started)
   {
     const std::string &where_sql= state.where_sql;
-    if (!where_sql.empty() || true)  /* Always use fiber for MVP */
+    /* RYOW mode reads via the direct handler scan below (parent trx);
+       otherwise use a fiber running a synthetic SELECT for pushdown. */
+    if (!state.direct)
     {
       duckdb::vector<duckdb::LogicalType> col_types;
       uint nfields= tbl->s->fields;
@@ -514,14 +531,17 @@ duckdb::unique_ptr<duckdb::TableRef> mariadb_replacement_scan(
   children.push_back(duckdb::make_uniq<duckdb::ConstantExpression>(
       duckdb::Value(input.table_name)));
 
+  const char *func_name=
+      cross_engine_ryow_enabled() ? "_mdb_scan_direct" : "_mdb_scan";
+
   ref->function= duckdb::make_uniq<duckdb::FunctionExpression>(
-      "_mdb_scan", std::move(children));
+      func_name, std::move(children));
   ref->alias= input.table_name;
 
   if (myduck::duckdb_log_options & LOG_DUCKDB_QUERY)
     sql_print_information(
-        "DuckDB cross-engine: replacement scan redirected '%s' to _mdb_scan",
-        input.table_name.c_str());
+        "DuckDB cross-engine: replacement scan redirected '%s' to %s",
+        input.table_name.c_str(), func_name);
 
   return duckdb::unique_ptr<duckdb::TableRef>(std::move(ref));
 }
@@ -543,11 +563,22 @@ void register_cross_engine_scan(duckdb::DatabaseInstance &db)
   auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
   catalog.CreateFunction(transaction, info);
 
+  /* RYOW variant: reads via the parent transaction's handler, so it cannot
+     honor pushed-down filters.  Disable filter_pushdown so DuckDB keeps the
+     Filter operator above the scan and applies predicates itself. */
+  duckdb::TableFunction mdb_scan_direct(
+      "_mdb_scan_direct", {duckdb::LogicalType::VARCHAR}, mdb_scan_function,
+      mdb_scan_bind, mdb_scan_init_global);
+  mdb_scan_direct.projection_pushdown= true;
+  mdb_scan_direct.filter_pushdown= false;
+  duckdb::CreateTableFunctionInfo info_direct(std::move(mdb_scan_direct));
+  catalog.CreateFunction(transaction, info_direct);
+
   auto &config= duckdb::DBConfig::GetConfig(db);
   config.replacement_scans.emplace_back(mariadb_replacement_scan);
 
   sql_print_information("DuckDB: cross-engine scan registered "
-                        "(_mdb_scan + replacement scan)");
+                        "(_mdb_scan + _mdb_scan_direct + replacement scan)");
 }
 
 } /* namespace myduck */

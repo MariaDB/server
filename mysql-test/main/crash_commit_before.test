@@ -20,7 +20,7 @@ SET GLOBAL debug_dbug="d,crash_commit_before";
 --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Run the crashing query
---error 2013
+--error 2013,2026
 COMMIT;
 
 # Turn on reconnect

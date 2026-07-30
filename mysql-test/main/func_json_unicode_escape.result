@@ -1,0 +1,129 @@
+#
+# MDEV-39995: JSON_CONTAINS and JSON_EQUALS do not compare strings
+#             based on semantic
+#
+#
+# JSON string values with Unicode escape sequences should be treated
+# as semantically equal to their literal equivalents.
+# \u0041 is the Unicode escape for 'A'.
+#
+# JSON_CONTAINS: should return 1 for semantically equal strings
+SELECT JSON_CONTAINS('"A"', '"\\u0041"');
+JSON_CONTAINS('"A"', '"\\u0041"')
+1
+SELECT JSON_CONTAINS('"\\u0041"', '"A"');
+JSON_CONTAINS('"\\u0041"', '"A"')
+1
+# JSON_OVERLAPS: should return 1 for semantically equal strings
+SELECT JSON_OVERLAPS('"A"', '"\\u0041"');
+JSON_OVERLAPS('"A"', '"\\u0041"')
+1
+# JSON_EQUALS: should return 1 for semantically equal strings
+SELECT JSON_EQUALS('"A"', '"\\u0041"');
+JSON_EQUALS('"A"', '"\\u0041"')
+1
+# JSON_UNQUOTE correctly resolves the escape (proving they are the same)
+SELECT JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"');
+JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"')
+1
+#
+# Additional test from MDEV-39995 comment:
+# Using hex literal that represents the bytes of '"\u0041"'
+#
+SELECT JSON_UNQUOTE('"A"');
+JSON_UNQUOTE('"A"')
+A
+SELECT JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR));
+JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))
+A
+SELECT JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR));
+JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR))
+1
+SELECT JSON_CONTAINS(JSON_QUOTE(JSON_UNQUOTE('"A"')),
+JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))));
+JSON_CONTAINS(JSON_QUOTE(JSON_UNQUOTE('"A"')),
+JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))))
+1
+#
+# More Unicode escape equivalences
+#
+# \u0048\u0065\u006C\u006C\u006F = "Hello"
+SELECT JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+1
+SELECT JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+1
+SELECT JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+1
+# Mixed literal and escape in the same string: "H\u0065llo" = "Hello"
+SELECT JSON_EQUALS('"Hello"', '"H\\u0065llo"');
+JSON_EQUALS('"Hello"', '"H\\u0065llo"')
+1
+#
+# Test within arrays and objects
+#
+SELECT JSON_CONTAINS('["A", "B"]', '["\\u0041"]');
+JSON_CONTAINS('["A", "B"]', '["\\u0041"]')
+1
+SELECT JSON_CONTAINS('{"key": "A"}', '{"key": "\\u0041"}');
+JSON_CONTAINS('{"key": "A"}', '{"key": "\\u0041"}')
+1
+SELECT JSON_EQUALS('["A", "B"]', '["\\u0041", "\\u0042"]');
+JSON_EQUALS('["A", "B"]', '["\\u0041", "\\u0042"]')
+1
+SELECT JSON_EQUALS('{"key": "A"}', '{"key": "\\u0041"}');
+JSON_EQUALS('{"key": "A"}', '{"key": "\\u0041"}')
+1
+#
+# Surrogate pairs: characters above U+FFFF encoded as two \uXXXX escapes.
+# U+1F600 (😀) = \uD83D\uDE00
+# U+1F60A (😊) = \uD83D\uDE0A
+#
+SET NAMES utf8mb4;
+SELECT JSON_EQUALS('"😀"', '"\\uD83D\\uDE00"');
+JSON_EQUALS('"?"', '"\\uD83D\\uDE00"')
+1
+SELECT JSON_CONTAINS('"😀"', '"\\uD83D\\uDE00"');
+JSON_CONTAINS('"?"', '"\\uD83D\\uDE00"')
+1
+SELECT JSON_OVERLAPS('"😀"', '"\\uD83D\\uDE00"');
+JSON_OVERLAPS('"?"', '"\\uD83D\\uDE00"')
+1
+SELECT JSON_EQUALS('"😊"', '"\\uD83D\\uDE0A"');
+JSON_EQUALS('"?"', '"\\uD83D\\uDE0A"')
+1
+SELECT JSON_CONTAINS('["😀", "hello"]', '["\\uD83D\\uDE00"]');
+JSON_CONTAINS('["?", "hello"]', '["\\uD83D\\uDE00"]')
+1
+SELECT JSON_EQUALS('{"emoji": "😀"}', '{"emoji": "\\uD83D\\uDE00"}');
+JSON_EQUALS('{"emoji": "?"}', '{"emoji": "\\uD83D\\uDE00"}')
+1
+#
+# Escaped object keys: \u006B\u0065\u0079 = "key"
+#
+SELECT JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
+JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}')
+1
+SELECT JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
+JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}')
+1
+#
+# BMP non-ASCII: é = U+00E9, literal UTF-8 vs escape
+#
+SELECT JSON_EQUALS('"é"', '"\\u00E9"');
+JSON_EQUALS('"é"', '"\\u00E9"')
+1
+SELECT JSON_CONTAINS('"é"', '"\\u00E9"');
+JSON_CONTAINS('"é"', '"\\u00E9"')
+1
+SELECT JSON_OVERLAPS('["é"]', '["\\u00E9"]');
+JSON_OVERLAPS('["é"]', '["\\u00E9"]')
+1
+#
+# CJK: 中 = U+4E2D
+#
+SELECT JSON_EQUALS('"中"', '"\\u4E2D"');
+JSON_EQUALS('"中"', '"\\u4E2D"')
+1

@@ -8,6 +8,7 @@
 # [--let $binlog_start= <POSITION> ]
 # [--let $binlog_limit= 1, 3 ]
 # [--let $skip_checkpoint_events= 1]
+# [--let $skip_tablemap_events= 1]
 # --source include/show_binlog_events.inc
 #
 # Parameters:

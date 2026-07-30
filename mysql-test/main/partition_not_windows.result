@@ -63,7 +63,6 @@ SUBPARTITION s0b
 INDEX DIRECTORY = 'MYSQLD_DATADIR/test'
 ));
 ERROR HY000: Incorrect arguments to INDEX DIRECTORY
-DROP TABLE IF EXISTS `example`;
 CREATE TABLE `example` (
 `ID_EXAMPLE` int(10) unsigned NOT NULL AUTO_INCREMENT,
 `DESCRIPTION` varchar(30) NOT NULL,
@@ -95,3 +94,18 @@ PARTITION p2 DATA DIRECTORY = '/not/existent/p2Data',
 PARTITION p3 DATA DIRECTORY = '/not/existent/p3Data'
 );
 ERROR HY000: Can't create/write to file '/not/existent/p0Data/example#P#p0.MYD' (Errcode: 2 "No such file or directory")
+# End of 5.5 tests
+#
+# MDEV-40358 symlinked table name is not encoded
+#
+create table `./t1` (a int) engine myisam
+partition by range (a)
+subpartition by hash (a)
+(partition p0 VALUES LESS THAN (1) DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp' INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp'
+(SUBPARTITION subpart00, SUBPARTITION subpart01));
+@002e@002ft1#P#p0#SP#subpart00.MYD
+@002e@002ft1#P#p0#SP#subpart00.MYI
+@002e@002ft1#P#p0#SP#subpart01.MYD
+@002e@002ft1#P#p0#SP#subpart01.MYI
+drop table `./t1`;
+# End of 10.6 tests

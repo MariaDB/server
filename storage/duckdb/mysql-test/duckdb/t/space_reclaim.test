@@ -1,0 +1,90 @@
+--source ../include/have_duckdb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # DuckDB space reclaim test
+--echo #
+--echo # Verifies that DROP TABLE + FORCE CHECKPOINT frees DuckDB storage
+--echo # blocks, i.e. the disk-cleanup path reclaims used_blocks.
+--echo #
+--echo # Uses 4 SHA2 columns (incompressible data) over 5000 rows so several
+--echo # 256 KB blocks are allocated (~1.3 MB), keeping the test fast.
+--echo #
+
+--echo #
+--echo # 1) Create a table and insert incompressible data to allocate blocks
+--echo #
+CREATE DATABASE IF NOT EXISTS db_reclaim;
+USE db_reclaim;
+
+CREATE TABLE t_big (
+  id INT PRIMARY KEY,
+  c1 VARCHAR(200),
+  c2 VARCHAR(200),
+  c3 VARCHAR(200),
+  c4 VARCHAR(200)
+) ENGINE = DuckDB;
+
+--disable_query_log
+INSERT INTO t_big
+SELECT seq,
+  SHA2(CONCAT(seq, 'a'), 256),
+  SHA2(CONCAT(seq, 'b'), 256),
+  SHA2(CONCAT(seq, 'c'), 256),
+  SHA2(CONCAT(seq, 'd'), 256)
+FROM test.seq_1_to_5000;
+--enable_query_log
+
+SELECT COUNT(*) AS row_count FROM t_big;
+
+--echo #
+--echo # 2) Force checkpoint to flush the WAL into the main database file
+--echo #    so the data blocks are actually allocated on disk.
+--echo #
+--disable_result_log
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+--enable_result_log
+
+--echo #
+--echo # 3) Record used_blocks after the initial load.
+--echo #
+# run_in_duckdb() returns a rendered result: line 1 = column header,
+# line 2 = column type, line 3 = "[ Rows: N ]", line 4 = the value row.
+# Extract line 4 to get the scalar block count.
+--let $used_after_load = `SELECT CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 4), '\n', -1) AS UNSIGNED)`
+
+--echo #
+--echo # 4) Drop the only table and checkpoint again so its blocks are freed.
+--echo #
+DROP TABLE t_big;
+--disable_result_log
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+--enable_result_log
+
+--let $used_after_drop = `SELECT CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 4), '\n', -1) AS UNSIGNED)`
+
+--echo #
+--echo # 5) Verify the disk-cleanup path actually reclaimed the blocks.
+--echo #
+# Sanity: the load must have allocated a few blocks, otherwise the reclaim
+# check below would be meaningless.
+if (`SELECT $used_after_load < 3`)
+{
+  --echo used_blocks after load: $used_after_load
+  --die Test setup error: expected several used blocks after load
+}
+
+# Dropping the only user table must free at least half of the used blocks.
+if (`SELECT $used_after_drop * 2 > $used_after_load`)
+{
+  --echo used_blocks after load: $used_after_load
+  --echo used_blocks after drop: $used_after_drop
+  --die Space reclaim failed: used_blocks not reduced by at least half after DROP TABLE + FORCE CHECKPOINT
+}
+--echo PASS: DROP TABLE + FORCE CHECKPOINT reclaimed at least half of used blocks
+
+--echo #
+--echo # 6) Cleanup
+--echo #
+USE test;
+DROP DATABASE db_reclaim;

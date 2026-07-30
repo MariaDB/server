@@ -302,11 +302,12 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     DBUG_VOID_RETURN;
   }
 
+  store_record(table, record[1]);
   /* Read record that is identified by table->file->ref. */
-  (void) table->file->ha_rnd_pos(table->record[1], table->file->ref);
-  /* Copy the newly read columns into the new record. */
+  (void) table->file->ha_rnd_pos(table->record[0], table->file->ref);
+  /* Copy the modified values into the record. */
   for (field_p= table->field; (field= *field_p); field_p++)
-    if (bitmap_is_set(&unique_map, field->field_index))
+    if (bitmap_is_set(table->write_set, field->field_index))
       field->copy_from_tmp(table->s->rec_buff_length);
 
   DBUG_VOID_RETURN;
