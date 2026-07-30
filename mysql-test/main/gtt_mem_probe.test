@@ -1,0 +1,16 @@
+--disable_ps_protocol
+create global temporary table t (t text);
+select variable_value into @m0 from information_schema.session_status where variable_name='memory_used';
+set max_session_mem_used= 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+insert t values (0);
+set max_session_mem_used= default;
+select variable_value into @m1 from information_schema.session_status where variable_name='memory_used';
+select @m0 as before_limit, @m1 as after_failed_insert;
+set max_session_mem_used= 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+lock table t write;
+set max_session_mem_used= default;
+unlock tables;
+drop table t;
+--enable_ps_protocol
