@@ -61,7 +61,33 @@ SELECT seq, seq % 100,
 --source include/parallel_query_fingerprint.inc
 
 DROP TABLE wide;
+
+--echo # a constant in the select list, which needs a result field of its own
+--let $pq_query= SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0
+--let $pq_cols= k,a,uc
+--source include/parallel_query_fingerprint.inc
+
 SET SESSION optimizer_switch= @save_os;
+
+# --- constants in the select list --------------------------------------------
+--echo # a constant is shipped per row like any other projected item
+--sorted_result
+SELECT 42 AS k, a FROM t1 WHERE a <= 3;
+--sorted_result
+SELECT a, 'lit' AS s, c FROM t1 WHERE a <= 3;
+--sorted_result
+SELECT a, 1+1 AS folded FROM t1 WHERE a <= 3;
+
+--echo # every item constant, no column of the scanned table reaches the result
+--sorted_result
+SELECT 1 AS one, 2 AS two FROM t1 WHERE a <= 3;
+
+--echo # session constants carry this session's value, not a worker's (expect 1)
+--let $cid= `SELECT CONNECTION_ID()`
+--let $db= `SELECT DATABASE()`
+--disable_query_log
+--eval SELECT DISTINCT CONNECTION_ID() = $cid AND DATABASE() = '$db' AS session_values_are_mine FROM t1 WHERE a <= 500
+--enable_query_log
 
 # --- projection of expressions, and a no-WHERE scan --------------------------
 --echo # projected expressions, sorted for a stable comparison

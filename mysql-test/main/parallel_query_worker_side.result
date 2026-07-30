@@ -82,7 +82,48 @@ n	crc_sum	crc_xor
 manager_scan_avoided
 1
 DROP TABLE wide;
+# a constant in the select list, which needs a result field of its own
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_xor FROM (SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1516341941440	3809734170
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_xor FROM (SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1516341941440	3809734170
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
 SET SESSION optimizer_switch= @save_os;
+# a constant is shipped per row like any other projected item
+SELECT 42 AS k, a FROM t1 WHERE a <= 3;
+k	a
+42	1
+42	2
+42	3
+SELECT a, 'lit' AS s, c FROM t1 WHERE a <= 3;
+a	s	c
+1	lit	row-1
+2	lit	row-2
+3	lit	row-3
+SELECT a, 1+1 AS folded FROM t1 WHERE a <= 3;
+a	folded
+1	2
+2	2
+3	2
+# every item constant, no column of the scanned table reaches the result
+SELECT 1 AS one, 2 AS two FROM t1 WHERE a <= 3;
+one	two
+1	2
+1	2
+1	2
+# session constants carry this session's value, not a worker's (expect 1)
+session_values_are_mine
+1
 # projected expressions, sorted for a stable comparison
 SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
 a	sum_ab	uc

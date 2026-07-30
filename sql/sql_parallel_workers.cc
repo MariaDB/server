@@ -1118,12 +1118,10 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(TMP_TABLE_PARAM));
     goto cleanup_old_workers;
   }
-  result_tmp_param->init();
-  count_field_types(join->select_lex, result_tmp_param, result_defn, false);
-  result_tmp_param->skip_create_table= true;
   if (make_result_table(thd, result_defn, &result_table))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), 0);
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "init_parallel_workers: failed to build the result table");
     goto cleanup_old_workers;
   }
   reclength= result_table->s->reclength;     // result-row image size
@@ -1516,16 +1514,51 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
 */
 bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
 {
+  /*
+    Start from a freshly counted param every time. create_tmp_table() overwrites
+    param->func_count with the number of items it actually has to copy, so a
+    second table built from the same param can allocate fewer fields than the
+    layout needs, which is what the assertion in Create_tmp_table::finalize()
+    catches. The manager and every worker build this same layout, so each of
+    them re-counts.
+  */
+  result_tmp_param->init();
+  count_field_types(join->select_lex, result_tmp_param, defn, false);
+  result_tmp_param->skip_create_table= true;
+
+  /*
+    TMP_TABLE_ALL_COLUMNS makes create_tmp_table() give every item of the list a
+    field, including the constant ones. By default it skips constants, which is
+    right for a query that materialises its result and can evaluate them once
+    outside the table, but wrong here: the layout has to mirror the select list
+    one for one, because the worker projects item i into field i and ships the
+    record image, and the manager sends one Item_field per field to the client.
+    Without this a select list holding a constant, "SELECT 42, a FROM t1", built
+    a table with fewer fields than the projection walks over.
+  */
+  const ulonglong opts= join->select_options | TMP_TABLE_ALL_COLUMNS;
   TABLE *t= create_tmp_table(thd, result_tmp_param, defn,
                              nullptr, false, false,
-                             join->select_options, HA_POS_ERROR,
+                             opts, HA_POS_ERROR,
                              &empty_clex_str, true, false);
   if (!t)
     return true;
   if (instantiate_tmp_table(t, result_tmp_param->keyinfo,
                             result_tmp_param->start_recinfo,
                             &result_tmp_param->recinfo,
-                            join->select_options, true /*cross_thread*/))
+                            opts, true /*cross_thread*/))
+  {
+    free_tmp_table(thd, t);
+    return true;
+  }
+  /*
+    The whole transport is positional, so a layout that does not match the
+    select list item for item would have the worker and the manager reading
+    different columns, or walking past the end of the field array. Refuse
+    instead, whatever the reason turns out to be.
+  */
+  DBUG_ASSERT(t->s->fields == defn.elements);
+  if (t->s->fields != defn.elements)
   {
     free_tmp_table(thd, t);
     return true;
