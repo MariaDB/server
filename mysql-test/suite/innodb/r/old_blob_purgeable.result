@@ -1,0 +1,90 @@
+#
+# MDEV-38056 Each of the three walks that freeze purge_sys.view across the
+# dereference of an externally stored column re-establishes under the
+# freeze that the version it rebuilt is still reachable. A debug keyword
+# forces each of those tests to fail, so that the exit it guards is
+# reachable without the race that produces it.
+#
+InnoDB		0 transactions not purged
+SET @old_dbug= @@SESSION.debug_dbug;
+#
+# row_vers_impl_x_locked_purgeable: report no implicit lock.
+#
+CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
+INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
+BEGIN;
+UPDATE t SET b = REPEAT('y', @@innodb_page_size) WHERE a = 1;
+UPDATE t SET b = REPEAT('z', @@innodb_page_size) WHERE a = 1;
+connect  reader,localhost,root,,;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug='+d,row_vers_impl_x_locked_purgeable';
+SELECT a FROM t FORCE INDEX(b) WHERE b LIKE 'z%' FOR UPDATE SKIP LOCKED;
+a
+SET SESSION debug_dbug= @old_dbug;
+connection default;
+COMMIT;
+connection reader;
+SELECT a FROM t FORCE INDEX(b) WHERE b LIKE 'z%' FOR UPDATE SKIP LOCKED;
+a
+1
+COMMIT;
+connection default;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+#
+# row_undo_mod_sec_is_unsafe_purgeable: report the secondary index entry
+# as still needed, which only makes the rollback delete-mark an entry it
+# could have removed.
+#
+CREATE TABLE t(a INT PRIMARY KEY, pad INT, b TEXT, UNIQUE(b(700)))
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
+INSERT INTO t VALUES (1, 0, REPEAT('x', @@innodb_page_size));
+UPDATE t SET pad = 1 WHERE a = 1;
+UPDATE t SET b = REPEAT('y', @@innodb_page_size) WHERE a = 1;
+BEGIN;
+UPDATE t SET b = REPEAT('z', @@innodb_page_size) WHERE a = 1;
+SET SESSION debug_dbug='+d,row_undo_mod_sec_is_unsafe_purgeable';
+ROLLBACK;
+SET SESSION debug_dbug= @old_dbug;
+SELECT a, pad, LEFT(b, 2) FROM t FORCE INDEX(b) WHERE b LIKE 'yy%';
+a	pad	LEFT(b, 2)
+1	1	yy
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+#
+# row_check_index_purgeable: stop the walk and report nothing.
+#
+CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
+INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
+connect  purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = 's' WHERE a = 1;
+connect  victim,localhost,root,,;
+BEGIN;
+UPDATE t SET b = 'q' WHERE a = 1;
+connection default;
+SET SESSION debug_dbug='+d,row_check_index_purgeable';
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+SET SESSION debug_dbug= @old_dbug;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+connection victim;
+ROLLBACK;
+disconnect purge_control;
+connection default;
+disconnect reader;
+disconnect victim;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
