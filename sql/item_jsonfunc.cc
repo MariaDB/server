@@ -633,14 +633,11 @@ bool Item_func_json_equals::val_bool()
   THD *thd;
   json_engine_t je;
 
-  if ((null_value= args[0]->null_value || args[1]->null_value))
-    return 1;
-
   String *a= args[0]->val_json(&a_tmp);
-  if ((null_value= a == nullptr))
+  if ((null_value= a == nullptr || args[0]->null_value))
     return 1;
   String *b= args[1]->val_json(&b_tmp);
-  if ((null_value= b == nullptr))
+  if ((null_value= b == nullptr || args[1]->null_value))
     return 1;
 
   DYNAMIC_STRING a_res;
