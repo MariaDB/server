@@ -79,8 +79,9 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 DROP TABLE t_plain, t_blob, t_text, t_merge, t_m1, t_m2, t_ft;
 
 --echo #
---echo # A table the worker cannot open its own copy of is excluded. The query
---echo # answers as it does serially, because it runs serially.
+--echo # A table the worker cannot open its own copy of, and a semijoin
+--echo # strategy it does not implement, are excluded. Both queries answer as
+--echo # they do serially, because they run serially.
 --echo #
 CREATE TABLE ta (a INT) ENGINE=InnoDB;
 INSERT INTO ta VALUES (1),(2),(3),(4);
@@ -99,6 +100,19 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 --sorted_result
 SELECT ta.a, d.n FROM ta, (SELECT a AS k, COUNT(*) AS n FROM tb GROUP BY a) d
   WHERE d.k = ta.a;
+SET SESSION optimizer_switch=DEFAULT;
+
+--echo # FirstMatch semijoin: not chosen (expect 0)
+SET SESSION optimizer_switch='semijoin=on,firstmatch=on,loosescan=off,materialization=off';
+--disable_result_log
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen_for_parallel_scan
+  FROM information_schema.optimizer_trace;
+--echo # one row per matching ta row, not one per tb match
+--sorted_result
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
 SET SESSION optimizer_switch=DEFAULT;
 
 DROP TABLE ta, tb;

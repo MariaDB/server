@@ -51,8 +51,9 @@ chosen_for_parallel_scan
 0
 DROP TABLE t_plain, t_blob, t_text, t_merge, t_m1, t_m2, t_ft;
 #
-# A table the worker cannot open its own copy of is excluded. The query
-# answers as it does serially, because it runs serially.
+# A table the worker cannot open its own copy of, and a semijoin
+# strategy it does not implement, are excluded. Both queries answer as
+# they do serially, because they run serially.
 #
 CREATE TABLE ta (a INT) ENGINE=InnoDB;
 INSERT INTO ta VALUES (1),(2),(3),(4);
@@ -74,6 +75,22 @@ a	n
 2	1
 3	2
 4	1
+SET SESSION optimizer_switch=DEFAULT;
+# FirstMatch semijoin: not chosen (expect 0)
+SET SESSION optimizer_switch='semijoin=on,firstmatch=on,loosescan=off,materialization=off';
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen_for_parallel_scan
+FROM information_schema.optimizer_trace;
+chosen_for_parallel_scan
+0
+# one row per matching ta row, not one per tb match
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
+a
+1
+2
+3
+4
 SET SESSION optimizer_switch=DEFAULT;
 DROP TABLE ta, tb;
 SET optimizer_trace= @save_optimizer_trace;

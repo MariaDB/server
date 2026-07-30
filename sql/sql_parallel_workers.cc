@@ -1969,9 +1969,18 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
       DBUG_PRINT("info", ("SJM on %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
     }
-    if (tab->loosescan_match_tab)                 // loose scan
+    /*
+      The worker runs a plain nested loop, so it implements none of the semijoin
+      duplicate-elimination strategies. Nothing in the flat table list shows that
+      FirstMatch or DuplicateWeedout is in force, and a worker that ignores them
+      emits exactly the duplicates they exist to remove, so refuse a plan that
+      uses any of them. bush_children above covers the materialized ones.
+    */
+    if (tab->sj_strategy != SJ_OPT_NONE || tab->loosescan_match_tab ||
+        tab->do_firstmatch || tab->check_weed_out_table ||
+        tab->flush_weedout_table || tab->first_weedout_table)
     {
-      DBUG_PRINT("info", ("loosescan on %s",tab->table->alias.ptr()));
+      DBUG_PRINT("info", ("semijoin strategy on %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
     }
     if (tab->rowid_filter)                        // rowid filter
