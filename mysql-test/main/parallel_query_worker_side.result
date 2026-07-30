@@ -35,6 +35,53 @@ n	crc_sum	crc_xor
 # the workers did the scanning, not this thread (expect 1)
 manager_scan_avoided
 1
+CREATE TABLE wide (
+id INT, k INT,
+p1 VARCHAR(60), p2 VARCHAR(60), p3 VARCHAR(60), p4 VARCHAR(60), p5 VARCHAR(60),
+p6 VARCHAR(60), p7 VARCHAR(60), p8 VARCHAR(60), p9 VARCHAR(60), p10 VARCHAR(60),
+n1 INT, n2 INT, n3 INT, n4 INT, n5 INT,
+vk INT AS (k * 2) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO wide (id, k, p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, n1,n2,n3,n4,n5)
+SELECT seq, seq % 100,
+CONCAT('a',seq), CONCAT('b',seq), CONCAT('c',seq), CONCAT('d',seq),
+CONCAT('e',seq), CONCAT('f',seq), CONCAT('g',seq), CONCAT('h',seq),
+CONCAT('i',seq), CONCAT('j',seq),
+seq, seq*2, seq*3, seq*4, seq*5
+FROM seq_1_to_2000;
+# two columns referenced out of eighteen
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,k))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,k))) AS crc_xor FROM (SELECT id, k FROM wide WHERE k > 90) d;
+n	crc_sum	crc_xor
+180	385095272505	1939493139
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,k))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,k))) AS crc_xor FROM (SELECT id, k FROM wide WHERE k > 90) d;
+n	crc_sum	crc_xor
+180	385095272505	1939493139
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
+# virtual column: its base column k is read but never projected
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,vk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,vk))) AS crc_xor FROM (SELECT id, vk FROM wide WHERE vk > 190) d;
+n	crc_sum	crc_xor
+80	169208122316	0
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,vk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,vk))) AS crc_xor FROM (SELECT id, vk FROM wide WHERE vk > 190) d;
+n	crc_sum	crc_xor
+80	169208122316	0
+# the workers did the scanning, not this thread (expect 1)
+manager_scan_avoided
+1
+DROP TABLE wide;
 SET SESSION optimizer_switch= @save_os;
 # projected expressions, sorted for a stable comparison
 SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;

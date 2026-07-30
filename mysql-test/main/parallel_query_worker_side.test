@@ -31,6 +31,36 @@ SET SESSION optimizer_switch='derived_merge=off';
 --let $pq_cols= sum_ab,uc
 --source include/parallel_query_fingerprint.inc
 
+# --- the worker reads exactly the columns the query needs --------------------
+# A worker copy inherits the manager table's column bitmaps, so the rows it
+# ships must be right when most columns are not read at all, and when a read
+# column is not projected.
+CREATE TABLE wide (
+  id INT, k INT,
+  p1 VARCHAR(60), p2 VARCHAR(60), p3 VARCHAR(60), p4 VARCHAR(60), p5 VARCHAR(60),
+  p6 VARCHAR(60), p7 VARCHAR(60), p8 VARCHAR(60), p9 VARCHAR(60), p10 VARCHAR(60),
+  n1 INT, n2 INT, n3 INT, n4 INT, n5 INT,
+  vk INT AS (k * 2) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO wide (id, k, p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, n1,n2,n3,n4,n5)
+SELECT seq, seq % 100,
+       CONCAT('a',seq), CONCAT('b',seq), CONCAT('c',seq), CONCAT('d',seq),
+       CONCAT('e',seq), CONCAT('f',seq), CONCAT('g',seq), CONCAT('h',seq),
+       CONCAT('i',seq), CONCAT('j',seq),
+       seq, seq*2, seq*3, seq*4, seq*5
+  FROM seq_1_to_2000;
+
+--echo # two columns referenced out of eighteen
+--let $pq_query= SELECT id, k FROM wide WHERE k > 90
+--let $pq_cols= id,k
+--source include/parallel_query_fingerprint.inc
+
+--echo # virtual column: its base column k is read but never projected
+--let $pq_query= SELECT id, vk FROM wide WHERE vk > 190
+--let $pq_cols= id,vk
+--source include/parallel_query_fingerprint.inc
+
+DROP TABLE wide;
 SET SESSION optimizer_switch= @save_os;
 
 # --- projection of expressions, and a no-WHERE scan --------------------------

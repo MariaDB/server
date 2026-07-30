@@ -1587,11 +1587,23 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
     st->map= src->map;
     st->tablenr= src->tablenr;
     /*
-      The worker reads every column of every table it opens. Marked here, before
-      the conditions and the select list are cloned onto these tables, so the
-      read_set is already in place if anything evaluates a field during cloning.
+      Mirror the manager table's column bitmaps into the copy's own, rather than
+      marking every column: the optimizer has already marked exactly the columns
+      this query reads, and the engine builds its fetch template from read_set,
+      so a blanket all-columns read_set would convert every column of every row
+      to MySQL format instead of just the ones the worker evaluates. Copying
+      also keeps write_set empty for a table we only read, so a store into a
+      source field still trips marked_for_write().
+
+      The copy owns these bitmaps, so nothing is shared with the manager. Done
+      here, before the conditions and the select list are cloned onto these
+      tables, so the read_set is already in place if anything evaluates a field
+      during cloning. open_worker_tables() runs after the optimizer has
+      finished, so src's bitmaps are final.
     */
-    st->use_all_columns();
+    bitmap_copy(&st->def_read_set, src->read_set);
+    bitmap_copy(&st->def_write_set, src->write_set);
+    st->column_bitmaps_set(&st->def_read_set, &st->def_write_set);
     worker->worker_tables[t]= st;
   }
   worker->our_scan_table= worker->worker_tables[0];   // the driving table
