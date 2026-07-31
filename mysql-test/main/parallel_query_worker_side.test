@@ -69,6 +69,30 @@ DROP TABLE wide;
 
 SET SESSION optimizer_switch= @save_os;
 
+# --- the session's statistics include the work the workers did ---------------
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+--enable_result_log
+--let $ser_rnd= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+--enable_result_log
+--let $par_rnd= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+
+# the workers read the base table, this thread reads only the materialised rows,
+# so without their counters the parallel run would report far the smaller number
+--echo # the workers' reads are counted in this session (expect 1)
+--disable_query_log
+--eval SELECT $par_rnd >= $ser_rnd AS session_counts_the_workers_reads
+--enable_query_log
+SET SESSION optimizer_switch= @save_os;
+
 # --- constants in the select list --------------------------------------------
 --echo # a constant is shipped per row like any other projected item
 --sorted_result

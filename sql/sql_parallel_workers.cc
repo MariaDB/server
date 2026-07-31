@@ -960,6 +960,25 @@ static void *parallel_worker_thread_func(void *arg)
   worker->close_worker_tables();
 
   /*
+    Hand our status counters to the manager, which adds them to the session's
+    own once every worker has been joined. Everything we counted was done for
+    the user's statement, so it belongs in that session, and ~THD would
+    otherwise put it straight into the global counters and nowhere else, leaving
+    SHOW SESSION STATUS short by whatever the workers did. Clearing them here
+    stops ~THD adding the same numbers to the global counters a second time,
+    once the manager's session passes them on.
+
+    Only the counters move. Memory accounting stays with this THD, because more
+    of this THD's memory is freed after this point and ~THD has to reconcile the
+    whole of it with the global counters -- clear_for_flush_status is the offset
+    that leaves those fields alone, and the snapshot drops its copies of them.
+  */
+  worker->stats= thd->status_var;
+  worker->stats.global_memory_used= 0;
+  worker->stats.tmp_space_used= 0;
+  thd->set_status_var_init(clear_for_flush_status);
+
+  /*
     executing thd_detach_thd sets my_thread_var to null, stopping our ability
     use the normal mutex mechanisms, so we operate this outside the locked
     region on a copy of our THD pointer
@@ -2109,6 +2128,14 @@ void pwt_manager::quiesce_workers()
     pthread_join(workers[i].pthread, nullptr);
     mysql_mutex_destroy(&workers[i].LOCK_worker);
   }
+  /*
+    The work the workers did was this session's work, so its statistics are the
+    session's too. Each worker left them in its pwt_worker before its THD was
+    destroyed, and every worker has now been joined, so this thread is the only
+    one touching either side and no locking is needed.
+  */
+  for (uint i= 0; i < nworkers; i++)
+    add_to_status(&thd->status_var, &workers[i].stats);
   reaped= true;
   DBUG_VOID_RETURN;
 }

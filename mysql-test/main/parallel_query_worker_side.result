@@ -99,6 +99,17 @@ n	crc_sum	crc_xor
 ran_in_the_workers
 1
 SET SESSION optimizer_switch= @save_os;
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+# the workers' reads are counted in this session (expect 1)
+session_counts_the_workers_reads
+1
+SET SESSION optimizer_switch= @save_os;
 # a constant is shipped per row like any other projected item
 SELECT 42 AS k, a FROM t1 WHERE a <= 3;
 k	a

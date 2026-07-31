@@ -124,6 +124,13 @@ public:
 
   pthread_t       pthread;
 
+  /*
+    This worker's status counters, copied out of its THD just before the THD is
+    destroyed, so the manager can add them to the session's own once the workers
+    have been joined. See quiesce_workers().
+  */
+  STATUS_VAR      stats;
+
   int worker_join_inner(uint level);
   int worker_emit_row(uint level);
 
