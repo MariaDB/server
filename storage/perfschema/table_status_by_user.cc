@@ -138,7 +138,7 @@ int table_status_by_user::rnd_next(void)
   bool has_more_user= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_user;
+       has_more_user && m_pos.m_index_1 < m_context->get_map_size();
        m_pos.next_user())
   {
     PFS_user *pfs_user= global_user_container.get(m_pos.m_index_1, &has_more_user);

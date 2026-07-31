@@ -137,7 +137,7 @@ int table_status_by_account::rnd_next(void)
   bool has_more_account= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_account;
+       has_more_account && m_pos.m_index_1 < m_context->get_map_size();
        m_pos.next_account())
   {
     PFS_account *pfs_account= global_account_container.get(m_pos.m_index_1, &has_more_account);

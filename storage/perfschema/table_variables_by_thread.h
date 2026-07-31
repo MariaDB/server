@@ -92,7 +92,9 @@ class table_variables_by_thread_context : public PFS_table_context
 {
 public:
   table_variables_by_thread_context(ulonglong hash_version, bool restore) :
-    PFS_table_context(hash_version, global_thread_container.get_row_count(), restore, THR_PFS_VBT) { }
+    PFS_table_context(hash_version,
+                       restore ? 0 : global_thread_container.get_row_count(),
+                       restore, THR_PFS_VBT) { }
 };
 
 /** Table PERFORMANCE_SCHEMA.VARIABLES_BY_THREAD. */

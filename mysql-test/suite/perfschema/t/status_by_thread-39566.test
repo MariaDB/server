@@ -1,0 +1,52 @@
+--source include/not_embedded.inc
+--source include/not_windows.inc
+--source include/have_perfschema.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-39566 crash on SELECT from performance_schema.status_by_thread
+--echo #
+--echo # filesort re-inits the table twice, each time snapshotting the live
+--echo # thread count. Count changing between the two used to abort with:
+--echo #   Assertion `m_map_size == context->m_map_size' failed
+--echo #
+
+# max_connections=400 via .opt: PFS pools autosize at boot, read-only after.
+
+# Clean state before growing the thread count.
+--source ../include/wait_for_pfs_thread_count.inc
+
+SET DEBUG_SYNC = 'after_index_merge_phase1 SIGNAL filesort_paused WAIT_FOR grow_done';
+
+--disable_result_log
+--send
+SELECT THREAD_ID, VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.status_by_thread ORDER BY VARIABLE_VALUE, VARIABLE_NAME, THREAD_ID;
+
+--connect (watcher, localhost, root,,)
+SET DEBUG_SYNC = 'now WAIT_FOR filesort_paused';
+
+# Spawn 260 clients (SELECT SLEEP) to push PFS_thread past 256, growing
+# the container to a 2nd page mid-scan. External processes, not mysqltest
+# --connect: mysqltest itself caps named connections at 64.
+--exec seq 1 260 | while read x; do $MYSQL --silent -e "SELECT SLEEP(10)" </dev/null >/dev/null 2>&1 & done
+
+--let $wait_timeout=120
+--let $wait_condition= SELECT COUNT(*) > 256 FROM performance_schema.threads
+--source include/wait_condition.inc
+
+# Resume filesort; its 2nd rnd_init(scan=false) restores the context.
+# Used to assert here once the thread count had grown.
+SET DEBUG_SYNC = 'now SIGNAL grow_done';
+
+--connection default
+--reap
+--enable_result_log
+
+--disconnect watcher
+
+--connection default
+SET DEBUG_SYNC = 'RESET';
+
+--source ../include/wait_for_pfs_thread_count.inc
+
+--echo # End of 10.11 tests

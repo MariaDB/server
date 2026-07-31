@@ -67,6 +67,7 @@ public:
   bool versions_match(void) { return m_last_version == m_current_version; }
   void set_item(ulong n);
   bool is_item_set(ulong n);
+  ulong get_map_size(void) { return m_map_size; }
   pthread_key_t m_thr_key;
 
 private:
