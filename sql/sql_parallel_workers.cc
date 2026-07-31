@@ -1323,6 +1323,15 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
                "init_parallel_workers: failed to set up worker execution");
       goto cleanup_thread_create;
     }
+    /*
+      This table belongs to the worker, like its table copies do. It is created
+      here, on the manager's thread, so create_tmp_table() left the manager in
+      in_use, and Field::get_thd() hands out TABLE::in_use: projecting into these
+      fields would raise any warning the projection produces on the manager's
+      diagnostics area, from the worker's thread, past the worker's own error
+      handler and concurrently with the other workers.
+    */
+    workers[i].result_table->in_use= workers[i].thd;
 
     if (mysql_thread_create(key_thread_pwt, &workers[i].pthread, nullptr,
                             parallel_worker_thread_func, &workers[i]))

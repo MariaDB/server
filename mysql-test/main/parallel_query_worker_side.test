@@ -89,7 +89,23 @@ SELECT 1 AS one, 2 AS two FROM t1 WHERE a <= 3;
 --eval SELECT DISTINCT CONNECTION_ID() = $cid AND DATABASE() = '$db' AS session_values_are_mine FROM t1 WHERE a <= 500
 --enable_query_log
 
+# --- a warning raised while projecting reaches this session ------------------
+# The worker's own error handler relays it to the manager, which surfaces it
+# once the join is done.
+CREATE TABLE t_warn (a TIME(6)) ENGINE=InnoDB;
+INSERT INTO t_warn VALUES
+  ('00:00:00.000000'),('838:59:59.999999'),('-838:59:59.999999');
+
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+SELECT a, a + INTERVAL 2 YEAR FROM t_warn;
+--echo # with workers: the same rows and the same warnings
+SET SESSION parallel_worker_threads= 4;
+SELECT a, a + INTERVAL 2 YEAR FROM t_warn;
+DROP TABLE t_warn;
+
 # --- projection of expressions, and a no-WHERE scan --------------------------
+SET SESSION parallel_worker_threads= 4;
 --echo # projected expressions, sorted for a stable comparison
 --sorted_result
 SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;

@@ -124,6 +124,33 @@ one	two
 # session constants carry this session's value, not a worker's (expect 1)
 session_values_are_mine
 1
+CREATE TABLE t_warn (a TIME(6)) ENGINE=InnoDB;
+INSERT INTO t_warn VALUES
+('00:00:00.000000'),('838:59:59.999999'),('-838:59:59.999999');
+# serial
+SET SESSION parallel_worker_threads= 0;
+SELECT a, a + INTERVAL 2 YEAR FROM t_warn;
+a	a + INTERVAL 2 YEAR
+00:00:00.000000	NULL
+838:59:59.999999	NULL
+-838:59:59.999999	NULL
+Warnings:
+Warning	1441	Datetime function: time field overflow
+Warning	1441	Datetime function: time field overflow
+Warning	1441	Datetime function: time field overflow
+# with workers: the same rows and the same warnings
+SET SESSION parallel_worker_threads= 4;
+SELECT a, a + INTERVAL 2 YEAR FROM t_warn;
+a	a + INTERVAL 2 YEAR
+00:00:00.000000	NULL
+838:59:59.999999	NULL
+-838:59:59.999999	NULL
+Warnings:
+Warning	1441	Datetime function: time field overflow
+Warning	1441	Datetime function: time field overflow
+Warning	1441	Datetime function: time field overflow
+DROP TABLE t_warn;
+SET SESSION parallel_worker_threads= 4;
 # projected expressions, sorted for a stable comparison
 SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
 a	sum_ab	uc
