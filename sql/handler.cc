@@ -6748,7 +6748,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     // open an frm file
     share.db_plugin= ha_lock_engine(thd, create_info->db_type);
 
-    if (open_table_def(thd, &share))
+    if (open_table_def(thd, &share) || thd->killed)
       goto err;
   }
 

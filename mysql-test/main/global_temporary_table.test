@@ -881,6 +881,7 @@ insert t values (0);
 lock table t write;
 --error ER_OPTION_PREVENTS_STATEMENT
 alter table t add z int;
+--error 0, ER_OPTION_PREVENTS_STATEMENT
 set max_session_mem_used= default;
 drop table t;
 unlock tables;
