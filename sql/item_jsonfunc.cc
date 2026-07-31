@@ -622,47 +622,106 @@ bool Item_func_json_equals::val_bool()
   longlong result= 0;
   int arg_num= 0;
   String a_tmp, b_tmp;
+  String *a= nullptr, *b= nullptr;
   THD *thd;
   json_engine_t je;
+  bool a_const= args[0]->const_item(), b_const= args[1]->const_item();
 
   if ((null_value= args[0]->null_value || args[1]->null_value))
     return 1;
 
-  String *a= args[0]->val_json(&a_tmp);
-  if ((null_value= a == nullptr))
-    return 1;
-  String *b= args[1]->val_json(&b_tmp);
-  if ((null_value= b == nullptr))
-    return 1;
-
-  DYNAMIC_STRING a_res;
-  if (init_dynamic_string(&a_res, NULL, 0, 0))
-  {
-    null_value= 1;
-    return 1;
-  }
-
-  DYNAMIC_STRING b_res;
-  if (init_dynamic_string(&b_res, NULL, 0, 0))
-  {
-    dynstr_free(&a_res);
-    null_value= 1;
-    return 1;
-  }
 
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize_engine(&je, &a_res, a->ptr(), a->length(), a->charset()))
-    goto return_null;
+  /* Process First Argument */
+  if (a_const && a_parsed)
+  {
+    if(a_null) 
+      goto return_null;
+  }
+  else 
+  {
+    a= args[0]->val_json(&a_tmp);
+    if (!a)
+      goto set_a_null;
+    
+    if (!cached_a.str)
+    {
+      if (init_dynamic_string(&cached_a, NULL, 0, 0))
+        goto set_a_null;
+    }
+    else 
+    {
+      cached_a.length= 0;
+    }
+
+    if (json_normalize_engine(&je, &cached_a, a->ptr(), a->length(), a->charset())) 
+    {
+      goto set_a_null;
+    }
+
+    if (a_const)
+    {
+      a_null= false;
+      a_parsed= true;
+    }
+  }
 
   arg_num++;
-  if (json_normalize_engine(&je, &b_res, b->ptr(), b->length(), b->charset()))
-    goto return_null;
 
-  result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+  /* Process Second Argument */
+  if (b_const && b_parsed) 
+  {
+    if(b_null)
+      goto return_null;
+  }
+  else 
+  {
+    b= args[1]->val_json(&b_tmp);
+    if (!b) 
+      goto set_b_null;
+    
+    if (!cached_b.str)
+    {
+      if (init_dynamic_string(&cached_b, NULL, 0, 0)) 
+        goto set_b_null;
+    }
+    else
+    {
+      cached_b.length= 0;
+    }
+
+    if (json_normalize_engine(&je, &cached_b, b->ptr(), b->length(), b->charset())) 
+    {
+      goto set_b_null;
+    }
+
+    if (b_const)
+    {
+      b_null= false;
+      b_parsed= true;
+    }
+  }
+
+  result= strcmp(cached_a.str, cached_b.str) ? 0 : 1;
   goto end;
+
+set_a_null:
+  if (a_const) 
+  {
+    a_null= true;
+    a_parsed= true;
+  }
+  goto return_null;
+
+set_b_null:
+  if (b_const) 
+  {
+    b_null= true;
+    b_parsed= true;
+  }
 
 return_null:
   null_value= 1;
@@ -675,8 +734,6 @@ end:
        a= b;
     report_json_error(a, &je, arg_num);
   }
-  dynstr_free(&b_res);
-  dynstr_free(&a_res);
   return result;
 }
 
@@ -5046,6 +5103,7 @@ bool Item_func_json_overlaps::val_bool()
   json_engine_t je, ve;
   int result;
   THD *thd;
+  bool b_const= args[1]->const_item();
 
   if ((null_value= (js == nullptr) || args[0]->null_value))
     return 0;
@@ -5053,10 +5111,26 @@ bool Item_func_json_overlaps::val_bool()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
-  if (!a2_parsed)
+  if (b_const && a2_parsed)
   {
-    val= args[1]->val_json(&tmp_val);
-    a2_parsed= a2_constant;
+    val= (cached_val.is_alloced() || cached_val.length()) ? &cached_val : 0;
+  }
+  else 
+  {
+    String *v= args[1]->val_json(&tmp_val);
+    if (v) 
+    {
+      cached_val.copy(v->ptr(), v->length(), v->charset());
+      val= &cached_val;
+    }
+    else
+    {
+      cached_val.length(0);
+      val= 0;
+    }
+
+    if (b_const) 
+      a2_parsed= true;
   }
 
   if (val == 0)
@@ -5092,8 +5166,6 @@ error:
 
 bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
 {
-  a2_constant= args[1]->const_item();
-  a2_parsed= FALSE;
   set_maybe_null();
 
   return Item_bool_func::fix_length_and_dec(thd);

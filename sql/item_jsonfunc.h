@@ -126,9 +126,21 @@ protected:
 
 class Item_func_json_equals: public Item_bool_func
 {
+  DYNAMIC_STRING cached_a, cached_b;
+  bool a_parsed, b_parsed;
+  bool a_null, b_null;
 public:
   Item_func_json_equals(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b) {}
+    Item_bool_func(thd, a, b), a_parsed(false), b_parsed(false), a_null(false), b_null(false) 
+    {
+      cached_a.str= 0;
+      cached_b.str= 0;
+    }
+    ~Item_func_json_equals() override
+    {
+      dynstr_free(&cached_a);
+      dynstr_free(&cached_b);
+    }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_equals") };
@@ -138,6 +150,11 @@ public:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_equals>(thd, this); }
   bool val_bool() override;
+  void cleanup() override 
+  {
+    a_parsed= b_parsed= false;
+    Item_bool_func::cleanup();
+  }
 };
 
 
@@ -848,11 +865,11 @@ extern bool is_json_type(const Item *item);
 class Item_func_json_overlaps: public Item_bool_func
 {
   String tmp_js;
-  bool a2_constant, a2_parsed;
-  String tmp_val, *val;
+  bool a2_parsed;
+  String tmp_val, cached_val, *val;
 public:
   Item_func_json_overlaps(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b) {}
+    Item_bool_func(thd, a, b), a2_parsed(false) {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_overlaps") };
@@ -860,6 +877,11 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
+  void cleanup() override
+  {
+    a2_parsed= false;
+    Item_bool_func::cleanup();
+  }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
 };
