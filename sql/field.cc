@@ -10937,7 +10937,7 @@ bool Column_definition::check(THD *thd)
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  if (!default_value && !has_default_function() && (flags & NOT_NULL_FLAG))
   {
     /*
       TIMESTAMP columns get implicit DEFAULT value when

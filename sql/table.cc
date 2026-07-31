@@ -3351,7 +3351,38 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     for (k=0, ptr= share->field ; *ptr ; ptr++, k++)
     {
       if ((*ptr)->flags & BLOB_FLAG)
+      {
+        Field *field= *ptr;
 	(*save++)= k;
+
+        /*
+          Tables created before MDEV-40417 was fixed have no
+          FIELDFLAG_NO_DEFAULT in the FRM for a COMPRESSED NOT NULL column
+          without an explicit DEFAULT clause, so such a column wrongly looks
+          like it has DEFAULT ''.  Repair the flag here, an explicit DEFAULT
+          of a blob column is always stored in the FRM as an expression, see
+          Column_definition::has_default_expression(), hence a blob that has
+          no default_value provably had no DEFAULT clause.  For FRMs written
+          after the fix the flag is set already and nothing is done.
+
+          VARCHAR and VARBINARY cannot be repaired at all: a constant DEFAULT
+          of a non-blob column is stored in the default record, exactly like
+          the wrong implicit default, which makes the two indistinguishable.
+        */
+        if (field->compression_method() && !field->default_value &&
+            !field->vcol_info &&
+            (field->flags & (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)) ==
+              NOT_NULL_FLAG)
+        {
+          field->flags|= NO_DEFAULT_VALUE_FLAG;
+          sql_print_warning("Found wrong implicit DEFAULT '' for compressed "
+                            "field '%s' of %`s.%`s; Please do "
+                            "\"ALTER TABLE %`s FORCE\" to fix it.",
+                            field->field_name.str,
+                            share->db.str, share->table_name.str,
+                            share->table_name.str);
+        }
+      }
     }
   }
 
