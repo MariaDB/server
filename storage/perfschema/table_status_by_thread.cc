@@ -133,7 +133,7 @@ int table_status_by_thread::rnd_next(void)
   bool has_more_thread= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_thread;
+       has_more_thread && m_pos.m_index_1 < m_context->get_map_size();
        m_pos.next_thread())
   {
     PFS_thread *pfs_thread= global_thread_container.get(m_pos.m_index_1, &has_more_thread);

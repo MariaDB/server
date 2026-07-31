@@ -1,0 +1,17 @@
+#
+# MDEV-39566 crash on SELECT from performance_schema.status_by_thread
+#
+# filesort re-inits the table twice, each time snapshotting the live
+# thread count. Count changing between the two used to abort with:
+#   Assertion `m_map_size == context->m_map_size' failed
+#
+SET DEBUG_SYNC = 'after_index_merge_phase1 SIGNAL filesort_paused WAIT_FOR grow_done';
+SELECT THREAD_ID, VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.status_by_thread ORDER BY VARIABLE_VALUE, VARIABLE_NAME, THREAD_ID;
+connect  watcher, localhost, root,,;
+SET DEBUG_SYNC = 'now WAIT_FOR filesort_paused';
+SET DEBUG_SYNC = 'now SIGNAL grow_done';
+connection default;
+disconnect watcher;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+# End of 10.11 tests

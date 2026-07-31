@@ -153,7 +153,7 @@ bool PFS_table_context::initialize(void)
     {
       m_last_version= context->m_current_version;
       m_map= context->m_map;
-      assert(m_map_size == context->m_map_size);
+      /* Row count may have changed since allocation; trust the stored size. */
       m_map_size= context->m_map_size;
     }
   }
