@@ -1,16 +1,18 @@
 #
-# MDEV-39492 Parallel Query: a worker's copy of an expression has to own its
-# Item_field leaves.
+# MDEV-39492 Parallel Query: a worker's copy of an expression has to own every
+# node of it.
 #
 # Several item classes implement deep_copy() as a shallow copy while still
-# holding child items, every Item_cache and Item_outer_ref among them, so their
-# copy keeps pointing at the original's children. A worker repoints the leaves
-# of its copy at its own tables, so sharing one with the manager moves the
-# manager's items onto a worker's tables. The gate refuses such an item, which
-# leaves the query running serially and answering correctly.
+# holding child items, every Item_cache, Item_outer_ref and Item_copy_string
+# among them, so their copy keeps pointing at the original's children. A shared
+# leaf is repointed at a worker's tables, moving the manager's own item with it.
+# A shared node that is not a leaf carries evaluation state that several workers
+# then write at once. The gate refuses such an item, which leaves the query
+# running serially and answering correctly.
 #
 --source include/have_innodb.inc
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 
 CREATE TABLE t1 (f1 INT NOT NULL) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (9),(0),(7);
@@ -48,5 +50,19 @@ SET SESSION parallel_worker_threads=4;
 SELECT f1, (SELECT COUNT(*) FROM t4 WHERE t4.f1 = t2.f1) AS c FROM t2;
 --sorted_result
 SELECT f1 FROM t2 WHERE EXISTS (SELECT 1 FROM t4 WHERE t4.f1 = t2.f1);
+
+--echo #
+--echo # a cached constant under LEAST(), whose copy must not share the cache
+--echo #
+CREATE TABLE t6 (d DATE) ENGINE=InnoDB;
+INSERT INTO t6 SELECT DATE'2012-01-01' + INTERVAL seq DAY FROM seq_1_to_200;
+SET SESSION parallel_worker_threads=0;
+--sorted_result
+SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
+--echo # same answer with workers enabled
+SET SESSION parallel_worker_threads=4;
+--sorted_result
+SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
+DROP TABLE t6;
 
 DROP TABLE t1,t2,t3,t4,t5;

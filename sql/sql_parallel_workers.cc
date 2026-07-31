@@ -352,64 +352,39 @@ void pwt_worker::close_worker_tables()
     read-only and safely shared across workers.
 */
 /*
-  Looks for one particular Item_field object in an item tree.
-*/
-class Pwt_field_ref_finder : public Field_enumerator
-{
-  const Item_field *target;
-public:
-  bool found;
-  Pwt_field_ref_finder(const Item_field *target_arg)
-    : target(target_arg), found(false) {}
-  void visit_field(Item_field *item) override
-  {
-    if (item == target)
-      found= true;
-  }
-};
-
-
-/*
-  Looks for an Item_field object that a clone and the item it was copied from
-  both reach, walking the same way the rebinder does.
-*/
-class Pwt_shared_field_finder : public Field_enumerator
-{
-  Item *source;
-public:
-  bool shared;
-  Pwt_shared_field_finder(Item *source_arg)
-    : source(source_arg), shared(false) {}
-  void visit_field(Item_field *item) override
-  {
-    if (shared)
-      return;
-    Pwt_field_ref_finder finder(item);
-    source->walk(&Item::enumerate_field_refs_processor, (void*) &finder, 0);
-    if (finder.found)
-      shared= true;
-  }
-};
-
-
-/*
   @brief
-    Whether 'clone' still reaches an Item_field object belonging to 'src'.
+    Whether 'clone' reaches any item object that 'src' reaches too.
 
   @description
-    A copy is only usable by a worker if it shares nothing with the item it came
-    from, because the worker repoints the copy's Item_field leaves at its own
-    tables. Several classes implement deep_copy() as a shallow copy while still
-    holding child items, every Item_cache and Item_outer_ref among them, so their
-    copy keeps pointing at the original's children. Rebinding one of those moves
-    the manager's own items onto a worker's tables, and the next worker moves
-    them again, which is what the in_use assertion in Field::val_int() catches.
+    A copy is only usable by a worker if it shares no node at all with the item
+    it came from. Several classes implement deep_copy() as a shallow copy while
+    still holding child items -- every Item_cache, Item_outer_ref and
+    Item_copy_string -- so their copy keeps pointing at the original's children.
+
+    Two things then go wrong with a shared node. The worker repoints the
+    Item_field leaves of its copy at its own tables, so a shared leaf moves the
+    manager's own item onto a worker's table, and the next worker moves it again,
+    which is what the in_use assertion in Field::val_int() catches. And a node
+    that is not a leaf carries evaluation state, so several workers evaluating
+    one shared object at once tear it: a shared Item_cache under LEAST() left a
+    MYSQL_TIME half written and tripped the assertion in Time::Time().
+
+    Walking with find_item_processor asks whether a tree reaches one given
+    object, so collecting the copy's nodes and asking that of the original
+    covers both, and covers the classes not yet met rather than the three above.
 */
-static bool pwt_clone_shares_fields(Item *src, Item *clone)
+static bool pwt_clone_shares_nodes(Item *src, Item *clone)
 {
-  Pwt_shared_field_finder finder(src);
-  clone->walk(&Item::enumerate_field_refs_processor, (void*) &finder, 0);
-  return finder.shared;
+  List<Item> clone_nodes;
+  if (clone->walk(&Item::collect_all_items_processor, &clone_nodes, 0))
+    return true;                      // could not collect them, assume the worst
+
+  List_iterator_fast<Item> it(clone_nodes);
+  Item *node;
+  while ((node= it++))
+    if (src->walk(&Item::find_item_processor, (void*) node, 0))
+      return true;
+  return false;
 }
 
 
@@ -419,13 +394,13 @@ static bool pwt_clone_shares_fields(Item *src, Item *clone)
 
   @description
     Clonable, and the copy independent of the original (see
-    pwt_clone_shares_fields). Called from the gate, at optimize time, where a
+    pwt_clone_shares_nodes). Called from the gate, at optimize time, where a
     query that fails either test still falls back to serial execution for free.
 */
 static bool pwt_item_is_clonable(THD *thd, Item *item)
 {
   Item *clone= item->deep_copy_with_checks(thd);
-  return clone && !pwt_clone_shares_fields(item, clone);
+  return clone && !pwt_clone_shares_nodes(item, clone);
 }
 
 
@@ -482,7 +457,7 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
        The gate rejected anything whose copy is not independent, so the walk
        below can only reach fields this clone owns.
   */
-  DBUG_ASSERT(!pwt_clone_shares_fields(src, clone));
+  DBUG_ASSERT(!pwt_clone_shares_nodes(src, clone));
   Pwt_field_rebinder rebinder(from, to, n);
   clone->walk(&Item::enumerate_field_refs_processor, (void*) &rebinder, 0);
 

@@ -8082,6 +8082,13 @@ bool Item::find_item_processor(void *arg)
   return (this == ((Item *) arg));
 }
 
+
+bool Item::collect_all_items_processor(void *arg)
+{
+  List<Item> *items= (List<Item> *) arg;
+  return items->push_back(this);        // stops the walk if it cannot record
+}
+
 bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store(result_field);

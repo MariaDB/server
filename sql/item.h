@@ -2281,6 +2281,13 @@ public:
   virtual bool check_inner_refs_processor(void *arg) { return 0; }
   virtual bool find_item_in_field_list_processor(void *arg) { return 0; }
   virtual bool find_item_processor(void *arg);
+  /*
+    Appends every item of a tree to the List<Item> passed as arg, so that the
+    tree's nodes can be compared with another tree's, with find_item_processor.
+    Parallel query uses the pair to check that its copy of an expression shares
+    no node with the original, see can_run_query_in_workers().
+  */
+  bool collect_all_items_processor(void *arg);
   virtual bool change_context_processor(void *arg) { return 0; }
   virtual bool reset_query_id_processor(void *arg) { return 0; }
   virtual bool is_expensive_processor(void *arg) { return 0; }
