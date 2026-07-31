@@ -1038,6 +1038,9 @@ typedef struct system_status_var
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
 
+  /* +1 for a query the parallel workers ran, see run_worker_side_join() */
+  ulong parallel_queries_executed;
+
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
   ulong select_range_count_;

@@ -2059,6 +2059,15 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
   if (err)
     DBUG_RETURN(1);           // init_parallel_workers has raised the error
 
+  /*
+    The workers are running, so this query is being executed in parallel. Count
+    it here rather than where the optimizer picks the table: the engine can still
+    decline above, and the optimizer's choice is recorded in the optimizer trace
+    already. This is the only thing that tells a caller, or a test, that
+    execution really went through the workers.
+  */
+  status_var_increment(thd->status_var.parallel_queries_executed);
+
   DBUG_RETURN(mgr->manager_collect_and_send(join));
 }
 

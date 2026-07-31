@@ -16,8 +16,8 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b,c))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b,c))) AS crc_xor FROM (SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100) d;
 n	crc_sum	crc_xor
 713	1526663308994	1378748566
-# the workers did the scanning, not this thread (expect 1)
-manager_scan_avoided
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
 1
 # projection of expressions over the whole table
 # serial fingerprint
@@ -32,8 +32,8 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_xor FROM (SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1) d;
 n	crc_sum	crc_xor
 5000	10741355709508	3442214842
-# the workers did the scanning, not this thread (expect 1)
-manager_scan_avoided
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
 1
 CREATE TABLE wide (
 id INT, k INT,
@@ -62,8 +62,8 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,k))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,k))) AS crc_xor FROM (SELECT id, k FROM wide WHERE k > 90) d;
 n	crc_sum	crc_xor
 180	385095272505	1939493139
-# the workers did the scanning, not this thread (expect 1)
-manager_scan_avoided
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
 1
 # virtual column: its base column k is read but never projected
 # serial fingerprint
@@ -78,8 +78,8 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,vk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,vk))) AS crc_xor FROM (SELECT id, vk FROM wide WHERE vk > 190) d;
 n	crc_sum	crc_xor
 80	169208122316	0
-# the workers did the scanning, not this thread (expect 1)
-manager_scan_avoided
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
 1
 DROP TABLE wide;
 # a constant in the select list, which needs a result field of its own
@@ -95,8 +95,8 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_xor FROM (SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0) d;
 n	crc_sum	crc_xor
 714	1516341941440	3809734170
-# the workers did the scanning, not this thread (expect 1)
-manager_scan_avoided
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
 1
 SET SESSION optimizer_switch= @save_os;
 # a constant is shipped per row like any other projected item

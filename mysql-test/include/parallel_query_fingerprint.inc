@@ -14,6 +14,10 @@
 # order-independent fingerprint, because a parallel result arrives in
 # batch-completion order.
 #
+# Parallel execution is asserted from Parallel_queries_executed, which counts
+# queries the workers ran. The optimizer trace only reports which table the
+# optimizer picked, and the engine can still decline after that.
+#
 # The caller must have set optimizer_switch='derived_merge=off'.
 
 --let $pq_fp= COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',$pq_cols))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',$pq_cols))) AS crc_xor
@@ -22,17 +26,15 @@
 SET SESSION parallel_worker_threads= 0;
 FLUSH STATUS;
 --eval SELECT $pq_fp FROM ($pq_query) d
---let $pq_h_ser= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+--let $pq_ser= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
 
 --echo # parallel fingerprint, must be identical to the serial one above
 SET SESSION parallel_worker_threads= 4;
 FLUSH STATUS;
 --eval SELECT $pq_fp FROM ($pq_query) d
---let $pq_h_par= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+--let $pq_par= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
 
-# both runs read the same materialized rows; only the serial one also scans the
-# driving table, so the serial thread's rnd_next count must be the higher one
---echo # the workers did the scanning, not this thread (expect 1)
+--echo # the workers ran the query above, and did not run the serial one (expect 1)
 --disable_query_log
---eval SELECT $pq_h_ser > $pq_h_par AS manager_scan_avoided
+--eval SELECT $pq_ser = 0 AND $pq_par > 0 AS ran_in_the_workers
 --enable_query_log
