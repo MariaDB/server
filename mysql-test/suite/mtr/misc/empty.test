@@ -1,0 +1,5 @@
+# Placeholder test with combinations, used only to demonstrate mtr
+# --list-combinations: empty.combinations plus the lcase_names / protocol
+# combination groups pulled in by the includes below.
+--source include/lcase_names.inc
+--source include/protocol.inc

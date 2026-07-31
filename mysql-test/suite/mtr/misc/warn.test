@@ -1,0 +1,35 @@
+# Inner test for --tail-warnings: generate real server warnings.
+#
+# A system-versioned table partitioned by SYSTEM_TIME LIMIT emits
+# "... last HISTORY partition (...) is out of LIMIT ..." warnings once the
+# history partitions overflow (see suite/versioning/t/partition.test).
+#
+# This test has no .result, so it fails - which means mtr's per-test warning
+# check is skipped and the warnings survive to the post-shutdown report that
+# --tail-warnings trims.
+
+--source include/have_partition.inc
+
+create or replace table t1 (x int)
+  with system versioning
+  partition by system_time limit 2 partitions 3;
+
+--disable_query_log
+--disable_result_log
+let $i= 30;
+while ($i)
+{
+  insert into t1 values (1), (2), (3);
+  delete from t1;
+  dec $i;
+}
+--enable_result_log
+--enable_query_log
+
+drop table t1;
+
+# Force the test to fail (like the intentionally-wrong result in
+# versioning/partition.test) so mtr's per-test warning check is skipped and
+# the warnings fall through to the post-shutdown report that --tail-warnings
+# trims.
+select * from no_such_table_force_failure;

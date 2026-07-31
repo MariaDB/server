@@ -263,7 +263,7 @@ sub new {
       My::Config::Group::OPT->new('OPT'),
     ] }, $class;
   my $F= IO::File->new($path, "<")
-    or croak "Could not open '$path': $!";
+    or die "Can't open config file '$path': $!\n";
 
   while (  my $line= <$F> ) {
     chomp($line);
@@ -282,21 +282,41 @@ sub new {
     # Magic #! comments
     elsif ( $line =~ /^(#\!\S+)(?:\s*(.*?)\s*)?$/) {
       my ($magic, $arg)= ($1, $2);
-      croak "Found magic comment '$magic' outside of group"
+      die "$path:$.: magic comment '$magic' outside of any group\n"
 	unless $group_name;
 
       #print "$magic\n";
       $self->insert($group_name, $magic, $arg);
     }
 
-    # Empty lines
-    elsif ( $line =~ /^$/ ) {
+    # Empty lines (including whitespace-only)
+    elsif ( $line =~ /^\s*$/ ) {
       # Skip empty lines
       next;
     }
 
+    # !includedir <dir> - include all .cnf files in the directory
+    elsif ( $line =~ /^\!includedir\s+(.*?)\s*$/ ) {
+      # Resolve relative to the including file first, like !include; fall back
+      # to the raw path only if that directory does not exist.
+      my $dir= dirname($path)."/".$1;
+      $dir= $1 unless -d $dir;
+
+      # A missing includedir is silently ignored, as libmariadb does
+      if ( opendir(my $dh, $dir) ) {
+        foreach my $name ( sort grep { /\.cnf$/ } readdir($dh) ) {
+          my $file= "$dir/$name";
+          # Skip subdirectories or symlinks named *.cnf, as libmariadb does,
+          # so a stray non-file entry does not turn into a hard open failure.
+          next unless -f $file;
+          $self->append(My::Config->new($file));
+        }
+        closedir($dh);
+      }
+    }
+
     # !include <filename>
-    elsif ( $line =~ /^\!include\s*(.*?)\s*$/ ) {
+    elsif ( $line =~ /^\!include\s+(.*?)\s*$/ ) {
       my $include_file_name= dirname($path)."/".$1;
 
       # Check that the file exists relative to path of first config file
@@ -304,17 +324,30 @@ sub new {
 	# Try to include file relativ to current dir
 	$include_file_name= $1;
       }
-      croak "The include file '$include_file_name' does not exist"
+      die "$path:$.: include file '$include_file_name' does not exist\n"
 	unless -f $include_file_name;
 
       $self->append(My::Config->new($include_file_name));
     }
 
-    # <option>
+    # Any other !directive is ignored
+    elsif ( $line =~ /^\!/ ) {
+      next;
+    }
+
+    # A '#' or ';' line before any group is a header/comment (e.g. "#MySQL
+    # option file"), as libmariadb treats it - not an option. In-group '#foo'
+    # pseudo-options (below) are unaffected.
+    elsif ( !$group_name && $line =~ /^\s*[#;]/ ) {
+      next;
+    }
+
+    # <option>  (a leading '#' makes it a pseudo-option, e.g. #galera_port,
+    # used in .cnf templates as an addressable name - not a comment)
     elsif ( $line =~ /^(#?[\w-]+)\s*$/ ) {
       my $option= $1;
 
-      croak "Found option '$option' outside of group"
+      die "$path:$.: option '$option' outside of any group\n"
 	unless $group_name;
 
       #print "$option\n";
@@ -326,7 +359,7 @@ sub new {
       my $option= $1;
       my $value= $2;
 
-      croak "Found option '$option=$value' outside of group"
+      die "$path:$.: option '$option=$value' outside of any group\n"
 	unless $group_name;
 
       #print "$option=$value\n";
@@ -346,7 +379,7 @@ sub new {
        $self->insert($group_name, $option, $value);
     }
     else {
-      croak "Unexpected line '$line' found in '$path'";
+      die "$path:$.: unexpected line '$line'\n";
     }
   }
   undef $F;			# Close the file

@@ -1,0 +1,10 @@
+# Inner test for --tail-log: crash the server so the parent mtr dumps the real
+# server error log (a SIGSEGV backtrace) in its crash report.
+--source include/not_windows.inc
+
+--let $pidf=`SELECT @@global.pid_file`
+--exec kill -SEGV `cat $pidf`
+
+# the connection is gone now
+--error 2006,2013
+SELECT SLEEP(30);

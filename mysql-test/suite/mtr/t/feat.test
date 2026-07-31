@@ -1,0 +1,86 @@
+# MDEV-30281 - exercise several mtr features by running a child
+# mariadb-test-run.pl and checking its output:
+#   * --head-log / --tail-log / --strip-log trimming of a crash report
+#     (suite/mtr/misc.crash)
+#   * --head-warnings / --tail-warnings trimming of the shutdown-warnings
+#     report (suite/mtr/misc.warn)
+#   * --list-combinations and --suite selection
+#   * --exit-line stopping a test before a given line (main.1st)
+#
+# The child's output is full of volatile data (pids, timestamps, addresses, an
+# unbounded backtrace, ...).  Each run is written to a scratch file, reduced to
+# its deterministic evidence lines with include/grep.inc, and the residual
+# numbers are normalized with --replace_regex ($NORM).
+
+--source include/not_windows.inc
+# spawns several child mtr runs (each starts/crashes a server) - slow
+--source include/big_test.inc
+
+# Run the child mtr in a sanitized environment: inheriting the parent's
+# per-run MTR_*/MYSQL* variables breaks path/port resolution (safe_process
+# fails to exec, ports collide).  env -i keeps only what the child needs and
+# lets it recompute the rest; MTR_BUILD_THREAD=auto picks its own free ports.
+--let $CHILD_ENV= env -i PATH="$PATH" HOME="$HOME" MTR_BINDIR="$MTR_BINDIR" MTR_BUILD_THREAD=auto
+--let $CHILD_OPTS= --force --max-test-fail=0 --print-core=no
+--let $CHILD= $CHILD_ENV perl $MYSQL_TEST_DIR/mariadb-test-run.pl --vardir=$MYSQLTEST_VARDIR/tmp/tail_child $CHILD_OPTS
+--let $TAIL_OUT= $MYSQLTEST_VARDIR/tmp/tail_out.txt
+
+# include/grep.inc inputs, constant across cases
+--let grep_file= $TAIL_OUT
+--let grep_regex= misc[.](crash|warn) +[[]|Server log from this test|crashed while running|failed during test run|SERVER LOG (START|END)|< snip [0-9]+ lines >|got signal|Attempting backtrace|Thread pointer|stack_bottom|my_print_stacktrace|handle_fatal_signal|mariadbd[(]main|Writing a core|Resource Limits|Soft Limit|Max |Core pattern|Kernel version|Warnings generated in error logs|out of LIMIT|Combinations for|misc[.]empty,|Using suites:|No tests to run
+# normalize the residual volatile numbers - reused by every case below
+--let $NORM= /pid: [0-9]+, winpid: [0-9]+/pid: PID, winpid: PID/ /The server \[/Server [/ /crashed while running '[^']*'/crashed/ /failed during test run/crashed/ /< snip [0-9]+ lines >/< snip N lines >/ /[0-9]{4}-[0-9]{2}-[0-9]{2} +[0-9:]+ +[0-9]+ \[Warning\]/[Warning]/ /[0-9]+ +[0-9:]+ \[ERROR\] [^ ]+ got signal/[ERROR] got signal/ /[^\n]*mariadbd[(]my_print_stacktrace[^\n]*/mariadbd(my_print_stacktrace <...cut...>/ /[^\n]*handle_fatal_signal[^\n]*/<...cut...>/ /[^\n]*mariadbd[(]main[^\n]*/mariadbd(main <...cut...>/ /Thread pointer:[^\n]*/Thread pointer: <...cut...>/ /stack_bottom =[^\n]*/stack_bottom = <...cut...>/ /(Max [a-zA-Z ]+?)  +[^\n]*/\1 <...cut...>/ /Core pattern:[^\n]*/Core pattern: <...cut...>/ /Kernel version:[^\n]*/Kernel version: <...cut...>/
+# --exit-line dumps a whole child mtr run (no grep), so cut the volatile
+# banner/footer lines by their stable prefix - this also removes every
+# absolute path, version, thread/port and timestamp without embedding one
+--let $NORM_RUN= /Logging:[^\n]*/Logging: <...cut...>/ /vardir:[^\n]*/vardir: <...cut...>/ /Creating var directory[^\n]*/Creating var directory <...cut...>/ /MariaDB Version[^\n]*/MariaDB Version <...cut...>/ / - SSL[^\n]*/ - SSL <...cut...>/ / - binaries[^\n]*/ - binaries <...cut...>/ /worker\[[0-9]+\][^\n]*/worker <...cut...>/ /Test ended at[^\n]*/Test ended at <...cut...>/ /--- [^\n]*/--- <...cut...>/ /\+\+\+ [^\n]*/+++ <...cut...>/ / - saving[^\n]*/ - saving <...cut...>/ /Spent[^\n]*/Spent <...cut...>/
+
+--echo #### --head-log / --tail-log (crash report) ####
+--exec $CHILD --nowarnings --head-log=15 --tail-log=15 mtr/misc.crash > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo #### --strip-log (crash report) ####
+--exec $CHILD --nowarnings --strip-log mtr/misc.crash > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo #### --tail-warnings (shutdown-warnings report) ####
+
+--echo # --tail-warnings=0
+--exec $CHILD --tail-warnings=0 mtr/misc.warn > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo # --tail-warnings=5
+--exec $CHILD --tail-warnings=5 mtr/misc.warn > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo # --tail-warnings=-1
+--exec $CHILD --tail-warnings=-1 mtr/misc.warn > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo #### --list-combinations ####
+--exec $CHILD --list-combinations mtr/misc.empty > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo #### --ps --list-combinations ####
+--exec $CHILD --ps --list-combinations mtr/misc.empty > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+--echo #### --suite with negation ####
+--exec $CHILD --suite=main,!main > $TAIL_OUT 2>&1 || true
+--replace_regex $NORM
+--source include/grep.inc
+
+# main/1st.test is: (4) show databases;  (5) show tables in mysql;
+# --exit-line=5 runs line 4 but stops before line 5, so the recorded result's
+# "show tables in mysql;" section is missing - the test fails with a length
+# mismatch, proving the early exit landed exactly at the requested line.
+--echo #### --exit-line (stop before line 5) ####
+--replace_regex $NORM $NORM_RUN
+--exec $CHILD --exit-line=5 main.1st 2>&1 || true

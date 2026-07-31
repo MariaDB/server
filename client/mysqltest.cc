@@ -197,6 +197,9 @@ static uint my_end_arg= 0;
 /* Number of lines of the result to include in failure report */
 static uint opt_tail_lines= 0;
 
+/* Stop the test before the command at this line of the test file (0 = off) */
+static uint opt_exit_line= 0;
+
 static uint opt_connect_timeout= 0;
 static uint opt_wait_for_pos_timeout= 0;
 static const  uint default_wait_for_pos_timeout= 300;
@@ -3775,6 +3778,58 @@ static int execute_in_background(char *cmd)
   mysqltest command(s) like "remove_file" for that
 */
 
+/*
+  Find where a wrapper command (e.g. "rr record", "gdb --args") must be
+  injected into an --exec command line.  Leading shell environment-variable
+  assignments (NAME=VALUE ...) must stay in front of the wrapper so that the
+  wrapped tool - not the assignment word - is what gets traced/debugged.
+  Returns the byte offset of the first non-assignment token.
+*/
+
+static size_t exec_wrap_offset(const char *cmd)
+{
+  const char *p= cmd;
+  for (;;)
+  {
+    const char *tok;
+    while (*p == ' ' || *p == '\t')
+      p++;
+    tok= p;
+    /* A leading token counts as an assignment only if it is NAME= */
+    if (!(my_isalpha(charset_info, (uchar) *p) || *p == '_'))
+      return (size_t) (tok - cmd);
+    while (my_isalnum(charset_info, (uchar) *p) || *p == '_')
+      p++;
+    if (*p != '=')
+      return (size_t) (tok - cmd);
+    /* Skip the VALUE up to unquoted whitespace, honouring quotes/backslash */
+    for (p++; *p && *p != ' ' && *p != '\t'; )
+    {
+      if (*p == '\'')
+      {
+        for (p++; *p && *p != '\''; p++)
+          ;
+        if (*p)
+          p++;
+      }
+      else if (*p == '"')
+      {
+        for (p++; *p && *p != '"'; p++)
+        {
+          if (*p == '\\' && p[1])
+            p++;
+        }
+        if (*p)
+          p++;
+      }
+      else if (*p == '\\' && p[1])
+        p+= 2;
+      else
+        p++;
+    }
+  }
+}
+
 void do_exec(struct st_command *command)
 {
   int error;
@@ -3822,6 +3877,28 @@ void do_exec(struct st_command *command)
   {
     /* Collect stderr output as well, for the case app. crashes or returns error.*/
     dynstr_append_mem(&ds_cmd, STRING_WITH_LEN(" 2>&1"));
+  }
+
+  /*
+    --exec-rr / --exec-gdb: mariadb-test-run.pl sets MYSQLTEST_EXEC_WRAP to a
+    wrapper command (e.g. "rr record") that every --exec is run under.  It is
+    injected after any leading NAME=VALUE assignments so the tool is wrapped,
+    not the assignment.
+  */
+  {
+    const char *wrap= getenv("MYSQLTEST_EXEC_WRAP");
+    if (wrap && *wrap)
+    {
+      size_t off= exec_wrap_offset(ds_cmd.str);
+      DYNAMIC_STRING ds_wrap;
+      init_dynamic_string(&ds_wrap, "", ds_cmd.length + 64, 256);
+      dynstr_append_mem(&ds_wrap, ds_cmd.str, off);
+      dynstr_append_mem(&ds_wrap, wrap, strlen(wrap));
+      dynstr_append_mem(&ds_wrap, STRING_WITH_LEN(" "));
+      dynstr_append_mem(&ds_wrap, ds_cmd.str + off, ds_cmd.length - off);
+      dynstr_set(&ds_cmd, ds_wrap.str);
+      dynstr_free(&ds_wrap);
+    }
   }
 
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
@@ -10060,6 +10137,11 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"exit-line", 'l',
+   "Stop the test before executing the command at this line of the test "
+   "file, as if an --exit directive were placed there.",
+   &opt_exit_line, &opt_exit_line, 0,
+   GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &opt_host, &opt_host, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"prologue", 0, "Include SQL before each test case.", &opt_prologue,
@@ -13099,6 +13181,19 @@ int main(int argc, char **argv)
   {
     my_bool ok_to_do;
     int current_line_inc = 1, processed = 0;
+
+    /*
+      --exit-line: stop before the command at this line of the top-level test
+      file, exactly as if an --exit directive were placed there.  Gated to the
+      main file so that line numbers of sourced files do not trigger it.
+    */
+    if (opt_exit_line && cur_file == file_stack &&
+        start_lineno >= opt_exit_line)
+    {
+      abort_flag= 1;
+      break;
+    }
+
     if (command->type == Q_UNKNOWN || command->type == Q_COMMENT_WITH_COMMAND)
       get_command_type(command);
 

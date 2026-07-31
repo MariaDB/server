@@ -250,6 +250,27 @@ our %file_combinations;
 our %skip_combinations;
 our %file_in_overlay;
 
+# Cache of result-directory listings.  For each result dir we read it once and
+# index the .result/.rdiff files by their base test name (the leading run of
+# characters before the first '.' or ','), so collect_one_test_case can look up
+# a test's result files in memory instead of glob-scanning the whole directory
+# once per test (which is O(tests * dirsize)).
+my %resdir_index;
+sub resdir_files($) {
+  my ($dir)= @_;
+  return $resdir_index{$dir} if exists $resdir_index{$dir};
+  my %by_base;
+  if (opendir(my $dh, $dir)) {
+    while (defined(my $f= readdir $dh)) {
+      next unless $f =~ /\.(?:rdiff|result)$/;
+      my ($base)= $f =~ /^([^.,]+)/;
+      push @{$by_base{$base}}, $f if defined $base;
+    }
+    closedir $dh;
+  }
+  return $resdir_index{$dir}= \%by_base;
+}
+
 sub load_suite_object {
   my ($suitename, $suitedir) = @_;
   my $suite;
@@ -316,6 +337,21 @@ sub combinations_from_file($$)
     }
     @combs = ({ skip => 'Requires: ' . basename($filename, '.combinations') }) unless @combs;
   }
+
+  # --combination-select=N selects a single combination by position in the
+  # file, in [] section order (1-based; a negative N counts from the end,
+  # -1 being the last). Ignored for skipped or command-line combinations.
+  if (defined $::opt_comb_sel and @combs and not $combs[0]->{skip}) {
+    my $n= $::opt_comb_sel;
+    mtr_error("--combination-select must be a non-zero integer, not '$n'")
+      unless $n =~ /^-?[1-9][0-9]*$/;
+    my $i= $n > 0 ? $n - 1 : $n;
+    mtr_error("--combination-select=$n is out of range for '$filename' ".
+              "(it has ".scalar(@combs)." combination(s))")
+      if $i >= @combs or $i < -@combs;
+    @combs= ($combs[$i]);
+  }
+
   @combs;
 }
 
@@ -947,20 +983,25 @@ sub collect_one_test_case {
     if ($tinfo->{combinations}) {
       $re = '(?:' . join('|', @{$tinfo->{combinations}}) . ')';
     }
-    my $resdirglob = $suite->{rdir};
-    $resdirglob.= ',' . $suite->{parent}->{rdir} if $suite->{parent};
+    my @resdirs = ($suite->{rdir});
+    push @resdirs, $suite->{parent}->{rdir} if $suite->{parent};
 
     my %files;
-    for (<{$resdirglob}/$tname*.{rdiff,result}>) {
-      my ($path, $combs, $ext) =
-                  m@^(.*)/$tname((?:,$re)*)\.(rdiff|result)$@ or next;
-      my @combs = sort split /,/, $combs;
-      $files{$_} = join '~', (                # sort files by
-        99 - scalar(@combs),                  # number of combinations DESC
-        join(',', sort @combs),               # combination names ASC
-        $path eq $suite->{rdir} ? 1 : 2,      # overlay first
-        $ext eq 'result' ? 1 : 2              # result before rdiff
-      );
+    my ($tbase)= $tname =~ /^([^.,]+)/;   # same base the index is keyed on
+    for my $dir (@resdirs) {
+      my $index= resdir_files($dir);
+      for my $f (@{ $index->{$tbase} || [] }) {
+        my $file = "$dir/$f";
+        my ($path, $combs, $ext) =
+                    $file =~ m@^(.*)/$tname((?:,$re)*)\.(rdiff|result)$@ or next;
+        my @combs = sort split /,/, $combs;
+        $files{$file} = join '~', (           # sort files by
+          99 - scalar(@combs),                # number of combinations DESC
+          join(',', sort @combs),             # combination names ASC
+          $path eq $suite->{rdir} ? 1 : 2,    # overlay first
+          $ext eq 'result' ? 1 : 2            # result before rdiff
+        );
+      }
     }
     my @results = sort { $files{$a} cmp $files{$b} } keys %files;
 
