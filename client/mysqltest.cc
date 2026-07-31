@@ -299,6 +299,23 @@ static my_bool disable_replay_next_query= FALSE;
 static char disable_replay_reason[512]= {0};
 static my_bool disable_replay_testfile= FALSE;
 static char disable_replay_testfile_reason[512]= {0};
+/* Restore the replay server to its baseline state after each replay run.
+   Cleared by REPLAY_SERVER_NO_CLEANUP, which leaves the objects created by
+   the last replay run in place for post-mortem inspection. */
+static my_bool replay_cleanup= TRUE;
+/* One table or view on the replay server. Both members are my_malloc'ed. */
+struct st_replay_object
+{
+  char *db;
+  char *name;
+};
+/* The state the replay server had when we connected to it: the databases
+   (system ones excluded) and the tables/views present at that point. Set up
+   by replay_capture_baseline(), both kept sorted for bsearch(). */
+static my_bool replay_baseline_valid= FALSE;
+static DYNAMIC_ARRAY replay_baseline_dbs;      /* of char*                */
+static DYNAMIC_ARRAY replay_baseline_objects;  /* of st_replay_object     */
+static void free_replay_snapshot(DYNAMIC_ARRAY *dbs, DYNAMIC_ARRAY *objects);
 
 /* Precompiled re's */
 static regex_t ps_re;     /* the query can be run using PS protocol */
@@ -1543,6 +1560,12 @@ void free_used_memory()
   {
     mysql_close(replay_server_mysql);
     replay_server_mysql= NULL;
+  }
+
+  if (replay_baseline_valid)
+  {
+    free_replay_snapshot(&replay_baseline_dbs, &replay_baseline_objects);
+    replay_baseline_valid= FALSE;
   }
 
   if (replay_log_file)
@@ -8369,6 +8392,8 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
   ReplayTest mode helper functions
 */
 
+static void replay_capture_baseline();
+
 /*
   Ensure connection to replay server is established
   Returns 0 on success, non-zero on error
@@ -8429,6 +8454,14 @@ static int ensure_replay_server_connection()
             mysql_errno(replay_server_mysql),
             mysql_error(replay_server_mysql));
   }
+
+  /*
+    Remember what the server looks like before any replay script has run, so
+    that replay_restore_baseline() can undo what the scripts create.
+  */
+  if (replay_cleanup)
+    replay_capture_baseline();
+
   DBUG_RETURN(0);
 }
 
@@ -8590,6 +8623,378 @@ static void print_replay_test_location(FILE *f)
   }
   if (start_lineno > 0)
     fprintf(f, "ReplayTest: At line %u\n", start_lineno);
+}
+
+
+/*
+  Restoring the replay server between replay runs
+  ===============================================
+
+  The replay server is a single instance shared by every test of an mtr run.
+  Each replay script creates databases, tables and views on it and never
+  removes them, so without cleanup the leftovers accumulate for the whole
+  run and can influence subsequent replays.
+
+  The approach: right after connecting, take a snapshot of the databases and
+  of the tables/views that are present - the "baseline". After each replay
+  script, take another snapshot and drop everything that is not in the
+  baseline. This puts the server back into the baseline state, which is why
+  the baseline only has to be taken once.
+
+  Known limitations. They are harmless when the replay server starts out
+  pristine, which is the case under mtr --replay-server:
+   - an object that a script re-created under a baseline name keeps the
+     script's definition, it is not restored to the baseline one;
+   - a baseline object that a script dropped is not re-created;
+   - system variables are not restored. Every script begins by setting the
+     full set of variables it cares about, but a variable that script N sets
+     and script N+1 does not mention keeps script N's value.
+*/
+
+static int cmp_replay_string(const void *a, const void *b)
+{
+  return strcmp(*(const char* const *) a, *(const char* const *) b);
+}
+
+
+static int cmp_replay_object(const void *a, const void *b)
+{
+  const struct st_replay_object *o1= (const struct st_replay_object*) a;
+  const struct st_replay_object *o2= (const struct st_replay_object*) b;
+  int res= strcmp(o1->db, o2->db);
+  return res ? res : strcmp(o1->name, o2->name);
+}
+
+
+/* Release a snapshot produced by replay_capture_snapshot() */
+
+static void free_replay_snapshot(DYNAMIC_ARRAY *dbs, DYNAMIC_ARRAY *objects)
+{
+  uint i;
+  for (i= 0; i < dbs->elements; i++)
+    my_free(*(char**) dynamic_array_ptr(dbs, i));
+  for (i= 0; i < objects->elements; i++)
+  {
+    struct st_replay_object *obj=
+      (struct st_replay_object*) dynamic_array_ptr(objects, i);
+    my_free(obj->db);
+    my_free(obj->name);
+  }
+  delete_dynamic(dbs);
+  delete_dynamic(objects);
+}
+
+
+/* Read and discard whatever the replay server still has pending */
+
+static void replay_drain_results()
+{
+  do
+  {
+    MYSQL_RES *res= mysql_store_result(replay_server_mysql);
+    if (res)
+      mysql_free_result(res);
+  } while (mysql_next_result(replay_server_mysql) == 0);
+}
+
+
+/*
+  Take a snapshot of the replay server: the non-system databases into `dbs`
+  and every table/view/sequence outside of the engine-provided schemas into
+  `objects`. Both arrays are initialized here and are to be released with
+  free_replay_snapshot(); on return they are sorted.
+
+  Only TABLE_SCHEMA and TABLE_NAME are read from I_S.TABLES. That keeps the
+  query at SKIP_OPEN_TABLE, i.e. a plain scan of the datadir; asking for
+  TABLE_TYPE as well would make the server parse every .frm. Views are
+  therefore not told apart from tables here - the cleanup just issues both
+  DROP VIEW and DROP TABLE, the same way the replay script itself does.
+
+  The `test` database and the system schemas are left out of the database
+  list so that they can never be dropped. Their contents are still tracked:
+  a script whose default database is `test` creates its tables there.
+
+  @return 0 on success. On error the arrays are released and left empty; a
+          partial snapshot must never be used to decide what to drop.
+*/
+
+static int replay_capture_snapshot(DYNAMIC_ARRAY *dbs, DYNAMIC_ARRAY *objects)
+{
+  static const char db_query[]=
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME "
+    "NOT IN ('information_schema','performance_schema','mysql','sys','test')";
+  static const char obj_query[]=
+    "SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.TABLES WHERE "
+    "TABLE_SCHEMA NOT IN ('information_schema','performance_schema')";
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  DBUG_ENTER("replay_capture_snapshot");
+
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, dbs, sizeof(char*),
+                        16, 16, MYF(0));
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, objects,
+                        sizeof(struct st_replay_object), 64, 64, MYF(0));
+
+  if (mysql_real_query(replay_server_mysql, db_query, sizeof(db_query) - 1) ||
+      !(res= mysql_store_result(replay_server_mysql)))
+    goto error;
+
+  while ((row= mysql_fetch_row(res)))
+  {
+    char *db;
+    if (!row[0] ||
+        !(db= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(MY_WME))))
+    {
+      mysql_free_result(res);
+      goto error;
+    }
+    if (insert_dynamic(dbs, &db))
+    {
+      my_free(db);
+      mysql_free_result(res);
+      goto error;
+    }
+  }
+  mysql_free_result(res);
+  replay_drain_results();
+
+  if (mysql_real_query(replay_server_mysql, obj_query, sizeof(obj_query) - 1) ||
+      !(res= mysql_store_result(replay_server_mysql)))
+    goto error;
+
+  while ((row= mysql_fetch_row(res)))
+  {
+    struct st_replay_object obj;
+    if (!row[0] || !row[1] ||
+        !(obj.db= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(MY_WME))))
+    {
+      mysql_free_result(res);
+      goto error;
+    }
+    if (!(obj.name= my_strdup(PSI_NOT_INSTRUMENTED, row[1], MYF(MY_WME))))
+    {
+      my_free(obj.db);
+      mysql_free_result(res);
+      goto error;
+    }
+    if (insert_dynamic(objects, &obj))
+    {
+      my_free(obj.db);
+      my_free(obj.name);
+      mysql_free_result(res);
+      goto error;
+    }
+  }
+  mysql_free_result(res);
+  replay_drain_results();
+
+  my_qsort(dbs->buffer, dbs->elements, sizeof(char*), cmp_replay_string);
+  my_qsort(objects->buffer, objects->elements,
+           sizeof(struct st_replay_object), cmp_replay_object);
+  DBUG_RETURN(0);
+
+error:
+  fprintf(stdout,
+          "ReplayTest: Warning - failed to read the replay server state: "
+          "%d %s\n",
+          mysql_errno(replay_server_mysql), mysql_error(replay_server_mysql));
+  replay_drain_results();
+  free_replay_snapshot(dbs, objects);
+  DBUG_RETURN(1);
+}
+
+
+/*
+  Record the state the replay server is in before any replay script has run.
+  On failure the cleanup stays disabled: with an empty baseline every object
+  on the server, including the ones in the mysql schema, would look new.
+*/
+
+static void replay_capture_baseline()
+{
+  DBUG_ENTER("replay_capture_baseline");
+
+  if (replay_baseline_valid)
+    DBUG_VOID_RETURN;
+
+  if (replay_capture_snapshot(&replay_baseline_dbs, &replay_baseline_objects))
+  {
+    fprintf(stdout, "ReplayTest: Warning - no baseline could be taken, the "
+                    "replay server will not be cleaned up\n");
+    DBUG_VOID_RETURN;
+  }
+  replay_baseline_valid= TRUE;
+  verbose_msg("ReplayTest: baseline is %lu database(s), %lu table(s)/view(s)",
+              (ulong) replay_baseline_dbs.elements,
+              (ulong) replay_baseline_objects.elements);
+  DBUG_VOID_RETURN;
+}
+
+
+/* Append `name` to ds as a quoted identifier */
+
+static void append_quoted_ident(DYNAMIC_STRING *ds, const char *name)
+{
+  const char *p;
+  dynstr_append_mem(ds, "`", 1);
+  for (p= name; *p; p++)
+  {
+    if (*p == '`')
+      dynstr_append_mem(ds, "``", 2);
+    else
+      dynstr_append_mem(ds, p, 1);
+  }
+  dynstr_append_mem(ds, "`", 1);
+}
+
+
+/*
+  Run one cleanup statement on the replay server. Failures are reported but
+  are not fatal: cleanup is best-effort, a failed drop must not abort a test.
+*/
+
+static void replay_exec_cleanup_query(const char *query, size_t len)
+{
+  log_replay_query(query, len);
+  if (mysql_real_query(replay_server_mysql, query, (ulong) len))
+  {
+    fprintf(stdout, "ReplayTest: Warning - cleanup query failed: %.*s: %s\n",
+            (int) len, query, mysql_error(replay_server_mysql));
+    print_replay_test_location(stdout);
+    return;
+  }
+  replay_drain_results();
+}
+
+
+/*
+  Undo what the replay script that has just finished did to the replay
+  server: drop the databases, tables and views it left behind, forget the
+  context it stored in @opt_context, and return to a known default database.
+
+  Must run after the optimizer_trace of the replayed EXPLAIN has been
+  captured: the statements issued here overwrite it.
+*/
+
+static void replay_restore_baseline()
+{
+  DYNAMIC_ARRAY cur_dbs, cur_objects, extra_dbs;
+  DYNAMIC_STRING stmt;
+  uint i, dropped_objects= 0;
+  DBUG_ENTER("replay_restore_baseline");
+
+  if (replay_capture_snapshot(&cur_dbs, &cur_objects))
+  {
+    fprintf(stdout, "ReplayTest: Warning - skipping cleanup of the replay "
+                    "server\n");
+    print_replay_test_location(stdout);
+    DBUG_VOID_RETURN;
+  }
+
+  /*
+    The databases that were not there when we took the baseline. The names
+    are borrowed from cur_dbs, and since cur_dbs is sorted, so is extra_dbs
+    - the loop below bsearch()es it.
+  */
+  my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &extra_dbs, sizeof(char*),
+                        16, 16, MYF(0));
+  for (i= 0; i < cur_dbs.elements; i++)
+  {
+    char **db= (char**) dynamic_array_ptr(&cur_dbs, i);
+    if (!bsearch(db, replay_baseline_dbs.buffer,
+                 replay_baseline_dbs.elements, sizeof(char*),
+                 cmp_replay_string) &&
+        insert_dynamic(&extra_dbs, db))
+    {
+      /* Out of memory. The tables of this database are dropped one by one
+         below, only the empty database itself stays behind. */
+      fprintf(stdout, "ReplayTest: Warning - out of memory, database '%s' "
+                      "is left on the replay server\n", *db);
+    }
+  }
+
+  /*
+    The script may have set foreign_key_checks back to 1, and the objects
+    are dropped in no particular order.
+  */
+  replay_exec_cleanup_query(STRING_WITH_LEN("SET foreign_key_checks=0"));
+
+  init_dynamic_string(&stmt, "", 256, 256);
+
+  /*
+    Collect the tables and views that are not in the baseline into one
+    comma-separated list. The ones that sit in a database that is about to
+    go away are left to DROP DATABASE.
+  */
+  for (i= 0; i < cur_objects.elements; i++)
+  {
+    struct st_replay_object *obj=
+      (struct st_replay_object*) dynamic_array_ptr(&cur_objects, i);
+
+    if (bsearch(obj, replay_baseline_objects.buffer,
+                replay_baseline_objects.elements,
+                sizeof(struct st_replay_object), cmp_replay_object) ||
+        bsearch(&obj->db, extra_dbs.buffer, extra_dbs.elements,
+                sizeof(char*), cmp_replay_string))
+      continue;
+
+    if (dropped_objects++)
+      dynstr_append_mem(&stmt, ", ", 2);
+    append_quoted_ident(&stmt, obj->db);
+    dynstr_append_mem(&stmt, ".", 1);
+    append_quoted_ident(&stmt, obj->name);
+  }
+
+  if (dropped_objects)
+  {
+    /*
+      We did not ask the server which of these are views and which are
+      tables - that would have made the snapshot open every .frm - so try
+      both, the same way the replay script itself does. With IF EXISTS a
+      name of the wrong kind only produces a warning, so one statement per
+      kind is enough for the whole list.
+    */
+    DYNAMIC_STRING drop;
+    init_dynamic_string(&drop, "DROP VIEW IF EXISTS ", stmt.length + 32, 128);
+    dynstr_append_mem(&drop, stmt.str, stmt.length);
+    replay_exec_cleanup_query(drop.str, drop.length);
+
+    dynstr_set(&drop, "DROP TABLE IF EXISTS ");
+    dynstr_append_mem(&drop, stmt.str, stmt.length);
+    replay_exec_cleanup_query(drop.str, drop.length);
+    dynstr_free(&drop);
+  }
+
+  for (i= 0; i < extra_dbs.elements; i++)
+  {
+    dynstr_set(&stmt, "DROP DATABASE IF EXISTS ");
+    append_quoted_ident(&stmt, *(char**) dynamic_array_ptr(&extra_dbs, i));
+    replay_exec_cleanup_query(stmt.str, stmt.length);
+  }
+
+  if (dropped_objects || extra_dbs.elements)
+    verbose_msg("ReplayTest: cleanup dropped %u table(s)/view(s) and "
+                "%lu database(s)",
+                dropped_objects, (ulong) extra_dbs.elements);
+
+  /*
+    The script leaves the whole recorded context in @opt_context. It is
+    large and it stays in the connection's memory until the next script
+    overwrites it.
+  */
+  replay_exec_cleanup_query(STRING_WITH_LEN("SET @opt_context=NULL"));
+
+  /*
+    The script's USE may have selected a database that we have just dropped.
+    Get back to a database that exists: run_explain_directly_on_replay()
+    runs its EXPLAIN with whatever default database is current.
+  */
+  replay_exec_cleanup_query(STRING_WITH_LEN("USE test"));
+
+  dynstr_free(&stmt);
+  delete_dynamic(&extra_dbs);
+  free_replay_snapshot(&cur_dbs, &cur_objects);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -8944,6 +9349,11 @@ cleanup:
           mysql_free_result(res);
       } while (mysql_next_result(replay_server_mysql) == 0);
     }
+
+    /* Drop what this script has created, so that the next replay run starts
+       from the same state as this one did. */
+    if (replay_cleanup && replay_baseline_valid)
+      replay_restore_baseline();
   }
 
   DBUG_VOID_RETURN;
@@ -11327,6 +11737,16 @@ int main(int argc, char **argv)
           verbose_msg("ReplayTest: Logging queries to %s", replay_log_path);
         }
       }
+    }
+
+    /* REPLAY_SERVER_NO_CLEANUP: keep whatever the replay scripts create on
+       the replay server, for post-mortem inspection. */
+    const char *no_cleanup_env= getenv("REPLAY_SERVER_NO_CLEANUP");
+    if (no_cleanup_env && no_cleanup_env[0])
+    {
+      replay_cleanup= FALSE;
+      fprintf(stderr, "mysqltest: REPLAY_SERVER_NO_CLEANUP is ON, the replay "
+                      "server will not be cleaned up between runs\n");
     }
 
     /* REPLAY_SERVER_TRACE: also dump optimizer_trace from both servers. */

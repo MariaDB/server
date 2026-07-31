@@ -154,6 +154,7 @@ our @global_suppressions;
 our $opt_replay_server;
 our $opt_replay_server_manual;
 our $opt_replay_server_trace;
+our $opt_replay_server_no_cleanup;
 our $replay_server_parent_pid;  # PID of process that started the replay server
 
 END {
@@ -524,6 +525,13 @@ sub main {
   if ($opt_replay_server_trace) {
     $ENV{REPLAY_SERVER_TRACE} = 1;
     #mtr_warning("SETTING REPLAY_SERVER_TRACE=1");
+  }
+
+  # Propagate --replay-server-no-cleanup to mysqltest. By default mysqltest
+  # drops the databases/tables/views that a replay script created on the
+  # replay server; this leaves them there for inspection.
+  if ($opt_replay_server_no_cleanup) {
+    $ENV{REPLAY_SERVER_NO_CLEANUP} = 1;
   }
 
   # Create server socket on any free port
@@ -1358,6 +1366,7 @@ sub command_line_setup {
              'replay-server'            => \$opt_replay_server,
              'replay-server-manual'     => \$opt_replay_server_manual,
              'replay-server-trace'      => \$opt_replay_server_trace,
+             'replay-server-no-cleanup' => \$opt_replay_server_no_cleanup,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -6569,6 +6578,11 @@ Misc options
                         MTR will wait for socket and manage server lifecycle.
   replay-server-trace   Enable replay-server tracing in mysqltest by exporting
                         REPLAY_SERVER_TRACE=1 to its environment.
+  replay-server-no-cleanup
+                        Do not drop the databases/tables/views that a replay
+                        script created on the replay server. By default they
+                        are dropped after each replay run so that the server
+                        is back to the state it had before the run.
   start                 Only initialize and start the servers, using the
                         startup settings for the first specified test case
                         Example:

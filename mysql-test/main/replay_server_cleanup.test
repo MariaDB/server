@@ -1,0 +1,60 @@
+# Check that mysqltest restores the replay server to its baseline state after
+# every replay run: the databases, tables and views that a replay script
+# created must be gone once the EXPLAIN has been replayed.
+#
+# The test is silent when everything is in order, and it is silent when it is
+# run without --replay-server (no replay server, nothing to check). That way
+# the same .result serves both cases; any leftover object shows up as a
+# result diff.
+--source include/not_embedded.inc
+
+CREATE DATABASE replay_db1;
+CREATE TABLE replay_db1.t1 (a INT, b INT, KEY(a));
+INSERT INTO replay_db1.t1 VALUES (1,1), (2,2), (3,3);
+CREATE VIEW replay_db1.v1 AS SELECT * FROM replay_db1.t1;
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (1),(2);
+ANALYZE TABLE replay_db1.t1, t2;
+
+# Note: the EXPLAINs must not be wrapped in --disable_result_log, that turns
+# off the replay of the query altogether.
+#
+# A table and a view in a database of their own: the whole database is created
+# on the replay server and has to be dropped again.
+EXPLAIN FORMAT=JSON SELECT * FROM replay_db1.v1 WHERE a = 1;
+# A table in the default database: `test` belongs to the baseline, so here the
+# table alone has to be dropped.
+EXPLAIN FORMAT=JSON SELECT * FROM replay_db1.t1, t2 WHERE a = c;
+
+--perl
+my $sock= $ENV{REPLAY_SERVER_SOCKET};
+exit(0) unless $sock;
+
+# Report anything the replay scripts left behind. mysql.*_stats rows are
+# included because a stale row can change the plan of a later replay; DROP
+# TABLE/DATABASE is expected to have removed them along with the tables.
+# The statements go in through stdin so that the quotes in them do not have
+# to survive the shell.
+my $sql= <<'END_OF_SQL';
+SELECT concat('leftover database: ', SCHEMA_NAME)
+  FROM information_schema.SCHEMATA WHERE SCHEMA_NAME LIKE 'replay\_%';
+SELECT concat('leftover table/view: ', TABLE_SCHEMA, '.', TABLE_NAME)
+  FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'test';
+SELECT concat('leftover stats: ', db_name, '.', table_name)
+  FROM mysql.table_stats;
+SELECT concat('leftover stats: ', db_name, '.', table_name, '.', column_name)
+  FROM mysql.column_stats;
+SELECT concat('leftover stats: ', db_name, '.', table_name, '.', index_name)
+  FROM mysql.index_stats;
+END_OF_SQL
+
+open(my $client, "|-",
+     "$ENV{MYSQL} --socket=$sock --batch --skip-column-names test")
+  or die "Could not run $ENV{MYSQL}: $!";
+print $client $sql;
+close($client);
+EOF
+
+DROP VIEW replay_db1.v1;
+DROP TABLE replay_db1.t1, t2;
+DROP DATABASE replay_db1;
