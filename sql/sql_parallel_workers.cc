@@ -1291,6 +1291,33 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     workers[i].thd->userstat_running= thd->userstat_running;
 
     /*
+      A worker evaluates this session's expressions, so it needs the session
+      variables those expressions read while they are evaluated.
+      create_background_thd() starts from the global values, which silently
+      changes what the query means: with the session in one time zone and the
+      worker in the server's, a condition on a TIMESTAMP column drops rows the
+      serial plan keeps, and a projection of one returns a different hour.
+
+      Copied one at a time rather than as a whole struct. system_variables owns
+      per-THD allocations (dynamic_variables_ptr and the session tracker), and it
+      also carries option_bits, which would tell a worker it is inside the
+      session's multi-statement transaction and change how it commits.
+
+      Only the variables an expression reads while it is evaluated belong here.
+      Anything read while it is built is already right, because the clones are
+      built and fixed on this thread, which is why lc_time_names and
+      div_precincrement are absent: DAYNAME() and the division keep the locale and
+      the scale they were fixed with. time_zone, sql_mode and default_week_format
+      are here because a test showed each of them changing an answer.
+      old_behavior is here because the date and time conversions read it as they
+      run, the same way sql_mode is read.
+    */
+    workers[i].thd->variables.time_zone=           thd->variables.time_zone;
+    workers[i].thd->variables.sql_mode=            thd->variables.sql_mode;
+    workers[i].thd->variables.old_behavior=        thd->variables.old_behavior;
+    workers[i].thd->variables.default_week_format= thd->variables.default_week_format;
+
+    /*
       Give this worker its own copy of every non-const join table, opened from
       the shared TABLE_SHARE (open_worker_tables); the driving table is
       worker_tables[0] / our_scan_table. Self-cleans on failure, so on error we

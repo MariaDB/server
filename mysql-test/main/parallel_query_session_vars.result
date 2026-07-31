@@ -1,0 +1,43 @@
+CREATE TABLE t1 (a INT, ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+d DATE, c CHAR(10)) ENGINE=InnoDB;
+SET TIME_ZONE = "+03:00";
+SET TIMESTAMP = 1000.123456;
+INSERT INTO t1 (a, d, c)
+SELECT seq, DATE'2020-03-05' + INTERVAL seq DAY, 'ab' FROM seq_1_to_200;
+SET TIMESTAMP = DEFAULT;
+SET SESSION sql_mode='PAD_CHAR_TO_FULL_LENGTH';
+SET SESSION lc_time_names='fr_FR';
+SET SESSION div_precision_increment=8;
+SET SESSION default_week_format=3;
+#
+# projected: the hour of a TIMESTAMP (time_zone), the length of a CHAR
+# (sql_mode), a day name (lc_time_names), a quotient
+# (div_precision_increment) and a week number (default_week_format)
+#
+# serial
+SET SESSION parallel_worker_threads=0;
+SELECT HOUR(ts) AS h, LENGTH(c) AS len, DAYNAME(d) AS dn, a/7 AS quot, WEEK(d) AS wk FROM t1 WHERE a = 1;
+h	len	dn	quot	wk
+3	10	vendredi	0.14285714	10
+# with workers: must be identical
+SET SESSION parallel_worker_threads=4;
+SELECT HOUR(ts) AS h, LENGTH(c) AS len, DAYNAME(d) AS dn, a/7 AS quot, WEEK(d) AS wk FROM t1 WHERE a = 1;
+h	len	dn	quot	wk
+3	10	vendredi	0.14285714	10
+#
+# in a WHERE: a condition on a TIMESTAMP must keep the same rows
+#
+SET SESSION optimizer_switch='derived_merge=off';
+# serial
+SET SESSION parallel_worker_threads=0;
+SELECT COUNT(*) AS n FROM (SELECT a FROM t1 WHERE HOUR(ts) = 3 AND WEEK(d) = 10) x;
+n
+3
+# with workers: must be identical
+SET SESSION parallel_worker_threads=4;
+SELECT COUNT(*) AS n FROM (SELECT a FROM t1 WHERE HOUR(ts) = 3 AND WEEK(d) = 10) x;
+n
+3
+SET SESSION optimizer_switch=DEFAULT;
+DROP TABLE t1;
+SET TIME_ZONE = DEFAULT;
