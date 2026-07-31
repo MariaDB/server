@@ -2939,6 +2939,15 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
+  /* True only during the first execution of the statement */
+  inline bool is_first_query_execution()
+  {
+    return
+      stmt_arena->state != Query_arena::STMT_EXECUTED &&
+      stmt_arena->state != Query_arena::STMT_INITIALIZED &&  // needed for PS
+      stmt_arena->state != Query_arena::STMT_SP_QUERY_ARGUMENTS;
+  }
+
 private:
   unsigned int m_current_stage_key;
 

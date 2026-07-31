@@ -2819,6 +2819,8 @@ bool st_select_lex::cleanup()
 
   if (join)
   {
+    if (join->thd->stmt_arena->is_stmt_prepare())
+      inner_refs_list.empty();
     List_iterator<TABLE_LIST> ti(leaf_tables);
     TABLE_LIST *tbl;
     while ((tbl= ti++))
@@ -2848,7 +2850,6 @@ bool st_select_lex::cleanup()
       continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
-  inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
   hidden_bit_fields= 0;
   DBUG_RETURN(error);
