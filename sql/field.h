@@ -5486,7 +5486,12 @@ public:
 
   bool has_default_function() const
   {
-    return unireg_check != Field::NONE;
+    /*
+      TMYSQL_COMPRESSED is not a default function, it is stored in
+      unireg_check only to remember that the column is COMPRESSED.
+    */
+    return unireg_check != Field::NONE &&
+           unireg_check != Field::TMYSQL_COMPRESSED;
   }
 
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,

@@ -594,3 +594,88 @@ UPDATE t SET c=MID(c,2,4);
 DROP TABLE t;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-40417 A column with compression enabled automatically adds DEFAULT ''
+--echo #
+
+CREATE TABLE t (
+  c1 LONGTEXT COMPRESSED NOT NULL,
+  nc1 LONGTEXT NOT NULL,
+  c2 LONGTEXT COMPRESSED NOT NULL DEFAULT '',
+  nc2 LONGTEXT NOT NULL DEFAULT '',
+  c3 VARCHAR(100) COMPRESSED NOT NULL,
+  nc3 VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+SHOW CREATE TABLE t;
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t' ORDER BY ORDINAL_POSITION;
+
+--echo # A compressed column must be as mandatory as an uncompressed one
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t (nc1) VALUES ('x');
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t (c1, nc1, nc3) VALUES ('x', 'x', 'x');
+INSERT INTO t (c1, nc1, c3, nc3) VALUES ('x', 'x', 'x', 'x');
+SELECT * FROM t;
+DROP TABLE t;
+
+--echo # ALTER TABLE must not add an implicit default either
+CREATE TABLE t (c LONGTEXT COMPRESSED NOT NULL DEFAULT 'x') ENGINE=InnoDB;
+ALTER TABLE t MODIFY c LONGTEXT COMPRESSED NOT NULL;
+ALTER TABLE t ADD c2 VARCHAR(100) COMPRESSED NOT NULL;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-40417 upgrade: a table created before the fix is repaired when
+--echo # its FRM is read.  Only blobs can be repaired - for VARCHAR the FRM
+--echo # does not tell an explicit DEFAULT '' from the wrong implicit one,
+--echo # so those columns are deliberately left alone.
+--echo #
+--echo # MDEV-40417.frm was created by 10.11.19 as:
+--echo #   CREATE TABLE mdev40417 (
+--echo #     blob_nodef  LONGTEXT COMPRESSED NOT NULL,
+--echo #     blob_def    LONGTEXT COMPRESSED NOT NULL DEFAULT 'x',
+--echo #     vc_nodef    VARCHAR(100) COMPRESSED NOT NULL,
+--echo #     vc_def      VARCHAR(100) COMPRESSED NOT NULL DEFAULT '',
+--echo #     plain_nodef LONGTEXT NOT NULL,
+--echo #     pad         INT) ENGINE=MyISAM CHARSET=latin1;
+--echo #   INSERT INTO mdev40417 (plain_nodef, pad) VALUES ('p', 1);
+--echo #
+
+call mtr.add_suppression("Found wrong implicit DEFAULT");
+
+--copy_file std_data/MDEV-40417.frm $MYSQLD_DATADIR/test/mdev40417.frm
+--copy_file std_data/MDEV-40417.MYD $MYSQLD_DATADIR/test/mdev40417.MYD
+--copy_file std_data/MDEV-40417.MYI $MYSQLD_DATADIR/test/mdev40417.MYI
+
+SHOW CREATE TABLE mdev40417;
+--echo # For the error log reporting see main.column_compression_errlog
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='mdev40417' ORDER BY ORDINAL_POSITION;
+--echo # The row that the old server allowed to be inserted is still readable
+SELECT * FROM mdev40417;
+
+--echo # blob_nodef is mandatory again
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO mdev40417 (blob_def, vc_nodef, vc_def, plain_nodef)
+VALUES ('a', 'b', 'c', 'd');
+--echo # plain_nodef was never affected by the bug
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO mdev40417 (blob_nodef, blob_def, vc_nodef, vc_def)
+VALUES ('a', 'b', 'c', 'd');
+--echo # blob_def keeps its explicit DEFAULT
+INSERT INTO mdev40417 (blob_nodef, vc_nodef, vc_def, plain_nodef)
+VALUES ('a', 'b', 'c', 'd');
+--echo # vc_nodef is not touched, it still has the old implicit DEFAULT ''
+INSERT INTO mdev40417 (blob_nodef, blob_def, plain_nodef) VALUES ('a', 'b', 'd');
+--sorted_result
+SELECT blob_nodef, blob_def, vc_nodef, vc_def, plain_nodef FROM mdev40417;
+
+--echo # ALTER TABLE ... FORCE writes the repaired flag back into the FRM
+ALTER TABLE mdev40417 FORCE;
+SHOW CREATE TABLE mdev40417;
+DROP TABLE mdev40417;
+
+--echo # End of 10.11 tests

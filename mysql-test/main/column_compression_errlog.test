@@ -1,0 +1,33 @@
+#
+# MDEV-40417 A column with compression enabled automatically adds DEFAULT ''
+#
+# Error log reporting for a table created before the fix.  This lives in a
+# file of its own because reading the server error log needs
+# include/not_embedded.inc, and sourcing that from main.column_compression
+# would skip that whole test for embedded server runs.
+#
+--source include/not_embedded.inc
+
+call mtr.add_suppression("Found wrong implicit DEFAULT");
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo # std_data/MDEV-40417.* was created by 10.11.19 before the fix, see the
+--echo # MDEV-40417 section of main.column_compression for its definition.
+--copy_file std_data/MDEV-40417.frm $MYSQLD_DATADIR/test/mdev40417.frm
+--copy_file std_data/MDEV-40417.MYD $MYSQLD_DATADIR/test/mdev40417.MYD
+--copy_file std_data/MDEV-40417.MYI $MYSQLD_DATADIR/test/mdev40417.MYI
+
+--echo # Reading the old .frm reports the repaired blob column
+SELECT COUNT(*) FROM mdev40417;
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= Found wrong implicit DEFAULT '' for compressed field 'blob_nodef'
+--source include/search_pattern_in_file.inc
+
+--echo # ... and only that one, vc_nodef cannot be recognized as affected
+--let SEARCH_PATTERN= Found wrong implicit DEFAULT '' for compressed field 'vc_nodef'
+--source include/search_pattern_in_file.inc
+
+DROP TABLE mdev40417;
+
+--echo # End of 10.11 tests
