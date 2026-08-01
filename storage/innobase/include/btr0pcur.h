@@ -79,11 +79,13 @@ cursor.
 @param latch_mode BTR_SEARCH_LEAF, ...
 @param cursor     memory buffer for persistent cursor
 @param mtr        mini-transaction
+@param read_ahead context for read ahead operation
 @return DB_SUCCESS on success or error code otherwise. */
 inline
 dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
-                                   btr_pcur_t *cursor, mtr_t *mtr);
+                                   btr_pcur_t *cursor, mtr_t *mtr,
+                                   btr_read_ahead_t *read_ahead = nullptr);
 
 /**************************************************************//**
 Gets the up_match value for a pcur after a search.
@@ -381,7 +383,7 @@ struct btr_pcur_t
   @param mtr           mini-transaction
   @return error code */
   dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
-                    mtr_t *mtr)
+                    mtr_t *mtr, btr_read_ahead_t *read_ahead = nullptr)
 
   {
     this->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
@@ -389,7 +391,7 @@ struct btr_pcur_t
     pos_state= BTR_PCUR_IS_POSITIONED;
     old_rec= nullptr;
 
-    return btr_cur.open_leaf(first, index, this->latch_mode, mtr);
+    return btr_cur.open_leaf(first, index, this->latch_mode, mtr, read_ahead);
   }
 };
 

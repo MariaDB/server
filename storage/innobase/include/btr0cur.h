@@ -660,6 +660,51 @@ enum btr_cur_method {
 #endif
 };
 
+/** Return value of btr_read_ahead_collect() */
+enum btr_ra_result
+{
+  /* Already read full capacity */
+  BTR_RA_FULL,
+  /* Current level page was completed; sibling may continue it */
+  BTR_RA_EDGE,
+  /* Reached stop_page */
+  BTR_RA_STOP
+};
+
+/** Read node-pointer leaf page numbers from a single PAGE_LEVEL=1
+page into a read-ahead collector, walking from rec in scan order.
+Appends to ra->pages and updates ra->l1_child, so a later call can
+resume from where this one stopped by re-locating that child.
+@param ra          read ahead collector to append to
+@param index       index the record belongs to
+@param rec         first node pointer to harvest
+@param descending  walk backwards (prev) rather than forwards (next)
+@param stop_page   if not FIL_NULL, stop right after the child
+@retval BTR_RA_FULL when ra->n reached ra->capacity
+@retval BTR_RA_EDGE when ra->l1_page was completely scanned
+@retval BTR_RA_STOP when child reached stop_page */
+btr_ra_result btr_read_ahead_collect(btr_read_ahead_t *ra,
+                                     const dict_index_t *index,
+                                     const rec_t *rec, bool descending,
+                                     uint32_t stop_page=FIL_NULL) noexcept;
+
+/** Find the record on a PAGE_LEVEL=1 page from which read-ahead should
+resume. Node pointer following the one whose child page number
+is 'resume_child'. The page is walked only through its genuine record
+chain (from the infimum/supremum), so a concurrent reorganization
+cannot cause an invalid read; at worst the child is not found.
+@param block         PAGE_LEVEL=1 page
+@param index         index the record belongs to
+@param resume_child  child page number last read, or FIL_NULL to resume
+                     from the page edge
+@param descending    scan direction
+@return the record to resume harvesting from
+@retval nullptr if 'resume_child' is no longer present on this page */
+const rec_t *btr_read_ahead_resume_rec(const buf_block_t *block,
+                                       const dict_index_t *index,
+                                       uint32_t resume_child,
+                                       bool descending) noexcept;
+
 /** The tree cursor: the definition appears here only for the compiler
 to know struct size! */
 struct btr_cur_t {
@@ -721,18 +766,25 @@ struct btr_cur_t {
   @param index         B-tree
   @param latch_mode    which latches to acquire
   @param mtr           mini-transaction
+  @param read_ahead    optional context for logical read-ahead;
+                       if set, leaf page numbers are collected at
+                       PAGE_LEVEL=1
   @return error code */
   dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
-                    mtr_t *mtr);
+                    mtr_t *mtr, btr_read_ahead_t *read_ahead= nullptr);
 
   /** Search the leaf page record corresponding to a key.
   @param tuple      key to search for, with correct n_fields_cmp
   @param mode       search mode; PAGE_CUR_LE for unique prefix or for inserting
   @param latch_mode latch mode
   @param mtr        mini-transaction
+  @param read_ahead optional context for logical read-ahead;
+                    if set, leaf page numbers are collected at
+                    PAGE_LEVEL=1
   @return error code */
   dberr_t search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
-                      btr_latch_mode latch_mode, mtr_t *mtr);
+                      btr_latch_mode latch_mode, mtr_t *mtr,
+                      btr_read_ahead_t *read_ahead = nullptr);
 
   /** Search the leaf page record corresponding to a key, exclusively latching
   all sibling pages on the way.
