@@ -1,6 +1,7 @@
 --source include/have_debug.inc
 --source include/not_asan.inc
 --source include/not_embedded.inc
+--source include/not_valgrind.inc
 
 --echo #
 --echo # MDEV-40341 store read-only sysvars in a read-only root and a read-only segment
