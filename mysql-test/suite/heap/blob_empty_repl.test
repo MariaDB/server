@@ -1,0 +1,44 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Row-based replication of an empty blob into a HEAP table.
+--echo #
+--echo # Field_blob::unpack() points a zero-length blob at the replication
+--echo # event buffer instead of storing a NULL pointer, so the applier hands
+--echo # the engine a record with LENGTH() = 0 and a non-NULL data pointer
+--echo # even for a plain, uncompressed column.  The engine must decide
+--echo # everything from the stored length when it redeems blob chains parked
+--echo # by the delete or update earlier in the same event group.
+--echo #
+
+--echo #
+--echo # REPLACE (delete + re-insert events)
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+
+--sync_slave_with_master
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+--connection master
+
+--echo #
+--echo # INSERT ON DUPLICATE KEY UPDATE (update event parks, write event
+--echo # flushes)
+--echo #
+CREATE TABLE t2 (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (1,'foo');
+INSERT INTO t2 VALUES (1,''),(2,'')
+  ON DUPLICATE KEY UPDATE b = VALUES(b);
+SELECT id, LENGTH(b) FROM t2 ORDER BY id;
+
+--sync_slave_with_master
+SELECT id, LENGTH(b) FROM t2 ORDER BY id;
+--connection master
+
+DROP TABLE t, t2;
+--sync_slave_with_master
+
+--source include/rpl_end.inc
