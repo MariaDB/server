@@ -853,6 +853,7 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
   }
   if (mysql_real_query(mysql, query.str, (ulong)query.length-1))
     db_error(mysql); /* We shall continue here, if --force was given */
+  dynstr_free(&query);
 }
 
 
