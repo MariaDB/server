@@ -1,0 +1,49 @@
+include/master-slave.inc
+[connection master]
+#
+# Row-based replication of an empty blob into a HEAP table.
+#
+# Field_blob::unpack() points a zero-length blob at the replication
+# event buffer instead of storing a NULL pointer, so the applier hands
+# the engine a record with LENGTH() = 0 and a non-NULL data pointer
+# even for a plain, uncompressed column.  The engine must decide
+# everything from the stored length when it redeems blob chains parked
+# by the delete or update earlier in the same event group.
+#
+#
+# REPLACE (delete + re-insert events)
+#
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+connection slave;
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+connection master;
+#
+# INSERT ON DUPLICATE KEY UPDATE (update event parks, write event
+# flushes)
+#
+CREATE TABLE t2 (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (1,'foo');
+INSERT INTO t2 VALUES (1,''),(2,'')
+ON DUPLICATE KEY UPDATE b = VALUES(b);
+SELECT id, LENGTH(b) FROM t2 ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+connection slave;
+SELECT id, LENGTH(b) FROM t2 ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+connection master;
+DROP TABLE t, t2;
+connection slave;
+include/rpl_end.inc

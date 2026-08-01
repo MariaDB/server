@@ -1,0 +1,60 @@
+--echo #
+--echo # Writing an empty COMPRESSED blob into a HEAP table right after a
+--echo # delete or update parked the old row's blob chain for deferred free.
+--echo #
+--echo # Field_blob_compressed::store() leaves a stale non-NULL data pointer
+--echo # in the record buffer when storing a zero-length value, unlike plain
+--echo # Field_blob::store() which zeroes the whole pack.  The engine must
+--echo # decide everything from the stored length and never trust the pointer
+--echo # of a zero-length blob.
+--echo #
+
+--echo #
+--echo # REPLACE over an existing row (delete + re-insert path)
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo #
+--echo # DELETE followed by INSERT of an empty compressed blob
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+DELETE FROM t;
+INSERT INTO t VALUES (2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo #
+--echo # INSERT ON DUPLICATE KEY UPDATE (update parks, next insert flushes)
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+INSERT INTO t VALUES (1,''),(2,'')
+  ON DUPLICATE KEY UPDATE b = VALUES(b);
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo #
+--echo # Two blob columns: one parked chain adopted by a non-empty value,
+--echo # the other column written empty in the same statement
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b1 TEXT COMPRESSED, b2 TEXT COMPRESSED)
+  ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo','bar');
+REPLACE INTO t VALUES (1,'','quux'),(2,'','');
+SELECT id, LENGTH(b1), LENGTH(b2) FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo #
+--echo # Plain TEXT control: empty value stores a NULL pointer, must keep
+--echo # working the same way
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+DROP TABLE t;
