@@ -3638,6 +3638,19 @@ static bool check_server_id(sys_var *self, THD *thd, set_var *var)
     return true;
   }
 #endif /* WITH_WSREP */
+
+  if (unlikely(thd->in_sub_stmt))
+  {
+    my_error(ER_CANT_SET_IN_SUBSTATEMENT, MYF(0), "@@session.server_id");
+    return true;
+  }
+
+  if (unlikely(thd->in_active_multi_stmt_transaction()))
+  {
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "@@session.server_id");
+    return true;
+  }
+
   return false;
 }
 
