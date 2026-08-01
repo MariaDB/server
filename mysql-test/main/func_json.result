@@ -3022,4 +3022,23 @@ x
 NULL
 SELECT 1 FROM (SELECT JSON_REMOVE(46, DATE(NULL)) AS x EXCEPT SELECT 1) AS d WHERE NOT(NOT(x > 10)) AND (x < 1 OR x > 1);
 1
+#
+# MDEV-40572 SIGSEGV in JSON_OVERLAPS() on a truncated nested JSON object with different character sets/collations
+#
+SET @col=@@collation_connection;
+SET @char=@@character_set_connection;
+SET collation_connection=ucs2_general_ci;
+SELECT JSON_OVERLAPS ('{"B":{}}', '{"B":{') AS exp_ucs2;
+exp_ucs2
+0
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
+SET character_set_connection=utf16;
+SELECT JSON_OVERLAPS ('{"B":{}}', '{"B":{') AS exp_utf16;
+exp_utf16
+0
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
+SET @@collation_connection=@col;
+SET @@character_set_connection=@char;
 # End of 10.11 Test
