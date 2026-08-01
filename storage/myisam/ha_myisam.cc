@@ -817,17 +817,18 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For mi_killed()
 
+  if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
+  {
+    /* purecov: begin inspected */
+    DBUG_PRINT("error", ("Failed to convert TABLE object to MyISAM "
+                         "key and column definition"));
+    goto err;
+    /* purecov: end */
+  }
+
   /* No need to perform a check for tmp table or if it's already checked */
   if (!table->s->tmp_table && file->s->reopen == 1)
   {
-    if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
-    {
-      /* purecov: begin inspected */
-      DBUG_PRINT("error", ("Failed to convert TABLE object to MyISAM "
-                           "key and column definition"));
-      goto err;
-      /* purecov: end */
-    }
     if (check_definition(keyinfo, recinfo, table->s->keys, recs,
                          file->s->keyinfo, file->s->rec,
                          file->s->base.keys, file->s->base.fields,

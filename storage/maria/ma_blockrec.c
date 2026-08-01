@@ -4699,6 +4699,38 @@ static my_bool read_long_data2(MARIA_HA *info, uchar *to, ulong length,
   DBUG_RETURN(1);
 }
 
+static my_bool skip_long_data2(MARIA_HA *info, ulong length,
+                               MARIA_EXTENT_CURSOR *extent,
+                               uchar **data, uchar **end_of_data)
+{
+  uint left_length= (uint) (*end_of_data - *data);
+  DBUG_ENTER("skip_long_data2");
+  DBUG_PRINT("enter", ("length: %lu  left_length: %u",
+                       length, left_length));
+  DBUG_ASSERT(*data <= *end_of_data);
+
+  if (extent->first_extent && length > left_length)
+  {
+    *end_of_data= *data;
+    left_length= 0;
+  }
+
+  for (;;)
+  {
+    if (unlikely(left_length >= length))
+    {
+      (*data)+= length;
+      DBUG_PRINT("info", ("left_length: %u", left_length - (uint) length));
+      DBUG_RETURN(0);
+    }
+    length-= left_length;
+    if (!(*data= read_next_extent(info, extent, end_of_data)))
+      break;
+    left_length= (uint) (*end_of_data - *data);
+  }
+  DBUG_RETURN(1);
+}
+
 static inline my_bool read_long_data(MARIA_HA *info, uchar *to, ulong length,
                               MARIA_EXTENT_CURSOR *extent,
                               uchar **data, uchar **end_of_data)
@@ -4711,6 +4743,19 @@ static inline my_bool read_long_data(MARIA_HA *info, uchar *to, ulong length,
     return 0;
   }
   return read_long_data2(info, to, length, extent, data, end_of_data);
+}
+
+static inline my_bool skip_long_data(MARIA_HA *info, ulong length,
+                                     MARIA_EXTENT_CURSOR *extent,
+                                     uchar **data, uchar **end_of_data)
+{
+  uint left_length= (uint) (*end_of_data - *data);
+  if (likely(left_length >= length))
+  {
+    (*data)+= length;
+    return 0;
+  }
+  return skip_long_data2(info, length, extent, data, end_of_data);
 }
 
 
@@ -4953,7 +4998,8 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
       if (read_long_data(info, field_pos, length, &extent, &data,
                          &end_of_data))
         DBUG_RETURN(my_errno);
-      MEM_UNDEFINED(field_pos + length, column->length - length - pack_length);
+      MEM_UNDEFINED(field_pos + length,
+                    column->length - length - pack_length);
       break;
     }
     case FIELD_BLOB:
@@ -4966,12 +5012,14 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
       {
         /* Calculate total length for all blobs */
         ulong blob_lengths= 0;
+        ulong read_blob_lengths= 0;
         uchar *length_data= field_length_data;
         MARIA_COLUMNDEF *blob_field= column;
 
         found_blob= 1;
         for (; blob_field < end_column; blob_field++)
         {
+          ulong blob_part_length;
           uint size_length;
           if ((record[blob_field->null_pos] & blob_field->null_bit) ||
               (blob_field->empty_bit &
@@ -4979,13 +5027,16 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
                 blob_field->empty_bit)))
             continue;
           size_length= blob_field->length - portable_sizeof_char_ptr;
-          blob_lengths+= _ma_calc_blob_length(size_length, length_data);
+          blob_part_length= _ma_calc_blob_length(size_length, length_data);
+          blob_lengths+= blob_part_length;
+          read_blob_lengths+= blob_part_length;
           length_data+= size_length;
         }
         cur_row->blob_length= blob_lengths;
         DBUG_PRINT("info", ("Total blob length: %lu", blob_lengths));
-        if (_ma_alloc_buffer(&info->blob_buff, &info->blob_buff_size,
-                             blob_lengths, myflag))
+        if (read_blob_lengths &&
+            _ma_alloc_buffer(&info->blob_buff, &info->blob_buff_size,
+                             read_blob_lengths, myflag))
           DBUG_RETURN(my_errno);
         blob_buffer= info->blob_buff;
       }
