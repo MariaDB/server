@@ -194,13 +194,18 @@ void hp_flush_unaliased_blob_free(HP_INFO *info, const uchar *record)
     data_len= hp_blob_length(desc, record);
     memcpy(&data_ptr, record + desc->offset + desc->packlength,
            sizeof(data_ptr));
-    DBUG_ASSERT((data_len == 0) == (data_ptr == NULL));
+    DBUG_ASSERT(data_len == 0 || data_ptr != NULL);
 
     /*
       Test the length, not the pointer: hp_write_blobs() decides the same
       question the same way, and the two have to agree on which columns can
       source a parked chain.  A column they disagreed about would leave a
       chain parked that nothing will ever adopt.
+
+      The pointer of a zero-length blob is not necessarily NULL: the SQL
+      layer leaves a stale non-NULL pointer behind when storing an empty
+      compressed value (Field_blob_compressed::store) and when applying a
+      row-based replication event (Field_blob::unpack).
     */
     if (data_len != 0 && hp_blob_sources_chain(share, data_ptr, *chain_pos))
     {
