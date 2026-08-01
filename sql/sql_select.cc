@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "my_dbug.h"
 #include "sql_list.h"
 #include "sql_priv.h"
 #include "unireg.h"
@@ -26219,8 +26220,10 @@ enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
   // we don't even need to pass the row to the window function, because the
   // add() functions read from the TABLE::record[0] directly, as we did
   // NOT call split_sum_func(), so we still point to base table
-  (join_tab - 1)->window_funcs_streaming_step->process_row();
-  return end_send(join, join_tab, end_of_records);
+  DBUG_ENTER("end_compute_win_func");
+  if ((join_tab - 1)->window_funcs_streaming_step->process_row())
+    DBUG_RETURN(NESTED_LOOP_ERROR);
+  DBUG_RETURN(end_send(join, join_tab, end_of_records));
 }
 
 /*

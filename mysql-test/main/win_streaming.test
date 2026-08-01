@@ -1,5 +1,5 @@
 #
-# Streaming Window Functions Tests 
+# Streaming Window Functions Tests
 #
 
 # I will remove these comments when I'm done testing, will just write the # cases I'll consider for testing here.
@@ -7,13 +7,8 @@
 # Explain per scenario to lock up streaming path
 # Explains for non streamable cases, no need to check output
 
-# For now, row_number(), rank(), dense_rank() are streamable.
-# should I only test on rank? would it make sense to add EXPLAIN for all?
-
-# Basic streaming (one rank with explain, others only correctness)
-
 # Order by and partition
-# Explain with one function to show streamable and index or filesort is 
+# Explain with one function to show streamable and index or filesort is
 # used
 # Show compatible functions also stream
 # show results only to prove partition tracking correctness
@@ -23,72 +18,91 @@
 # aggregate functions anywhere in the select list materialize
 # cases to look harder later (subqueries, expressions)
 
-#test with limit and analyze to show we read only rows needed 
+# Test with limit and analyze to show we read only rows needed
+
+# For each streamable case we run the query twice: once as-is (streaming path)
+# and once with SQL_BUFFER_RESULT, which forces a temp table and so the old
+# materialized path. The two must agree, which is what proves the streamed
+# values are correct.
+# We wrap both in --sorted_result because the streaming path emits rows in the
+# window's sort order while the buffered path emits them from the temp table,
+# so the row order can differ even when every value matches. Sorting both and
+# selecting the key columns (pk,a,b) lets us compare them as multisets.
+
+# I add this because EXPLAIN EXTENDED emits a Note 1003 with the reconstructed query for every
+# statement, which I think is not necessary and clutters result.
+--disable_warnings
 
 CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT);
-INSERT INTO t1 VALUES (1, 1, 3);
-INSERT INTO t1 VALUES (2, 1, 1);
-INSERT INTO t1 VALUES (3, 2, 2);
-INSERT INTO t1 VALUES (4, 2, 4);
-INSERT INTO t1 VALUES (5, 3, 1);
-INSERT INTO t1 VALUES (6, 3, 2);
+INSERT INTO t1 VALUES (1, 1, 10);
+INSERT INTO t1 VALUES (2, 1, 10);
+INSERT INTO t1 VALUES (3, 1, 20);
+INSERT INTO t1 VALUES (4, 2, 20);
+INSERT INTO t1 VALUES (5, 2, 20);
+INSERT INTO t1 VALUES (6, 2, 30);
+INSERT INTO t1 VALUES (7, 3, 10);
+INSERT INTO t1 VALUES (8, 3, 30);
+INSERT INTO t1 VALUES (9, 3, 30);
 
-# Basic streaming: one rank with explain, others only correctness
-SELECT pk, RANK() OVER (ORDER BY pk) AS rnk from t1;
+--let $q= pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk)
+eval EXPLAIN EXTENDED SELECT $q;
+eval EXPLAIN EXTENDED SELECT SQL_BUFFER_RESULT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Tests peer handling as duplicates exist when pk is not in the order list.
+# row_number() is dropped here because the number assigned to a given row can differ between streaming and materialization.
+# Filesort is not stable and there is no tie breaking.
+--let $q= pk, a, b, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Order-only (no partition): all three functions, total order.
+--let $q= pk, a, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a, pk)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Windows reusing the main query order (whichever order is longer is used for a
+# single sort). We use EXPLAIN FORMAT=JSON here to show which sort key is used.
+# window order longer than main ORDER BY
 --source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT pk, RANK() OVER (ORDER BY pk) AS rnk from t1 limit 2;
+--let $q= pk, a, b, rank() OVER (ORDER BY a, b) AS rnk FROM t1 ORDER BY a
+eval EXPLAIN FORMAT=JSON SELECT $q;
+eval SELECT $q;
+eval SELECT SQL_BUFFER_RESULT $q;
 
-# question: should i add test for other streamable functions?
-
-# Order by and partition: explain with rank to show streamable
+# main ORDER BY longer than window order
 --source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (PARTITION BY a ORDER BY b) FROM t1;
-SELECT row_number() OVER (PARTITION BY a ORDER BY b) as rn FROM t1;
-SELECT rank() OVER (PARTITION BY a ORDER BY b) as rnk FROM t1;
-SELECT dense_rank() OVER (PARTITION BY a ORDER BY b) as drnk FROM t1;
+--let $q= pk, a, b, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a, b
+eval EXPLAIN FORMAT=JSON SELECT $q;
+eval SELECT $q;
+eval SELECT SQL_BUFFER_RESULT $q;
 
-# Show compatible functions also stream
+# window order equals main ORDER BY
 --source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a), dense_rank() OVER (ORDER BY a) FROM t1;
-SELECT rank() OVER (ORDER BY a) as rnk, dense_rank() OVER (ORDER BY a) as drnk FROM t1;
+--let $q= pk, a, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a
+eval EXPLAIN FORMAT=JSON SELECT $q;
+eval SELECT $q;
+eval SELECT SQL_BUFFER_RESULT $q;
 
-# Windows reusing the main query order (whichever is longer)
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a, b) FROM t1 ORDER BY a;
-SELECT rank() OVER (ORDER BY a, b) as rnk FROM t1 ORDER BY a;
+# Window functions inside expressions still stream as long as they're not
+# aggregate functions that already require materialization.
+--let $q= pk, a, rank() OVER w AS r, rank() OVER w + 1 AS r_plus, rank() OVER w - dense_rank() OVER w AS diff FROM t1 WINDOW w AS (ORDER BY a)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
 
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a) FROM t1 ORDER BY a, b;
-SELECT rank() OVER (ORDER BY a) as rnk FROM t1 ORDER BY a, b;
-
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a) FROM t1 ORDER BY a;
-SELECT rank() OVER (ORDER BY a) as rnk FROM t1 ORDER BY a;
-
-# Incompatible orders materialize
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a), rank() OVER (ORDER BY b) FROM t1;
-
-# Aggregate functions inside partition lists materialize
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (PARTITION BY max(a) ORDER BY b) FROM t1;
-
-# Aggregate functions anywhere in the select list materialize
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT max(a), rank() OVER (ORDER BY b) FROM t1;
-
-# Incompatible RANGE frame materializes
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT count(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) FROM t1;
-
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
-
-# GROUP BY materializes (for now?)
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a) FROM t1 GROUP BY a;
-
-# Multi-table join
+# Multi-table joins
 CREATE TABLE t2 (pk INT PRIMARY KEY, c INT);
 INSERT INTO t2 VALUES (1, 100);
 INSERT INTO t2 VALUES (2, 200);
@@ -96,19 +110,125 @@ INSERT INTO t2 VALUES (3, 300);
 INSERT INTO t2 VALUES (4, 400);
 INSERT INTO t2 VALUES (5, 500);
 INSERT INTO t2 VALUES (6, 600);
+INSERT INTO t2 VALUES (7, 700);
+INSERT INTO t2 VALUES (8, 800);
+INSERT INTO t2 VALUES (9, 900);
 
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY t1.b) FROM t1 JOIN t2 ON t1.pk = t2.pk;
-SELECT rank() OVER (ORDER BY t1.b) as rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
-SELECT rank() OVER (PARTITION BY t1.a ORDER BY t1.b) as rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
-SELECT rank() OVER (ORDER BY t1.b) as rnk FROM t1 LEFT JOIN t2 ON t1.pk = t2.pk;
+--let $q= t1.pk, t1.a, t1.b, rank() OVER (ORDER BY t1.b, t1.pk) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+--let $q= t1.pk, t1.a, t1.b, rank() OVER (ORDER BY t1.b, t1.pk) AS rnk FROM t1 LEFT JOIN t2 ON t1.pk = t2.pk
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
 
 DROP TABLE t2;
 
-# Subquery in FROM
---source include/explain-no-costs.inc
-EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a) as rnk FROM (SELECT a FROM t1 WHERE a > 1) derived;
+# Derived table in FROM: window functions in the outer query over a subquery.
+--let $q= d.pk, d.a, d.b, rank() OVER (PARTITION BY d.a ORDER BY d.b) AS rnk, dense_rank() OVER (PARTITION BY d.a ORDER BY d.b) AS drnk FROM (SELECT pk, a, b FROM t1 WHERE a > 1) AS d
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
 
-# Cases to look harder later (subqueries, expressions)
+# Window function INSIDE a subquery
+EXPLAIN EXTENDED SELECT d.a, d.rnk FROM (SELECT a, rank() OVER (ORDER BY a) AS rnk FROM t1) AS d;
+SELECT d.a, d.rnk FROM (SELECT a, rank() OVER (ORDER BY a) AS rnk FROM t1) AS d;
 
+# r_rows should be equal to the limit.
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT pk, rank() OVER (ORDER BY pk) AS rnk FROM t1 LIMIT 2;
+
+# GROUP BY can stream: when an index supplies the group list in order there is
+# no temp table, and if the window order is compatible with the group list the
+# window functions are computed on the streamed grouped rows.
+# Note that this applies even if the window function order list is longer than the group list.
+# As long as the group list is a prefix of the longest window order list.
+CREATE TABLE tg (a INT, b INT, KEY(a, b));
+INSERT INTO tg VALUES (1, 1);
+INSERT INTO tg VALUES (1, 2);
+INSERT INTO tg VALUES (2, 1);
+INSERT INTO tg VALUES (2, 2);
+INSERT INTO tg VALUES (2, 3);
+INSERT INTO tg VALUES (3, 1);
+
+# GROUP BY longer than the window order
+--let $q= a, b, rank() OVER (ORDER BY a) AS rnk, dense_rank() OVER (ORDER BY a) AS drnk FROM tg GROUP BY a, b
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Group by shorter than the window order
+--let $q= a, rank() OVER (ORDER BY a, b) AS rnk, dense_rank() OVER (ORDER BY a, b) AS drnk FROM tg GROUP BY a
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+#
+# Cases that fall back to materialization
+#
+
+# Incompatible orders between the two functions
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a), rank() OVER (ORDER BY b) FROM t1;
+
+# Aggregate inside the PARTITION BY list
+EXPLAIN EXTENDED SELECT rank() OVER (PARTITION BY max(a) ORDER BY b) FROM t1;
+
+# A non-window aggregate anywhere in the select list
+EXPLAIN EXTENDED SELECT max(a), rank() OVER (ORDER BY b) FROM t1;
+
+# GROUP BY with no usable index needs a temp table for the grouping -> materialize
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM t1 GROUP BY a;
+
+# Implicit/constant grouping (GROUP BY a constant expression) collapses to a
+# single group (grouping optimized away) and does not stream
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM tg GROUP BY 1+2;
+
+# Ordering the outer query by the window function value, it needs to save the value first.
+EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
+
+#
+# Aggregate window functions: not streamable yet.
+#
+# Aggregates return is_streamable() == false today, so every case below falls
+# back and shows "Using temporary". They split into two groups: the cumulative
+# running frame is only blocked by that is_streamable() gate and is intended to
+# stream once aggregates are enabled; the rest fall back for frame reasons that
+# will remain even then.
+
+# Will stream once aggregates are enabled: an explicit ROWS ... CURRENT ROW
+# frame makes "current row" a physical position, so row N depends only on rows
+# <= N and an O(1) running accumulator is enough. The EXPLAIN EXTENDED will then
+# show "Using filesort" and NOT "Using temporary".
+EXPLAIN EXTENDED SELECT count(*) OVER w, sum(b) OVER w, avg(b) OVER w, min(b) OVER w, max(b) OVER w FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+
+# Default-frame: ORDER BY with no explicit frame defaults to RANGE, not ROWS.
+# Under RANGE "current row" is the end of the peer group, so a row's value is
+# unknown until the group is scanned ahead and buffered. Looks like the
+# streamable ROWS form above but will not stream.
+EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
+# Explicit RANGE, same peer-group reason.
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
+# Bottom bound past CURRENT ROW needs lookahead regardless of units.
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) FROM t1;
+
+# Those span whole partitions, the whole partition must be buffered before the row is emitted,
+# hence no streaming.
+EXPLAIN EXTENDED SELECT sum(b) OVER () FROM t1;
+EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
+
+DROP TABLE tg;
 DROP TABLE t1;
+
+--enable_warnings
