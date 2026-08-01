@@ -2165,4 +2165,24 @@ SELECT JSON_OVERLAPS ('{"B":{}}', '{"B":{') AS exp_utf16;
 SET @@collation_connection=@col;
 SET @@character_set_connection=@char;
 
+--echo #
+--echo # MDEV-40165 JSON_EQUAL/JSON_NORMALIZE/JSON_CONTAINS error handling
+--echo #
+
+CREATE TABLE t(c1 JSON, c2 JSON);
+INSERT INTO t VALUES ('{"a":1,"b":2}', '{"b":2E0, "a":1E0}'),
+                     (NULL, '["a", "b"]'),
+                     ('{"r": 1}', NULL),
+                     ('[{"a": 3}, {"d": [1, 2, 3]}]', '[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]');
+
+SELECT c1, JSON_EQUALS(c1, '{"r": 1E0}') AS je_c1_const FROM t;
+SELECT c1, c2, JSON_EQUALS(c1, c2) AS je_c1_c2 FROM t;
+
+SELECT c1, JSON_CONTAINS(c1, '{"r": 1E0}') AS jc_c1_const FROM t;
+SELECT c1, c2, JSON_CONTAINS(c1, c2) AS jc_c1_c2 FROM t;
+
+SELECT c1, JSON_OVERLAPS(c1, '{"r": 1E0}') AS jo_c1_const FROM t;
+SELECT c1, c2, JSON_OVERLAPS(c1, c2) AS jo_c1_c2 FROM t;
+DROP TABLE t;
+
 --echo # End of 10.11 Test

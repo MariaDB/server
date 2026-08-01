@@ -3041,4 +3041,49 @@ Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
 SET @@collation_connection=@col;
 SET @@character_set_connection=@char;
+#
+# MDEV-40165 JSON_EQUAL/JSON_NORMALIZE/JSON_CONTAINS error handling
+#
+CREATE TABLE t(c1 JSON, c2 JSON);
+INSERT INTO t VALUES ('{"a":1,"b":2}', '{"b":2E0, "a":1E0}'),
+(NULL, '["a", "b"]'),
+('{"r": 1}', NULL),
+('[{"a": 3}, {"d": [1, 2, 3]}]', '[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]');
+SELECT c1, JSON_EQUALS(c1, '{"r": 1E0}') AS je_c1_const FROM t;
+c1	je_c1_const
+{"a":1,"b":2}	0
+NULL	NULL
+{"r": 1}	1
+[{"a": 3}, {"d": [1, 2, 3]}]	0
+SELECT c1, c2, JSON_EQUALS(c1, c2) AS je_c1_c2 FROM t;
+c1	c2	je_c1_c2
+{"a":1,"b":2}	{"b":2E0, "a":1E0}	1
+NULL	["a", "b"]	NULL
+{"r": 1}	NULL	NULL
+[{"a": 3}, {"d": [1, 2, 3]}]	[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]	0
+SELECT c1, JSON_CONTAINS(c1, '{"r": 1E0}') AS jc_c1_const FROM t;
+c1	jc_c1_const
+{"a":1,"b":2}	0
+NULL	NULL
+{"r": 1}	1
+[{"a": 3}, {"d": [1, 2, 3]}]	0
+SELECT c1, c2, JSON_CONTAINS(c1, c2) AS jc_c1_c2 FROM t;
+c1	c2	jc_c1_c2
+{"a":1,"b":2}	{"b":2E0, "a":1E0}	1
+NULL	["a", "b"]	NULL
+{"r": 1}	NULL	NULL
+[{"a": 3}, {"d": [1, 2, 3]}]	[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]	1
+SELECT c1, JSON_OVERLAPS(c1, '{"r": 1E0}') AS jo_c1_const FROM t;
+c1	jo_c1_const
+{"a":1,"b":2}	0
+NULL	NULL
+{"r": 1}	1
+[{"a": 3}, {"d": [1, 2, 3]}]	0
+SELECT c1, c2, JSON_OVERLAPS(c1, c2) AS jo_c1_c2 FROM t;
+c1	c2	jo_c1_c2
+{"a":1,"b":2}	{"b":2E0, "a":1E0}	1
+NULL	["a", "b"]	NULL
+{"r": 1}	NULL	NULL
+[{"a": 3}, {"d": [1, 2, 3]}]	[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]	1
+DROP TABLE t;
 # End of 10.11 Test
