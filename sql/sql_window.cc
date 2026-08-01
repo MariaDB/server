@@ -502,46 +502,6 @@ int compare_order_elements(ORDER *ord1, int weight1,
     return cmp > 0 ? CMP_GT : CMP_LT;
 }
 
-static
-int compare_order_lists(SQL_I_List<ORDER> *part_list1,
-                        int spec_number1,
-                        SQL_I_List<ORDER> *part_list2,
-                        int spec_number2)
-{
-  if (part_list1 == part_list2)
-    return CMP_EQ;
-  ORDER *elem1= part_list1->first;
-  ORDER *elem2= part_list2->first;
-  for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
-  {
-    int cmp;
-    // remove all constants as we don't need them for comparision
-    while(elem1 && ((*elem1->item)->real_item())->const_item())
-    {
-      elem1= elem1->next;
-      continue;
-    }
-
-    while(elem2 && ((*elem2->item)->real_item())->const_item())
-    {
-      elem2= elem2->next;
-      continue;
-    }
-
-    if (!elem1 || !elem2)
-      break;
-
-    if ((cmp= compare_order_elements(elem1, spec_number1,
-                                     elem2, spec_number2)))
-      return cmp;
-  }
-  if (elem1)
-    return CMP_GT_C;
-  if (elem2)
-    return CMP_LT_C;
-  return CMP_EQ;
-}
-
 /*
   Overloaded to take ORDER* objects instead of SQL_I_List<ORDER>* (the longest
   wf order list, and the main query order list).
@@ -590,6 +550,15 @@ static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
   if (elem2)
     return CMP_LT_C;
   return CMP_EQ;
+}
+
+static int compare_order_lists(SQL_I_List<ORDER> *part_list1, int spec_number1,
+                               SQL_I_List<ORDER> *part_list2, int spec_number2)
+{
+  if (part_list1 == part_list2)
+    return CMP_EQ;
+  return compare_order_lists(part_list1->first, spec_number1,
+                             part_list2->first, spec_number2);
 }
 
 static
@@ -891,6 +860,8 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
 
   Window_spec *longest_spec= longest->window_spec;
   longest_spec->join_partition_and_order_lists();
+
+  // Check compatibility with other window function frames
   while ((win_func= it++))
   {
     if (win_func == longest)
@@ -901,7 +872,7 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
                                  longest_spec->win_spec_number,
                                  spec->partition_list, spec->win_spec_number);
     spec->disjoin_partition_and_order_lists();
-    if (cmp != CMP_GT_C)
+    if (!(cmp == CMP_EQ || cmp == CMP_GT_C))
     {
       longest= nullptr;
       break;
@@ -920,6 +891,7 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
 bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *&longest_wf_order,
                                  ORDER *main_query_order,
+                                 ORDER *main_query_group_list,
                                  bool &streaming_wf_order_is_longer)
 {
   if (win_funcs.elements == 0)
@@ -948,7 +920,6 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
       win_func_with_longest_order->window_spec->partition_list->first,
       win_func_with_longest_order->window_spec->order_list->first);
 
-  // check compatibility of both
   cmp= compare_order_lists(
       longest_wf_order,
       win_func_with_longest_order->window_spec->win_spec_number,
@@ -960,6 +931,22 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
     streaming_wf_order_is_longer= true;
   else
     streaming_wf_order_is_longer= false;
+
+  // Ordering keys after the complete GROUP BY key does not affect the ordering
+  // of the grouped result: there is exactly one row per group key, so a
+  // trailing key is never reached as a tie-breaker. Hence it's safe even for
+  // non-grouped columns, whose values are plan-dependent but never participate
+  // in tie breaking. (Assumes the whole group key is matched as a prefix, and
+  // no WITH ROLLUP.)
+  if (main_query_group_list)
+  {
+    cmp= compare_order_lists(
+        longest_wf_order,
+        win_func_with_longest_order->window_spec->win_spec_number,
+        main_query_group_list, -1);
+    if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
+      return false;
+  }
   return true;
 }
 
@@ -3144,8 +3131,6 @@ bool compute_window_func(THD *thd,
 
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
-    // i need to save to current row field, but might not need all that for
-    // streaming
     if (save_window_function_values(window_functions, tbl, rowid_buf))
     {
       ret= true;
@@ -3393,11 +3378,6 @@ bool Window_funcs_computation::setup(THD *thd,
      filtering conditions when we perform sorting for window function
      computation.
   */
-  // sel holds filtering conditions (where, HAVING), those happen already
-  // before the window function computation, when a window function is computed
-  // over some window, we have to respect those filters, and not operate over
-  // the whole window (it's needed, the temp table does have invalid rows,
-  // checked with gdb test main.win (does not respect having)).
   if (tab->filesort && tab->filesort->select)
   {
     sel= tab->filesort->select;
@@ -3428,7 +3408,6 @@ bool Window_funcs_computation::exec(JOIN *join, bool keep_last_filesort_result)
   while ((srt = it++))
   {
     counter++;
-    // hmm?
     bool keep_filesort_result= keep_last_filesort_result &&
                                counter == win_func_sorts.elements;
     if (srt->exec(join, keep_filesort_result))
@@ -3473,6 +3452,8 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
     Item_sum *sum_func= win_func->window_func();
     sum_func->setup_window_func(thd, win_func->window_spec);
 
+    // for handling aggregate functions (not done yet, still need to define
+    // frame for those).
     win_func->window_func()->set_aggregator(thd,
                                             Aggregator::SIMPLE_AGGREGATOR);
   }

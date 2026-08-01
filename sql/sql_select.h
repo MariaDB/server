@@ -1769,8 +1769,15 @@ public:
     materialization path.
   */
   bool streamable_window_funcs= false;
-  ORDER *win_func_longest_order= NULL;
+
+  /*
+    These are set in have_streaming_window_funcs().
+    streaming_wf_order_is_longer is True if the partition + order list of the
+    longest window function is longer than AND compatible with the ORDER BY
+    clause of the main query.
+  */
   bool streaming_wf_order_is_longer= false;
+  ORDER *win_func_longest_order= NULL;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1917,7 +1924,8 @@ public:
     - We are using an ORDER BY or GROUP BY on fields not in the first table
     - We are using different ORDER BY and GROUP BY orders
     - The user wants us to buffer the result.
-    - We are using WINDOW functions.
+    - We are using WINDOW functions that do not align with the streaming
+      criteria (see have_streaming_window_funcs()).
     When the WITH ROLLUP modifier is present, we cannot skip temporary table
     creation for the DISTINCT clause just because there are only const tables.
   */
@@ -1929,7 +1937,8 @@ public:
               MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
             (select_lex->have_window_funcs() &&
-             (!streamable_window_funcs || only_const_tables())));
+             (!streamable_window_funcs || only_const_tables() ||
+              group_optimized_away)));
   }
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,

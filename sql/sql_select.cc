@@ -1618,9 +1618,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   // this needs to decide compatibility with main query sorting if exists
   // but the actual setting of which is set before test_if_need_tmp_table()
   if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
-      select_lex->group_list.elements == 0 &&
       have_streaming_window_funcs(thd, select_lex->window_funcs,
-                                  win_func_longest_order, order,
+                                  win_func_longest_order, order, group_list,
                                   streaming_wf_order_is_longer))
     streamable_window_funcs= true;
 
@@ -3360,6 +3359,7 @@ int JOIN::optimize_stage2()
   // is checking if order by references only the first non-const table in JOIN)
 
   // i'm not very sure of this, simple_order might change later??
+  // Should we skip this if the window function is longer than the main query?
   if (!need_tmp && simple_order && streaming_wf_order_is_longer)
     order= win_func_longest_order;
 
@@ -16827,6 +16827,7 @@ void JOIN_TAB::cleanup()
   if (window_funcs_streaming_step)
   {
     window_funcs_streaming_step->cleanup();
+    window_funcs_streaming_step= nullptr;
   }
   limit= 0;
   // Free select that was created for filesort outside of create_sort_index
@@ -24777,7 +24778,6 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
                join_tab->loosescan_key_len);
       skip_over= TRUE;
     }
-
     error= info->read_record();
 
     if (skip_over && likely(!error))

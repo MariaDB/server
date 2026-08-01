@@ -187,6 +187,7 @@ int setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *&longest_wf_order,
                                  ORDER *main_query_order,
+                                 ORDER *main_query_group_list,
                                  bool &streaming_wf_order_is_longer);
 
 //////////////////////////////////////////////////////////////////////////////
