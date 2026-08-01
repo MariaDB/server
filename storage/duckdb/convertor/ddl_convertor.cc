@@ -153,6 +153,70 @@ static std::string get_default_expr_from_vcol_defs(const TABLE_SHARE *share,
 }
 
 /**
+  Does a default expression reference a MariaDB sequence?
+
+  NEXT VALUE FOR s, PREVIOUS VALUE FOR s and SETVAL() are printed by
+  Item_func_nextval::print() as nextval(`db`.`seq`), lastval(...) and
+  setval(...) (sql/item_func.cc). DuckDB binds the quoted argument as a
+  column reference and rejects the whole DDL with "DEFAULT value cannot
+  contain column names" (MDEV-40266).
+
+  The sequence lives in MariaDB and has no DuckDB counterpart, so such a
+  default can never be forwarded. It is omitted instead: MariaDB evaluates
+  column defaults into record[0] before write_row(), and both write paths
+  always send the value, so only writes that bypass MariaDB entirely (i.e.
+  run_in_duckdb) would ever consult the DuckDB-side default.
+
+  This matches on the printed function name because the Item tree in
+  field->default_value->expr is unusable at ha_duckdb::create() time.
+*/
+static bool has_mariadb_sequence_func(const std::string &expr)
+{
+  static const char *const funcs[]= {"nextval(", "lastval(", "setval("};
+
+  for (const char *func : funcs)
+  {
+    size_t len= strlen(func);
+    for (size_t pos= 0; pos + len <= expr.length(); pos++)
+    {
+      if (strncasecmp(expr.c_str() + pos, func, len) != 0)
+        continue;
+      /* Ignore a match that is only the tail of a longer identifier. */
+      char prev= pos ? expr[pos - 1] : ' ';
+      if (!isalnum((uchar) prev) && prev != '_')
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
+  Expression default text of a field, or "" if it has none or the text is
+  not available in this share.
+*/
+static std::string get_expr_default_text(const Field *field)
+{
+  if (!field->default_value)
+    return "";
+  return get_default_expr_from_vcol_defs(field->table->s, field->field_index);
+}
+
+/** Does this field carry a default expression referencing a sequence? */
+static bool is_sequence_default(const Field *field)
+{
+  return has_mariadb_sequence_func(get_expr_default_text(field));
+}
+
+static void note_sequence_default_omitted(const char *column)
+{
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR,
+                      "DuckDB: sequence default of column '%s' is not "
+                      "forwarded to DuckDB; MariaDB supplies the value",
+                      column);
+}
+
+/**
   Read the literal default value of a field from the default record and
   return it as a string suitable for DuckDB SQL.
 
@@ -419,7 +483,9 @@ std::string FieldConvertor::translate()
       */
       std::string expr_str=
           get_default_expr_from_vcol_defs(field->table->s, field->field_index);
-      if (!expr_str.empty())
+      if (has_mariadb_sequence_func(expr_str))
+        note_sequence_default_omitted(field->field_name.str);
+      else if (!expr_str.empty())
         result << " DEFAULT (" << expr_str << ")";
     }
     else if (field->table->s->default_values && field->table->record[0])
@@ -712,10 +778,20 @@ std::string AddColumnConvertor::translate()
     }
     else if (!(field->flags & NO_DEFAULT_VALUE_FLAG))
     {
-      my_ptrdiff_t offset=
-          field->table->s->default_values - field->table->record[0];
-      has_default= true;
-      default_value= get_field_default_for_duckdb(field, offset);
+      /*
+        A sequence default must not be forwarded. Every other default,
+        including a constant-foldable expression, keeps using the value
+        MariaDB already materialised in default_values.
+      */
+      if (is_sequence_default(field))
+        note_sequence_default_omitted(field->field_name.str);
+      else
+      {
+        my_ptrdiff_t offset=
+            field->table->s->default_values - field->table->record[0];
+        has_default= true;
+        default_value= get_field_default_for_duckdb(field, offset);
+      }
     }
 
     append_stmt_column_add(result, m_schema_name, m_table_name,
@@ -884,10 +960,39 @@ void ChangeColumnDefaultConvertor::prepare_columns()
     else if (new_has_default && !old_has_default)
     {
       /* Default was added */
-      m_columns_to_set_default.emplace_back(nullptr, new_field);
+      if (is_sequence_default(new_field))
+      {
+        note_sequence_default_omitted(new_field->field_name.str);
+        m_columns_to_drop_default.emplace_back(nullptr, new_field);
+      }
+      else
+        m_columns_to_set_default.emplace_back(nullptr, new_field);
     }
     else if (old_has_default && new_has_default)
     {
+      std::string old_expr= get_expr_default_text(old_field);
+      std::string new_expr= get_expr_default_text(new_field);
+
+      if (!old_expr.empty() || !new_expr.empty())
+      {
+        /*
+          Expression default. It is not materialised in default_values, so
+          the byte comparison below would be meaningless — compare the
+          expression text instead.
+        */
+        if (old_expr != new_expr)
+        {
+          if (has_mariadb_sequence_func(new_expr))
+          {
+            note_sequence_default_omitted(new_field->field_name.str);
+            m_columns_to_drop_default.emplace_back(nullptr, new_field);
+          }
+          else
+            m_columns_to_set_default.emplace_back(nullptr, new_field);
+        }
+        continue;
+      }
+
       /* Both have default — check if value changed */
       my_ptrdiff_t old_off=
           old_field->table->s->default_values - old_field->table->record[0];
@@ -951,9 +1056,24 @@ std::string ChangeColumnDefaultConvertor::translate()
   {
     Field *field= pair.second;
 
-    my_ptrdiff_t offset=
-        field->table->s->default_values - field->table->record[0];
-    std::string default_value= get_field_default_for_duckdb(field, offset);
+    std::string default_value;
+    std::string expr= get_expr_default_text(field);
+    if (!expr.empty())
+    {
+      /*
+        Expression default: forward the expression text. It is not
+        materialised in default_values, so the byte path below would
+        produce a meaningless literal. Sequence defaults never reach
+        here — prepare_columns() diverts them to drop-default.
+      */
+      default_value= "(" + expr + ")";
+    }
+    else
+    {
+      my_ptrdiff_t offset=
+          field->table->s->default_values - field->table->record[0];
+      default_value= get_field_default_for_duckdb(field, offset);
+    }
 
     append_stmt_column_set_default(result, m_schema_name, m_table_name,
                                    field->field_name.str, default_value);
@@ -1060,9 +1180,40 @@ std::string ChangeColumnConvertor::translate()
     if (!field || (field->flags & NO_DEFAULT_VALUE_FLAG))
       continue;
 
-    my_ptrdiff_t offset=
-        field->table->s->default_values - field->table->record[0];
-    std::string default_value= get_field_default_for_duckdb(field, offset);
+    std::string new_expr= get_expr_default_text(field);
+    if (has_mariadb_sequence_func(new_expr))
+    {
+      /*
+        A sequence default is never forwarded to DuckDB. Act only when the
+        sequence default is newly introduced by this ALTER: drop whatever
+        default DuckDB had for the column. An unchanged sequence default
+        needs no statement (DuckDB never had one) and no repeated note.
+      */
+      if (new_expr != get_expr_default_text(new_field->field))
+      {
+        note_sequence_default_omitted(new_field->field_name.str);
+        append_stmt_column_drop_default(result, m_schema_name, m_table_name,
+                                        new_field->field_name.str);
+      }
+      continue;
+    }
+
+    std::string default_value;
+    if (!new_expr.empty())
+    {
+      /*
+        Expression default: forward the expression text. It is not
+        materialised in default_values, so the byte path below would
+        produce a meaningless literal.
+      */
+      default_value= "(" + new_expr + ")";
+    }
+    else
+    {
+      my_ptrdiff_t offset=
+          field->table->s->default_values - field->table->record[0];
+      default_value= get_field_default_for_duckdb(field, offset);
+    }
 
     append_stmt_column_set_default(result, m_schema_name, m_table_name,
                                    new_field->field_name.str, default_value);
