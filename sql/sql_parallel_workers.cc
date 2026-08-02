@@ -140,11 +140,26 @@ bool table_can_be_parallel_scanned(TABLE *table)
   @description
     When parallel query is enabled the first non-const table can be scanned by
     N worker threads, each reading a disjoint partition concurrently while the
-    manager runs the rest of the join. The wall-clock cost of reading and
-    copying the rows is therefore roughly 1/N of a serial scan, so the row
-    (full-scan) components of 'cost' -- I/O, CPU and row-copy -- are scaled by
-    1/N. The index components are left untouched: this only ever discounts a
-    full table scan.
+    manager runs the rest of the join, so the row (full-scan) components of
+    'cost' -- I/O, CPU and row-copy -- are divided among them. The index
+    components are left untouched: this only ever discounts a full table scan.
+
+    N is not parallel_worker_threads. The engine divides the table by its own
+    geometry, and hands a worker beyond the last chunk nothing to read, so the
+    chunk count bounds the parallelism however many threads were asked for (see
+    init_parallel_workers, which starts no more workers than chunks). Taking
+    the request at face value is the difference between believing a scan is 50
+    times cheaper and its being 2.2 times cheaper, which is enough to prefer a
+    parallel full scan over a perfectly good index.
+
+    Two costs the division does not express are added back. The worker path is
+    more expensive per row than the serial one, measured at some 1.16 times for
+    a scan whose rows are cheap to evaluate, because rows are copied into a
+    batch buffer, handed over under a mutex and re-read by the manager. And
+    each worker has to be created, with its own THD, table instances, cloned
+    items and row buffer, measured at some 22 microseconds. The setup term is
+    what makes the optimizer decline parallelism for a query too small to
+    amortise it rather than relying on a threshold.
 
     Eligibility mirrors the runtime gate in make_join_readinfo() exactly
     (engine support, no blob-backed columns, not fulltext-searched, a real base
@@ -156,20 +171,38 @@ bool table_can_be_parallel_scanned(TABLE *table)
 
   @return
     true   the cost was scaled (table is parallel-scan eligible)
-    false  no change (parallel scan disabled or table not eligible)
+    false  no change (parallel scan disabled, table not eligible, or the
+           table cannot be divided among two or more workers)
 */
+
+/*
+  Per-row cost of reading through a worker rather than serially, as a factor.
+  Measured on a release build with a scan whose WHERE is cheap; a query doing
+  more work per row amortises the transport and sees less than this.
+*/
+#define PARALLEL_SCAN_ROW_COST_FACTOR 1.16
+
+/* Cost of starting one worker, in the optimizer's units of milliseconds. */
+#define PARALLEL_WORKER_SETUP_COST    0.022
 
 bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
 {
-  const uint n= thd->variables.parallel_worker_threads;
+  uint n= thd->variables.parallel_worker_threads;
   if (n < 2 ||                                   // disabled, or no speed-up
       !table_can_be_parallel_scanned(table))
     return false;
 
-  const double factor= 1.0 / (double) n;
+  /* No more workers than the engine will have chunks to give them. */
+  if (const size_t chunks= table->file->pscan_chunk_count_estimate())
+    set_if_smaller(n, (uint) chunks);
+  if (n < 2)
+    return false;                    // one chunk: nothing to divide
+
+  const double factor= PARALLEL_SCAN_ROW_COST_FACTOR / (double) n;
   cost->row_cost.io  *= factor;
   cost->row_cost.cpu *= factor;
   cost->copy_cost    *= factor;
+  cost->row_cost.cpu+= n * PARALLEL_WORKER_SETUP_COST;
   return true;
 }
 
@@ -1149,6 +1182,20 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
   */
   if (const size_t chunks= file->pscan_chunk_count())
     set_if_smaller(n, (uint) chunks);
+
+  /*
+    One chunk is not a division of labour. The single worker would read the
+    whole table by itself, which is a serial scan performed by another thread,
+    plus a row copied into the batch buffer, a mutex handed over and a re-read
+    by the manager for every row of it -- measured at some 1.16 times the cost
+    of the serial reader. A table the engine cannot divide is a table for which
+    the serial path is simply better, so decline and let do_select() take it.
+  */
+  if (n < 2)
+  {
+    file->pscan_end_coordinator();
+    return HA_ERR_UNSUPPORTED;
+  }
 
   workers= (pwt_worker *) my_malloc(key_memory_pwt_workers,
                                     n * sizeof(pwt_worker),

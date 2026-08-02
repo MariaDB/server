@@ -3,20 +3,18 @@ CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq*2 FROM seq_1_to_200;
 CREATE TABLE t2 (a INT, b INT) ENGINE=InnoDB;
 INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_20000;
+CREATE TABLE t3 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t3 SELECT seq, seq*2 FROM seq_1_to_1000;
 #
-# t1 holds one leaf page, so it is one chunk whatever is asked for
+# t1 holds one leaf page. The engine cannot divide it, so a worker would
+# read all of it, and the serial path does that for less: parallel is
+# declined altogether.
 #
 SET SESSION parallel_worker_threads= 8;
 FLUSH STATUS;
 SELECT a, b FROM t1 WHERE b > 0;
 ran_in_the_workers	workers_per_query
-1	1.0000
-# and asking for twice as many does not start one more
-SET SESSION parallel_worker_threads= 16;
-FLUSH STATUS;
-SELECT a, b FROM t1 WHERE b > 0;
-ran_in_the_workers	workers_per_query
-1	1.0000
+0	NULL
 #
 # t2 spans many leaf pages, so the request is met in full
 #
@@ -31,6 +29,40 @@ SELECT a, b FROM t2 WHERE b > 0;
 ran_in_the_workers	workers_per_query
 1	8.0000
 #
+# t3 spans a few leaf pages: the request is met up to the chunk count, and
+# asking for four times as many does not start one more worker
+#
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT a, b FROM t3 WHERE b > 0;
+SET SESSION parallel_worker_threads= 16;
+FLUSH STATUS;
+SELECT a, b FROM t3 WHERE b > 0;
+same_either_way	below_the_request
+1	1
+#
+# The optimizer divides the scan cost by its own estimate of the chunk
+# count, so asking for four times as many workers does not make the scan
+# look four times cheaper. The estimate is read from the index
+# statistics, so they have to have been gathered; without them it
+# answers 1 and the scan is costed as the serial scan it will be.
+#
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+SET SESSION parallel_worker_threads= 0;
+SET @c0= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
+SET SESSION parallel_worker_threads= 4;
+SET @c4= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
+SET SESSION parallel_worker_threads= 16;
+SET @c16= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
+# expect 1 1: parallel is costed cheaper than serial, and asking for 4 or
+# 16 workers on a table the engine splits fewer ways costs the same
+SELECT @c0 > @c4 AS parallel_costs_less, @c4 = @c16 AS same_for_4_and_16;
+parallel_costs_less	same_for_4_and_16
+1	1
+#
 # the answer does not depend on how many workers were started
 #
 SET SESSION parallel_worker_threads= 0;
@@ -40,6 +72,9 @@ COUNT(*)	SUM(a)	SUM(b)
 SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
 COUNT(*)	SUM(a)	SUM(b)
 20000	200010000	400020000
+SELECT COUNT(*), SUM(a), SUM(b) FROM t3;
+COUNT(*)	SUM(a)	SUM(b)
+1000	500500	1001000
 SET SESSION parallel_worker_threads= 16;
 SELECT COUNT(*), SUM(a), SUM(b) FROM t1;
 COUNT(*)	SUM(a)	SUM(b)
@@ -47,5 +82,8 @@ COUNT(*)	SUM(a)	SUM(b)
 SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
 COUNT(*)	SUM(a)	SUM(b)
 20000	200010000	400020000
-DROP TABLE t1, t2;
+SELECT COUNT(*), SUM(a), SUM(b) FROM t3;
+COUNT(*)	SUM(a)	SUM(b)
+1000	500500	1001000
+DROP TABLE t1, t2, t3;
 SET SESSION parallel_worker_threads= @s;

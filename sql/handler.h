@@ -3792,6 +3792,14 @@ public:
   */
   virtual size_t pscan_chunk_count() const { return 0; }
 
+  /*
+    What pscan_chunk_count() would answer, estimated from statistics so the
+    optimizer can cost a parallel scan before the coordinator has run. Cheap
+    and approximate: no pages are read, and stale statistics give a stale
+    answer. 0 means the engine cannot say.
+  */
+  virtual size_t pscan_chunk_count_estimate() const { return 0; }
+
   /* Call from the master thread to get context data for each worker */
   virtual Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx)
   {
