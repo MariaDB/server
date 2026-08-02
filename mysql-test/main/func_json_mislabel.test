@@ -1,0 +1,67 @@
+--source include/have_gbk.inc
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: the same stored bytes read under a different
+--echo # character set label.
+--echo #
+--echo # Going through a binary column and back out again relabels a column
+--echo # without touching its contents, so the identical bytes are handed to
+--echo # the JSON parser as a different character set.  This is the only way
+--echo # to put a document in front of the parser that is not valid in the
+--echo # character set it is claimed to be in - converting it would repair or
+--echo # reject it first.  What each label makes of the same bytes is
+--echo # recorded here.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. A gbk character whose second byte is the one JSON uses to escape.
+--echo #    Read as gbk it is one letter inside a string; read as anything
+--echo #    that treats bytes singly it starts an escape sequence and runs
+--echo #    off the end of the document.
+--echo #
+
+CREATE TABLE t1 (j VARCHAR(60) CHARACTER SET gbk);
+INSERT INTO t1 VALUES (X'7B2261223A22815C227D');
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_gbk FROM t1;
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext, CHARSET(JSON_EXTRACT(j, '$.a')) AS cs
+  FROM t1;
+ALTER TABLE t1 MODIFY j VARBINARY(60);
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_binary FROM t1;
+ALTER TABLE t1 MODIFY j VARCHAR(60) CHARACTER SET latin1;
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_latin1 FROM t1;
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext FROM t1;
+
+--echo #
+--echo # 2. Bytes that are one character in utf8mb4 and two in latin1.  The
+--echo #    document stays parseable either way, but the value it yields is
+--echo #    not the same.
+--echo #
+
+CREATE TABLE t2 (j VARCHAR(60) CHARACTER SET utf8mb4);
+INSERT INTO t2 VALUES (X'7B2261223A22C3A9227D');
+SELECT HEX(j) AS stored, HEX(JSON_EXTRACT(j, '$.a')) AS ext_utf8mb4,
+       CHAR_LENGTH(JSON_VALUE(j, '$.a')) AS chars_utf8mb4 FROM t2;
+ALTER TABLE t2 MODIFY j VARBINARY(60);
+ALTER TABLE t2 MODIFY j VARCHAR(60) CHARACTER SET latin1;
+SELECT HEX(j) AS stored_unchanged, JSON_VALID(j) AS v FROM t2;
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext, CHARSET(JSON_EXTRACT(j, '$.a')) AS cs,
+       CHAR_LENGTH(JSON_VALUE(j, '$.a')) AS chars_latin1 FROM t2;
+
+--echo #
+--echo # 3. Relabelling in the other direction, to a character set that
+--echo #    cannot hold the bytes.  This one does not go through quietly.
+--echo #
+
+CREATE TABLE t3 (j VARBINARY(60));
+INSERT INTO t3 VALUES (X'7B2261223A22FF227D');
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_binary FROM t3;
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t3 MODIFY j VARCHAR(60) CHARACTER SET utf8mb4;
+ALTER IGNORE TABLE t3 MODIFY j VARCHAR(60) CHARACTER SET utf8mb4;
+SELECT HEX(j) AS repaired, JSON_VALID(j) AS v FROM t3;
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext FROM t3;
+
+DROP TABLE t1, t2, t3;

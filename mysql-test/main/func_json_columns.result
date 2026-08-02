@@ -1,0 +1,936 @@
+#
+# Behavioral baseline: JSON values that come out of a table.
+#
+# A JSON column carries a check constraint that is supposed to keep
+# invalid documents out, but the check can be switched off for the
+# duration of a statement, after which the column holds bytes that no
+# longer satisfy it.  This test records what every JSON function does
+# with such a column, what the check constraints look like, and how a
+# user-created temporary table compares with a base table.
+#
+SET NAMES utf8mb4;
+#
+# 1. What declaring a column JSON actually creates.
+#
+CREATE TABLE t1 (id INT, j JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT column_name, data_type, column_type
+FROM information_schema.columns
+WHERE table_schema = 'test' AND table_name = 't1'
+  ORDER BY ordinal_position;
+column_name	data_type	column_type
+id	int	int(11)
+j	longtext	longtext
+SELECT constraint_name, check_clause
+FROM information_schema.check_constraints
+WHERE constraint_schema = 'test' AND table_name = 't1';
+constraint_name	check_clause
+j	json_valid(`j`)
+# a column that is only LONGTEXT does not get the constraint
+CREATE TABLE t2 (id INT, j LONGTEXT);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT COUNT(*) AS constraints
+FROM information_schema.check_constraints
+WHERE constraint_schema = 'test' AND table_name = 't2';
+constraints
+0
+# a constraint written out by hand, worded exactly like the automatic one
+CREATE TABLE t3 (id INT, j LONGTEXT CHECK (json_valid(j)));
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# a constraint that mentions the column inside a larger expression
+CREATE TABLE t4 (id INT, j LONGTEXT CHECK (json_valid(j) AND id > 0));
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext DEFAULT NULL CHECK (json_valid(`j`) and `id` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# a table level constraint over two columns
+CREATE TABLE t5 (id INT, j LONGTEXT, k LONGTEXT,
+CONSTRAINT both_valid CHECK (json_valid(j) AND json_valid(k)));
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext DEFAULT NULL,
+  `k` longtext DEFAULT NULL,
+  CONSTRAINT `both_valid` CHECK (json_valid(`j`) and json_valid(`k`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+#
+# 2. The constraint doing its job.
+#
+INSERT INTO t1 VALUES (1, '{"a":1,"b":[1,2]}');
+INSERT INTO t1 VALUES (2, '{"a": 1, "b": [1, 2]}');
+INSERT INTO t1 VALUES (3, '{"a":1,');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+INSERT INTO t1 VALUES (3, 'not json at all');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+UPDATE t1 SET j = '{' WHERE id = 1;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1,"b":[1,2]}
+2	{"a": 1, "b": [1, 2]}
+# the hand written constraint behaves the same way
+INSERT INTO t3 VALUES (1, '{');
+ERROR 23000: CONSTRAINT `t3.j` failed for `test`.`t3`
+INSERT INTO t3 VALUES (1, '{"a":1}');
+SELECT id, j FROM t3;
+id	j
+1	{"a":1}
+# the constraint shapes that are NOT a bare check of one column.  Each
+# of these still has to run in full, so what they accept and reject is
+# recorded here rather than left to the CREATE statement alone.
+# constraint on the column combined with a test of another column
+INSERT INTO t4 VALUES (1, '{');
+ERROR 23000: CONSTRAINT `t4.j` failed for `test`.`t4`
+INSERT INTO t4 VALUES (0, '{"a":1}');
+ERROR 23000: CONSTRAINT `t4.j` failed for `test`.`t4`
+INSERT INTO t4 VALUES (1, '{"a":1}');
+SELECT id, j FROM t4;
+id	j
+1	{"a":1}
+# table level constraint over two columns
+INSERT INTO t5 VALUES (1, '{', '{"a":1}');
+ERROR 23000: CONSTRAINT `both_valid` failed for `test`.`t5`
+INSERT INTO t5 VALUES (1, '{"a":1}', '{');
+ERROR 23000: CONSTRAINT `both_valid` failed for `test`.`t5`
+INSERT INTO t5 VALUES (1, '{"a":1}', '{"b":2}');
+SELECT id, j, k FROM t5;
+id	j	k
+1	{"a":1}	{"b":2}
+# an OR, where the other side can let an invalid document through
+CREATE TABLE t5b (id INT, j LONGTEXT CHECK (json_valid(j) OR id > 0));
+INSERT INTO t5b VALUES (1, '{');
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+INSERT INTO t5b VALUES (0, '{');
+ERROR 23000: CONSTRAINT `t5b.j` failed for `test`.`t5b`
+SELECT id, j, JSON_VALID(j) AS valid FROM t5b;
+id	j	valid
+1	{	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+# a constraint attached to one column that tests a different column
+CREATE TABLE t5c (a LONGTEXT, b LONGTEXT CHECK (json_valid(a)));
+INSERT INTO t5c VALUES ('{"a":1}', '{');
+INSERT INTO t5c VALUES ('{', '{"a":1}');
+ERROR 23000: CONSTRAINT `t5c.b` failed for `test`.`t5c`
+SELECT a, b FROM t5c;
+a	b
+{"a":1}	{
+# writing any constraint of your own on a JSON column replaces the
+# automatic one, so invalid documents go in with the checks left on
+CREATE TABLE t5e (j JSON CHECK (LENGTH(j) > 0));
+SHOW CREATE TABLE t5e;
+Table	Create Table
+t5e	CREATE TABLE `t5e` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (octet_length(`j`) > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t5e VALUES ('{"a":1}');
+INSERT INTO t5e VALUES ('{');
+INSERT INTO t5e VALUES ('');
+ERROR 23000: CONSTRAINT `t5e.j` failed for `test`.`t5e`
+SELECT j, JSON_VALID(j) AS valid FROM t5e ORDER BY j;
+j	valid
+{	0
+{"a":1}	1
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS still_valid
+FROM t5e ORDER BY j;
+v	still_valid
+["{"]	1
+["{\"a\":1}"]	1
+DROP TABLE t5b, t5c, t5e;
+#
+# 3. Switching the check off, which is what makes a stored document
+#    unverifiable afterwards.
+#
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (10, '{"a":1,');
+INSERT INTO t1 VALUES (11, 'not json at all');
+INSERT INTO t1 VALUES (12, '{"a":1} trailing');
+INSERT INTO t1 VALUES (13, CONCAT(REPEAT('[', 32), '1', REPEAT(']', 32)));
+INSERT INTO t3 VALUES (10, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+# the rows are there and the constraint is back on
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1,"b":[1,2]}
+2	{"a": 1, "b": [1, 2]}
+10	{"a":1,
+11	not json at all
+12	{"a":1} trailing
+13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+SELECT id, JSON_VALID(j) AS valid FROM t1 ORDER BY id;
+id	valid
+1	1
+2	1
+10	0
+11	0
+12	0
+13	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+# a new statement is checked again, the stored rows are not
+INSERT INTO t1 VALUES (14, '{');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+# reading the column back does not check anything
+SELECT id, j FROM t1 WHERE id >= 10 ORDER BY id;
+id	j
+10	{"a":1,
+11	not json at all
+12	{"a":1} trailing
+13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+SELECT id, HEX(j) FROM t1 WHERE id = 10;
+id	HEX(j)
+10	7B2261223A312C
+#
+# 4. Every function fed the column that no longer satisfies its check.
+#
+SELECT id, JSON_VALID(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	0
+11	0
+12	0
+13	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT id, JSON_TYPE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_type'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_type' at position 32
+SELECT id, JSON_DEPTH(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_depth'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_depth' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_depth' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+SELECT id, JSON_LENGTH(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_length' at position 32
+SELECT id, JSON_KEYS(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	["a"]
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
+SELECT id, JSON_EXTRACT(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_extract' at position 32
+SELECT id, JSON_QUERY(j, '$') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	{"a":1}
+13	NULL
+SELECT id, JSON_VALUE(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	1
+11	NULL
+12	1
+13	NULL
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 16
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 32
+SELECT id, JSON_INSERT(j, '$.z', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_insert'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 16
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 32
+SELECT id, JSON_REPLACE(j, '$.a', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_replace'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_replace' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_replace' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_replace' at position 32
+SELECT id, JSON_REMOVE(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 4
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_remove' at position 32
+SELECT id, JSON_ARRAY_APPEND(j, '$', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array_append'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 14
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 32
+SELECT id, JSON_MERGE(j, '{"z":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	{"a": 1, "z": 1}
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 32
+SELECT id, JSON_MERGE_PATCH(j, '{"z":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	{"a": 1, "z": 1}
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_patch'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_patch' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_patch' at position 32
+SELECT id, JSON_COMPACT(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_compact'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_compact' at position 32
+SELECT id, JSON_LOOSE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_loose'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_loose' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_loose' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_loose' at position 32
+SELECT id, JSON_NORMALIZE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_normalize' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_normalize' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_normalize' at position 32
+SELECT id, JSON_EXISTS(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	1
+11	NULL
+12	1
+13	NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_exists' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_exists' at position 32
+SELECT id, JSON_CONTAINS(j, '1', '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	1
+11	NULL
+12	1
+13	NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_contains' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_contains' at position 32
+SELECT id, JSON_SEARCH(j, 'one', '1') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	"$.a"
+11	NULL
+12	"$.a"
+13	NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_search' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_search' at position 32
+SELECT id, JSON_EQUALS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+13	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_equals'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_equals' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_equals' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_equals' at position 32
+# id 13, an array nested past the scanner limit, is left out here:
+# JSON_OVERLAPS crashes the server on such an argument, so the row is
+# excluded until that is fixed.  Every other function above takes it.
+SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v
+FROM t1 WHERE id >= 10 AND id <> 13 ORDER BY id;
+id	v
+10	0
+11	0
+12	1
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_overlaps'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 1
+#
+# 5. The column as an embedded argument.  A JSON column is embedded as
+#    a document, so whatever it holds is copied into the result as is.
+#
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	[{"a":1,]
+11	[not json at all]
+12	[{"a":1} trailing]
+13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t1 WHERE id >= 10 ORDER BY id;
+id	still_valid
+10	0
+11	0
+12	0
+13	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	{"k": {"a":1,}
+11	{"k": not json at all}
+12	{"k": {"a":1} trailing}
+13	{"k": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS still_valid
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	still_valid
+10	0
+11	0
+12	0
+13	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 15
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 37
+SELECT id, JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
+id	v
+10	[{"a":1,]
+11	[not json at all]
+12	[{"a":1} trailing]
+13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+SELECT id, JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
+id	v
+10	{"10":{"a":1,}
+11	{"11":not json at all}
+12	{"12":{"a":1} trailing}
+13	{"13":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}
+# the same column read as plain text is quoted instead of embedded
+SELECT id, JSON_ARRAY(CONCAT(j, '')) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	["{\"a\":1,"]
+11	["not json at all"]
+12	["{\"a\":1} trailing"]
+13	["[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"]
+SELECT id, JSON_VALID(JSON_ARRAY(CONCAT(j, ''))) AS still_valid
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	still_valid
+10	1
+11	1
+12	1
+13	1
+# a LONGTEXT column holding the same bytes is quoted, not embedded
+SELECT id, JSON_ARRAY(j) AS v FROM t3 ORDER BY id;
+id	v
+1	[{"a":1}]
+10	[{"a":1,]
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t3 ORDER BY id;
+id	still_valid
+1	1
+10	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+# 5a. The same column reached through a scalar subquery, where the
+#     value is fetched once and held rather than read per row.
+CREATE TABLE ts (id INT, j JSON);
+INSERT INTO ts VALUES (1, '{"a": 1}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO ts VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT JSON_ARRAY((SELECT j FROM ts WHERE id = 1)) AS v;
+v
+[{"a": 1}]
+SELECT JSON_VALID(JSON_ARRAY((SELECT j FROM ts WHERE id = 1))) AS ok;
+ok
+1
+SELECT JSON_ARRAY((SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+v_poisoned
+[{"a":1,]
+SELECT JSON_VALID(JSON_ARRAY((SELECT j FROM ts WHERE id = 2))) AS ok_poisoned;
+ok_poisoned
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 1)) AS v;
+v
+{"k": {"a": 1}}
+SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+v_poisoned
+{"k": {"a":1,}
+SELECT JSON_SET('{}', '$.d', (SELECT j FROM ts WHERE id = 1)) AS v;
+v
+{"d": {"a": 1}}
+SELECT JSON_SET('{}', '$.d', (SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+v_poisoned
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 13
+DROP TABLE ts;
+# 5b. The same column reached through a view.  A merged view reads the
+#     table directly; a materialised one copies the value into a
+#     temporary table first.
+CREATE TABLE tv (id INT, j JSON);
+INSERT INTO tv VALUES (1, '{"a": 1, "b": [1, 2]}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tv VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+CREATE ALGORITHM=MERGE VIEW v_merge AS SELECT id, j FROM tv;
+CREATE ALGORITHM=TEMPTABLE VIEW v_tmp AS SELECT id, j FROM tv;
+SHOW CREATE VIEW v_merge;
+View	Create View	character_set_client	collation_connection
+v_merge	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_merge` AS select `tv`.`id` AS `id`,`tv`.`j` AS `j` from `tv`	utf8mb4	utf8mb4_general_ci
+SHOW CREATE VIEW v_tmp;
+View	Create View	character_set_client	collation_connection
+v_tmp	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_tmp` AS select `tv`.`id` AS `id`,`tv`.`j` AS `j` from `tv`	utf8mb4	utf8mb4_general_ci
+SELECT id, j, HEX(j) FROM v_merge ORDER BY id;
+id	j	HEX(j)
+1	{"a": 1, "b": [1, 2]}	7B2261223A20312C202262223A205B312C20325D7D
+2	{"a":1,	7B2261223A312C
+SELECT id, j, HEX(j) FROM v_tmp ORDER BY id;
+id	j	HEX(j)
+1	{"a": 1, "b": [1, 2]}	7B2261223A20312C202262223A205B312C20325D7D
+2	{"a":1,	7B2261223A312C
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
+FROM v_merge ORDER BY id;
+id	v	ok
+1	[{"a": 1, "b": [1, 2]}]	1
+2	[{"a":1,]	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
+FROM v_tmp ORDER BY id;
+id	v	ok
+1	[{"a": 1, "b": [1, 2]}]	1
+2	[{"a":1,]	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM v_merge ORDER BY id;
+id	v
+1	{"a": 1, "b": [1, 2], "z": 1}
+2	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM v_tmp ORDER BY id;
+id	v
+1	{"a": 1, "b": [1, 2], "z": 1}
+2	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SELECT JSON_ARRAYAGG(j) AS v FROM v_merge WHERE id = 1;
+v
+[{"a": 1, "b": [1, 2]}]
+DROP VIEW v_merge, v_tmp;
+DROP TABLE tv;
+#
+# 6. A valid column, for comparison: the same calls with nothing wrong.
+#
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id < 10 ORDER BY id;
+id	v
+1	[{"a":1,"b":[1,2]}]
+2	[{"a": 1, "b": [1, 2]}]
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM t1 WHERE id < 10 ORDER BY id;
+id	v
+1	{"a": 1, "b": [1, 2], "z": 1}
+2	{"a": 1, "b": [1, 2], "z": 1}
+SELECT id, JSON_EXTRACT(j, '$.b') AS v FROM t1 WHERE id < 10 ORDER BY id;
+id	v
+1	[1, 2]
+2	[1, 2]
+# a column value keeps the formatting it was stored with
+SELECT id, HEX(j) FROM t1 WHERE id < 10 ORDER BY id;
+id	HEX(j)
+1	7B2261223A312C2262223A5B312C325D7D
+2	7B2261223A20312C202262223A205B312C20325D7D
+# 6a. The same document stored in every column type it can live in.
+#     Retrieval returns the stored bytes unchanged in all of them;
+#     only the JSON-typed column is embedded rather than quoted.
+CREATE TABLE tr (jj JSON, lt LONGTEXT CHECK (JSON_VALID(lt)), vc VARCHAR(64),
+vb VARBINARY(64), bl BLOB);
+INSERT INTO tr VALUES ('{"a": 1,  "b":[1, 2]}', '{"a": 1,  "b":[1, 2]}',
+'{"a": 1,  "b":[1, 2]}', '{"a": 1,  "b":[1, 2]}',
+'{"a": 1,  "b":[1, 2]}');
+SELECT HEX(jj) AS h_json, HEX(lt) AS h_longtext, HEX(vc) AS h_varchar,
+HEX(vb) AS h_varbinary, HEX(bl) AS h_blob FROM tr;
+h_json	h_longtext	h_varchar	h_varbinary	h_blob
+7B2261223A20312C20202262223A5B312C20325D7D	7B2261223A20312C20202262223A5B312C20325D7D	7B2261223A20312C20202262223A5B312C20325D7D	7B2261223A20312C20202262223A5B312C20325D7D	7B2261223A20312C20202262223A5B312C20325D7D
+SELECT jj, lt, vc, vb, bl FROM tr;
+jj	lt	vc	vb	bl
+{"a": 1,  "b":[1, 2]}	{"a": 1,  "b":[1, 2]}	{"a": 1,  "b":[1, 2]}	{"a": 1,  "b":[1, 2]}	{"a": 1,  "b":[1, 2]}
+SELECT JSON_ARRAY(jj) AS a_json, JSON_ARRAY(vc) AS a_varchar,
+JSON_ARRAY(vb) AS a_varbinary, JSON_ARRAY(bl) AS a_blob FROM tr;
+a_json	a_varchar	a_varbinary	a_blob
+[{"a": 1,  "b":[1, 2]}]	["{\"a\": 1,  \"b\":[1, 2]}"]	["{\"a\": 1,  \"b\":[1, 2]}"]	["{\"a\": 1,  \"b\":[1, 2]}"]
+DROP TABLE tr;
+#
+# 7. Storing a JSON function result back into a column, which is where
+#    the check constraint runs again.
+#
+CREATE TABLE t6 (j JSON);
+INSERT INTO t6 SELECT JSON_SET('{"a":1}', '$.b', 2);
+INSERT INTO t6 SELECT JSON_ARRAY(1,2);
+INSERT INTO t6 SELECT JSON_OBJECT('a',1);
+SELECT j FROM t6;
+j
+{"a": 1, "b": 2}
+[1, 2]
+{"a": 1}
+# a value the constructor built that the check does not accept
+CREATE TABLE t7 (j JSON);
+INSERT INTO t7 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
+ERROR 23000: CONSTRAINT `t7.j` failed for `test`.`t7`
+SELECT COUNT(*) AS stored FROM t7;
+stored
+0
+# the same value stored into a plain LONGTEXT column
+CREATE TABLE t8 (j LONGTEXT);
+INSERT INTO t8 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
+SELECT JSON_VALID(j) AS v, LENGTH(j) AS len FROM t8;
+v	len
+0	65
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+# a value that is truncated on the way into the column
+CREATE TABLE t9 (j VARCHAR(10));
+SET @@sql_mode='';
+INSERT INTO t9 SELECT JSON_SET('{"a":1,"b":2}', '$.a', 9);
+Warnings:
+Warning	1265	Data truncated for column 'j' at row 1
+SELECT j, JSON_VALID(j) AS still_valid FROM t9;
+j	still_valid
+{"a": 9, "	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET @@sql_mode=DEFAULT;
+DROP TABLE t6, t7, t8, t9;
+# 7a. The same truncating store into a column that IS checked.  The
+#     chop happens first and the constraint then judges the chopped
+#     bytes, which sometimes still parse and sometimes do not.
+CREATE TABLE tn (v VARCHAR(10) CHECK (json_valid(v)));
+SET @@sql_mode='';
+# chopped into an unparseable prefix: rejected
+INSERT INTO tn VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+ERROR 23000: CONSTRAINT `tn.v` failed for `test`.`tn`
+# chopped on a boundary that still parses: accepted, with a warning
+INSERT INTO tn VALUES (CONCAT('[1,2,3,45]', ',6789'));
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+INSERT INTO tn VALUES ('{"a":1}');
+SELECT v, JSON_VALID(v) AS valid FROM tn ORDER BY v;
+v	valid
+[1,2,3,45]	1
+{"a":1}	1
+SET @@sql_mode=DEFAULT;
+INSERT INTO tn VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+ERROR 22001: Data too long for column 'v' at row 1
+SELECT COUNT(*) AS stored FROM tn;
+stored
+2
+DROP TABLE tn;
+# 7b. A store that converts the character set on the way in.  The
+#     constraint judges the converted bytes, not the ones the
+#     function produced.
+# swe7 cannot carry the JSON punctuation at all
+CREATE TABLE t11 (j LONGTEXT CHARACTER SET swe7 CHECK (json_valid(j)));
+SET @@sql_mode='';
+INSERT INTO t11 VALUES ('{"a":1}');
+ERROR 23000: CONSTRAINT `t11.j` failed for `test`.`t11`
+SELECT COUNT(*) AS stored FROM t11;
+stored
+0
+# the same column without a constraint keeps the damaged bytes
+CREATE TABLE t12 (j LONGTEXT CHARACTER SET swe7);
+INSERT INTO t12 VALUES ('{"a":1}');
+Warnings:
+Warning	1366	Incorrect string value: '{"a":1...' for column `test`.`t12`.`j` at row 1
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v FROM t12;
+stored	v
+3F2261223A313F	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SET @@sql_mode=DEFAULT;
+INSERT INTO t11 VALUES ('{"a":1}');
+ERROR 22007: Incorrect string value: '{"a":1...' for column `test`.`t11`.`j` at row 1
+# a conversion that loses nothing still changes the bytes
+CREATE TABLE t13 (j VARCHAR(100) CHARACTER SET latin1 CHECK (json_valid(j)));
+INSERT INTO t13 VALUES (JSON_OBJECT('a', _utf8mb4 X'C3A9'));
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v FROM t13;
+stored	v
+7B2261223A2022E9227D	1
+CREATE TABLE tu (j JSON);
+INSERT INTO tu VALUES ('{"a":1}');
+INSERT INTO t13 SELECT JSON_SET(j, '$.c', 3) FROM tu;
+SELECT HEX(j) FROM t13 ORDER BY j;
+HEX(j)
+7B2261223A2022E9227D
+7B2261223A20312C202263223A20337D
+DROP TABLE t11, t12, t13, tu;
+# 7c. A table rebuilt by ALTER, which checks every existing row again
+#     rather than the value of one statement.
+CREATE TABLE ta (id INT, j JSON);
+INSERT INTO ta VALUES (1, '{"a":1}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO ta VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+ALTER TABLE ta FORCE, ALGORITHM=COPY;
+ERROR 23000: CONSTRAINT `ta.j` failed for `test`.`ta`
+ALTER IGNORE TABLE ta FORCE, ALGORITHM=COPY;
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+Warning	4025	CONSTRAINT `ta.j` failed for `test`.`ta`
+SELECT id, j FROM ta ORDER BY id;
+id	j
+1	{"a":1}
+DROP TABLE ta;
+# ALTER that converts the character set rewrites the stored bytes
+CREATE TABLE tb (j JSON);
+INSERT INTO tb VALUES (JSON_SET('{"a":1}', '$.b', _utf8mb4 X'C3A9'));
+ALTER TABLE tb CONVERT TO CHARACTER SET latin1;
+SHOW CREATE TABLE tb;
+Table	Create Table
+tb	CREATE TABLE `tb` (
+  `j` longtext DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT HEX(j) AS stored, JSON_VALID(j) AS valid FROM tb;
+stored	valid
+7B2261223A20312C202262223A2022E9227D	1
+SELECT HEX(JSON_ARRAY(j)) AS h FROM tb;
+h
+5B7B2261223A20312C202262223A2022E9227D5D
+DROP TABLE tb;
+# 7d. Generated columns, where the JSON function result is computed
+#     and stored by the server rather than supplied by the statement.
+CREATE TABLE tg (j JSON,
+c1 LONGTEXT AS (JSON_SET(j, '$.z', 9)) PERSISTENT,
+c2 VARCHAR(20) AS (JSON_EXTRACT(j, '$.a')) PERSISTENT, KEY (c2));
+SHOW CREATE TABLE tg;
+Table	Create Table
+tg	CREATE TABLE `tg` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `c1` longtext GENERATED ALWAYS AS (json_set(`j`,'$.z',9)) STORED,
+  `c2` varchar(20) GENERATED ALWAYS AS (json_extract(`j`,'$.a')) STORED,
+  KEY `c2` (`c2`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO tg (j) VALUES ('{"a": 1,  "b": 2}');
+SELECT j, c1, HEX(c1), c2 FROM tg;
+j	c1	HEX(c1)	c2
+{"a": 1,  "b": 2}	{"a": 1, "b": 2, "z": 9}	7B2261223A20312C202262223A20322C20227A223A20397D	1
+UPDATE tg SET j = '{"a": 7}';
+SELECT j, c1, HEX(c1), c2 FROM tg;
+j	c1	HEX(c1)	c2
+{"a": 7}	{"a": 7, "z": 9}	7B2261223A20372C20227A223A20397D	7
+SELECT c2 FROM tg FORCE INDEX (c2) WHERE c2 = '7';
+c2
+7
+DROP TABLE tg;
+#
+# 8. A temporary table the user created.  It is under user control the
+#    same way a base table is, including the check switch.
+#
+CREATE TEMPORARY TABLE tmp1 (id INT, j JSON);
+SHOW CREATE TABLE tmp1;
+Table	Create Table
+tmp1	CREATE TEMPORARY TABLE `tmp1` (
+  `id` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO tmp1 VALUES (1, '{"a":1}');
+INSERT INTO tmp1 VALUES (2, '{');
+ERROR 23000: CONSTRAINT `tmp1.j` failed for `test`.`tmp1`
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tmp1 VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT id, j, JSON_VALID(j) AS valid FROM tmp1 ORDER BY id;
+id	j	valid
+1	{"a":1}	1
+2	{"a":1,	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT id, JSON_ARRAY(j) AS v FROM tmp1 ORDER BY id;
+id	v
+1	[{"a":1}]
+2	[{"a":1,]
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM tmp1 ORDER BY id;
+id	still_valid
+1	1
+2	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM tmp1 ORDER BY id;
+id	v
+1	{"a": 1, "z": 1}
+2	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+DROP TEMPORARY TABLE tmp1;
+#
+# 9. Values passing through a temporary table the server made for
+#    itself: grouping, materialised derived tables, union branches and
+#    window frames.
+#
+CREATE TABLE t10 (g INT, j JSON, txt VARCHAR(30));
+INSERT INTO t10 VALUES
+(1, '{"a":1}', '{"a":1}'), (1, '{"a":2}', '{"a":2}'),
+(2, '{"b":1}', '{"b":1}');
+# grouping over a JSON expression
+SELECT g, JSON_ARRAYAGG(JSON_SET(j, '$.z', 1)) AS v FROM t10 GROUP BY g ORDER BY g;
+g	v
+1	[{"a": 1, "z": 1},{"a": 2, "z": 1}]
+2	[{"b": 1, "z": 1}]
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j ORDER BY j;
+v
+{"a": 1, "z": 1}
+{"a": 2, "z": 1}
+{"b": 1, "z": 1}
+SELECT g, COUNT(*) AS c FROM t10 GROUP BY g, JSON_SET(j, '$.z', 1) ORDER BY g, c;
+g	c
+1	1
+1	1
+2	1
+# a materialised derived table
+SELECT JSON_VALID(v) AS valid, v
+FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+ORDER BY v;
+valid	v
+1	{"a": 1, "z": 1}
+1	{"a": 2, "z": 1}
+1	{"b": 1, "z": 1}
+SELECT JSON_SET(v, '$.y', 2) AS w
+FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+ORDER BY w;
+w
+{"a": 1, "z": 1, "y": 2}
+{"a": 2, "z": 1, "y": 2}
+{"b": 1, "z": 1, "y": 2}
+SELECT JSON_ARRAY(v) AS w
+FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+ORDER BY w;
+w
+[{"a": 1, "z": 1}]
+[{"a": 2, "z": 1}]
+[{"b": 1, "z": 1}]
+# union branches, where one branch is a document and the other is text
+SELECT v, JSON_VALID(v) AS valid FROM (
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 WHERE g = 1
+UNION
+SELECT txt FROM t10 WHERE g = 2) u ORDER BY v;
+v	valid
+{"a": 1, "z": 1}	1
+{"a": 2, "z": 1}	1
+{"b":1}	1
+SELECT JSON_ARRAY(v) AS w FROM (
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 WHERE g = 1
+UNION
+SELECT txt FROM t10 WHERE g = 2) u ORDER BY w;
+w
+["{\"a\": 1, \"z\": 1}"]
+["{\"a\": 2, \"z\": 1}"]
+["{\"b\":1}"]
+# a window frame, which materialises its input
+SELECT g, JSON_SET(j, '$.z', 1) AS v,
+ROW_NUMBER() OVER (PARTITION BY g ORDER BY j) AS rn
+FROM t10 ORDER BY g, rn;
+g	v	rn
+1	{"a": 1, "z": 1}	1
+1	{"a": 2, "z": 1}	2
+2	{"b": 1, "z": 1}	1
+SELECT g, JSON_ARRAY(JSON_SET(j, '$.z', 1)) AS v,
+COUNT(*) OVER (PARTITION BY g) AS c
+FROM t10 ORDER BY g, v;
+g	v	c
+1	[{"a": 1, "z": 1}]	2
+1	[{"a": 2, "z": 1}]	2
+2	[{"b": 1, "z": 1}]	1
+# an ORDER BY that has to materialise the value first
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 ORDER BY JSON_EXTRACT(j, '$.a'), v;
+v
+{"b": 1, "z": 1}
+{"a": 1, "z": 1}
+{"a": 2, "z": 1}
+DROP TABLE t1, t2, t3, t4, t5, t10;

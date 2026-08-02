@@ -1,0 +1,262 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: how the JSON functions attest to input that is
+--echo # not valid JSON, is NULL, is not a string at all, or contains bytes
+--echo # that JSON cannot carry unescaped.
+--echo #
+--echo # For every case the recorded observable is the whole trichotomy:
+--echo # the value (or SQL NULL), and the warning or error with its code.
+--echo # Results are shown through HEX() whenever the answer contains bytes
+--echo # that are not printable ASCII.
+--echo #
+
+--echo #
+--echo # 1. Documents that are not valid JSON.
+--echo #
+
+--echo # --- truncated at every structural position ---
+SELECT JSON_VALID('') AS v;
+SELECT JSON_VALID('{') AS v;
+SELECT JSON_VALID('{"a"') AS v;
+SELECT JSON_VALID('{"a":') AS v;
+SELECT JSON_VALID('{"a":1') AS v;
+SELECT JSON_VALID('{"a":1,') AS v;
+SELECT JSON_VALID('[') AS v;
+SELECT JSON_VALID('[1') AS v;
+SELECT JSON_VALID('[1,') AS v;
+SELECT JSON_VALID('"unterminated') AS v;
+
+--echo # --- structurally wrong ---
+SELECT JSON_VALID('}') AS v;
+SELECT JSON_VALID(']') AS v;
+SELECT JSON_VALID('{]') AS v;
+SELECT JSON_VALID('[}') AS v;
+SELECT JSON_VALID('{a:1}') AS v;
+SELECT JSON_VALID('{"a" 1}') AS v;
+SELECT JSON_VALID('{"a":1,,"b":2}') AS v;
+SELECT JSON_VALID('{"a":1}{"b":2}') AS v;
+SELECT JSON_VALID('{"a":1} trailing') AS v;
+SELECT JSON_VALID('nul') AS v;
+SELECT JSON_VALID('TRUE') AS v;
+SELECT JSON_VALID('01') AS v;
+SELECT JSON_VALID('1.') AS v;
+SELECT JSON_VALID('.1') AS v;
+SELECT JSON_VALID('1e') AS v;
+SELECT JSON_VALID('+1') AS v;
+
+--echo # --- bad escapes inside strings ---
+SELECT JSON_VALID('{"a":"\\q"}') AS v;
+SELECT JSON_VALID('{"a":"\\u12"}') AS v;
+SELECT JSON_VALID('{"a":"\\uZZZZ"}') AS v;
+SELECT JSON_VALID('{"a":"trailing backslash\\"}') AS v;
+
+--echo #
+--echo # 2. The same invalid documents fed to each function.  This records
+--echo #    which functions answer NULL with a warning and which raise an
+--echo #    error, and with which code.
+--echo #
+
+SELECT JSON_SET('{"a":1,', '$.a', 2) AS v;
+SELECT JSON_INSERT('{"a":1,', '$.b', 2) AS v;
+SELECT JSON_REPLACE('{"a":1,', '$.a', 2) AS v;
+SELECT JSON_REMOVE('{"a":1,', '$.a') AS v;
+SELECT JSON_ARRAY_APPEND('[1,', '$', 2) AS v;
+SELECT JSON_ARRAY_INSERT('[1,', '$[0]', 2) AS v;
+SELECT JSON_MERGE('[1,', '[2]') AS v;
+SELECT JSON_MERGE('[1]', '[2,') AS v;
+SELECT JSON_MERGE_PATCH('{"a":1,', '{"b":2}') AS v;
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2,') AS v;
+SELECT JSON_EXTRACT('{"a":1,', '$.a') AS v;
+SELECT JSON_QUERY('{"a":1,', '$.a') AS v;
+SELECT JSON_VALUE('{"a":1,', '$.a') AS v;
+SELECT JSON_KEYS('{"a":1,') AS v;
+SELECT JSON_LENGTH('{"a":1,') AS v;
+SELECT JSON_DEPTH('{"a":1,') AS v;
+SELECT JSON_TYPE('{"a":1,') AS v;
+SELECT JSON_EXISTS('{"a":1,', '$.a') AS v;
+SELECT JSON_CONTAINS('{"a":1,', '1', '$.a') AS v;
+SELECT JSON_CONTAINS_PATH('{"a":1,', 'one', '$.a') AS v;
+SELECT JSON_OVERLAPS('[1,', '[1]') AS v;
+SELECT JSON_EQUALS('{"a":1,', '{"a":1}') AS v;
+SELECT JSON_SEARCH('{"a":"x",', 'one', 'x') AS v;
+SELECT JSON_NORMALIZE('{"a":1,') AS v;
+SELECT JSON_COMPACT('{"a":1,') AS v;
+SELECT JSON_LOOSE('{"a":1,') AS v;
+SELECT JSON_DETAILED('{"a":1,') AS v;
+SELECT JSON_UNQUOTE('"unterminated') AS v;
+SELECT JSON_QUOTE('{"a":1,') AS v;
+
+--echo #
+--echo # 3. Invalid path arguments.
+--echo #
+
+SELECT JSON_EXTRACT('{"a":1}', '') AS v;
+SELECT JSON_EXTRACT('{"a":1}', 'a') AS v;
+SELECT JSON_EXTRACT('{"a":1}', '$..a') AS v;
+SELECT JSON_EXTRACT('{"a":1}', '$.') AS v;
+SELECT JSON_EXTRACT('{"a":1}', '$[') AS v;
+SELECT JSON_SET('{"a":1}', '$.*', 2) AS v;
+SELECT JSON_SET('{"a":1}', '$**.a', 2) AS v;
+--echo # a path containing a quote, which the key comparison must not accept
+SELECT JSON_EXTRACT('{"a\\"b":1}', '$.a"b') AS v;
+SELECT JSON_SET('{"a":1}', '$.a"b', 2) AS v;
+SELECT JSON_INSERT('{"a":1}', '$.a"b', 2) AS v;
+
+--echo #
+--echo # 4. NULL arguments in every position.
+--echo #
+
+SELECT JSON_SET(NULL, '$.a', 1) AS v;
+SELECT JSON_SET('{"a":1}', NULL, 1) AS v;
+SELECT JSON_SET('{"a":1}', '$.a', NULL) AS v;
+SELECT JSON_INSERT(NULL, '$.a', 1) AS v;
+SELECT JSON_REMOVE(NULL, '$.a') AS v;
+SELECT JSON_REMOVE('{"a":1}', NULL) AS v;
+SELECT JSON_MERGE(NULL, '[1]') AS v;
+SELECT JSON_MERGE('[1]', NULL) AS v;
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1}') AS v;
+SELECT JSON_MERGE_PATCH('{"a":1}', NULL) AS v;
+SELECT JSON_EXTRACT(NULL, '$.a') AS v;
+SELECT JSON_EXTRACT('{"a":1}', NULL) AS v;
+SELECT JSON_ARRAY(NULL) AS v;
+SELECT JSON_OBJECT('a', NULL) AS v;
+SELECT JSON_OBJECT(NULL, 1) AS v;
+SELECT JSON_KEYS(NULL) AS v;
+SELECT JSON_LENGTH(NULL) AS v;
+SELECT JSON_DEPTH(NULL) AS v;
+SELECT JSON_TYPE(NULL) AS v;
+SELECT JSON_QUOTE(NULL) AS v;
+SELECT JSON_UNQUOTE(NULL) AS v;
+SELECT JSON_VALID(NULL) AS v;
+SELECT JSON_COMPACT(NULL) AS v;
+--echo # a JSON null inside a document is not an SQL NULL
+SELECT JSON_EXTRACT('{"a":null}', '$.a') AS v, JSON_TYPE(JSON_EXTRACT('{"a":null}', '$.a')) AS t;
+SELECT JSON_VALUE('{"a":null}', '$.a') AS v;
+SELECT JSON_VALUE('{"a":null}', '$.a') IS NULL AS is_null;
+
+--echo #
+--echo # 5. Arguments that are not strings.  The document argument is taken
+--echo #    through its string value, so the conversion is part of the result.
+--echo #
+
+SELECT JSON_VALID(1) AS v, JSON_VALID(1.5) AS d, JSON_VALID(TRUE) AS b;
+SELECT JSON_TYPE(1) AS v, JSON_TYPE(1.5) AS d;
+SELECT JSON_EXTRACT(1, '$') AS v;
+SELECT JSON_SET(1, '$', 2) AS v;
+SELECT JSON_DEPTH(1) AS v;
+SELECT JSON_VALID(DATE'2020-01-01') AS v;
+SELECT JSON_EXTRACT(DATE'2020-01-01', '$') AS v;
+--echo # numeric and temporal values as inserted values, not documents
+SELECT JSON_ARRAY(1, 1.5, -0.0, 1e300, DATE'2020-01-01', TIME'10:20:30') AS v;
+SELECT JSON_OBJECT('i', 1, 'd', 1.5, 'dt', DATE'2020-01-01') AS v;
+SELECT JSON_SET('{}', '$.i', 1, '$.d', 1.5, '$.dt', DATE'2020-01-01') AS v;
+--echo # binary values
+SELECT JSON_ARRAY(X'41') AS v, HEX(JSON_ARRAY(X'41')) AS h;
+SELECT JSON_ARRAY(X'00') AS v, HEX(JSON_ARRAY(X'00')) AS h;
+SELECT JSON_VALID(X'7B7D') AS v;
+
+--echo #
+--echo # 6. Hostile strings: control characters and bytes that JSON requires
+--echo #    to be escaped.  These pin what the constructors emit today for
+--echo #    values that cannot be carried literally.
+--echo #
+
+--echo # --- control characters through the constructors ---
+SELECT HEX(JSON_ARRAY(CHAR(1 USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CHAR(9 USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CHAR(10 USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CHAR(13 USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CHAR(27 USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CHAR(31 USING utf8mb4))) AS h;
+SELECT HEX(JSON_OBJECT('k', CHAR(1 USING utf8mb4))) AS h;
+--echo # a control character in the KEY position
+SELECT HEX(JSON_OBJECT(CONCAT('k', CHAR(1 USING utf8mb4)), 1)) AS h;
+--echo # is the constructor output accepted back as a document?
+SELECT JSON_VALID(JSON_ARRAY(CHAR(1 USING utf8mb4))) AS v;
+SELECT JSON_VALID(JSON_OBJECT('k', CHAR(1 USING utf8mb4))) AS v;
+SELECT JSON_VALID(JSON_OBJECT(CONCAT('k', CHAR(1 USING utf8mb4)), 1)) AS v;
+--echo # the same values through the mutators
+SELECT HEX(JSON_SET('{}', '$.a', CHAR(1 USING utf8mb4))) AS h;
+SELECT JSON_VALID(JSON_SET('{}', '$.a', CHAR(1 USING utf8mb4))) AS v;
+SELECT HEX(JSON_ARRAY_APPEND('[]', '$', CHAR(1 USING utf8mb4))) AS h;
+--echo # and through JSON_QUOTE, which escapes for exactly this purpose
+SELECT HEX(JSON_QUOTE(CHAR(1 USING utf8mb4))) AS h;
+SELECT HEX(JSON_QUOTE(CHAR(9 USING utf8mb4))) AS h;
+SELECT JSON_VALID(JSON_QUOTE(CHAR(1 USING utf8mb4))) AS v;
+
+--echo # --- quote and backslash edges ---
+SELECT JSON_ARRAY('a"b') AS v, HEX(JSON_ARRAY('a"b')) AS h;
+SELECT JSON_ARRAY('a\\b') AS v, HEX(JSON_ARRAY('a\\b')) AS h;
+SELECT JSON_ARRAY('a\\"b') AS v;
+SELECT JSON_ARRAY('"') AS v;
+SELECT JSON_ARRAY('\\') AS v;
+SELECT JSON_OBJECT('a"b', 1) AS v;
+SELECT JSON_OBJECT('a\\b', 1) AS v;
+SELECT JSON_VALID(JSON_ARRAY('a"b')) AS q, JSON_VALID(JSON_ARRAY('a\\b')) AS bs;
+SELECT JSON_VALID(JSON_OBJECT('a"b', 1)) AS q, JSON_VALID(JSON_OBJECT('a\\b', 1)) AS bs;
+SELECT JSON_QUOTE('a"b') AS v, JSON_QUOTE('a\\b') AS v2;
+SELECT JSON_UNQUOTE('"a\\\\b"') AS v;
+SELECT JSON_UNQUOTE(JSON_QUOTE('a"b')) AS v;
+--echo # a value that already looks like a quoted JSON string
+SELECT JSON_ARRAY('"quoted"') AS v;
+SELECT JSON_ARRAY('{"a":1}') AS v;
+SELECT JSON_VALID(JSON_ARRAY('{"a":1}')) AS v;
+
+--echo # --- byte sequences that are not valid in the connection charset ---
+SET NAMES utf8mb4;
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'41')) AS h;
+--error ER_INVALID_CHARACTER_STRING
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'FF')) AS h;
+--error ER_INVALID_CHARACTER_STRING
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'C3')) AS h;
+--echo # the same bytes carried in as binary and converted
+SELECT HEX(JSON_ARRAY(CONVERT(X'FF' USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CONVERT(X'C3' USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CONVERT(X'C328' USING utf8mb4))) AS h;
+SELECT HEX(JSON_ARRAY(CONVERT(X'EDA080' USING utf8mb4))) AS h;
+SELECT HEX(JSON_QUOTE(CONVERT(X'FF' USING utf8mb4))) AS h;
+--echo # invalid bytes inside a document argument
+SELECT JSON_VALID(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4)) AS v;
+SELECT HEX(JSON_SET(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4), '$.b', 1)) AS h;
+SELECT HEX(JSON_EXTRACT(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4), '$.a')) AS h;
+--echo # an escape sequence naming a code point that utf8mb4 cannot encode
+SELECT HEX(JSON_UNQUOTE('"\\ud800"')) AS h;
+SELECT HEX(JSON_UNQUOTE('"\\ud800\\udc00"')) AS h;
+SELECT JSON_VALID('"\\ud800"') AS v;
+
+--echo #
+--echo # 7. Strict and non-strict sql_mode.  The document argument never
+--echo #    depends on sql_mode, but stores of the result do; both are
+--echo #    recorded so that a later change of the store rule is visible.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10));
+SET @@sql_mode='';
+INSERT INTO t1 VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+SELECT a, JSON_VALID(a) AS still_valid FROM t1;
+DELETE FROM t1;
+SET @@sql_mode='STRICT_ALL_TABLES';
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+SELECT COUNT(*) AS rows_stored FROM t1;
+SET @@sql_mode=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # 8. Errors raised before a document can be built at all, so that
+--echo #    no partially built result is ever returned as a value.
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_OBJECT('a') AS v;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_SET('{}') AS v;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_SET('{}', '$.a') AS v;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_REMOVE('{}') AS v;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_KEYS() AS v;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE('[1]') AS v;

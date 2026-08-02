@@ -1,0 +1,692 @@
+#
+# Behavioral baseline: how the JSON functions attest to input that is
+# not valid JSON, is NULL, is not a string at all, or contains bytes
+# that JSON cannot carry unescaped.
+#
+# For every case the recorded observable is the whole trichotomy:
+# the value (or SQL NULL), and the warning or error with its code.
+# Results are shown through HEX() whenever the answer contains bytes
+# that are not printable ASCII.
+#
+#
+# 1. Documents that are not valid JSON.
+#
+# --- truncated at every structural position ---
+SELECT JSON_VALID('') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('{') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('{"a"') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('{"a":') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('{"a":1') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('{"a":1,') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('[') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('[1') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('[1,') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('"unterminated') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+# --- structurally wrong ---
+SELECT JSON_VALID('}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID(']') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID('{]') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+SELECT JSON_VALID('[}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+SELECT JSON_VALID('{a:1}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+SELECT JSON_VALID('{"a" 1}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
+SELECT JSON_VALID('{"a":1,,"b":2}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
+SELECT JSON_VALID('{"a":1}{"b":2}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
+SELECT JSON_VALID('{"a":1} trailing') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+SELECT JSON_VALID('nul') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_VALID('TRUE') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID('01') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+SELECT JSON_VALID('1.') AS v;
+v
+1
+SELECT JSON_VALID('.1') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID('1e') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+SELECT JSON_VALID('+1') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+# --- bad escapes inside strings ---
+SELECT JSON_VALID('{"a":"\\q"}') AS v;
+v
+1
+SELECT JSON_VALID('{"a":"\\u12"}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
+SELECT JSON_VALID('{"a":"\\uZZZZ"}') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
+SELECT JSON_VALID('{"a":"trailing backslash\\"}') AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+#
+# 2. The same invalid documents fed to each function.  This records
+#    which functions answer NULL with a warning and which raise an
+#    error, and with which code.
+#
+SELECT JSON_SET('{"a":1,', '$.a', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SELECT JSON_INSERT('{"a":1,', '$.b', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_insert'
+SELECT JSON_REPLACE('{"a":1,', '$.a', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_replace'
+SELECT JSON_REMOVE('{"a":1,', '$.a') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+SELECT JSON_ARRAY_APPEND('[1,', '$', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array_append'
+SELECT JSON_ARRAY_INSERT('[1,', '$[0]', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array_insert'
+SELECT JSON_MERGE('[1,', '[2]') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
+SELECT JSON_MERGE('[1]', '[2,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+SELECT JSON_MERGE_PATCH('{"a":1,', '{"b":2}') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_patch'
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+SELECT JSON_EXTRACT('{"a":1,', '$.a') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+SELECT JSON_QUERY('{"a":1,', '$.a') AS v;
+v
+NULL
+SELECT JSON_VALUE('{"a":1,', '$.a') AS v;
+v
+1
+SELECT JSON_KEYS('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+SELECT JSON_LENGTH('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
+SELECT JSON_DEPTH('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_depth'
+SELECT JSON_TYPE('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_type'
+SELECT JSON_EXISTS('{"a":1,', '$.a') AS v;
+v
+1
+SELECT JSON_CONTAINS('{"a":1,', '1', '$.a') AS v;
+v
+1
+SELECT JSON_CONTAINS_PATH('{"a":1,', 'one', '$.a') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains_path'
+SELECT JSON_OVERLAPS('[1,', '[1]') AS v;
+v
+1
+SELECT JSON_EQUALS('{"a":1,', '{"a":1}') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_equals'
+SELECT JSON_SEARCH('{"a":"x",', 'one', 'x') AS v;
+v
+"$.a"
+SELECT JSON_NORMALIZE('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
+SELECT JSON_COMPACT('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_compact'
+SELECT JSON_LOOSE('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_loose'
+SELECT JSON_DETAILED('{"a":1,') AS v;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_detailed'
+SELECT JSON_UNQUOTE('"unterminated') AS v;
+v
+"unterminated
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_unquote'
+SELECT JSON_QUOTE('{"a":1,') AS v;
+v
+"{\"a\":1,"
+#
+# 3. Invalid path arguments.
+#
+SELECT JSON_EXTRACT('{"a":1}', '') AS v;
+v
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_extract'
+SELECT JSON_EXTRACT('{"a":1}', 'a') AS v;
+v
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+SELECT JSON_EXTRACT('{"a":1}', '$..a') AS v;
+v
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 3
+SELECT JSON_EXTRACT('{"a":1}', '$.') AS v;
+v
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_extract'
+SELECT JSON_EXTRACT('{"a":1}', '$[') AS v;
+v
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_extract'
+SELECT JSON_SET('{"a":1}', '$.*', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_set'
+SELECT JSON_SET('{"a":1}', '$**.a', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_set'
+# a path containing a quote, which the key comparison must not accept
+SELECT JSON_EXTRACT('{"a\\"b":1}', '$.a"b') AS v;
+v
+NULL
+SELECT JSON_SET('{"a":1}', '$.a"b', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 11
+SELECT JSON_INSERT('{"a":1}', '$.a"b', 2) AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 11
+#
+# 4. NULL arguments in every position.
+#
+SELECT JSON_SET(NULL, '$.a', 1) AS v;
+v
+NULL
+SELECT JSON_SET('{"a":1}', NULL, 1) AS v;
+v
+NULL
+SELECT JSON_SET('{"a":1}', '$.a', NULL) AS v;
+v
+{"a": null}
+SELECT JSON_INSERT(NULL, '$.a', 1) AS v;
+v
+NULL
+SELECT JSON_REMOVE(NULL, '$.a') AS v;
+v
+NULL
+SELECT JSON_REMOVE('{"a":1}', NULL) AS v;
+v
+NULL
+SELECT JSON_MERGE(NULL, '[1]') AS v;
+v
+NULL
+SELECT JSON_MERGE('[1]', NULL) AS v;
+v
+NULL
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1}') AS v;
+v
+NULL
+SELECT JSON_MERGE_PATCH('{"a":1}', NULL) AS v;
+v
+NULL
+SELECT JSON_EXTRACT(NULL, '$.a') AS v;
+v
+NULL
+SELECT JSON_EXTRACT('{"a":1}', NULL) AS v;
+v
+NULL
+SELECT JSON_ARRAY(NULL) AS v;
+v
+[null]
+SELECT JSON_OBJECT('a', NULL) AS v;
+v
+{"a": null}
+SELECT JSON_OBJECT(NULL, 1) AS v;
+v
+{"": 1}
+SELECT JSON_KEYS(NULL) AS v;
+v
+NULL
+SELECT JSON_LENGTH(NULL) AS v;
+v
+NULL
+SELECT JSON_DEPTH(NULL) AS v;
+v
+NULL
+SELECT JSON_TYPE(NULL) AS v;
+v
+NULL
+SELECT JSON_QUOTE(NULL) AS v;
+v
+NULL
+SELECT JSON_UNQUOTE(NULL) AS v;
+v
+NULL
+SELECT JSON_VALID(NULL) AS v;
+v
+NULL
+SELECT JSON_COMPACT(NULL) AS v;
+v
+NULL
+# a JSON null inside a document is not an SQL NULL
+SELECT JSON_EXTRACT('{"a":null}', '$.a') AS v, JSON_TYPE(JSON_EXTRACT('{"a":null}', '$.a')) AS t;
+v	t
+null	NULL
+SELECT JSON_VALUE('{"a":null}', '$.a') AS v;
+v
+NULL
+SELECT JSON_VALUE('{"a":null}', '$.a') IS NULL AS is_null;
+is_null
+1
+#
+# 5. Arguments that are not strings.  The document argument is taken
+#    through its string value, so the conversion is part of the result.
+#
+SELECT JSON_VALID(1) AS v, JSON_VALID(1.5) AS d, JSON_VALID(TRUE) AS b;
+v	d	b
+1	1	1
+SELECT JSON_TYPE(1) AS v, JSON_TYPE(1.5) AS d;
+v	d
+INTEGER	DOUBLE
+SELECT JSON_EXTRACT(1, '$') AS v;
+v
+1
+SELECT JSON_SET(1, '$', 2) AS v;
+v
+2
+SELECT JSON_DEPTH(1) AS v;
+v
+1
+SELECT JSON_VALID(DATE'2020-01-01') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
+SELECT JSON_EXTRACT(DATE'2020-01-01', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 5
+# numeric and temporal values as inserted values, not documents
+SELECT JSON_ARRAY(1, 1.5, -0.0, 1e300, DATE'2020-01-01', TIME'10:20:30') AS v;
+v
+[1, 1.5, 0.0, 1e300, "2020-01-01", "10:20:30"]
+SELECT JSON_OBJECT('i', 1, 'd', 1.5, 'dt', DATE'2020-01-01') AS v;
+v
+{"i": 1, "d": 1.5, "dt": "2020-01-01"}
+SELECT JSON_SET('{}', '$.i', 1, '$.d', 1.5, '$.dt', DATE'2020-01-01') AS v;
+v
+{"i": 1, "d": 1.5, "dt": "2020-01-01"}
+# binary values
+SELECT JSON_ARRAY(X'41') AS v, HEX(JSON_ARRAY(X'41')) AS h;
+v	h
+["A"]	5B2241225D
+SELECT JSON_ARRAY(X'00') AS v, HEX(JSON_ARRAY(X'00')) AS h;
+v	h
+["\u0000"]	5B225C7530303030225D
+SELECT JSON_VALID(X'7B7D') AS v;
+v
+1
+#
+# 6. Hostile strings: control characters and bytes that JSON requires
+#    to be escaped.  These pin what the constructors emit today for
+#    values that cannot be carried literally.
+#
+# --- control characters through the constructors ---
+SELECT HEX(JSON_ARRAY(CHAR(1 USING utf8mb4))) AS h;
+h
+5B225C7530303031225D
+SELECT HEX(JSON_ARRAY(CHAR(9 USING utf8mb4))) AS h;
+h
+5B225C74225D
+SELECT HEX(JSON_ARRAY(CHAR(10 USING utf8mb4))) AS h;
+h
+5B225C6E225D
+SELECT HEX(JSON_ARRAY(CHAR(13 USING utf8mb4))) AS h;
+h
+5B225C72225D
+SELECT HEX(JSON_ARRAY(CHAR(27 USING utf8mb4))) AS h;
+h
+5B225C7530303142225D
+SELECT HEX(JSON_ARRAY(CHAR(31 USING utf8mb4))) AS h;
+h
+5B225C7530303146225D
+SELECT HEX(JSON_OBJECT('k', CHAR(1 USING utf8mb4))) AS h;
+h
+7B226B223A20225C7530303031227D
+# a control character in the KEY position
+SELECT HEX(JSON_OBJECT(CONCAT('k', CHAR(1 USING utf8mb4)), 1)) AS h;
+h
+7B226B5C7530303031223A20317D
+# is the constructor output accepted back as a document?
+SELECT JSON_VALID(JSON_ARRAY(CHAR(1 USING utf8mb4))) AS v;
+v
+1
+SELECT JSON_VALID(JSON_OBJECT('k', CHAR(1 USING utf8mb4))) AS v;
+v
+1
+SELECT JSON_VALID(JSON_OBJECT(CONCAT('k', CHAR(1 USING utf8mb4)), 1)) AS v;
+v
+1
+# the same values through the mutators
+SELECT HEX(JSON_SET('{}', '$.a', CHAR(1 USING utf8mb4))) AS h;
+h
+7B2261223A20225C7530303031227D
+SELECT JSON_VALID(JSON_SET('{}', '$.a', CHAR(1 USING utf8mb4))) AS v;
+v
+1
+SELECT HEX(JSON_ARRAY_APPEND('[]', '$', CHAR(1 USING utf8mb4))) AS h;
+h
+5B225C7530303031225D
+# and through JSON_QUOTE, which escapes for exactly this purpose
+SELECT HEX(JSON_QUOTE(CHAR(1 USING utf8mb4))) AS h;
+h
+225C753030303122
+SELECT HEX(JSON_QUOTE(CHAR(9 USING utf8mb4))) AS h;
+h
+225C7422
+SELECT JSON_VALID(JSON_QUOTE(CHAR(1 USING utf8mb4))) AS v;
+v
+1
+# --- quote and backslash edges ---
+SELECT JSON_ARRAY('a"b') AS v, HEX(JSON_ARRAY('a"b')) AS h;
+v	h
+["a\"b"]	5B22615C2262225D
+SELECT JSON_ARRAY('a\\b') AS v, HEX(JSON_ARRAY('a\\b')) AS h;
+v	h
+["a\\b"]	5B22615C5C62225D
+SELECT JSON_ARRAY('a\\"b') AS v;
+v
+["a\\\"b"]
+SELECT JSON_ARRAY('"') AS v;
+v
+["\""]
+SELECT JSON_ARRAY('\\') AS v;
+v
+["\\"]
+SELECT JSON_OBJECT('a"b', 1) AS v;
+v
+{"a\"b": 1}
+SELECT JSON_OBJECT('a\\b', 1) AS v;
+v
+{"a\\b": 1}
+SELECT JSON_VALID(JSON_ARRAY('a"b')) AS q, JSON_VALID(JSON_ARRAY('a\\b')) AS bs;
+q	bs
+1	1
+SELECT JSON_VALID(JSON_OBJECT('a"b', 1)) AS q, JSON_VALID(JSON_OBJECT('a\\b', 1)) AS bs;
+q	bs
+1	1
+SELECT JSON_QUOTE('a"b') AS v, JSON_QUOTE('a\\b') AS v2;
+v	v2
+"a\"b"	"a\\b"
+SELECT JSON_UNQUOTE('"a\\\\b"') AS v;
+v
+a\b
+SELECT JSON_UNQUOTE(JSON_QUOTE('a"b')) AS v;
+v
+a"b
+# a value that already looks like a quoted JSON string
+SELECT JSON_ARRAY('"quoted"') AS v;
+v
+["\"quoted\""]
+SELECT JSON_ARRAY('{"a":1}') AS v;
+v
+["{\"a\":1}"]
+SELECT JSON_VALID(JSON_ARRAY('{"a":1}')) AS v;
+v
+1
+# --- byte sequences that are not valid in the connection charset ---
+SET NAMES utf8mb4;
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'41')) AS h;
+h
+5B2241225D
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'FF')) AS h;
+ERROR HY000: Invalid utf8mb4 character string: 'FF'
+SELECT HEX(JSON_ARRAY(_utf8mb4 X'C3')) AS h;
+ERROR HY000: Invalid utf8mb4 character string: 'C3'
+# the same bytes carried in as binary and converted
+SELECT HEX(JSON_ARRAY(CONVERT(X'FF' USING utf8mb4))) AS h;
+h
+5B223F225D
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xFF'
+SELECT HEX(JSON_ARRAY(CONVERT(X'C3' USING utf8mb4))) AS h;
+h
+5B223F225D
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xC3'
+SELECT HEX(JSON_ARRAY(CONVERT(X'C328' USING utf8mb4))) AS h;
+h
+5B223F28225D
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xC3('
+SELECT HEX(JSON_ARRAY(CONVERT(X'EDA080' USING utf8mb4))) AS h;
+h
+5B22EDA080225D
+SELECT HEX(JSON_QUOTE(CONVERT(X'FF' USING utf8mb4))) AS h;
+h
+223F22
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xFF'
+# invalid bytes inside a document argument
+SELECT JSON_VALID(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4)) AS v;
+v
+1
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xFF"}'
+SELECT HEX(JSON_SET(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4), '$.b', 1)) AS h;
+h
+7B2261223A20223F222C202262223A20317D
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xFF"}'
+SELECT HEX(JSON_EXTRACT(CONVERT(CONCAT(X'7B2261223A22', X'FF', X'227D') USING utf8mb4), '$.a')) AS h;
+h
+223F22
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: '\xFF"}'
+# an escape sequence naming a code point that utf8mb4 cannot encode
+SELECT HEX(JSON_UNQUOTE('"\\ud800"')) AS h;
+h
+225C756438303022
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_unquote' at position 7
+SELECT HEX(JSON_UNQUOTE('"\\ud800\\udc00"')) AS h;
+h
+F0908080
+SELECT JSON_VALID('"\\ud800"') AS v;
+v
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
+#
+# 7. Strict and non-strict sql_mode.  The document argument never
+#    depends on sql_mode, but stores of the result do; both are
+#    recorded so that a later change of the store rule is visible.
+#
+CREATE TABLE t1 (a VARCHAR(10));
+SET @@sql_mode='';
+INSERT INTO t1 VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT a, JSON_VALID(a) AS still_valid FROM t1;
+a	still_valid
+{"a": 9, "	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+DELETE FROM t1;
+SET @@sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t1 VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+ERROR 22001: Data too long for column 'a' at row 1
+SELECT COUNT(*) AS rows_stored FROM t1;
+rows_stored
+0
+SET @@sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# 8. Errors raised before a document can be built at all, so that
+#    no partially built result is ever returned as a value.
+#
+SELECT JSON_OBJECT('a') AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_OBJECT'
+SELECT JSON_SET('{}') AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_SET'
+SELECT JSON_SET('{}', '$.a') AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_SET'
+SELECT JSON_REMOVE('{}') AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_REMOVE'
+SELECT JSON_KEYS() AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_KEYS'
+SELECT JSON_MERGE('[1]') AS v;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_MERGE'

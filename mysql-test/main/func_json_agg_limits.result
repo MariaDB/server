@@ -1,0 +1,382 @@
+#
+# Behavioral baseline: the JSON aggregate functions.
+#
+# JSON_ARRAYAGG inherits the GROUP_CONCAT length cap, so its result is
+# chopped at group_concat_max_len bytes.  Depending on where the cut
+# lands, the value it returns is either still parseable or not, and
+# the only signal is a warning.  This test walks the cut across every
+# interesting byte offset and records the exact result each time.
+# JSON_OBJECTAGG is included next to it, including the fact that it
+# does not honour the same cap.
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20));
+INSERT INTO t1 VALUES
+(1, 'aaaaaaaaaa'), (1, 'bbbbbbbbbb'), (1, 'cccccccccc'),
+(2, 'dd'), (2, 'ee');
+#
+# 1. Uncut results.
+#
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+v
+["aaaaaaaaaa","bbbbbbbbbb","cccccccccc","dd","ee"]
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+h
+5B2261616161616161616161222C2262626262626262626262222C2263636363636363636363222C226464222C226565225D
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t1;
+ok
+1
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	["aaaaaaaaaa","bbbbbbbbbb","cccccccccc"]
+2	["dd","ee"]
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1;
+v
+{"aaaaaaaaaa":"aaaaaaaaaa", "bbbbbbbbbb":"bbbbbbbbbb", "cccccccccc":"cccccccccc", "dd":"dd", "ee":"ee"}
+SELECT HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1;
+h
+7B2261616161616161616161223A2261616161616161616161222C202262626262626262626262223A2262626262626262626262222C202263636363636363636363223A2263636363636363636363222C20226464223A226464222C20226565223A226565227D
+SELECT JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1;
+ok
+1
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	{"aaaaaaaaaa":"aaaaaaaaaa", "bbbbbbbbbb":"bbbbbbbbbb", "cccccccccc":"cccccccccc"}
+2	{"dd":"dd", "ee":"ee"}
+# the aggregates over an empty input
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+# a single row
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'dd';
+v
+["dd"]
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE a = 'dd';
+v
+{"dd":"dd"}
+# NULL and non-string members
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT NULL) d;
+v
+[1,null]
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+v
+[1,2]
+SELECT JSON_OBJECTAGG(k, x) AS v
+FROM (SELECT 'a' AS k, 1 AS x UNION ALL SELECT 'b', NULL) d;
+v
+{"a":1, "b":null}
+# DISTINCT and ORDER BY inside the aggregate
+SELECT JSON_ARRAYAGG(DISTINCT a) AS v FROM t1 WHERE g = 1;
+v
+["aaaaaaaaaa","bbbbbbbbbb","cccccccccc"]
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1 WHERE g = 1;
+v
+["cccccccccc","bbbbbbbbbb","aaaaaaaaaa"]
+# an aggregate over documents rather than strings
+SELECT JSON_ARRAYAGG(JSON_OBJECT('k', a)) AS v FROM t1 WHERE g = 2;
+v
+[{"k": "dd"},{"k": "ee"}]
+SELECT JSON_ARRAYAGG(JSON_COMPACT(CONCAT('{"k":"', a, '"}'))) AS v
+FROM t1 WHERE g = 2;
+v
+[{"k":"dd"},{"k":"ee"}]
+#
+# 2. The cut, walked byte by byte.  The uncut result for group 1 is
+#    ["aaaaaaaaaa","bbbbbbbbbb","cccccccccc"], 40 bytes.
+#
+SET SESSION group_concat_max_len = 40;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C2262626262626262626262222C2263636363636363636363225D	1
+SET SESSION group_concat_max_len = 39;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C2262626262626262626262222C2263636363636363636363225D	1
+SET SESSION group_concat_max_len = 30;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C2262626262626262626262222C226363225D	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 20;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C226262626262225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+# the cut lands just after the separator, leaving an empty member
+SET SESSION group_concat_max_len = 15;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C22225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+# the cut lands on the opening quote of the next member
+SET SESSION group_concat_max_len = 14;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161222C225D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+# the cut lands on the separator itself
+SET SESSION group_concat_max_len = 13;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B226161616161616161616122225D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
+# the cut lands inside the first member
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B2261616161616161616161225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B22616161225D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 4;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+5B226161225D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+# the smallest the cap can be
+SET SESSION group_concat_max_len = 4;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1 WHERE a = 'dd';
+h
+5B226464225D
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 3. A cut that falls inside an escape sequence, where the trailing
+#    bytes are not a complete character.
+#
+CREATE TABLE t2 (a VARCHAR(20));
+INSERT INTO t2 VALUES ('xx"yy'), ('zzzz');
+SET SESSION group_concat_max_len = 10;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+h	ok
+5B2278785C227979222C225D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET SESSION group_concat_max_len = 9;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+h	ok
+5B2278785C22797922225D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+h	ok
+5B2278785C227979225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+h	ok
+5B2278785C2279225D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 6;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+h	ok
+5B2278785C22225D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t2;
+#
+# 3a. A cut over members that are not quoted strings.  The re-close
+#     path only fixes a split trailing quote, so a cut that ends on a
+#     digit or inside an object takes the other branch entirely.
+#
+CREATE TABLE t3 (n INT, j JSON);
+INSERT INTO t3 VALUES (111, '{"k":1}'), (222, '{"k":2}'), (333, '{"k":3}');
+# numeric members: the cut can leave a shorter but still parseable array
+SET SESSION group_concat_max_len = 9;
+SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
+h	ok
+5B3131312C3232322C335D	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
+h	ok
+5B3131312C325D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+# document members: the cut lands inside an object instead
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(j ORDER BY n)) AS h,
+JSON_VALID(JSON_ARRAYAGG(j ORDER BY n)) AS ok FROM t3;
+h	ok
+5B7B226B223A317D2C7B226B225D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 13
+SET SESSION group_concat_max_len = 17;
+SELECT HEX(JSON_ARRAYAGG(j ORDER BY n)) AS h,
+JSON_VALID(JSON_ARRAYAGG(j ORDER BY n)) AS ok FROM t3;
+h	ok
+5B7B226B223A317D2C7B226B223A327D2C7B5D	0
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 19
+# members built by a constructor rather than read from a column
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(JSON_OBJECT('k', n) ORDER BY n)) AS h,
+JSON_VALID(JSON_ARRAYAGG(JSON_OBJECT('k', n) ORDER BY n)) AS ok FROM t3;
+h	ok
+5B7B226B223A203131317D2C7B5D	0
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t3;
+#
+# 4. A cut result consumed by another JSON function.  Today the cut
+#    value is handed on as a document argument like any other.
+#
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_SET(JSON_ARRAYAGG(a), '$[0]', 1) AS v FROM t1 WHERE g = 1;
+v
+NULL
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SELECT JSON_EXTRACT(JSON_ARRAYAGG(a), '$[0]') AS v FROM t1 WHERE g = 1;
+v
+NULL
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+v
+[["aaaaaaaaaa","]]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT JSON_DEPTH(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+v
+NULL
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_depth'
+SELECT JSON_LENGTH(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+v
+NULL
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
+SELECT JSON_COMPACT(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+v
+NULL
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_compact'
+# an uncut group and a cut group in the same statement
+SET SESSION group_concat_max_len = 14;
+SELECT g, HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+FROM t1 GROUP BY g ORDER BY g;
+g	h	ok
+1	5B2261616161616161616161222C225D	0
+2	5B226464222C226565225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 5. JSON_OBJECTAGG does not honour group_concat_max_len.
+#
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_OBJECTAGG(a, a)) AS h, JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok
+FROM t1 WHERE g = 1;
+h	ok
+7B2261616161616161616161223A2261616161616161616161222C202262626262626262626262223A2262626262626262626262222C202263636363636363636363223A2263636363636363636363227D	1
+SET SESSION group_concat_max_len = DEFAULT;
+# duplicate keys are kept, not merged
+SELECT JSON_OBJECTAGG(g, a) AS v FROM t1 WHERE g = 1;
+v
+{"1":"aaaaaaaaaa", "1":"bbbbbbbbbb", "1":"cccccccccc"}
+SELECT JSON_VALID(JSON_OBJECTAGG(g, a)) AS ok FROM t1 WHERE g = 1;
+ok
+1
+# a key that needs escaping
+SELECT JSON_OBJECTAGG(k, 1) AS v
+FROM (SELECT 'a"b' AS k UNION ALL SELECT 'c\\d') d;
+v
+{"a\"b":1, "c\\d":1}
+SELECT JSON_VALID(JSON_OBJECTAGG(k, 1)) AS ok
+FROM (SELECT 'a"b' AS k UNION ALL SELECT 'c\\d') d;
+ok
+1
+# a NULL key
+SELECT JSON_OBJECTAGG(k, 1) AS v
+FROM (SELECT NULL AS k UNION ALL SELECT 'b') d;
+v
+{"b":1}
+#
+# 6. The result metadata the aggregates report, which decides how the
+#    bytes are converted on their way to the client.
+#
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	252 (format=json)	4194312	11	Y	0	0	45
+v
+["dd","ee"]
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	252 (format=json)	4194304	22	Y	0	0	45
+v
+{"dd":"dd", "ee":"ee"}
+SELECT JSON_ARRAY(1) AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	40	3	Y	0	39	45
+v
+[1]
+SELECT JSON_SET('{}', '$.a', 1) AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	68	8	Y	0	39	45
+v
+{"a": 1}
+DROP TABLE t1;
