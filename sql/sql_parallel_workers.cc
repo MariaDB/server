@@ -328,6 +328,20 @@ static void close_one_worker_table(TABLE **t)
 }
 
 
+/*
+  @brief
+    Take the engine's per-table counters out of the tables while they are still
+    open, so the manager can add them to what ANALYZE reads.
+*/
+
+void pwt_worker::snapshot_table_stats()
+{
+  for (uint i= 0; i < n_tables; i++)
+    if (ha_handler_stats *hs= worker_tables[i]->file->handler_stats)
+      tab_hstats[i].add(hs);
+}
+
+
 void pwt_worker::close_worker_tables()
 {
   if (worker_tables)
@@ -650,6 +664,8 @@ int pwt_worker::worker_join_inner(uint level)
   pwt_jointab *it= &join_tables[level];
   TABLE *t= it->table;
   int err;
+  Table_access_tracker *tr= &tab_stats[level + 1];
+  tr->r_scans++;                        // sub_select() counts one per probe too
 
   if (it->type == JT_ALL)
   {
@@ -661,6 +677,7 @@ int pwt_worker::worker_join_inner(uint level)
     }
     while (!(err= t->file->ha_rnd_next(t->record[0])))
     {
+      tr->r_rows++;
       if (it->cond)
       {
         bool pass= it->cond->val_bool();
@@ -672,6 +689,7 @@ int pwt_worker::worker_join_inner(uint level)
         if (!pass)
           continue;
       }
+      tr->r_rows_after_where++;
       if (worker_join_inner(level+1))
       {
         t->file->ha_rnd_end();
@@ -698,9 +716,12 @@ int pwt_worker::worker_join_inner(uint level)
                                   HA_READ_KEY_EXACT);
   while (!err)
   {
+    tr->r_rows++;
     bool pass= !it->cond || it->cond->val_bool();
     if (manager->fatal_error)
       DBUG_RETURN(1);
+    if (pass)
+      tr->r_rows_after_where++;
     if (pass && worker_join_inner(level + 1))
       DBUG_RETURN(1);
     if (it->type == JT_EQ_REF)
@@ -823,6 +844,8 @@ int pwt_worker::worker_run_query()
         break;
       }
 
+      tab_stats[0].r_rows++;              // what ANALYZE calls r_rows
+
       // apply per worker select_cond
       if (worker_cond)
       {
@@ -835,6 +858,7 @@ int pwt_worker::worker_run_query()
         if (!pass)         // skip below
           continue;
       }
+      tab_stats[0].r_rows_after_where++;
 
       // join the rest of the tables and emit each full match
       if (worker_join_inner(0))
@@ -990,6 +1014,7 @@ static void *parallel_worker_thread_func(void *arg)
     that references that transaction (InnoDB's prebuilt). The manager never
     touches a started worker's tables, so no lock is needed here.
   */
+  worker->snapshot_table_stats();          // while the tables are still open
   worker->close_worker_tables();
 
   /*
@@ -1731,7 +1756,10 @@ bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
 bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
 {
   worker->n_tables= n_tables;
-  if (!(worker->worker_tables= thd->alloc<TABLE*>(n_tables)))
+  /* the table array, plus the ANALYZE counters this worker will fill in */
+  if (!(worker->worker_tables= thd->alloc<TABLE*>(n_tables)) ||
+      !(worker->tab_stats= thd->calloc<Table_access_tracker>(n_tables)) ||
+      !(worker->tab_hstats= thd->calloc<ha_handler_stats>(n_tables)))
     return true;
   for (uint t= 0; t < n_tables; t++)
     worker->worker_tables[t]= nullptr;
@@ -2199,6 +2227,32 @@ void pwt_manager::quiesce_workers()
   */
   for (uint i= 0; i < nworkers; i++)
     add_to_status(&thd->status_var, &workers[i].stats);
+
+  /*
+    Give ANALYZE what the workers did. The manager never runs the driving table's
+    read loop, so the JOIN_TAB trackers the optimizer left for ANALYZE to read
+    stay at zero and the report says the table was never touched. The trackers
+    and the handlers are the manager's, every worker has been joined, so this
+    thread is the only one touching either side.
+  */
+  for (uint i= 0; i < nworkers; i++)
+    for (uint t= 0; t < n_tables; t++)
+    {
+      if (Table_access_tracker *tr= mgr_tabs[t]->tracker)
+      {
+        tr->r_scans+=             workers[i].tab_stats[t].r_scans;
+        tr->r_rows+=              workers[i].tab_stats[t].r_rows;
+        tr->r_rows_after_where+=  workers[i].tab_stats[t].r_rows_after_where;
+      }
+      if (ha_handler_stats *hs= mgr_tables[t]->file->handler_stats)
+        hs->add(&workers[i].tab_hstats[t]);
+    }
+  /*
+    The chunks are one scan of the driving table between them, so report one,
+    which is what the serial plan reports and what makes r_rows per scan comparable.
+  */
+  if (mgr_tabs[0]->tracker)
+    mgr_tabs[0]->tracker->r_scans++;
   reaped= true;
   DBUG_VOID_RETURN;
 }

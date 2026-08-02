@@ -93,6 +93,18 @@ SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
 --enable_query_log
 SET SESSION optimizer_switch= @save_os;
 
+# --- ANALYZE reports what the workers did ------------------------------------
+# The manager never runs the driving table's read loop, so its JOIN_TAB tracker
+# only has numbers in it if the workers hand theirs over.
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+--replace_column 9 #
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+--echo # with workers: same r_rows and r_filtered, only the access type differs
+SET SESSION parallel_worker_threads= 4;
+--replace_column 9 #
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+
 # --- constants in the select list --------------------------------------------
 --echo # a constant is shipped per row like any other projected item
 --sorted_result

@@ -131,6 +131,20 @@ public:
   */
   STATUS_VAR      stats;
 
+  /*
+    What this worker did to each of its tables, in the terms ANALYZE reports:
+    rows read, rows that passed the table's condition, and scans, plus the
+    engine's own counters. Indexed like worker_tables. The manager adds these to
+    the JOIN_TAB trackers and handlers the optimizer left for ANALYZE to read,
+    once the workers have been joined -- without that, ANALYZE says the
+    parallel-scanned table was never read at all. See quiesce_workers().
+  */
+  Table_access_tracker *tab_stats;
+  ha_handler_stats     *tab_hstats;
+
+  /* Copy the engine counters out of the tables before they are closed. */
+  void snapshot_table_stats();
+
   int worker_join_inner(uint level);
   int worker_emit_row(uint level);
 

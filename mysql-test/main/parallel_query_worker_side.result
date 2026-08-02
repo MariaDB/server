@@ -110,6 +110,16 @@ SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
 session_counts_the_workers_reads
 1
 SET SESSION optimizer_switch= @save_os;
+# serial
+SET SESSION parallel_worker_threads= 0;
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	5000.00	100.00	14.28	Using where
+# with workers: same r_rows and r_filtered, only the access type differs
+SET SESSION parallel_worker_threads= 4;
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	PARALLEL	NULL	NULL	NULL	NULL	#	5000.00	100.00	14.28	Using where
 # a constant is shipped per row like any other projected item
 SELECT 42 AS k, a FROM t1 WHERE a <= 3;
 k	a
