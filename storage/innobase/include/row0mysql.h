@@ -568,6 +568,23 @@ struct row_prebuilt_t {
 					DB_RECORD_NOT_FOUND) as soon as it
 					reaches a record >= this tuple,
 					before that record is prefetched. */
+	uint32_t	m_pscan_clamp_page;
+					/*!< parallel scan: page number of the
+					leaf page the cached boundary verdict
+					m_pscan_clamp_in_range was taken for,
+					or FIL_NULL if there is none.
+					@see row_pscan_reached_chunk_end() */
+	uint64_t	m_pscan_clamp_clock;
+					/*!< parallel scan: modify_clock of
+					m_pscan_clamp_page when the verdict
+					was taken. Any change to the page
+					invalidates the verdict. */
+	bool		m_pscan_clamp_in_range;
+					/*!< parallel scan: whether every user
+					record of m_pscan_clamp_page is below
+					m_pscan_end_tuple. If it is, the
+					per-record boundary comparison can be
+					skipped on that whole page. */
 	byte		row_id[DATA_ROW_ID_LEN];
 					/*!< if the clustered index was
 					generated, the row id of the
@@ -703,6 +720,18 @@ struct row_prebuilt_t {
 	uint		srch_key_val_len; /*!< Size of search key */
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** Parallel scan: set the exclusive upper bound of the chunk that is
+	about to be scanned, discarding the boundary verdict that was cached
+	for the previous chunk.
+	@param tuple	chunk end tuple in clustered-index key format,
+			or NULL for an unbounded scan */
+	void set_pscan_end_tuple(const dtuple_t* tuple)
+	{
+		m_pscan_end_tuple = tuple;
+		m_pscan_clamp_page = FIL_NULL;
+		m_pscan_clamp_in_range = false;
+	}
 
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const

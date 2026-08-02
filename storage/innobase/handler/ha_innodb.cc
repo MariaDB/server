@@ -14709,7 +14709,7 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 				/* Clamp the scan to this chunk inside the engine, so
 				the prefetch cache stops exactly at the boundary and
 				never reads into the next chunk. NULL == +infinity. */
-				m_prebuilt->m_pscan_end_tuple = m_pscan_end_tuple;
+				m_prebuilt->set_pscan_end_tuple(m_pscan_end_tuple);
 
 				if (m_pscan_start_tuple) {
 					// Position at first record >= start, AND load it.
@@ -14768,7 +14768,7 @@ int ha_innobase::parallel_end_worker()
 		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
 		m_pscan_saved_search_tuple = nullptr;
 	}
-	m_prebuilt->m_pscan_end_tuple = nullptr;
+	m_prebuilt->set_pscan_end_tuple(nullptr);
 	m_pscan_first_call  = false;
 	m_pscan_start_tuple = nullptr;
 	m_pscan_end_tuple   = nullptr;
