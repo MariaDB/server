@@ -435,6 +435,39 @@ public:
 
 /*
   @brief
+    The whole condition this table has to be filtered by, whatever the plan did
+    with it.
+
+  @description
+    When the optimizer pushes part of a condition into the engine,
+    push_index_cond() leaves tab->select_cond holding only the remainder and
+    keeps the original in tab->pre_idx_push_select_cond. The pushed half then
+    lives in handler::pushed_idx_cond, which belongs to the manager's handler:
+    a worker reads through its own, opened by open_table_from_share() with no
+    condition pushed into it, so filtering by select_cond alone would apply the
+    pushed half nowhere and return rows the serial plan rejects.
+
+    A worker therefore filters by the pre-pushdown condition and does the whole
+    job itself. That gives up what the pushdown was for -- the engine no longer
+    rejects an index entry before the row is read -- so a worker does more
+    clustered-index work per match than the serial plan does. Correctness first,
+    and the alternative is to refuse these plans and lose the parallel scan
+    altogether. Pushing a clone onto the worker's own handler would recover it,
+    and wants the worker to hold a real JOIN_TAB to hang the key number off.
+
+    Used by the gate and by both clone sites, so the item the gate approves is
+    always the item a worker ends up evaluating.
+*/
+
+static Item *pwt_table_cond(JOIN_TAB *tab)
+{
+  return tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
+                                       : tab->select_cond;
+}
+
+
+/*
+  @brief
     Deep-clone an Item tree and rebind its join-table field references to the
     worker's private table copies.
 
@@ -1789,8 +1822,9 @@ bool pwt_manager::setup_worker_inner_tabs(THD *thd, pwt_worker *worker)
     it->type= mtab->type;
     it->sorted= mtab->sorted;
 
-    if (mtab->select_cond &&
-        !(it->cond= pwt_clone_rebind(thd, mtab->select_cond,
+    Item *mtab_cond= pwt_table_cond(mtab);
+    if (mtab_cond &&
+        !(it->cond= pwt_clone_rebind(thd, mtab_cond,
                                      mgr_tables, worker->worker_tables,
                                      n_tables)))
       return true;
@@ -1820,10 +1854,11 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
   TABLE **from= mgr_tables;
   TABLE **to= worker->worker_tables;
 
-  // possible select_cond pushed to the driving table
+  // the condition the driving table is filtered by, see pwt_table_cond()
   worker->worker_cond= nullptr;
-  if (scan_tab->select_cond &&
-      !(worker->worker_cond= pwt_clone_rebind(thd, scan_tab->select_cond,
+  Item *scan_cond= pwt_table_cond(scan_tab);
+  if (scan_cond &&
+      !(worker->worker_cond= pwt_clone_rebind(thd, scan_cond,
                                               from, to, n_tables)))
     return true;
 
@@ -2047,7 +2082,8 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
           }
         }
     }
-    if (tab->select_cond && !pwt_item_is_clonable(thd, tab->select_cond))
+    Item *tab_cond= pwt_table_cond(tab);
+    if (tab_cond && !pwt_item_is_clonable(thd, tab_cond))
     {
       DBUG_PRINT("info", ("cond unclonable, %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);

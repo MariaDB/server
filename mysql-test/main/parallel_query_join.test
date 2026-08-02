@@ -91,5 +91,44 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_c
 DROP TEMPORARY TABLE ctas;
 SET optimizer_trace= @ot;
 
+--echo #
+--echo # an inner table whose condition was partly pushed into the index
+--echo #
+# The pushed half lives in the manager handler's pushed_idx_cond, which a worker
+# does not have, so a worker has to filter by the pre-pushdown condition.
+CREATE TABLE p1 (pk INT PRIMARY KEY, a INT, b INT, INDEX idx1(b)) ENGINE=InnoDB
+  STATS_AUTO_RECALC=0;
+INSERT INTO p1 VALUES (1,6,0),(2,1,0),(3,5,2),(4,8,0);
+CREATE TABLE p2 (c INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
+INSERT INTO p2 VALUES (1),(2);
+CREATE TABLE p3 (d INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
+INSERT INTO p3 VALUES (3),(-1),(4);
+SET @os2= @@optimizer_switch;
+SET optimizer_switch='extended_keys=on';
+
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+--sorted_result
+SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+--echo # with workers: the same one row, not one per unfiltered pair
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+--sorted_result
+SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+--echo # and it still ran in the workers rather than falling back (expect 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo # p1 still carries a pushed index condition, so the case is really covered
+--replace_column 9 #
+EXPLAIN SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+SET optimizer_switch= @os2;
+DROP TABLE p1, p2, p3;
+
 SET SESSION parallel_worker_threads= @s;
 DROP TABLE fact, d1, d2, d3;
