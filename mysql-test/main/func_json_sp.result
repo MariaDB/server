@@ -1,0 +1,457 @@
+#
+# Behavioral baseline: JSON values held in stored program variables.
+#
+# A variable declared JSON is not the same thing as a column declared
+# JSON: it carries no check constraint and, as the first section
+# shows, JSON functions do not treat it as a document.  This test
+# records that difference, what the declared type does to a value on
+# assignment, and what happens when a variable is both the source and
+# the target of the same statement.
+#
+SET NAMES utf8mb4;
+#
+# 1. A variable declared JSON compared with a column declared JSON.
+#    A JSON column is embedded into a constructor as a document; the
+#    variable is quoted like any other string.
+#
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a":1}');
+CREATE PROCEDURE p_decl()
+BEGIN
+DECLARE v JSON DEFAULT '{"a":1}';
+DECLARE t LONGTEXT DEFAULT '{"a":1}';
+SELECT v AS var_json;
+SELECT JSON_ARRAY(v) AS from_json_var;
+SELECT JSON_ARRAY(t) AS from_text_var;
+SELECT JSON_ARRAY(j) AS from_json_column FROM t1;
+SELECT JSON_OBJECT('k', v) AS obj_from_json_var;
+SELECT JSON_OBJECT('k', j) AS obj_from_json_column FROM t1;
+SELECT JSON_VALID(JSON_ARRAY(v)) AS var_still_valid;
+SELECT JSON_VALID(JSON_ARRAY(j)) AS col_still_valid FROM t1;
+SELECT JSON_SET(v, '$.b', 2) AS set_over_var;
+SELECT JSON_EXTRACT(v, '$.a') AS extract_from_var;
+SELECT JSON_TYPE(v) AS type_of_var;
+END $$
+CALL p_decl();
+var_json
+{"a":1}
+from_json_var
+["{\"a\":1}"]
+from_text_var
+["{\"a\":1}"]
+from_json_column
+[{"a":1}]
+obj_from_json_var
+{"k": "{\"a\":1}"}
+obj_from_json_column
+{"k": {"a":1}}
+var_still_valid
+1
+col_still_valid
+1
+set_over_var
+{"a": 1, "b": 2}
+extract_from_var
+1
+type_of_var
+OBJECT
+DROP PROCEDURE p_decl;
+# the declared type as the server records it
+CREATE FUNCTION f_ret_json() RETURNS JSON
+BEGIN
+RETURN JSON_SET('{"a":1}', '$.b', 2);
+END $$
+SELECT f_ret_json() AS ret;
+ret
+{"a": 1, "b": 2}
+SELECT JSON_ARRAY(f_ret_json()) AS embedded;
+embedded
+["{\"a\": 1, \"b\": 2}"]
+SELECT JSON_VALID(JSON_ARRAY(f_ret_json())) AS still_valid;
+still_valid
+1
+SELECT JSON_TYPE(f_ret_json()) AS t;
+t
+OBJECT
+DROP FUNCTION f_ret_json;
+# a function declared to return LONGTEXT, for comparison
+CREATE FUNCTION f_ret_text() RETURNS LONGTEXT
+BEGIN
+RETURN JSON_SET('{"a":1}', '$.b', 2);
+END $$
+SELECT f_ret_text() AS ret;
+ret
+{"a": 1, "b": 2}
+SELECT JSON_ARRAY(f_ret_text()) AS embedded;
+embedded
+["{\"a\": 1, \"b\": 2}"]
+DROP FUNCTION f_ret_text;
+#
+# 2. What the declared type does to a value on assignment.
+#
+# a value that fits, and the same value converted to other types
+CREATE PROCEDURE p_types()
+BEGIN
+DECLARE longer VARCHAR(100);
+DECLARE num INT;
+DECLARE bin VARBINARY(100);
+SET longer = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+SELECT longer AS intact, JSON_VALID(longer) AS still_valid;
+SET num = JSON_EXTRACT('{"a":42}', '$.a');
+SELECT num AS as_number;
+SET bin = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+SELECT HEX(bin) AS as_binary, JSON_VALID(bin) AS still_valid;
+END $$
+CALL p_types();
+intact	still_valid
+{"a": 9, "b": 2}	1
+as_number
+42
+as_binary	still_valid
+7B2261223A20392C202262223A20327D	1
+DROP PROCEDURE p_types;
+# a value too long for the variable.  A stored program runs under the
+# sql_mode it was CREATED with, so setting the mode around the CALL
+# decides nothing and each mode needs a procedure of its own.  In
+# strict mode the assignment is refused; in non-strict mode it
+# truncates silently - no error and no warning - leaving a value that
+# is no longer a document.
+SET @@sql_mode='STRICT_ALL_TABLES';
+CREATE PROCEDURE p_cut_strict()
+BEGIN
+DECLARE v VARCHAR(8);
+SET v = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+SELECT v AS cut, HEX(v) AS h, JSON_VALID(v) AS still_valid;
+END $$
+SET @@sql_mode='';
+CREATE PROCEDURE p_cut_lax()
+BEGIN
+DECLARE v VARCHAR(8);
+SET v = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+SELECT v AS cut, HEX(v) AS h, JSON_VALID(v) AS still_valid;
+END $$
+SET @@sql_mode=DEFAULT;
+# the one created in strict mode, called under each mode in turn
+SET @@sql_mode='';
+CALL p_cut_strict();
+ERROR 22001: Data too long for column 'v' at row 0
+SET @@sql_mode='STRICT_ALL_TABLES';
+CALL p_cut_strict();
+ERROR 22001: Data too long for column 'v' at row 0
+SET @@sql_mode=DEFAULT;
+# the one created in non-strict mode, the same way
+SET @@sql_mode='';
+CALL p_cut_lax();
+cut	h	still_valid
+{"a": 9,	7B2261223A20392C	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET @@sql_mode='STRICT_ALL_TABLES';
+CALL p_cut_lax();
+cut	h	still_valid
+{"a": 9,	7B2261223A20392C	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET @@sql_mode=DEFAULT;
+DROP PROCEDURE p_cut_strict;
+DROP PROCEDURE p_cut_lax;
+# the same value into a column of the same width, for contrast
+CREATE TABLE t_narrow (v VARCHAR(8));
+SET @@sql_mode='';
+INSERT INTO t_narrow VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+SELECT v, HEX(v) AS h, JSON_VALID(v) AS still_valid FROM t_narrow;
+v	h	still_valid
+{"a": 9,	7B2261223A20392C	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SET @@sql_mode=DEFAULT;
+DROP TABLE t_narrow;
+# an assignment that loses characters rather than length: the value
+# fits, but the variable's character set cannot carry it.
+CREATE PROCEDURE p_lossy_latin1()
+BEGIN
+DECLARE v VARCHAR(100) CHARACTER SET latin1;
+SET v = JSON_SET('{"a":1}', '$.b', CONVERT(_utf8mb4 X'E4BDA0' USING utf8mb4));
+SELECT HEX(v) AS as_latin1, JSON_VALID(v) AS still_valid;
+END $$
+CREATE PROCEDURE p_lossy_swe7()
+BEGIN
+DECLARE w VARCHAR(100) CHARACTER SET swe7;
+SET w = JSON_SET('{"a":1}', '$.b', 2);
+SELECT HEX(w) AS as_swe7, JSON_VALID(w) AS still_valid;
+END $$
+CREATE PROCEDURE p_lossless_latin1()
+BEGIN
+DECLARE v VARCHAR(100) CHARACTER SET latin1;
+SET v = JSON_SET('{"a":1}', '$.b', 2);
+SELECT HEX(v) AS as_latin1, JSON_VALID(v) AS still_valid;
+END $$
+SET @@sql_mode='';
+CALL p_lossy_latin1();
+ERROR 22007: Incorrect string value: '\xE4\xBD\xA0"}' for column ``.``.`v` at row 0
+CALL p_lossy_swe7();
+ERROR 22007: Incorrect string value: '{"a": ...' for column ``.``.`w` at row 0
+CALL p_lossless_latin1();
+as_latin1	still_valid
+7B2261223A20312C202262223A20327D	1
+SET @@sql_mode='STRICT_ALL_TABLES';
+CALL p_lossy_latin1();
+ERROR 22007: Incorrect string value: '\xE4\xBD\xA0"}' for column ``.``.`v` at row 0
+CALL p_lossy_swe7();
+ERROR 22007: Incorrect string value: '{"a": ...' for column ``.``.`w` at row 0
+CALL p_lossless_latin1();
+as_latin1	still_valid
+7B2261223A20312C202262223A20327D	1
+SET @@sql_mode=DEFAULT;
+DROP PROCEDURE p_lossy_latin1;
+DROP PROCEDURE p_lossy_swe7;
+DROP PROCEDURE p_lossless_latin1;
+# the same lossy value into a column, which is where non-strict mode
+# keeps the value instead of refusing it
+CREATE TABLE t_lossy (v VARCHAR(100) CHARACTER SET latin1);
+SET @@sql_mode='';
+INSERT INTO t_lossy
+VALUES (JSON_SET('{"a":1}', '$.b', CONVERT(_utf8mb4 X'E4BDA0' USING utf8mb4)));
+Warnings:
+Warning	1366	Incorrect string value: '\xE4\xBD\xA0"}' for column `test`.`t_lossy`.`v` at row 1
+SELECT HEX(v) AS stored, JSON_VALID(v) AS still_valid FROM t_lossy;
+stored	still_valid
+7B2261223A20312C202262223A20223F227D	1
+SET @@sql_mode=DEFAULT;
+DROP TABLE t_lossy;
+#
+# 3. A variable that is both the source and the target.
+#
+CREATE PROCEDURE p_self()
+BEGIN
+DECLARE v JSON DEFAULT '{"a":1}';
+SET v = JSON_SET(v, '$.b', 2);
+SELECT v AS after_one;
+SET v = JSON_SET(v, '$.c', 3);
+SELECT v AS after_two;
+SET v = JSON_INSERT(v, '$.d', 4);
+SELECT v AS after_insert;
+SET v = JSON_REMOVE(v, '$.a');
+SELECT v AS after_remove;
+SET v = JSON_MERGE(v, '{"e":5}');
+SELECT v AS after_merge;
+SET v = JSON_ARRAY(v);
+SELECT v AS after_wrap;
+SET v = JSON_EXTRACT(v, '$[0]');
+SELECT v AS after_extract;
+SELECT JSON_VALID(v) AS still_valid;
+END $$
+CALL p_self();
+after_one
+{"a": 1, "b": 2}
+after_two
+{"a": 1, "b": 2, "c": 3}
+after_insert
+{"a": 1, "b": 2, "c": 3, "d": 4}
+after_remove
+{"b": 2, "c": 3, "d": 4}
+after_merge
+{"b": 2, "c": 3, "d": 4, "e": 5}
+after_wrap
+["{\"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5}"]
+after_extract
+"{\"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5}"
+still_valid
+1
+DROP PROCEDURE p_self;
+# a long document repeatedly rewritten in place, so the variable's
+# storage has to grow and be reused
+CREATE PROCEDURE p_grow()
+BEGIN
+DECLARE v JSON DEFAULT '{"a":1}';
+DECLARE i INT DEFAULT 0;
+WHILE i < 20 DO
+SET v = JSON_SET(v, CONCAT('$.k', i), REPEAT('x', 50));
+SET i = i + 1;
+END WHILE;
+SELECT LENGTH(v) AS len, JSON_VALID(v) AS still_valid, JSON_LENGTH(v) AS members;
+SELECT JSON_EXTRACT(v, '$.k0') AS first_added;
+SELECT JSON_EXTRACT(v, '$.k19') AS last_added;
+END $$
+CALL p_grow();
+len	still_valid	members
+1218	1	21
+first_added
+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+last_added
+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+DROP PROCEDURE p_grow;
+#
+# 4. Variables passed in and out of procedures.
+#
+CREATE PROCEDURE p_out(IN a JSON, OUT b JSON, INOUT c JSON)
+BEGIN
+SET b = JSON_SET(a, '$.from_in', 1);
+SET c = JSON_SET(c, '$.from_inout', 1);
+SELECT JSON_ARRAY(a) AS in_embedded, JSON_ARRAY(c) AS inout_embedded;
+END $$
+SET @in = '{"a":1}';
+SET @out = NULL;
+SET @inout = '{"c":1}';
+CALL p_out(@in, @out, @inout);
+in_embedded	inout_embedded
+["{\"a\":1}"]	["{\"c\": 1, \"from_inout\": 1}"]
+SELECT @out AS out_value, @inout AS inout_value;
+out_value	inout_value
+{"a": 1, "from_in": 1}	{"c": 1, "from_inout": 1}
+SELECT JSON_VALID(@out) AS out_valid, JSON_VALID(@inout) AS inout_valid;
+out_valid	inout_valid
+1	1
+SELECT JSON_ARRAY(@out) AS user_var_embedded;
+user_var_embedded
+["{\"a\": 1, \"from_in\": 1}"]
+SELECT JSON_VALID(JSON_ARRAY(@out)) AS still_valid;
+still_valid
+1
+DROP PROCEDURE p_out;
+# a variable holding a document that is not valid
+SET @bad = '{"a":1,';
+SELECT JSON_VALID(@bad) AS v;
+v
+0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT JSON_ARRAY(@bad) AS embedded;
+embedded
+["{\"a\":1,"]
+SELECT JSON_VALID(JSON_ARRAY(@bad)) AS still_valid;
+still_valid
+1
+SELECT JSON_SET(@bad, '$.b', 1) AS mutated;
+mutated
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+#
+# 5. Variables inside a ROW, and a variable fed from a cursor.
+#
+CREATE PROCEDURE p_row()
+BEGIN
+DECLARE r ROW (a JSON, b LONGTEXT);
+SET r.a = JSON_SET('{"a":1}', '$.b', 2);
+SET r.b = JSON_SET('{"a":1}', '$.b', 2);
+SELECT r.a AS row_json, r.b AS row_text;
+SELECT JSON_ARRAY(r.a) AS from_row_json, JSON_ARRAY(r.b) AS from_row_text;
+SELECT JSON_VALID(r.a) AS a_valid, JSON_VALID(r.b) AS b_valid;
+SET r.a = JSON_SET(r.a, '$.c', 3);
+SELECT r.a AS after_self_assign;
+END $$
+CALL p_row();
+row_json	row_text
+{"a": 1, "b": 2}	{"a": 1, "b": 2}
+from_row_json	from_row_text
+[{"a": 1, "b": 2}]	["{\"a\": 1, \"b\": 2}"]
+a_valid	b_valid
+1	1
+after_self_assign
+{"a": 1, "b": 2, "c": 3}
+DROP PROCEDURE p_row;
+CREATE PROCEDURE p_cursor()
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v JSON;
+DECLARE cur CURSOR FOR SELECT j FROM t1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+OPEN cur;
+FETCH cur INTO v;
+CLOSE cur;
+SELECT v AS fetched;
+SELECT JSON_ARRAY(v) AS embedded;
+SELECT JSON_VALID(JSON_ARRAY(v)) AS still_valid;
+SELECT JSON_SET(v, '$.b', 2) AS mutated;
+END $$
+CALL p_cursor();
+fetched
+{"a":1}
+embedded
+["{\"a\":1}"]
+still_valid
+1
+mutated
+{"a": 1, "b": 2}
+DROP PROCEDURE p_cursor;
+# a cursor over a column that no longer satisfies its check
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES ('{"a":1,');
+SET SESSION check_constraint_checks = ON;
+CREATE PROCEDURE p_cursor_bad()
+BEGIN
+DECLARE v JSON;
+DECLARE cur CURSOR FOR SELECT j FROM t1 WHERE j = '{"a":1,';
+OPEN cur;
+FETCH cur INTO v;
+CLOSE cur;
+SELECT v AS fetched, JSON_VALID(v) AS valid;
+SELECT JSON_ARRAY(v) AS embedded;
+SELECT JSON_SET(v, '$.b', 2) AS mutated;
+END $$
+CALL p_cursor_bad();
+fetched	valid
+{"a":1,	0
+embedded
+["{\"a\":1,"]
+mutated
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+DROP PROCEDURE p_cursor_bad;
+#
+# 6. A variable read several times in one call, including through a
+#    stored function that reads it again while the outer call is still
+#    evaluating.  No SQL-visible way to REASSIGN the variable from
+#    inside an argument has been identified; if one is found, the
+#    aliasing shape belongs here too.
+#
+CREATE FUNCTION f_side(x JSON) RETURNS INT
+BEGIN
+RETURN JSON_LENGTH(x);
+END $$
+CREATE PROCEDURE p_multi()
+BEGIN
+DECLARE v JSON DEFAULT '{"a":1,"b":2}';
+SELECT JSON_SET(v, '$.c', f_side(v)) AS both_uses;
+SELECT JSON_MERGE(v, v) AS twice;
+SELECT JSON_ARRAY(v, v) AS twice_embedded;
+SELECT JSON_SET(v, '$.x', 1, '$.y', JSON_EXTRACT(v, '$.a')) AS mixed;
+END $$
+CALL p_multi();
+both_uses
+{"a": 1, "b": 2, "c": 2}
+twice
+{"a": [1, 1], "b": [2, 2]}
+twice_embedded
+["{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":2}"]
+mixed
+{"a": 1, "b": 2, "x": 1, "y": 1}
+DROP PROCEDURE p_multi;
+DROP FUNCTION f_side;
+#
+# 7. A trigger, where the row values are columns rather than variables.
+#
+CREATE TABLE t2 (j JSON, note LONGTEXT);
+CREATE TRIGGER tr BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+SET NEW.note = JSON_ARRAY(NEW.j);
+END $$
+INSERT INTO t2 (j) VALUES ('{"a":1}');
+SELECT j, note, JSON_VALID(note) AS note_valid FROM t2;
+j	note	note_valid
+{"a":1}	[{"a":1}]	1
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t2 (j) VALUES ('{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT j, note, JSON_VALID(note) AS note_valid FROM t2 ORDER BY j;
+j	note	note_valid
+{"a":1,	[{"a":1,]	0
+{"a":1}	[{"a":1}]	1
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+DROP TABLE t2;
+DROP TABLE t1;

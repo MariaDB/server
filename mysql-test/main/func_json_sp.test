@@ -1,0 +1,371 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: JSON values held in stored program variables.
+--echo #
+--echo # A variable declared JSON is not the same thing as a column declared
+--echo # JSON: it carries no check constraint and, as the first section
+--echo # shows, JSON functions do not treat it as a document.  This test
+--echo # records that difference, what the declared type does to a value on
+--echo # assignment, and what happens when a variable is both the source and
+--echo # the target of the same statement.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. A variable declared JSON compared with a column declared JSON.
+--echo #    A JSON column is embedded into a constructor as a document; the
+--echo #    variable is quoted like any other string.
+--echo #
+
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a":1}');
+
+--delimiter $$
+CREATE PROCEDURE p_decl()
+BEGIN
+  DECLARE v JSON DEFAULT '{"a":1}';
+  DECLARE t LONGTEXT DEFAULT '{"a":1}';
+  SELECT v AS var_json;
+  SELECT JSON_ARRAY(v) AS from_json_var;
+  SELECT JSON_ARRAY(t) AS from_text_var;
+  SELECT JSON_ARRAY(j) AS from_json_column FROM t1;
+  SELECT JSON_OBJECT('k', v) AS obj_from_json_var;
+  SELECT JSON_OBJECT('k', j) AS obj_from_json_column FROM t1;
+  SELECT JSON_VALID(JSON_ARRAY(v)) AS var_still_valid;
+  SELECT JSON_VALID(JSON_ARRAY(j)) AS col_still_valid FROM t1;
+  SELECT JSON_SET(v, '$.b', 2) AS set_over_var;
+  SELECT JSON_EXTRACT(v, '$.a') AS extract_from_var;
+  SELECT JSON_TYPE(v) AS type_of_var;
+END $$
+--delimiter ;
+CALL p_decl();
+DROP PROCEDURE p_decl;
+
+--echo # the declared type as the server records it
+--delimiter $$
+CREATE FUNCTION f_ret_json() RETURNS JSON
+BEGIN
+  RETURN JSON_SET('{"a":1}', '$.b', 2);
+END $$
+--delimiter ;
+SELECT f_ret_json() AS ret;
+SELECT JSON_ARRAY(f_ret_json()) AS embedded;
+SELECT JSON_VALID(JSON_ARRAY(f_ret_json())) AS still_valid;
+SELECT JSON_TYPE(f_ret_json()) AS t;
+DROP FUNCTION f_ret_json;
+
+--echo # a function declared to return LONGTEXT, for comparison
+--delimiter $$
+CREATE FUNCTION f_ret_text() RETURNS LONGTEXT
+BEGIN
+  RETURN JSON_SET('{"a":1}', '$.b', 2);
+END $$
+--delimiter ;
+SELECT f_ret_text() AS ret;
+SELECT JSON_ARRAY(f_ret_text()) AS embedded;
+DROP FUNCTION f_ret_text;
+
+--echo #
+--echo # 2. What the declared type does to a value on assignment.
+--echo #
+
+--echo # a value that fits, and the same value converted to other types
+--delimiter $$
+CREATE PROCEDURE p_types()
+BEGIN
+  DECLARE longer VARCHAR(100);
+  DECLARE num INT;
+  DECLARE bin VARBINARY(100);
+  SET longer = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+  SELECT longer AS intact, JSON_VALID(longer) AS still_valid;
+  SET num = JSON_EXTRACT('{"a":42}', '$.a');
+  SELECT num AS as_number;
+  SET bin = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+  SELECT HEX(bin) AS as_binary, JSON_VALID(bin) AS still_valid;
+END $$
+--delimiter ;
+CALL p_types();
+DROP PROCEDURE p_types;
+
+--echo # a value too long for the variable.  A stored program runs under the
+--echo # sql_mode it was CREATED with, so setting the mode around the CALL
+--echo # decides nothing and each mode needs a procedure of its own.  In
+--echo # strict mode the assignment is refused; in non-strict mode it
+--echo # truncates silently - no error and no warning - leaving a value that
+--echo # is no longer a document.
+SET @@sql_mode='STRICT_ALL_TABLES';
+--delimiter $$
+CREATE PROCEDURE p_cut_strict()
+BEGIN
+  DECLARE v VARCHAR(8);
+  SET v = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+  SELECT v AS cut, HEX(v) AS h, JSON_VALID(v) AS still_valid;
+END $$
+--delimiter ;
+SET @@sql_mode='';
+--delimiter $$
+CREATE PROCEDURE p_cut_lax()
+BEGIN
+  DECLARE v VARCHAR(8);
+  SET v = JSON_SET('{"a":1,"b":2}', '$.a', 9);
+  SELECT v AS cut, HEX(v) AS h, JSON_VALID(v) AS still_valid;
+END $$
+--delimiter ;
+SET @@sql_mode=DEFAULT;
+--echo # the one created in strict mode, called under each mode in turn
+SET @@sql_mode='';
+--error ER_DATA_TOO_LONG
+CALL p_cut_strict();
+SET @@sql_mode='STRICT_ALL_TABLES';
+--error ER_DATA_TOO_LONG
+CALL p_cut_strict();
+SET @@sql_mode=DEFAULT;
+--echo # the one created in non-strict mode, the same way
+SET @@sql_mode='';
+CALL p_cut_lax();
+SET @@sql_mode='STRICT_ALL_TABLES';
+CALL p_cut_lax();
+SET @@sql_mode=DEFAULT;
+DROP PROCEDURE p_cut_strict;
+DROP PROCEDURE p_cut_lax;
+--echo # the same value into a column of the same width, for contrast
+CREATE TABLE t_narrow (v VARCHAR(8));
+SET @@sql_mode='';
+INSERT INTO t_narrow VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+SELECT v, HEX(v) AS h, JSON_VALID(v) AS still_valid FROM t_narrow;
+SET @@sql_mode=DEFAULT;
+DROP TABLE t_narrow;
+
+--echo # an assignment that loses characters rather than length: the value
+--echo # fits, but the variable's character set cannot carry it.
+--delimiter $$
+CREATE PROCEDURE p_lossy_latin1()
+BEGIN
+  DECLARE v VARCHAR(100) CHARACTER SET latin1;
+  SET v = JSON_SET('{"a":1}', '$.b', CONVERT(_utf8mb4 X'E4BDA0' USING utf8mb4));
+  SELECT HEX(v) AS as_latin1, JSON_VALID(v) AS still_valid;
+END $$
+CREATE PROCEDURE p_lossy_swe7()
+BEGIN
+  DECLARE w VARCHAR(100) CHARACTER SET swe7;
+  SET w = JSON_SET('{"a":1}', '$.b', 2);
+  SELECT HEX(w) AS as_swe7, JSON_VALID(w) AS still_valid;
+END $$
+CREATE PROCEDURE p_lossless_latin1()
+BEGIN
+  DECLARE v VARCHAR(100) CHARACTER SET latin1;
+  SET v = JSON_SET('{"a":1}', '$.b', 2);
+  SELECT HEX(v) AS as_latin1, JSON_VALID(v) AS still_valid;
+END $$
+--delimiter ;
+SET @@sql_mode='';
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CALL p_lossy_latin1();
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CALL p_lossy_swe7();
+CALL p_lossless_latin1();
+SET @@sql_mode='STRICT_ALL_TABLES';
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CALL p_lossy_latin1();
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CALL p_lossy_swe7();
+CALL p_lossless_latin1();
+SET @@sql_mode=DEFAULT;
+DROP PROCEDURE p_lossy_latin1;
+DROP PROCEDURE p_lossy_swe7;
+DROP PROCEDURE p_lossless_latin1;
+--echo # the same lossy value into a column, which is where non-strict mode
+--echo # keeps the value instead of refusing it
+CREATE TABLE t_lossy (v VARCHAR(100) CHARACTER SET latin1);
+SET @@sql_mode='';
+INSERT INTO t_lossy
+  VALUES (JSON_SET('{"a":1}', '$.b', CONVERT(_utf8mb4 X'E4BDA0' USING utf8mb4)));
+SELECT HEX(v) AS stored, JSON_VALID(v) AS still_valid FROM t_lossy;
+SET @@sql_mode=DEFAULT;
+DROP TABLE t_lossy;
+
+--echo #
+--echo # 3. A variable that is both the source and the target.
+--echo #
+
+--delimiter $$
+CREATE PROCEDURE p_self()
+BEGIN
+  DECLARE v JSON DEFAULT '{"a":1}';
+  SET v = JSON_SET(v, '$.b', 2);
+  SELECT v AS after_one;
+  SET v = JSON_SET(v, '$.c', 3);
+  SELECT v AS after_two;
+  SET v = JSON_INSERT(v, '$.d', 4);
+  SELECT v AS after_insert;
+  SET v = JSON_REMOVE(v, '$.a');
+  SELECT v AS after_remove;
+  SET v = JSON_MERGE(v, '{"e":5}');
+  SELECT v AS after_merge;
+  SET v = JSON_ARRAY(v);
+  SELECT v AS after_wrap;
+  SET v = JSON_EXTRACT(v, '$[0]');
+  SELECT v AS after_extract;
+  SELECT JSON_VALID(v) AS still_valid;
+END $$
+--delimiter ;
+CALL p_self();
+DROP PROCEDURE p_self;
+
+--echo # a long document repeatedly rewritten in place, so the variable's
+--echo # storage has to grow and be reused
+--delimiter $$
+CREATE PROCEDURE p_grow()
+BEGIN
+  DECLARE v JSON DEFAULT '{"a":1}';
+  DECLARE i INT DEFAULT 0;
+  WHILE i < 20 DO
+    SET v = JSON_SET(v, CONCAT('$.k', i), REPEAT('x', 50));
+    SET i = i + 1;
+  END WHILE;
+  SELECT LENGTH(v) AS len, JSON_VALID(v) AS still_valid, JSON_LENGTH(v) AS members;
+  SELECT JSON_EXTRACT(v, '$.k0') AS first_added;
+  SELECT JSON_EXTRACT(v, '$.k19') AS last_added;
+END $$
+--delimiter ;
+CALL p_grow();
+DROP PROCEDURE p_grow;
+
+--echo #
+--echo # 4. Variables passed in and out of procedures.
+--echo #
+
+--delimiter $$
+CREATE PROCEDURE p_out(IN a JSON, OUT b JSON, INOUT c JSON)
+BEGIN
+  SET b = JSON_SET(a, '$.from_in', 1);
+  SET c = JSON_SET(c, '$.from_inout', 1);
+  SELECT JSON_ARRAY(a) AS in_embedded, JSON_ARRAY(c) AS inout_embedded;
+END $$
+--delimiter ;
+SET @in = '{"a":1}';
+SET @out = NULL;
+SET @inout = '{"c":1}';
+CALL p_out(@in, @out, @inout);
+SELECT @out AS out_value, @inout AS inout_value;
+SELECT JSON_VALID(@out) AS out_valid, JSON_VALID(@inout) AS inout_valid;
+SELECT JSON_ARRAY(@out) AS user_var_embedded;
+SELECT JSON_VALID(JSON_ARRAY(@out)) AS still_valid;
+DROP PROCEDURE p_out;
+
+--echo # a variable holding a document that is not valid
+SET @bad = '{"a":1,';
+SELECT JSON_VALID(@bad) AS v;
+SELECT JSON_ARRAY(@bad) AS embedded;
+SELECT JSON_VALID(JSON_ARRAY(@bad)) AS still_valid;
+SELECT JSON_SET(@bad, '$.b', 1) AS mutated;
+
+--echo #
+--echo # 5. Variables inside a ROW, and a variable fed from a cursor.
+--echo #
+
+--delimiter $$
+CREATE PROCEDURE p_row()
+BEGIN
+  DECLARE r ROW (a JSON, b LONGTEXT);
+  SET r.a = JSON_SET('{"a":1}', '$.b', 2);
+  SET r.b = JSON_SET('{"a":1}', '$.b', 2);
+  SELECT r.a AS row_json, r.b AS row_text;
+  SELECT JSON_ARRAY(r.a) AS from_row_json, JSON_ARRAY(r.b) AS from_row_text;
+  SELECT JSON_VALID(r.a) AS a_valid, JSON_VALID(r.b) AS b_valid;
+  SET r.a = JSON_SET(r.a, '$.c', 3);
+  SELECT r.a AS after_self_assign;
+END $$
+--delimiter ;
+CALL p_row();
+DROP PROCEDURE p_row;
+
+--delimiter $$
+CREATE PROCEDURE p_cursor()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v JSON;
+  DECLARE cur CURSOR FOR SELECT j FROM t1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+  OPEN cur;
+  FETCH cur INTO v;
+  CLOSE cur;
+  SELECT v AS fetched;
+  SELECT JSON_ARRAY(v) AS embedded;
+  SELECT JSON_VALID(JSON_ARRAY(v)) AS still_valid;
+  SELECT JSON_SET(v, '$.b', 2) AS mutated;
+END $$
+--delimiter ;
+CALL p_cursor();
+DROP PROCEDURE p_cursor;
+
+--echo # a cursor over a column that no longer satisfies its check
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES ('{"a":1,');
+SET SESSION check_constraint_checks = ON;
+--delimiter $$
+CREATE PROCEDURE p_cursor_bad()
+BEGIN
+  DECLARE v JSON;
+  DECLARE cur CURSOR FOR SELECT j FROM t1 WHERE j = '{"a":1,';
+  OPEN cur;
+  FETCH cur INTO v;
+  CLOSE cur;
+  SELECT v AS fetched, JSON_VALID(v) AS valid;
+  SELECT JSON_ARRAY(v) AS embedded;
+  SELECT JSON_SET(v, '$.b', 2) AS mutated;
+END $$
+--delimiter ;
+CALL p_cursor_bad();
+DROP PROCEDURE p_cursor_bad;
+
+--echo #
+--echo # 6. A variable read several times in one call, including through a
+--echo #    stored function that reads it again while the outer call is still
+--echo #    evaluating.  No SQL-visible way to REASSIGN the variable from
+--echo #    inside an argument has been identified; if one is found, the
+--echo #    aliasing shape belongs here too.
+--echo #
+
+--delimiter $$
+CREATE FUNCTION f_side(x JSON) RETURNS INT
+BEGIN
+  RETURN JSON_LENGTH(x);
+END $$
+--delimiter ;
+--delimiter $$
+CREATE PROCEDURE p_multi()
+BEGIN
+  DECLARE v JSON DEFAULT '{"a":1,"b":2}';
+  SELECT JSON_SET(v, '$.c', f_side(v)) AS both_uses;
+  SELECT JSON_MERGE(v, v) AS twice;
+  SELECT JSON_ARRAY(v, v) AS twice_embedded;
+  SELECT JSON_SET(v, '$.x', 1, '$.y', JSON_EXTRACT(v, '$.a')) AS mixed;
+END $$
+--delimiter ;
+CALL p_multi();
+DROP PROCEDURE p_multi;
+DROP FUNCTION f_side;
+
+--echo #
+--echo # 7. A trigger, where the row values are columns rather than variables.
+--echo #
+
+CREATE TABLE t2 (j JSON, note LONGTEXT);
+--delimiter $$
+CREATE TRIGGER tr BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+  SET NEW.note = JSON_ARRAY(NEW.j);
+END $$
+--delimiter ;
+INSERT INTO t2 (j) VALUES ('{"a":1}');
+SELECT j, note, JSON_VALID(note) AS note_valid FROM t2;
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t2 (j) VALUES ('{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT j, note, JSON_VALID(note) AS note_valid FROM t2 ORDER BY j;
+DROP TABLE t2;
+
+DROP TABLE t1;
