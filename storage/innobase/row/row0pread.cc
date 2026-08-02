@@ -1619,6 +1619,8 @@ dberr_t Parallel_reader::Scan_ctx::create_context(const Range &range,
   else
   {
     ctx->m_split = split;
+    if (split)
+      ++m_reader->m_n_splittable_ctxs;
     m_reader->enqueue(ctx);
   }
 
@@ -1881,6 +1883,7 @@ Parallel_reader::get_worker_ctx(size_t worker_idx) const
     m_scan_ctxs.clear();
     m_scan_ctx_id = 0;
     m_ctx_id.store(0, std::memory_order_relaxed);
+    m_n_splittable_ctxs = 0;
     m_n_completed.store(0, std::memory_order_relaxed);
     m_n_threads = 0;
     m_max_threads = 0;

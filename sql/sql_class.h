@@ -1041,6 +1041,13 @@ typedef struct system_status_var
   /* +1 for a query the parallel workers ran, see run_worker_side_join() */
   ulong parallel_queries_executed;
 
+  /*
+    Worker threads actually started, summed over the queries counted above.
+    This is the number the engine's chunking allowed, not the number
+    parallel_worker_threads asked for; see init_parallel_workers().
+  */
+  ulong parallel_workers_started;
+
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
   ulong select_range_count_;

@@ -1,0 +1,51 @@
+SET @s= @@session.parallel_worker_threads;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2 FROM seq_1_to_200;
+CREATE TABLE t2 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_20000;
+#
+# t1 holds one leaf page, so it is one chunk whatever is asked for
+#
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+ran_in_the_workers	workers_per_query
+1	1.0000
+# and asking for twice as many does not start one more
+SET SESSION parallel_worker_threads= 16;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+ran_in_the_workers	workers_per_query
+1	1.0000
+#
+# t2 spans many leaf pages, so the request is met in full
+#
+SET SESSION parallel_worker_threads= 2;
+FLUSH STATUS;
+SELECT a, b FROM t2 WHERE b > 0;
+ran_in_the_workers	workers_per_query
+1	2.0000
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT a, b FROM t2 WHERE b > 0;
+ran_in_the_workers	workers_per_query
+1	8.0000
+#
+# the answer does not depend on how many workers were started
+#
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(a), SUM(b) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)
+200	20100	40200
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)
+20000	200010000	400020000
+SET SESSION parallel_worker_threads= 16;
+SELECT COUNT(*), SUM(a), SUM(b) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)
+200	20100	40200
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)
+20000	200010000	400020000
+DROP TABLE t1, t2;
+SET SESSION parallel_worker_threads= @s;

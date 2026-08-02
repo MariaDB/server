@@ -368,6 +368,16 @@ class Parallel_reader : public Parallel_scan::Coordinator
     return m_ctx_id.load(std::memory_order_relaxed) == 0;
   }
 
+  /** Number of chunks this scan was divided into. Only meaningful once
+  add_scan() has partitioned the tree, and only when the count is final:
+  a context flagged for splitting is replaced at run time by a variable
+  number of finer ones, so no useful bound exists while any remain.
+  @return chunk count, or 0 if it is not (yet) known. */
+  [[nodiscard]] size_t final_chunk_count() const {
+    return m_n_splittable_ctxs
+               ? 0 : m_ctx_id.load(std::memory_order_relaxed);
+  }
+
   /** Set the callback that must be called before any processing.
   @param[in] f                  Call before first row is processed.*/
   void set_start_callback(Start &&f) { m_start_callback = std::move(f); }
@@ -490,6 +500,11 @@ class Parallel_reader : public Parallel_scan::Coordinator
 
   /** Context ID. Monotonically increasing ID. */
   std::atomic_size_t m_ctx_id{};
+
+  /** Contexts created flagged for splitting, which will be replaced at run
+  time by a variable number of finer ones. Written only while contexts are
+  being created, before any worker runs. */
+  size_t m_n_splittable_ctxs{};
 
   /** Total tasks executed so far. */
   std::atomic_size_t m_n_completed{};

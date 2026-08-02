@@ -3782,6 +3782,16 @@ public:
   /* Call from the master thread to finish the parallel scanning */
   virtual int pscan_end_coordinator() { return 0; }
 
+  /*
+    Number of chunks pscan_init_coordinator() divided the table into. The
+    engine decides this from the physical shape of the table, so it bounds
+    how many workers can be given anything to read, whatever was asked for.
+    0 means the engine cannot say, and the caller must not draw a bound
+    from it. Only valid between pscan_init_coordinator() and
+    pscan_end_coordinator().
+  */
+  virtual size_t pscan_chunk_count() const { return 0; }
+
   /* Call from the master thread to get context data for each worker */
   virtual Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx)
   {

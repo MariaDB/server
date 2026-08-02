@@ -1113,7 +1113,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
 {
   uint i= 0;
 
-  const uint n= thd->variables.parallel_worker_threads;
+  uint n= thd->variables.parallel_worker_threads;
   if (n == 0)
     return HA_ERR_UNSUPPORTED;
 
@@ -1136,6 +1136,19 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     file->print_error(err, MYF(0));
     return err;
   }
+
+  /*
+    The engine has now divided the table into chunks, and it divides it by
+    the shape of the B-tree rather than by the number of threads asked for.
+    A worker beyond the last chunk is handed HA_ERR_END_OF_FILE the first
+    time it asks for work and exits without reading a row, so every one of
+    them costs a THD, a set of table instances opened from the share, the
+    cloned items and the row buffer, and returns nothing. Ask for no more
+    workers than there is work, and let the engine decline to answer (0)
+    without imposing a bound.
+  */
+  if (const size_t chunks= file->pscan_chunk_count())
+    set_if_smaller(n, (uint) chunks);
 
   workers= (pwt_worker *) my_malloc(key_memory_pwt_workers,
                                     n * sizeof(pwt_worker),
@@ -2177,6 +2190,7 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
     execution really went through the workers.
   */
   status_var_increment(thd->status_var.parallel_queries_executed);
+  thd->status_var.parallel_workers_started+= mgr->nworkers;
 
   DBUG_RETURN(mgr->manager_collect_and_send(join));
 }
