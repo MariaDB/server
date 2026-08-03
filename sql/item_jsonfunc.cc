@@ -5013,7 +5013,6 @@ Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
-  result.append('{');
 }
 
 
@@ -5066,7 +5065,7 @@ void Item_func_json_objectagg::cleanup()
   DBUG_ENTER("Item_func_json_objectagg::cleanup");
   Item_sum::cleanup();
 
-  result.length(1);
+  result.length(0);
   DBUG_VOID_RETURN;
 }
 
@@ -5077,11 +5076,24 @@ Item *Item_func_json_objectagg::copy_or_same(THD* thd)
 }
 
 
+/*
+  The opening brace is written here rather than where the object is
+  built up, because here the result has the character set it will be
+  read in and the brace can be written at the width that asks for.  The
+  closing one is written when the result is asked for, by which time the
+  same is true of it, so the two ends match.
+*/
 void Item_func_json_objectagg::clear()
 {
-  result.length(1);
+  result.length(0);
   null_value= 1;
+  /*
+    The brace is a write into the object like any other, and a group
+    that lost one is refused whole rather than returned short.
+  */
   m_bad_pair= false;
+  if (result.append('{'))
+    m_bad_pair= true;
 }
 
 
@@ -5095,9 +5107,15 @@ bool Item_func_json_objectagg::add()
   if (args[0]->is_null())
     return 0;
 
-  null_value= 0;
-  if (result.length() > 1 && result.append(STRING_WITH_LEN(", ")))
+  /*
+    Whether this pair needs a separator in front of it is whether a pair
+    has been written already, which is what null_value says until this
+    row changes it.  Comparing the buffer against the opening brace would
+    be comparing it against a width that is not always one byte.
+  */
+  if (!null_value && result.append(STRING_WITH_LEN(", ")))
     goto bad_pair;
+  null_value= 0;
 
   if (result.append('"'))
     goto bad_pair;
