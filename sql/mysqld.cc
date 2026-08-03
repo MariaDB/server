@@ -868,8 +868,10 @@ static int cleanup_done;
 static ulong opt_specialflag;
 READ_ONLY_SYSVAR char *mysql_home_ptr;
 READ_ONLY_SYSVAR char *pidfile_name_ptr;
+#ifdef EMBEDDED_LIBRARY
 /** Initial command line arguments (count), after load_defaults().*/
 static int defaults_argc;
+#endif
 /**
   Initial command line arguments (arguments), after load_defaults().
   This memory is allocated by @c load_defaults() and should be freed
@@ -1538,7 +1540,6 @@ static void charset_error_reporter(enum loglevel level,
 C_MODE_END
 
 struct passwd *user_info;
-static pthread_t select_thread;
 #endif
 
 /* OS specific variables */
@@ -5781,7 +5782,6 @@ static void test_lc_time_sz()
 
 static void run_main_loop()
 {
-  select_thread=pthread_self();
   mysql_mutex_lock(&LOCK_start_thread);
   select_thread_in_use=1;
   mysql_mutex_unlock(&LOCK_start_thread);
@@ -5831,7 +5831,9 @@ int mysqld_main(int argc, char **argv)
   orig_argv= argv;
   my_defaults_mark_files= TRUE;
   load_defaults_or_exit(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv);
+#ifdef EMBEDDED_LIBRARY
   defaults_argc= argc;
+#endif
   defaults_argv= argv;
   remaining_argc= argc;
   remaining_argv= argv;
