@@ -1141,8 +1141,16 @@ rec_get_converted_size_comp_prefix_low(
 		ut_ad(index->table->instant);
 		ut_ad(!redundant_temp && index->is_instant());
 		ut_ad(status == REC_STATUS_INSTANT);
-		ut_ad(n_fields == ulint(index->n_fields) + 1);
-		extra_size += UT_BITS_IN_BYTES(index->n_nullable)
+		/* The number of fields must be taken from the tuple, and
+		not from the table definition. The rollback of instant
+		ALTER TABLE shortens the metadata record in
+		btr_cur_trim_alter_metadata(), while the table definition
+		still describes the operation that is being rolled back.
+		rec_init_offsets_comp_ordinary() reads the number of
+		fields from the record in the same way. */
+		ut_ad(n_fields <= ulint(index->n_fields) + 1);
+		extra_size += UT_BITS_IN_BYTES(
+			index->get_n_nullable(n_fields - 1))
 			+ rec_get_n_add_field_len(n_fields - 1
 						  - n_core_fields);
 	} else if (status == REC_STATUS_INSTANT
@@ -1173,7 +1181,7 @@ rec_get_converted_size_comp_prefix_low(
 		if (mblob && i == index->first_user_field()) {
 			data_size += FIELD_REF_SIZE;
 			if (++dfield == end) {
-				ut_ad(i == index->n_fields);
+				ut_ad(i + 1 == n_fields);
 				break;
 			}
 		}
@@ -1497,14 +1505,15 @@ rec_convert_dtuple_to_rec_comp(
 		ut_ad(index->table->instant);
 		ut_ad(!redundant_temp && index->is_instant());
 		ut_ad(status == REC_STATUS_INSTANT);
-		ut_ad(n_fields == ulint(index->n_fields) + 1);
+		ut_ad(n_fields <= ulint(index->n_fields) + 1);
 		rec_set_n_add_field(nulls, n_fields - 1 - n_core_fields);
 		rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
 				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
 				    REC_HEAP_NO_SHIFT);
 		rec_set_status(rec, REC_STATUS_INSTANT);
 		n_node_ptr_field = ULINT_UNDEFINED;
-		lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
+		lens = nulls - UT_BITS_IN_BYTES(
+			index->get_n_nullable(n_fields - 1));
 		goto start;
 	}
 	switch (status) {
@@ -1574,7 +1583,7 @@ start:
 				memcpy(end, dfield_get_data(field), len);
 				end += len;
 				if (++field == fend) {
-					ut_ad(i == index->n_fields);
+					ut_ad(i + 1 == n_fields);
 					break;
 				}
 				len = dfield_get_len(field);
