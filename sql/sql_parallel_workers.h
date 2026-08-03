@@ -78,6 +78,18 @@ public:
     refill. See pwt_manager::handoff_batch / the consumer read function.
   */
   bool            batch_full;
+  /*
+    The two things the executor's function pointers need to reach on a worker.
+    The callbacks in sql_parallel_workers.cc are thin trampolines onto these,
+    because READ_RECORD::Read_func and Next_select_func have fixed signatures
+    that carry no worker.
+  */
+  /* Next row of this worker's chunk. Handler error code, 0 on success. */
+  int pscan_next_row();
+  /* A fully joined row: project it and add it to the batch.
+     0 = keep going, 1 = error, 2 = the manager asked us to stop. */
+  int emit_joined_row();
+
   /* Close this worker's private table copies (called by the worker thread). */
   void close_worker_tables();
   void abort_worker();
@@ -130,8 +142,6 @@ public:
   /* Copy the engine counters out of the tables before they are closed. */
   void snapshot_table_stats();
 
-  int worker_join_inner(uint level);
-  int worker_emit_row(uint level);
 
   /*
     The JOIN the worker's JOIN_TABs belong to. Not the manager's: sub_select()

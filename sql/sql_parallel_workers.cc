@@ -693,143 +693,131 @@ static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
 }
 
 
+
+
 /*
-  @brief
-    Project the current full row and add its image to the worker's batch,
-    handing the batch to the manager when it fills.
-
-  @return  
-    -1 = continue with inner join
-    0 = row emitted
-    1 = stop (manager asked us to stop, or a fatal error).
+  The worker whose thread we are on. sub_select() drives the join through
+  function pointers whose signatures are fixed -- READ_RECORD::Read_func takes a
+  READ_RECORD and Next_select_func takes a JOIN and a JOIN_TAB -- and neither
+  reaches the pwt_worker, so the callbacks below find it here. A worker is
+  exactly one thread, which is what makes this sound; the pattern is mysqld.cc's
+  THR_THD. Set for the length of worker_run_query() and cleared after, so a
+  callback reached from anywhere else finds nothing rather than a stale worker.
 */
+static thread_local pwt_worker *pwt_self;
 
-int pwt_worker::worker_emit_row(uint level)
+
+/* Next row of this worker's chunk of the driving table. */
+int pwt_worker::pscan_next_row()
 {
-  DBUG_ENTER("pwt_worker::worker_emit_row");
-  if (level + 1 < n_tables)
-    DBUG_RETURN(-1);
-  /*
-    Evaluate each cloned select-list item (which reads from the worker's table
-    copies, now holding the current matching row of every table) and store it
-    into the matching result_table field. Evaluation errors are intercepted by
-    PWT_error_handler, which trips fatal_error; the caller checks that.
-  */
+  return our_scan_table->file->ha_pscan_get_next_row(engine_ctx);
+}
+
+
+/*
+  A fully joined row. Project the worker's clone of the select list into the
+  shared record layout and copy that image into the batch: the manager only
+  concatenates the images, so the projection happens once, on the thread that
+  produced the row.
+*/
+int pwt_worker::emit_joined_row()
+{
   for (uint i= 0; i < proj_count; i++)
     worker_proj[i]->save_in_field(result_table->field[i], false);
 
-  if (manager->fatal_error)                       // projection raised an error
-    DBUG_RETURN(1);
+  if (manager->fatal_error)                     // projection raised an error
+    return 1;
 
   memcpy(batch_rows + (size_t) batch_count * manager->reclength,
          result_table->record[0], manager->reclength);
+
   if (++batch_count == PWT_CHUNK_ROWS)
   {
-    if (manager->handoff_batch(this))             // manager asked us to stop
-      DBUG_RETURN(1);
-    batch_count= 0;                               // buffer drained; refill
+    if (manager->handoff_batch(this))            // manager asked us to stop
+      return 2;
+    batch_count= 0;                              // drained; refill
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 
 /*
   @brief
-    Join the non-driving tables, levels [level .. n_tables-2], against the rows
-    of the earlier tables already in their record[0], and emit each full match.
+    Read the next row of this worker's chunk of the driving table.
 
-  Inner equi-join only (the gate excludes outer joins and semijoins): for a
-  REF/EQ_REF table the key is built from the earlier tables (cp_buffer_from_ref)
-  and looked up in the worker's private index; for a JT_ALL table the worker's
-  copy is rnd-scanned. Each table's cloned condition is applied as we descend,
-  which is where the optimizer left the multi-table predicates, so together
-  they reconstitute the whole WHERE.
+  @description
+    The driving table's record source. Every other table in the join keeps the
+    one make_join_readinfo() chose, because those read through the worker's own
+    handler and its own ref; only this one has to come from the engine's chunk
+    reader instead of a plain scan.
 
-  @return  0 = continue, 1 = stop (manager stop or fatal error).
+  @return  0 a row, -1 end of this worker's chunks, > 0 error. The contract
+           READ_RECORD::Read_func has, see rr_handle_error().
 */
-
-int pwt_worker::worker_join_inner(uint level)
+static int pwt_pscan_read_record(READ_RECORD *info)
 {
-  DBUG_ENTER("pwt_worker::worker_join_inner");
-  int ret= worker_emit_row(level);
-  if (ret >= 0)
-    DBUG_RETURN(ret);
+  int err= pwt_self->pscan_next_row();
+  if (!err)
+    return 0;
+  if (err == HA_ERR_END_OF_FILE)
+    return -1;
+  if (info->print_error)
+    info->table->file->print_error(err, MYF(0));
+  return 1;
+}
 
-  JOIN_TAB *it= &join_tabs[level + 1];
-  TABLE *t= it->table;
-  int err;
-  Table_access_tracker *tr= it->tracker;
-  tr->r_scans++;                        // sub_select() counts one per probe too
 
-  if (it->type == JT_ALL)
-  {
-    if ((err= t->file->ha_rnd_init(true)))
-    {
-      manager->fatal_error= true;
-      t->file->print_error(err, MYF(0));
-      DBUG_RETURN(1);
-    }
-    while (!(err= t->file->ha_rnd_next(t->record[0])))
-    {
-      tr->r_rows++;
-      if (it->select_cond)
-      {
-        bool pass= it->select_cond->val_bool();
-        if (manager->fatal_error)
-        {
-          t->file->ha_rnd_end();
-          DBUG_RETURN(1);
-        }
-        if (!pass)
-          continue;
-      }
-      tr->r_rows_after_where++;
-      if (worker_join_inner(level+1))
-      {
-        t->file->ha_rnd_end();
-        DBUG_RETURN(1);
-      }
-    }
-    t->file->ha_rnd_end();
-    if (err != HA_ERR_END_OF_FILE)
-    {
-      manager->fatal_error= true;
-      t->file->print_error(err, MYF(0));
-      DBUG_RETURN(1);
-    }
-    DBUG_RETURN(0);
-  }
+/*
+  @brief
+    Point the driving table's JOIN_TAB at the chunk reader.
 
-  // REF / EQ_REF: build the lookup key from the earlier tables and probe.
-  // cp_buffer_from_ref returns true if a null-rejecting key part is NULL,
-  // i.e. there can be no match -> just backtrack.
-  if (cp_buffer_from_ref(thd, t, &it->ref))
-    DBUG_RETURN(0);
-  err= t->file->ha_index_read_map(t->record[0], it->ref.key_buff,
-                                  make_prev_keypart_map(it->ref.key_parts),
-                                  HA_READ_KEY_EXACT);
-  while (!err)
-  {
-    tr->r_rows++;
-    bool pass= !it->select_cond || it->select_cond->val_bool();
-    if (manager->fatal_error)
-      DBUG_RETURN(1);
-    if (pass)
-      tr->r_rows_after_where++;
-    if (pass && worker_join_inner(level + 1))
-      DBUG_RETURN(1);
-    if (it->type == JT_EQ_REF)
-      break;                                     // unique key: at most one match
-    err= t->file->ha_index_next_same(t->record[0], it->ref.key_buff,
-                                     it->ref.key_length);
+  @return  0 always: pscan_init_worker() is called once by worker_run_query()
+           before the join starts, not here, because a failure to get a chunk
+           has to be told apart from a failure to read one.
+*/
+static int pwt_pscan_init_read_record(JOIN_TAB *tab)
+{
+  /*
+    Only the row-fetching half. setup_worker_tabs() has already put the rest in
+    place, unlock_row included, and evaluate_join_record() calls that.
+  */
+  tab->read_record.read_record_func= pwt_pscan_read_record;
+  tab->read_record.read_record_func_and_unpack_calls= pwt_pscan_read_record;
+
+  /*
+    And read the first row, which is what read_first_record() means -- see the
+    tail of join_init_read_record(). Returning without reading leaves
+    evaluate_join_record() to run once on a record buffer nothing has filled,
+    which shows up as one extra row per worker.
+  */
+  return tab->read_record.read_record();
+}
+
+
+/*
+  @brief
+    What the worker does with a fully joined row: the end of its nested loop.
+
+  @description
+    Stands where end_send() stands in a serial plan. The manager, not this, is
+    what talks to the client.
+
+  @return  NESTED_LOOP_OK to keep going, NESTED_LOOP_QUERY_LIMIT when the manager
+           has asked this worker to stop, NESTED_LOOP_ERROR on a failed
+           projection.
+*/
+static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
+                                           bool end_of_records)
+{
+  DBUG_ENTER("pwt_end_send");
+  if (end_of_records)
+    DBUG_RETURN(NESTED_LOOP_OK);
+
+  switch (pwt_self->emit_joined_row()) {
+  case 0:  DBUG_RETURN(NESTED_LOOP_OK);
+  case 2:  DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
+  default: DBUG_RETURN(NESTED_LOOP_ERROR);
   }
-  if (err && err != HA_ERR_KEY_NOT_FOUND && err != HA_ERR_END_OF_FILE)
-  {
-    manager->fatal_error= true;
-    t->file->print_error(err, MYF(0));
-    DBUG_RETURN(1);
-  }
-  DBUG_RETURN(0);
 }
 
 
@@ -841,10 +829,13 @@ int pwt_worker::worker_join_inner(uint level)
 
   The worker scans its own copy of the driving table (our_scan_table, opened
   with in_use == this worker's thd) so the workers scan concurrently with no
-  shared-scan lock. For each driving row that passes the pushed WHERE it joins
-  the remaining tables (worker_join_inner) and, for every full match, projects
-  the select list into result_table and ships that record image. The manager
-  (manager_collect_and_send) only concatenates these final rows.
+  shared-scan lock. The join itself is the server's own nested loop:
+  sub_select() is driven over this worker's JOIN_TABs, reading the driving table
+  through the engine's chunk reader and every other table through this worker's
+  handler, and each fully joined row leaves the last table through
+  pwt_end_send(), which projects the select list into result_table and ships that
+  record image. The manager (manager_collect_and_send) only concatenates these
+  final rows.
 
   @return
   0 on success, or a handler error code. A clean stop requested by the manager
@@ -915,56 +906,33 @@ int pwt_worker::worker_run_query()
   if (!err && !(err= src->file->pscan_init_worker(engine_ctx)))
   {
     batch_count= 0;
-    bool eof= false, killed= false;
-    while (!eof && !killed)
-    {
-      // honour a direct KILL of this worker's thread
-      mysql_mutex_lock(&thd->LOCK_thd_kill);
-      killed= thd->killed;
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
-      if (killed)
-      {
-        my_error(ER_QUERY_INTERRUPTED, MYF(0));
-        break;
-      }
 
-      if ((err= src->file->ha_pscan_get_next_row(engine_ctx)))
-      {
-        if (err == HA_ERR_END_OF_FILE)
-        {
-          err= 0;
-          eof= true;
-        }
-        break;
-      }
+    /*
+      Run the join the way do_select() runs it: once to produce the rows, then
+      once more to signal end of records, which is what lets an operator that
+      buffers flush. The chunk reader, the conditions, the refs and the trackers
+      all hang off this worker's own JOIN_TABs, so the executor never touches
+      the manager's. pwt_end_send() takes each finished row.
+    */
+    pwt_self= this;
+    enum_nested_loop_state rc= sub_select(worker_join, join_tabs, FALSE);
+    if (rc >= NESTED_LOOP_OK && !thd->killed)
+      rc= sub_select(worker_join, join_tabs, TRUE);
+    pwt_self= nullptr;
 
-      tab_stats[0].r_rows++;              // what ANALYZE calls r_rows
+    if (rc == NESTED_LOOP_ERROR)
+      err= thd->is_error() ? thd->get_stmt_da()->sql_errno() : HA_ERR_GENERIC;
+    else if (thd->killed && !thd->is_error())
+      my_error(ER_QUERY_INTERRUPTED, MYF(0));
 
-      // apply per worker select_cond
-      if (Item *scan_cond= join_tabs[0].select_cond)
-      {
-        bool pass= scan_cond->val_bool();
-        if (mgr->fatal_error)
-        {
-          eof= true;
-          break;
-        }
-        if (!pass)         // skip below
-          continue;
-      }
-      tab_stats[0].r_rows_after_where++;
-
-      // join the rest of the tables and emit each full match
-      if (worker_join_inner(0))
-      {
-        eof= true;
-        break;
-      }
-    }
     src->file->pscan_end_worker();
 
-    // hand off the final partial batch (ignore a late stop -- we are done)
-    if (!err && !killed && !mgr->fatal_error && batch_count)
+    /*
+      Hand off the final partial batch. A stop the manager asked for
+      (NESTED_LOOP_QUERY_LIMIT) is not an error -- it is done with us -- and a
+      late one here is ignored for the same reason.
+    */
+    if (!err && !thd->killed && !mgr->fatal_error && batch_count)
       mgr->handoff_batch(this);
   }
   else if (err == HA_ERR_END_OF_FILE)
@@ -2085,8 +2053,17 @@ bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
           JOIN(worker->thd, join->fields_list, join->select_options, nullptr)))
     return true;
 
-  worker->worker_join->table_count= join->table_count;
-  worker->worker_join->const_tables= join->const_tables;
+  /*
+    The worker's JOIN describes the worker's array, which holds the join's
+    non-const tables and nothing else. Not the manager's counts: the manager
+    counts the const tables it resolved before the join started, and
+    JOIN_TAB::pfs_batch_update() finds the innermost table by
+    join_tab + table_count - 1, which with the manager's count lands past the
+    end of a worker's array.
+  */
+  worker->worker_join->table_count= n_tables;
+  worker->worker_join->top_join_tab_count= n_tables;
+  worker->worker_join->const_tables= 0;
   worker->worker_join->select_lex= join->select_lex;
   return false;
 }
@@ -2111,6 +2088,7 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
 {
   if (!(worker->join_tabs= thd->alloc<JOIN_TAB>(n_tables)))
     return true;
+  worker->worker_join->join_tab= worker->join_tabs;
 
   for (uint k= 0; k < n_tables; k++)
   {
@@ -2123,6 +2101,17 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
     wtab->table= worker->worker_tables[k];
 
     /*
+      And the way back. join_read_next_same() and its relatives find the
+      JOIN_TAB they are reading for through TABLE::reginfo.join_tab, at execution
+      time, so a worker's table has to point at the worker's tab: the optimizer
+      set this on the manager's tables (sql_select.cc:5751) and
+      open_table_from_share() leaves a copy without it. Third field of TABLE to
+      need this after map and in_use -- assume anything the optimizer sets on a
+      TABLE is missing on the copy until checked.
+    */
+    wtab->table->reginfo.join_tab= wtab;
+
+    /*
       Both halves of the condition, ANDed, so select_cond alone is the whole of
       what this table is filtered by. The places the optimizer had moved parts
       of it to are then cleared: they name items belonging to the manager, and a
@@ -2133,6 +2122,12 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
       return true;
     wtab->pre_idx_push_select_cond= nullptr;
     wtab->cache_select= nullptr;
+    /*
+      SQL_SELECT holds the condition and the quick select. The condition is
+      already on select_cond and the gate refuses a quick select, and the record
+      sources only ever ask whether select->quick is set, so a worker needs
+      neither and reads the manager's neither.
+    */
     wtab->select= nullptr;
 
     /* No join buffer in a worker: it joins a row at a time. */
@@ -2146,13 +2141,41 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
     wtab->join= worker->worker_join;
 
     /*
-      The record sources the tabs are driven through are the next step of the
-      executor split. Nulled so that reaching them before then is a crash and
-      not a read of the manager's.
+      Where a row goes once every table has matched: on to the next table, and
+      off the end of the last one into pwt_end_send() rather than end_send().
+      That is the whole of the difference between what a worker runs and what a
+      serial plan runs.
     */
-    wtab->next_select= nullptr;
-    wtab->read_first_record= nullptr;
+    wtab->next_select= (k + 1 < n_tables) ? sub_select : pwt_end_send;
+
+    /*
+      The driving table comes from the engine's chunk reader. The others keep
+      the record source make_join_readinfo() chose, which the struct copy
+      brought with it: those functions take the JOIN_TAB they are called with,
+      so they read this worker's table through this worker's ref and its own
+      read_record. read_record itself is left zeroed for read_first_record() to
+      fill, since it is per-scan state rather than plan.
+    */
+    if (!k)
+      wtab->read_first_record= pwt_pscan_init_read_record;
+
+    /*
+      READ_RECORD mixes plan and per-scan state. make_join_readinfo() sets the
+      row-fetching function and the unlock function at optimize time -- for a ref
+      table join_read_next_same, for eq_ref join_no_more_records -- while the
+      buffers and cursors are filled by read_first_record() when the scan starts.
+      So clear it, which drops any state a previous execution of this statement
+      left, and put the plan half back by hand. Zeroing all of it left null
+      function pointers for sub_select() to call.
+    */
     bzero((char*) &wtab->read_record, sizeof(wtab->read_record));
+    wtab->read_record.read_record_func= mtab->read_record.read_record_func;
+    wtab->read_record.read_record_func_and_unpack_calls=
+      mtab->read_record.read_record_func_and_unpack_calls;
+    wtab->read_record.unlock_row= mtab->read_record.unlock_row;
+    wtab->read_record.table= wtab->table;
+    wtab->read_record.thd= worker->thd;
+    wtab->read_record.print_error= TRUE;
 
     if (k && (wtab->type == JT_EQ_REF || wtab->type == JT_REF))
     {
@@ -2161,6 +2184,14 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
                           &wtab->ref))
         return true;
     }
+
+    /*
+      Recomputed, not copied: it answers "is this the innermost table", which
+      sub_select() asserts against the live answer, and the worker's array is
+      not the manager's. Last, because it reads the condition and the type set
+      above.
+    */
+    wtab->cached_pfs_batch_update= wtab->pfs_batch_update();
   }
   return false;
 }
@@ -2533,7 +2564,12 @@ void pwt_manager::quiesce_workers()
     {
       if (Table_access_tracker *tr= mgr_tabs[t]->tracker)
       {
-        tr->r_scans+=             workers[i].tab_stats[t].r_scans;
+        /*
+          Not the driving table's: sub_select() counts one scan of it per worker
+          and the report wants one between them, added below.
+        */
+        if (t)
+          tr->r_scans+=           workers[i].tab_stats[t].r_scans;
         tr->r_rows+=              workers[i].tab_stats[t].r_rows;
         tr->r_rows_after_where+=  workers[i].tab_stats[t].r_rows_after_where;
       }
