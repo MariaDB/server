@@ -5238,6 +5238,27 @@ void json_skip_current_level(json_engine_t *js, json_engine_t *value)
 }
 
 
+/*
+  Put an engine back where it was remembered from, so the next candidate
+  can be tried against it.
+
+  A refusal has to survive that.  The snapshot was taken before the
+  engine failed, so restoring over the failure returns an engine that
+  reads as healthy, standing somewhere the scanner never reached; the
+  walk then goes on questioning a document it can no longer read, and
+  the complaint that is finally made - if one is made at all - names
+  wherever the walk ran out rather than what was wrong with the
+  document.  Nonzero says the walk is over.
+*/
+static int json_resume_scan(json_engine_t *je, const json_engine_t *saved)
+{
+  if (je->s.error)
+    return 1;
+  *je= *saved;
+  return 0;
+}
+
+
 /* At least one of the two arguments is a scalar. */
 bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value)
 {
@@ -5303,7 +5324,8 @@ bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
       int res1= json_find_overlap_with_object(js, value, true);
       if (res1)
         return TRUE;
-      *value= loc_val;
+      if (json_resume_scan(value, &loc_val))
+        return FALSE;
     }
     if (js->value_type == JSON_VALUE_ARRAY)
       json_skip_level(js);
@@ -5369,9 +5391,11 @@ int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
           if (!json_value_scalar(value))
             json_skip_level(value);
         }
-        *js= current_js;
+        if (json_resume_scan(js, &current_js))
+          return FALSE;
       }
-      *value= loc_value;
+      if (json_resume_scan(value, &loc_value))
+        return FALSE;
       if (!json_value_scalar(js))
         json_skip_level(js);
     }
@@ -5396,8 +5420,16 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   int result= 0;
   const char *value_begin= (const char*)value->s.c_str-1;
   const char *js_begin= (const char*)js->s.c_str-1;
-  json_skip_level(value);
-  json_skip_level(js);
+  /*
+    A refusal here means the fragment was not read to its end, so what
+    lies between begin and end is a piece of a document rather than one.
+    Normalizing that piece finds it unterminated and says so, which
+    replaces the reason the scanner gave with a complaint about where it
+    was made to stop.  The engine already carries the reason; leave it
+    alone and let the caller report it.
+  */
+  if (json_skip_level(value) || json_skip_level(js))
+    return 0;
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
   json_engine_t je;
@@ -5498,7 +5530,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
               only js (first argument i.e json document) and
               continue.
             */
-            *js= loc_js;
+            if (json_resume_scan(js, &loc_js))
+              return FALSE;
             continue;
           }
         }
@@ -5515,7 +5548,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
             return FALSE;
           if (!json_value_scalar(value))
             json_skip_level(value);
-          *js= loc_js;
+          if (json_resume_scan(js, &loc_js))
+            return FALSE;
         }
       }
       /*

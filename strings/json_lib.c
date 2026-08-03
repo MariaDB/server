@@ -136,13 +136,27 @@ static int syntax_error(json_engine_t *j)
 }
 
 
+/*
+  The four functions below open a nested structure, and each refuses to
+  open one deeper than the scanner can keep track of.
+
+  A refusal must leave the nesting counter where it was.  It indexes
+  'stack', it is declared immediately after 'stack', and 'stack' is
+  exactly JSON_DEPTH_LIMIT long, so a counter moved past the end of the
+  stack addresses the counter itself: a caller that reads
+  j->stack[j->stack_p] then gets JSON_DEPTH_LIMIT back as though it were
+  a state, and acts on it.  Callers are not all obliged to stop the
+  moment they are told the document is too deep, so this cannot be left
+  for them to get right.
+*/
+
 /* Value of object. */
 static int mark_object(json_engine_t *j)
 {
   j->state= JST_OBJ_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_OBJ_CONT;
+    j->stack[++j->stack_p]= JST_OBJ_CONT;
     return 0;
   }
   j->s.error= JE_DEPTH;
@@ -156,9 +170,9 @@ static int read_obj(json_engine_t *j)
   j->state= JST_OBJ_START;
   j->value_type= JSON_VALUE_OBJECT;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_OBJ_CONT;
+    j->stack[++j->stack_p]= JST_OBJ_CONT;
     return 0;
   }
   j->s.error= JE_DEPTH;
@@ -170,9 +184,9 @@ static int read_obj(json_engine_t *j)
 static int mark_array(json_engine_t *j)
 {
   j->state= JST_ARRAY_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_ARRAY_CONT;
+    j->stack[++j->stack_p]= JST_ARRAY_CONT;
     j->value= j->value_begin;
     return 0;
   }
@@ -186,9 +200,9 @@ static int read_array(json_engine_t *j)
   j->state= JST_ARRAY_START;
   j->value_type= JSON_VALUE_ARRAY;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_ARRAY_CONT;
+    j->stack[++j->stack_p]= JST_ARRAY_CONT;
     return 0;
   }
   j->s.error= JE_DEPTH;
@@ -850,7 +864,7 @@ static int skip_key(json_engine_t *j)
 
   while (json_read_keyname_chr(j) == 0) {}
 
-  if (j->s.error)
+  if (unlikely(j->s.error))
     return 1;
 
   get_first_nonspace(&j->s, &t_next, &c_len);
@@ -956,7 +970,7 @@ int json_read_value(json_engine_t *j)
   {
     while (json_read_keyname_chr(j) == 0) {}
 
-    if (j->s.error)
+    if (unlikely(j->s.error))
       return 1;
   }
 
@@ -972,6 +986,19 @@ int json_read_value(json_engine_t *j)
 int json_scan_next(json_engine_t *j)
 {
   int t_next;
+
+  /*
+    An engine that has already failed does not move again.  Every error
+    is reported by subtracting the scanner's read pointer from the start
+    of the document, so a caller that keeps asking after being refused
+    walks that pointer past the place the refusal happened and is then
+    told about somewhere else.  Not every caller is obliged to stop the
+    moment it is told, for the reason given where the depth refusals are
+    written, so where the pointer comes to rest cannot be left to them
+    either.
+  */
+  if (unlikely(j->s.error))
+    return 1;
 
   get_first_nonspace(&j->s, &t_next, &j->sav_c_len);
   if (j->killed_ptr && *j->killed_ptr)
