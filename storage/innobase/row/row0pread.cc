@@ -50,8 +50,7 @@ mysql_pfs_key_t parallel_read_thread_key;
 
 std::atomic_size_t Parallel_reader::s_active_threads{};
 
-/** Tree depth at which we decide to split blocks further. */
-static constexpr size_t SPLIT_THRESHOLD{3};
+
 
 /** No. of pages to scan, in the case of large tables, before the check for
 trx interrupted is made as the call is expensive. */
@@ -170,8 +169,14 @@ dberr_t Parallel_reader::Ctx::split()
   figuring out the sub-trees to scan. */
   m_scan_ctx->index_s_lock();
 
+  /* Split into as many pieces as there are threads, not into one piece per
+  leaf page. The point of splitting is to give an idle worker something to do
+  and to even out chunks the tree made lopsided, and a handful of pieces per
+  worker does that. Going all the way down to leaf pages costs a context and a
+  deep-copied tuple each, built under the index S-latch, which on a table whose
+  scan is short outweighs the balance it buys. */
   Parallel_reader::Scan_ctx::Ranges ranges{};
-  m_scan_ctx->partition(scan_range, ranges, 1);
+  m_scan_ctx->partition(scan_range, ranges, 1, m_scan_ctx->max_threads());
 
   if (!ranges.empty())
     ranges.back().second = m_range.second;
@@ -1364,6 +1369,7 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
                                                  page_no_t page_no,
                                                  size_t depth,
                                                  const size_t split_level,
+                                                 size_t max_per_page,
                                                  Ranges &ranges, mtr_t *mtr) {
   ut_ad(index_s_own());
   ut_a(page_no != FIL_NULL);
@@ -1453,6 +1459,23 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
   mem_heap_t *heap{};
 
+  /* How many consecutive sub-trees to fold into one range. A range ends where
+  the next one begins, so leaving out a start point merges that sub-tree into
+  the range before it, and no rows are lost. This is what bounds the cost of a
+  split: without it a page one level above the leaves yields a range, a context
+  and a deep-copied tuple for every leaf page under it. */
+  size_t stride = 1;
+  if (max_per_page > 0 && depth == split_level &&
+      at_level > m_config.m_read_level)
+  {
+    const ulint n_recs = page_get_n_recs(buf_block_get_frame(block));
+    if (n_recs > max_per_page)
+      stride = (n_recs + max_per_page - 1) / max_per_page;
+  }
+
+  /* Sub-trees still to fold into the range last created. */
+  size_t fold = 0;
+
   Savepoints savepoints{};
 
   while (!page_cur_is_after_last(&page_cursor))
@@ -1478,6 +1501,17 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
     if (end != nullptr && cmp_dtuple_rec(end, rec, index, offsets) <= 0)
       break;
 
+    if (fold > 0)
+    {
+      /* Part of the range created for an earlier record on this page. Do not
+      descend into it: not descending is the saving. */
+      --fold;
+      // OLEGS: check for error (nullptr - DB_CORRUPTION)
+      [[maybe_unused]] rec_t *nxt= page_cur_move_to_next(&page_cursor);
+      continue;
+    }
+    fold= stride - 1;
+
     page_cur_t level_page_cursor;
 
     /* Split the tree one level below the root if read_level requested is below
@@ -1489,7 +1523,8 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
       if (depth < split_level)
       {
         /* Need to create a range starting at a lower level in the tree. */
-        create_ranges(scan_range, page_no, depth + 1, split_level, ranges, mtr);
+        create_ranges(scan_range, page_no, depth + 1, split_level,
+                      max_per_page, ranges, mtr);
 
         // OLEGS: check for error (nullptr - DB_CORRUPTION)
         [[maybe_unused]] rec_t *next= page_cur_move_to_next(&page_cursor);
@@ -1568,7 +1603,7 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
 dberr_t Parallel_reader::Scan_ctx::partition(
     const Scan_range &scan_range, Parallel_reader::Scan_ctx::Ranges &ranges,
-    size_t split_level)
+    size_t split_level, size_t max_per_page)
 {
   ut_ad(index_s_own());
 
@@ -1579,7 +1614,7 @@ dberr_t Parallel_reader::Scan_ctx::partition(
   dberr_t err{DB_SUCCESS};
 
   err = create_ranges(scan_range, m_config.m_index->page, 0, split_level,
-                      ranges, &mtr);
+                      max_per_page, ranges, &mtr);
 
   if (err == DB_SUCCESS && scan_range.m_end != nullptr && !ranges.empty()) {
     auto &iter = ranges.back().second;
@@ -1638,11 +1673,23 @@ dberr_t Parallel_reader::Scan_ctx::create_contexts(const Ranges &ranges)
 
     if (ranges.size() > n) {
       split_point = (ranges.size() / n) * n;
-    } else if (m_depth < SPLIT_THRESHOLD) {
-      /* If the tree is not very deep then don't split. For smaller tables
-      it is more expensive to split because we end up traversing more blocks*/
+    } else if (m_depth < 2) {
+      /* There are fewer ranges than threads, but nothing below the root to
+      divide them by. m_depth is the number of pages from a root child down to
+      a leaf, so below 2 a range already ends at a leaf page and splitting it
+      would descend a level only to hand back the range it started with. The
+      ranges are the leaf pages, and a tree this shallow has few enough pages
+      that they are not the constraint. Leaving them unsplit also keeps the
+      count final, so the caller can size its worker pool by it. */
       split_point = n;
     }
+    /* Otherwise every range is split. There are fewer of them than there are
+    threads, so some thread would get nothing to read while the one holding the
+    largest range decided when the scan finished. The test here used to be tree
+    depth against SPLIT_THRESHOLD, on the grounds that splitting a shallow tree
+    costs more block traversals than it is worth. That was true while a split
+    went all the way down to one range per leaf page; Ctx::split() now bounds
+    it, so what remains is one page traversed per piece produced. */
   }
 
   size_t i{};

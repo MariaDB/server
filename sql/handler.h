@@ -3793,6 +3793,13 @@ public:
   virtual size_t pscan_chunk_count() const { return 0; }
 
   /*
+    Chunks the engine actually divided the scan into, including any it produced
+    by splitting a coarse chunk while the scan ran. Read after the scan and
+    before pscan_end_coordinator(). 0 means the engine cannot say.
+  */
+  virtual size_t pscan_chunks_created() const { return 0; }
+
+  /*
     What pscan_chunk_count() would answer, estimated from statistics so the
     optimizer can cost a parallel scan before the coordinator has run. Cheap
     and approximate: no pages are read, and stale statistics give a stale

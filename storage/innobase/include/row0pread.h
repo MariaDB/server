@@ -368,6 +368,13 @@ class Parallel_reader : public Parallel_scan::Coordinator
     return m_ctx_id.load(std::memory_order_relaxed) == 0;
   }
 
+  /** @return chunks created for this scan so far, including any produced by
+  splitting a coarse one at run time. Read after the scan to see how finely
+  the table was actually divided. */
+  [[nodiscard]] size_t chunks_created() const {
+    return m_ctx_id.load(std::memory_order_relaxed);
+  }
+
   /** Number of chunks this scan was divided into. Only meaningful once
   add_scan() has partitioned the tree, and only when the count is final:
   a context flagged for splitting is replaced at run time by a variable
@@ -610,9 +617,14 @@ class Parallel_reader::Scan_ctx {
   @param[in] scan_range Range for partitioning.
   @param[in,out]  ranges        Ranges to scan.
   @param[in] split_level  Sub-range required level (0 == root).
+  @param[in] max_per_page  At the split level, produce at most this many
+                        ranges per page by grouping consecutive sub-trees into
+                        one range. 0 means one range per record, which for a
+                        split at the level above the leaves is one range per
+                        leaf page.
   @return the partition scan ranges. */
   dberr_t partition(const Scan_range &scan_range, Ranges &ranges,
-                    size_t split_level);
+                    size_t split_level, size_t max_per_page = 0);
 
   /** Find the page number of the node that contains the search key. If the
   key is null then we assume -infinity.
@@ -647,10 +659,13 @@ class Parallel_reader::Scan_ctx {
   @param[in]      page_no       Page to partition at if at required level.
   @param[in]      depth         Sub-range current level.
   @param[in]      split_level   Sub-range starting level (0 == root).
+  @param[in]      max_per_page  At the split level, at most this many ranges
+                                per page (0 == one per record).
   @param[in,out]  ranges        Ranges to scan.
   @param[in,out]  mtr           Mini-transaction */
   dberr_t create_ranges(const Scan_range &scan_range, page_no_t page_no,
-                        size_t depth, const size_t split_level, Ranges &ranges,
+                        size_t depth, const size_t split_level,
+                        size_t max_per_page, Ranges &ranges,
                         mtr_t *mtr);
 
   /** Build a dtuple_t from rec_t.

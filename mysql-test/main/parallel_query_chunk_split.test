@@ -1,0 +1,66 @@
+#
+# MDEV-39492 Parallel Query: a re-split chunk must not lose its first sub-tree.
+#
+# Ctx::split() re-partitions one chunk into smaller ones by descending from the
+# index root again, bounded by that chunk's start key. It is the first caller in
+# the engine to give Scan_ctx::create_ranges() a start bound at all -- until the
+# SQL layer began asking for chunked scans, every partition was of the whole
+# table and the bound was null.
+#
+# Above the leaves a record is a node pointer keyed by the first key of the child
+# it points at, so the child that *contains* a start key is the last one whose
+# key is not greater than it. create_ranges() searched for it with PAGE_CUR_GE,
+# which lands on the child *after* that one: the sub-tree holding the start key
+# was never descended into, no range was created for it, and every row in it was
+# left out of the scan with no error reported anywhere.
+#
+# A chunk is only ever re-split when the tree is at least three levels deep, and
+# that is why no existing test saw this -- they are all a few thousand narrow
+# rows, which InnoDB stores in two levels. A wide PRIMARY KEY shrinks the node
+# pointer fanout, so this table reaches three levels in 5000 rows where a table
+# of INTs needs some 700000.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (id INT, pad CHAR(200) CHARACTER SET utf8mb4, val INT,
+                 PRIMARY KEY (id, pad)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, REPEAT('x',200), seq FROM seq_1_to_5000;
+
+--echo #
+--echo # every row is scanned exactly once. Before the fix this answered 2591 of
+--echo # the 5000 rows in the workers and 5000 serially.
+--echo #
+--let $pq_query= SELECT id, val FROM t1
+--let $pq_cols= id,val
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # and with a predicate, so the rows dropped would be dropped from a
+--echo # filtered result too
+--echo #
+--let $pq_query= SELECT id, val FROM t1 WHERE val % 7 = 0
+--let $pq_cols= id,val
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # the same rows reduced to a count and a sum, which is the shape in which a
+--echo # lost sub-tree is a wrong answer rather than a short result set. Counted
+--echo # outside the derived table so that this test does not depend on which
+--echo # aggregates the workers can run.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(val) FROM (SELECT val FROM t1) d;
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(val) FROM (SELECT val FROM t1) d;
+--source include/parallel_query_workers_per_query.inc
+
+DROP TABLE t1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

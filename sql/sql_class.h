@@ -1048,6 +1048,13 @@ typedef struct system_status_var
   */
   ulong parallel_workers_started;
 
+  /*
+    Chunks the engine divided the driving table into, summed over the queries
+    counted above. Bounded by the worker count, not by the table's leaf page
+    count; see Parallel_reader::Ctx::split().
+  */
+  ulong parallel_scan_chunks;
+
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
   ulong select_range_count_;

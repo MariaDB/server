@@ -1,0 +1,64 @@
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (id INT, pad CHAR(200) CHARACTER SET utf8mb4, val INT,
+PRIMARY KEY (id, pad)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, REPEAT('x',200), seq FROM seq_1_to_5000;
+#
+# every row is scanned exactly once. Before the fix this answered 2591 of
+# the 5000 rows in the workers and 5000 serially.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,val))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,val))) AS crc_xor FROM (SELECT id, val FROM t1) d;
+n	crc_sum	crc_xor
+5000	10736966359729	2759461417
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,val))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,val))) AS crc_xor FROM (SELECT id, val FROM t1) d;
+n	crc_sum	crc_xor
+5000	10736966359729	2759461417
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# and with a predicate, so the rows dropped would be dropped from a
+# filtered result too
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,val))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,val))) AS crc_xor FROM (SELECT id, val FROM t1 WHERE val % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1545046613528	2052072544
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,val))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,val))) AS crc_xor FROM (SELECT id, val FROM t1 WHERE val % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1545046613528	2052072544
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# the same rows reduced to a count and a sum, which is the shape in which a
+# lost sub-tree is a wrong answer rather than a short result set. Counted
+# outside the derived table so that this test does not depend on which
+# aggregates the workers can run.
+#
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(val) FROM (SELECT val FROM t1) d;
+COUNT(*)	SUM(val)
+5000	12502500
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(val) FROM (SELECT val FROM t1) d;
+COUNT(*)	SUM(val)
+5000	12502500
+ran_in_the_workers	workers_per_query
+1	4.0000
+DROP TABLE t1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

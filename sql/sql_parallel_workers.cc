@@ -2336,6 +2336,9 @@ void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
     DBUG_VOID_RETURN;
 
   quiesce_workers();                  // stop + join (no-op if already reaped)
+  /* Read before ending the coordinator, which resets the reader's counters. */
+  thd->status_var.parallel_scan_chunks+=
+    scan_tab->table->file->pscan_chunks_created();
   scan_tab->table->file->pscan_end_coordinator();
   /*
     Surface errors/warnings the workers queued via PWT_error_handler. A worker

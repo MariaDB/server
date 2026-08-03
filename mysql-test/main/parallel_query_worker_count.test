@@ -78,6 +78,47 @@ SELECT a, b FROM t3 WHERE b > 0;
 --enable_query_log
 
 --echo #
+--echo # t4's B-tree has a level between its root and its leaves, and the root
+--echo # holds only two records. Those two ranges are split into enough pieces
+--echo # to keep every worker asked for busy, so the request is met in full
+--echo # even though the tree divides the table two ways to begin with.
+--echo #
+CREATE TABLE t4 (pk CHAR(200) PRIMARY KEY, a INT) ENGINE=InnoDB;
+INSERT INTO t4 SELECT LPAD(seq,200,'x'), seq FROM seq_1_to_6000;
+
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+--disable_result_log
+SELECT a FROM t4 WHERE a > 0;
+--enable_result_log
+--source include/parallel_query_workers_per_query.inc
+
+--echo # and the split is bounded by the worker count. t4 holds about a hundred
+--echo # leaf pages, which is what a split that descended all the way would make
+--echo # a chunk of each of. The figure is printed rather than only bounded
+--echo # because it is what says a re-split covers every sub-tree it descends to.
+--let $chunks= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_scan_chunks', Value, 1)
+--let $queries= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $chunks/$queries AS chunks_per_query, $chunks/$queries <= 3*8 AS within_three_per_worker
+--enable_query_log
+
+--echo # every row is read exactly once however the ranges were divided. Reduced
+--echo # outside a non-merged derived table, so that the scan being checked is one
+--echo # the workers actually ran: written as a bare aggregate the gate would
+--echo # refuse the query outright and this would compare the serial answer with
+--echo # itself, and t4 is the only table here whose tree is deep enough to be
+--echo # re-split at all.
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(a), BIT_XOR(CRC32(pk)) FROM (SELECT pk, a FROM t4) d;
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(a), BIT_XOR(CRC32(pk)) FROM (SELECT pk, a FROM t4) d;
+--source include/parallel_query_workers_per_query.inc
+SET SESSION optimizer_switch= default;
+
+--echo #
 --echo # The optimizer divides the scan cost by its own estimate of the chunk
 --echo # count, so asking for four times as many workers does not make the scan
 --echo # look four times cheaper. The estimate is read from the index
@@ -123,5 +164,5 @@ SELECT COUNT(*), SUM(a), SUM(b) FROM t1;
 SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
 SELECT COUNT(*), SUM(a), SUM(b) FROM t3;
 
-DROP TABLE t1, t2, t3;
+DROP TABLE t1, t2, t3, t4;
 SET SESSION parallel_worker_threads= @s;

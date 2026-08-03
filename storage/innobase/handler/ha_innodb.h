@@ -518,6 +518,9 @@ protected:
 	size_t pscan_chunk_count() const override
 	{ return m_parallel_reader.final_chunk_count(); }
 
+	size_t pscan_chunks_created() const override
+	{ return m_parallel_reader.chunks_created(); }
+
 	size_t pscan_chunk_count_estimate() const override;
 
 	Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx) override;
