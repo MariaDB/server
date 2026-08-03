@@ -565,7 +565,7 @@ v
 ?a?
 SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
 v
-["a","b"]
+?"a","b"?
 SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
 v
 ?"a":"a", "b":"b"?
