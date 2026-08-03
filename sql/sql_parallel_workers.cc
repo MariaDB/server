@@ -2328,11 +2328,17 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_PRINT("info", ("group/distinct/order by"));
     DBUG_RETURN(false);
   }
-  if (sl->limit_params.explicit_limit)            // LIMIT / OFFSET
-  {
-    DBUG_PRINT("info", ("limit/offset"));
-    DBUG_RETURN(false);
-  }
+  /*
+    LIMIT and OFFSET are not refused. end_send() applies the limit and
+    select_result_sink::send_data_with_check() the offset, both on the manager's
+    single thread, so the count of rows sent is exact; reaching the limit returns
+    NESTED_LOOP_QUERY_LIMIT, which manager_collect_and_send() turns into a stop
+    for the producers. Which rows arrive is another matter: they are whichever
+    ones the workers finish first, not the ones a serial scan would reach. For a
+    query with no ORDER BY that is a legal answer -- the rows of an unordered
+    query have no order to take a prefix of -- and a query that does have ORDER BY
+    is refused below, so it runs serially and is unaffected.
+  */
   if (join->select_options & OPTION_FOUND_ROWS)  // SQL_CALC_FOUND_ROWS
   {
     DBUG_PRINT("info", ("SQL_CALC_FOUND_ROWS"));

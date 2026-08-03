@@ -1,0 +1,66 @@
+#
+# MDEV-39492 Parallel Query: LIMIT and OFFSET.
+#
+# end_send() applies the limit and send_data_with_check() the offset, both on the
+# manager's single thread, so the number of rows delivered is exact. Which rows
+# arrive is not: they are whichever the workers finish first. A query with no
+# ORDER BY has no order for a prefix to be taken of, so this test asserts how
+# many rows come back and not which, except where only one row can qualify. A
+# query that does have ORDER BY is refused by the gate and runs serially.
+#
+# The counts are taken through a non-merged derived table, which is the whole
+# query's row count rather than FOUND_ROWS(). FOUND_ROWS() counts rows the
+# executor processed, so with OFFSET it includes the skipped ones -- serial does
+# the same, it is just not the number this test is about.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2 FROM seq_1_to_20000;
+
+--echo #
+--echo # every limit and offset shape delivers the same number of rows in the
+--echo # workers as it does serially
+--echo #
+--let $pqlc_lim= LIMIT 5
+--source include/parallel_query_limit_count.inc
+--let $pqlc_lim= LIMIT 999999
+--source include/parallel_query_limit_count.inc
+--let $pqlc_lim= LIMIT 5 OFFSET 3
+--source include/parallel_query_limit_count.inc
+--let $pqlc_lim= LIMIT 10 OFFSET 19995
+--source include/parallel_query_limit_count.inc
+--let $pqlc_lim= LIMIT 0
+--source include/parallel_query_limit_count.inc
+--let $pqlc_lim= LIMIT 20000 OFFSET 20000
+--source include/parallel_query_limit_count.inc
+
+--echo #
+--echo # where only one row can qualify the answer is determined, so check it
+--echo #
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a = 7 LIMIT 5;
+--source include/parallel_query_workers_per_query.inc
+
+--echo #
+--echo # ORDER BY is refused by the gate, so a prefix that does have an order is
+--echo # produced serially and is the serial one
+--echo #
+FLUSH STATUS;
+SELECT a FROM t1 ORDER BY a LIMIT 5;
+--echo # expect 0: this did not run in the workers
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq AS ran_in_the_workers
+--enable_query_log
+
+DROP TABLE t1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

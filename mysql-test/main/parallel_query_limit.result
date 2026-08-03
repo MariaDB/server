@@ -1,0 +1,55 @@
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2 FROM seq_1_to_20000;
+#
+# every limit and offset shape delivers the same number of rows in the
+# workers as it does serially
+#
+# LIMIT 5
+rows_serial	rows_parallel	same	ran_in_the_workers
+5	5	1	1
+# LIMIT 999999
+rows_serial	rows_parallel	same	ran_in_the_workers
+20000	20000	1	1
+# LIMIT 5 OFFSET 3
+rows_serial	rows_parallel	same	ran_in_the_workers
+5	5	1	1
+# LIMIT 10 OFFSET 19995
+rows_serial	rows_parallel	same	ran_in_the_workers
+5	5	1	1
+# LIMIT 0
+rows_serial	rows_parallel	same	ran_in_the_workers
+0	0	1	0
+# LIMIT 20000 OFFSET 20000
+rows_serial	rows_parallel	same	ran_in_the_workers
+0	0	1	1
+#
+# where only one row can qualify the answer is determined, so check it
+#
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a = 7 LIMIT 5;
+a	b
+7	14
+ran_in_the_workers	workers_per_query
+1	4.0000
+#
+# ORDER BY is refused by the gate, so a prefix that does have an order is
+# produced serially and is the serial one
+#
+FLUSH STATUS;
+SELECT a FROM t1 ORDER BY a LIMIT 5;
+a
+1
+2
+3
+4
+5
+# expect 0: this did not run in the workers
+ran_in_the_workers
+0
+DROP TABLE t1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;
