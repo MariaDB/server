@@ -2120,7 +2120,14 @@ void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
     if (diff_time > wait_time_max)
       wait_time_max= diff_time;
 
-    thd_storage_lock_wait(thd, diff_time);
+    /* Internal/background transactions may have a NULL mysql_thd
+    (e.g. startup recovery, FTS sync from the optimize background
+    thread).  thd_storage_lock_wait() unconditionally dereferences
+    its argument, so skip per-THD wait-time accounting when there
+    is no connection THD to charge it to.  The server-wide wait_*
+    counters above are still updated. */
+    if (thd)
+      thd_storage_lock_wait(thd, diff_time);
   }
 }
 
@@ -4343,8 +4350,8 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
           children.end())
         continue; /* We already acquired MDL on this child table. */
       MDL_ticket *mdl= nullptr;
-      child= dict_acquire_mdl_shared<false>(child, mdl_context, &mdl,
-                                            DICT_TABLE_OP_NORMAL);
+      child= dict_acquire_mdl<false>(child, mdl_context, &mdl,
+                                     DICT_TABLE_OP_NORMAL);
       if (child)
       {
         if (mdl)

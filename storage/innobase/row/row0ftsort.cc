@@ -1513,6 +1513,9 @@ row_fts_merge_insert(
 	needed in the row module call */
 
 	trx = trx_create();
+	/* The merge thread runs under the user's DDL trx; inherit its
+	THD so row-lock waits use the user's timeout policy. */
+	trx->mysql_thd = psort_info->psort_common->trx->mysql_thd;
 	trx_start_if_not_started(trx, true);
 
 	trx->op_info = "inserting index entries";

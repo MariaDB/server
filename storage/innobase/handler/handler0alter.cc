@@ -7504,7 +7504,7 @@ error_handling_drop_uncached:
 	}
 
 	if (ctx->old_table->fts) {
-		fts_sync_during_ddl(ctx->old_table);
+		fts_sync_during_ddl(ctx->old_table, ctx->trx->mysql_thd);
 	}
 
 	DBUG_RETURN(false);
@@ -11386,7 +11386,7 @@ ha_innobase::commit_inplace_alter_table(
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
 			fts_optimize_remove_table(ctx->new_table);
-			fts_sync_during_ddl(ctx->new_table);
+			fts_sync_during_ddl(ctx->new_table, trx->mysql_thd);
 		}
 
 		/* Exclusively lock the table, to ensure that no other
