@@ -1,0 +1,280 @@
+#
+# How the JSON aggregates deliver their result to the client.
+#
+# A result computed in one character set and asked for in another is
+# converted on the way out.  Whether that conversion happens at all is
+# decided by the character set the returned value carries, which need
+# not be the one the function says it has.
+#
+# swe7 is the vehicle throughout.  It has no code point for the
+# brackets and braces a JSON document is built from, so a result that
+# was converted arrives with those replaced by '?', and one passed on
+# unconverted arrives intact.  The difference is therefore visible
+# without a single non-ASCII byte in this file.  A client asking for
+# latin1 is told the same two stories, but the second one reaches it as
+# utf8mb4 bytes under a latin1 label, which is not printable and not
+# recoverable.
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES (1, 'aa'), (1, 'bb'), (2, 'cc'), (2, 'dd');
+#
+# 1. An aggregate delivered next to the functions that are not.
+#
+SET SESSION character_set_results = swe7;
+SELECT JSON_ARRAY('aa','bb') AS v;
+v
+?"aa", "bb"?
+SELECT JSON_OBJECT('aa','bb') AS v;
+v
+?"aa": "bb"?
+SELECT JSON_SET('{}','$.a','b') AS v;
+v
+?"a": "b"?
+SELECT JSON_KEYS('{"aa":1}') AS v;
+v
+?"aa"?
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+v
+["aa","bb","cc","dd"]
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1;
+v
+?"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"?
+# one group per row of output, so the delivery is repeated
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	["aa","bb"]
+2	["cc","dd"]
+SELECT g, JSON_OBJECTAGG(a,a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	?"aa":"aa", "bb":"bb"?
+2	?"cc":"cc", "dd":"dd"?
+SET SESSION character_set_results = DEFAULT;
+#
+# 2. The value itself, which the delivery does not touch.
+#
+# Read inside the server rather than sent to the client, the aggregate
+# is the same either way.  HEX() answers in ASCII, so the bytes can be
+# shown under both settings and compared.
+#
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+h
+5B226161222C226262222C226363222C226464225D
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS valid,
+JSON_LENGTH(JSON_ARRAYAGG(a)) AS len FROM t1;
+valid	len
+1	4
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a)) AS v FROM t1;
+v
+[["aa","bb","cc","dd"]]
+SET SESSION character_set_results = swe7;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+h
+5B226161222C226262222C226363222C226464225D
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS valid,
+JSON_LENGTH(JSON_ARRAYAGG(a)) AS len FROM t1;
+valid	len
+1	4
+SET SESSION character_set_results = DEFAULT;
+#
+# 3. What the function says it returns.
+#
+# CHARSET() and COLLATION() report what the expression was resolved to,
+# not what the returned value ended up labelled with, so neither of
+# them can see a difference in delivery.  A probe built from these two
+# alone, or from ASCII values under a character set that can hold them,
+# observes nothing at all.
+#
+SELECT CHARSET(JSON_ARRAYAGG(a)) AS cs, COLLATION(JSON_ARRAYAGG(a)) AS co
+FROM t1;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SELECT CHARSET(JSON_OBJECTAGG(a,a)) AS cs, COLLATION(JSON_OBJECTAGG(a,a)) AS co
+FROM t1;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SET SESSION character_set_results = latin1;
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+v
+["aa","bb","cc","dd"]
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1;
+v
+{"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"}
+SET SESSION character_set_results = DEFAULT;
+#
+# 4. Stored rather than delivered.
+#
+# A value on its way into a column is converted from the character set
+# the expression was resolved to, which is a separate question from the
+# one above.
+#
+CREATE TABLE t2 (v VARCHAR(50) CHARACTER SET latin1);
+INSERT INTO t2 SELECT JSON_ARRAYAGG(a) FROM t1;
+INSERT INTO t2 SELECT JSON_OBJECTAGG(a,a) FROM t1;
+SELECT v, HEX(v) AS h FROM t2 ORDER BY v;
+v	h
+["aa","bb","cc","dd"]	5B226161222C226262222C226363222C226464225D
+{"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"}	7B226161223A226161222C20226262223A226262222C20226363223A226363222C20226464223A226464227D
+SET SESSION character_set_results = swe7;
+SELECT v FROM t2 ORDER BY v;
+v
+?"aa","bb","cc","dd"?
+?"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"?
+SET SESSION character_set_results = DEFAULT;
+#
+# 5. The other ways into the same result.
+#
+SET SESSION character_set_results = swe7;
+SELECT JSON_ARRAYAGG(DISTINCT a) AS v FROM t1;
+v
+["aa","bb","cc","dd"]
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1;
+v
+["dd","cc","bb","aa"]
+# a group of one writes no separator, so it exercises less than it looks
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'aa';
+v
+["aa"]
+# no rows at all: NULL, which is never delivered as a string
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+SET SESSION character_set_results = DEFAULT;
+#
+# 6. A result computed in a character set that ASCII is not a part of.
+#
+# Every character of such a result is two or four bytes wide, the
+# brackets the aggregate puts around the elements included.  Written
+# as single bytes those two would leave everything between them one
+# byte out of step, and the result would read as an entirely
+# different set of characters rather than as a document.
+#
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1;
+h
+5B0022006100610022002C0022006200620022002C0022006300630022002C00220064006400225D
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS valid FROM t1;
+valid
+0
+Warnings:
+Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS h FROM t1;
+h
+5B0022006100610022002C0022006200620022002C0022006300630022002C00220064006400225D
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS valid FROM t1;
+valid
+0
+Warnings:
+Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS h FROM t1;
+h
+5B000000220000006100000061000000220000002C000000220000006200000062000000220000002C000000220000006300000063000000220000002C000000220000006400000064000000225D
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS valid FROM t1;
+valid
+0
+Warnings:
+Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+# a group of one, which is bracket, element, bracket and nothing else
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1 WHERE a = 'aa';
+h
+5B00220061006100225D
+# the same values where one byte is one character, which is the case
+# the brackets were always written for
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING latin1))) AS h FROM t1;
+h
+5B226161222C226262222C226363222C226464225D
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf8mb4))) AS h FROM t1;
+h
+5B226161222C226262222C226363222C226464225D
+#
+# 7. The sibling aggregate, in the same character sets.
+#
+# It reaches the same question by another route.  Its opening brace
+# is not written next to its closing one: the closing brace goes on
+# when the result is asked for, and the opening brace has to be there
+# before the first pair is added.  Where that brace is written decides
+# whether it can be written in the character set the result is in, and
+# whether the two ends of the object match.
+#
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2))) AS h
+FROM t1;
+h
+007B0022006100610022003A0022006100610022002C00200022006200620022003A0022006200620022002C00200022006300630022003A0022006300630022002C00200022006400640022003A0022006400640022007D
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2))) AS valid FROM t1;
+valid
+1
+SELECT CONVERT(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2)) USING utf8mb4) AS v
+FROM t1;
+v
+{"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"}
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf16), CONVERT(a USING utf16))) AS h
+FROM t1;
+h
+007B0022006100610022003A0022006100610022002C00200022006200620022003A0022006200620022002C00200022006300630022003A0022006300630022002C00200022006400640022003A0022006400640022007D
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING utf16),
+CONVERT(a USING utf16))) AS valid FROM t1;
+valid
+1
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf32), CONVERT(a USING utf32))) AS h
+FROM t1;
+h
+0000007B000000220000006100000061000000220000003A000000220000006100000061000000220000002C00000020000000220000006200000062000000220000003A000000220000006200000062000000220000002C00000020000000220000006300000063000000220000003A000000220000006300000063000000220000002C00000020000000220000006400000064000000220000003A000000220000006400000064000000220000007D
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING utf32),
+CONVERT(a USING utf32))) AS valid FROM t1;
+valid
+1
+# one pair, where no separator is written between pairs at all
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2))) AS h
+FROM t1 WHERE a = 'aa';
+h
+007B0022006100610022003A0022006100610022007D
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2))) AS valid
+FROM t1 WHERE a = 'aa';
+valid
+1
+# a group each, so the opening brace is written more than once
+SELECT g, HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2))) AS h
+FROM t1 GROUP BY g ORDER BY g;
+g	h
+1	007B0022006100610022003A0022006100610022002C00200022006200620022003A0022006200620022007D
+2	007B0022006300630022003A0022006300630022002C00200022006400640022003A0022006400640022007D
+SELECT g, JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2))) AS valid
+FROM t1 GROUP BY g ORDER BY g;
+g	valid
+1	1
+2	1
+# a copy of the aggregate, which is made without fixing it again
+SELECT g, JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+CONVERT(a USING ucs2))) AS valid
+FROM t1 GROUP BY g WITH ROLLUP;
+g	valid
+1	1
+2	1
+NULL	1
+# no rows, which is a NULL and never an empty object
+SELECT JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2)) AS v
+FROM t1 WHERE g = 99;
+v
+NULL
+# and where one byte is one character, which must not move
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING latin1),
+CONVERT(a USING latin1))) AS h FROM t1;
+h
+7B226161223A226161222C20226262223A226262222C20226363223A226363222C20226464223A226464227D
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf8mb4),
+CONVERT(a USING utf8mb4))) AS h FROM t1;
+h
+7B226161223A226161222C20226262223A226262222C20226363223A226363222C20226464223A226464227D
+SELECT g, HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1 GROUP BY g ORDER BY g;
+g	h
+1	7B226161223A226161222C20226262223A226262227D
+2	7B226363223A226363222C20226464223A226464227D
+DROP TABLE t1, t2;
+SET NAMES utf8mb4;

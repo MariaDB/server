@@ -841,11 +841,17 @@ class Item_func_json_objectagg : public Item_sum
   */
   bool m_bad_pair;
 public:
+  /*
+    The opening brace is not written here.  This runs while the
+    expression is being parsed, before there is a character set to write
+    it in, and a brace put down now would be one byte wide however wide a
+    character of the result turns out to be.  clear() writes it instead,
+    once per group and once the width is known.
+  */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
     Item_sum(thd, key, value), m_bad_pair(false)
   {
     quick_group= FALSE;
-    result.append('{');
   }
 
   Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
