@@ -31,6 +31,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "trx0undo.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
+#include "page0zip.h"
 #include "mach0data.h"
 #include "ibuf0ibuf.h"
 #include "que0que.h"
@@ -2662,6 +2663,7 @@ row_ins_clust_index_entry_low(
 	btr_pcur_t	pcur;
 	dberr_t		err		= DB_SUCCESS;
 	big_rec_t*	big_rec		= NULL;
+	big_rec_t*	metadata_big	= NULL;
 	mtr_t		mtr;
 	uint64_t	auto_inc	= 0;
 	mem_heap_t*	offsets_heap	= NULL;
@@ -2678,6 +2680,44 @@ row_ins_clust_index_entry_low(
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!trx->in_rollback);
+
+	if (UNIV_UNLIKELY(entry->info_bits != 0)
+	    && (entry->is_alter_metadata()
+		? !dfield_is_ext(dtuple_get_nth_field(
+					 entry,
+					 index->first_user_field()))
+		: page_zip_rec_needs_ext(
+			rec_get_converted_size(index, entry, n_ext),
+			index->table->not_redundant(),
+			dtuple_get_n_fields(entry), 0))) {
+		ut_ad(entry->is_metadata());
+		ut_ad(index->is_instant());
+		ut_ad(mode == BTR_MODIFY_TREE);
+		ut_ad(flags == BTR_NO_LOCKING_FLAG);
+
+		metadata_big = dtuple_convert_big_rec(index, 0, entry, &n_ext);
+		if (UNIV_UNLIKELY(!metadata_big)) {
+			DBUG_RETURN(DB_TOO_BIG_RECORD);
+		}
+
+		/* Store the off-page columns and write complete BLOB
+		pointers into entry before the metadata record is
+		inserted, so that no metadata record with incomplete
+		(zero) BLOB pointers can ever be written. If the server
+		is killed before the metadata record is inserted below,
+		the BLOB pages will merely be orphaned. No latches are
+		being held yet; it is safe to invoke log_free_check(). */
+		err = btr_store_big_rec_metadata(index, entry,
+						 metadata_big, true);
+		if (err != DB_SUCCESS) {
+			/* The BLOB pages were already freed and the
+			BLOB pointers in entry were reset by
+			btr_store_big_rec_metadata(). */
+			dtuple_convert_back_big_rec(index, entry,
+						    metadata_big);
+			DBUG_RETURN(err);
+		}
+	}
 
 	mtr.start();
 
@@ -3006,6 +3046,15 @@ do_insert:
 	}
 
 func_exit:
+	if (UNIV_UNLIKELY(metadata_big != NULL)) {
+		if (err != DB_SUCCESS) {
+			btr_free_big_rec_metadata(index, entry,
+						  metadata_big);
+		}
+
+		dtuple_convert_back_big_rec(index, entry, metadata_big);
+	}
+
 	if (offsets_heap != NULL) {
 		mem_heap_free(offsets_heap);
 	}

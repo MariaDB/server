@@ -2468,19 +2468,13 @@ btr_cur_optimistic_insert(
 #endif /* HAVE_valgrind */
 
 	leaf = page_is_leaf(page);
-
-	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
-		ut_ad(leaf);
-		goto convert_big_rec;
-	}
-
 	/* Calculate the record size when entry is converted to a record */
 	rec_size = rec_get_converted_size(index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
 				   dtuple_get_n_fields(entry),
 				   block->zip_size())) {
-convert_big_rec:
+		ut_ad(!entry->is_alter_metadata());
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 		big_rec_vec = dtuple_convert_big_rec(index, 0, entry, &n_ext);
@@ -4013,7 +4007,9 @@ btr_cur_pessimistic_update(
 				committed before latching any further pages */
 {
 	big_rec_t*	big_rec_vec	= NULL;
+	big_rec_t*	metadata_big	= NULL;
 	big_rec_t*	dummy_big_rec;
+	dtuple_t*	new_entry	= NULL;
 	dict_index_t*	index;
 	buf_block_t*	block;
 	page_zip_des_t*	page_zip;
@@ -4076,6 +4072,15 @@ btr_cur_pessimistic_update(
 			ibuf_update_free_bits_zip(block, mtr);
 		}
 
+		if (metadata_big != NULL) {
+			/* The metadata record was not modified. Free the
+			off-page columns that were already written by
+			btr_store_big_rec_metadata(). */
+			btr_free_big_rec_metadata(index, new_entry,
+						  metadata_big);
+			dtuple_big_rec_free(metadata_big);
+		}
+
 		if (big_rec_vec != NULL) {
 			dtuple_big_rec_free(big_rec_vec);
 		}
@@ -4085,8 +4090,6 @@ btr_cur_pessimistic_update(
 
 	rec = btr_cur_get_rec(cursor);
 	ut_ad(rec_offs_validate(rec, index, *offsets));
-
-	dtuple_t* new_entry;
 
 	const bool is_metadata = rec_is_metadata(rec, *index);
 
@@ -4177,6 +4180,30 @@ btr_cur_pessimistic_update(
 			big_rec_vec = NULL;
 			n_ext = dtuple_get_n_ext(new_entry);
 		}
+	}
+
+	if (UNIV_UNLIKELY(is_metadata) && big_rec_vec) {
+		ut_ad(flags & BTR_KEEP_POS_FLAG);
+		/* Store the off-page columns and write complete BLOB
+		pointers into new_entry before the metadata record is
+		modified, so that no metadata record with incomplete
+		(zero) BLOB pointers can ever be written. If the server
+		is killed before the record is modified below, the BLOB
+		pages will merely be orphaned. Unlike in
+		btr_store_big_rec_extern_fields(), it is not safe to
+		invoke log_free_check() here, because we are holding
+		index and page latches. */
+		err = btr_store_big_rec_metadata(index, new_entry,
+						 big_rec_vec, false);
+		if (err != DB_SUCCESS) {
+			/* The BLOB pages were already freed and the
+			BLOB pointers in new_entry were reset by
+			btr_store_big_rec_metadata(). */
+			goto err_exit;
+		}
+
+		metadata_big = big_rec_vec;
+		big_rec_vec = NULL;
 	}
 
 	/* Do lock checking and undo logging */
@@ -4377,6 +4404,13 @@ btr_cur_pessimistic_update(
 		/* This should happen when InnoDB tries to extend the
 		tablespace */
 		ut_ad(err == DB_OUT_OF_FILE_SPACE);
+		if (metadata_big != NULL) {
+			/* The metadata record was not re-inserted. Free
+			the off-page columns that were already written. */
+			btr_free_big_rec_metadata(index, new_entry,
+						  metadata_big);
+			dtuple_big_rec_free(metadata_big);
+		}
 		return err;
 	}
 	ut_a(rec);
@@ -4444,6 +4478,13 @@ return_after_reservations:
 	     !page_zip || page_zip_validate(btr_cur_get_page_zip(cursor),
 					    btr_cur_get_page(cursor), index));
 #endif /* UNIV_ZIP_DEBUG */
+
+	if (UNIV_UNLIKELY(metadata_big != NULL)) {
+		/* The BLOB pointers of the off-page columns that were
+		stored by btr_store_big_rec_metadata() were written to
+		the metadata record; only free the vector. */
+		dtuple_big_rec_free(metadata_big);
+	}
 
 	index->table->space->release_free_extents(n_reserved);
 	*big_rec = big_rec_vec;
@@ -6475,6 +6516,261 @@ func_exit:
 	}
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 	return(error);
+}
+
+/** Free the BLOB pages that were allocated by
+btr_store_big_rec_metadata(), after the insert or update of the
+metadata record itself failed, and reset the BLOB pointers in the
+index entry to zero.
+@param index    clustered index
+@param entry    metadata index entry
+@param big_rec  externally stored fields created by
+                dtuple_convert_big_rec() from entry */
+void
+btr_free_big_rec_metadata(
+	dict_index_t*		index,
+	dtuple_t*		entry,
+	const big_rec_t*	big_rec)
+{
+	ut_ad(entry->is_metadata());
+	ut_ad(index->is_primary());
+
+	for (ulint i = 0; i < big_rec->n_fields; i++) {
+		dfield_t*	field = dtuple_get_nth_field(
+			entry, big_rec->fields[i].field_no);
+		ut_ad(dfield_is_ext(field));
+		ut_ad(dfield_get_len(field) >= BTR_EXTERN_FIELD_REF_SIZE);
+		byte*		field_ref = static_cast<byte*>(
+			dfield_get_data(field))
+			+ dfield_get_len(field) - BTR_EXTERN_FIELD_REF_SIZE;
+
+		if (!memcmp(field_ref, field_ref_zero,
+			    BTR_EXTERN_FIELD_REF_SIZE)) {
+			/* The BLOB for this field was not stored yet. */
+			continue;
+		}
+
+		ut_ad(mach_read_from_4(field_ref + BTR_EXTERN_SPACE_ID)
+		      == index->table->space_id);
+
+		uint32_t	page_no = mach_read_from_4(
+			field_ref + BTR_EXTERN_PAGE_NO);
+
+		while (page_no != FIL_NULL) {
+			mtr_t	mtr;
+			mtr.start();
+			index->set_modified(mtr);
+			dberr_t	err;
+			buf_block_t*	block = buf_page_get_gen(
+				page_id_t(index->table->space_id, page_no),
+				0, RW_X_LATCH, nullptr, BUF_GET, &mtr, &err);
+			if (UNIV_UNLIKELY(!block)) {
+				mtr.commit();
+				break;
+			}
+			ut_ad(fil_page_get_type(block->page.frame)
+			      == FIL_PAGE_TYPE_BLOB);
+			page_no = mach_read_from_4(block->page.frame
+						   + FIL_PAGE_DATA
+						   + BTR_BLOB_HDR_NEXT_PAGE_NO);
+			err = btr_page_free(index, block, &mtr, true, false);
+			mtr.commit();
+			if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+				break;
+			}
+		}
+
+		/* Reset the BLOB pointer to zero. */
+		memset(field_ref, 0, BTR_EXTERN_FIELD_REF_SIZE);
+	}
+}
+
+/** Store the off-page columns of a metadata record before the record
+itself is inserted into or updated in the clustered index, and write
+complete BLOB pointers into the index entry.
+
+btr_store_big_rec_extern_fields() writes the off-page columns after
+the clustered index record has already been written with zero BLOB
+pointers. That order is not crash-safe for the metadata record of
+instant ALTER TABLE: if the server is killed after the mini-transaction
+that wrote the record was durably committed, but before all BLOB
+pointers were written, the incomplete metadata record could make the
+table inaccessible on recovery.
+
+By storing the off-page columns first, the metadata record will be
+written with complete BLOB pointers in one atomic mini-transaction.
+If the server is killed before the metadata record itself is written,
+the already written BLOB pages will merely be orphaned.
+
+@param index      clustered index
+@param entry      metadata index entry, whose externally stored fields
+                  were shortened by dtuple_convert_big_rec() and end in
+                  zero BLOB pointers that will be filled in
+@param big_rec    externally stored fields created by
+                  dtuple_convert_big_rec() from entry
+@param free_check whether it is safe to invoke log_free_check()
+                  (the caller must not be holding any index or page latches)
+@return DB_SUCCESS or error code
+On failure, any BLOB pages that were already allocated will be freed,
+and the BLOB pointers in entry will be reset to zero. */
+dberr_t
+btr_store_big_rec_metadata(
+	dict_index_t*		index,
+	dtuple_t*		entry,
+	const big_rec_t*	big_rec,
+	bool			free_check)
+{
+	mtr_t		mtr;
+	dberr_t		error = DB_SUCCESS;
+
+	ut_ad(entry->is_metadata());
+	ut_ad(index->is_primary());
+	ut_ad(index->is_instant());
+	ut_ad(!index->table->is_temporary());
+	/* Instant ALTER TABLE is never supported on
+	ROW_FORMAT=COMPRESSED tables. */
+	ut_ad(!index->table->space->zip_size());
+
+	const uint32_t	space_id = index->table->space->id;
+
+	/* Space available in an uncompressed page to carry BLOB data */
+	const ulint	payload_size = index->table->space->physical_size()
+		- (FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE + FIL_PAGE_DATA_END);
+
+	for (ulint i = 0; i < big_rec->n_fields; i++) {
+		const big_rec_field_t&	f = big_rec->fields[i];
+		dfield_t*	field = dtuple_get_nth_field(entry,
+							     f.field_no);
+		ut_ad(dfield_is_ext(field));
+		ut_ad(dfield_get_len(field) >= BTR_EXTERN_FIELD_REF_SIZE);
+		byte*		field_ref = static_cast<byte*>(
+			dfield_get_data(field))
+			+ dfield_get_len(field) - BTR_EXTERN_FIELD_REF_SIZE;
+		/* The BLOB pointer must still be zero;
+		it will be written below. */
+		ut_ad(!memcmp(field_ref, field_ref_zero,
+			      BTR_EXTERN_FIELD_REF_SIZE));
+
+		ulint		extern_len = f.len;
+		MEM_CHECK_DEFINED(f.data, extern_len);
+		ut_a(extern_len > 0);
+
+		uint32_t	prev_page_no = FIL_NULL;
+
+		for (;;) {
+			if (free_check) {
+				log_free_check();
+			}
+
+			mtr.start();
+			index->set_modified(mtr);
+
+			buf_block_t*	block = btr_page_alloc(
+				index,
+				(prev_page_no == FIL_NULL
+				 ? index->page : prev_page_no) + 1,
+				FSP_NO_DIR, 0, &mtr, &mtr, &error);
+			DBUG_EXECUTE_IF("btr_page_alloc_fail",
+				block= nullptr;
+				error= DB_OUT_OF_FILE_SPACE;);
+			DBUG_EXECUTE_IF("btr_page_alloc_fail_4",
+				{
+					static unsigned calls;
+					if (++calls == 4) {
+						block = nullptr;
+						error = DB_OUT_OF_FILE_SPACE;
+					}
+				});
+			if (UNIV_UNLIKELY(!block)) {
+				mtr.commit();
+				goto func_exit;
+			}
+
+			const uint32_t	page_no = block->page.id().page_no();
+
+			if (prev_page_no == FIL_NULL) {
+				/* Write the BLOB pointer into the entry.
+				The entry resides in a memory heap, not
+				in a buffer pool page; this write must
+				not be redo logged. */
+				mach_write_to_4(field_ref
+						+ BTR_EXTERN_SPACE_ID,
+						space_id);
+				mach_write_to_4(field_ref
+						+ BTR_EXTERN_PAGE_NO,
+						page_no);
+				mach_write_to_4(field_ref
+						+ BTR_EXTERN_OFFSET,
+						FIL_PAGE_DATA);
+			} else if (buf_block_t* prev_block =
+				   buf_page_get_gen(page_id_t(space_id,
+							      prev_page_no),
+						    0, RW_X_LATCH, nullptr,
+						    BUF_GET, &mtr, &error)) {
+				mtr.write<4>(*prev_block,
+					     BTR_BLOB_HDR_NEXT_PAGE_NO
+					     + FIL_PAGE_DATA
+					     + prev_block->page.frame,
+					     page_no);
+			} else {
+				mtr.commit();
+				goto func_exit;
+			}
+
+			ut_ad(!page_has_siblings(block->page.frame));
+			ut_ad(!fil_page_get_type(block->page.frame));
+
+			mtr.write<1>(*block, FIL_PAGE_TYPE + 1
+				     + block->page.frame,
+				     FIL_PAGE_TYPE_BLOB);
+
+			const ulint	store_len = extern_len > payload_size
+				? payload_size : extern_len;
+
+			mtr.memcpy<mtr_t::MAYBE_NOP>(
+				*block,
+				FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE
+				+ block->page.frame,
+				static_cast<const byte*>(f.data)
+				+ f.len - extern_len, store_len);
+			mtr.write<4>(*block, BTR_BLOB_HDR_PART_LEN
+				     + FIL_PAGE_DATA + block->page.frame,
+				     store_len);
+			compile_time_assert(FIL_NULL == 0xffffffff);
+			mtr.memset(block, BTR_BLOB_HDR_NEXT_PAGE_NO
+				   + FIL_PAGE_DATA, 4, 0xff);
+
+			extern_len -= store_len;
+			prev_page_no = page_no;
+
+			mtr.commit();
+
+			if (extern_len == 0) {
+				break;
+			}
+		}
+
+		mach_write_to_4(field_ref + BTR_EXTERN_LEN, 0);
+		mach_write_to_4(field_ref + BTR_EXTERN_LEN + 4, f.len);
+
+		DBUG_EXECUTE_IF("btr_store_big_rec_extern",
+				error = DB_OUT_OF_FILE_SPACE;
+				goto func_exit;);
+	}
+
+#ifndef DBUG_OFF
+	log_buffer_flush_to_disk();
+#endif
+	DEBUG_SYNC_C("btr_store_metadata_crash");
+
+	return DB_SUCCESS;
+
+func_exit:
+	ut_ad(error != DB_SUCCESS);
+	/* Free any BLOB pages that were already allocated, and reset
+	the BLOB pointers in the entry to zero. */
+	btr_free_big_rec_metadata(index, entry, big_rec);
+	return error;
 }
 
 /** Check the FIL_PAGE_TYPE on an uncompressed BLOB page.
