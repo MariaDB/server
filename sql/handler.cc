@@ -4116,6 +4116,10 @@ int handler::ha_parallel_get_next_row(Parallel_worker_ctx *ctx)
   }
   status_var_increment(table->in_use->status_var.ha_read_rnd_next_count);
 
+  /* Same sync point as ha_rnd_next(): a parallel scan is still a table scan
+  as far as the tests that park a scan mid-flight are concerned. */
+  DEBUG_SYNC(ha_thd(), "handler_rnd_next_end");
+
   DBUG_RETURN(result);
 }
 

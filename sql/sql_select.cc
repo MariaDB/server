@@ -16326,6 +16326,62 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
     set_cond(NULL);
 }
 
+extern int parallel_rr_next(READ_RECORD *info);
+
+int parallel_init_read_record(JOIN_TAB *tab)
+{
+  TABLE *table = tab->table;
+  handler *file = table->file;
+
+  int err= file->parallel_init_coordinator(4);  // OLEGS: 4 is an arbitrary number of workers to start with
+  if (err == HA_ERR_UNSUPPORTED)
+  {
+    // Fall back to the serial record reader
+    tab->read_first_record= join_init_read_record;
+    tab->use_parallel_scan= false;
+    return join_init_read_record(tab);
+  }
+  if (err)
+  {
+    file->print_error(err, MYF(0));
+    return 1;
+  }
+
+  tab->read_record.table            = tab->table;
+  tab->read_record.thd              = tab->join->thd;
+  tab->read_record.read_record_func = parallel_rr_next;
+  tab->read_record.print_error      = TRUE;
+
+  Parallel_worker_ctx *worker_ctx= file->parallel_get_worker_context(0);
+  DBUG_ASSERT(worker_ctx);
+  err= file->parallel_init_worker(worker_ctx);
+  if (err == HA_ERR_END_OF_FILE)
+    return -1;  // No rows — read_first_record's "empty result" sentinel
+  if (err)
+  {
+    // Real error from the engine
+    file->print_error(err, MYF(0));
+    return 1;
+  }
+  tab->read_record.parallel_worker_ctx = worker_ctx;
+
+  // Fetch the first row before returning — this is what join_init_read_record does.
+  return tab->read_record.read_record();
+}
+
+bool table_can_be_parallel_scanned(JOIN_TAB *join_tab)
+{
+  return join_tab->type == JT_ALL &&
+    join_tab->read_first_record == join_init_read_record &&
+    !(join_tab->select && join_tab->select->quick) && // no range quick select
+    join_tab->table->s->tmp_table == NO_TMP_TABLE &&
+    join_tab->table->s->blob_fields == 0 &&
+    !join_tab->table->fulltext_searched &&
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+         !join_tab->table->part_info &&
+#endif
+         (join_tab->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN);
+}
 
 /*
   Plan refinement stage: do various setup things for the executor
@@ -16662,7 +16718,12 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
-
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+  if (first && table_can_be_parallel_scanned(first))
+  {
+    first->use_parallel_scan= true;
+    first->read_first_record= parallel_init_read_record;
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -16796,6 +16857,11 @@ void JOIN_TAB::cleanup()
       table->file->ha_ft_end();
     else if (table->hlindex && table->hlindex->context)
       table->hlindex_read_end();
+    else if (use_parallel_scan)
+    {
+      table->file->parallel_end_worker();
+      table->file->parallel_end_coordinator();
+    }
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
