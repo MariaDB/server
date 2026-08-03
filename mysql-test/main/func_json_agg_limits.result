@@ -295,6 +295,7 @@ v
 [["aaaaaaaaaa","]]
 Warnings:
 Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_DEPTH(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
 v
 NULL

@@ -196,9 +196,7 @@ cs
 ucs2
 SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b', 2)) AS setv;
 setv
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 26
+007B002200610022003A00200031002C0020002200620022003A00200032007D
 SELECT CHARSET(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b', 2)) AS cs;
 cs
 ucs2
@@ -246,9 +244,7 @@ ucs2
 SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
 CONVERT('x' USING utf8mb4))) AS v;
 v
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 30
+007B002200610022003A00200031002C0020002200620022003A0020002200780022007D
 # a utf8mb4 document with a ucs2 value spliced into it
 SELECT CHARSET(JSON_SET('{"a":1}', '$.b', CONVERT('x' USING ucs2))) AS cs;
 cs
@@ -276,27 +272,19 @@ NULL
 SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
 JSON_COMPACT('{"x":2}'))) AS typed_into_ucs2;
 typed_into_ucs2
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 38
+007B002200610022003A00200031002C0020002200620022003A0020007B002200780022003A00200032007D007D
 SELECT JSON_VALID(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
 JSON_COMPACT('{"x":2}'))) AS ok;
 ok
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 38
+1
 SELECT HEX(JSON_SET('{"a":1}', '$.b',
 JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS latin1_typed;
 latin1_typed
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 18
+7B2261223A20312C202262223A207B2278223A2022C3A9227D7D
 SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b',
 JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS ok;
 ok
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 18
+1
 # the constructors take the same fragment without complaint
 SELECT HEX(JSON_ARRAY(
 JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS embedded;
@@ -311,7 +299,7 @@ cs
 latin1
 SELECT HEX(JSON_OBJECT('k', JSON_COMPACT(CONVERT('{"x":2}' USING ucs2)))) AS obj_embedded;
 obj_embedded
-007B0022006B0022003A00200000007B0000002200000078000000220000003A000000320000007D007D
+007B0022006B0022003A0020007B002200780022003A0032007D007D
 #
 # 6. Binary arguments, which are not text and are copied through.
 #
@@ -435,9 +423,7 @@ ok
 # character set comes from
 SELECT HEX(JSON_SET('{"x":1}', '$.y', CONVERT(j USING latin1))) AS h FROM tc;
 h
-NULL
-Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 27
+7B2278223A20312C202279223A207B2261223A20312C202262223A2022C3A9227D7D
 SELECT HEX(JSON_ARRAY(CONVERT(j USING binary))) AS h FROM tc;
 h
 5B7B2261223A20312C202262223A2022C3A9227D5D
@@ -465,11 +451,14 @@ JSON_VALID(JSON_ARRAY(CONVERT(j USING latin1))) AS ok FROM tp;
 v	ok
 [{"a":1,]	0
 Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
 SELECT JSON_SET('{"x":1}', '$.y', CONVERT(j USING latin1)) AS v FROM tp;
 v
 NULL
 Warnings:
+Note	4037	Unexpected end of JSON text in argument 3 to function 'json_set'
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 20
 SELECT JSON_ARRAY(CAST(j AS CHAR)) AS v FROM tp;
 v

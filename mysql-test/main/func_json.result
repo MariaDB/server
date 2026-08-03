@@ -780,6 +780,8 @@ DROP TABLE t1;
 select json_array(1,user(),compress(5.140264e+307));
 json_array(1,user(),compress(5.140264e+307))
 NULL
+Warnings:
+Note	4035	Broken JSON string in argument 3 to function 'json_array' at position 0
 #
 # MDEV-16869 String functions don't respect character set of JSON_VALUE.
 #
