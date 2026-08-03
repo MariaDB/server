@@ -1,3 +1,4 @@
+--source include/platform.inc
 --echo #
 --echo # Bug50373 --secure-file-priv=""
 --echo #
@@ -29,3 +30,14 @@ evalp SELECT load_file('$MYSQLTEST_VARDIR/../bug50373.txt') AS loaded_file;
 DROP TABLE t1;
 
 --remove_file $MYSQLTEST_VARDIR/../bug50373.txt
+
+--echo #
+--echo # MDEV-40589 default exclude list for secure-file-priv
+--echo #
+CREATE TABLE t1 (c1 VARCHAR(50));
+--disable_abort_on_error
+LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+--enable_abort_on_error
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

@@ -25,3 +25,11 @@ four
 five
 
 DROP TABLE t1;
+#
+# MDEV-40589 default exclude list for secure-file-priv
+#
+CREATE TABLE t1 (c1 VARCHAR(50));
+LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+DROP TABLE t1;
+# End of 10.6 tests
