@@ -1242,20 +1242,28 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     without imposing a bound.
   */
   if (const size_t chunks= file->pscan_chunk_count())
-    set_if_smaller(n, (uint) chunks);
-
-  /*
-    One chunk is not a division of labour. The single worker would read the
-    whole table by itself, which is a serial scan performed by another thread,
-    plus a row copied into the batch buffer, a mutex handed over and a re-read
-    by the manager for every row of it -- measured at some 1.16 times the cost
-    of the serial reader. A table the engine cannot divide is a table for which
-    the serial path is simply better, so decline and let do_select() take it.
-  */
-  if (n < 2)
   {
-    file->pscan_end_coordinator();
-    return HA_ERR_UNSUPPORTED;
+    /*
+      One chunk is not a division of labour. The single worker would read the
+      whole table by itself, which is a serial scan performed by another thread,
+      plus a row copied into the batch buffer, a mutex handed over and a re-read
+      by the manager for every row of it -- measured at some 1.16 times the cost
+      of the serial reader. A table the engine cannot divide is a table for
+      which the serial path is simply better, so decline and let do_select()
+      take it.
+
+      This tests the chunk count and not the worker count. Those differ when
+      parallel_worker_threads is 1: the table divides, the user asked for one
+      worker, and one worker on a table that divides is theirs to ask for -- it
+      is not even always slower, since the worker's scan overlaps the manager's
+      sending of the rows it has already produced.
+    */
+    if (chunks < 2)
+    {
+      file->pscan_end_coordinator();
+      return HA_ERR_UNSUPPORTED;
+    }
+    set_if_smaller(n, (uint) chunks);
   }
 
   workers= (pwt_worker *) my_malloc(key_memory_pwt_workers,

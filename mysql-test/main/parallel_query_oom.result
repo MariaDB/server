@@ -12,11 +12,10 @@ set session parallel_worker_threads=1;
 # warning nor the original error reaches the user. We expect just the
 # manager-surfaced ER_OUTOFMEMORY warning.
 create table t1 (a int) engine=innodb;
-insert into t1 select seq from seq_1_to_2;
-select * from t1;
+insert into t1 select seq from seq_1_to_2000;
+select * from t1 where a > 1999;
 a
-1
-2
+2000
 Warnings:
 Warning	1037	Parallel worker diagnostics were dropped due to memory allocation failure
 show warnings;

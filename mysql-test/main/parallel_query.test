@@ -17,14 +17,19 @@ SET DEBUG_SYNC='RESET';
 --echo #
 
 create table t1 (a int) engine=innodb;
-insert into t1 select seq from seq_1_to_2;
+# The table needs at least as many leaf pages as workers wanted below: the
+# engine divides a table by its B-tree and starts no more workers than it
+# has chunks, and declines a table it cannot divide at all. The WHERE on the
+# selects keeps their output small; the whole table is still scanned.
+insert into t1 select seq from seq_1_to_2000;
 
 set session parallel_worker_threads=3;
 --echo # we should currently see 3 warnings;
-select a from t1;
+select a from t1 where a > 1999;
 
+--echo # ten asked for, but only as many as the engine has chunks are started
 set session parallel_worker_threads=10;
-select a from t1;
+select a from t1 where a > 1999;
 
 set session parallel_worker_threads=0;
 connect (killee, localhost, root, , );
@@ -41,7 +46,7 @@ set session parallel_worker_threads=3;
 SET @save_dbug= @@global.debug_dbug;
 SET GLOBAL debug_dbug = "+d,pwt_worker_pause_before_signal";
 
---send select a from t1;
+--send select a from t1 where a > 1999;
 --echo # now use the default connection to view/kill the thread group executing
 --echo # the parallel work
 --connection default
@@ -81,7 +86,7 @@ SET DEBUG_SYNC = "RESET";
 --echo # save as above, but kill a worker with a simple kill and see the
 --echo # connection drop
 
---send select a from t1;
+--send select a from t1 where a > 1999;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
 let $name= "Parallel Worker 1 For Thread ID $id";
