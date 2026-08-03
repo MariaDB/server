@@ -537,6 +537,52 @@ btr_store_big_rec_extern_fields(
 	enum blob_op	op)		/*! in: operation code */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Store the off-page columns of a metadata record before the record
+itself is inserted into or updated in the clustered index, and write
+complete BLOB pointers into the index entry.
+
+Unlike btr_store_big_rec_extern_fields(), this is invoked before the
+metadata record exists in the index. The record will be written with
+complete BLOB pointers in one atomic mini-transaction, so that no
+metadata record with zero (incomplete) BLOB pointers can ever be
+observed, even if the server is killed in the middle of the operation.
+If the server is killed before the metadata record itself is written,
+the already written BLOB pages will merely be orphaned.
+
+@param index      clustered index
+@param entry      metadata index entry, whose externally stored fields
+                  were shortened by dtuple_convert_big_rec() and end in
+                  zero BLOB pointers that will be filled in
+@param big_rec    externally stored fields created by
+                  dtuple_convert_big_rec() from entry
+@param free_check whether it is safe to invoke log_free_check()
+                  (the caller must not be holding any index or page latches)
+@return DB_SUCCESS or error code
+On failure, any BLOB pages that were already allocated will be freed,
+and the BLOB pointers in entry will be reset to zero. */
+dberr_t
+btr_store_big_rec_metadata(
+	dict_index_t*		index,
+	dtuple_t*		entry,
+	const big_rec_t*	big_rec,
+	bool			free_check)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Free the BLOB pages that were allocated by
+btr_store_big_rec_metadata(), after the insert or update of the
+metadata record itself failed, and reset the BLOB pointers in the
+index entry to zero.
+@param index    clustered index
+@param entry    metadata index entry
+@param big_rec  externally stored fields created by
+                dtuple_convert_big_rec() from entry */
+void
+btr_free_big_rec_metadata(
+	dict_index_t*		index,
+	dtuple_t*		entry,
+	const big_rec_t*	big_rec)
+	MY_ATTRIBUTE((nonnull));
+
 /*******************************************************************//**
 Frees the space in an externally stored field to the file space
 management if the field in data is owned the externally stored field,

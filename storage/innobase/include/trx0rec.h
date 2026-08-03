@@ -122,6 +122,28 @@ trx_undo_update_rec_get_update(
 @return	DB_SUCCESS or error code */
 dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** The change to a clustered index record that is being reported to the
+undo log. Which fields are set depends on the operation: clust_entry for
+an insert, rec and offsets for an update or a delete marking, and update
+and cmpl_info only for an update. */
+struct trx_undo_row_op
+{
+	/** in the case of an insert, the index entry to insert into the
+	clustered index; in updates, may contain a clustered index record
+	tuple that also contains virtual columns of the table; otherwise
+	NULL */
+	const dtuple_t*	clust_entry;
+	/** in the case of an update, the update vector, otherwise NULL */
+	const upd_t*	update;
+	/** compiler info on secondary index updates */
+	ulint		cmpl_info;
+	/** in the case of an update or delete marking, the record in the
+	clustered index; NULL if insert */
+	const rec_t*	rec;
+	/** rec_get_offsets(rec) */
+	const rec_offs*	offsets;
+};
+
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -131,26 +153,24 @@ transaction.
 dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
-	que_thr_t*	thr,		/*!< in: query thread */
-	dict_index_t*	index,		/*!< in: clustered index */
-	const dtuple_t*	clust_entry,	/*!< in: in the case of an insert,
-					index entry to insert into the
-					clustered index; in updates,
-					may contain a clustered index
-					record tuple that also contains
-					virtual columns of the table;
-					otherwise, NULL */
-	const upd_t*	update,		/*!< in: in the case of an update,
-					the update vector, otherwise NULL */
-	ulint		cmpl_info,	/*!< in: compiler info on secondary
-					index updates */
-	const rec_t*	rec,		/*!< in: case of an update or delete
-					marking, the record in the clustered
-					index; NULL if insert */
-	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
-					undo log record */
+	que_thr_t*		thr,	/*!< in: query thread */
+	dict_index_t*		index,	/*!< in: clustered index */
+	const trx_undo_row_op&	op,	/*!< in: the row change */
+	roll_ptr_t*		roll_ptr,
+				/*!< out: DB_ROLL_PTR to the undo log record */
+	mtr_t*			caller_mtr)
+				/*!< in/out: the mini-transaction that is
+				going to modify op.rec, so that the undo
+				log record and the modification of op.rec
+				cannot be separated by a crash; NULL to
+				use a separate mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
+
+/** Determine how large an undo log record may be. An undo log record
+is never split between pages, so a record that does not fit on an empty
+undo log page cannot be written at all.
+@return the maximum size of an undo log record, in bytes */
+ulint trx_undo_max_rec_size();
 
 /** status bit used for trx_undo_prev_version_build() */
 

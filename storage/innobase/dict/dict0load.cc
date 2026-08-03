@@ -634,17 +634,34 @@ uint32_t dict_sys_tables_type_to_tf(uint32_t type, bool not_redundant)
 /** Outcome of dict_sys_tables_rec_read() */
 enum table_read_status { READ_OK= 0, READ_ERROR, READ_NOT_FOUND };
 
-/** Read and return 5 integer fields from a SYS_TABLES record.
+/** The fields that dict_sys_tables_rec_read() reads from a SYS_TABLES
+record. */
+struct dict_sys_tables_rec
+{
+	/** SYS_TABLES.ID */
+	table_id_t	table_id;
+	/** SYS_TABLES.SPACE */
+	uint32_t	space_id;
+	/** SYS_TABLES.N_COLS, still encoded */
+	uint32_t	n_cols;
+	/** table flags, derived from SYS_TABLES.TYPE */
+	uint32_t	flags;
+	/** table flags2, derived from SYS_TABLES.MIX_LEN */
+	uint32_t	flags2;
+	/** DB_TRX_ID of the committed SYS_TABLES record */
+	trx_id_t	trx_id;
+	/** whether the current version of the record was written by a
+	transaction that has not been committed */
+	bool		uncommitted;
+};
+
+/** Read the fields of a SYS_TABLES record.
 @param[in]	rec		A record of SYS_TABLES
 @param[in]	uncommitted	true=use READ UNCOMMITTED, false=READ COMMITTED
 @param[in]	mtr		mini-transaction
-@param[out]	table_id	Pointer to the table_id for this table
-@param[out]	space_id	Pointer to the space_id for this table
-@param[out]	n_cols		Pointer to number of columns for this table.
-@param[out]	flags		Pointer to table flags
-@param[out]	flags2		Pointer to table flags2
-@param[out]	trx_id		DB_TRX_ID of the committed SYS_TABLES record,
-				or nullptr to perform READ UNCOMMITTED
+@param[out]	table_rec	the fields that were read
+@param[in]	skip_deleted	whether a delete-marked record means that
+				the table does not exist
 @return whether the record was read correctly */
 MY_ATTRIBUTE((warn_unused_result))
 static
@@ -653,22 +670,21 @@ dict_sys_tables_rec_read(
 	const rec_t*		rec,
 	bool			uncommitted,
 	mtr_t*			mtr,
-	table_id_t*		table_id,
-	uint32_t*		space_id,
-	uint32_t*		n_cols,
-	uint32_t*		flags,
-	uint32_t*		flags2,
-	trx_id_t*		trx_id)
+	dict_sys_tables_rec&	table_rec,
+	bool			skip_deleted = true)
 {
 	const byte*	field;
 	ulint		len;
 	mem_heap_t*	heap = nullptr;
+
+	table_rec.uncommitted = false;
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__DB_TRX_ID, &len);
 	ut_ad(len == 6 || len == UNIV_SQL_NULL);
 	trx_id_t id = len == 6 ? trx_read_trx_id(field) : 0;
 	if (id && !uncommitted && trx_sys.is_registered_nonzero(id)) {
+		table_rec.uncommitted = true;
 		const auto savepoint = mtr->get_savepoint();
 		heap = mem_heap_create(1024);
 		dict_index_t* index = UT_LIST_GET_FIRST(
@@ -696,24 +712,22 @@ dict_sys_tables_rec_read(
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		ut_ad(id);
-		if (trx_id) {
+		if (skip_deleted) {
 			return READ_NOT_FOUND;
 		}
 	}
 
-	if (trx_id) {
-		*trx_id = id;
-	}
+	table_rec.trx_id = id;
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__ID, &len);
 	ut_ad(len == 8);
-	*table_id = static_cast<table_id_t>(mach_read_from_8(field));
+	table_rec.table_id = static_cast<table_id_t>(mach_read_from_8(field));
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__SPACE, &len);
 	ut_ad(len == 4);
-	*space_id = mach_read_from_4(field);
+	table_rec.space_id = mach_read_from_4(field);
 
 	/* Read the 4 byte flags from the TYPE field */
 	field = rec_get_nth_field_old(
@@ -803,9 +817,10 @@ dict_sys_tables_rec_read(
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__N_COLS, &len);
 	ut_a(len == 4);
-	*n_cols = mach_read_from_4(field);
+	table_rec.n_cols = mach_read_from_4(field);
 
-	const bool not_redundant = 0 != (*n_cols & DICT_N_COLS_COMPACT);
+	const bool not_redundant = 0 != (table_rec.n_cols
+					 & DICT_N_COLS_COMPACT);
 
 	if (!dict_sys_tables_type_valid(type, not_redundant)) {
 		sql_print_error("InnoDB: Table %.*s in InnoDB"
@@ -813,7 +828,7 @@ dict_sys_tables_rec_read(
 				" SYS_TABLES.TYPE=" UINT32PF
 				" SYS_TABLES.N_COLS=" UINT32PF,
 				int(rec_get_field_start_offs(rec, 1)), rec,
-				type, *n_cols);
+				type, table_rec.n_cols);
 err_exit:
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -821,23 +836,24 @@ err_exit:
 		return READ_ERROR;
 	}
 
-	*flags = dict_sys_tables_type_to_tf(type, not_redundant);
+	table_rec.flags = dict_sys_tables_type_to_tf(type, not_redundant);
 
 	/* For tables created before MySQL 4.1, there may be
 	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
 	would always be in ROW_FORMAT=REDUNDANT which do not have the
 	high bit set in n_cols, and flags would be zero.
 	MySQL 4.1 was the first version to support innodb_file_per_table,
-	that is, *space_id != 0. */
-	if (not_redundant || *space_id != 0 || *n_cols & DICT_N_COLS_COMPACT
+	that is, table_rec.space_id != 0. */
+	if (not_redundant || table_rec.space_id != 0
+	    || table_rec.n_cols & DICT_N_COLS_COMPACT
 	    || fil_system.sys_space->full_crc32()) {
 
 		/* Get flags2 from SYS_TABLES.MIX_LEN */
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
-		*flags2 = mach_read_from_4(field);
+		table_rec.flags2 = mach_read_from_4(field);
 
-		if (!dict_tf2_is_valid(*flags, *flags2)) {
+		if (!dict_tf2_is_valid(table_rec.flags, table_rec.flags2)) {
 			sql_print_error("InnoDB: Table %.*s in InnoDB"
 					" data dictionary"
 					" contains invalid flags."
@@ -845,17 +861,17 @@ err_exit:
 					" SYS_TABLES.MIX_LEN=" UINT32PF,
 					int(rec_get_field_start_offs(rec, 1)),
 					rec,
-					type, *flags2);
+					type, table_rec.flags2);
 			goto err_exit;
 		}
 
 		/* DICT_TF2_FTS will be set when indexes are being loaded */
-		*flags2 &= ~DICT_TF2_FTS;
+		table_rec.flags2 &= ~DICT_TF2_FTS;
 
 		/* Now that we have used this bit, unset it. */
-		*n_cols &= ~DICT_N_COLS_COMPACT;
+		table_rec.n_cols &= ~DICT_N_COLS_COMPACT;
 	} else {
-		*flags2 = 0;
+		table_rec.flags2 = 0;
 	}
 
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -910,11 +926,7 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 						      dict_sys.sys_tables);
 	     rec; rec = dict_getnext_system_low(&pcur, &mtr)) {
 		ulint		len;
-		table_id_t	table_id;
-		uint32_t	space_id;
-		uint32_t	n_cols;
-		uint32_t	flags;
-		uint32_t	flags2;
+		dict_sys_tables_rec table_rec;
 
 		/* If a table record is not useable, ignore it and continue
 		on to the next record. Error messages were logged. */
@@ -929,11 +941,9 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %*.s", static_cast<int>(len), field));
 
-		if (dict_sys_tables_rec_read(rec, false,
-					     &mtr, &table_id, &space_id,
-					     &n_cols, &flags, &flags2, nullptr)
-		    != READ_OK
-		    || space_id == TRX_SYS_SPACE) {
+		if (dict_sys_tables_rec_read(rec, false, &mtr, table_rec,
+					     false) != READ_OK
+		    || table_rec.space_id == TRX_SYS_SPACE) {
 			continue;
 		}
 
@@ -945,16 +955,17 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 		newly created or rebuilt tables or partitions, but
 		will otherwise ignore the flag. */
 
-		if (fil_space_for_table_exists_in_mem(space_id, flags)) {
+		if (fil_space_for_table_exists_in_mem(table_rec.space_id,
+						      table_rec.flags)) {
 			continue;
 		}
 
-		if (spaces && spaces->find(uint32_t(space_id))
+		if (spaces && spaces->find(uint32_t(table_rec.space_id))
                     == spaces->end()) {
 			continue;
 		}
 
-		if (flags2 & DICT_TF2_DISCARDED) {
+		if (table_rec.flags2 & DICT_TF2_DISCARDED) {
 			sql_print_information("InnoDB: Ignoring tablespace"
 					      " for %.*s because "
 					      "the DISCARD flag is set",
@@ -970,7 +981,8 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 		const bool not_dropped{!rec_get_deleted_flag(rec, 0)};
 
 		/* Check that the .ibd file exists. */
-		if (fil_ibd_open(space_id, dict_tf_to_fsp_flags(flags),
+		if (fil_ibd_open(table_rec.space_id,
+				 dict_tf_to_fsp_flags(table_rec.flags),
 				 not_dropped
 				 ? fil_space_t::VALIDATE_NOTHING
 				 : fil_space_t::MAYBE_MISSING,
@@ -991,7 +1003,7 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 					  static_cast<int>(len), field);
 		}
 
-		max_space_id = ut_max(max_space_id, space_id);
+		max_space_id = ut_max(max_space_id, table_rec.space_id);
 
 		ut_free(filepath);
 	}
@@ -2189,12 +2201,11 @@ Do not load any columns or indexes.
 @retval	nullptr on success, or if the record is not visible, in
 which case *table will be nullptr */
 const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
-                                const rec_t *rec, dict_table_t **table)
+                                const rec_t *rec, dict_table_t **table,
+                                bool *uncommitted_rec)
 {
-	table_id_t	table_id;
-	uint32_t	space_id, t_num, flags, flags2;
+	dict_sys_tables_rec table_rec;
 	ulint		n_cols, n_v_col;
-	trx_id_t	trx_id;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
 		*table = NULL;
@@ -2202,23 +2213,26 @@ const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
 	}
 
 	if (auto r = dict_sys_tables_rec_read(rec, uncommitted, mtr,
-					      &table_id, &space_id,
-					      &t_num, &flags, &flags2,
-					      &trx_id)) {
+					     table_rec)) {
 		*table = NULL;
 		return r == READ_ERROR ? dict_load_table_flags : nullptr;
 	}
 
-	dict_table_decode_n_col(t_num, &n_cols, &n_v_col);
+	if (uncommitted_rec) {
+		*uncommitted_rec = table_rec.uncommitted;
+	}
+
+	dict_table_decode_n_col(table_rec.n_cols, &n_cols, &n_v_col);
 
 	*table = dict_table_t::create(
 		span<const char>(reinterpret_cast<const char*>(rec),
 				 rec_get_field_start_offs(rec, 1)),
-		nullptr, n_cols + n_v_col, n_v_col, flags, flags2);
-	(*table)->space_id = space_id;
-	(*table)->id = table_id;
-	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
-	(*table)->def_trx_id = trx_id;
+		nullptr, n_cols + n_v_col, n_v_col,
+		table_rec.flags, table_rec.flags2);
+	(*table)->space_id = table_rec.space_id;
+	(*table)->id = table_rec.table_id;
+	(*table)->file_unreadable = !!(table_rec.flags2 & DICT_TF2_DISCARDED);
+	(*table)->def_trx_id = table_rec.trx_id;
 	return(NULL);
 }
 
@@ -2385,8 +2399,10 @@ err_exit:
 	}
 
 	dict_table_t* table;
+	bool uncommitted_rec = false;
 	if (const char* err_msg =
-	    dict_load_table_low(&mtr, uncommitted, rec, &table)) {
+	    dict_load_table_low(&mtr, uncommitted, rec, &table,
+				&uncommitted_rec)) {
 		if (err_msg != dict_load_table_flags) {
 			ib::error() << err_msg;
 		}
@@ -2401,6 +2417,44 @@ err_exit:
 		: table->id == mach_read_from_8(
 			rec + rec_get_field_start_offs(
 				rec, DICT_FLD__SYS_TABLES__ID));
+
+	/* This is the first attempt (not READ UNCOMMITTED), and the table
+	identifier was not changed by an uncommitted transaction.
+
+	If the current version of this record was written by
+	a transaction that has not been committed,
+	dict_sys_tables_rec_read() read an older version of it.
+	When that transaction is an instant ALTER TABLE, the
+	clustered index metadata record already describes the
+	table definition that the transaction is creating, and
+	we must load that definition instead of the preceding
+	one.
+
+	This cannot be detected while reading SYS_COLUMNS. The
+	number of SYS_COLUMNS records that dict_load_columns()
+	reads is derived from SYS_TABLES.N_COLS, which we would
+	be reading from the older version. A column that the
+	operation appended is located after that many records,
+	and its SYS_COLUMNS record would never be read. Here we
+	are looking at a record that is located by table name,
+	so no such limit applies.
+
+	A delete-marked record is excluded. SYS_TABLES.NAME is
+	the clustered index key, so RENAME TABLE delete-marks the
+	record of the old name and inserts one for the new name.
+	The definition that corresponds to the old name is the
+	one that precedes the rename, which is what
+	dict_sys_tables_rec_read() already returned. Every
+	operation that modifies a table definition in place,
+	including instant ALTER TABLE, updates a non-key column
+	and leaves the record unmarked. */
+	if (use_uncommitted == 1 && uncommitted_rec
+	    && !rec_get_deleted_flag(rec, 0)) {
+		uncommitted = true;
+		mtr.commit();
+		dict_mem_table_free(table);
+		goto reload;
+	}
 
 	mtr.commit();
 
