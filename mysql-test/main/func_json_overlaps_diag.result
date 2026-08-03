@@ -1,0 +1,155 @@
+#
+# Where JSON_OVERLAPS says a document broke.
+#
+# The comparison walks both arguments together and puts an engine
+# back where it was to try the next candidate.  A refusal met
+# part-way through has to survive being put back, and the place it
+# is reported from has to be where the document broke, not
+# wherever the walk happened to stop afterwards.
+#
+# There is one right attest to each of these documents and it can
+# be had elsewhere: JSON_VALID and JSON_EXTRACT read the same bytes
+# with no comparison around them.  Every case below is recorded
+# beside those two, so the position is pinned to something other
+# than itself.
+#
+#
+# 1. What the same bytes are worth to a reader with nothing else
+#    going on.  These are the positions every case below must give.
+#
+SELECT JSON_VALID('{"a":1 "b":2}') AS ok;
+ok
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
+SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 8
+SELECT JSON_EXTRACT('{"a":1, "b":2 "c":3}', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 15
+SELECT JSON_EXTRACT('{"a":{"p":1 "q":2}}', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 13
+SELECT JSON_EXTRACT('[{"z":9},{"b":2 "c":3}]', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 17
+SELECT JSON_EXTRACT('[1,2,3 4]', '$') AS v;
+v
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 8
+#
+# 2. The break is in argument 2, met after the walk has turned at
+#    least once.
+#
+SELECT JSON_OVERLAPS('{"b":9}', '{"a":1 "b":2}') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 8
+SELECT JSON_OVERLAPS('{"z":0}', '{"a":1, "b":2 "c":3}') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 15
+#
+# 3. The break is below the top level, so the walk is further in
+#    when it meets it.
+#
+SELECT JSON_OVERLAPS('{"a":{"p":1}}', '{"a":{"p":1 "q":2}}') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 13
+#
+# 4. The break is in argument 1, and inside an element of it.
+#
+SELECT JSON_OVERLAPS('[{"z":9},{"b":2 "c":3}]', '[{"a":1}]') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 17
+#
+# 5. A refusal that is reached only after every candidate has been
+#    tried and put back.  Nothing said so before: the walk ended on
+#    the refusal exactly as it ends on running out of candidates,
+#    and the answer came back with no diagnostic at all.
+#
+SELECT JSON_OVERLAPS('[9]', '[1,2,3 4]') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 8
+SELECT JSON_OVERLAPS('[{"a":1}]', '[{"z":9},{"b":2 "c":3}]') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 17
+#
+# 6. The same documents out of a table, so no one statement
+#    settles another, and both argument orders together.
+#
+CREATE TABLE t1 (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES
+(1, '{"b":9}',       '{"a":1 "b":2}'),
+(2, '{"a":{"p":1}}', '{"a":{"p":1 "q":2}}'),
+(3, '[9]',           '[1,2,3 4]'),
+(4, '{"b":9}',       '{"a":1, "b":2}');
+SELECT id, JSON_OVERLAPS(a, b) AS v FROM t1 ORDER BY id;
+id	v
+1	0
+2	0
+3	0
+4	0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 13
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 8
+SELECT id, JSON_OVERLAPS(b, a) AS v FROM t1 ORDER BY id;
+id	v
+1	0
+2	0
+3	0
+4	0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 8
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 13
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 8
+DROP TABLE t1;
+#
+# 7. Whole documents beside them, which have nothing to report.
+#
+SELECT JSON_OVERLAPS('{"b":9}', '{"a":1, "b":9}') AS v;
+v
+1
+SELECT JSON_OVERLAPS('[1,2]', '[2,3]') AS v;
+v
+1
+SELECT JSON_OVERLAPS('{"a":{"p":1}}', '{"a":{"p":1, "q":2}}') AS v;
+v
+0
+SELECT JSON_OVERLAPS('[9]', '[1,2,3,4]') AS v;
+v
+0
+#
+# 8. A document that is refused before the comparison begins is
+#    not this case, and is reported from position 1 as it always
+#    was.
+#
+SELECT JSON_OVERLAPS('{', '[1]') AS v;
+v
+0
+SELECT JSON_OVERLAPS('[1]', 'x') AS v;
+v
+0
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_overlaps' at position 1

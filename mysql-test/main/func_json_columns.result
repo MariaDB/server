@@ -429,18 +429,16 @@ Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_equals'
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_equals' at position 1
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_equals' at position 9
 Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_equals' at position 32
-# id 13, an array nested past the scanner limit, is left out here:
-# JSON_OVERLAPS crashes the server on such an argument, so the row is
-# excluded until that is fixed.  Every other function above takes it.
-SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v
-FROM t1 WHERE id >= 10 AND id <> 13 ORDER BY id;
+SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
 10	0
 11	0
 12	1
+13	0
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_overlaps'
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_overlaps' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
 #
 # 5. The column as an embedded argument.  A JSON column is embedded as
 #    a document, so whatever it holds is copied into the result as is.

@@ -155,11 +155,7 @@ SELECT id, JSON_EXISTS(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 SELECT id, JSON_CONTAINS(j, '1', '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 SELECT id, JSON_SEARCH(j, 'one', '1') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 SELECT id, JSON_EQUALS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
---echo # id 13, an array nested past the scanner limit, is left out here:
---echo # JSON_OVERLAPS crashes the server on such an argument, so the row is
---echo # excluded until that is fixed.  Every other function above takes it.
-SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v
-  FROM t1 WHERE id >= 10 AND id <> 13 ORDER BY id;
+SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 
 --echo #
 --echo # 5. The column as an embedded argument.  A JSON column is embedded as
