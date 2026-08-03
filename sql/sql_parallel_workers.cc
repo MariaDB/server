@@ -144,17 +144,17 @@ bool table_can_be_parallel_scanned(TABLE *table)
     'cost' -- I/O, CPU and row-copy -- are divided among them. The index
     components are left untouched: this only ever discounts a full table scan.
 
-    N is not parallel_worker_threads. The engine divides the table by its own
-    geometry, and hands a worker beyond the last chunk nothing to read, so the
-    chunk count bounds the parallelism however many threads were asked for (see
-    init_parallel_workers, which starts no more workers than chunks). Taking
-    the request at face value is the difference between believing a scan is 50
-    times cheaper and its being 2.2 times cheaper, which is enough to prefer a
-    parallel full scan over a perfectly good index.
+    N is not parallel_worker_threads. A chunk cannot be smaller than a leaf
+    page, so a table of fewer leaf pages than there are threads cannot occupy
+    them all whatever is asked for, and a worker with no chunk reads nothing
+    (see init_parallel_workers, which starts no more workers than chunks). The
+    engine supplies that ceiling. Taking the request at face value instead is
+    the difference between believing a scan of a hundred pages is fifty times
+    cheaper and its being at best a hundredth of that off, which is enough to
+    prefer a parallel full scan over a perfectly good index.
 
     Two costs the division does not express are added back. The worker path is
-    more expensive per row than the serial one, measured at some 1.16 times for
-    a scan whose rows are cheap to evaluate, because rows are copied into a
+    more expensive per row than the serial one, because rows are copied into a
     batch buffer, handed over under a mutex and re-read by the manager. And
     each worker has to be created, with its own THD, table instances, cloned
     items and row buffer, measured at some 22 microseconds. The setup term is
@@ -177,8 +177,13 @@ bool table_can_be_parallel_scanned(TABLE *table)
 
 /*
   Per-row cost of reading through a worker rather than serially, as a factor.
-  Measured on a release build with a scan whose WHERE is cheap; a query doing
-  more work per row amortises the transport and sees less than this.
+  1.16 was measured on a release build with a scan whose WHERE is cheap, before
+  chunks were split (see Parallel_reader::Ctx::split()). Re-measuring since then
+  gives a figure below 1 in the better of two regimes the same query alternates
+  between, so this is the conservative end of a range rather than a value: it
+  keeps the estimate from claiming a per-row saving that may not be there. A
+  query doing more work per row amortises the transport and sees less than this
+  either way.
 */
 #define PARALLEL_SCAN_ROW_COST_FACTOR 1.16
 

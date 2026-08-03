@@ -14698,14 +14698,22 @@ func_exit:
 }
 
 
-/** Estimate how many chunks a parallel scan of this table would be divided
-into, without reading a page. Parallel_reader partitions at the root, so the
-count is the root page's fanout: for a tree of three levels that is the number
-of pages one level below the root, which is every non-leaf page but the root
-itself, and for a tree of two levels the root's records are the leaf pages.
-Deeper trees are over-estimated, which is harmless because they are also the
-ones whose chunks get split further at run time.
-@return estimated chunk count, or 0 if statistics are not available. */
+/** Estimate how many chunks a parallel scan of this table can be divided into,
+without reading a page.
+
+The root page's fanout is only where the division starts. Ctx::split() divides a
+coarse range further, by the records of the page above the leaves, so the finest
+division available is one leaf page per chunk -- a chunk cannot be smaller,
+because there is nothing below a leaf page to divide by. The leaf page count is
+therefore the bound, and it is the right answer for a tree too shallow to split
+as well: there the ranges are the root's records, which are the leaf pages.
+
+This says nothing about how many chunks a given scan will actually make, which
+depends on the worker count and is decided in create_contexts(). It is the
+ceiling, which is what the optimizer needs in order not to divide a cost by
+more workers than the table can occupy.
+
+@return estimated chunk ceiling, or 0 if statistics are not available. */
 size_t ha_innobase::pscan_chunk_count_estimate() const
 {
 	if (!m_prebuilt || !m_prebuilt->table)
@@ -14715,13 +14723,10 @@ size_t ha_innobase::pscan_chunk_count_estimate() const
 	if (!clust)
 		return 0;
 
-	const uint32_t leaf = clust->stat_n_leaf_pages;
-	const uint32_t total = clust->stat_index_size;
-	if (!leaf || total < leaf)
-		return 0;			// statistics not gathered yet
-
-	const uint32_t non_leaf = total - leaf;
-	return non_leaf > 1 ? non_leaf - 1 : leaf;
+	/* Zero until the statistics have been gathered. Answering 0 leaves the
+	scan costed as a serial one, which is the safe way to be wrong: it never
+	claims parallelism the table cannot supply. */
+	return clust->stat_n_leaf_pages;
 }
 
 int ha_innobase::pscan_init_coordinator(size_t n_threads)
