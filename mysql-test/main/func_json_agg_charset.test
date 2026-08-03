@@ -1,0 +1,187 @@
+--source include/have_utf8mb4.inc
+--source include/have_ucs2.inc
+--source include/have_utf16.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # How the JSON aggregates hand their result to the client.
+--echo #
+--echo # A result computed in one character set and asked for in another is
+--echo # converted on the way out.  Whether that conversion happens at all is
+--echo # decided by the character set the returned value carries, which need
+--echo # not be the one the function says it has.
+--echo #
+--echo # swe7 is the vehicle throughout.  It has no code point for the
+--echo # brackets and braces a JSON document is built from, so a result that
+--echo # was converted arrives with those replaced by '?', and one handed over
+--echo # unconverted arrives intact.  The difference is therefore visible
+--echo # without a single non-ASCII byte in this file.  A client asking for
+--echo # latin1 is told the same two stories, but the second one reaches it as
+--echo # utf8mb4 bytes under a latin1 label, which is not printable and not
+--echo # recoverable.
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES (1, 'aa'), (1, 'bb'), (2, 'cc'), (2, 'dd');
+
+--echo #
+--echo # 1. An aggregate delivered next to the functions that are not.
+--echo #
+
+SET SESSION character_set_results = swe7;
+SELECT JSON_ARRAY('aa','bb') AS v;
+SELECT JSON_OBJECT('aa','bb') AS v;
+SELECT JSON_SET('{}','$.a','b') AS v;
+SELECT JSON_KEYS('{"aa":1}') AS v;
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1;
+--echo # one group per row of output, so the delivery is repeated
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g ORDER BY g;
+SELECT g, JSON_OBJECTAGG(a,a) AS v FROM t1 GROUP BY g ORDER BY g;
+SET SESSION character_set_results = DEFAULT;
+
+--echo #
+--echo # 2. The value itself, which the delivery does not touch.
+--echo #
+--echo # Read inside the server rather than sent to the client, the aggregate
+--echo # is the same either way.  HEX() answers in ASCII, so the bytes can be
+--echo # shown under both settings and compared.
+--echo #
+
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS valid,
+       JSON_LENGTH(JSON_ARRAYAGG(a)) AS len FROM t1;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a)) AS v FROM t1;
+SET SESSION character_set_results = swe7;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS valid,
+       JSON_LENGTH(JSON_ARRAYAGG(a)) AS len FROM t1;
+SET SESSION character_set_results = DEFAULT;
+
+--echo #
+--echo # 3. What the function says it returns.
+--echo #
+--echo # CHARSET() and COLLATION() report what the expression was resolved to,
+--echo # not what the returned value ended up labelled with, so neither of
+--echo # them can see a difference in delivery.  A probe built from these two
+--echo # alone, or from ASCII values under a character set that can hold them,
+--echo # observes nothing at all.
+--echo #
+
+SELECT CHARSET(JSON_ARRAYAGG(a)) AS cs, COLLATION(JSON_ARRAYAGG(a)) AS co
+  FROM t1;
+SELECT CHARSET(JSON_OBJECTAGG(a,a)) AS cs, COLLATION(JSON_OBJECTAGG(a,a)) AS co
+  FROM t1;
+SET SESSION character_set_results = latin1;
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1;
+SET SESSION character_set_results = DEFAULT;
+
+--echo #
+--echo # 4. Stored rather than delivered.
+--echo #
+--echo # A value on its way into a column is converted from the character set
+--echo # the expression was resolved to, which is a separate question from the
+--echo # one above.
+--echo #
+
+CREATE TABLE t2 (v VARCHAR(50) CHARACTER SET latin1);
+INSERT INTO t2 SELECT JSON_ARRAYAGG(a) FROM t1;
+INSERT INTO t2 SELECT JSON_OBJECTAGG(a,a) FROM t1;
+SELECT v, HEX(v) AS h FROM t2 ORDER BY v;
+SET SESSION character_set_results = swe7;
+SELECT v FROM t2 ORDER BY v;
+SET SESSION character_set_results = DEFAULT;
+
+--echo #
+--echo # 5. The other ways into the same result.
+--echo #
+
+SET SESSION character_set_results = swe7;
+SELECT JSON_ARRAYAGG(DISTINCT a) AS v FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1;
+--echo # a group of one writes no separator, so it exercises less than it looks
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'aa';
+--echo # no rows at all: NULL, which is never delivered as a string
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+SELECT JSON_OBJECTAGG(a,a) AS v FROM t1 WHERE g = 99;
+SET SESSION character_set_results = DEFAULT;
+
+--echo #
+--echo # 6. A result computed in a character set that ASCII is not a part of.
+--echo #
+--echo # Every character of such a result is two or four bytes wide, the
+--echo # brackets the aggregate puts around the elements included.  Written
+--echo # as single bytes those two would leave everything between them one
+--echo # byte out of step, and the result would read as an entirely
+--echo # different set of characters rather than as a document.
+--echo #
+
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS valid FROM t1;
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS valid FROM t1;
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS valid FROM t1;
+--echo # a group of one, which is bracket, element, bracket and nothing else
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1 WHERE a = 'aa';
+--echo # the same values where one byte is one character, which is the case
+--echo # the brackets were always written for
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING latin1))) AS h FROM t1;
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf8mb4))) AS h FROM t1;
+--echo #
+--echo # 7. The sibling aggregate, in the same character sets.
+--echo #
+--echo # It reaches the same question by another route.  Its opening brace
+--echo # is not written next to its closing one: the closing brace goes on
+--echo # when the result is asked for, and the opening brace has to be there
+--echo # before the first pair is added.  Where that brace is written decides
+--echo # whether it can be written in the character set the result is in, and
+--echo # whether the two ends of the object match.
+--echo #
+
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2))) AS h
+  FROM t1;
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                                 CONVERT(a USING ucs2))) AS valid FROM t1;
+SELECT CONVERT(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                              CONVERT(a USING ucs2)) USING utf8mb4) AS v
+  FROM t1;
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf16), CONVERT(a USING utf16))) AS h
+  FROM t1;
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING utf16),
+                                 CONVERT(a USING utf16))) AS valid FROM t1;
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf32), CONVERT(a USING utf32))) AS h
+  FROM t1;
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING utf32),
+                                 CONVERT(a USING utf32))) AS valid FROM t1;
+--echo # one pair, where no separator is written between pairs at all
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2))) AS h
+  FROM t1 WHERE a = 'aa';
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                                 CONVERT(a USING ucs2))) AS valid
+  FROM t1 WHERE a = 'aa';
+--echo # a group each, so the opening brace is written more than once
+SELECT g, HEX(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                             CONVERT(a USING ucs2))) AS h
+  FROM t1 GROUP BY g ORDER BY g;
+SELECT g, JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                                    CONVERT(a USING ucs2))) AS valid
+  FROM t1 GROUP BY g ORDER BY g;
+--echo # a copy of the aggregate, which is made without fixing it again
+SELECT g, JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING ucs2),
+                                    CONVERT(a USING ucs2))) AS valid
+  FROM t1 GROUP BY g WITH ROLLUP;
+--echo # no rows, which is a NULL and never an empty object
+SELECT JSON_OBJECTAGG(CONVERT(a USING ucs2), CONVERT(a USING ucs2)) AS v
+  FROM t1 WHERE g = 99;
+--echo # and where one byte is one character, which must not move
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING latin1),
+                          CONVERT(a USING latin1))) AS h FROM t1;
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf8mb4),
+                          CONVERT(a USING utf8mb4))) AS h FROM t1;
+SELECT g, HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1 GROUP BY g ORDER BY g;
+
+DROP TABLE t1, t2;
+SET NAMES utf8mb4;
