@@ -1523,7 +1523,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
       chunk, joins the inner tables, projects worker_proj into result_table and
       ships that record image.
     */
-    if (setup_worker_tabs(thd, workers + i) ||
+    if (setup_worker_join(thd, workers + i) ||
+        setup_worker_tabs(thd, workers + i) ||
         make_result_table(thd, result_defn, &workers[i].result_table) ||
         clone_worker_exprs(thd, workers + i))
     {
@@ -2005,6 +2006,93 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
 
 
 /*
+  Every JOIN field the worker's executor could reach that the gate is supposed to
+  have made inert. Same purpose as pwt_assert_tab_inert(), one level up: relaxing
+  a gate without teaching setup_worker_join() about the field it lets through
+  fails here rather than running with a field this worker's JOIN does not carry.
+*/
+static void pwt_assert_join_inert(JOIN *join)
+{
+#ifndef DBUG_OFF
+  DBUG_ASSERT(!join->outer_join);
+  DBUG_ASSERT(!join->need_tmp);
+  DBUG_ASSERT(!join->select_distinct);
+  DBUG_ASSERT(!join->group && !join->group_list);
+  DBUG_ASSERT(!join->order);
+  DBUG_ASSERT(!join->having && !join->tmp_having);
+  DBUG_ASSERT(!join->procedure);
+  DBUG_ASSERT(!join->sort_and_group);
+  DBUG_ASSERT(!join->group_optimized_away);
+  DBUG_ASSERT(!(join->select_options & OPTION_FOUND_ROWS));
+#else
+  (void) join;
+#endif
+}
+
+
+/*
+  @brief
+    Build the JOIN this worker's JOIN_TABs belong to.
+
+  @description
+    Only the fields the executor reads are carried over, by name. The rest are
+    whatever JOIN's own constructor makes them, which is why the constructor is
+    used rather than a copy of the manager's object: JOIN declares its copy
+    constructor and assignment private and unimplemented, so copying it means
+    copying bytes past a deliberate prohibition, and every field this code did
+    not think about would then hold a value that looks chosen. Built by the
+    constructor, an unconsidered field holds JOIN::init()'s default, and the
+    static_assert below makes a field added upstream a compile-time prompt to
+    decide which of the two it should be.
+
+    What the executor reads, established by walking sub_select() and
+    evaluate_join_record() for the shapes the gate allows: thd, join_tab,
+    return_tab and found_records. map2table is read only for
+    split_derived_to_update, join_tab_execution_startup() only inside its two
+    semijoin-materialization branches, and JOIN_TAB::preread_init() returns
+    before touching join->thd unless the table is a materialized derived -- all
+    of which pwt_assert_tab_inert() asserts away.
+
+    result is deliberately left null. It is the manager's connection to the
+    client, and manager_collect_and_send() is the only thing that may send a
+    row; a worker that reached for it should crash rather than write to a socket
+    two threads share.
+
+  @return  true on error.
+*/
+bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
+{
+  /*
+    Adding a field to JOIN does not break this, it just stops the build until
+    someone has decided whether a worker needs to carry it. Update the size once
+    that decision is made.
+
+    Debug builds only: JOIN carries dbug_join_tab_array_size under
+    #ifndef DBUG_OFF, so its size is not the same in the two build types, and
+    pinning both would mean two magic numbers of which only one is ever
+    checked by whoever changes the class. mtr builds debug, so this is where
+    the prompt lands.
+  */
+#ifndef DBUG_OFF
+  static_assert(sizeof(JOIN) == 1552,
+                "JOIN has changed shape: review what setup_worker_join() "
+                "carries over to a worker");
+#endif
+
+  pwt_assert_join_inert(join);
+
+  if (!(worker->worker_join= new (thd->mem_root)
+          JOIN(worker->thd, join->fields_list, join->select_options, nullptr)))
+    return true;
+
+  worker->worker_join->table_count= join->table_count;
+  worker->worker_join->const_tables= join->const_tables;
+  worker->worker_join->select_lex= join->select_lex;
+  return false;
+}
+
+
+/*
   @brief
     Give this worker its own copy of each of the join's non-const JOIN_TABs,
     rebound to the worker: its private TABLE copies, its cloned conditions and
@@ -2055,13 +2143,13 @@ bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
     /* ANALYZE reads these back off the manager, see quiesce_workers(). */
     wtab->tracker= &worker->tab_stats[k];
 
+    wtab->join= worker->worker_join;
+
     /*
-      Set where the worker runs the join rather than here: the JOIN it belongs
-      to and the record sources it is driven through are the next steps of the
+      The record sources the tabs are driven through are the next step of the
       executor split. Nulled so that reaching them before then is a crash and
       not a read of the manager's.
     */
-    wtab->join= nullptr;
     wtab->next_select= nullptr;
     wtab->read_first_record= nullptr;
     bzero((char*) &wtab->read_record, sizeof(wtab->read_record));

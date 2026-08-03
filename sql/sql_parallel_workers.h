@@ -134,6 +134,16 @@ public:
   int worker_emit_row(uint level);
 
   /*
+    The JOIN the worker's JOIN_TABs belong to. Not the manager's: sub_select()
+    writes join->return_tab as it descends, so two workers sharing one JOIN
+    would scribble over each other's backtrack point, and it reads join->thd for
+    the diagnostics area, the killed flag and the row counters, which must be
+    the worker's own. Built by setup_worker_join(), which carries over only the
+    fields the executor reads.
+  */
+  JOIN          *worker_join;
+
+  /*
     This worker's copy of the join's non-const JOIN_TABs, n_tables of them, in
     join order and indexed the same way pwt_manager::mgr_tabs is: [0] is the
     parallel-scanned driving table and [1..] the tables joined to it. Copied
@@ -343,6 +353,8 @@ private:
   /* Open this worker's private copy of every non-const join table (into
      worker->worker_tables / our_scan_table). Returns true on error. */
   bool open_worker_tables(THD *thd, pwt_worker *worker);
+  /* Build worker->worker_join: the JOIN the worker's tabs belong to. */
+  bool setup_worker_join(THD *thd, pwt_worker *worker);
   /* Build worker->join_tabs: a copy of each of the manager's non-const
      JOIN_TABs, rebound to this worker. */
   bool setup_worker_tabs(THD *thd, pwt_worker *worker);
