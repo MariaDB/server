@@ -48,7 +48,23 @@ void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
 bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
-int st_append_escaped(String *s, const String *a);
+
+/*
+  What an append of escaped text to a document came to.  The two ways
+  of failing are kept apart because they are not answered alike: a
+  buffer that would not grow has already raised an error of its own and
+  the statement is over, while a character that cannot be written into
+  a document is an ordinary property of the data, which callers have
+  always carried on past.
+*/
+enum json_append_result
+{
+  JSON_APPEND_OK= 0,
+  JSON_APPEND_OOM= 1,
+  JSON_APPEND_BAD_CHR= 2
+};
+
+json_append_result st_append_escaped(String *s, const String *a);
 int json_find_overlap_with_object(json_engine_t *js,
                                               json_engine_t *value,
                                               bool compare_whole);
@@ -269,6 +285,7 @@ class Item_func_json_unquote: public Item_str_func
 protected:
   String tmp_s;
   String *read_json(json_engine_t *je);
+  String *return_as_is(String *str, String *js);
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
   LEX_CSTRING func_name_cstring() const override
@@ -758,6 +775,15 @@ protected:
                              const uchar *key, size_t offset) override;
   void cut_max_length(String *result,
                       uint old_length, uint max_length) const override;
+  /*
+    A row of this group could not be written out at all, the buffer
+    having failed to grow.  Neither a row whose value does not parse as
+    JSON nor one holding a character no document can carry is this:
+    the first is written out as it stands and the second is dropped
+    where it always was, both with a note.  Reset for each group by
+    clear().
+  */
+  bool m_bad_element;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -765,11 +791,22 @@ public:
                           const SQL_I_List<ORDER> &is_order, String *is_separator,
                           bool limit_clause, Item *row_limit, Item *offset_limit):
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
-                             is_separator, limit_clause, row_limit, offset_limit)
+                             is_separator, limit_clause, row_limit, offset_limit),
+      m_bad_element(false)
   {
   }
+  /*
+    A copy is not fixed again, so anything fix_fields() settled has to
+    be settled here too.  The buffer's character set is one of those:
+    left at its default the copy would read the values it is given as
+    bytes rather than as the characters they are, and say they were
+    not JSON.
+  */
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
-    Item_func_group_concat(thd, item) {}
+    Item_func_group_concat(thd, item), m_bad_element(false)
+  {
+    m_tmp_json.set_charset(collation.collation);
+  }
   const Type_handler *type_handler() const override
   {
     return Type_handler_json_common::json_type_handler_sum(this);
@@ -783,6 +820,7 @@ public:
   bool fix_fields(THD *thd, Item **ref) override;
   enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
+  void clear() override;
   String* val_str(String *str) override;
 
   Item *copy_or_same(THD* thd) override;
@@ -796,9 +834,15 @@ protected:
 class Item_func_json_objectagg : public Item_sum
 {
   String result;
+  /*
+    A pair of this group could not be written out in full, the buffer
+    having failed to grow part way through it.  Reset for each group by
+    clear().
+  */
+  bool m_bad_pair;
 public:
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
-    Item_sum(thd, key, value)
+    Item_sum(thd, key, value), m_bad_pair(false)
   {
     quick_group= FALSE;
     result.append('{');
