@@ -645,6 +645,9 @@ enum table_read_status { READ_OK= 0, READ_ERROR, READ_NOT_FOUND };
 @param[out]	flags2		Pointer to table flags2
 @param[out]	trx_id		DB_TRX_ID of the committed SYS_TABLES record,
 				or nullptr to perform READ UNCOMMITTED
+@param[out]	uncommitted_rec	whether the current version of the record was
+				written by a transaction that has not been
+				committed
 @return whether the record was read correctly */
 MY_ATTRIBUTE((warn_unused_result))
 static
@@ -658,7 +661,8 @@ dict_sys_tables_rec_read(
 	uint32_t*		n_cols,
 	uint32_t*		flags,
 	uint32_t*		flags2,
-	trx_id_t*		trx_id)
+	trx_id_t*		trx_id,
+	bool*			uncommitted_rec = nullptr)
 {
 	const byte*	field;
 	ulint		len;
@@ -669,6 +673,9 @@ dict_sys_tables_rec_read(
 	ut_ad(len == 6 || len == UNIV_SQL_NULL);
 	trx_id_t id = len == 6 ? trx_read_trx_id(field) : 0;
 	if (id && !uncommitted && trx_sys.is_registered_nonzero(id)) {
+		if (uncommitted_rec) {
+			*uncommitted_rec = true;
+		}
 		const auto savepoint = mtr->get_savepoint();
 		heap = mem_heap_create(1024);
 		dict_index_t* index = UT_LIST_GET_FIRST(
@@ -2189,7 +2196,8 @@ Do not load any columns or indexes.
 @retval	nullptr on success, or if the record is not visible, in
 which case *table will be nullptr */
 const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
-                                const rec_t *rec, dict_table_t **table)
+                                const rec_t *rec, dict_table_t **table,
+                                bool *uncommitted_rec)
 {
 	table_id_t	table_id;
 	uint32_t	space_id, t_num, flags, flags2;
@@ -2204,7 +2212,7 @@ const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
 	if (auto r = dict_sys_tables_rec_read(rec, uncommitted, mtr,
 					      &table_id, &space_id,
 					      &t_num, &flags, &flags2,
-					      &trx_id)) {
+					      &trx_id, uncommitted_rec)) {
 		*table = NULL;
 		return r == READ_ERROR ? dict_load_table_flags : nullptr;
 	}
@@ -2385,8 +2393,10 @@ err_exit:
 	}
 
 	dict_table_t* table;
+	bool uncommitted_rec = false;
 	if (const char* err_msg =
-	    dict_load_table_low(&mtr, uncommitted, rec, &table)) {
+	    dict_load_table_low(&mtr, uncommitted, rec, &table,
+				&uncommitted_rec)) {
 		if (err_msg != dict_load_table_flags) {
 			ib::error() << err_msg;
 		}
@@ -2401,6 +2411,44 @@ err_exit:
 		: table->id == mach_read_from_8(
 			rec + rec_get_field_start_offs(
 				rec, DICT_FLD__SYS_TABLES__ID));
+
+	/* This is the first attempt (not READ UNCOMMITTED), and the table
+	identifier was not changed by an uncommitted transaction. */
+	if (use_uncommitted == 1) {
+		/* If the current version of this record was written by
+		a transaction that has not been committed,
+		dict_sys_tables_rec_read() read an older version of it.
+		When that transaction is an instant ALTER TABLE, the
+		clustered index metadata record already describes the
+		table definition that the transaction is creating, and
+		we must load that definition instead of the preceding
+		one.
+
+		This cannot be detected while reading SYS_COLUMNS. The
+		number of SYS_COLUMNS records that dict_load_columns()
+		reads is derived from SYS_TABLES.N_COLS, which we would
+		be reading from the older version. A column that the
+		operation appended is located after that many records,
+		and its SYS_COLUMNS record would never be read. Here we
+		are looking at a record that is located by table name,
+		so no such limit applies.
+
+		A delete-marked record is excluded. SYS_TABLES.NAME is
+		the clustered index key, so RENAME TABLE delete-marks the
+		record of the old name and inserts one for the new name.
+		The definition that corresponds to the old name is the
+		one that precedes the rename, which is what
+		dict_sys_tables_rec_read() already returned. Every
+		operation that modifies a table definition in place,
+		including instant ALTER TABLE, updates a non-key column
+		and leaves the record unmarked. */
+		if (uncommitted_rec && !rec_get_deleted_flag(rec, 0)) {
+			uncommitted = true;
+			mtr.commit();
+			dict_mem_table_free(table);
+			goto reload;
+		}
+	}
 
 	mtr.commit();
 
