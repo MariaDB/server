@@ -1,19 +1,25 @@
 #
-# How the JSON aggregates hand their result to the client.
+# How the JSON aggregates deliver their result to the client.
 #
 # A result computed in one character set and asked for in another is
-# converted on the way out.  Whether that conversion happens at all is
-# decided by the character set the returned value carries, which need
-# not be the one the function says it has.
+# converted on the way out.  Two separate questions decide what the
+# client is left holding: which character set the result was computed
+# in, and whether what is in it survives the conversion to the one
+# that was asked for.
 #
-# swe7 is the vehicle throughout.  It has no code point for the
-# brackets and braces a JSON document is built from, so a result that
-# was converted arrives with those replaced by '?', and one handed over
-# unconverted arrives intact.  The difference is therefore visible
+# swe7 is the vehicle for the first of those.  It has no code point
+# for the brackets and braces a JSON document is built from, so a
+# result converted into it arrives with those replaced by '?'.  That
+# is what a conversion having happened looks like, and it is visible
 # without a single non-ASCII byte in this file.  A client asking for
-# latin1 is told the same two stories, but the second one reaches it as
-# utf8mb4 bytes under a latin1 label, which is not printable and not
-# recoverable.
+# latin1 sees nothing to remark on, latin1 having the punctuation:
+# the conversion happens just the same and the result arrives intact.
+#
+# The later sections ask the other question, leaving the client alone
+# and computing the result in a character set of its own.  There the
+# punctuation has to go down at the width that character set asks
+# for, and where the character set has no punctuation to write, what
+# is written is not a document at all.
 #
 SET NAMES utf8mb4;
 CREATE TABLE t1 (g INT, a VARCHAR(20) CHARACTER SET utf8mb4);
@@ -36,15 +42,15 @@ v
 ?"aa"?
 SELECT JSON_ARRAYAGG(a) AS v FROM t1;
 v
-["aa","bb","cc","dd"]
+?"aa","bb","cc","dd"?
 SELECT JSON_OBJECTAGG(a,a) AS v FROM t1;
 v
 ?"aa":"aa", "bb":"bb", "cc":"cc", "dd":"dd"?
 # one group per row of output, so the delivery is repeated
 SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g ORDER BY g;
 g	v
-1	["aa","bb"]
-2	["cc","dd"]
+1	?"aa","bb"?
+2	?"cc","dd"?
 SELECT g, JSON_OBJECTAGG(a,a) AS v FROM t1 GROUP BY g ORDER BY g;
 g	v
 1	?"aa":"aa", "bb":"bb"?
@@ -127,14 +133,14 @@ SET SESSION character_set_results = DEFAULT;
 SET SESSION character_set_results = swe7;
 SELECT JSON_ARRAYAGG(DISTINCT a) AS v FROM t1;
 v
-["aa","bb","cc","dd"]
+?"aa","bb","cc","dd"?
 SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1;
 v
-["dd","cc","bb","aa"]
+?"dd","cc","bb","aa"?
 # a group of one writes no separator, so it exercises less than it looks
 SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'aa';
 v
-["aa"]
+?"aa"?
 # no rows at all: NULL, which is never delivered as a string
 SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
 v
@@ -154,32 +160,29 @@ SET SESSION character_set_results = DEFAULT;
 #
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1;
 h
-5B0022006100610022002C0022006200620022002C0022006300630022002C00220064006400225D
+005B0022006100610022002C0022006200620022002C0022006300630022002C0022006400640022005D
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS valid FROM t1;
 valid
-0
-Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+1
+SELECT CONVERT(JSON_ARRAYAGG(CONVERT(a USING ucs2)) USING utf8mb4) AS v FROM t1;
+v
+["aa","bb","cc","dd"]
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS h FROM t1;
 h
-5B0022006100610022002C0022006200620022002C0022006300630022002C00220064006400225D
+005B0022006100610022002C0022006200620022002C0022006300630022002C0022006400640022005D
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS valid FROM t1;
 valid
-0
-Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+1
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS h FROM t1;
 h
-5B000000220000006100000061000000220000002C000000220000006200000062000000220000002C000000220000006300000063000000220000002C000000220000006400000064000000225D
+0000005B000000220000006100000061000000220000002C000000220000006200000062000000220000002C000000220000006300000063000000220000002C000000220000006400000064000000220000005D
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS valid FROM t1;
 valid
-0
-Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 2
+1
 # a group of one, which is bracket, element, bracket and nothing else
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1 WHERE a = 'aa';
 h
-5B00220061006100225D
+005B0022006100610022005D
 # the same values where one byte is one character, which is the case
 # the brackets were always written for
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING latin1))) AS h FROM t1;
@@ -276,5 +279,43 @@ SELECT g, HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1 GROUP BY g ORDER BY g;
 g	h
 1	7B226161223A226161222C20226262223A226262227D
 2	7B226363223A226363222C20226464223A226464227D
+#
+# 8. swe7 as the character set the aggregate is resolved to.
+#
+# Everywhere above, swe7 is only what the client asked for.  Here it
+# is what the expression resolves to, so the punctuation is written
+# in it - and swe7 puts national letters where the brackets and the
+# braces belong.  What is written is therefore not a document, and
+# JSON_VALID() answers 0 for it.
+#
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS h FROM t1;
+h
+5B226161222C226262222C226363222C226464225D
+SELECT CHARSET(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS cs FROM t1;
+cs
+swe7
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid FROM t1;
+valid
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT g, JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid
+FROM t1 GROUP BY g ORDER BY g;
+g	valid
+1	0
+2	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING swe7),
+CONVERT(a USING swe7))) AS h FROM t1;
+h
+7B226161223A226161222C20226262223A226262222C20226363223A226363222C20226464223A226464227D
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING swe7),
+CONVERT(a USING swe7))) AS valid FROM t1;
+valid
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
 DROP TABLE t1, t2;
 SET NAMES utf8mb4;

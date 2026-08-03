@@ -4976,6 +4976,20 @@ String* Item_func_json_arrayagg::val_str(String *str)
     String s;
 
     /*
+      The brackets are built up in a buffer of their own which is then
+      exchanged with the result, and the exchange carries the character
+      set across along with the bytes.  Left at its default the buffer
+      would say that what it holds is bytes rather than text, which
+      costs twice over: a bracket is then written one byte wide even
+      where a character of this result is two or four, leaving
+      everything between the two of them a byte out of step; and a
+      client asking for a character set other than the one the result
+      was computed in is handed the bytes as they stand, where every
+      other function here converts them first.
+    */
+    s.set_charset(collation.collation);
+
+    /*
       A row that could not be written out left the elements it sits
       between joined by nothing but their separator, so there is no
       array here to return.  Reachable only through a failure to
