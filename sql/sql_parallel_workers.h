@@ -55,21 +55,6 @@ class Item;
 class TMP_TABLE_PARAM;
 
 
-/*
-  One non-driving join table as the worker joins it: its private TABLE copy,
-  the access method, a worker-bound clone of the ref (for REF/EQ_REF), and the
-  cloned per-table condition. See setup_worker_inner_tabs / worker_join_inner.
-*/
-struct pwt_jointab
-{
-  TABLE          *table;   // worker's private copy of this join table
-  enum join_type type;     // JT_EQ_REF, JT_REF or JT_ALL
-  TABLE_REF      ref;      // worker-bound clone of the ref (REF/EQ_REF only)
-  Item           *cond;    // cloned + rebound select_cond (may be NULL)
-  bool           sorted;   // tab->sorted, passed to ha_index_init
-};
-
-
 #define WORKER_NAME                    "Parallel Worker"
 #define WORKER_ID_LENGTH               3
 #define WORKER_NAME_LENGTH             15
@@ -148,7 +133,14 @@ public:
   int worker_join_inner(uint level);
   int worker_emit_row(uint level);
 
-  pwt_jointab   *join_tables;
+  /*
+    This worker's copy of the join's non-const JOIN_TABs, n_tables of them, in
+    join order and indexed the same way pwt_manager::mgr_tabs is: [0] is the
+    parallel-scanned driving table and [1..] the tables joined to it. Copied
+    from the manager's tabs and then rebound to this worker (its TABLE copies,
+    its cloned conditions and refs, its trackers) by setup_worker_tabs().
+  */
+  JOIN_TAB      *join_tabs;
 private:
   int worker_run_query();
 
@@ -189,16 +181,14 @@ private:
   */
   TABLE           *result_table;
   /*
-    Per-worker deep clones of the WHERE condition (worker_cond, may be NULL) and
-    the select list (worker_proj, proj_count items, one per result_table field),
-    with their Item_field leaves rebound to this worker's table copies. Each
+    Per-worker deep clone of the select list, one item per result_table field,
+    with its Item_field leaves rebound to this worker's table copies. Each
     worker owns its own clones so the threads never share mutable Item state
     (null_value, cached results) while they evaluate concurrently. Created on
     the manager thread in init_parallel_workers; evaluated only by this worker.
-    worker_cond is the driving table's pushed condition, applied in the outer
-    scan; the inner tables' conditions live on join_tables.
+    Every table's condition, the driving table's included, lives on the matching
+    join_tabs[] entry as its select_cond.
   */
-  Item            *worker_cond;
   Item            **worker_proj;
   uint            proj_count;
 
@@ -206,9 +196,7 @@ private:
     Multi-table join: this worker's private copy of every non-const join table
     (worker_tables[0] == our_scan_table, the parallel-scanned driving table;
     worker_tables[1 .. n_tables-1] are the tables joined after it, in join
-    order). join_tables[0 .. n_tables-2] describe how the worker joins those
-    non-driving tables (access method, worker-bound ref, cloned condition).
-    For a single-table query n_tables == 1 and join_tables is NULL.
+    order). join_tabs[] carries the matching JOIN_TAB for each of them.
   */
   TABLE           **worker_tables;
   uint            n_tables;
@@ -355,9 +343,9 @@ private:
   /* Open this worker's private copy of every non-const join table (into
      worker->worker_tables / our_scan_table). Returns true on error. */
   bool open_worker_tables(THD *thd, pwt_worker *worker);
-  /* Build worker->join_tables: per non-driving table, the access method, a
-     worker-bound clone of its ref, and a cloned+rebound condition. */
-  bool setup_worker_inner_tabs(THD *thd, pwt_worker *worker);
+  /* Build worker->join_tabs: a copy of each of the manager's non-const
+     JOIN_TABs, rebound to this worker. */
+  bool setup_worker_tabs(THD *thd, pwt_worker *worker);
   /* Free the manager and per-worker result containers. */
   void free_result_tables(THD *thd);
 

@@ -755,10 +755,10 @@ int pwt_worker::worker_join_inner(uint level)
   if (ret >= 0)
     DBUG_RETURN(ret);
 
-  pwt_jointab *it= &join_tables[level];
+  JOIN_TAB *it= &join_tabs[level + 1];
   TABLE *t= it->table;
   int err;
-  Table_access_tracker *tr= &tab_stats[level + 1];
+  Table_access_tracker *tr= it->tracker;
   tr->r_scans++;                        // sub_select() counts one per probe too
 
   if (it->type == JT_ALL)
@@ -772,9 +772,9 @@ int pwt_worker::worker_join_inner(uint level)
     while (!(err= t->file->ha_rnd_next(t->record[0])))
     {
       tr->r_rows++;
-      if (it->cond)
+      if (it->select_cond)
       {
-        bool pass= it->cond->val_bool();
+        bool pass= it->select_cond->val_bool();
         if (manager->fatal_error)
         {
           t->file->ha_rnd_end();
@@ -811,7 +811,7 @@ int pwt_worker::worker_join_inner(uint level)
   while (!err)
   {
     tr->r_rows++;
-    bool pass= !it->cond || it->cond->val_bool();
+    bool pass= !it->select_cond || it->select_cond->val_bool();
     if (manager->fatal_error)
       DBUG_RETURN(1);
     if (pass)
@@ -904,9 +904,9 @@ int pwt_worker::worker_run_query()
   }
 
   // Initialise the index on each ref/eq_ref inner table; reused across lookups.
-  for (i= 0; i + 1 < nt; i++)
+  for (i= 1; i < nt; i++)
   {
-    pwt_jointab *it= &join_tables[i];
+    JOIN_TAB *it= &join_tabs[i];
     if ((it->type == JT_EQ_REF || it->type == JT_REF) &&
         (err= it->table->file->ha_index_init(it->ref.key, it->sorted)))
       break;
@@ -941,9 +941,9 @@ int pwt_worker::worker_run_query()
       tab_stats[0].r_rows++;              // what ANALYZE calls r_rows
 
       // apply per worker select_cond
-      if (worker_cond)
+      if (Item *scan_cond= join_tabs[0].select_cond)
       {
-        bool pass= worker_cond->val_bool();
+        bool pass= scan_cond->val_bool();
         if (mgr->fatal_error)
         {
           eof= true;
@@ -971,8 +971,8 @@ int pwt_worker::worker_run_query()
     err= 0;
 
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
-  for (i= 0; i + 1 < nt; i++)
-    join_tables[i].table->file->ha_index_or_rnd_end();
+  for (i= 1; i < nt; i++)
+    join_tabs[i].table->file->ha_index_or_rnd_end();
   for (i= 0; i < nt; i++)
     worker_tables[i]->file->ha_external_lock(thd, F_UNLCK);
   DBUG_RETURN(err);
@@ -1523,7 +1523,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
       chunk, joins the inner tables, projects worker_proj into result_table and
       ships that record image.
     */
-    if (setup_worker_inner_tabs(thd, workers + i) ||
+    if (setup_worker_tabs(thd, workers + i) ||
         make_result_table(thd, result_defn, &workers[i].result_table) ||
         clone_worker_exprs(thd, workers + i))
     {
@@ -1952,41 +1952,125 @@ err:
 
 
 /*
+  Every JOIN_TAB field the worker's executor could reach that the gate is
+  supposed to have made inert. Checked on the manager's tab before it is copied,
+  so relaxing a gate without teaching the copy about the field it lets through
+  fails here rather than silently executing with the manager's state -- a copy
+  keeps the manager's pointer in anything the copy does not overwrite, which is
+  the same trap TABLE::map and TABLE::in_use were.
+
+  This is not only a guard. Writing it is what found the BNL scan filter: the
+  question "is JOIN_TAB::cache_select inert?" turned out to have the answer no,
+  and a wrong result behind it. Anything added here should be *checked* against
+  the suite, not assumed.
+*/
+static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
+{
+#ifndef DBUG_OFF
+  /* Outer joins: the gate refuses join->outer_join outright. */
+  DBUG_ASSERT(!tab->first_inner);
+  DBUG_ASSERT(!tab->last_inner);
+  DBUG_ASSERT(!tab->first_upper);
+  DBUG_ASSERT(!tab->on_expr_ref || !*tab->on_expr_ref);
+  DBUG_ASSERT(!tab->on_precond);
+
+  /* Semijoin strategies and semijoin materialization. */
+  DBUG_ASSERT(!tab->bush_children);
+  DBUG_ASSERT(tab->sj_strategy == SJ_OPT_NONE);
+  DBUG_ASSERT(!tab->loosescan_match_tab);
+  DBUG_ASSERT(!tab->do_firstmatch);
+  DBUG_ASSERT(!tab->flush_weedout_table);
+  DBUG_ASSERT(!tab->check_weed_out_table);
+  DBUG_ASSERT(!tab->first_weedout_table);
+  DBUG_ASSERT(!tab->emb_sj_nest);
+
+  /* Rowid filters and range/index_merge access. */
+  DBUG_ASSERT(!tab->rowid_filter);
+  DBUG_ASSERT(!tab->select || !tab->select->quick);
+
+  /* Materialized derived tables, CTEs and split materialization. */
+  DBUG_ASSERT(!tab->split_derived_to_update);
+
+  /* DISTINCT and HAVING are refused, so neither shortcut applies. */
+  DBUG_ASSERT(!tab->shortcut_for_distinct);
+  DBUG_ASSERT(!tab->having);
+
+  /* The driving table is scanned; only the tables after it are looked up. */
+  DBUG_ASSERT(is_driving || tab->type == JT_ALL || tab->type == JT_REF ||
+              tab->type == JT_EQ_REF);
+#else
+  (void) tab; (void) is_driving;
+#endif
+}
+
+
+/*
   @brief
-    Describe how this worker joins each non-driving table: access method, a
-    worker-bound clone of the ref (for REF/EQ_REF), and a cloned + rebound
-    per-table condition. Tables are taken in join order; their ref values
-    reference earlier (already-read) tables, which is why the worker joins
-    them in this order.
+    Give this worker its own copy of each of the join's non-const JOIN_TABs,
+    rebound to the worker: its private TABLE copies, its cloned conditions and
+    refs, its own trackers. Tables are taken in join order, which is the order a
+    worker joins them in, because a ref value reads the tables before it.
+
+    The tabs are copied rather than built from nothing so that a field this code
+    does not know about holds the value the optimizer chose instead of a zero
+    that would look deliberate. What must not survive the copy is anything that
+    points into the manager's execution state, so every such field is either
+    overwritten below or asserted inert by pwt_assert_tab_inert().
 
   @return  true on error.
 */
-bool pwt_manager::setup_worker_inner_tabs(THD *thd, pwt_worker *worker)
+bool pwt_manager::setup_worker_tabs(THD *thd, pwt_worker *worker)
 {
-  const uint m= n_tables - 1;            // number of non-driving tables
-  worker->join_tables= nullptr;
-  if (!m)
-    return false;                        // single table: no inner join
-
-  if (!(worker->join_tables= thd->calloc<pwt_jointab>(m)))
+  if (!(worker->join_tabs= thd->alloc<JOIN_TAB>(n_tables)))
     return true;
 
-  for (uint k= 0; k < m; k++)
+  for (uint k= 0; k < n_tables; k++)
   {
-    JOIN_TAB *mtab= mgr_tabs[k + 1];     // manager's non-driving tab
-    pwt_jointab *it= &worker->join_tables[k];
-    it->table= worker->worker_tables[k + 1];
-    it->type= mtab->type;
-    it->sorted= mtab->sorted;
+    JOIN_TAB *mtab= mgr_tabs[k];
+    JOIN_TAB *wtab= &worker->join_tabs[k];
 
+    pwt_assert_tab_inert(mtab, k == 0);
+    *wtab= *mtab;
+
+    wtab->table= worker->worker_tables[k];
+
+    /*
+      Both halves of the condition, ANDed, so select_cond alone is the whole of
+      what this table is filtered by. The places the optimizer had moved parts
+      of it to are then cleared: they name items belonging to the manager, and a
+      worker that read them would be evaluating another thread's Items.
+    */
     if (pwt_clone_table_conds(thd, mtab, mgr_tables, worker->worker_tables,
-                              n_tables, &it->cond))
+                              n_tables, &wtab->select_cond))
       return true;
+    wtab->pre_idx_push_select_cond= nullptr;
+    wtab->cache_select= nullptr;
+    wtab->select= nullptr;
 
-    if (it->type == JT_EQ_REF || it->type == JT_REF)
+    /* No join buffer in a worker: it joins a row at a time. */
+    wtab->cache= nullptr;
+    wtab->use_join_cache= FALSE;
+    wtab->jbuf_tracker= nullptr;
+
+    /* ANALYZE reads these back off the manager, see quiesce_workers(). */
+    wtab->tracker= &worker->tab_stats[k];
+
+    /*
+      Set where the worker runs the join rather than here: the JOIN it belongs
+      to and the record sources it is driven through are the next steps of the
+      executor split. Nulled so that reaching them before then is a crash and
+      not a read of the manager's.
+    */
+    wtab->join= nullptr;
+    wtab->next_select= nullptr;
+    wtab->read_first_record= nullptr;
+    bzero((char*) &wtab->read_record, sizeof(wtab->read_record));
+
+    if (k && (wtab->type == JT_EQ_REF || wtab->type == JT_REF))
     {
-      if (clone_table_ref(thd, &mtab->ref, it->table,
-                          mgr_tables, worker->worker_tables, n_tables, &it->ref))
+      if (clone_table_ref(thd, &mtab->ref, wtab->table,
+                          mgr_tables, worker->worker_tables, n_tables,
+                          &wtab->ref))
         return true;
     }
   }
@@ -2007,11 +2091,6 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
 {
   TABLE **from= mgr_tables;
   TABLE **to= worker->worker_tables;
-
-  // the condition the driving table is filtered by, see pwt_table_conds()
-  if (pwt_clone_table_conds(thd, scan_tab, from, to, n_tables,
-                            &worker->worker_cond))
-    return true;
 
   // shipped columns -> per-item projection into result_table->field[i]
   worker->proj_count= ship_list.elements;
