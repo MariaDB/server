@@ -1,0 +1,202 @@
+#
+# The last step of a path, when the path and the document are written
+# in different character sets.
+#
+# A path is parsed in its own character set.  Every step of it is
+# therefore a sequence of characters, and comparing a step against a
+# key of the document is a comparison of characters, not of bytes.
+# These tests cover the last step of the path, which is the one the
+# mutating functions handle themselves instead of leaving it to the
+# path walker.  The interior steps are covered alongside as the
+# contrast case.
+#
+# The keys below are non ASCII characters, written as the bytes that
+# write them so that this file needs no character set of its own:
+#   C3 A9       is U+00E9, one byte in latin1 (E9)
+#   E2 82 AC    is U+20AC, one byte in this server's latin1 (80)
+#   E6 BC A2    is U+6F22, which latin1 has no room for
+#
+SET NAMES utf8mb4;
+#
+# 1. Replacing a key that is already in the document.  The key is the
+#    same character on both sides, encoded in two bytes in the path
+#    and with one in the document.
+#
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4'{"e":1}' USING latin1),
+_utf8mb4'$."e"', 2)) AS ascii_key;
+ascii_key
+7B2265223A20327D
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+_utf8mb4 0x242E22C3A922, 2)) AS wide_key;
+wide_key
+7B22E9223A20327D
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+_utf8mb4 0x242E22C3A922, 2)) AS set_existing;
+set_existing
+7B22E9223A20327D
+SELECT JSON_VALID(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+_utf8mb4 0x242E22C3A922, 2)) AS still_valid;
+still_valid
+1
+#
+# 2. The same document and path in one character set, as the control.
+#
+SELECT HEX(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+_utf8mb4 0x242E22C3A922, 2)) AS same_cs;
+same_cs
+7B22C3A9223A20327D
+SELECT CHARSET(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+_utf8mb4 0x242E22C3A922, 2)) AS same_cs_charset;
+same_cs_charset
+utf8mb4
+#
+# 3. An interior step, which the path walker handles.  This one has
+#    always compared characters.
+#
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A7B2262223A317D7D USING latin1),
+_utf8mb4 0x242E22C3A9222E62, 2)) AS interior_step;
+interior_step
+7B22E9223A207B2262223A20327D7D
+#
+# 4. Adding a key that is not in the document.  The bytes of the key
+#    have to arrive in the document's character set.
+#
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22C3A922, 2)) AS insert_wide_key;
+insert_wide_key
+7B2261223A20312C2022E9223A20327D
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22C3A922, 2)) AS set_new_key;
+set_new_key
+7B2261223A20312C2022E9223A20327D
+# read the key back with a path in the document's own character set
+SELECT JSON_EXTRACT(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22C3A922, 2),
+CONVERT(_utf8mb4 0x242E22C3A922 USING latin1)) AS read_back;
+read_back
+2
+#
+# 5. The other direction: a document in the wider character set and a
+#    path in the narrower one.
+#
+SELECT HEX(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+CONVERT(_utf8mb4 0x242E22C3A922 USING latin1), 2))
+AS narrow_path;
+narrow_path
+7B22C3A9223A20327D
+SELECT HEX(JSON_INSERT(_utf8mb4'{"a":1}',
+CONVERT(_utf8mb4 0x242E22C3A922 USING latin1), 2))
+AS narrow_insert;
+narrow_insert
+7B2261223A20312C2022C3A9223A20327D
+#
+# 6. Removing a key.  JSON_REMOVE only has to match, never to write.
+#
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4 0x7B22C3A9223A312C2261223A327D USING latin1),
+_utf8mb4 0x242E22C3A922)) AS remove_wide;
+remove_wide
+7B2261223A20327D
+SELECT HEX(JSON_REMOVE(_utf8mb4 0x7B22C3A9223A312C2261223A327D,
+_utf8mb4 0x242E22C3A922)) AS remove_same_cs;
+remove_same_cs
+7B2261223A20327D
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4 0x7B2261223A7B22C3A9223A317D2C2262223A327D USING latin1),
+_utf8mb4 0x242E612E22C3A922)) AS remove_interior;
+remove_interior
+7B2261223A207B7D2C202262223A20327D
+#
+# 7. A key the document's character set has no room for.  U+20AC is
+#    in this server's latin1, U+6F22 is not.
+#
+# A key that will not convert is spliced in as it arrived, which is
+# what was done with every key before any of them was converted, and
+# a note says so.  Whether the document that results can be read
+# back is then decided by the document's character set, on the same
+# terms as before.  latin1 has a character at every byte, so the
+# document always comes back.  ucs2 reads its bytes two at a time,
+# so what comes back depends on how many there are: an even number
+# reads as characters and the document is kept, an odd one leaves a
+# byte over and the document is refused, which is where a key that
+# would not convert was refused before.
+#
+# U+6F22 is in ucs2 and so is converted like any other key.
+# U+1F600 is not in ucs2, and takes four bytes; 'a' before it makes
+# five.
+#
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E282AC22, 2)) AS euro_into_latin1;
+euro_into_latin1
+7B2261223A20312C202280223A20327D
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable;
+unrepresentable
+7B2261223A20312C2022E6BCA2223A20327D
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_insert' at position 0
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable_set;
+unrepresentable_set
+7B2261223A20312C2022E6BCA2223A20327D
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_set' at position 0
+# a ucs2 document, which has room for this key and so takes it
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+_utf8mb4 0x242E22E6BCA222, 2)) AS representable_ucs2;
+representable_ucs2
+007B002200610022003A00200031002C002000226F220022003A00200032007D
+# a key ucs2 has no room for, whose bytes go in as they are.  Four
+# of them read back as two characters, so the document is kept
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+_utf8mb4 0x242E22F09F988022, 2)) AS unrepresentable_ucs2;
+unrepresentable_ucs2
+007B002200610022003A00200031002C00200022F09F98800022003A00200032007D
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_insert' at position 0
+# and five of them do not, so it is refused on the way back out
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+_utf8mb4 0x242E2261F09F988022, 2)) AS odd_length_ucs2;
+odd_length_ucs2
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_insert' at position 0
+Warning	4035	Broken JSON string in argument 1 to function 'json_insert' at position 30
+# and inside a statement that stops on a warning
+CREATE TABLE t1 (id INT, doc LONGTEXT CHARACTER SET latin1);
+SET SESSION sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t1 VALUES
+(1, JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E6BCA222, 2)),
+(2, JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4'$.b', 2));
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_insert' at position 0
+SELECT id, HEX(doc) AS stored FROM t1 ORDER BY id;
+id	stored
+1	7B2261223A20312C2022E6BCA2223A20327D
+2	7B2261223A20312C202262223A20327D
+SET SESSION sql_mode=DEFAULT;
+DROP TABLE t1;
+# matching an absent key needs no conversion, so it still just misses
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable_replace;
+unrepresentable_replace
+7B2261223A20317D
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+_utf8mb4 0x242E22E6BCA222)) AS unrepresentable_remove;
+unrepresentable_remove
+7B2261223A20317D
+#
+# 8. A key holding the character that ends a key in the document.
+#    This is not valid to splice, and stays a failure.
+#
+SELECT JSON_INSERT('{}', '$.a"b', 1) AS quote_in_key;
+quote_in_key
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
+SELECT JSON_INSERT(CONVERT(_utf8mb4'{}' USING latin1),
+_utf8mb4'$.a"b', 1) AS quote_in_key_cross_cs;
+quote_in_key_cross_cs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4

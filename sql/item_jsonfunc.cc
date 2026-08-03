@@ -94,6 +94,54 @@ append_simple(String *s, const uchar *a, size_t a_len)
 }
 
 
+static void report_bad_chr_note(const char *fname, int n_arg);
+
+
+/*
+  Appends the key of a path step to the document being built.
+
+  A path is written in its own character set, which is not necessarily
+  the one of the document, so the key may have to be converted before it
+  can be spliced in.  Only a conversion that lost nothing is taken: a
+  key holding a character the document's character set has no room for
+  goes in as it arrived, which is what was done with every key before
+  any key was converted at all, and a note says so.
+
+  Whether the document that results can still be read is then decided
+  by the document's character set, exactly as it was decided before:
+  one that admits every byte keeps the document, and one that does not
+  refuses it on the way back out.  Deciding it here instead would take
+  away documents that have always been given.
+
+  Nothing else is done to the key: one holding a character that is not
+  allowed unescaped inside a JSON string stays invalid, and is caught
+  where it was caught before.
+*/
+static bool __attribute__((warn_unused_result))
+append_json_path_key(String *s, const json_path_step_t *step,
+                     CHARSET_INFO *path_cs, String *tmp_key,
+                     const char *fname, int n_arg)
+{
+  size_t key_len= (size_t) (step->key_end - step->key);
+  uint errors;
+
+  if (!my_charset_same(path_cs, s->charset()))
+  {
+    if (tmp_key->copy((const char *) step->key, key_len, path_cs,
+                      s->charset(), &errors) ||
+        DBUG_IF("json_path_key_out_of_memory"))
+      return true; /* Out of memory. */
+
+    if (!errors)
+      return append_simple(s, tmp_key->ptr(), tmp_key->length());
+
+    report_bad_chr_note(fname, n_arg);
+  }
+
+  return append_simple(s, step->key, key_len);
+}
+
+
 /*
   Appends JSON string to the String object taking charsets in
   consideration.
@@ -135,7 +183,7 @@ bool st_append_json(String *s,
   Appends arbitrary String to the JSON string taking charsets in
   consideration.
 */
-int st_append_escaped(String *s, const String *a)
+json_append_result st_append_escaped(String *s, const String *a)
 {
   /*
     In the worst case one character from the 'a' string
@@ -143,17 +191,19 @@ int st_append_escaped(String *s, const String *a)
   */
   int str_len= a->length() * 12 * s->charset()->mbmaxlen /
                a->charset()->mbminlen;
-  if (!s->reserve(str_len, 1024) &&
-      (str_len=
-         json_escape(a->charset(), (uchar *) a->ptr(), (uchar *)a->end(),
-                     s->charset(),
-                     (uchar *) s->end(), (uchar *)s->end() + str_len)) > 0)
-  {
-    s->length(s->length() + str_len);
-    return 0;
-  }
+  if (s->reserve(str_len, 1024) ||
+      DBUG_IF("json_escape_reserve_out_of_memory"))
+    return JSON_APPEND_OOM;
 
-  return a->length();
+  str_len= json_escape(a->charset(), (uchar *) a->ptr(), (uchar *)a->end(),
+                       s->charset(),
+                       (uchar *) s->end(), (uchar *)s->end() + str_len);
+  if (str_len < 0)
+    return str_len == JSON_ERROR_ILLEGAL_SYMBOL ?
+           JSON_APPEND_BAD_CHR : JSON_APPEND_OOM;
+
+  s->length(s->length() + str_len);
+  return JSON_APPEND_OK;
 }
 
 
@@ -320,7 +370,20 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   if (nice_js->alloc(je->s.str_end - je->s.c_str + 32))
     goto error;
-  
+
+  /*
+    The buffer above is a guess, and the loose form can outgrow it: it
+    spends two characters where the compact form spends one, so an input
+    with more than sixteen separators in it needs more room than was
+    asked for.  Everything written below therefore may have to grow the
+    buffer, and this is where a test arranges for that growing to fail.
+    Disarmed at both ways out, so that only the writing done here is
+    affected.
+  */
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("+d,simulate_realloc_out_of_memory"););
+
+
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
@@ -358,25 +421,25 @@ static int json_nice(json_engine_t *je, String *nice_js,
         if (unlikely(je->s.error))
           goto error;
 
-        if (!first_value)
-          nice_js->append(comma, comma_len);
+        if (!first_value && nice_js->append(comma, comma_len))
+          goto error;
 
         if (mode == Item_func_json_format::DETAILED &&
             append_tab(nice_js, depth, tab_size))
           goto error;
 
-        nice_js->append('"');
-        if (append_simple(nice_js, key_start, key_end - key_start))
+        if (nice_js->append('"') ||
+            append_simple(nice_js, key_start, key_end - key_start) ||
+            nice_js->append(colon, colon_len))
           goto error;
-        nice_js->append(colon, colon_len);
       }
       /* now we have key value to handle, so no 'break'. */
       DBUG_ASSERT(je->state == JST_VALUE);
       goto handle_value;
 
     case JST_VALUE:
-      if (!first_value)
-        nice_js->append(comma, comma_len);
+      if (!first_value && nice_js->append(comma, comma_len))
+        goto error;
 
       if (mode == Item_func_json_format::DETAILED &&
           depth > 0 &&
@@ -392,8 +455,9 @@ handle_value:
                           je->value_end - je->value_begin))
           goto error;
         
-        curr_str.copy((const char *)je->value_begin,
-                      je->value_end - je->value_begin, je->s.cs);
+        if (curr_str.copy((const char *)je->value_begin,
+                          je->value_end - je->value_begin, je->s.cs))
+          goto error;
         value_len= je->value_end - je->value_begin;
         first_value= 0;
         if (value_size != -1)
@@ -405,7 +469,9 @@ handle_value:
             depth > 0 && !(curr_state != JST_KEY) &&
             append_tab(nice_js, depth, tab_size))
           goto error;
-        nice_js->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1);
+        if (nice_js->append((je->value_type == JSON_VALUE_OBJECT) ?
+                            "{" : "[", 1))
+          goto error;
         first_value= 1;
         value_size= (je->value_type == JSON_VALUE_OBJECT) ? -1: 0;
         depth++;
@@ -426,10 +492,12 @@ handle_value:
         nice_js->length(nice_js->length() - value_len);
         for (auto i = 0; i < (depth + 1) * tab_size + 1; i++)
           nice_js->chop();
-        nice_js->append(curr_str);
+        if (nice_js->append(curr_str))
+          goto error;
       }
-      
-      nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1);
+
+      if (nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1))
+        goto error;
       first_value= 0;
       value_size= -1;
       break;
@@ -439,9 +507,13 @@ handle_value:
     };
   } while (json_scan_next(je) == 0);
 
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("-d,simulate_realloc_out_of_memory"););
   return je->s.error || *je->killed_ptr;
 
 error:
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("-d,simulate_realloc_out_of_memory"););
   return 1;
 }
 
@@ -505,6 +577,30 @@ void report_json_error_ex(const char *js, json_engine_t *je,
   else
     push_warning_printf(thd, lv, code, ER_THD(thd, code),
                         n_param, fname, position);
+}
+
+
+/*
+  Says that a character had nowhere to go, in the cases where that is
+  all that is being said: the bytes are passed on unchanged, as they
+  always were, and this note is the only sign that anything was amiss.
+
+  A note and not a warning.  A warning becomes an error inside a
+  statement running under strict mode, and every caller of this is
+  somewhere the released server said nothing at all, so a warning would
+  stop statements that used to finish.
+
+  The argument is numbered the way the caller numbers it in its other
+  diagnostics, and the position is the beginning of it: what is
+  reported here is that the writing stopped, not where it stopped.
+*/
+static void report_bad_chr_note(const char *fname, int n_arg)
+{
+  THD *thd= current_thd;
+
+  if (thd)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_JSON_BAD_CHR,
+                        ER_THD(thd, ER_JSON_BAD_CHR), n_arg, fname, 0);
 }
 
 
@@ -906,6 +1002,7 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 String *Item_func_json_quote::val_str(String *str)
 {
   String *s= args[0]->val_str(&tmp_s);
+  json_append_result rc;
 
   if ((null_value= (args[0]->null_value ||
                     args[0]->result_type() != STRING_RESULT)))
@@ -914,16 +1011,34 @@ String *Item_func_json_quote::val_str(String *str)
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
+  if (str->append('"') || DBUG_IF("json_quote_open_out_of_memory"))
+    goto error;
+
+  if ((rc= st_append_escaped(str, s)))
   {
-    /* Report an error. */
-    null_value= 1;
-    return 0;
+    /*
+      A character no document can carry stops the writing, and this
+      function has always answered NULL for it.  What it has never done
+      is SAY so: the three other JSON functions that write a value
+      through st_append_escaped() all report the note, and a value moved
+      from one of them to this one lost the only signal there is for the
+      condition.  The optimizer trace calls it as well and reports
+      nothing, a trace not being an answer anybody asked for.  The answer
+      is unchanged - only the silence is.
+    */
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(func_name(), 1);
+    goto error;
   }
 
+  if (str->append('"') || DBUG_IF("json_quote_close_out_of_memory"))
+    goto error;
+
   return str;
+
+error:
+  null_value= 1;
+  return 0;
 }
 
 
@@ -960,6 +1075,83 @@ error:
 }
 
 
+/*
+  Returns the argument unchanged, but in the character set this item
+  declares.  The bytes and the label have to agree: a value encoded one
+  way and labelled another is read wrongly by everything downstream of
+  it, and the character set is settled at fix time, so it is the bytes
+  that have to move.
+
+  An argument that carries no character set at all is read one byte to
+  one character, which is how json_unescape() already reads it when the
+  value turns out to be a string.  Both ways out of the function then
+  say the same thing about the same argument.
+*/
+String *Item_func_json_unquote::return_as_is(String *str, String *js)
+{
+  CHARSET_INFO *from_cs= js->charset();
+  uint errors;
+
+  if (my_charset_same(from_cs, collation.collation))
+    return js;
+
+  if (from_cs == &my_charset_bin)
+  {
+    /*
+      An argument that carries no character set is read one byte to one
+      character, which is the reading json_unescape() gives it on the
+      other way out: my_charset_bin's mb_wc returns the byte itself.
+      Reading it any other way would have the two exits of this function
+      name the same byte as two different characters.  latin1 in
+      particular is NOT that reading - MariaDB's latin1 is cp1252, which
+      differs from it at 27 of the 32 positions in 0x80-0x9F.
+
+      Converted rather than copied, and not through String::copy(),
+      which would not convert: needs_conversion() answers false for a
+      binary source whose length divides the destination's mbminlen, and
+      utf8mb4's is 1, so the bytes would go across untouched and be
+      relabelled - 0x80 would leave here as a lone continuation byte,
+      which is not a character of the set the result says it is in.
+      copy_and_convert() runs the conversion that short-circuit skips.
+    */
+    uint32 room= (uint32) (collation.collation->mbmaxlen * js->length());
+
+    if (str->alloc(room) || DBUG_IF("json_unquote_as_is_out_of_memory"))
+    {
+      null_value= 1;
+      return NULL;
+    }
+    str->length(copy_and_convert((char *) str->ptr(), room,
+                                 collation.collation, js->ptr(),
+                                 js->length(), from_cs, &errors));
+    str->set_charset(collation.collation);
+  }
+  else if (str->copy(js->ptr(), js->length(), from_cs,
+                     collation.collation, &errors) ||
+           DBUG_IF("json_unquote_as_is_out_of_memory"))
+  {
+    null_value= 1;
+    return NULL;
+  }
+
+  /*
+    Only a conversion that lost nothing is worth having.  A character
+    with nowhere to go comes out of the conversion as a substitute for
+    itself, and returning that would answer differently than this
+    call has always answered - the argument would come back altered
+    rather than merely mislabelled.  The label is the lesser of the two
+    wrongs, so the bytes stay as they arrived and the note says why.
+  */
+  if (errors)
+  {
+    report_bad_chr_note("unquote", 0);
+    return js;
+  }
+
+  return str;
+}
+
+
 String *Item_func_json_unquote::val_str(String *str)
 {
   json_engine_t je;
@@ -970,7 +1162,7 @@ String *Item_func_json_unquote::val_str(String *str)
     return NULL;
 
   if (unlikely(je.s.error) || je.value_type != JSON_VALUE_STRING)
-    return js;
+    return return_as_is(str, js);
 
   int buf_len= je.value_len;
   if (js->charset()->cset != my_charset_utf8mb4_bin.cset)
@@ -1006,7 +1198,7 @@ error:
                           ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
                           0, "unquote", 0);
   }
-  return js;
+  return return_as_is(str, js);
 }
 
 
@@ -1936,7 +2128,180 @@ bool is_json_type(const Item *item)
 }
 
 
-static int append_json_value(String *str, Item *item, String *tmp_val)
+/*
+  Appends a value whose type is JSON, which is spliced into the result
+  as it stands instead of being quoted as a string.  Any complete JSON
+  value counts, a bare number or string as much as an object: what the
+  type buys the value is that its own punctuation is kept rather than
+  escaped away.
+
+  Being typed as JSON is not the same as being JSON.  The type comes
+  from a check constraint, the constraint can be switched off for the
+  duration of a statement, and the bytes it would have rejected stay in
+  the column afterwards.  Nothing on the way from the column to here
+  reads them.
+
+  So the value is parsed as it is copied, but a value that does not
+  parse is copied ALL THE SAME, with a note saying so.  It has always
+  been copied, callers have always been able to see the result, and
+  what a released server does is not something to take away from the
+  people relying on it; the note is what is new.  Reading the result
+  back is where a caller finds out, exactly as before.  What the parse
+  is for is to know WHETHER to say anything - and, once the trust
+  predicates exist, to keep an unparseable value from ever being taken
+  on trust by a later reader.
+
+  A value written in another character set is converted first, because
+  the result is read in the character set it is being built in, not in
+  the one the value arrived in.  The quoting arm converts the same way,
+  through json_escape(); a value spliced as JSON cannot go through
+  json_escape() without its punctuation being escaped along with
+  everything else, so it is converted whole and then parsed as whatever
+  it has become.  A character set that cannot hold the value leaves the
+  bytes where they were, again because that is what was done before.
+
+  'depth' is how many structures the value will sit inside once it has
+  been spliced.  Its own nesting adds to that, and it is the total that
+  the scanner's limit applies to.
+*/
+static int append_json_typed_value(String *str, const String *sv, uint depth,
+                                   const char *fname, int n_param)
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> cnv;
+  const char *ptr= sv->ptr();
+  size_t length= sv->length();
+  json_engine_t je;
+  int max_level= 0;
+
+  /*
+    Bytes that carry no character set are left where they are, in both
+    directions and for opposite reasons.  Going into a result that is
+    bytes, there is no character set to convert to.  Coming out of a
+    value that is bytes, String::copy() cannot convert at all -
+    needs_conversion() answers false across that boundary, so the copy
+    would relabel the bytes and change nothing else, which is the one
+    thing this must not do.  The scan below still reads whatever gets
+    appended in the character set of the result, so bytes that do not
+    encode a JSON value there are still refused.
+  */
+  if (!my_charset_same(sv->charset(), str->charset()) &&
+      sv->charset() != &my_charset_bin && str->charset() != &my_charset_bin)
+  {
+    uint errors;
+
+    if (cnv.copy(sv->ptr(), sv->length(), sv->charset(), str->charset(),
+                 &errors) ||
+        DBUG_IF("json_splice_convert_out_of_memory"))
+      return 1; /* Out of memory. */
+
+    /*
+      Only a conversion that lost nothing is worth having.  One that
+      substituted a character has changed the value, and putting a
+      changed value in would be worse than leaving the bytes as they
+      arrived, which is what was always done with them.  The parse
+      below reads them as the result will be read and says so.
+    */
+    if (!errors)
+    {
+      ptr= cnv.ptr();
+      length= cnv.length();
+    }
+  }
+
+  /*
+    The deepest the value goes is read off the scanner as it runs rather
+    than charged to it in advance.  Starting the scan with stack_p
+    already raised looks like the shorter way to ask the same question,
+    but json_scan_start() marks stack[0] as the end of the document and
+    the scanner stops when it pops back to that mark, so raising the
+    pointer past it leaves unwritten slots underneath and the scan never
+    finishes.
+  */
+  json_scan_start(&je, str->charset(), (const uchar *) ptr,
+                  (const uchar *) ptr + length);
+  while (json_scan_next(&je) == 0)
+  {
+    if (je.stack_p > max_level)
+      max_level= je.stack_p;
+  }
+
+  if (je.s.error == 0 && max_level + (int) depth >= JSON_DEPTH_LIMIT)
+    je.s.error= JE_DEPTH;
+
+  /*
+    Said here rather than left to the caller: the callers report through
+    the engine they scanned the DOCUMENT with, which knows nothing about
+    what went wrong with a value, and reports nothing at all when that
+    engine is not itself in error.
+
+    A note and not a warning, because a warning becomes an error inside
+    a statement running under strict mode, and a statement that used to
+    finish would then stop finishing.  What is being added here is
+    something to read, not a new way to fail.  json_valid() says the
+    same thing at the same level for the same reason.
+  */
+  if (je.s.error)
+    report_json_error_ex(ptr, &je, fname, n_param,
+                         Sql_condition::WARN_LEVEL_NOTE);
+
+  return append_simple(str, ptr, length);
+}
+
+
+/*
+  Writes a value that is not itself a document, as a JSON string when
+  the value is one and bare otherwise.
+
+  A character that cannot be written into a document at all leaves the
+  value part written and stops there, which is what has always happened
+  to it.  The caller is told which of the two failures it was, because
+  only one of them is a reason to give up on the whole result.
+*/
+static json_append_result __attribute__((warn_unused_result))
+append_escaped_value(String *str, const String *sv, bool quoted,
+                     const char *fname, int n_param)
+{
+  json_append_result rc;
+
+  if ((quoted && str->append('"')) ||
+      DBUG_IF("json_value_open_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  if ((rc= st_append_escaped(str, sv)))
+  {
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(fname, n_param + 1);
+    return rc;
+  }
+
+  if ((quoted && str->append('"')) ||
+      DBUG_IF("json_value_close_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  return JSON_APPEND_OK;
+}
+
+
+__attribute__((warn_unused_result))
+/*
+  Appends one value to the document being built.
+
+  'depth' is how many structures the value will end up inside, and it is
+  consulted for EVERY value rather than only for one whose type is JSON:
+  it is recorded before the type is looked at, because a value goes in
+  where the caller says whatever it turns out to be.  The functions that
+  BUILD a document pass 1, the value going directly inside the array or
+  object they are making.  The functions that EDIT one pass the depth
+  the path reached, taken off the scanner as je.stack_p and raised by
+  whatever wrap they are adding - none of them passes 0.
+
+  'fname' and 'n_param' name the function and the argument a complaint
+  is about, and they reach BOTH arms: a value spliced in as a document
+  complains through the trailing-text and depth notes, and one written
+  out as a string complains through the bad-character note.
+*/
+static int append_json_value(String *str, Item *item, String *tmp_val,
+                             uint depth, const char *fname, int n_param)
 {
   if (item->type_handler()->is_bool_type())
   {
@@ -1965,15 +2330,10 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
     if (item->null_value)
       goto append_null;
     if (is_json_type(item))
-      return str->append(sv->ptr(), sv->length());
+      return append_json_typed_value(str, sv, depth, fname, n_param);
 
-    if (item->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+    return append_escaped_value(str, sv, item->result_type() == STRING_RESULT,
+                                fname, n_param);
   }
 
 append_null:
@@ -1981,8 +2341,11 @@ append_null:
 }
 
 
+/* The same, reading the value out of a row rather than off an Item. */
+__attribute__((warn_unused_result))
 static int append_json_value_from_field(String *str,
-  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val)
+  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val,
+  uint depth, const char *fname, int n_param)
 {
   if (i->type_handler()->is_bool_type())
   {
@@ -2011,15 +2374,10 @@ static int append_json_value_from_field(String *str,
     if (f->is_null_in_record(key))
       goto append_null;
     if (is_json_type(i))
-      return str->append(sv->ptr(), sv->length());
+      return append_json_typed_value(str, sv, depth, fname, n_param);
 
-    if (i->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+    return append_escaped_value(str, sv, i->result_type() == STRING_RESULT,
+                                fname, n_param);
   }
 
 append_null:
@@ -2027,18 +2385,41 @@ append_null:
 }
 
 
-static int append_json_keyname(String *str, Item *item, String *tmp_val)
+/*
+  Writes a key, which is a JSON string and nothing else.
+
+  A character that cannot be written into a document at all leaves the
+  key part written and stops there, the same as it does in a value -
+  and the caller is told which of the two failures it was for the same
+  reason.  What the caller then does with a key it could not write is
+  its own business: a constructor gives up on the whole document and an
+  aggregate finishes the pair around what went in, but neither of them
+  can say so without being told, and a key that could not be written is
+  worth as much saying as a value that could not.
+*/
+static json_append_result append_json_keyname(String *str, Item *item,
+                                              String *tmp_val,
+                                              const char *fname, int n_param)
 {
+  json_append_result rc;
   String *sv= item->val_str(tmp_val);
   if (item->null_value)
     goto append_null;
 
-  return str->append('"') ||
-         st_append_escaped(str, sv) ||
-         str->append("\": ", 3);
+  if (str->append('"') || DBUG_IF("json_keyname_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  if ((rc= st_append_escaped(str, sv)))
+  {
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(fname, n_param + 1);
+    return rc;
+  }
+
+  return str->append("\": ", 3) ? JSON_APPEND_OOM : JSON_APPEND_OK;
 
 append_null:
-  return str->append("\"\": ", 4);
+  return str->append("\"\": ", 4) ? JSON_APPEND_OOM : JSON_APPEND_OK;
 }
 
 
@@ -2096,13 +2477,15 @@ String *Item_func_json_array::val_str(String *str)
   str->set_charset(collation.collation);
 
   if (str->append('[') ||
-      ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
+      ((arg_count > 0) &&
+       append_json_value(str, args[0], &tmp_val, 1, func_name(), 0)))
     goto err_return;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     if (str->append(", ", 2) ||
-        append_json_value(str, args[n_arg], &tmp_val))
+        append_json_value(str, args[n_arg], &tmp_val, 1, func_name(),
+                          (int) n_arg))
       goto err_return;
   }
 
@@ -2222,7 +2605,8 @@ String *Item_func_json_array_append::val_str(String *str)
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
       if (n_items)
         str->append(", ", 2);
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1))
         goto return_null; /* Out of memory. */
 
       if (str->reserve(str_rest_len, 1024))
@@ -2249,7 +2633,8 @@ String *Item_func_json_array_append::val_str(String *str)
       if (str->append('[') ||
           str->append((const char *) c_from, c_to - c_from) ||
           str->append(", ", 2) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1) ||
           str->append(']') ||
           str->append((const char *) je.s.c_str,
                       js->end() - (const char *) je.s.c_str))
@@ -2406,7 +2791,8 @@ path_err:
         my_error(ER_OUTOFMEMORY, MYF(0), 1);
         goto return_null; /* Out of memory. */
       }
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
@@ -2445,7 +2831,8 @@ path_err:
         my_error(ER_OUTOFMEMORY, MYF(0), 2);
         goto return_null; /* Out of memory. */
       }
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
@@ -2500,15 +2887,17 @@ String *Item_func_json_object::val_str(String *str)
 
   if (str->append('{') ||
       (arg_count > 0 &&
-       (append_json_keyname(str, args[0], &tmp_val) ||
-        append_json_value(str, args[1], &tmp_val))))
+       (append_json_keyname(str, args[0], &tmp_val, func_name(), 0) ||
+        append_json_value(str, args[1], &tmp_val, 1, func_name(), 1))))
     goto err_return;
 
   for (n_arg=2; n_arg < arg_count; n_arg+=2)
   {
     if (str->append(", ", 2) ||
-        append_json_keyname(str, args[n_arg], &tmp_val) ||
-        append_json_value(str, args[n_arg+1], &tmp_val))
+        append_json_keyname(str, args[n_arg], &tmp_val, func_name(),
+                            (int) n_arg) ||
+        append_json_value(str, args[n_arg+1], &tmp_val, 1, func_name(),
+                          (int) n_arg + 1))
       goto err_return;
   }
 
@@ -3403,6 +3792,7 @@ String *Item_func_json_insert::val_str(String *str)
   String *js= args[0]->val_json(&tmp_js);
   uint n_arg, n_path;
   json_string_t key_name;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp_key;
   THD *thd;
 
   DBUG_ASSERT(fixed());
@@ -3415,7 +3805,6 @@ String *Item_func_json_insert::val_str(String *str)
 
   str->set_charset(collation.collation);
   tmp_js.set_charset(collation.collation);
-  json_string_set_cs(&key_name, collation.collation);
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
@@ -3513,7 +3902,8 @@ String *Item_func_json_insert::val_str(String *str)
         if ((do_array_autowrap &&
              (append_simple(str, v_from, je.s.c_str - v_from) ||
               str->append(", ", 2))) ||
-            append_json_value(str, args[n_arg+1], &tmp_val) ||
+            append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                              (int) n_arg + 1) ||
             (do_array_autowrap && str->append(']')) ||
             append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
           goto js_error; /* Out of memory. */
@@ -3555,7 +3945,8 @@ String *Item_func_json_insert::val_str(String *str)
       str->length(0);
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
           (n_item > 0 && str->append(", ", 2)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1) ||
           append_simple(str, v_to, js->end() - v_to))
         goto js_error; /* Out of memory. */
     }
@@ -3565,6 +3956,14 @@ String *Item_func_json_insert::val_str(String *str)
 
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
+
+      /*
+        The key of the step is written in the character set of the path,
+        which is not necessarily the one the document is written in.
+        Comparing it against a key of the document compares characters,
+        so it has to be read in its own character set.
+      */
+      json_string_set_cs(&key_name, c_path->p.s.cs);
 
       while (json_scan_next(&je) == 0 && je.state != JST_OBJ_END)
       {
@@ -3593,10 +3992,16 @@ String *Item_func_json_insert::val_str(String *str)
       str->length(0);
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
           (n_key > 0 && str->append(", ", 2)) ||
-          str->append('"') ||
-          append_simple(str, lp->key, lp->key_end - lp->key) ||
-          str->append("\":", 2) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          str->append('"'))
+        goto js_error; /* Out of memory. */
+
+      if (append_json_path_key(str, lp, c_path->p.s.cs, &tmp_key,
+                               func_name(), (int) n_arg + 1))
+        goto js_error; /* Out of memory. */
+
+      if (str->append("\":", 2) ||
+          append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                            (int) n_arg + 1) ||
           append_simple(str, v_to, js->end() - v_to))
         goto js_error; /* Out of memory. */
     }
@@ -3620,7 +4025,8 @@ v_found:
     }
 
     if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
-        append_json_value(str, args[n_arg+1], &tmp_val) ||
+        append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
+                          (int) n_arg + 1) ||
         append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
       goto js_error; /* Out of memory. */
 continue_point:
@@ -3683,7 +4089,6 @@ String *Item_func_json_remove::val_str(String *str)
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   str->set_charset(js->charset());
-  json_string_set_cs(&key_name, js->charset());
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg++, n_path++)
   {
@@ -3785,6 +4190,13 @@ String *Item_func_json_remove::val_str(String *str)
     {
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
+
+      /*
+        Set here and not once before the loop: each path is written in
+        its own character set, and the key has to be read in the one the
+        path it came from was written in.
+      */
+      json_string_set_cs(&key_name, c_path->p.s.cs);
 
       while (json_scan_next(&je) == 0 && je.state != JST_OBJ_END)
       {
@@ -4461,11 +4873,55 @@ bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
 }
 
 
+/*
+  func_name() ends with '(' so that "Row %lu was cut by %s)" reads
+  properly.  A diagnostic that names the function on its own wants the
+  name without it.
+*/
+static const char json_arrayagg_name[]= "json_arrayagg";
+
+
+/*
+  Cleared where a group begins rather than where its result is asked
+  for.  Without ORDER BY or DISTINCT the rows are written out as they
+  arrive, long before anything asks for the result, so clearing the mark
+  at that point would throw away what the rows had already reported.
+*/
+void Item_func_json_arrayagg::clear()
+{
+  m_bad_element= false;
+  Item_func_group_concat::clear();
+}
+
+
+/*
+  Returning nothing for a row is not the same as the row not being
+  there.  The separator between one element and the next is written
+  before the element is asked for (dump_leaf_key(), item_sum.cc), and it
+  stays written whether an element follows it or not, so a row declined
+  here leaves a separator with nothing on one side of it.
+
+  That is what has always been returned for a value holding a
+  character no document can carry, and it still is: the note is the new
+  part, the shape is not.  A row lost to a buffer that would not grow
+  is a different matter - nothing about the data asked for it, and the
+  statement is over anyway - so the group is marked and refused whole
+  when it is asked for.
+
+  A row holding something that does not parse as JSON reaches neither
+  of these.  It is written out as it stands, the same as it always was.
+*/
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
+  int rc;
+
   m_tmp_json.length(0);
-  if (append_json_value(&m_tmp_json, i, tmp))
+  if ((rc= append_json_value(&m_tmp_json, i, tmp, 1, json_arrayagg_name, 0)))
+  {
+    if (rc == JSON_APPEND_OOM)
+      m_bad_element= true;
     return NULL;
+  }
   return &m_tmp_json;
 }
 
@@ -4473,10 +4929,17 @@ String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
     String *tmp, const uchar *key, size_t offset)
 {
+  int rc;
+
   m_tmp_json.length(0);
 
-  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+  if ((rc= append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp,
+                                        1, json_arrayagg_name, 0)))
+  {
+    if (rc == JSON_APPEND_OOM)
+      m_bad_element= true;
     return NULL;
+  }
 
   return &m_tmp_json;
 
@@ -4511,18 +4974,42 @@ String* Item_func_json_arrayagg::val_str(String *str)
   if ((str= Item_func_group_concat::val_str(str)))
   {
     String s;
-    s.append('[');
+
+    /*
+      A row that could not be written out left the elements it sits
+      between joined by nothing but their separator, so there is no
+      array here to return.  Reachable only through a failure to
+      allocate, which has already raised an error of its own.
+    */
+    if (m_bad_element)
+    {
+      null_value= 1;
+      return NULL;
+    }
+
+    /*
+      The brackets are put on last, so a buffer that will not take them
+      leaves behind something that reads as a value of its own rather
+      than as the array it is meant to be.
+    */
+    if (s.append('['))
+      goto bad_result;
+
     s.swap(*str);
-    str->append(s);
-    str->append(']');
+    if (str->append(s) || str->append(']'))
+      goto bad_result;
   }
   return str;
+
+bad_result:
+  null_value= 1;
+  return NULL;
 }
 
 
 Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
-  :Item_sum(thd, item)
+  :Item_sum(thd, item), m_bad_pair(false)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
@@ -4594,6 +5081,7 @@ void Item_func_json_objectagg::clear()
 {
   result.length(1);
   null_value= 1;
+  m_bad_pair= false;
 }
 
 
@@ -4601,22 +5089,49 @@ bool Item_func_json_objectagg::add()
 {
   StringBuffer<MAX_FIELD_WIDTH> buf;
   String *key;
+  int rc;
 
   key= args[0]->val_str(&buf);
   if (args[0]->is_null())
     return 0;
 
   null_value= 0;
-  if (result.length() > 1)
-    result.append(STRING_WITH_LEN(", "));
+  if (result.length() > 1 && result.append(STRING_WITH_LEN(", ")))
+    goto bad_pair;
 
-  result.append('"');
-  st_append_escaped(&result,key);
-  result.append(STRING_WITH_LEN("\":"));
+  if (result.append('"'))
+    goto bad_pair;
+
+  /*
+    A key with a character no document can carry has always gone in as
+    however much of it could be written, and the pair has always been
+    finished around it.  Only a buffer that would not grow gives up.
+  */
+  if ((rc= st_append_escaped(&result, key)))
+  {
+    if (rc == JSON_APPEND_OOM)
+      goto bad_pair;
+    report_bad_chr_note(func_name(), 1);
+  }
+
+  if (result.append(STRING_WITH_LEN("\":")))
+    goto bad_pair;
 
   buf.length(0);
-  append_json_value(&result, args[1], &buf);
+  if (append_json_value(&result, args[1], &buf, 1, func_name(), 1) ==
+      JSON_APPEND_OOM)
+    goto bad_pair;
 
+  return 0;
+
+bad_pair:
+  /*
+    The pair has been written out in part, and the buffer will not take
+    the rest of it.  Whatever else the group goes on to add, the object
+    it is building is already broken, so it is refused as a whole
+    rather than returned half written.
+  */
+  m_bad_pair= true;
   return 0;
 }
 
@@ -4627,7 +5142,12 @@ String* Item_func_json_objectagg::val_str(String* str)
   if (null_value)
     return 0;
 
-  result.append('}');
+  if (m_bad_pair || result.append('}'))
+  {
+    null_value= 1;
+    return 0;
+  }
+
   return &result;
 }
 
