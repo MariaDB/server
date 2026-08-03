@@ -42,6 +42,7 @@ Completed by Sunny Bains and Marko Makela
 #include "pars0pars.h"
 #include "ut0sort.h"
 #include "row0ftsort.h"
+#include "fts0exec.h"
 #include "row0import.h"
 #include "row0vers.h"
 #include "handler0alter.h"
@@ -1930,6 +1931,18 @@ row_merge_read_clustered_index(
 
 	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
 
+	clust_index = dict_table_get_first_index(old_table);
+	const ulint old_trx_id_col = ulint(old_table->n_cols)
+		- (DATA_N_SYS_COLS - DATA_TRX_ID);
+	ut_ad(old_table->cols[old_trx_id_col].mtype == DATA_SYS);
+	ut_ad(old_table->cols[old_trx_id_col].prtype
+	      == (DATA_TRX_ID | DATA_NOT_NULL));
+	ut_ad(old_table->cols[old_trx_id_col + 1].mtype == DATA_SYS);
+	ut_ad(old_table->cols[old_trx_id_col + 1].prtype
+	      == (DATA_ROLL_PTR | DATA_NOT_NULL));
+	const ulint new_trx_id_col = col_map
+		? col_map[old_trx_id_col] : old_trx_id_col;
+	uint64_t n_rows = 0;
 	ut_ad(!skip_pk_sort || dict_index_is_clust(index[0]));
 	/* There is no previous tuple yet. */
 	prev_mtuple.fields = NULL;
@@ -1951,10 +1964,10 @@ row_merge_read_clustered_index(
 			/* If Doc ID does not exist in the table itself,
 			fetch the first FTS Doc ID */
 			if (add_doc_id) {
-				fts_get_next_doc_id(
+				err = fts_get_next_doc_id(
 					(dict_table_t*) new_table,
-					&doc_id);
-				ut_ad(doc_id > 0);
+					&doc_id, trx->mysql_thd);
+				ut_ad(err || doc_id > 0);
 			}
 
 			row_fts_start_psort(psort_info);
@@ -1967,6 +1980,10 @@ row_merge_read_clustered_index(
 
 			merge_buf[i] = row_merge_buf_create(index[i]);
 		}
+	}
+
+	if (err) {
+		goto err_exit;
 	}
 
 	if (num_spatial > 0) {
@@ -1993,20 +2010,6 @@ row_merge_read_clustered_index(
 
 	/* Find the clustered index and create a persistent cursor
 	based on that. */
-
-	clust_index = dict_table_get_first_index(old_table);
-	const ulint old_trx_id_col = ulint(old_table->n_cols)
-		- (DATA_N_SYS_COLS - DATA_TRX_ID);
-	ut_ad(old_table->cols[old_trx_id_col].mtype == DATA_SYS);
-	ut_ad(old_table->cols[old_trx_id_col].prtype
-	      == (DATA_TRX_ID | DATA_NOT_NULL));
-	ut_ad(old_table->cols[old_trx_id_col + 1].mtype == DATA_SYS);
-	ut_ad(old_table->cols[old_trx_id_col + 1].prtype
-	      == (DATA_ROLL_PTR | DATA_NOT_NULL));
-	const ulint new_trx_id_col = col_map
-		? col_map[old_trx_id_col] : old_trx_id_col;
-	uint64_t n_rows = 0;
-
 	err = pcur.open_leaf(true, clust_index, BTR_SEARCH_LEAF, &mtr);
 	if (err != DB_SUCCESS) {
 err_exit:
@@ -3021,7 +3024,8 @@ wait_again:
 	if (max_doc_id && err == DB_SUCCESS) {
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
-		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
+		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
+				     true, trx->mysql_thd);
 
 		if (err == DB_SUCCESS) {
 			new_table->fts->cache->synced_doc_id = max_doc_id;
@@ -3035,10 +3039,29 @@ wait_again:
 			new_table->fts->cache->first_doc_id =
 				new_table->fts->cache->next_doc_id;
 
+			trx_t *fts_trx = trx_create();
+			/* Inherit the user DDL trx's THD. */
+			fts_trx->mysql_thd = trx->mysql_thd;
+			trx_start_internal(fts_trx);
+			fts_trx->op_info= "setting last FTS document id";
+			FTSQueryExecutor executor(
+				fts_trx, new_table);
 			err= fts_update_sync_doc_id(
+				&executor,
 				new_table,
-				new_table->fts->cache->synced_doc_id,
-				NULL);
+				new_table->fts->cache->synced_doc_id);
+			if (err == DB_SUCCESS) {
+				trx_commit_for_mysql(fts_trx);
+				new_table->fts->cache->synced_doc_id++;
+			} else {
+				sql_print_error(
+				  "InnoDB: ( %s ) while updating "
+				  "last doc id for table %s",
+				  ut_strerr(err),
+				  new_table->name.m_name);
+				fts_trx->rollback();
+			}
+			fts_trx->clear_and_free();
 		}
 	}
 
