@@ -176,3 +176,24 @@ $$
 DELIMITER ;$$
 CALL p1;
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-40155 Weak REF CURSOR without RETURN is not opened using a dynamic SQL statement
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE pdyn AS
+  TYPE cur0_t IS REF CURSOR; -- No RETURN clause - OK for OPEN FOR
+  c cur0_t;
+  vi INT;
+  vn VARCHAR(100);
+BEGIN
+  OPEN c FOR 'SELECT 1,2';
+  FETCH c INTO vi, vn;
+  SELECT vi, vn;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL pdyn;
+DROP PROCEDURE pdyn;

@@ -252,7 +252,6 @@ bool Type_handler_row::
   {
     DBUG_ASSERT(rec->field);
     DBUG_ASSERT(rec->field->elements);
-    DBUG_ASSERT(rec->field->head()->charset == nullptr); // Not prepared
     Row_definition_list *row= rec->field->deep_copy(thd);
     if (!row || thd->lex->sphead->row_fill_field_definitions(thd, row))
       return true; // Error

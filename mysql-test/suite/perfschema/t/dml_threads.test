@@ -21,7 +21,7 @@ update performance_schema.threads
 
 --error ER_WRONG_PERFSCHEMA_USAGE
 update performance_schema.threads
-  set thread_id=12 where PROCESSLIST_ID=connection_id();
+  set thread_id=thread_id + 42 where PROCESSLIST_ID=connection_id();
 
 update performance_schema.threads
   set instrumented= 'NO' where PROCESSLIST_ID=connection_id();

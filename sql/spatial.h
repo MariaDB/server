@@ -325,6 +325,14 @@ public:
 
   static Geometry *construct(Geometry_buffer *buffer,
                              const char *data, uint32 data_len);
+  /*
+    A WKB starts with a SRID and a WKB header.  A buffer shorter than
+    the length of these together cannot possibly hold a geometry.
+  */
+  static bool is_valid_geometry_length(uint32 data_len)
+  {
+    return data_len >= SRID_SIZE + WKB_HEADER_SIZE;
+  }
   static Geometry *create_from_wkt(Geometry_buffer *buffer,
 				   Gis_read_stream *trs, String *wkt,
 				   bool init_stream=1);

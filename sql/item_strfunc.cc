@@ -1282,8 +1282,7 @@ bool Item_func_replace::fix_length_and_dec(THD *thd)
   this is done in the constructor to be in the same memroot as
   the item itself
 */
-Item_func_sformat::Item_func_sformat(THD *thd, List<Item> &list)
-  : Item_str_func(thd, list)
+void Item_func_sformat::alloc(THD *thd)
 {
   val_arg= new (thd->mem_root) String[arg_count];
 }

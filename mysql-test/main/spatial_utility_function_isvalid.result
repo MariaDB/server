@@ -473,3 +473,22 @@ c
 SELECT st_astext(ST_VALIDATE(ST_SYMDIFFERENCE(ST_GEOMFROMTEXT(' MULTIPOLYGON( ( ( 2 2, 2 8, 8 8, 8 2, 2 2 ), ( 4 4, 4 6, 6 6, 6 4, 4 4 ) ), ( (0 2,1 2,1 3,0 3,0 2) ) ) '),  ST_GEOMFROMTEXT(' POLYGON( ( 6 6, 5 8, 0 8, 8 1, 7 6, 6 6 ) ) ') ) ) ) <> '' c;
 c
 1
+#
+# Start of 12.3 tests
+#
+CREATE TABLE t0 (c0 INT,c1 POINT);
+INSERT INTO t0 VALUES (-4, Point(0,0));
+INSERT INTO t0 VALUES (6, NULL);
+INSERT INTO t0 VALUES (9, Point(1,1));
+SELECT ST_ISVALID(t0.c1) FROM t0;
+ST_ISVALID(t0.c1)
+1
+NULL
+1
+SELECT ST_ASTEXT(t0.c1) FROM t0;
+ST_ASTEXT(t0.c1)
+POINT(0 0)
+NULL
+POINT(1 1)
+DROP TABLE t0;
+# End of 12.3 tests

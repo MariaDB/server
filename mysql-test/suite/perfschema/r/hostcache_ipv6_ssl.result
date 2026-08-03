@@ -19,7 +19,7 @@ grant select on test.* to 'user_ssl_x509'@'santa.claus.ipv6.example.com'
   REQUIRE SUBJECT '/C=??/ST=??/L=??/
     O=No such thing/
     CN=Santa Claus/emailAddress=santa.claus@example.com';
-connect  con1,"::1",root,,test,$MASTER_MYPORT,;
+connect con1,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive

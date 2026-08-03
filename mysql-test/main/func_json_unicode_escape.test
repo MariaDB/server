@@ -1,0 +1,89 @@
+--echo #
+--echo # MDEV-39995: JSON_CONTAINS and JSON_EQUALS do not compare strings
+--echo #             based on semantic
+--echo #
+
+--echo #
+--echo # JSON string values with Unicode escape sequences should be treated
+--echo # as semantically equal to their literal equivalents.
+--echo # \u0041 is the Unicode escape for 'A'.
+--echo #
+
+--echo # JSON_CONTAINS: should return 1 for semantically equal strings
+SELECT JSON_CONTAINS('"A"', '"\\u0041"');
+SELECT JSON_CONTAINS('"\\u0041"', '"A"');
+
+--echo # JSON_OVERLAPS: should return 1 for semantically equal strings
+SELECT JSON_OVERLAPS('"A"', '"\\u0041"');
+
+--echo # JSON_EQUALS: should return 1 for semantically equal strings
+SELECT JSON_EQUALS('"A"', '"\\u0041"');
+
+--echo # JSON_UNQUOTE correctly resolves the escape (proving they are the same)
+SELECT JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"');
+
+--echo #
+--echo # Additional test from MDEV-39995 comment:
+--echo # Using hex literal that represents the bytes of '"\u0041"'
+--echo #
+SELECT JSON_UNQUOTE('"A"');
+SELECT JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR));
+SELECT JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR));
+--disable_view_protocol
+SELECT JSON_CONTAINS(JSON_QUOTE(JSON_UNQUOTE('"A"')),
+                JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))));
+--enable_view_protocol
+
+--echo #
+--echo # More Unicode escape equivalences
+--echo #
+--echo # \u0048\u0065\u006C\u006C\u006F = "Hello"
+--disable_view_protocol
+SELECT JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+SELECT JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+SELECT JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
+--enable_view_protocol
+
+--echo # Mixed literal and escape in the same string: "H\u0065llo" = "Hello"
+SELECT JSON_EQUALS('"Hello"', '"H\\u0065llo"');
+
+--echo #
+--echo # Test within arrays and objects
+--echo #
+SELECT JSON_CONTAINS('["A", "B"]', '["\\u0041"]');
+SELECT JSON_CONTAINS('{"key": "A"}', '{"key": "\\u0041"}');
+SELECT JSON_EQUALS('["A", "B"]', '["\\u0041", "\\u0042"]');
+SELECT JSON_EQUALS('{"key": "A"}', '{"key": "\\u0041"}');
+
+--echo #
+--echo # Surrogate pairs: characters above U+FFFF encoded as two \uXXXX escapes.
+--echo # U+1F600 (😀) = \uD83D\uDE00
+--echo # U+1F60A (😊) = \uD83D\uDE0A
+--echo #
+--disable_service_connection
+SET NAMES utf8mb4;
+SELECT JSON_EQUALS('"😀"', '"\\uD83D\\uDE00"');
+SELECT JSON_CONTAINS('"😀"', '"\\uD83D\\uDE00"');
+SELECT JSON_OVERLAPS('"😀"', '"\\uD83D\\uDE00"');
+SELECT JSON_EQUALS('"😊"', '"\\uD83D\\uDE0A"');
+SELECT JSON_CONTAINS('["😀", "hello"]', '["\\uD83D\\uDE00"]');
+SELECT JSON_EQUALS('{"emoji": "😀"}', '{"emoji": "\\uD83D\\uDE00"}');
+
+--echo #
+--echo # Escaped object keys: \u006B\u0065\u0079 = "key"
+--echo #
+SELECT JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
+SELECT JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
+
+--echo #
+--echo # BMP non-ASCII: é = U+00E9, literal UTF-8 vs escape
+--echo #
+SELECT JSON_EQUALS('"é"', '"\\u00E9"');
+SELECT JSON_CONTAINS('"é"', '"\\u00E9"');
+SELECT JSON_OVERLAPS('["é"]', '["\\u00E9"]');
+
+--echo #
+--echo # CJK: 中 = U+4E2D
+--echo #
+SELECT JSON_EQUALS('"中"', '"\\u4E2D"');
+--enable_service_connection

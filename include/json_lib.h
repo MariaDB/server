@@ -478,6 +478,15 @@ int json_normalize(DYNAMIC_STRING *result,
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
 
+/*
+  Compare two JSON string values semantically, taking Unicode escape
+  sequences into account. For example, "A" and "\u0041" are considered equal.
+  Returns 0 if the strings are equal, non-zero otherwise.
+*/
+int json_string_compare(CHARSET_INFO *cs,
+                        const uchar *str1, int len1, int escaped1,
+                        const uchar *str2, int len2, int escaped2);
+
 inline static int json_scan_ended(json_engine_t *j)
 {
   return (j->state == JST_ARRAY_END && j->stack_p == 0);

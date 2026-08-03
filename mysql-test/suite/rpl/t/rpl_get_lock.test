@@ -6,6 +6,7 @@ call mtr.add_suppression("Could not read packet:.* errno: 11 ");
 # The following one comes from calling dirty_close on client side
 call mtr.add_suppression("Could not read packet:.* errno: 2 ");
 call mtr.add_suppression("Could not read packet:.* errno: 35 ");
+call mtr.add_suppression("Could not read packet:.* errno: 71 ");
 --enable_query_log
 
 let $org_log_warnings=`select @@global.log_warnings`;

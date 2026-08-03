@@ -16,7 +16,7 @@ create user 'root'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'root'@'santa.claus.ipv6.example.com';
 create user 'quota'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv6.example.com';
-connect  con1,"::1",root,,test,$MASTER_MYPORT,;
+connect con1,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive

@@ -6952,7 +6952,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      &thd->col_access, NULL, FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access.maybe_allowed(DB_ACLS | SHOW_DB_ACL) &&
+    if (!thd->col_access.maybe_allowed((DB_ACLS | SHOW_DB_ACL) & ~GRANT_ACL) &&
         check_grant_db(thd, thd->col_access, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
@@ -7366,7 +7366,6 @@ __attribute__((optimize("-O0")))
 #endif
 check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 {
-#ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
   DBUG_ASSERT(thd->thread_stack);
@@ -7391,7 +7390,6 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef DBUG_OFF
   max_stack_used= MY_MAX(max_stack_used, stack_used);
 #endif
-#endif /* __SANITIZE_ADDRESS__ */
   return 0;
 }
 
@@ -8059,14 +8057,11 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order= thd->alloc<ORDER>(1))))
+  if (unlikely(!(order= thd->calloc<ORDER>(1))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
-  order->used=0;
-  order->counter_used= 0;
-  order->fast_field_copier_setup= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))

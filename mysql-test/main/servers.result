@@ -59,20 +59,20 @@ create server srv foreign data wrapper mysql options
 (host "localhost", port 12345, wait_what "it's all good");
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `mysql` OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
 create or replace server srv foreign data wrapper Foo options
 (host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
 alter server srv options (socket "sock", port 123, foo "", bar ')"{');
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
 alter server srv options (socket "sock", port 123, bar "quux");
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
 create or replace server srv foreign data wrapper foo options
 (host "localhost", port "12345");
 create or replace server srv foreign data wrapper mysql options

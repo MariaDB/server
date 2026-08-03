@@ -379,6 +379,19 @@ create table t (f1 int, f2 int, f3 int, f4 int, f5 int, f6 int, f7 int) engine=m
 alter table t convert partition p0 to table tp;
 drop table if exists tp, t;
 
+--echo #
+--echo # MDEV-40413 ALTER TABLE ... CONVERT ... PARTITION doesn't encode partition names
+--echo #
+create table t1 (a int) partition by list (a) (
+  partition p0 values in (5),
+  partition `foo-bar` values in (7)
+);
+insert t1 values (5),(7);
+alter table t1 convert partition `foo-bar` to table t2;
+alter table t1 convert table t2 to partition `foo-bar` values in (7);
+select * from t1;
+drop table t1;
+
 --echo # End of 10.11 tests
 
 --echo #

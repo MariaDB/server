@@ -68,6 +68,7 @@ public:
   void debug_sync(const char*) override;
   void debug_crash(const char*) override;
   int bf_rollback() override;
+  void notify_state_change() override { }
 private:
   friend class Wsrep_server_service;
   THD* m_thd;

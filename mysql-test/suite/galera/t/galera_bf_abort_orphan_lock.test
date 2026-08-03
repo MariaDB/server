@@ -1,0 +1,103 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+#
+# A local transaction is BF-aborted (wsrep victim flag set) while it holds a
+# granted lock and is about to enqueue a NEW waiting lock for another row.
+#
+# Pre-fix, the victim parked an orphaned LOCK_WAIT request (with wait_thr still
+# set) that survived into rollback; another transaction granting it later
+# invoked lock_wait_end() on the victim from a different thread, corrupting its
+# error_state and tripping the lock_wait_end() / que_thr_step() /
+# rollback_finish() assertions. With the fix, lock_rec_enqueue_waiting()
+# returns DB_DEADLOCK immediately for an already-chosen victim, so no orphaned
+# waiter is created.
+#
+# Two separate tables (t_a, t_b) are used on purpose: the victim is paused
+# holding t_b's page latch, while the applier conflicts on t_a -- so the BF
+# abort cannot deadlock on a page latch the victim holds.
+#
+# Requires a debug build: the regression manifests as an assertion failure.
+#
+
+--connection node_1
+CREATE TABLE t_a (id INT PRIMARY KEY, c INT) ENGINE=InnoDB;
+CREATE TABLE t_b (id INT PRIMARY KEY, c INT) ENGINE=InnoDB;
+INSERT INTO t_a VALUES (1, 0);
+INSERT INTO t_b VALUES (1, 0);
+
+# holder holds the lock that the victim will need on t_b
+--connect node_1_holder, 127.0.0.1, root, , test, $NODE_MYPORT_1
+BEGIN;
+SELECT * FROM t_b WHERE id = 1 FOR UPDATE;
+
+# Victim: holds a granted lock on t_a (makes it a BF target), then locks t_b
+--connect node_1_victim, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION tx_isolation = 'READ-COMMITTED';
+BEGIN;
+UPDATE t_a SET c = c + 1 WHERE id > 0;
+
+--connection node_1
+--let $bf_before = `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'`
+
+# Pause the victim just before it requests the row lock on t_b: past the
+# interrupt check at the top of rec_loop, before it enqueues a waiting lock,
+# and holding no lock_sys/trx mutex (only t_b's page latch).
+--connection node_1_victim
+# Freeze the victim at two points:
+#  (1) just before it requests the t_b row lock -- so it can be flagged a BF
+#      victim while it still holds no wait_lock, and
+#  (2) once it reaches release_locks() during its rollback finalization, while
+#      its state is already TRX_STATE_COMMITTED_IN_MEMORY and (pre-fix) it still
+#      owns the orphaned LOCK_WAIT request on t_b.
+SET DEBUG_SYNC = 'row_search_before_rec_lock SIGNAL victim_at_lock WAIT_FOR victim_cont';
+SET DEBUG_SYNC = 'trx_t_release_locks_enter SIGNAL victim_at_release WAIT_FOR holder_done';
+# WHERE id > 0 forces a non-unique clustered-index scan, i.e. the
+# semi-consistent read path (lock_trx_handle_wait), where a victim's waiting
+# lock is NOT auto-cancelled the way the plain lock_wait() path cancels it.
+--send UPDATE t_b SET c = c + 1 WHERE id > 0
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR victim_at_lock';
+
+# node_2 writeset conflicts with the victim's granted t_a lock -> BF-aborts it.
+# At this moment the victim has no wait_lock, so cancel_lock_wait_for_wsrep_bf_abort()
+# only sets the wsrep victim flag (bit 2) and cancels nothing.
+--connection node_2
+UPDATE t_a SET c = c + 100 WHERE id = 1;
+
+# Wait until the victim has actually been flagged as a BF victim
+--connection node_1
+--let $wait_condition = SELECT variable_value > $bf_before FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'
+--source include/wait_condition.inc
+
+# Release the victim: it enqueues the t_b lock while already a victim, fails with
+# deadlock and rolls back. Pre-fix it leaves an orphaned LOCK_WAIT request and
+# parks in release_locks() (state COMMITTED_IN_MEMORY); the fix makes the
+# enqueue return DB_DEADLOCK so no orphan is ever created.
+SET DEBUG_SYNC = 'now SIGNAL victim_cont';
+SET DEBUG_SYNC = 'now WAIT_FOR victim_at_release';
+
+# Grant the (pre-fix) orphaned waiter by releasing holder's lock while the victim is
+# parked in commit-in-memory: this invokes lock_wait_end() on the committed
+# victim from H's thread -> assertion failure without the fix. With the fix
+# there is no orphan, so the commit is clean.
+--connection node_1_holder
+COMMIT;
+
+# Let the victim finish rolling back
+--connection node_1
+SET DEBUG_SYNC = 'now SIGNAL holder_done';
+
+--connection node_1_victim
+--error ER_LOCK_DEADLOCK
+--reap
+
+# Server is alive and consistent
+--connection node_1
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t_a, t_b;
+
+--disconnect node_1_holder
+--disconnect node_1_victim

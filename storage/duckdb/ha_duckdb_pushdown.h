@@ -45,8 +45,9 @@ class ha_duckdb_select_handler : public select_handler
 {
 public:
   ha_duckdb_select_handler(THD *thd_arg, SELECT_LEX *sel_lex,
-                           SELECT_LEX_UNIT *sel_unit);
-  ha_duckdb_select_handler(THD *thd_arg, SELECT_LEX_UNIT *sel_unit);
+                           SELECT_LEX_UNIT *sel_unit, std::string &&query);
+  ha_duckdb_select_handler(THD *thd_arg, SELECT_LEX_UNIT *sel_unit,
+                           std::string &&query);
   ~ha_duckdb_select_handler() override;
 
   void set_cross_engine(std::vector<std::string> &&tables);

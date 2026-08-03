@@ -21,12 +21,39 @@ insert into t1 select seq, repeat("a", 500) from seq_1_to_100;
 create table t2(a int, b varchar(1024)) engine=myisam;
 insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
 
-show status like "%tmp_space%";
+# The exact number of bytes used for the binlog cache temporary file is
+# not portable (it depends on binary log event encoding), so instead of
+# printing the raw byte counts we only verify the relations that matter
+# for MDEV-37808.
+--let $tmp_used = query_get_value(SHOW STATUS LIKE 'Tmp_space_used', Value, 1)
+--let $max_used = query_get_value(SHOW STATUS LIKE 'Max_tmp_space_used', Value, 1)
+if ($tmp_used > 0)
+{
+--echo # Tmp_space_used is greater than 0
+}
+if ($tmp_used == $max_used)
+{
+--echo # Max_tmp_space_used == Tmp_space_used
+}
 
 change_user foo;
 use test;
 select count(*) from t1;
-show status like "%tmp_space%";
+
+# After change_user the session's Tmp_space_used must be reset to 0 while
+# Max_tmp_space_used is preserved. Before the fix, tmp_space_used was reset
+# incorrectly and a later truncate made it negative, which triggered a
+# bogus "Local temporary space limit reached" error.
+--let $tmp_used2 = query_get_value(SHOW STATUS LIKE 'Tmp_space_used', Value, 1)
+--let $max_used2 = query_get_value(SHOW STATUS LIKE 'Max_tmp_space_used', Value, 1)
+if ($tmp_used2 == 0)
+{
+--echo # Tmp_space_used has been reset to 0
+}
+if ($max_used2 == $max_used)
+{
+--echo # Max_tmp_space_used is preserved across change_user
+}
 
 drop table t1,t2;
 change_user root;

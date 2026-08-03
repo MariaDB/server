@@ -573,17 +573,15 @@ void btr_sea::partition::insert(uint32_t fold, const rec_t *rec) noexcept
       MEM_MAKE_ADDRESSABLE(node, sizeof *node);
       MEM_NOACCESS(node + 1, srv_page_size - sizeof *node);
     }
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+    ut_a(block->n_pointers++ < MAX_N_POINTERS);
+    node->block= block;
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+    node->rec= rec;
+    node->fold= fold;
+    node->next= nullptr;
     blocks_mutex.wr_unlock();
   }
-
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-  ut_a(block->n_pointers++ < MAX_N_POINTERS);
-  node->block= block;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  node->rec= rec;
-
-  node->fold= fold;
-  node->next= nullptr;
 
   *prev= node;
   goto unlock;

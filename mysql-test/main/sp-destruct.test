@@ -275,7 +275,7 @@ CREATE DATABASE db1;
 CREATE PROCEDURE db1.p1() SET @foo = 10;
 
 --echo # Modify a field of the table.
-ALTER TABLE mysql.proc MODIFY comment CHAR (32);
+ALTER TABLE mysql.proc MODIFY comment CHAR (32) not null;
 
 # This should not fail even if mysql.proc is invalid.
 DROP DATABASE db1;

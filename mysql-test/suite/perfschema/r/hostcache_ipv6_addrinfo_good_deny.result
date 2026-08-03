@@ -10,7 +10,7 @@ select `User`, `Host` from mysql.`user` where `user` like '2001:%';
 User	Host
 select `User`, `Host` from mysql.`user` where `user` like 'santa.claus.%';
 User	Host
-connect  con1,"::1",root,,test,$MASTER_MYPORT,;
+connect con1,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive

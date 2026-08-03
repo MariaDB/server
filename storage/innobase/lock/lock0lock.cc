@@ -48,6 +48,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "que0que.h"
 #include "scope.h"
 #include "buf0buf.h"
+#include "my_cpu.h"
 #include <debug_sync.h>
 #include <mysql/service_thd_mdl.h>
 
@@ -1245,6 +1246,7 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
   {
+    ut_ad(!lock->is_predicate());
     if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
     {
       has_s_lock_or_stronger= true;
@@ -1392,6 +1394,9 @@ in the lock bitmap. If wrong sequence is found, the function will crash with
 failed assertion.
 @param lock the lock which bitmap to be checked */
 static void lock_rec_queue_validate_bypass(const lock_t *lock) {
+  /* Predicate locks do not participate in bypass mechanism. */
+  if (lock->is_predicate())
+    return;
   for (ulint i= 0; i < lock_rec_get_n_bits(lock); ++i)
     if (lock_rec_get_nth_bit(lock, i))
       lock_rec_queue_validate_bypass(lock, i);
@@ -1617,6 +1622,14 @@ lock_rec_enqueue_waiting(
         lock, that's why we check only deadlock victim bit here. */
         ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 
+	/* If this transaction has already been chosen as a victim — it must not
+	enqueue a new waiting lock request.
+	Return DB_DEADLOCK so that the caller rolls  back instead of waiting. */
+	if (trx->lock.was_chosen_as_deadlock_victim) {
+		trx->error_state = DB_DEADLOCK;
+		return DB_DEADLOCK;
+	}
+
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 		return DB_LOCK_WAIT_TIMEOUT;
@@ -1766,6 +1779,7 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 		for (lock_t* lock = first_lock;;) {
 			if (!lock_rec_get_nth_bit(lock, heap_no))
 				goto cont;
+			ut_ad(!lock->is_predicate());
 			ut_ad(!lock->is_insert_intention() || lock->is_gap()
 			      || is_supremum);
 			if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
@@ -2048,9 +2062,10 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
   heap_no= lock_rec_find_set_bit(wait_lock);
   const bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
   ut_ad(!(wait_lock->is_insert_intention()) ||
-        (wait_lock->is_gap()) || is_supremum);
-  const bool bypass_mode=
-      !is_supremum && wait_lock->is_rec_exclusive_not_gap();
+        (wait_lock->is_gap()) || (wait_lock->is_predicate()) || is_supremum);
+  /* Predicate locks do not participate in bypass mechanism. */
+  const bool bypass_mode= !is_supremum
+      && wait_lock->is_rec_exclusive_not_gap() && !wait_lock->is_predicate();
   bool has_s_lock_or_stronger= false;
   const lock_t *insert_after= nullptr;
   ut_d(const lock_t *bypassed= nullptr);
@@ -2909,18 +2924,30 @@ lock_move_reorganize_page(
     UT_LIST_INIT(old_locks, &lock_t::trx_locks);
 
     const page_id_t id{block->page.id()};
-    const auto id_fold= id.fold();
+    /* Fast path for the early exit case, available only with lock elision. */
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (have_transactional_memory)
     {
       TMLockGuard g{lock_sys.rec_hash, id};
       if (!lock_sys_t::get_first(g.cell(), id))
         return;
     }
+#endif
 
-    /* We will modify arbitrary trx->lock.trx_locks.
-    Do not bother with a memory transaction; we are going
-    to allocate memory and copy a lot of data. */
-    LockMutexGuard g{SRW_LOCK_CALL};
-    hash_cell_t &cell= *lock_sys.rec_hash.cell_get(id_fold);
+    /* All record locks affected by a page reorganize belong to this
+    single page and therefore live in a single lock_sys.rec_hash cell.
+    Holding that cell latch in exclusive mode (via LockGuard) is sufficient
+    to protect the cell's lock chain and the bitmaps of the lock_t objects
+    in it; each lock's owning trx mutex is acquired per-iteration below to
+    protect that trx's trx_locks list and lock_heap during
+    lock_rec_add_to_queue(). The global lock_sys.wr_lock that this site
+    used to take (LockMutexGuard) was over-strong: it blocked every
+    concurrent lock_sys.rd_lock acquirer in lock_rec_lock() and
+    lock_table() server-wide, even though no work here touches any cell
+    other than this one. Do not attempt lock elision; we are going to
+    allocate memory and copy a lot of data. */
+    LockGuard g{lock_sys.rec_hash, id};
+    hash_cell_t &cell= g.cell();
 
     /* Note: Predicate locks for SPATIAL INDEX are not affected by
     page reorganize, because they do not refer to individual record
@@ -2946,6 +2973,14 @@ lock_move_reorganize_page(
       /* Reset bitmap of lock */
       lock_rec_bitmap_reset(lock);
 
+      /* Clear LOCK_WAIT on the original lock. The bit lives in
+      lock->type_mode and is protected by the cell latch, not by
+      trx->mutex: lock_grant() clears it via lock_reset_lock_and_trx_wait()
+      before taking trx->mutex. We only clear the bit and leave
+      trx->lock.wait_lock intact; the copy in old_locks keeps LOCK_WAIT and
+      phase 2 below re-adds the lock with it, so the wait relationship
+      (guarded by lock_sys.wait_mutex) is preserved across the move and
+      neither trx->mutex nor wait_mutex is needed here. */
       if (lock->is_waiting())
       {
         ut_ad(lock->trx->lock.wait_lock == lock);
@@ -4024,10 +4059,6 @@ lock_table_enqueue_waiting(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(!trx->dict_operation_lock_mode);
 
-	/* Enqueue the lock request that will wait to be granted */
-	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
-
-	trx->lock.wait_thr = thr;
         /* Apart from Galera, only transactions that have waiting lock
         may be chosen as deadlock victims. Only one lock can be waited for at a
         time, and a transaction is associated with a single thread. That is why
@@ -4036,6 +4067,19 @@ lock_table_enqueue_waiting(
         from MDL acquisition code when the transaction does not have waiting
         lock, that's why we check only deadlock victim bit here. */
         ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
+
+	/* A transaction already chosen as a victim must not enqueue a new
+	waiting lock request.
+	Return DB_DEADLOCK so the caller rolls the transaction back. */
+	if (trx->lock.was_chosen_as_deadlock_victim) {
+		trx->error_state = DB_DEADLOCK;
+		return DB_DEADLOCK;
+	}
+
+	/* Enqueue the lock request that will wait to be granted */
+	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
+
+	trx->lock.wait_thr = thr;
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 	return(DB_LOCK_WAIT);
@@ -4525,6 +4569,52 @@ released:
 					g.cell(), first_lock, heap_no);
 }
 
+/** Spin budget for lock_release_try(), lock_release_on_prepare_try() and
+lock_rec_unlock_unmodified() trylock attempts on per-cell and per-table
+latches.
+
+Those paths hold trx->mutex while attempting the trylock (the reverse of
+the standard order used by lock_rec_convert_impl_to_expl()), so blocking
+acquisition would risk deadlock. A single CAS attempt fails too readily
+under contention: any one failure across the trx's record/table locks
+marks the whole try-pass as unsuccessful, and after 5 such passes
+lock_release() escalates to lock_sys.wr_lock() for the entire trx, which
+then blocks every concurrent lock_sys.rd_lock() acquirer in lock_rec_lock()
+and lock_table().
+
+A bounded spin (CAS, PAUSE between attempts, no syscall, no blocking) lets a
+transient holder release without changing the deadlock-avoidance guarantee. The
+upper bound on extra trx->mutex hold time is LOCK_RELEASE_TRY_SPIN_BUDGET
+* pause-cost (tens to ~100ns per iteration, microarchitecture-dependent). */
+static constexpr unsigned LOCK_RELEASE_TRY_SPIN_BUDGET= 16;
+static_assert(LOCK_RELEASE_TRY_SPIN_BUDGET, "the !--spin loops would underflow");
+
+ATTRIBUTE_NOINLINE
+bool lock_sys_t::hash_latch::try_acquire_spin() noexcept
+{
+  for (unsigned spin= LOCK_RELEASE_TRY_SPIN_BUDGET;;)
+  {
+    if (try_acquire())
+      return true;
+    if (!--spin)
+      return false;
+    MY_RELAX_CPU();
+  }
+}
+
+ATTRIBUTE_NOINLINE
+bool dict_table_t::lock_mutex_trylock_spin() noexcept
+{
+  for (unsigned spin= LOCK_RELEASE_TRY_SPIN_BUDGET;;)
+  {
+    if (lock_mutex_trylock())
+      return true;
+    if (!--spin)
+      return false;
+    MY_RELAX_CPU();
+  }
+}
+
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks.
 @return whether the operation succeeded */
@@ -4569,7 +4659,7 @@ restart:
       auto &lock_hash= lock_sys.hash_get(lock->type_mode);
       auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
       auto latch= lock_sys_t::hash_table::latch(cell);
-      if (!latch->try_acquire())
+      if (!latch->try_acquire_spin())
         all_released= false;
       else
       {
@@ -4584,7 +4674,7 @@ restart:
       ut_ad(table->id >= DICT_HDR_FIRST_ID ||
             (lock->mode() != LOCK_IX && lock->mode() != LOCK_X) ||
             trx->dict_operation || trx->was_dict_operation);
-      if (!table->lock_mutex_trylock())
+      if (!table->lock_mutex_trylock_spin())
         all_released= false;
       else
       {
@@ -4744,7 +4834,9 @@ static void lock_rec_unlock(hash_cell_t &cell, lock_t *lock, ulint heap_no)
 
 /** Release locks to unmodified records on a clustered index page.
 @param  block      the block containing locked records
-@param  cell       lock_sys.rec_hash cell of lock
+@param  cell       lock_sys.rec_hash cell of lock; updated in place to the
+                   currently held cell, which a concurrent
+                   lock_sys_t::hash_table::resize() may have moved
 @param  lock       record lock
 @param  offsets    storage for rec_get_offsets()
 @tparam latch_type how the caller of the function latched lock_sys,
@@ -4752,7 +4844,7 @@ static void lock_rec_unlock(hash_cell_t &cell, lock_t *lock, ulint heap_no)
 @return true if the cell was latched successfully or if latch_type is GLOBAL,
         false otherwise */
 template <lock_sys_latch_type latch_type>
-bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *cell,
+bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *&cell,
                                 lock_t *lock, rec_offs *offsets)
 {
   DEBUG_SYNC_C("lock_rec_unlock_unmodified_start");
@@ -4827,7 +4919,7 @@ bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *cell,
           computed cell address invalid */
           cell= lock_sys.rec_hash.cell_get(
               lock->un_member.rec_lock.page_id.fold());
-          if (!lock_sys_t::hash_table::latch(cell)->try_acquire())
+          if (!lock_sys_t::hash_table::latch(cell)->try_acquire_spin())
             return false;
         }
         if (lock->trx != impl_trx)
@@ -4885,7 +4977,7 @@ reiterate:
       const auto fold = lock->un_member.rec_lock.page_id.fold();
       auto cell= lock_sys.rec_hash.cell_get(fold);
       auto latch= lock_sys_t::hash_table::latch(cell);
-      if (latch->try_acquire())
+      if (latch->try_acquire_spin())
       {
         if (!rec_granted_exclusive_not_gap)
         {
@@ -4922,13 +5014,18 @@ reiterate:
             computed cell address invalid */
             cell= lock_sys.rec_hash.cell_get(fold);
             latch= lock_sys_t::hash_table::latch(cell);
-            if (latch->try_acquire())
+            if (latch->try_acquire_spin())
             {
               if (!lock_rec_unlock_unmodified<CELL>(block, cell, lock,
                                                      offsets))
                 all_released= false;
               else
-                latch->release();
+                /* lock_rec_unlock_unmodified() may have released and
+                re-acquired lock_sys, during which a concurrent
+                lock_sys_t::hash_table::resize() could move the cell. It
+                reports the currently held cell in cell, so release that
+                cell's latch rather than the now possibly stale latch. */
+                lock_sys_t::hash_table::latch(cell)->release();
             }
             else
               all_released= false;
@@ -4958,7 +5055,7 @@ reiterate:
       switch (lock->mode()) {
       case LOCK_IS:
       case LOCK_S:
-        if (table->lock_mutex_trylock())
+        if (table->lock_mutex_trylock_spin())
         {
           lock_table_dequeue(lock, false);
           table->lock_mutex_unlock();
@@ -6916,10 +7013,11 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   if (trx->lock.was_chosen_as_deadlock_victim)
     return DB_DEADLOCK;
   DEBUG_SYNC_C("lock_trx_handle_wait_before_unlocked_wait_lock_check");
+
   /* trx->lock.was_chosen_as_deadlock_victim must always be set before
   trx->lock.wait_lock if the transaction was chosen as deadlock victim,
-  the function must not return DB_SUCCESS if
-  trx->lock.was_chosen_as_deadlock_victim is set. */
+  the function must not return DB_SUCCESS
+  if trx->lock.was_chosen_as_deadlock_victim is set. */
   if (!trx->lock.wait_lock)
     return trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
   dberr_t err= DB_SUCCESS;

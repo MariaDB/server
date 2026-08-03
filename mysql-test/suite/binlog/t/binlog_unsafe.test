@@ -646,6 +646,7 @@ SET SESSION binlog_format = MIXED;
 --echo # Check if the statement is logged in row format.
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 INSERT INTO t1 SET a = 2;
+--let $skip_tablemap_events= 1
 --source include/show_binlog_events.inc
 
 # clean up

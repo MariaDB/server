@@ -421,6 +421,10 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
+      if (new_db.str != db.str)
+        new_db= Lex_ident_db(new_db_buff.copy_casedn(files_charset_info,
+                                                      new_db).
+                                          to_lex_cstring());
       new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
                                                           new_name).
                                                 to_lex_cstring());
@@ -428,6 +432,10 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
+      if (new_db.str != db.str)
+        new_db= Lex_ident_db(new_db_buff.copy_casedn(files_charset_info,
+                                                      new_db).
+                                          to_lex_cstring());
       new_alias= new_name;
       new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
                                                           new_name).

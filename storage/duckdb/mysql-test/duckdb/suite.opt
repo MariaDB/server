@@ -1,4 +1,5 @@
 --plugin-load-add=ha_duckdb.so
 --duckdb_dml_in_batch=OFF
+--duckdb_allow_run_in_duckdb=ON
 --character-set-server=utf8mb4
 --character-set-collations=utf8mb4=utf8mb4_uca1400_ai_ci

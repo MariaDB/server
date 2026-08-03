@@ -153,3 +153,22 @@ CALL p1;
 r0.a	r0.b
 1	b1
 DROP PROCEDURE p1;
+#
+# MDEV-40155 Weak REF CURSOR without RETURN is not opened using a dynamic SQL statement
+#
+CREATE PROCEDURE pdyn AS
+TYPE cur0_t IS REF CURSOR; -- No RETURN clause - OK for OPEN FOR
+c cur0_t;
+vi INT;
+vn VARCHAR(100);
+BEGIN
+OPEN c FOR 'SELECT 1,2';
+FETCH c INTO vi, vn;
+SELECT vi, vn;
+CLOSE c;
+END;
+$$
+CALL pdyn;
+vi	vn
+1	2
+DROP PROCEDURE pdyn;

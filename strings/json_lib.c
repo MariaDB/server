@@ -1818,6 +1818,43 @@ int json_unescape(CHARSET_INFO *json_cs,
 }
 
 
+/*
+  Compare two JSON string values semantically, resolving escape sequences.
+  If neither string has escapes, falls back to memcmp for speed.
+  Returns 0 if strings are equal, non-zero otherwise.
+*/
+int json_string_compare(CHARSET_INFO *cs,
+                        const uchar *str1, int len1, int escaped1,
+                        const uchar *str2, int len2, int escaped2)
+{
+  json_string_t s1, s2;
+  int r1;
+
+  if (!escaped1 && !escaped2)
+  {
+    if (len1 != len2)
+      return 1;
+    return memcmp(str1, str2, len1);
+  }
+
+  json_string_setup(&s1, cs, str1, str1 + len1);
+  json_string_setup(&s2, cs, str2, str2 + len2);
+
+  for (r1= json_read_string_const_chr(&s1); r1 == 0;
+       r1= json_read_string_const_chr(&s1))
+  {
+    int r2= json_read_string_const_chr(&s2);
+    if (r2)
+      return 1;
+    if (s1.c_next != s2.c_next)
+      return 1;
+  }
+
+  return (json_read_string_const_chr(&s2) != 0 &&
+          s1.error == JE_EOS && s2.error == JE_EOS) ? 0 : 1;
+}
+
+
 /* When we need to replace a character with the escaping. */
 enum json_esc_char_classes {
   ESC_= 0,    /* No need to escape. */
@@ -2291,13 +2328,14 @@ err_return:
 
 /** Check if json is valid (well-formed)
 
-  @retval 0 - success, json is well-formed
-  @retval 1 - error, json is invalid
+  @retval 1 - success, json is well-formed
+  @retval 0 - error, json is invalid
 */
 int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs, json_engine_t *je)
 {
-
+  volatile const uint32_t *killed_ptr= je->killed_ptr;
   json_scan_start(je, cs, (const uchar *) js, (const uchar *) js + js_len);
+  je->killed_ptr= killed_ptr;
   while (json_scan_next(je) == 0) /* no-op */ ;
 
   return je->s.error == 0;

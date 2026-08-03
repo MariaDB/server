@@ -30,6 +30,7 @@
 #include <mutex>
 #include <sql_i_s.h>
 #include "sql_acl.h"
+#include <chrono>
 
 #define HASHICORP_DEBUG_LOGGING 0
 
@@ -38,13 +39,26 @@
 #define PLUGIN_VERSION 0x0210
 #define PLUGIN_VERSION_STR "2.1"
 
+typedef std::chrono::steady_clock::time_point time_point;
+
+static inline time_point now ()
+{
+  return std::chrono::steady_clock::now();
+}
+
+static inline std::chrono::milliseconds elapsed_ms (time_point from,
+                                                    time_point to)
+{
+  return std::chrono::duration_cast<std::chrono::milliseconds>(to - from);
+}
+
 /* Key version information structure: */
 typedef struct VER_INFO
 {
   unsigned int key_version;
-  clock_t timestamp;
-  VER_INFO() : key_version(0), timestamp(0) {};
-  VER_INFO(unsigned int key_version_, clock_t timestamp_) :
+  time_point timestamp;
+  VER_INFO() : key_version(0), timestamp() {};
+  VER_INFO(unsigned int key_version_, time_point timestamp_) :
     key_version(key_version_), timestamp(timestamp_) {};
 } VER_INFO;
 
@@ -53,13 +67,13 @@ typedef struct KEY_INFO
 {
   unsigned int key_id;
   unsigned int key_version;
-  clock_t timestamp;
+  time_point timestamp;
   unsigned int length;
   unsigned char data [MY_AES_MAX_KEY_LENGTH];
-  KEY_INFO() : key_id(0), key_version(0), timestamp(0), length(0) {};
+  KEY_INFO() : key_id(0), key_version(0), timestamp(), length(0) {};
   KEY_INFO(unsigned int key_id_,
            unsigned int key_version_,
-           clock_t timestamp_,
+           time_point timestamp_,
            unsigned int length_) :
     key_id(key_id_), key_version(key_version_),
     timestamp(timestamp_), length(length_) {};
@@ -164,19 +178,8 @@ private:
 static HCData data;
 static bool loaded= true;
 
-static clock_t cache_max_time;
-static clock_t cache_max_ver_time;
-
-/*
-  Convert milliseconds to timer ticks with rounding
-  to nearest integer:
-*/
-static clock_t ms_to_ticks (long long ms)
-{
-  long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
-  clock_t ticks = (clock_t) (ticks_1000 / 1000);
-  return ticks + ((clock_t) (ticks_1000 % 1000) >= 500);
-}
+static std::chrono::milliseconds cache_max_time;
+static std::chrono::milliseconds cache_max_ver_time;
 
 void HCData::cache_add (const KEY_INFO& info, bool update_version)
 {
@@ -193,10 +196,9 @@ void HCData::cache_add (const KEY_INFO& info, bool update_version)
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_add: key_id = %u, key_version = %u, "
-                  "timestamp = %u, update_version = %u, new version = %u",
+                  "update_version = %u, new version = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  ver_info.timestamp, (int) update_version,
-                  ver_info.key_version);
+                  (int) update_version, ver_info.key_version);
 #endif
   mtx.unlock();
 }
@@ -207,11 +209,11 @@ unsigned int
                      bool with_timeouts)
 {
   unsigned int version = key_version;
-  clock_t current_time = clock();
+  time_point current_time = now();
   mtx.lock();
   if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
   {
-    clock_t timestamp;
+    time_point timestamp;
     VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
     if (ver_iter != latest_version_cache.end())
     {
@@ -226,13 +228,12 @@ unsigned int
 #if HASHICORP_DEBUG_LOGGING
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "cache_get: key_id = %u, key_version = %u, "
-                    "last version = %u, version timestamp = %u, "
-                    "current time = %u, diff = %u",
+                    "last version = %u, diff (ms) = %lld",
                     ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                    version, timestamp, current_time,
-                    current_time - timestamp);
+                    version,
+                    (long long) elapsed_ms(timestamp, current_time).count());
 #endif
-    if (with_timeouts && current_time - timestamp > cache_max_ver_time)
+    if (with_timeouts && elapsed_ms(timestamp, current_time) > cache_max_ver_time)
     {
       mtx.unlock();
       return ENCRYPTION_KEY_VERSION_INVALID;
@@ -254,14 +255,13 @@ unsigned int
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_get: key_id = %u, key_version = %u, "
-                  "effective version = %u, key data timestamp = %u, "
-                  "current time = %u, diff = %u",
+                  "effective version = %u, diff (ms) = %lld",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  version, info.timestamp, current_time,
-                  current_time - info.timestamp);
+                  version,
+                  (long long) elapsed_ms(info.timestamp, current_time).count());
 #endif
   unsigned int length= info.length;
-  if (with_timeouts && current_time - info.timestamp > cache_max_time)
+  if (with_timeouts && elapsed_ms(info.timestamp, current_time) > cache_max_time)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
@@ -306,7 +306,7 @@ unsigned int HCData::cache_get_version (unsigned int key_id)
 unsigned int HCData::cache_check_version (unsigned int key_id)
 {
   unsigned int version;
-  clock_t timestamp;
+  time_point timestamp;
   mtx.lock();
   VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
   if (ver_iter != latest_version_cache.end())
@@ -326,17 +326,15 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
   mtx.unlock();
-  clock_t current_time = clock();
+  time_point current_time = now();
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_check_version: key_id = %u, "
-                  "last version = %u, version timestamp = %u, "
-                  "current time = %u, diff = %u",
+                  "last version = %u, diff (ms) = %lld",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, version,
-                  version, timestamp, current_time,
-                  current_time - timestamp);
+                  (long long) elapsed_ms(timestamp, current_time).count());
 #endif
-  if (current_time - timestamp <= cache_max_ver_time)
+  if (elapsed_ms(timestamp, current_time) <= cache_max_ver_time)
   {
     return version;
   }
@@ -405,7 +403,7 @@ static void cache_timeout_update (MYSQL_THD thd,
 {
   long long timeout = * (long long *) save;
   * (long long *) var_ptr = timeout;
-  cache_max_time = ms_to_ticks(timeout);
+  cache_max_time = std::chrono::milliseconds(timeout);
 }
 
 static MYSQL_SYSVAR_LONGLONG(cache_timeout, cache_timeout,
@@ -421,7 +419,7 @@ static void
 {
   long timeout = * (long *) save;
   * (long *) var_ptr = timeout;
-  cache_max_ver_time = ms_to_ticks(timeout);
+  cache_max_ver_time = std::chrono::milliseconds(timeout);
 }
 
 static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
@@ -794,7 +792,7 @@ unsigned int HCData::get_latest_version (unsigned int key_id)
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
   unsigned int length = (unsigned int) key_len >> 1;
-  KEY_INFO info(key_id, version, clock(), length);
+  KEY_INFO info(key_id, version, now(), length);
   if (length > sizeof(info.data))
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
@@ -920,7 +918,7 @@ unsigned int HCData::get_key_from_vault (unsigned int key_id,
   }
   if (caching_enabled)
   {
-    KEY_INFO info(key_id, (unsigned int) version, clock(), length);
+    KEY_INFO info(key_id, (unsigned int) version, now(), length);
     memcpy(info.data, dstbuf, length);
     cache_add(info, key_version == ENCRYPTION_KEY_VERSION_INVALID);
   }
@@ -1162,8 +1160,8 @@ No_Secret:
   }
   memcpy(vault_url_data, vault_url, vault_url_len);
   memcpy(vault_url_data + vault_url_len, "/data/", 7);
-  cache_max_time = ms_to_ticks(cache_timeout);
-  cache_max_ver_time = ms_to_ticks(cache_version_timeout);
+  cache_max_time = std::chrono::milliseconds(cache_timeout);
+  cache_max_ver_time = std::chrono::milliseconds(cache_version_timeout);
   /* Initialize curl: */
   CURLcode curl_res = curl_global_init(CURL_GLOBAL_ALL);
   if (curl_res != CURLE_OK)

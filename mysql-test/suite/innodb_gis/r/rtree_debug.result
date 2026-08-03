@@ -64,3 +64,33 @@ test.t1	check	status	OK
 truncate table t1;
 drop procedure insert_t1;
 drop table t1;
+#
+# MDEV-39800 Assertion `!(mode & 2048U) || (mode & 512U) || is_supremum' failed
+#
+CREATE TABLE t1 (pt POINT NOT NULL, SPATIAL INDEX(pt)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (ST_GeomFromText('POINT(5 5)'));
+connect  con1,localhost,root,,test;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+SELECT COUNT(*) FROM t1 WHERE ST_Within(pt, ST_GeomFromText('POLYGON((0 0,100 0,100 100,0 100,0 0))'));
+COUNT(*)
+1
+connection default;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+SELECT COUNT(*) FROM t1 WHERE ST_Within(pt, ST_GeomFromText('POLYGON((0 0,100 0,100 100,0 100,0 0))'));
+COUNT(*)
+1
+connection con1;
+INSERT INTO t1 VALUES (ST_GeomFromText('POINT(6 6)'));
+connection default;
+INSERT INTO t1 VALUES (ST_GeomFromText('POINT(7 7)'));
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection con1;
+COMMIT;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+connection default;
+disconnect con1;
+DROP TABLE t1;

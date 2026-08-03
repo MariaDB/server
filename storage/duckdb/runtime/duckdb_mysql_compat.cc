@@ -22,9 +22,8 @@
 
   These add missing type overloads to DuckDB builtins so that pushdown
   queries from MariaDB work without SQL text rewriting.  Registered
-  once at DuckdbManager::Initialize() via register_mysql_compat_functions().
+  once at DuckdbManager::Initialize() via register_mariadb_compat_functions().
 
-  hex/oct/bin implementations ported from AliSQL's DuckDB fork.
 */
 
 #include <my_global.h>
@@ -50,10 +49,14 @@
 #include "duckdb/function/function_set.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/common/types/timestamp.hpp"
+#include "duckdb/common/types/date.hpp"
 #include "duckdb/main/database.hpp"
 #include "duckdb/main/connection.hpp"
 
 #include "duckdb/common/types/string_type.hpp"
+#include "duckdb/execution/expression_executor.hpp"
+#include "duckdb/function/scalar/regexp.hpp"
+#include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "re2/re2.h"
 
 namespace myduck
@@ -374,7 +377,6 @@ static void json_contains_3arg_func(duckdb::DataChunk &args,
 
 /* ================================================================
    hex / oct / bin helper functions
-   Ported from AliSQL's DuckDB fork (core_functions/scalar/string/hex.cpp).
    ================================================================ */
 
 namespace {
@@ -983,14 +985,346 @@ static void locate_3arg_func(duckdb::DataChunk &args,
 }
 
 /* ================================================================
+   regexp_replace(VARCHAR, VARCHAR, VARCHAR) -> VARCHAR
+
+   MariaDB REGEXP_REPLACE replaces ALL matches (global), unlike DuckDB's
+   native 3-arg form which replaces only the first.  We reuse DuckDB's
+   native bind-data / local-state so a constant pattern is compiled once
+   at bind time (RegexInitLocalState) instead of per row.
+
+   Invalid-pattern behavior mirrors MariaDB:
+     - constant pattern  -> RegexLocalState ctor throws (query error);
+     - non-constant       -> per-row NULL.
+   ================================================================ */
+
+static duckdb::unique_ptr<duckdb::FunctionData>
+regexp_replace_bind(duckdb::ClientContext &context,
+                    duckdb::ScalarFunction &,
+                    duckdb::vector<duckdb::unique_ptr<duckdb::Expression>>
+                        &arguments)
+{
+  auto data= duckdb::make_uniq<duckdb::RegexpReplaceBindData>();
+  data->constant_pattern= duckdb::regexp_util::TryParseConstantPattern(
+      context, *arguments[1], data->constant_string);
+  data->global_replace= true;
+  data->options.set_log_errors(false);
+  return duckdb::unique_ptr<duckdb::FunctionData>(std::move(data));
+}
+
+static void regexp_replace_global_func(duckdb::DataChunk &args,
+                                       duckdb::ExpressionState &state,
+                                       duckdb::Vector &result)
+{
+  auto &func_expr= state.expr.Cast<duckdb::BoundFunctionExpression>();
+  auto &info= func_expr.bind_info->Cast<duckdb::RegexpReplaceBindData>();
+
+  auto &strings= args.data[0];
+  auto &patterns= args.data[1];
+  auto &replaces= args.data[2];
+
+  if (info.constant_pattern)
+  {
+    auto &lstate= duckdb::ExecuteFunctionState::GetFunctionState(state)
+                      ->Cast<duckdb::RegexLocalState>();
+    duckdb::BinaryExecutor::Execute<duckdb::string_t, duckdb::string_t,
+                                    duckdb::string_t>(
+        strings, replaces, result, args.size(),
+        [&](duckdb::string_t input, duckdb::string_t replace) {
+          std::string s= input.GetString();
+          duckdb_re2::RE2::GlobalReplace(
+              &s, lstate.constant_pattern,
+              duckdb_re2::StringPiece(replace.GetData(), replace.GetSize()));
+          return duckdb::StringVector::AddString(result, s);
+        });
+  }
+  else
+  {
+    duckdb::TernaryExecutor::ExecuteWithNulls<duckdb::string_t,
+                                              duckdb::string_t,
+                                              duckdb::string_t,
+                                              duckdb::string_t>(
+        strings, patterns, replaces, result, args.size(),
+        [&](duckdb::string_t input, duckdb::string_t pattern,
+            duckdb::string_t replace, duckdb::ValidityMask &mask,
+            duckdb::idx_t idx) -> duckdb::string_t {
+          duckdb_re2::RE2 re(
+              duckdb_re2::StringPiece(pattern.GetData(), pattern.GetSize()),
+              info.options);
+          if (!re.ok())
+          {
+            mask.SetInvalid(idx);
+            return duckdb::string_t();
+          }
+          std::string s= input.GetString();
+          duckdb_re2::RE2::GlobalReplace(
+              &s, re,
+              duckdb_re2::StringPiece(replace.GetData(), replace.GetSize()));
+          return duckdb::StringVector::AddString(result, s);
+        });
+  }
+}
+
+/* ================================================================
+   WEEK(date, mode) / YEARWEEK(date, mode)
+   DuckDB builtins only accept a single argument. MariaDB pushes
+   down the 2-arg form which carries the week-format mode.
+
+   Logic ported from MariaDB sql_time.cc / sql-common/my_time.c:
+   calc_daynr(), calc_days_in_year(), calc_weekday(), calc_week().
+   ================================================================ */
+
+/* MariaDB week_behaviour bit flags (sql/sql_time.h) */
+static constexpr uint32_t MC_WEEK_MONDAY_FIRST= 1;
+static constexpr uint32_t MC_WEEK_YEAR= 2;
+static constexpr uint32_t MC_WEEK_FIRST_WEEKDAY= 4;
+
+static uint32_t mc_week_mode(uint32_t mode)
+{
+  uint32_t week_format= (mode & 7);
+  if (!(week_format & MC_WEEK_MONDAY_FIRST))
+    week_format^= MC_WEEK_FIRST_WEEKDAY;
+  return week_format;
+}
+
+static uint32_t mc_calc_days_in_year(uint32_t year)
+{
+  return ((year & 3) == 0 && (year % 100 || (year % 400 == 0 && year)))
+             ? 366
+             : 365;
+}
+
+static long mc_calc_daynr(uint32_t year, uint32_t month, uint32_t day)
+{
+  long delsum;
+  int temp;
+  int y= (int) year;
+
+  if (y == 0 && month == 0)
+    return 0;
+  delsum= (long) (365 * y + 31 * ((int) month - 1) + (int) day);
+  if (month <= 2)
+    y--;
+  else
+    delsum-= (long) ((int) month * 4 + 23) / 10;
+  temp= (int) ((y / 100 + 1) * 3) / 4;
+  return delsum + y / 4 - temp;
+}
+
+static int mc_calc_weekday(long daynr, bool sunday_first_day_of_week)
+{
+  return (int) ((daynr + 5L + (sunday_first_day_of_week ? 1L : 0L)) % 7);
+}
+
+static uint32_t mc_calc_week(uint32_t l_year, uint32_t l_month, uint32_t l_day,
+                             uint32_t week_behaviour, uint32_t *year)
+{
+  uint32_t days;
+  long daynr= mc_calc_daynr(l_year, l_month, l_day);
+  long first_daynr= mc_calc_daynr(l_year, 1, 1);
+  bool monday_first= (week_behaviour & MC_WEEK_MONDAY_FIRST) != 0;
+  bool week_year= (week_behaviour & MC_WEEK_YEAR) != 0;
+  bool first_weekday= (week_behaviour & MC_WEEK_FIRST_WEEKDAY) != 0;
+
+  uint32_t weekday= (uint32_t) mc_calc_weekday(first_daynr, !monday_first);
+  *year= l_year;
+
+  if (l_month == 1 && l_day <= 7 - weekday)
+  {
+    if (!week_year &&
+        ((first_weekday && weekday != 0) ||
+         (!first_weekday && weekday >= 4)))
+      return 0;
+    week_year= true;
+    (*year)--;
+    first_daynr-= (days= mc_calc_days_in_year(*year));
+    weekday= (weekday + 53 * 7 - days) % 7;
+  }
+
+  if ((first_weekday && weekday != 0) ||
+      (!first_weekday && weekday >= 4))
+    days= daynr - (first_daynr + (7 - weekday));
+  else
+    days= daynr - (first_daynr - weekday);
+
+  if (week_year && days >= 52 * 7)
+  {
+    weekday= (weekday + mc_calc_days_in_year(*year)) % 7;
+    if ((!first_weekday && weekday < 4) ||
+        (first_weekday && weekday == 0))
+    {
+      (*year)++;
+      return 1;
+    }
+  }
+  return days / 7 + 1;
+}
+
+/* WEEK(DATE, INTEGER) -> BIGINT */
+static void week_2arg_date_func(duckdb::DataChunk &args,
+                                duckdb::ExpressionState &,
+                                duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<duckdb::date_t, int32_t, int64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](duckdb::date_t d, int32_t mode) -> int64_t {
+        int32_t y, m, day;
+        duckdb::Date::Convert(d, y, m, day);
+        uint32_t year;
+        return (int64_t) mc_calc_week((uint32_t) y, (uint32_t) m,
+                                      (uint32_t) day,
+                                      mc_week_mode((uint32_t) mode), &year);
+      });
+}
+
+/* WEEK(TIMESTAMP, INTEGER) -> BIGINT */
+static void week_2arg_ts_func(duckdb::DataChunk &args,
+                              duckdb::ExpressionState &,
+                              duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<duckdb::timestamp_t, int32_t, int64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](duckdb::timestamp_t ts, int32_t mode) -> int64_t {
+        int32_t y, m, day;
+        duckdb::Date::Convert(duckdb::Timestamp::GetDate(ts), y, m, day);
+        uint32_t year;
+        return (int64_t) mc_calc_week((uint32_t) y, (uint32_t) m,
+                                      (uint32_t) day,
+                                      mc_week_mode((uint32_t) mode), &year);
+      });
+}
+
+/* YEARWEEK(DATE, INTEGER) -> BIGINT */
+static void yearweek_2arg_date_func(duckdb::DataChunk &args,
+                                    duckdb::ExpressionState &,
+                                    duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<duckdb::date_t, int32_t, int64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](duckdb::date_t d, int32_t mode) -> int64_t {
+        int32_t y, m, day;
+        duckdb::Date::Convert(d, y, m, day);
+        uint32_t year;
+        uint32_t week= mc_calc_week(
+            (uint32_t) y, (uint32_t) m, (uint32_t) day,
+            mc_week_mode((uint32_t) mode) | MC_WEEK_YEAR, &year);
+        return (int64_t) (week + year * 100);
+      });
+}
+
+/* YEARWEEK(TIMESTAMP, INTEGER) -> BIGINT */
+static void yearweek_2arg_ts_func(duckdb::DataChunk &args,
+                                  duckdb::ExpressionState &,
+                                  duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<duckdb::timestamp_t, int32_t, int64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](duckdb::timestamp_t ts, int32_t mode) -> int64_t {
+        int32_t y, m, day;
+        duckdb::Date::Convert(duckdb::Timestamp::GetDate(ts), y, m, day);
+        uint32_t year;
+        uint32_t week= mc_calc_week(
+            (uint32_t) y, (uint32_t) m, (uint32_t) day,
+            mc_week_mode((uint32_t) mode) | MC_WEEK_YEAR, &year);
+        return (int64_t) (week + year * 100);
+      });
+}
+
+/* ================================================================
+   TO_DAYS(date) -> BIGINT
+   MariaDB day number since year 0. DuckDB's builtin to_days(BIGINT)
+   constructs an INTERVAL instead, and has no date/string overload.
+   Relation: to_days(d) = epoch_days(d) + 719528
+   (since MariaDB TO_DAYS('1970-01-01') = 719528).
+   ================================================================ */
+
+static constexpr int64_t MC_TO_DAYS_EPOCH_OFFSET= 719528;
+
+static void to_days_date_func(duckdb::DataChunk &args,
+                              duckdb::ExpressionState &,
+                              duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::date_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::date_t d) -> int64_t {
+        return (int64_t) duckdb::Date::EpochDays(d) + MC_TO_DAYS_EPOCH_OFFSET;
+      });
+}
+
+static void to_days_varchar_func(duckdb::DataChunk &args,
+                                 duckdb::ExpressionState &,
+                                 duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::string_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::string_t s) -> int64_t {
+        duckdb::date_t d=
+            duckdb::Date::FromCString(s.GetData(), s.GetSize());
+        return (int64_t) duckdb::Date::EpochDays(d) + MC_TO_DAYS_EPOCH_OFFSET;
+      });
+}
+
+/* ================================================================
+   DAYOFWEEK(date) / WEEKDAY(date)
+   DuckDB's dayofweek is 0=Sunday..6=Saturday; MariaDB DAYOFWEEK is
+   1=Sunday..7=Saturday and WEEKDAY is 0=Monday..6=Sunday.
+   Derived from ISO day-of-week (1=Monday..7=Sunday):
+     DAYOFWEEK = (iso % 7) + 1
+     WEEKDAY   = iso - 1
+   ================================================================ */
+
+static void dayofweek_date_func(duckdb::DataChunk &args,
+                                duckdb::ExpressionState &,
+                                duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::date_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::date_t d) -> int64_t {
+        return (int64_t) (duckdb::Date::ExtractISODayOfTheWeek(d) % 7) + 1;
+      });
+}
+
+static void dayofweek_ts_func(duckdb::DataChunk &args,
+                              duckdb::ExpressionState &,
+                              duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::timestamp_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::timestamp_t ts) -> int64_t {
+        duckdb::date_t d= duckdb::Timestamp::GetDate(ts);
+        return (int64_t) (duckdb::Date::ExtractISODayOfTheWeek(d) % 7) + 1;
+      });
+}
+
+static void weekday_date_func(duckdb::DataChunk &args,
+                              duckdb::ExpressionState &,
+                              duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::date_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::date_t d) -> int64_t {
+        return (int64_t) duckdb::Date::ExtractISODayOfTheWeek(d) - 1;
+      });
+}
+
+static void weekday_ts_func(duckdb::DataChunk &args,
+                            duckdb::ExpressionState &,
+                            duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<duckdb::timestamp_t, int64_t>(
+      args.data[0], result, args.size(),
+      [](duckdb::timestamp_t ts) -> int64_t {
+        duckdb::date_t d= duckdb::Timestamp::GetDate(ts);
+        return (int64_t) duckdb::Date::ExtractISODayOfTheWeek(d) - 1;
+      });
+}
+
+/* ================================================================
    Registration
    ================================================================ */
 
-void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
+static void register_length_functions(duckdb::Catalog &catalog,
+                                      duckdb::CatalogTransaction transaction)
 {
-  auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
-  auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
-
   /* octet_length(VARCHAR) -> BIGINT */
   {
     duckdb::ScalarFunctionSet set("octet_length");
@@ -1050,8 +1384,12 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
-  /* hex() -- full AliSQL-compatible overloads */
+static void register_hex_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
+  /* hex() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("hex");
@@ -1083,8 +1421,12 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
-  /* oct() -- full AliSQL-compatible overloads */
+static void register_oct_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
+  /* oct() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("oct");
@@ -1116,8 +1458,12 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
-  /* bin() -- full AliSQL-compatible overloads */
+static void register_bin_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
+  /* bin() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("bin");
@@ -1146,7 +1492,12 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_locate_mid_functions(duckdb::DatabaseInstance &db,
+                                          duckdb::Catalog &catalog,
+                                          duckdb::CatalogTransaction transaction)
+{
   /* locate(VARCHAR, VARCHAR) -> BIGINT  (2-arg) */
   /* locate(VARCHAR, VARCHAR, BIGINT) -> BIGINT  (3-arg) */
   {
@@ -1175,7 +1526,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
                "CASE WHEN n IS NULL THEN substr(s, p) "
                "ELSE substr(s, p, n) END");
   }
+}
 
+static void register_regexp_functions(duckdb::Catalog &catalog,
+                                      duckdb::CatalogTransaction transaction)
+{
   /* regexp_instr(VARCHAR, VARCHAR) → INTEGER
      Returns 1-based position of first match, 0 if no match. */
   {
@@ -1207,32 +1562,15 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
   }
 
   /* regexp_replace(VARCHAR, VARCHAR, VARCHAR) → VARCHAR
-     Replaces all occurrences of pattern in expr with replacement. */
+     Global (replace-all) MariaDB semantics with bind-time pattern
+     compilation for constant patterns.  See regexp_replace_global_func. */
   {
     duckdb::ScalarFunctionSet set("regexp_replace");
     set.AddFunction(duckdb::ScalarFunction(
         {duckdb::LogicalType::VARCHAR, duckdb::LogicalType::VARCHAR,
          duckdb::LogicalType::VARCHAR},
-        duckdb::LogicalType::VARCHAR,
-        [](duckdb::DataChunk &args, duckdb::ExpressionState &,
-           duckdb::Vector &result) {
-          duckdb::TernaryExecutor::Execute<duckdb::string_t, duckdb::string_t,
-                                           duckdb::string_t,
-                                           duckdb::string_t>(
-              args.data[0], args.data[1], args.data[2], result, args.size(),
-              [&](duckdb::string_t expr, duckdb::string_t pat,
-                  duckdb::string_t repl) -> duckdb::string_t {
-                duckdb_re2::RE2 re(
-                    duckdb_re2::StringPiece(pat.GetData(), pat.GetSize()));
-                if (!re.ok())
-                  return expr;
-                std::string s(expr.GetData(), expr.GetSize());
-                duckdb_re2::RE2::GlobalReplace(
-                    &s,  re,
-                    duckdb_re2::StringPiece(repl.GetData(), repl.GetSize()));
-                return duckdb::StringVector::AddString(result, s);
-              });
-        }));
+        duckdb::LogicalType::VARCHAR, regexp_replace_global_func,
+        regexp_replace_bind, nullptr, nullptr, duckdb::RegexInitLocalState));
     duckdb::CreateScalarFunctionInfo info(std::move(set));
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
@@ -1275,7 +1613,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_json_unquote_function(duckdb::Catalog &catalog,
+                                           duckdb::CatalogTransaction transaction)
+{
   /* json_unquote(VARCHAR) → VARCHAR
      Removes JSON quotes and unescapes. Simple implementation. */
   {
@@ -1323,7 +1665,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_time_arith_functions(duckdb::Catalog &catalog,
+                                          duckdb::CatalogTransaction transaction)
+{
   /* addtime(TIMESTAMP/TIME, VARCHAR) → TIMESTAMP/TIME */
   {
     duckdb::ScalarFunctionSet set("addtime");
@@ -1380,7 +1726,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_trim_functions(duckdb::Catalog &catalog,
+                                    duckdb::CatalogTransaction transaction)
+{
   /* rtrim(VARCHAR, VARCHAR) — substring semantics (MariaDB TRIM) */
   {
     duckdb::ScalarFunctionSet set("rtrim");
@@ -1402,12 +1752,109 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
+
+static void register_week_functions(duckdb::Catalog &catalog,
+                                    duckdb::CatalogTransaction transaction)
+{
+  /* week(DATE/TIMESTAMP, INTEGER) -> BIGINT (MariaDB mode arg) */
+  {
+    duckdb::ScalarFunctionSet set("week");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::DATE, duckdb::LogicalType::INTEGER},
+        duckdb::LogicalType::BIGINT, week_2arg_date_func));
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::TIMESTAMP, duckdb::LogicalType::INTEGER},
+        duckdb::LogicalType::BIGINT, week_2arg_ts_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+
+  /* yearweek(DATE/TIMESTAMP, INTEGER) -> BIGINT (MariaDB mode arg) */
+  {
+    duckdb::ScalarFunctionSet set("yearweek");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::DATE, duckdb::LogicalType::INTEGER},
+        duckdb::LogicalType::BIGINT, yearweek_2arg_date_func));
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::TIMESTAMP, duckdb::LogicalType::INTEGER},
+        duckdb::LogicalType::BIGINT, yearweek_2arg_ts_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+
+  /* to_days(DATE/VARCHAR) -> BIGINT (MariaDB day number since year 0) */
+  {
+    duckdb::ScalarFunctionSet set("to_days");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::DATE}, duckdb::LogicalType::BIGINT,
+        to_days_date_func));
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::VARCHAR}, duckdb::LogicalType::BIGINT,
+        to_days_varchar_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+}
+
+static void register_dow_functions(duckdb::Catalog &catalog,
+                                   duckdb::CatalogTransaction transaction)
+{
+  /* dayofweek(DATE/TIMESTAMP) -> BIGINT (MariaDB 1=Sunday..7=Saturday) */
+  {
+    duckdb::ScalarFunctionSet set("dayofweek");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::DATE}, duckdb::LogicalType::BIGINT,
+        dayofweek_date_func));
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::TIMESTAMP}, duckdb::LogicalType::BIGINT,
+        dayofweek_ts_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+
+  /* weekday(DATE/TIMESTAMP) -> BIGINT (MariaDB 0=Monday..6=Sunday) */
+  {
+    duckdb::ScalarFunctionSet set("weekday");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::DATE}, duckdb::LogicalType::BIGINT,
+        weekday_date_func));
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::TIMESTAMP}, duckdb::LogicalType::BIGINT,
+        weekday_ts_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+}
+
+void register_mariadb_compat_functions(duckdb::DatabaseInstance &db)
+{
+  auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
+  auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
+
+  register_length_functions(catalog, transaction);
+  register_hex_function(catalog, transaction);
+  register_oct_function(catalog, transaction);
+  register_bin_function(catalog, transaction);
+  register_locate_mid_functions(db, catalog, transaction);
+  register_regexp_functions(catalog, transaction);
+  register_json_unquote_function(catalog, transaction);
+  register_time_arith_functions(catalog, transaction);
+  register_trim_functions(catalog, transaction);
+  register_week_functions(catalog, transaction);
+  register_dow_functions(catalog, transaction);
 
   sql_print_information(
-      "DuckDB: registered MySQL-compatible function overloads "
+      "DuckDB: registered MariaDB-compatible function overloads "
       "(octet_length, length, ascii, ord, hex, oct, bin, locate, mid, "
       "rtrim, ltrim, regexp_instr, regexp_replace, regexp_substr, "
-      "json_unquote, json_contains)");
+      "json_unquote, json_contains, week, yearweek, to_days, dayofweek, "
+      "weekday)");
 }
 
 } /* namespace myduck */

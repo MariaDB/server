@@ -768,6 +768,9 @@ hstcpsvr_worker::do_exec_on_index(char *cmd_begin, char *cmd_end, char *start,
   args.op = string_ref(op_begin, op_end);
   skip_one(start, finish);
   const uint32_t fldnum = read_ui32(start, finish);
+  if (fldnum > 32) {
+    return conn.dbcb_resp_short(2, "fldnum");
+  }
   string_ref *const flds = DENA_ALLOCA_ALLOCATE(string_ref, fldnum);
   auto_alloca_free<string_ref> flds_autofree(flds);
   args.kvals = flds;

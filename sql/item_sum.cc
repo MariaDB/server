@@ -324,15 +324,26 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
           in_sum_func->outer_fields.push_back(field, thd->mem_root);
         }
         else
+        {
           sel->set_non_agg_field_used(true);
+          if (sel->join)
+          {
+            sel->join->non_agg_fields.push_back(field, thd->mem_root);
+          }
+        }
       }
-      if (sel->nest_level > aggr_level &&
-          (sel->agg_func_used()) &&
-          !sel->group_list.elements)
+      else if (sel->nest_level > aggr_level)
       {
-        my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
-                   ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
-        return TRUE;
+        if ((sel->agg_func_used()) && !sel->group_list.elements)
+        {
+          my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
+                     ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
+          return TRUE;
+        }
+        else if (sel->join)
+        {
+          sel->join->non_agg_fields.push_back(field, thd->mem_root);
+        }
       }
     }
   }
@@ -4640,6 +4651,13 @@ bool Item_func_collect::add() {
   has_cached_result= false;
 
   if (tmp_arg[0]->null_value)
+    return 0;
+
+  /*
+    A value too short to hold the SRID and WKB header isn't a valid
+    geometry, so contribute nothing (NULL) to the aggregate.
+  */
+  if (!Geometry::is_valid_geometry_length(wkb->length()))
     return 0;
 
   if(is_distinct && list_contains_element(wkb))

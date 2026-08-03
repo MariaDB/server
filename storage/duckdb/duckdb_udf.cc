@@ -32,8 +32,13 @@
 
 #undef UNKNOWN
 
+#include "sql_acl.h"
+#include "privilege.h"
+
 #include "duckdb_query.h"
 #include "duckdb_manager.h"
+
+extern my_bool allow_run_in_duckdb;
 
 class Item_func_run_in_duckdb : public Item_str_func
 {
@@ -57,6 +62,21 @@ public:
   String *val_str(String *str) override
   {
     DBUG_ASSERT(fixed());
+    THD *thd= current_thd;
+
+    if (!allow_run_in_duckdb)
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--duckdb-allow-run-in-duckdb");
+      null_value= 1;
+      return NULL;
+    }
+
+    if (check_global_access(thd, SUPER_ACL))
+    {
+      null_value= 1;
+      return NULL;
+    }
+
     String *sql_arg= args[0]->val_str(str);
     if ((null_value= args[0]->null_value))
       return NULL;

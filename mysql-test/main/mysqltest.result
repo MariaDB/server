@@ -996,6 +996,43 @@ foo\"bar
 foo\"bar
 set sql_mode=default;
 #
+# MDEV-40353: append_file in mysqltest does not support variables
+#             and expressions substitution
+#
+# Without 'eval' the content is written as it is
+variable: $var
+expression: $(6*7)
+escaped: \$var
+a backslash: \\! echo foo
+undefined variable: $mdev_40353_not_set.
+# With 'eval' variables and expressions are substituted
+variable: foo
+expression: 42
+escaped: $var
+a backslash: \! echo foo
+undefined variable: .
+# a lone dollar sign is an error when evaluated
+mysqltest: At line 1: Empty variable
+# append_file with 'eval' and a not default delimiter
+variable: foo
+expression: 42
+escaped: $var
+a backslash: \! echo foo
+undefined variable: .
+appended: foo
+# The 'eval' argument is not case sensitive
+variable: foo
+# The content is evaluated on every execution of the command
+iteration 1
+iteration 2
+# Nothing is written and nothing is evaluated in a false block
+the false block has written nothing
+# 'eval' requires the delimiter to be given explicitly
+mysqltest: At line 1: End of file encountered before 'eval' delimiter was found
+# Only 'eval' is allowed as the third argument
+mysqltest: At line 1: Invalid argument 'junk' to 'write_file', only 'eval' is allowed
+# End of 10.6 tests
+#
 # MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)
 #
 SELECT 1 /* doesn't throw error */;
@@ -1009,4 +1046,3 @@ SELECT 1 /* doesn't throw error */;
 #
 # caught error and exited my_copy()
 # End of 10.11 tests
-End of tests

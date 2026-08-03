@@ -511,3 +511,15 @@ update t1 set c3= 1 where pk = 1;
 select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
 ERROR HY000: Argument of NTILE must be greater than 0
 drop table t1;
+#
+# MDEV-39451 Floating point exception: division by zero in Item_sum_ntile::val_int
+#
+CREATE TABLE t (c2 TEXT CHARACTER SET 'Binary' COLLATE 'Binary');
+INSERT INTO t VALUES (REPEAT('a',1026)),(REPEAT('a',1026));
+SELECT NTILE(2)OVER (PARTITION BY c2 ORDER BY c2) FROM t;
+NTILE(2)OVER (PARTITION BY c2 ORDER BY c2)
+1
+2
+Warnings:
+Warning	4202	4 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+DROP TABLE t;

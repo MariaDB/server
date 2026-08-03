@@ -159,9 +159,9 @@ inline void store_token_identifier(sql_digest_storage* digest_storage,
 
 void compute_digest_hash(const sql_digest_storage *digest_storage, unsigned char *hash)
 {
-  XXH128_hash_t res = XXH3_128bits(digest_storage->m_token_array, 
+  XXH128_hash_t res = XXH3_128bits(digest_storage->m_token_array,
                                 digest_storage->m_byte_count);
-  memcpy(hash, &res, sizeof(res));
+  XXH128_canonicalFromHash((XXH128_canonical_t *) hash, res);
 }
 
 /*

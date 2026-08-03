@@ -3148,6 +3148,18 @@ static bool row_sel_store_mysql_rec(
 	ut_ad(rec_clust || index == prebuilt->index);
 	ut_ad(!rec_clust || dict_index_is_clust(index));
 
+	/* Secondary index reads populate only templated columns.
+	Seed the NULL bitmap from default_rec so uncovered columns
+	read as SQL NULL in ha_partition::swap_blobs(). */
+	if (!dict_index_is_clust(index) &&
+	    prebuilt->m_mysql_table &&
+	    prebuilt->m_mysql_table->s->blob_fields &&
+	    prebuilt->null_bitmap_len) {
+		ut_ad(prebuilt->default_rec);
+		memcpy(mysql_rec, prebuilt->default_rec,
+		       prebuilt->null_bitmap_len);
+	}
+
 	if (UNIV_LIKELY_NULL(prebuilt->blob_heap)) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
 	}
@@ -5346,6 +5358,13 @@ no_gap_lock:
 		} else {
 			lock_type = LOCK_ORDINARY;
 		}
+
+		/* Test hook (debug builds only): allows a BF abort to mark this
+		transaction a wsrep victim after the interrupt check at the top of
+		rec_loop but before it enqueues a waiting lock request below — the
+		window in which the orphaned-waiter bug forms. Inert in release
+		builds (DEBUG_SYNC_C compiles to nothing without ENABLED_DEBUG_SYNC). */
+		DEBUG_SYNC_C("row_search_before_rec_lock");
 
 		err = sel_set_rec_lock(pcur,
 				       rec, index, offsets,

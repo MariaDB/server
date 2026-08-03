@@ -1,0 +1,9 @@
+connection con1;
+BEGIN;
+INSERT INTO batch_disconnect VALUES (1);
+disconnect con1;
+connection default;
+INSERT INTO batch_disconnect VALUES (2);
+SELECT * FROM batch_disconnect ORDER BY id;
+id
+2

@@ -5804,6 +5804,17 @@ static int rocksdb_init_func(void *const p) {
 static int rocksdb_done_func(void *const p) {
   DBUG_ENTER_FUNC();
 
+  if (!rdb) {
+    /*
+      rocksdb_init_func() failed before rocksdb::TransactionDB::Open()
+      (e.g. the "Compatibility check against existing database options"
+      check). Background threads were never started and the per-CF/dict/
+      DDL managers were never initialized, so there's nothing here that's
+      safe to tear down.
+    */
+    DBUG_RETURN(0);
+  }
+
   if (rocksdb_pause_background_work)
       rdb->ContinueBackgroundWork();
 

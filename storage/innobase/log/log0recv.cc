@@ -5565,7 +5565,11 @@ inline void log_t::set_recovered() noexcept
   ut_ad(!resize_log.is_opened());
   ut_ad(!resize_buf);
   ut_ad(!resize_flush_buf);
-  circular_recovery_from_sequence_bit_0= !archive &&
+  /* If innodb_log_archive=ON, we always write the sequence bit as 0.
+  A subsequent log_t::set_archive(archive=false, ...) must wait for
+  a checkpoint, to guarantee that recovery with innodb_log_archive=OFF
+  will observe all sequence bits as 1. */
+  circular_recovery_from_sequence_bit_0= archive ||
     !get_sequence_bit(last_checkpoint_lsn);
   ut_ad(write_size >= 512);
   ut_ad(ut_is_2pow(write_size));

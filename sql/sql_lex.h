@@ -750,7 +750,6 @@ public:
       UNCACHEABLE_RAND
       UNCACHEABLE_SIDEEFFECT
       UNCACHEABLE_EXPLAIN
-      UNCACHEABLE_PREPARE
   */
 
   bool is_linkage_set() const
@@ -1191,7 +1190,13 @@ public:
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /*
+    Pushdown from HAVING into WHERE optimization: conditions from the HAVING
+    clause that should be added into the WHERE.
+  */
   List<Item> attach_to_conds;
+
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* 
@@ -4289,7 +4294,8 @@ public:
 
   bool make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                             uint nvars,
-                                                            uint cursor_offset);
+                                                            uint cursor_offset,
+                                                            Item *def= nullptr);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 

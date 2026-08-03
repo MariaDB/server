@@ -115,9 +115,9 @@ t1_crash	CREATE TABLE `t1_crash` (
   `col3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_1` (`col1`),
-  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`=YES,
-  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`=NO,
-  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`=YES `complete_fields`=2 `bytes_from_incomplete_field`=1 `for_equal_hash_point_to_last_record`=0
+  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`='YES',
+  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`='NO',
+  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`='YES' `complete_fields`='2' `bytes_from_incomplete_field`='1' `for_equal_hash_point_to_last_record`='0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 # Kill the server
 # restart
@@ -130,9 +130,9 @@ t1_crash	CREATE TABLE `t1_crash` (
   `col3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_1` (`col1`),
-  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`=YES,
-  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`=NO,
-  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`=YES `complete_fields`=2 `bytes_from_incomplete_field`=1 `for_equal_hash_point_to_last_record`=0
+  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`='YES',
+  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`='NO',
+  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`='YES' `complete_fields`='2' `bytes_from_incomplete_field`='1' `for_equal_hash_point_to_last_record`='0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 SELECT COUNT(*) FROM t1_crash;
 COUNT(*)
