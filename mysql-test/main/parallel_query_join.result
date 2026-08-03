@@ -155,5 +155,34 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	p3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 SET optimizer_switch= @os2;
 DROP TABLE p1, p2, p3;
+#
+# an inner table read through a join buffer
+#
+CREATE TABLE b1 (id INT, k INT) ENGINE=InnoDB;
+INSERT INTO b1 SELECT seq, seq % 4 FROM seq_1_to_2000;
+CREATE TABLE b2 (x INT, v INT) ENGINE=InnoDB;
+INSERT INTO b2 SELECT seq % 4, seq FROM seq_1_to_20;
+# b2 is read through a join buffer and carries a condition of its own
+EXPLAIN SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	b1	PARALLEL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	b2	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+# serial
+SET SESSION parallel_worker_threads= 0;
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+v
+17
+18
+# with workers: the same two rows, not every row the buffer would reject
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+v
+17
+18
+# and it still ran in the workers rather than falling back (expect 1)
+ran_in_the_workers
+1
+DROP TABLE b1, b2;
 SET SESSION parallel_worker_threads= @s;
 DROP TABLE fact, d1, d2, d3;

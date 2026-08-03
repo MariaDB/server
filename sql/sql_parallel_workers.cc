@@ -507,15 +507,28 @@ public:
     altogether. Pushing a clone onto the worker's own handler would recover it,
     and wants the worker to hold a real JOIN_TAB to hang the key number off.
 
-    Used by the gate and by both clone sites, so the item the gate approves is
-    always the item a worker ends up evaluating.
+    There is a second place a condition can go. When an inner table is read
+    through a BNL/BNLH join buffer, JOIN_TAB::make_scan_filter() copies the
+    conjuncts that need only this table into cache_select->cond, for the buffer
+    to apply as it fills, and JOIN_TAB::remove_redundant_bnl_scan_conds() then
+    *removes* those conjuncts from select_cond -- it can empty it altogether. A
+    worker uses no join buffer, so for a cached table select_cond is not the
+    whole condition and filtering by it alone lets through everything the buffer
+    would have rejected.
+
+    Both halves are reported together, and the gate and both clone sites go
+    through here, so the condition the gate approves is always the condition a
+    worker ends up evaluating.
 */
 
-static Item *pwt_table_cond(JOIN_TAB *tab)
+static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
 {
-  return tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
+  *cond= tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
                                        : tab->select_cond;
+  *cache_cond= tab->cache_select ? tab->cache_select->cond : nullptr;
 }
+
+
 
 
 /*
@@ -561,6 +574,49 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
   if (!clone->fixed() && clone->fix_fields(thd, &clone))
     return nullptr;
   return clone;
+}
+
+
+/*
+  @brief
+    Clone both halves of one table's condition and rebind them to the worker's
+    tables, ANDed together when there are two.
+
+  @return  true on error. *out is the clone, or NULL if the table has no
+           condition at all.
+*/
+
+static bool pwt_clone_table_conds(THD *thd, JOIN_TAB *tab,
+                                  TABLE **from, TABLE **to, uint n,
+                                  Item **out)
+{
+  Item *cond, *cache_cond, *c= nullptr, *cc= nullptr;
+  pwt_table_conds(tab, &cond, &cache_cond);
+  *out= nullptr;
+
+  if (cond && !(c= pwt_clone_rebind(thd, cond, from, to, n)))
+    return true;
+  if (cache_cond && !(cc= pwt_clone_rebind(thd, cache_cond, from, to, n)))
+    return true;
+  if (!c || !cc)
+  {
+    *out= c ? c : cc;
+    return false;
+  }
+
+  /*
+    Both clones are already fixed, so the conjunction needs no more than
+    quick_fix_field() -- which is what remove_redundant_bnl_scan_conds() itself
+    does when it rebuilds a condition out of fixed conjuncts. The worker only
+    ever evaluates this item, so the fix-time caches Item_cond::fix_fields()
+    would rebuild (used_tables, not_null_tables) are not read.
+  */
+  Item_cond_and *both= new (thd->mem_root) Item_cond_and(thd, c, cc);
+  if (!both)
+    return true;
+  both->quick_fix_field();
+  *out= both;
+  return false;
 }
 
 
@@ -1915,11 +1971,8 @@ bool pwt_manager::setup_worker_inner_tabs(THD *thd, pwt_worker *worker)
     it->type= mtab->type;
     it->sorted= mtab->sorted;
 
-    Item *mtab_cond= pwt_table_cond(mtab);
-    if (mtab_cond &&
-        !(it->cond= pwt_clone_rebind(thd, mtab_cond,
-                                     mgr_tables, worker->worker_tables,
-                                     n_tables)))
+    if (pwt_clone_table_conds(thd, mtab, mgr_tables, worker->worker_tables,
+                              n_tables, &it->cond))
       return true;
 
     if (it->type == JT_EQ_REF || it->type == JT_REF)
@@ -1947,12 +2000,9 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
   TABLE **from= mgr_tables;
   TABLE **to= worker->worker_tables;
 
-  // the condition the driving table is filtered by, see pwt_table_cond()
-  worker->worker_cond= nullptr;
-  Item *scan_cond= pwt_table_cond(scan_tab);
-  if (scan_cond &&
-      !(worker->worker_cond= pwt_clone_rebind(thd, scan_cond,
-                                              from, to, n_tables)))
+  // the condition the driving table is filtered by, see pwt_table_conds()
+  if (pwt_clone_table_conds(thd, scan_tab, from, to, n_tables,
+                            &worker->worker_cond))
     return true;
 
   // shipped columns -> per-item projection into result_table->field[i]
@@ -2175,8 +2225,10 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
           }
         }
     }
-    Item *tab_cond= pwt_table_cond(tab);
-    if (tab_cond && !pwt_item_is_clonable(thd, tab_cond))
+    Item *tab_cond, *tab_cache_cond;
+    pwt_table_conds(tab, &tab_cond, &tab_cache_cond);
+    if ((tab_cond && !pwt_item_is_clonable(thd, tab_cond)) ||
+        (tab_cache_cond && !pwt_item_is_clonable(thd, tab_cache_cond)))
     {
       DBUG_PRINT("info", ("cond unclonable, %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
