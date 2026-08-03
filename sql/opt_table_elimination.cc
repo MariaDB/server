@@ -825,7 +825,8 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
       if (tbl->nested_join)
       {
         /* This is  "... LEFT JOIN (join_nest) ON cond" */
-        if (eliminate_tables_for_list(join,
+        if (!(tbl->outer_join & JOIN_TYPE_FULL) &&
+            eliminate_tables_for_list(join,
                                       &tbl->nested_join->join_list, 
                                       tbl->nested_join->used_tables, 
                                       tbl->on_expr,
@@ -840,7 +841,8 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
       else
       {
         /* This is  "... LEFT JOIN tbl ON cond" */
-        if (!(tbl->table->map & outside_used_tables) &&
+        if (!(tbl->outer_join & JOIN_TYPE_FULL) &&
+            !(tbl->table->map & outside_used_tables) &&
             check_func_dependency(join, tbl->table->map, NULL, tbl, 
                                   tbl->on_expr))
         {
@@ -851,13 +853,31 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
       }
       tables_used_on_left |= tbl->on_expr->used_tables();
     }
-    else
+    else if (tbl->sj_on_expr)
     {
-      DBUG_ASSERT(!tbl->nested_join || tbl->sj_on_expr);
       //psergey-todo: is the following really correct or we'll need to descend
-      //down all ON clauses: ? 
-      if (tbl->sj_on_expr)
-        tables_used_on_left |= tbl->sj_on_expr->used_tables();
+      //down all ON clauses: ?
+      tables_used_on_left |= tbl->sj_on_expr->used_tables();
+    }
+    else if (tbl->nested_join)
+    {
+      /*
+        simplify_joins preserves a nested join with neither on_expr
+        nor sj_on_expr when the nest contains FULL JOIN tables.
+        Flattening that nest would let the optimizer interleave
+        outside tables between FULL JOIN tables, which the
+        null-complement algorithm cannot handle.  Recurse into the
+        nest to attempt elimination of any inner outer joins, but pass
+        on_expr=NULL so the nest itself is never considered for
+        elimination.
+      */
+      table_map outside_used_tables= tables_used_elsewhere |
+                                     tables_used_on_left;
+      eliminate_tables_for_list(join, &tbl->nested_join->join_list,
+                                tbl->nested_join->used_tables, NULL,
+                                outside_used_tables,
+                                trace_eliminate_tables);
+      all_eliminated= FALSE;
     }
   }
 
@@ -2105,7 +2125,8 @@ void Dep_analysis_context::dbug_print_deps()
     char buf[128];
     String str(buf, sizeof(buf), &my_charset_bin);
     str.length(0);
-    eq_mod->expr->print(&str, QT_ORDINARY);
+    if (eq_mod->expr)
+      eq_mod->expr->print(&str, QT_ORDINARY);
     if (eq_mod->field)
     {
       fprintf(DBUG_FILE, "  equality%ld: %s -> %s.%s\n", 

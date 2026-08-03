@@ -6535,6 +6535,56 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref,
       *ref= item;
     found_field= (Field*) view_ref_found;
   }
+  else if (nj_col->natural_full_join_field)
+  {
+    /*
+      NATURAL FULL JOIN common column over base tables.  Route the
+      unqualified reference to the COALESCE(left_col, right_col) item
+      built by coalesce_natural_full_join so WHERE, HAVING, and outer
+      ON clauses see the same merged value the SELECT list shows.
+
+      Return the natural-join's own TABLE_LIST as the actual_table.  Its
+      table pointer is NULL (nested join), so the prepared-statement
+      cache shortcut in find_field_in_tables falls back to
+      find_field_in_table_ref, which re-enters this routine and applies
+      the COALESCE substitution on every execute.  The privilege check
+      in find_field_in_table_ref is skipped for nested-join actual_tables;
+      privileges on the underlying base-table columns are checked when
+      the Item_field children of the COALESCE are fixed.
+    */
+    Item *item= nj_col->natural_full_join_field;
+    if (item->fix_fields_if_needed(thd,
+                                   (Item **) &nj_col->natural_full_join_field))
+      DBUG_RETURN(NULL);
+    item= nj_col->natural_full_join_field;
+    if (*ref && (*ref)->is_explicit_name())
+    {
+      /*
+        The reference carries its own alias.  The COALESCE on
+        natural_full_join_field is shared by every reference to this column
+        and by Natural_join_column::name, which derives the column's name
+        from it.  Renaming that shared item would change the column's name
+        for name resolution, so a later reference to the column by its
+        original name would not resolve, and other references would show the
+        alias.  Build a fresh COALESCE over the same two operands and name
+        that one instead, leaving the shared item untouched.
+      */
+      Item_func_coalesce *shared= nj_col->natural_full_join_field;
+      DBUG_ASSERT(shared->argument_count() == 2);
+      item= new (thd->mem_root) Item_func_coalesce(thd,
+                                                   shared->arguments()[0],
+                                                   shared->arguments()[1]);
+      if (!item || item->fix_fields_if_needed(thd, &item))
+        DBUG_RETURN(nullptr);
+      item->set_name(thd, (*ref)->name);
+    }
+    if (register_tree_change)
+      thd->change_item_tree(ref, item);
+    else
+      *ref= item;
+    *actual_table= table_ref;
+    DBUG_RETURN((Field*) view_ref_found);
+  }
   else
   {
     /* This is a base table. */
@@ -6559,7 +6609,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref,
   }
 
   *actual_table= nj_col->table_ref;
-  
+
   DBUG_RETURN(found_field);
 }
 
@@ -6635,6 +6685,50 @@ find_field_in_table(THD *thd, TABLE *table, const Lex_ident_column &name,
 
   DBUG_RETURN(field);
 }
+
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+/*
+  Check column-level privileges on every column read by the COALESCE that
+  stands in for a NATURAL FULL JOIN common column.
+
+  An unqualified reference to a NATURAL FULL JOIN common column resolves to
+  COALESCE(left_col, right_col), nested for a chain, so the value it returns
+  depends on each underlying column.  Each one must satisfy the same column
+  grant a written reference would.  check_column_grant_in_table_ref cannot run
+  on the natural join's own TABLE_LIST (it has no base table), so route each
+  leaf Item_field through it using the table reference the field belongs to.
+  That table reference is a base table or a view, and
+  check_column_grant_in_table_ref handles both, so view column grants are
+  enforced the same way.  Nested COALESCEs are walked so a chained join checks
+  every leaf.
+
+  Returns true when access to any underlying column is denied.
+*/
+
+static bool check_coalesce_column_grants(THD *thd, Item *item)
+{
+  if (!item)
+    return false;
+  if (item->type() == Item::FIELD_ITEM)
+  {
+    Field *field= ((Item_field*) item)->field;
+    if (field && field->table && field->table->pos_in_table_list)
+      return check_column_grant_in_table_ref(thd,
+                                             field->table->pos_in_table_list,
+                                             field->field_name, field);
+    return false;
+  }
+  if (item->type() == Item::FUNC_ITEM)
+  {
+    Item_func *func= (Item_func*) item;
+    for (uint i= 0; i < func->argument_count(); i++)
+      if (check_coalesce_column_grants(thd, func->arguments()[i]))
+        return true;
+  }
+  return false;
+}
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
 
 /*
@@ -6808,10 +6902,18 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
   if (fld)
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    /* Check if there are sufficient access rights to the found field. */
+    /*
+      Check if there are sufficient access rights to the found field.
+      When actual_table is a nested-join TABLE_LIST the field is a NATURAL
+      FULL JOIN COALESCE substitution; check_column_grant_in_table_ref cannot
+      run on it because its table pointer is NULL, so check the column grant
+      on each base-table column the COALESCE reads instead.
+    */
     if (check_privileges &&
         !table_list->is_derived() &&
-        check_column_grant_in_table_ref(thd, *actual_table, name, fld))
+        ((*actual_table)->nested_join ?
+         check_coalesce_column_grants(thd, *ref) :
+         check_column_grant_in_table_ref(thd, *actual_table, name, fld)))
       fld= WRONG_GRANT;
     else
 #endif
@@ -7481,6 +7583,54 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
 
 
 /*
+  Build one operand of the synthesized equijoin condition for a common
+  column of a NATURAL or USING join.
+
+  For an ordinary common column the operand is a freshly created
+  Item_ident hooked to a name resolution context that resolves it
+  within nj_col's table.
+
+  When nj_col carries a natural_full_join_field the operand of the
+  enclosing join is itself a NATURAL FULL JOIN, so the column's value
+  is the COALESCE built for that join.  Return that COALESCE directly
+  so the equality matches on the coalesced value instead of the left
+  side "raw" column, which is NULL on rows that came only from the
+  right side of the join.
+*/
+
+static Item *natural_join_eq_operand(THD *thd, Natural_join_column *nj_col)
+{
+  if (nj_col->natural_full_join_field)
+    return nj_col->natural_full_join_field;
+
+  Item *item= nj_col->create_item(thd);
+  if (!item)
+    return nullptr;
+
+  /*
+    With no_wrap_view_item == 0 create_item returns a sub-class of Item_ident.
+  */
+  DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
+  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              item->type() == Item::REF_ITEM);
+
+  if (set_new_item_local_context(thd, (Item_ident*) item, nj_col->table_ref))
+    return nullptr;
+
+  /*
+    A base table operand is the table's own Item_field.  Mark it so its
+    column grant is not checked when the condition is resolved, keeping
+    prepared statement execution consistent with conventional execution.
+    See Item_field::synthesized_join_operand.
+  */
+  if (item->type() == Item::FIELD_ITEM)
+    ((Item_field*) item)->synthesized_join_operand= true;
+
+  return item;
+}
+
+
+/*
   Find and mark the common columns of two table references.
 
   SYNOPSIS
@@ -7589,16 +7739,16 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         continue;
 
       cur_field_name_2= cur_nj_col_2->name();
-      DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
-                           cur_nj_col_2->safe_table_name().str,
-                           cur_field_name_2.str));
+      DBUG_PRINT("info", ("cur_field_name_2: %s.%s",
+                          cur_nj_col_2->safe_table_name().str,
+                          cur_field_name_2.str));
 
       /*
         Compare the two columns and check for duplicate common fields.
         A common field is duplicate either if it was already found in
         table_ref_2 (then found == TRUE), or if a field in table_ref_2
         was already matched by some previous field in table_ref_1
-        (then cur_nj_col_2->is_common == TRUE).
+        (then cur_nj_col_2->is_common != nullptr).
         Note that it is too early to check the columns outside of the
         USING list for ambiguity because they are not actually "referenced"
         here. These columns must be checked only on unqualified reference 
@@ -7606,7 +7756,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       */
       if (field_name_1.streq(cur_field_name_2))
       {
-        DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
+        DBUG_PRINT("info", ("match c1.is_common: %d",
+                            (int) (bool) nj_col_1->is_common));
         if (cur_nj_col_2->is_common || found)
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1.str, thd_where(thd));
@@ -7642,48 +7793,20 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     */
 
     /*
-      Create non-fixed fully qualified field and let fix_fields to
-      resolve it.
+      Build the two operands of the synthesized equijoin condition.  An
+      operand whose table reference is a NATURAL FULL JOIN keeps its
+      natural_full_join_field, so the equality is on the inner COALESCE and a
+      chain such as (t1 natural full join t2) natural full join t3 matches on
+      the coalesced value rather than the "raw" left side column.
     */
-    Item *item_1=   nj_col_1->create_item(thd);
-    Item *item_2=   nj_col_2->create_item(thd);
-    Item_ident *item_ident_1, *item_ident_2;
+    Item *item_1= natural_join_eq_operand(thd, nj_col_1);
+    Item *item_2= natural_join_eq_operand(thd, nj_col_2);
     Item_func_eq *eq_cond;
 
     if (!item_1 || !item_2)
       goto err;                               // out of memory
 
-    /*
-      The following assert checks that the two created items are of
-      type Item_ident.
-    */
-    DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
-    /*
-      In the case of no_wrap_view_item == 0, the created items must be
-      of sub-classes of Item_ident.
-    */
-    DBUG_ASSERT(item_1->type() == Item::FIELD_ITEM ||
-                item_1->type() == Item::REF_ITEM);
-    DBUG_ASSERT(item_2->type() == Item::FIELD_ITEM ||
-                item_2->type() == Item::REF_ITEM);
-
-    /*
-      We need to cast item_1,2 to Item_ident, because we need to hook name
-      resolution contexts specific to each item.
-    */
-    item_ident_1= (Item_ident*) item_1;
-    item_ident_2= (Item_ident*) item_2;
-    /*
-      Create and hook special name resolution contexts to each item in the
-      new join condition . We need this to both speed-up subsequent name
-      resolution of these items, and to enable proper name resolution of
-      the items during the execute phase of PS.
-    */
-    if (set_new_item_local_context(thd, item_ident_1, nj_col_1->table_ref) ||
-        set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
-      goto err;
-
-    if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
+    if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_1, item_2)))
       goto err;                               /* Out of memory. */
 
     /*
@@ -7695,7 +7818,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                       table_ref_1 : table_ref_2),
                 eq_cond);
 
-    nj_col_1->is_common= nj_col_2->is_common= TRUE;
+    nj_col_1->is_common= nj_col_2;
+    nj_col_2->is_common= nj_col_1;
     DBUG_PRINT ("info", ("%s.%s and %s.%s are common",
                          nj_col_1->safe_table_name().str,
                          nj_col_1->name().str,
@@ -7728,6 +7852,129 @@ err:
   DBUG_RETURN(result);
 }
 
+
+static inline bool is_coalesce_item(Item *item)
+{
+  return item->type() == Item::FUNC_ITEM &&
+         ((Item_func*) item)->functype() == Item_func::COALESCE_FUNC;
+}
+
+
+/*
+  Append 'item' to 'list', flattening it when it is itself a COALESCE so
+  COALESCE(a, b) contributes its arguments a, b rather than a nested
+  COALESCE.  'item' is only read, never mutated--it may be shared by an
+  already-built equi-join condition (see natural_join_eq_operand).
+
+  @return TRUE on out-of-memory, FALSE on success.
+*/
+
+static bool append_coalesce_or_item(THD *thd, List<Item> *list, Item *item)
+{
+  if (is_coalesce_item(item))
+  {
+    Item_func *fc= (Item_func*) item;
+    for (Item **a= fc->arguments(), **end= a + fc->argument_count();
+         a < end; a++)
+    {
+      if (list->push_back(*a, thd->mem_root))
+        return TRUE;
+    }
+    return FALSE;
+  }
+  return list->push_back(item, thd->mem_root);
+}
+
+
+/*
+  Build COALESCE(first, second).  When either operand is already a
+  COALESCE, return a single flattened COALESCE over all of the operands
+  instead of nesting one COALESCE inside another, so that a chain such as
+    (t1 natural full join t2) natural full join t3
+  yields COALESCE(t1.x, t2.x, t3.x) rather than
+  COALESCE(COALESCE(t1.x, t2.x), t3.x).  Neither operand is mutated, since
+  an operand may be shared by an equi-join condition built earlier.
+
+  @return the COALESCE item, or NULL on out-of-memory.
+*/
+
+static Item_func_coalesce *coalesce_items(THD *thd, Item *first, Item *second)
+{
+  if (!is_coalesce_item(first) && !is_coalesce_item(second))
+    return new (thd->mem_root) Item_func_coalesce(thd, first, second);
+
+  List<Item> list;
+  if (append_coalesce_or_item(thd, &list, first) ||
+      append_coalesce_or_item(thd, &list, second))
+    return NULL;
+  return new (thd->mem_root) Item_func_coalesce(thd, list);
+}
+
+
+/*
+  For some pair of tables (t1, t2) such that
+    t1 NATURAL FULL JOIN t2
+  generate a set of output columns
+    COALESCE(t1.x_1, t2.y_1), ..., COALESCE(t1.x_n, t2.y_n)
+  such that NULL results won't appear in the NATURAL FULL JOIN.
+
+  @param thd                 the current thread
+  @param left_tab_col        common columns originating in t1
+  @param right_tab_col       common columns originating in t2
+  @return TRUE on out-of-memory, FALSE on success.
+*/
+
+static int coalesce_natural_full_join(THD *thd,
+                                      List<Natural_join_column> *left_tab_col,
+                                      List<Natural_join_column> *right_tab_col)
+{
+  /*
+    It's a NATURAL JOIN so the number of columns from the left table better
+    match the number from the right table.
+  */
+  DBUG_ASSERT(left_tab_col->elements == right_tab_col->elements);
+
+  /*
+    Walk the left table and right table columns in lock-step, creating a
+    new COALESCE() over each pair of columns.  The calling function relies
+    on the state of left_join_columns, so set the COALESCE() item instance
+    on members of that list.
+   */
+  List_iterator<Natural_join_column> left(*left_tab_col);
+  List_iterator<Natural_join_column> right(*right_tab_col);
+  Natural_join_column *left_col= nullptr;
+  Natural_join_column *right_col= nullptr;
+  while ((left_col= left++) && (right_col= right++))
+  {
+    /*
+      When an operand is itself a NATURAL FULL JOIN its common column is the
+      COALESCE built for that join.  coalesce_items() flattens such operands
+      so a chain such as
+        (t1 natural full join t2) natural full join t3
+      yields
+        COALESCE(t1.x, t2.x, t3.x)
+      rather than a nested COALESCE(COALESCE(t1.x, t2.x), t3.x).
+
+      TODO (future improvement):
+        Create a new function 'coalesce_items()'.  If first item is of
+        type Item_func_coalesce() then just add the item to the arg list
+        otherwise call Item_func_coalesce(thd, a, b);
+    */
+    Item *left_field=  left_col->get_item();
+    Item *right_field= right_col->get_item();
+    Item_func_coalesce *coal= coalesce_items(thd, left_field, right_field);
+    if (!coal)
+      return TRUE;  // out of memory
+
+    // Makes the field `COALESCE(left, right) AS left`.
+    coal->set_name(thd, left_field->name);
+
+    // Save the result into the set of left_join_columns.
+    left_col->natural_full_join_field= coal;
+  }
+
+  return FALSE;
+}
 
 
 /*
@@ -7777,7 +8024,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   Query_arena *arena, backup;
   bool result= TRUE;
   List<Natural_join_column> *non_join_columns;
-  List<Natural_join_column> *join_columns;
+  List<Natural_join_column> *left_join_columns;
+  List<Natural_join_column> *right_join_columns;
   DBUG_ENTER("store_natural_using_join_columns");
 
   DBUG_ASSERT(!natural_using_join->join_columns);
@@ -7785,7 +8033,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!(non_join_columns= new List<Natural_join_column>) ||
-      !(join_columns= new List<Natural_join_column>))
+      !(left_join_columns= new List<Natural_join_column>) ||
+      !(right_join_columns= new List<Natural_join_column>))
     goto err;
 
   /* Append the columns of the first join operand. */
@@ -7794,9 +8043,16 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      join_columns->push_back(nj_col_1, thd->mem_root);
-      /* Reset the common columns for the next call to mark_common_columns. */
-      nj_col_1->is_common= FALSE;
+      /*
+        Push the left column and its matching partner from table_ref_2 in
+        lock-step so the two lists stay aligned by name regardless of the
+        column order in the second table.  The partner's is_common is reset
+        below, in the loop over table_ref_2.
+      */
+      left_join_columns->push_back(nj_col_1, thd->mem_root);
+      right_join_columns->push_back(nj_col_1->is_common, thd->mem_root);
+      /* Reset the common column for the next call to mark_common_columns. */
+      nj_col_1->is_common= nullptr;
     }
     else
       non_join_columns->push_back(nj_col_1, thd->mem_root);
@@ -7814,7 +8070,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     while ((using_field_name= using_fields_it++))
     {
       List_iterator_fast<Natural_join_column>
-        it(*join_columns);
+        it(*left_join_columns);
       Natural_join_column *common_field;
 
       for (;;)
@@ -7841,14 +8097,23 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
       non_join_columns->push_back(nj_col_2, thd->mem_root);
     else
     {
-      /* Reset the common columns for the next call to mark_common_columns. */
-      nj_col_2->is_common= FALSE;
+      /* Reset the common column for the next call to mark_common_columns. */
+      nj_col_2->is_common= nullptr;
     }
   }
 
+  /*
+    If this is a NATURAL FULL JOIN, then create a COALESCE() for each pair of
+    columns from the two joined tables.
+  */
+  if ((table_ref_1->outer_join & JOIN_TYPE_FULL) &&
+      (table_ref_2->outer_join & JOIN_TYPE_FULL) &&
+      coalesce_natural_full_join(thd, left_join_columns, right_join_columns))
+    goto err;
+
   if (non_join_columns->elements > 0)
-    join_columns->append(non_join_columns);
-  natural_using_join->join_columns= join_columns;
+    left_join_columns->append(non_join_columns);
+  natural_using_join->join_columns= left_join_columns;
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
@@ -7939,7 +8204,8 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
         swapped in the first loop.
       */
       if (same_level_left_neighbor &&
-          cur_table_ref->outer_join & JOIN_TYPE_RIGHT)
+          (cur_table_ref->outer_join & JOIN_TYPE_RIGHT) &&
+          !(cur_table_ref->outer_join & JOIN_TYPE_FULL))
       {
         /* This can happen only for JOIN ... ON. */
         DBUG_ASSERT(table_ref->nested_join->join_list.elements == 2);
@@ -8900,23 +9166,38 @@ insert_fields(THD *thd, Name_resolution_context *context,
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);
-        DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
-        Item_field *fld= (Item_field*) item;
-        const char *field_db_name= field_iterator.get_db_name().str;
-        const char *field_table_name= field_iterator.get_table_name().str;
-
-        if (!tables->schema_table && 
-            !(fld->have_privileges=
-              (get_column_grant(thd, field_iterator.grant(),
-                                field_db_name,
-                                field_table_name, fld->field_name) &
-               VIEW_ANY_ACL)))
+        if (item->type() == Item::FIELD_ITEM)
         {
-          my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
-                   thd->security_ctx->priv_user,
-                   thd->security_ctx->host_or_ip,
-                   field_db_name, field_table_name);
-          DBUG_RETURN(TRUE);
+          Item_field *fld= (Item_field*) item;
+          const char *field_db_name= field_iterator.get_db_name().str;
+          const char *field_table_name= field_iterator.get_table_name().str;
+
+          if (!tables->schema_table &&
+              !(fld->have_privileges=
+                (get_column_grant(thd, field_iterator.grant(),
+                                  field_db_name,
+                                  field_table_name, fld->field_name) &
+                 VIEW_ANY_ACL)))
+          {
+            my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
+                     thd->security_ctx->priv_user,
+                     thd->security_ctx->host_or_ip,
+                     field_db_name, field_table_name);
+            DBUG_RETURN(TRUE);
+          }
+        }
+        else
+        {
+          /*
+            For NATURAL FULL JOIN, common columns are represented
+            as COALESCE expressions rather than plain Item_field.  The
+            per-column privilege check is skipped because the underlying
+            fields already had their privileges verified during name
+            resolution.  Assert that this is indeed a FULL JOIN context.
+          */
+          DBUG_ASSERT(tables->is_natural_join && tables->nested_join &&
+                      (tables->nested_join->join_list.head()->outer_join &
+                       JOIN_TYPE_FULL));
         }
       }
 #endif

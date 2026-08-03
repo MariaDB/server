@@ -1,0 +1,170 @@
+#
+# NATURAL FULL JOIN column privileges
+#
+# The unqualified common column resolves to COALESCE of the operand
+# columns, so reading it requires SELECT on every underlying column
+# the COALESCE reads, including each leaf of a chained join.  A user
+# holding only one side is denied.  The same enforcement covers
+# views; the column grant required is on the view, not on its base
+# table.
+#
+# A database other than test is used because the default test and
+# test_% databases carry a wildcard grant that would mask the
+# column level grants under test here.
+#
+create database mysqltest_nfj;
+use mysqltest_nfj;
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+create table t3 (a int, d int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+insert into t3 values (2,2000),(9,9000);
+create user nfj_user@localhost;
+grant select (a,b) on mysqltest_nfj.t1 to nfj_user@localhost;
+grant select (c)   on mysqltest_nfj.t2 to nfj_user@localhost;
+grant select (d)   on mysqltest_nfj.t3 to nfj_user@localhost;
+connect  nfj_con, localhost, nfj_user,, mysqltest_nfj;
+# nfj_user lacks SELECT on t2.a, so the coalesced a is denied in
+# the SELECT list and in WHERE.
+select a from t1 natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_user'@'localhost' for column 'a' in table 't2'
+select b from t1 natural full join t2 where a = 3;
+ERROR 42000: SELECT command denied to user 'nfj_user'@'localhost' for column 'a' in table 't2'
+# A qualified reference to a granted column still works.
+select t1.b from t1 natural full join t2 where t1.a = 2;
+b
+20
+connection default;
+grant select (a) on mysqltest_nfj.t2 to nfj_user@localhost;
+connection nfj_con;
+# With SELECT on both t1.a and t2.a the coalesced read works.
+select a from t1 natural full join t2;
+a
+1
+2
+3
+# Chained join: t1.a and t2.a are granted but t3.a is not, so the
+# denial is on t3.a -- the walk reached the deepest leaf.
+select a from (t1 natural full join t2) natural full join t3;
+ERROR 42000: SELECT command denied to user 'nfj_user'@'localhost' for column 'a' in table 't3'
+connection default;
+grant select (a) on mysqltest_nfj.t3 to nfj_user@localhost;
+connection nfj_con;
+# Every underlying column granted now, so the chained read works.
+select a from (t1 natural full join t2) natural full join t3;
+a
+1
+2
+3
+9
+connection default;
+disconnect nfj_con;
+# The same check covers views, and across view kinds.  A view on the
+# right side of a FULL JOIN is rejected as a non-base table, so the
+# executable shape is a view on the left.  Reading the coalesced
+# column then requires the column grant on the view, however the view
+# is materialized.
+#
+# v_merge  mergeable view
+# v_tmp    temptable (materialized) view
+# v_expr   view whose common column is a computed expression
+# v_over   view defined over another view
+# v_union  view whose body is a UNION
+create view v_merge as select a, b from t1;
+create algorithm=temptable view v_tmp as select a, b from t1;
+create view v_expr as select a + 0 as a, b from t1;
+create view v_over as select a, b from v_merge;
+create view v_union as select a, b from t1 union select a, b from t1;
+# A view on the right side is rejected (run as the table owner).
+select a from t2 natural full join v_merge;
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'v_merge' is not a base table
+create user nfj_vuser@localhost;
+grant select (a,c) on mysqltest_nfj.t2 to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_merge to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_tmp   to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_expr  to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_over  to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_union to nfj_vuser@localhost;
+connect  nfj_vcon, localhost, nfj_vuser,, mysqltest_nfj;
+# nfj_vuser holds the base t2.a but not the view's a column, so the
+# coalesced a is denied on the view for every view kind.
+select a from v_merge natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_vuser'@'localhost' for column 'a' in table 'v_merge'
+select a from v_tmp natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_vuser'@'localhost' for column 'a' in table 'v_tmp'
+select a from v_expr natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_vuser'@'localhost' for column 'a' in table 'v_expr'
+select a from v_over natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_vuser'@'localhost' for column 'a' in table 'v_over'
+select a from v_union natural full join t2;
+ERROR 42000: SELECT command denied to user 'nfj_vuser'@'localhost' for column 'a' in table 'v_union'
+connection default;
+grant select (a) on mysqltest_nfj.v_merge to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_tmp   to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_expr  to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_over  to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_union to nfj_vuser@localhost;
+connection nfj_vcon;
+# With the view's a column granted the coalesced read works for
+# every view kind.
+select a from v_merge natural full join t2;
+a
+1
+2
+3
+select a from v_tmp natural full join t2;
+a
+1
+2
+3
+select a from v_expr natural full join t2;
+a
+1
+2
+3
+select a from v_over natural full join t2;
+a
+1
+2
+3
+select a from v_union natural full join t2;
+a
+1
+2
+3
+connection default;
+disconnect nfj_vcon;
+drop user nfj_vuser@localhost;
+drop view v_merge, v_tmp, v_expr, v_over, v_union;
+#
+# CREATE VIEW with SELECT * over a NATURAL FULL JOIN runs the "any
+# privilege" column check while expanding the *.  A user that holds
+# the common column but lacks a side column the * expands to is
+# denied, and the error names the table of the missing column.  This
+# check applies only during view creation, not on a plain SELECT.
+#
+create user nfj_star@localhost;
+grant select (a)   on mysqltest_nfj.t1 to nfj_star@localhost;
+grant select (a,c) on mysqltest_nfj.t2 to nfj_star@localhost;
+grant create view on mysqltest_nfj.* to nfj_star@localhost;
+connect  nfj_starcon, localhost, nfj_star,, mysqltest_nfj;
+# nfj_star lacks SELECT on t1.b, a column the * expands to.
+create view v_star as select * from t1 natural full join t2;
+ERROR 42000: ANY command denied to user 'nfj_star'@'localhost' for table `mysqltest_nfj`.`t1`
+connection default;
+grant select (b) on mysqltest_nfj.t1 to nfj_star@localhost;
+connection nfj_starcon;
+# With t1.b granted the view is created.
+create view v_star as select * from t1 natural full join t2;
+connection default;
+select * from v_star;
+a	b	c
+1	10	NULL
+2	20	200
+3	NULL	300
+disconnect nfj_starcon;
+drop view v_star;
+drop user nfj_star@localhost;
+drop user nfj_user@localhost;
+drop database mysqltest_nfj;
