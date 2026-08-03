@@ -29,3 +29,13 @@ evalp SELECT load_file('$MYSQLTEST_VARDIR/../bug50373.txt') AS loaded_file;
 DROP TABLE t1;
 
 --remove_file $MYSQLTEST_VARDIR/../bug50373.txt
+
+--echo #
+--echo # MDEV-40589 default exclude list for secure-file-priv
+--echo #
+CREATE TABLE t1 (c1 VARCHAR(50));
+--error ER_OPTION_PREVENTS_STATEMENT
+LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
