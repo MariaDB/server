@@ -223,8 +223,6 @@ static enum_nested_loop_state evaluate_join_record(JOIN *, JOIN_TAB *, int);
 static enum_nested_loop_state
 evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab);
 static enum_nested_loop_state
-end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
-static enum_nested_loop_state
 end_write(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
@@ -26155,7 +26153,14 @@ join_read_next_same_or_null(READ_RECORD *info)
 *****************************************************************************/
 
 /* ARGSUSED */
-static enum_nested_loop_state
+/*
+  Not static: the parallel-query manager runs this over the rows its workers
+  produced, the way it stands over a serial nested loop, so that LIMIT, HAVING
+  and the row accounting are the server's and not a second copy of them. Its
+  siblings end_send_group() and end_write_group() are declared in sql_select.h
+  for the same kind of reason.
+*/
+enum_nested_loop_state
 end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   DBUG_ENTER("end_send");

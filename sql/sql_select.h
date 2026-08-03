@@ -1016,6 +1016,8 @@ enum_nested_loop_state
 sub_select_postjoin_aggr(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 enum_nested_loop_state
+end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
+enum_nested_loop_state
 end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	       bool end_of_records);
 enum_nested_loop_state

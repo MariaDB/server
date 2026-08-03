@@ -1707,6 +1707,23 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
 {
   DBUG_ENTER("pwt_manager::manager_collect_and_send");
   uchar *dst= result_table->record[0];
+
+  /*
+    The plan's own terminal function, reached exactly as sub_select() would reach
+    it: the last real table's next_select, called with the tab after it.
+    make_aggr_tables_info() has put setup_end_select_func()'s choice there, which
+    for the shapes the gate accepts today is end_send().
+
+    What this buys beyond not keeping a second copy of the server's code: the row
+    accounting (send_records, accepted_rows, duplicate_rows), HAVING, and the
+    LIMIT checks including WITH TIES are the server's. The gate still refuses
+    HAVING and LIMIT, so those paths are unreached today; relaxing either becomes
+    a change to the gate rather than more code here, which is the point of
+    standing on the plan's terminal at all. A plan whose terminal is some other
+    function needs nothing here either.
+  */
+  JOIN_TAB *last_tab= mgr_tabs[n_tables - 1];
+  DBUG_ASSERT(last_tab->next_select);
   int ret= 0;
 
   /*
@@ -1715,9 +1732,9 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
     would make every copied field read as NULL.
 
     Writing into these records is not something a SELECT's write_set allows, and
-    Field::store() asserts on that, so mark the fields writable for the drain. A
-    record is being filled here in place of the reader that would normally have
-    filled it, which is what the helper is for.
+    Field::store() asserts on that, so mark the fields writable for the drain.
+    A record is being filled here in place of the reader that would normally
+    have filled it, which is what the helper is for.
   */
   MY_BITMAP **saved_write_set= (MY_BITMAP**)
                                 thd->alloc(n_tables * sizeof(MY_BITMAP*));
@@ -1742,32 +1759,48 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
       break;
     }
 
-    /* Put the shipped columns back where the query expects to find them. */
+    /* Put the shipped columns back where the plan expects to find them. */
     for (uint i= 0; i < n_copy_back; i++)
       (*copy_back[i].do_copy)(&copy_back[i]);
 
-    int err= join->result->send_data_with_check(join->fields_list, join->unit,
-                                                 join->send_records);
-    if (unlikely(err))
+    enum_nested_loop_state nls= (*last_tab->next_select)(join, last_tab + 1,
+                                                        FALSE);
+    if (nls == NESTED_LOOP_QUERY_LIMIT)
     {
-      if (err > 0)
-      {
-        ret= 1;
-        break;
-      }
-      join->duplicate_rows++;                     // err < 0: duplicate row
+      /*
+        Enough rows: stop the producers rather than draining the rest. The
+        workers see this the next time they hand a batch over.
+      */
+      mysql_mutex_lock(&LOCK_data);
+      stop= true;
+      mysql_cond_broadcast(&COND_data_space);
+      mysql_mutex_unlock(&LOCK_data);
+      break;
     }
-    join->send_records++;
-    join->accepted_rows++;
+    if (nls < NESTED_LOOP_OK)                     // ERROR or KILLED
+    {
+      ret= 1;
+      break;
+    }
+  }
+
+  if (!ret)
+  {
+    /*
+      End of records. This is the call that sends an aggregate's single row, and
+      the one that makes a temp-table stage read back what it accumulated.
+    */
+    enum_nested_loop_state nls= (*last_tab->next_select)(join, last_tab + 1,
+                                                        TRUE);
+    if (nls < NESTED_LOOP_OK)
+      ret= 1;
   }
 
   for (uint t= 0; t < n_tables; t++)
     dbug_tmp_restore_column_map(&mgr_tables[t]->write_set, saved_write_set[t]);
-
   DBUG_PRINT("info", ("join records:%llu", join->send_records));
   DBUG_RETURN(ret);
 }
-
 
 /*
   @brief
