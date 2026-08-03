@@ -4,21 +4,27 @@
 --source include/have_utf32.inc
 
 --echo #
---echo # How the JSON aggregates hand their result to the client.
+--echo # How the JSON aggregates deliver their result to the client.
 --echo #
 --echo # A result computed in one character set and asked for in another is
---echo # converted on the way out.  Whether that conversion happens at all is
---echo # decided by the character set the returned value carries, which need
---echo # not be the one the function says it has.
+--echo # converted on the way out.  Two separate questions decide what the
+--echo # client is left holding: which character set the result was computed
+--echo # in, and whether what is in it survives the conversion to the one
+--echo # that was asked for.
 --echo #
---echo # swe7 is the vehicle throughout.  It has no code point for the
---echo # brackets and braces a JSON document is built from, so a result that
---echo # was converted arrives with those replaced by '?', and one passed on
---echo # unconverted arrives intact.  The difference is therefore visible
+--echo # swe7 is the vehicle for the first of those.  It has no code point
+--echo # for the brackets and braces a JSON document is built from, so a
+--echo # result converted into it arrives with those replaced by '?'.  That
+--echo # is what a conversion having happened looks like, and it is visible
 --echo # without a single non-ASCII byte in this file.  A client asking for
---echo # latin1 is told the same two stories, but the second one reaches it as
---echo # utf8mb4 bytes under a latin1 label, which is not printable and not
---echo # recoverable.
+--echo # latin1 sees nothing to remark on, latin1 having the punctuation:
+--echo # the conversion happens just the same and the result arrives intact.
+--echo #
+--echo # The later sections ask the other question, leaving the client alone
+--echo # and computing the result in a character set of its own.  There the
+--echo # punctuation has to go down at the width that character set asks
+--echo # for, and where the character set has no punctuation to write, what
+--echo # is written is not a document at all.
 --echo #
 
 SET NAMES utf8mb4;
@@ -120,6 +126,7 @@ SET SESSION character_set_results = DEFAULT;
 
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS h FROM t1;
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING ucs2))) AS valid FROM t1;
+SELECT CONVERT(JSON_ARRAYAGG(CONVERT(a USING ucs2)) USING utf8mb4) AS v FROM t1;
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS h FROM t1;
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING utf16))) AS valid FROM t1;
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING utf32))) AS h FROM t1;
@@ -182,6 +189,25 @@ SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING latin1),
 SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING utf8mb4),
                           CONVERT(a USING utf8mb4))) AS h FROM t1;
 SELECT g, HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1 GROUP BY g ORDER BY g;
+
+--echo #
+--echo # 8. swe7 as the character set the aggregate is resolved to.
+--echo #
+--echo # Everywhere above, swe7 is only what the client asked for.  Here it
+--echo # is what the expression resolves to, so the punctuation is written
+--echo # in it - and swe7 puts national letters where the brackets and the
+--echo # braces belong.  What is written is therefore not a document, and
+--echo # JSON_VALID() answers 0 for it.
+--echo #
+SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS h FROM t1;
+SELECT CHARSET(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS cs FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid FROM t1;
+SELECT g, JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid
+  FROM t1 GROUP BY g ORDER BY g;
+SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING swe7),
+                          CONVERT(a USING swe7))) AS h FROM t1;
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING swe7),
+                                 CONVERT(a USING swe7))) AS valid FROM t1;
 
 DROP TABLE t1, t2;
 SET NAMES utf8mb4;
