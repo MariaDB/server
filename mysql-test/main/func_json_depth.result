@@ -131,7 +131,7 @@ SELECT JSON_KEYS(@o32) AS over_limit;
 over_limit
 NULL
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_keys' at position 160
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_keys' at position 156
 SELECT JSON_SET(@d32, '$[0]', 2) AS over_limit;
 over_limit
 NULL
@@ -196,7 +196,7 @@ SELECT JSON_OVERLAPS(@d32, '[1]') AS over_limit;
 over_limit
 0
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 33
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
 SELECT JSON_EQUALS(@d32, @d32) AS over_limit;
 over_limit
 NULL

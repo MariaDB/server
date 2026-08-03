@@ -527,7 +527,13 @@ void report_json_error_ex(const char *js, json_engine_t *je,
                           Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (int)((const char *) je->s.c_str - js);
+  /*
+    Where the scanner refused, which is not where it came to rest: it
+    goes on being asked for the next token by callers that are not
+    obliged to stop, so json_error() takes the reading at the refusal
+    and this reports that one.
+  */
+  int position= (int)((const char *) je->s.error_pos - js);
   uint code;
 
   n_param++;
@@ -618,7 +624,7 @@ void report_path_error_ex(const char *ps, json_path_t *p,
                           Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (int)((const char *) p->s.c_str - ps + 1);
+  int position= (int)((const char *) p->s.error_pos - ps + 1);
   uint code;
 
   n_param++;
@@ -677,7 +683,7 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
     if ((p->types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
                           JSON_PATH_ARRAY_RANGE)) == 0)
       return 0;
-    p->s.error= NO_WILDCARD_ALLOWED;
+    json_error(&p->s, NO_WILDCARD_ALLOWED);
   }
 
   return 1;
@@ -2226,7 +2232,7 @@ static int append_json_typed_value(String *str, const String *sv, uint depth,
   }
 
   if (je.s.error == 0 && max_level + (int) depth >= JSON_DEPTH_LIMIT)
-    je.s.error= JE_DEPTH;
+    json_error(&je.s, JE_DEPTH);
 
   /*
     Said here rather than left to the caller: the callers report through
@@ -2710,7 +2716,7 @@ String *Item_func_json_array_insert::val_str(String *str)
            c_path->p.last_step->type != JSON_PATH_ARRAY)
       {
         if (c_path->p.s.error == 0)
-          c_path->p.s.error= SHOULD_END_WITH_ARRAY;
+          json_error(&c_path->p.s, SHOULD_END_WITH_ARRAY);
 path_err:
         report_path_error(s_p, &c_path->p, n_arg);
 
@@ -4116,7 +4122,7 @@ String *Item_func_json_remove::val_str(String *str)
         c_path->p.last_step--;
         if (c_path->p.last_step < c_path->p.steps)
         {
-          c_path->p.s.error= TRIVIAL_PATH_NOT_ALLOWED;
+          json_error(&c_path->p.s, TRIVIAL_PATH_NOT_ALLOWED);
           report_path_error(s_p, &c_path->p, n_arg);
           goto null_return;
         }
@@ -5238,6 +5244,27 @@ void json_skip_current_level(json_engine_t *js, json_engine_t *value)
 }
 
 
+/*
+  Put an engine back where it was remembered from, so the next candidate
+  can be tried against it.
+
+  A refusal has to survive that.  The snapshot was taken before the
+  engine failed, so restoring over the failure returns an engine that
+  reads as healthy, standing somewhere the scanner never reached; the
+  walk then goes on questioning a document it can no longer read, and
+  the complaint that is finally made - if one is made at all - names
+  wherever the walk ran out rather than what was wrong with the
+  document.  Nonzero says the walk is over.
+*/
+static int json_resume_scan(json_engine_t *je, const json_engine_t *saved)
+{
+  if (je->s.error)
+    return 1;
+  *je= *saved;
+  return 0;
+}
+
+
 /* At least one of the two arguments is a scalar. */
 bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value)
 {
@@ -5303,7 +5330,8 @@ bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
       int res1= json_find_overlap_with_object(js, value, true);
       if (res1)
         return TRUE;
-      *value= loc_val;
+      if (json_resume_scan(value, &loc_val))
+        return FALSE;
     }
     if (js->value_type == JSON_VALUE_ARRAY)
       json_skip_level(js);
@@ -5369,9 +5397,11 @@ int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
           if (!json_value_scalar(value))
             json_skip_level(value);
         }
-        *js= current_js;
+        if (json_resume_scan(js, &current_js))
+          return FALSE;
       }
-      *value= loc_value;
+      if (json_resume_scan(value, &loc_value))
+        return FALSE;
       if (!json_value_scalar(js))
         json_skip_level(js);
     }
@@ -5396,8 +5426,16 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   int result= 0;
   const char *value_begin= (const char*)value->s.c_str-1;
   const char *js_begin= (const char*)js->s.c_str-1;
-  json_skip_level(value);
-  json_skip_level(js);
+  /*
+    A refusal here means the fragment was not read to its end, so what
+    lies between begin and end is a piece of a document rather than one.
+    Normalizing that piece finds it unterminated and says so, which
+    replaces the reason the scanner gave with a complaint about where it
+    was made to stop.  The engine already carries the reason; leave it
+    alone and let the caller report it.
+  */
+  if (json_skip_level(value) || json_skip_level(js))
+    return 0;
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
   json_engine_t je;
@@ -5412,14 +5450,20 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   { 
     goto error;
   }
+  /*
+    Only the code is carried over.  The normalizing engine read a copy of
+    the value, so where it stopped is a position in that copy and says
+    nothing about this document; json_error() takes the reading from the
+    engine being refused, which is the one the caller reports through.
+  */
   if (json_normalize_engine(&je, &a_res, a.ptr(), a.length(), value->s.cs))
   {
-    value->s.error= je.s.error;
+    json_error(&value->s, je.s.error);
     goto error;
   }
   if (json_normalize_engine(&je, &b_res, b.ptr(), b.length(), value->s.cs))
   {
-    js->s.error= je.s.error;
+    json_error(&js->s, je.s.error);
     goto error;
   }
 
@@ -5498,7 +5542,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
               only js (first argument i.e json document) and
               continue.
             */
-            *js= loc_js;
+            if (json_resume_scan(js, &loc_js))
+              return FALSE;
             continue;
           }
         }
@@ -5515,7 +5560,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
             return FALSE;
           if (!json_value_scalar(value))
             json_skip_level(value);
-          *js= loc_js;
+          if (json_resume_scan(js, &loc_js))
+            return FALSE;
         }
       }
       /*

@@ -1,0 +1,198 @@
+#
+# A document nested deeper than the parser will go, handed to the
+# functions that compare one document against another.
+#
+# The parser stops at a fixed depth and records that it has.  What it
+# does with its nesting counter on the way out decides what a caller
+# that keeps scanning afterwards will read, the counter being the
+# index into the stack of states the scanner works from.
+#
+SET NAMES utf8mb4;
+#
+# 1. One container past the limit, in either argument.
+#
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)),
+'{"a":1}') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT JSON_OVERLAPS('{"a":1}',
+CONCAT(REPEAT('[',32),'1',REPEAT(']',32))) AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+# the other argument's kind does not matter
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)),
+'"s"') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)),
+'[[1]]') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)),
+'[1,2]') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+# both arguments past the limit
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)),
+CONCAT(REPEAT('[',32),'1',REPEAT(']',32))) AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+#
+# 2. The same depth reached through objects rather than arrays.
+#
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('{"a":',32),'1',REPEAT('}',32)),
+'{"a":1}') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 156
+SELECT JSON_OVERLAPS('{"a":1}',
+CONCAT(REPEAT('{"a":',32),'1',REPEAT('}',32))) AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 156
+# and mixed, an array holding an object chain.  It is one container
+# past the limit exactly as the two above are, and the complaint it
+# draws has to say so: the document is complete and balanced, and
+# too deep is the only thing wrong with it.
+SELECT JSON_OVERLAPS(CONCAT('[',REPEAT('{"a":',31),'1',REPEAT('}',31),']'),
+'{"a":1}') AS v;
+v
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 152
+SELECT JSON_DEPTH(CONCAT('[',REPEAT('{"a":',31),'1',REPEAT('}',31),']')) AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 152
+#
+# 3. One container inside the limit, which is a document and compares.
+#
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',31),'1',REPEAT(']',31)),
+'{"a":1}') AS v;
+v
+0
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',31),'1',REPEAT(']',31)),
+CONCAT(REPEAT('[',31),'1',REPEAT(']',31))) AS v;
+v
+1
+SELECT JSON_OVERLAPS(CONCAT(REPEAT('[',31),'1',REPEAT(']',31)),
+'[1,2]') AS v;
+v
+0
+#
+# 4. What the neighbouring functions answer on the same input.
+#
+SELECT JSON_CONTAINS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)), '1') AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_contains' at position 32
+SELECT JSON_EQUALS(CONCAT(REPEAT('[',32),'1',REPEAT(']',32)), '1') AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_equals' at position 32
+SELECT JSON_DEPTH(CONCAT(REPEAT('[',32),'1',REPEAT(']',32))) AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+SELECT JSON_VALID(CONCAT(REPEAT('[',32),'1',REPEAT(']',32))) AS v;
+v
+0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT JSON_TYPE(CONCAT(REPEAT('[',32),'1',REPEAT(']',32))) AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_type' at position 32
+#
+# 5. Rows of them, so the engine is reused across evaluations.
+#
+CREATE TABLE t1 (id INT, j LONGTEXT);
+INSERT INTO t1 VALUES
+(1, CONCAT(REPEAT('[',32),'1',REPEAT(']',32))),
+(2, '[1,2]'),
+(3, CONCAT(REPEAT('[',31),'1',REPEAT(']',31))),
+(4, '{"a":1}');
+SELECT id, JSON_OVERLAPS(j, '[1,2]') AS v FROM t1 ORDER BY id;
+id	v
+1	0
+2	1
+3	0
+4	0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT id, JSON_OVERLAPS('[1,2]', j) AS v FROM t1 ORDER BY id;
+id	v
+1	0
+2	1
+3	0
+4	0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+SELECT id, JSON_OVERLAPS(j, j) AS v FROM t1 ORDER BY id;
+id	v
+1	0
+2	1
+3	1
+4	1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+DROP TABLE t1;
+#
+# 6. Where the complaint says the document went too deep.
+#
+# The position is a property of the document alone.  The second
+# argument decides how much comparing is attempted before the depth
+# is reached, and must not decide where the scanner is said to have
+# stopped: all four below are the same first argument, so all four
+# positions have to be the same one.
+#
+# It is also the same document the other functions are given in
+# section 4, so it has to be the position they report for it.
+#
+SET @d = CONCAT(REPEAT('[',32),'1',REPEAT(']',32));
+SELECT JSON_OVERLAPS(@d,'{"a":1}') AS obj, JSON_OVERLAPS(@d,'"s"') AS scalar,
+JSON_OVERLAPS(@d,'[[1]]') AS nested, JSON_OVERLAPS(@d,'[1,2]') AS flat;
+obj	scalar	nested	flat
+0	0	0	0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT JSON_DEPTH(@d) AS v;
+v
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+# and the other way round, where it is argument 2 that is too deep
+SELECT JSON_OVERLAPS('{"a":1}',@d) AS obj, JSON_OVERLAPS('"s"',@d) AS scalar,
+JSON_OVERLAPS('[[1]]',@d) AS nested, JSON_OVERLAPS('[1,2]',@d) AS flat;
+obj	scalar	nested	flat
+0	0	0	0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_overlaps' at position 32
+SET @d = NULL;
