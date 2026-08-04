@@ -3737,7 +3737,14 @@ String *Item_func_json_merge_patch::val_str(String *str)
         goto cont_point;
 
       merge_to_null= false;
-      str->set(js2->ptr(), js2->length(), js2->charset());
+      /*
+        Taken over by copying it rather than by pointing at it.  The next
+        argument is read into the very buffer this one came in, and a
+        buffer that has to grow to hold it is not the buffer it was: what
+        was pointed at is gone by the time it comes to be read.
+      */
+      if (str->copy(js2->ptr(), js2->length(), js2->charset()))
+        goto error_return;
       goto cont_point;
     }
 
