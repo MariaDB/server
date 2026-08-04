@@ -861,6 +861,53 @@ static inline item_with_t operator~(const item_with_t a)
 }
 
 
+/*
+  What a JSON function says about the value it has just handed back:
+  is_valid, that the value is a document, and is_nice, that it is
+  spelled the way json_nice() spells one in its loose form.
+
+  Both start out saying nothing, and a function says something only
+  where it hands a result back, so every other way out leaves them as
+  they were.  Saying nothing is always safe - a caller that is told
+  nothing reads the value, which is what every caller does today.
+
+  The two are kept together in one member rather than as two bools of
+  their own so that a class picking up one picks up the other, and so
+  that there is a single place to say what copying and setting them
+  mean, however many classes come to hold one.
+
+  It lives here, and not with the JSON functions, because a class that
+  is not one of them can still carry a value through - see
+  Item_func_conv_charset - and going through this member is what puts
+  such a class under the debug check below.
+*/
+class Json_result_marks
+{
+  bool m_valid;
+  bool m_nice;
+public:
+  Json_result_marks(): m_valid(false), m_nice(false) {}
+  /*
+    A copy is a new item that has not been evaluated, so it has produced
+    no value and there is nothing for it to say.  What the item it was
+    copied from can say is about bytes that item still owns and is free
+    to write over.
+  */
+  Json_result_marks(const Json_result_marks &)
+   : m_valid(false), m_nice(false) {}
+  bool valid() const { return m_valid; }
+  bool nice() const { return m_nice; }
+  void clear() { m_valid= m_nice= false; }
+  /*
+    'str' is the value 'valid' and 'nice' are being set for.  A debug
+    build reads it back and stops if it is not what they say it is.
+    Nothing else ever would: the marks appear in no result, so a claim
+    that was not true would go unnoticed until something acted on it.
+  */
+  void set(const String *str, bool valid, bool nice);
+};
+
+
 class Item :public Value_source,
             public Type_all_attributes
 {
@@ -1708,6 +1755,43 @@ public:
   String *val_str(String *str, String *converter, CHARSET_INFO *to);
 
   virtual String *val_json(String *str) { return val_str(str); }
+
+  /*
+    Whether the value handed back by the LAST evaluation of this item is
+    guaranteed to be a JSON document, written in the character set the
+    value says it is written in.
+
+    The question is put to the item rather than to the value because a
+    value has nowhere to keep the answer: val_str() hands back bytes, a
+    length and a character set, and that is all there is room for.  So a
+    caller evaluates the item and asks it, in that order, and the answer
+    stands until the item is evaluated again.
+
+    FALSE does not say the value is not a document.  It says only that
+    is_valid is false, and a caller who needs to know must read it and
+    find out - which is what every caller does today.  Answering TRUE for a
+    value that is not guaranteed is the one answer that must never be
+    given; answering FALSE for one that is costs a reading and nothing
+    else.
+  */
+  virtual bool is_valid_json() const { return false; }
+
+  /*
+    Whether that same value is spelled the way json_nice() spells a
+    document in its LOOSE form, which is the spelling the JSON functions
+    hand back today.  Same rules as above, and the same one-sided cost:
+    a document said not to be in that form is simply written out again.
+  */
+  virtual bool is_nice_json() const { return false; }
+
+  /*
+    Whether EVERY evaluation of this item gives back a document or
+    nothing at all.  A property of the class, so it can be asked before
+    anything has been evaluated - which is what a caller running at
+    create time needs, the two answers above having no meaning there.
+  */
+  virtual bool is_valid_json_static() const { return false; }
+
   /*
     Return decimal representation of item with fixed point.
 
@@ -6203,6 +6287,19 @@ public:
   longlong val_time_packed(THD *) override;
   Ref_Type ref_type() override { return DIRECT_REF; }
 
+  /*
+    val_str() here returns what the referenced item returned, byte
+    for byte, so whatever could be said about that value can still be
+    said about this one.  Item_ref cannot say the same: it reads through
+    str_result(), which for a field is the copy sitting in a record
+    buffer rather than the value the producing item made, and nothing
+    here knows what happened to it on the way.
+  */
+  bool is_valid_json() const override { return (*ref)->is_valid_json(); }
+  bool is_nice_json() const override { return (*ref)->is_nice_json(); }
+  bool is_valid_json_static() const override
+  { return (*ref)->is_valid_json_static(); }
+
   /* Should be called if ref is changed */
   inline void ref_changed()
   {
@@ -6401,13 +6498,22 @@ class Item_direct_view_ref :public Item_direct_ref
 
   bool check_null_ref()
   {
-    DBUG_ASSERT(null_ref_table);
-    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
+    if (null_row_ref())
     {
       null_value= 1;
       return TRUE;
     }
     return FALSE;
+  }
+
+  /*
+    The same question without the answer being recorded, for callers that
+    only want to know and are not evaluating anything.
+  */
+  bool null_row_ref() const
+  {
+    DBUG_ASSERT(null_ref_table);
+    return null_ref_table != NO_NULL_TABLE && null_ref_table->null_row;
   }
 
 public:
@@ -6468,6 +6574,19 @@ public:
   Item *grouping_field_transformer_for_where(THD *thd, uchar *arg) override;
   Item *in_subq_field_transformer_for_where(THD *thd, uchar *arg) override;
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg) override;
+
+  /*
+    On a row the outer join filled in with NULLs the val_XXX below return
+    without evaluating the referenced item at all, so what that item can
+    say is about whatever row it was last asked about.  Say nothing here
+    instead.  The row that was just produced is the one being asked about,
+    which is why this reads null_row_ref() rather than remembering
+    anything: it is answering about the same row the val_XXX did.
+  */
+  bool is_valid_json() const override
+  { return !null_row_ref() && Item_direct_ref::is_valid_json(); }
+  bool is_nice_json() const override
+  { return !null_row_ref() && Item_direct_ref::is_nice_json(); }
 
   void save_val(Field *to) override
   {

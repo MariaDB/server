@@ -2281,6 +2281,17 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
+
+  /*
+    What this stands in front of is an aggregate, which keeps no result
+    field of its own, so reading through it reaches the aggregate's own
+    val_str() and the value arrives unaltered.  Whatever the aggregate
+    can say about it therefore still holds here.
+  */
+  bool is_valid_json() const override { return (*ref)->is_valid_json(); }
+  bool is_nice_json() const override { return (*ref)->is_nice_json(); }
+  bool is_valid_json_static() const override
+  { return (*ref)->is_valid_json_static(); }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_aggregate_ref>(thd, this); }
