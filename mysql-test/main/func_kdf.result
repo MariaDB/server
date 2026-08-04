@@ -161,3 +161,25 @@ ERROR 42000: Incorrect parameter count in the call to native function 'kdf'
 #
 # End of 11.3 tests
 #
+#
+# MDEV-40385 use-of-uninitialized-value in Binary_string::c_ptr()
+#
+SELECT KDF('','',1000,256);
+KDF('','',1000,256)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: '256' in function kdf.
+SELECT KDF('secret','salt',1000,999);
+KDF('secret','salt',1000,999)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: '999' in function kdf.
+SELECT KDF('secret','salt',1000,'pbkdf2_hmac') IS NOT NULL;
+KDF('secret','salt',1000,'pbkdf2_hmac') IS NOT NULL
+1
+SELECT KDF('secret','salt') IS NOT NULL;
+KDF('secret','salt') IS NOT NULL
+1
+#
+# End of 11.4 tests
+#
