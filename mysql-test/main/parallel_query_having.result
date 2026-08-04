@@ -1,0 +1,137 @@
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2, seq*3 FROM seq_1_to_2000;
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+#
+# HAVING on a select-list column
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 3990) d;
+n	crc_sum	crc_xor
+5	10498457269	2367871767
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 3990) d;
+n	crc_sum	crc_xor
+5	10498457269	2367871767
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# HAVING on a select-list alias. This is the case that says the records the
+# manager filled are right: the alias is a reference into the select list,
+# and resolved against anything else it reads nothing.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',s))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',s))) AS crc_xor FROM (SELECT a+b AS s FROM t1 WHERE b > 0 HAVING s > 9990) d;
+n	crc_sum	crc_xor
+2	5765561590	2824241908
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',s))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',s))) AS crc_xor FROM (SELECT a+b AS s FROM t1 WHERE b > 0 HAVING s > 9990) d;
+n	crc_sum	crc_xor
+2	5765561590	2824241908
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# HAVING on a column the select list carries but the predicate does not
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,pk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,pk))) AS crc_xor FROM (SELECT a, pk FROM t1 WHERE b > 0 HAVING pk > 1995) d;
+n	crc_sum	crc_xor
+5	13582442011	2484379055
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,pk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,pk))) AS crc_xor FROM (SELECT a, pk FROM t1 WHERE b > 0 HAVING pk > 1995) d;
+n	crc_sum	crc_xor
+5	13582442011	2484379055
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# a conjunction, and one that selects nothing
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 3990 AND a < 3999) d;
+n	crc_sum	crc_xor
+4	8284302224	249268274
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 3990 AND a < 3999) d;
+n	crc_sum	crc_xor
+4	8284302224	249268274
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 999999) d;
+n	crc_sum	crc_xor
+0	NULL	0
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a))) AS crc_xor FROM (SELECT a FROM t1 WHERE b > 0 HAVING a > 999999) d;
+n	crc_sum	crc_xor
+0	NULL	0
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# WHERE and HAVING together over a join, so the row HAVING sees is one the
+# worker assembled from two tables
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,nm))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,nm))) AS crc_xor FROM (SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 AND t1.b > 0 HAVING t1.a > 3990) d;
+n	crc_sum	crc_xor
+5	9798500054	3405723804
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,nm))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,nm))) AS crc_xor FROM (SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 AND t1.b > 0 HAVING t1.a > 3990) d;
+n	crc_sum	crc_xor
+5	9798500054	3405723804
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# a constant in the select list ships no column of its own, so this says
+# HAVING still resolves when not every select-list item came from a record
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a))) AS crc_xor FROM (SELECT 42 AS k, a FROM t1 WHERE b > 0 HAVING a > 3990) d;
+n	crc_sum	crc_xor
+5	9724911397	1728398407
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a))) AS crc_xor FROM (SELECT 42 AS k, a FROM t1 WHERE b > 0 HAVING a > 3990) d;
+n	crc_sum	crc_xor
+5	9724911397	1728398407
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+DROP TABLE t1, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

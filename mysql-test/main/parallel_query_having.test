@@ -1,0 +1,85 @@
+#
+# MDEV-39492 Parallel Query: HAVING.
+#
+# HAVING is applied by end_send(), on the manager, against the row a worker
+# shipped, and it needs nothing of its own to work. What a worker ships is the
+# base-table columns of the row, and the manager copies them back into its own
+# records before handing the row on, so the Item_refs that HAVING binds to the
+# select list through resolve to exactly the values a serial scan would have left
+# in those records. Nothing is cloned, no reference array is swapped, and no
+# worker evaluates HAVING.
+#
+# The alias case below is what says so: an alias is a reference into the select
+# list, and evaluated against anything but correct base-table values it reads
+# nothing.
+#
+# The rows HAVING selects are determined, only their order is not, so these
+# compare fingerprints rather than counts alone.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2, seq*3 FROM seq_1_to_2000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+
+--echo #
+--echo # HAVING on a select-list column
+--echo #
+--let $pq_query= SELECT a FROM t1 WHERE b > 0 HAVING a > 3990
+--let $pq_cols= a
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # HAVING on a select-list alias. This is the case that says the records the
+--echo # manager filled are right: the alias is a reference into the select list,
+--echo # and resolved against anything else it reads nothing.
+--echo #
+--let $pq_query= SELECT a+b AS s FROM t1 WHERE b > 0 HAVING s > 9990
+--let $pq_cols= s
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # HAVING on a column the select list carries but the predicate does not
+--echo #
+--let $pq_query= SELECT a, pk FROM t1 WHERE b > 0 HAVING pk > 1995
+--let $pq_cols= a,pk
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # a conjunction, and one that selects nothing
+--echo #
+--let $pq_query= SELECT a FROM t1 WHERE b > 0 HAVING a > 3990 AND a < 3999
+--let $pq_cols= a
+--source include/parallel_query_fingerprint.inc
+
+--let $pq_query= SELECT a FROM t1 WHERE b > 0 HAVING a > 999999
+--let $pq_cols= a
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # WHERE and HAVING together over a join, so the row HAVING sees is one the
+--echo # worker assembled from two tables
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 AND t1.b > 0 HAVING t1.a > 3990
+--let $pq_cols= a,nm
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # a constant in the select list ships no column of its own, so this says
+--echo # HAVING still resolves when not every select-list item came from a record
+--echo #
+--let $pq_query= SELECT 42 AS k, a FROM t1 WHERE b > 0 HAVING a > 3990
+--let $pq_cols= k,a
+--source include/parallel_query_fingerprint.inc
+
+DROP TABLE t1, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

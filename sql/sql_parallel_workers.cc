@@ -1373,6 +1373,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
         copy_back[n_copy_back++].set(((Item_field*) it)->field,
                                      result_table->field[i], false);
   }
+
   cur_cursor= 0;
   fatal_error= false;
   stop= false;
@@ -2020,7 +2021,7 @@ static void pwt_assert_join_inert(JOIN *join)
   DBUG_ASSERT(!join->select_distinct);
   DBUG_ASSERT(!join->group && !join->group_list);
   DBUG_ASSERT(!join->order);
-  DBUG_ASSERT(!join->having && !join->tmp_having);
+  /* having is applied by the manager, over its own records, not by a worker. */
   DBUG_ASSERT(!join->procedure);
   DBUG_ASSERT(!join->sort_and_group);
   DBUG_ASSERT(!join->group_optimized_away);
@@ -2375,11 +2376,13 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_PRINT("info", ("order by"));
     DBUG_RETURN(false);
   }
-  if (join->having || join->tmp_having)
-  {
-    DBUG_PRINT("info", ("having"));
-    DBUG_RETURN(false);
-  }
+  /*
+    HAVING needs nothing from this gate. It is applied by end_send(), on the
+    manager, over the base-table records the drain has filled from the shipped
+    columns -- so the Item_refs it binds to the select list through resolve to
+    exactly the values a serial scan would have left there. Nothing is cloned, no
+    reference array is touched, and no worker evaluates it.
+  */
   if (join->outer_join)                             // no outer joins
   {
     DBUG_PRINT("info", ("outer_join"));
