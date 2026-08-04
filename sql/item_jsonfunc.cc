@@ -4896,6 +4896,7 @@ static const char json_arrayagg_name[]= "json_arrayagg";
 void Item_func_json_arrayagg::clear()
 {
   m_bad_element= false;
+  m_closed= false;
   Item_func_group_concat::clear();
 }
 
@@ -5008,6 +5009,13 @@ String* Item_func_json_arrayagg::val_str(String *str)
     }
 
     /*
+      The brackets are already round what the parent returned, this
+      group having been asked for once before.
+    */
+    if (m_closed)
+      return str;
+
+    /*
       The brackets are put on last, so a buffer that will not take them
       leaves behind something that reads as a value of its own rather
       than as the array it is meant to be.
@@ -5018,6 +5026,7 @@ String* Item_func_json_arrayagg::val_str(String *str)
     s.swap(*str);
     if (str->append(s) || str->append(']'))
       goto bad_result;
+    m_closed= true;
   }
   return str;
 
@@ -5029,7 +5038,7 @@ bad_result:
 
 Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
-  :Item_sum(thd, item), m_bad_pair(false)
+  :Item_sum(thd, item), m_bad_pair(false), m_closed(false)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
@@ -5112,6 +5121,7 @@ void Item_func_json_objectagg::clear()
     that lost one is refused whole rather than returned short.
   */
   m_bad_pair= false;
+  m_closed= false;
   if (result.append('{'))
     m_bad_pair= true;
 }
@@ -5180,11 +5190,12 @@ String* Item_func_json_objectagg::val_str(String* str)
   if (null_value)
     return 0;
 
-  if (m_bad_pair || result.append('}'))
+  if (m_bad_pair || (!m_closed && result.append('}')))
   {
     null_value= 1;
     return 0;
   }
+  m_closed= true;
 
   return &result;
 }

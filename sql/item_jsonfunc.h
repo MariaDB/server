@@ -784,6 +784,14 @@ protected:
     clear().
   */
   bool m_bad_element;
+  /*
+    The brackets have been put on already.  Nothing says how often the
+    result of a group is asked for, and the buffer they go into belongs
+    to this item and outlives the asking, so putting them on once per
+    call would put on one pair per call.  Reset for each group by
+    clear().
+  */
+  bool m_closed;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -792,7 +800,7 @@ public:
                           bool limit_clause, Item *row_limit, Item *offset_limit):
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
                              is_separator, limit_clause, row_limit, offset_limit),
-      m_bad_element(false)
+      m_bad_element(false), m_closed(false)
   {
   }
   /*
@@ -803,7 +811,7 @@ public:
     not JSON.
   */
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
-    Item_func_group_concat(thd, item), m_bad_element(false)
+    Item_func_group_concat(thd, item), m_bad_element(false), m_closed(false)
   {
     m_tmp_json.set_charset(collation.collation);
   }
@@ -840,6 +848,13 @@ class Item_func_json_objectagg : public Item_sum
     clear().
   */
   bool m_bad_pair;
+  /*
+    The closing brace has been written already.  Nothing says how often
+    the result of a group is asked for, and the buffer it goes into is
+    this item's own and outlives the asking, so writing it once per call
+    would write one brace per call.  Reset for each group by clear().
+  */
+  bool m_closed;
 public:
   /*
     The opening brace is not written here.  This runs while the
@@ -849,7 +864,7 @@ public:
     once per group and once the width is known.
   */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
-    Item_sum(thd, key, value), m_bad_pair(false)
+    Item_sum(thd, key, value), m_bad_pair(false), m_closed(false)
   {
     quick_group= FALSE;
   }
