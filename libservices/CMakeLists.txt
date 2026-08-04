@@ -53,4 +53,5 @@ IF(MSVC)
   TARGET_COMPILE_OPTIONS(mysqlservices PRIVATE /Zl)
 ENDIF()
 
-INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
+INSTALL(TARGETS mysqlservices EXPORT mariadb-plugin-targets
+        DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
