@@ -216,6 +216,29 @@ static void note_sequence_default_omitted(const char *column)
                       column);
 }
 
+std::string autoinc_sequence_name(const std::string &table_name)
+{
+  return "mdb_autoinc_" + table_name;
+}
+
+Field *find_autoinc_field(const TABLE *table)
+{
+  for (Field **ptr= table->field; *ptr; ptr++)
+  {
+    if ((*ptr)->flags & AUTO_INCREMENT_FLAG)
+      return *ptr;
+  }
+  return nullptr;
+}
+
+/** Reference to the auto-increment sequence usable as a nextval() argument. */
+static std::string autoinc_nextval_expr(const std::string &schema_name,
+                                        const std::string &table_name)
+{
+  return "nextval('\"" + schema_name + "\".\"" +
+         autoinc_sequence_name(table_name) + "\"')";
+}
+
 /**
   Read the literal default value of a field from the default record and
   return it as a string suitable for DuckDB SQL.
@@ -419,11 +442,21 @@ static void append_stmt_table_rename(std::ostringstream &output,
 
 bool FieldConvertor::check()
 {
-  /* not support auto_increment */
-  if (m_field->flags & AUTO_INCREMENT_FLAG)
-    return report_duckdb_table_struct_error(
-        "AUTO_INCREMENT", "removing AUTO_INCREMENT from column",
-        m_field->field_name.str, m_ctx);
+  /*
+    AUTO_INCREMENT is supported by CREATE TABLE only. Adding it to an
+    existing table would require seeding the sequence from the current
+    column maximum, which is not implemented yet.
+  */
+  if ((m_field->flags & AUTO_INCREMENT_FLAG) &&
+      m_ctx != ddl_error_context::CREATE)
+  {
+    /*
+      Same error the server raised while HA_NO_AUTO_INCREMENT was set, so
+      that the rejection stays indistinguishable from before.
+    */
+    my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), "DUCKDB");
+    return true;
+  }
 
   /* No support for INVISIBLE columns. */
   if (m_field->invisible >= INVISIBLE_USER)
@@ -502,8 +535,6 @@ std::string FieldConvertor::translate()
         result << " DEFAULT " << def;
     }
   }
-
-  assert(!(field->flags & AUTO_INCREMENT_FLAG));
 
   return result.str();
 }
@@ -633,6 +664,20 @@ bool CreateTableConvertor::check()
       return true;
   }
 
+  /*
+    An ALTER using ALGORITHM=COPY builds a shadow table through create(), so
+    it arrives here rather than through the ALTER convertors. Reject
+    AUTO_INCREMENT on that path: the new sequence would start at 1 while the
+    copied rows already hold larger ids, silently handing out duplicates.
+    Seeding from the current column maximum is not implemented.
+  */
+  if (m_thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
+      find_autoinc_field(m_table))
+  {
+    my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), "DUCKDB");
+    return true;
+  }
+
   /* Check PK. */
   TABLE_SHARE *share= m_table->s;
 
@@ -679,6 +724,24 @@ std::string CreateTableConvertor::translate()
 
   result << "USE " << '"' << m_schema_name << '"' << ";";
 
+  /*
+    The sequence must exist before the table, because the AUTO_INCREMENT
+    column default resolves it at CREATE TABLE bind time.
+  */
+  if (find_autoinc_field(m_table))
+  {
+    ulonglong start= m_create_info->auto_increment_value
+                         ? m_create_info->auto_increment_value
+                         : 1;
+    /* A DuckDB sequence counter is int64; never emit an unrepresentable start. */
+    if (start > (ulonglong) INT64_MAX)
+      start= (ulonglong) INT64_MAX;
+
+    result << "CREATE SEQUENCE IF NOT EXISTS " << '"' << m_schema_name << '"'
+           << "." << '"' << autoinc_sequence_name(m_table_name) << '"'
+           << " START WITH " << start << ";";
+  }
+
   result << CREATE_TABLE_STR;
   /* MariaDB: IF NOT EXISTS is handled at the SQL layer, not in HA_CREATE_INFO.
      Always use IF NOT EXISTS for safety in DuckDB. */
@@ -701,7 +764,16 @@ void CreateTableConvertor::append_column_definition(std::ostringstream &output)
   {
     if (ptr != first_field)
       output << ",";
-    output << FieldConvertor(field).translate();
+    output << FieldConvertor(field, ddl_error_context::CREATE).translate();
+
+    /*
+      The AUTO_INCREMENT column draws from a DuckDB sequence. Keeping the
+      default in DuckDB lets writes that bypass MariaDB still obtain a
+      non-colliding id from the same counter.
+    */
+    if (field->flags & AUTO_INCREMENT_FLAG)
+      output << " DEFAULT "
+             << autoinc_nextval_expr(m_schema_name, m_table_name);
   }
 }
 

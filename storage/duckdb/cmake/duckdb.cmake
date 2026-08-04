@@ -51,6 +51,16 @@ SET(_DUCKDB_STATIC_LIBS
 MESSAGE(STATUS "=== Building DuckDB from submodule (${DUCKDB_SUBMODULE_DIR}) ===")
 ADD_SUBMODULE(third_parties/duckdb)
 
+# Local patches applied on top of the pinned submodule commit.
+#
+# duckdb-pr24061-setval.diff: backport of upstream PR #24061 ("Add SetVal",
+# merged 2026-07-23, first release after v1.5.2) rewritten against the v1.5.2
+# API. Provides setval('seq', value[, is_called]) needed for AUTO_INCREMENT
+# counter repositioning (TRUNCATE, ALTER ... AUTO_INCREMENT=N, explicit-id
+# reconciliation). Drop when the submodule is bumped to a release containing
+# the PR: the apply below will fail loudly on an already-present setval.
+SET(_DUCKDB_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/patches/duckdb-pr24061-setval.diff")
+
 # Upstream sets DUCKDB_EXTENSION_JEMALLOC_LINKED via add_extension_definitions(),
 # which runs in extension/ but NOT in src/, so allocator.cpp (in duckdb_static)
 # compiles the glibc malloc() path even though libjemalloc_extension.a is linked.
@@ -79,6 +89,8 @@ ExternalProject_Add(duckdb_build
   PREFIX          "${_DUCKDB_BUILD_DIR}"
   SOURCE_DIR      "${DUCKDB_SUBMODULE_DIR}"
   BINARY_DIR      "${_DUCKDB_BUILD_DIR}"
+  # Idempotent: skip when the working tree already carries the patch.
+  PATCH_COMMAND   bash -c "git apply --reverse --check '${_DUCKDB_PATCH}' 2>/dev/null || git apply --verbose '${_DUCKDB_PATCH}'"
   CMAKE_ARGS
     -DCMAKE_BUILD_TYPE=${_DUCKDB_BUILD_TYPE}
     -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
