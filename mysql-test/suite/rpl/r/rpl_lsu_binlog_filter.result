@@ -1,0 +1,40 @@
+include/rpl_init.inc [topology=1->2, 2->3]
+#
+# Initialize test data
+connection server_1;
+create database db_not_filtered;
+create database db_filtered;
+use db_not_filtered;
+create table t1 (a int) engine=innodb;
+insert into t1 values (10);
+use db_filtered;
+create table t2 (a int) engine=innodb;
+insert into t2 values (20);
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Server_2 should have both db_not_filtered.t1 and db_filtered.t2 data
+select count(*) from db_not_filtered.t1;
+count(*)
+1
+select count(*) from db_filtered.t2;
+count(*)
+1
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Server_3 should only have db_not_filtered.t1
+select count(*) from db_not_filtered.t1;
+count(*)
+1
+# Server_3 should err when trying to access db_filtered.t2
+select count(*) from db_filtered.t2;
+ERROR 42S02: Table 'db_filtered.t2' doesn't exist
+#
+# Cleanup
+connection server_1;
+drop database db_not_filtered;
+drop database db_filtered;
+include/rpl_end.inc
+# End of rpl_lsu_binlog_filter.test

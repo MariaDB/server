@@ -1408,8 +1408,16 @@ enum enum_binlog_state
     of the following bits set
   */
   BINLOG_STATE_BYPASS=          (1<<4),
-  // Database filtering used. Note that this does not set the BYPASS bit
-  BINLOG_STATE_FILTER=          (1<<5),
+  /*
+    Set when the thread's current default database is rejected by the
+    binlog_do_db/binlog_ignore_db filters. The flag is updated only on a
+    change of default database (see update_binlog_filter_state()), which
+    avoids repeating the filter check for every statement. Note that the
+    flag applies only to statement format logging. In row format the same
+    filters are applied to the database of each modified table instead,
+    through can_do_row_logging (see open_table_from_share()).
+  */
+  BINLOG_STATE_FILTER_DB=       (1<<5),
   // set by tmp_disable_binlog(). Previously using OPTION_BIN_TMP_LOG_OFF
   BINLOG_STATE_TMP_DISABLED=    (1<<6),
   // sql_bin_log == 0, set in set_binlog_bit()

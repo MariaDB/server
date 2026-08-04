@@ -1,25 +1,28 @@
 SET @old_binlog_format= @@global.binlog_format;
 INSTALL PLUGIN example SONAME 'ha_example';
 ################################################################################
-# Verifies if ER_BINLOG_STMT_MODE_AND_ROW_ENGINE happens by setting the binlog
-# format to STATEMENT and the transaction isolation level to READ COMMITTED as
-# such changes force Innodb to accept changes in the row format.
-#
-# When CREATE TABLE, ALTER TABLE, CREATE INDEX and CREATE TRIGGER are executed
-# any error should be triggered.
-# 
-# In contrast, CREATE TABLE ... SELECT should trigger the following error:
-# ER_BINLOG_STMT_MODE_AND_ROW_ENGINE.
+# If the binlog format is set to STATEMENT and the transaction isolation
+# level to READ COMMITTED, InnoDB must override the STATEMENT format
+# configuration and write using ROW format.
 ################################################################################
 SET binlog_format = STATEMENT;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 CREATE TABLE t_row (a VARCHAR(100)) ENGINE = InnoDB;
+SET statement binlog_format = row for insert into t_row values ('a'), ('b'), ('c');
 ALTER TABLE t_row ADD COLUMN b INT;
 CREATE TRIGGER trig_row BEFORE INSERT ON t_row FOR EACH ROW INSERT INTO t_stmt VALUES (1);
 CREATE INDEX i ON t_row(a);
+# Flush binlogs to ensure the next statement can be analyzed alone
+FLUSH BINARY LOGS;
 CREATE TABLE t_row_new ENGINE = InnoDB SELECT * FROM t_row;
-ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
+Warnings:
+Note	1665	Statement cannot be logged as STATEMENT as at least one table is limited to row-based logging. Switching temporarly to row format
+FLUSH BINARY LOGS;
+# MYSQL_BINLOG binlog_file --result-file=binlog_out --base64-output=never --verbose
+include/assert_grep.inc [Ensure CREATE TABLE ... SELECT in STATEMENT uses ROW binlogging when InnoDB cannot log using STATEMENT format]
+include/assert_grep.inc [Ensure CREATE TABLE ... SELECT in STATEMENT writes all rows when InnoDB cannot log using STATEMENT format]
 DROP TABLE t_row;
+DROP TABLE t_row_new;
 
 
 ################################################################################

@@ -1,0 +1,64 @@
+#
+# This test ensures that a slave respects binlog_do/ignore_db filters. That is,
+# if a slave is configured with log_slave_updates and binlog filters, if it is
+# applying transactions that are targeted by this filter, the data should not
+# be binlogged. This is verified by using a chain replication setup, where the
+# middle server in the chain is configured with a database filter. The test
+# runs a workload consisting of filtered and non-filtered statements. After
+# replicating all statements, the final state of the topology should be that
+# the middle server has all transactions applied, and the last server in the
+# chain only has transactions not targeted by the middle server's binlog
+# filters. The test creates two databases, db_not_filtered (not filtered) and
+# db_filtered (filtered).
+#
+#
+# References:
+#   MDEV-38796: Refactor: clean up THD::decide_logging_format() checks
+#
+
+--source include/have_innodb.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--echo #
+--echo # Initialize test data
+--connection server_1
+create database db_not_filtered;
+create database db_filtered;
+
+use db_not_filtered;
+create table t1 (a int) engine=innodb;
+insert into t1 values (10);
+
+use db_filtered;
+create table t2 (a int) engine=innodb;
+insert into t2 values (20);
+
+--connection server_1
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--echo # Server_2 should have both db_not_filtered.t1 and db_filtered.t2 data
+select count(*) from db_not_filtered.t1;
+select count(*) from db_filtered.t2;
+
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo # Server_3 should only have db_not_filtered.t1
+select count(*) from db_not_filtered.t1;
+--echo # Server_3 should err when trying to access db_filtered.t2
+--error ER_NO_SUCH_TABLE
+select count(*) from db_filtered.t2;
+
+
+--echo #
+--echo # Cleanup
+--connection server_1
+drop database db_not_filtered;
+drop database db_filtered;
+
+--source include/rpl_end.inc
+--echo # End of rpl_lsu_binlog_filter.test

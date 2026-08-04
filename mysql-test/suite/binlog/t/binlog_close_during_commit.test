@@ -1,0 +1,273 @@
+#
+# Purpose:
+#   Exercise the race where a statement passes the per-THD
+# thd->binlog_ready() check, then the global binary log is closed by
+# another connection before the statement acquires LOCK_log to commit
+# into the binlog. The statement must still commit in the storage
+# engine, and the error log must contain exactly one ER_ERROR_ON_WRITE
+# entry per binlog-close event (not one per affected transaction).
+# After the close, the binary log remains closed and subsequent
+# transactions continue to be processed in engines but are not
+# binlogged, with no further ER_ERROR_ON_WRITE entries logged.
+#
+# Methodology:
+#   DEBUG_SYNC point 'commit_after_binlog_ready_before_LOCK_log'
+# pauses the statement in MYSQL_BIN_LOG::write_transaction_to_binlog
+# immediately after the thd->binlog_ready() check, but before the
+# transaction is queued for group commit (and before LOCK_log is
+# taken). From a second connection, the binlog is closed by setting
+# DBUG injection 'fault_injection_new_file_rotate_event' and running
+# FLUSH LOGS. The fault makes the rotation fail, which leaves the
+# binlog in a closed state (see the "Binlog could be closed if
+# rotation fails" comment in trx_group_commit_with_engines). The
+# first connection, still paused at the sync point, is then resumed
+# and reaches LOCK_log to find the binlog closed.
+#
+#   Five statement types are covered:
+#     1) DML on a transactional table (InnoDB)
+#     2) DML on a non-transactional table (MyISAM)
+#     3) Multi-table UPDATE targeting both a trans and a non-trans
+#        table
+#     4) DML selecting from a temporary table
+#     5) DDL: CREATE TABLE (InnoDB) - Currently broken and commented out
+#        (MDEV-40171)
+#
+# References:
+#   MDEV-38796: branch context for the binlog_ready() refactor
+#
+
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("\\[ERROR\\] Error writing file '.*master-bin.*' .*errno: 9");
+call mtr.add_suppression("\\[ERROR\\] Error writing file");
+call mtr.add_suppression("\\[ERROR\\] Could not use");
+
+# Setup for search_pattern_in_file.inc error checking
+--let $error_log= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_FILE= $error_log
+--let SEARCH_OUTPUT= count
+--let SEARCH_PATTERN= Could not use .* Turning off logging
+
+
+--echo #
+--echo # Sub-case 1: DML on a transactional table
+--echo #
+--connection default
+create table t_trans (id int primary key) engine=innodb;
+create table t2 (id int primary key) engine=innodb;
+
+--connect (con1,localhost,root,,test)
+--connect (con3,localhost,root,,test)
+
+--connection con1
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+SET DEBUG_DBUG= '+d,commit_after_binlog_ready_before_LOCK_log';
+--send insert into t_trans values (1)
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+
+--echo # Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+--error ER_ERROR_ON_WRITE
+FLUSH LOGS;
+
+--echo # Ensure binary logging disables for the rest of the server lifespan
+--source include/search_pattern_in_file.inc
+
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+--connection con1
+--reap
+
+--connection default
+--echo # con1's statement must have committed in the engine
+select * from t_trans;
+
+--echo # A follow-up commit on a third connection must also succeed without
+--echo # logging another ER_ERROR_ON_WRITE
+--connection con3
+insert into t2 values (102);
+select * from t2 order by id;
+
+
+--disconnect con1
+--disconnect con3
+
+--connection default
+drop table t_trans, t2;
+--source include/restart_mysqld.inc
+
+
+--echo #
+--echo # Sub-case 2: DML on a non-transactional table
+--echo #
+--connection default
+create table t_myisam (id int primary key) engine=myisam;
+create table t2 (id int primary key) engine=innodb;
+
+--connect (con1,localhost,root,,test)
+--connect (con3,localhost,root,,test)
+
+--connection con1
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+--send insert into t_myisam values (1)
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+
+--echo # Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+--error ER_ERROR_ON_WRITE
+FLUSH LOGS;
+
+--echo # Ensure binary logging disables for the rest of the server lifespan
+--source include/search_pattern_in_file.inc
+
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+--connection con1
+--reap
+
+--connection default
+--echo # con1's statement must have committed in the engine
+select * from t_myisam;
+
+--connection con3
+insert into t2 values (202);
+select * from t2 order by id;
+
+--disconnect con1
+--disconnect con3
+
+--connection default
+drop table t_myisam, t2;
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # Sub-case 3: Multi-table UPDATE on trans + non-trans
+--echo #
+--connection default
+create table t_trans (id int primary key, v int) engine=innodb;
+create table t_myisam (id int primary key, v int) engine=myisam;
+create table t2 (id int primary key) engine=innodb;
+insert into t_trans values (1, 0), (2, 0);
+insert into t_myisam values (1, 0), (2, 0);
+
+--connect (con1,localhost,root,,test)
+--connect (con3,localhost,root,,test)
+
+--connection con1
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+--send update t_trans, t_myisam set t_trans.v = 1, t_myisam.v = 1 where t_trans.id = t_myisam.id
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+
+--echo # Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+--error ER_ERROR_ON_WRITE
+FLUSH LOGS;
+
+--echo # Ensure binary logging disables for the rest of the server lifespan
+--source include/search_pattern_in_file.inc
+
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+--connection con1
+--reap
+
+--connection default
+--echo # con1's statement must have committed in the engine
+select * from t_trans order by id;
+select * from t_myisam order by id;
+--echo # con2's (default conn's) statement must have committed in the engine
+select * from t2;
+
+--connection con3
+insert into t2 values (302);
+select * from t2 order by id;
+
+--disconnect con1
+--disconnect con3
+
+--connection default
+drop table t_trans, t_myisam, t2;
+--source include/restart_mysqld.inc
+
+
+--echo #
+--echo # Sub-case 4: DML selecting from a temporary table
+--echo #
+# Temporary table DML still funnels through the same commit path as
+# regular DML; the binlog cache is statement-cached but the commit
+# goes through write_transaction_to_binlog.
+--connection default
+create table t_trans (id int primary key) engine=innodb;
+create table t2 (id int primary key) engine=innodb;
+
+--connect (con1,localhost,root,,test)
+--connect (con3,localhost,root,,test)
+
+--connection con1
+create temporary table t_tmp (id int primary key) engine=innodb;
+insert into t_tmp values (1);
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+--send insert into t_trans (id) select id from t_tmp
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+
+--echo # Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+--error ER_ERROR_ON_WRITE
+FLUSH LOGS;
+
+--echo # Ensure binary logging disables for the rest of the server lifespan
+--source include/search_pattern_in_file.inc
+
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+--connection con1
+--reap
+--echo # con1's statement must have committed in the engine
+select * from t_tmp;
+select * from t_trans;
+drop temporary table t_tmp;
+
+--connection default
+--echo # con2's (default conn's) statement must have committed in the engine
+select * from t2;
+
+--connection con3
+insert into t2 values (402);
+select * from t2 order by id;
+
+--disconnect con1
+--disconnect con3
+
+--connection default
+drop table t_trans, t2;
+--source include/restart_mysqld.inc
+
+
+--echo #
+--echo # Sub-case 5: DDL (CREATE TABLE)
+--echo # TODO: Fill in this test case with MDEV-40171
+--echo #
+
+
+--echo #
+--echo # Cleanup
+--echo #
+SET DEBUG_SYNC= 'RESET';
+
+--echo # End of binlog_close_during_commit.test

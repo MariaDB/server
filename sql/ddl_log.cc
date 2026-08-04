@@ -70,7 +70,7 @@
   After the final recovery phase is done, the file is truncated.
 
   Note that in this file we test for mysql_bin_log.is_open() instead of
-  using thd->binlog_is_read(). This is because during recovery binlog
+  using thd->binlog_ready(). This is because during recovery binlog
   cannot be disabled for some particular commands.
 
   History:

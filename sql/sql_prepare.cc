@@ -3947,7 +3947,8 @@ void Prepared_statement::setup_set_params()
   */
   bool replace_params_with_values= false;
   // binlog
-  replace_params_with_values|= mysql_bin_log.is_open() && is_update_query(lex->sql_command);
+  replace_params_with_values|=
+      thd->binlog_ready_no_wsrep() && is_update_query(lex->sql_command);
   // general or slow log
   replace_params_with_values|= opt_log || thd->variables.sql_log_slow;
   // query cache

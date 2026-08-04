@@ -3548,35 +3548,6 @@ public:
     return !binlog_ready_no_wsrep();
   }
 
-  enum binlog_filter_state
-  {
-    BINLOG_FILTER_UNKNOWN,
-    BINLOG_FILTER_CLEAR,
-    BINLOG_FILTER_SET
-  };
-
-  inline void reset_binlog_local_stmt_filter()
-  {
-    m_binlog_filter_state= BINLOG_FILTER_UNKNOWN;
-  }
-
-  inline void clear_binlog_local_stmt_filter()
-  {
-    DBUG_ASSERT(m_binlog_filter_state == BINLOG_FILTER_UNKNOWN);
-    m_binlog_filter_state= BINLOG_FILTER_CLEAR;
-  }
-
-  inline void set_binlog_local_stmt_filter()
-  {
-    DBUG_ASSERT(m_binlog_filter_state == BINLOG_FILTER_UNKNOWN);
-    m_binlog_filter_state= BINLOG_FILTER_SET;
-  }
-
-  inline binlog_filter_state get_binlog_local_stmt_filter()
-  {
-    return m_binlog_filter_state;
-  }
-
   bool binlog_renamed_tmp_tables(TABLE_LIST *table_list);
 
   /**
@@ -3593,14 +3564,6 @@ public:
   }
 
 private:
-  /**
-    Indicate if the current statement should be discarded
-    instead of written to the binlog.
-    This is used to discard special statements, such as
-    DML or DDL that affects only 'local' (non replicated)
-    tables, such as performance_schema.*
-  */
-  binlog_filter_state m_binlog_filter_state;
 
   /**
     Indicates the format in which the current statement will be
@@ -3992,7 +3955,7 @@ public:
   /* We come here if binlog open state has changed */
   inline void sync_binlog_state_with_binlog_open()
   {
-    if (mysql_bin_log.is_open() != (binlog_state & BINLOG_STATE_OPEN))
+    if (mysql_bin_log.is_open() != MY_TEST(binlog_state & BINLOG_STATE_OPEN))
       sync_binlog_state_with_binlog_open_force();
   }
   void sync_binlog_state_with_binlog_open_force();

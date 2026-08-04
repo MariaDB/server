@@ -663,7 +663,7 @@ bool THD::close_temporary_tables()
   }
 
   // Write DROP TEMPORARY TABLE query log events to binary log.
-  if (mysql_bin_log.is_open())
+  if (binlog_ready_no_wsrep())
   {
     error= log_events_and_free_tmp_shares();
   }

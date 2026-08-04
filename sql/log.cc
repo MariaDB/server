@@ -8539,6 +8539,14 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     DBUG_RETURN(0);
   }
 
+  /*
+    Pause point between the per-THD binlog_ready() check and acquisition of
+    LOCK_log. Used by binlog.binlog_close_during_commit to inject a global
+    binlog close from a second connection and exercise the race where the
+    cached state says "ready" but the global binlog is no longer open.
+  */
+  DEBUG_SYNC(thd, "commit_after_binlog_ready_before_LOCK_log");
+
   entry.thd= thd;
   entry.cache_mngr= cache_mngr;
   entry.error= 0;

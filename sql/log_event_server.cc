@@ -693,6 +693,7 @@ int Log_event_writer::write_internal(const uchar *pos, size_t len)
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
   if (cache_data &&
 #ifdef WITH_WSREP
+    /* TODO: MDEV-38865 */
       mysql_bin_log.is_open() &&
 #endif
       cache_data->write_prepare(len))

@@ -163,6 +163,7 @@ class READ_INFO: public Load_data_param
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
   int level; /* for load xml */
+  bool use_binlog;
 
   bool getbyte(char *to)
   {
@@ -271,7 +272,7 @@ public:
   void skip_data_till_eof()
   {
 #ifndef EMBEDDED_LIBRARY
-    if (mysql_bin_log.is_open())
+    if (use_binlog)
       cache.read_function= cache.real_read_function;
 #endif
     while (GET != my_b_EOF)
@@ -641,7 +642,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
 
 #ifndef EMBEDDED_LIBRARY
-  if (mysql_bin_log.is_open())
+  if (thd->binlog_ready_no_wsrep())
   {
     read_info.cache.thd = thd;
     read_info.cache.wrote_create_file = 0;
@@ -766,7 +767,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       read_info.skip_data_till_eof();
 
 #ifndef EMBEDDED_LIBRARY
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_no_wsrep())
     {
       {
 	/*
@@ -811,7 +812,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   thd->transaction->all.m_unsafe_rollback_flags|=
     (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 #ifndef EMBEDDED_LIBRARY
-  if (mysql_bin_log.is_open())
+  if (thd->binlog_ready_no_wsrep())
   {
     /*
       We need to do the job that is normally done inside
@@ -1454,7 +1455,8 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
    file(file_par),
    m_field_term(field_term), m_line_term(line_term), m_line_start(line_start),
    escape_char(escape), found_end_of_line(false), eof(false),
-   error(false), line_cuted(false), found_null(false)
+   use_binlog(thd->binlog_ready_no_wsrep()), error(false), line_cuted(false),
+   found_null(false)
 {
   data.set_thread_specific();
   /*
@@ -1494,7 +1496,7 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
       if (get_it_from_net)
 	cache.read_function = _my_b_net_read;
 
-      if (mysql_bin_log.is_open())
+      if (use_binlog)
       {
         cache.real_read_function= cache.read_function;
         cache.read_function= log_loaded_block;

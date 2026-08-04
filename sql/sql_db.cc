@@ -730,14 +730,13 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
 		Function assumes that this is already validated.
   options       DDL options, e.g. IF NOT EXISTS
   create_info	Database create options (like character set)
-  silent	Used by replication when internally creating a database.
-		In this case the entry should not be logged.
 
   SIDE-EFFECTS
    1. Report back to client that command succeeded (my_ok)
    2. Report errors to client
    3. Log event to binary log
-   (The 'silent' flags turns off 1 and 3.)
+   (If THD->binlog_state has BINLOG_STATE_TMP_DISABLED flag, 1 and 3 won't
+    happen)
 
   RETURN VALUES
   FALSE ok
@@ -748,8 +747,7 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
 static int
 mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
                          const DDL_options_st &options,
-                         Schema_specification_st *create_info,
-                         bool silent)
+                         Schema_specification_st *create_info)
 {
   char	 path[FN_REFLEN+16];
   MY_STAT stat_info;
@@ -842,7 +840,7 @@ mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
   backup_log_ddl(&ddl_log);
 
 not_silent:
-  if (!silent)
+  if (!(thd->binlog_state & BINLOG_STATE_TMP_DISABLED))
   {
     char *query;
     uint query_length;
@@ -974,7 +972,7 @@ int mysql_create_db(THD *thd, const Lex_ident_db &db, DDL_options_st options,
   if (thd->slave_thread &&
       slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
     options.add(DDL_options::OPT_IF_NOT_EXISTS);
-  return mysql_create_db_internal(thd, db, options, &tmp, false);
+  return mysql_create_db_internal(thd, db, options, &tmp);
 }
 
 
@@ -1932,6 +1930,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
   TABLE_LIST *table_list;
   SELECT_LEX *sl= thd->lex->current_select;
   Lex_ident_db new_db;
+  BINLOG_STATE binlog_state_save;
   DBUG_ENTER("mysql_upgrade_db");
 
   if ((old_db.length <= MYSQL50_TABLE_NAME_PREFIX_LENGTH) ||
@@ -1978,9 +1977,10 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
   }
 
   /* Step1: Create the new database */
-  if (unlikely((error= mysql_create_db_internal(thd, new_db,
-                                                DDL_options(), &create_info,
-                                                1))))
+  thd->tmp_disable_binlog(&binlog_state_save, BINLOG_STATE_TMP_DISABLED);
+  error= mysql_create_db_internal(thd, new_db, DDL_options(), &create_info);
+  thd->reenable_binlog(&binlog_state_save);
+  if (unlikely((error)))
     goto exit;
 
   /* Step2: Move tables to the new database */
