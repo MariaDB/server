@@ -79,6 +79,10 @@ sub skip_combinations {
             unless which("lsof") || which("sockstat") || which("ss");
   $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
             unless which("stunnel");
+  # 'mariabackup' combination doesn't need stunnel: only 'rsync' SST goes
+  # through it.
+  $skip{'t/galera_sst_cn_injection.combinations'} = [ 'rsync' ]
+            unless which("stunnel");
   $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
             unless which("qpress");
   $skip{'../encryption/include/have_file_key_management_plugin.combinations'} = [ 'ctr' ]
