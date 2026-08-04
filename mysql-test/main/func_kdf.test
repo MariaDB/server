@@ -62,3 +62,17 @@ select kdf();
 --echo # End of 11.3 tests
 --echo #
 
+--echo #
+--echo # MDEV-40385 use-of-uninitialized-value in Binary_string::c_ptr()
+--echo #
+# MSAN only: this test verifies the fix behaviorally (warning + NULL); the
+# uninitialized read itself is only observable under an MSAN build.
+SELECT KDF('','',1000,256);
+SELECT KDF('secret','salt',1000,999);
+SELECT KDF('secret','salt',1000,'pbkdf2_hmac') IS NOT NULL;
+SELECT KDF('secret','salt') IS NOT NULL;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
