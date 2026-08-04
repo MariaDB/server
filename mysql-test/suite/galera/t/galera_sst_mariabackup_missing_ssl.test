@@ -34,8 +34,9 @@ call mtr.add_suppression("WSREP: Will never receive state. Need to abort.");
 --remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 
 --echo # Start node_2 with SSL cert/key simulated as missing
-# Abort exit code varies by platform.
---error 1,134
+# Joiner mariadbd exits when SST is aborted; the exit code varies by
+# platform (clean 0 on some systems, signalled 134 / 1 on others).
+--error 0,1,134
 --exec MTR_SST_SIMULATE_NO_SSL_CERT=1 $MYSQLD_LAST_CMD
 --echo # node_2 failed to start, as expected
 
