@@ -1,0 +1,164 @@
+#
+# MDEV-39492 Parallel Query: DISTINCT.
+#
+# DISTINCT costs the manager nothing of its own. It is always carried out on a
+# materialised temp table downstream of the drain, and both routines that do it
+# are indifferent to the order the rows arrived in: remove_dup_with_hash_index(),
+# and remove_dup_with_compare(), which despite its name compares each row against
+# all the rows after it rather than against its neighbour. So splitting the scan
+# into chunks that finish in an arbitrary order takes nothing away from either.
+#
+# Most DISTINCT queries never reach the parallel gate as DISTINCT. The optimizer
+# rewrites them to GROUP BY ("Change DISTINCT to GROUP BY" in sql_select.cc),
+# which clears select_distinct before the gate runs, so they arrive as the GROUP BY
+# case and are handled by the aggregation temp table keyed on the group. That
+# rewrite is conditional on there being no row limit, so what is left as a real
+# DISTINCT is DISTINCT with a LIMIT.
+#
+# Both halves are checked here, because they take different routes through the
+# server and only one of them is affected by relaxing the gate.
+#
+# A DISTINCT over a join can make the optimizer mark the tables the select list
+# does not read, so the join stops at the first match per row rather than
+# producing duplicates for the temp table to discard. That is decided after the
+# gate has run, so it is declined at execution instead; checked at the bottom.
+#
+# ORDER BY is a different matter and is not enabled here. An ORDER BY of the scan
+# itself is still refused: that order comes from the driving table's own filesort,
+# which cannot survive being split into chunks, and delivering it would need the
+# workers to sort their chunks and the manager to merge them.
+#
+# An ORDER BY does come along for free where the rewrite to GROUP BY absorbs it,
+# which it does when every field being sorted on is a select-list field it has
+# just grouped by -- the sort then runs on the manager over the finished temp
+# table and join->order is null by the time the gate looks. That covers the
+# single-table shapes below. Where it does not hold, as over a join, the gate
+# still sees an ORDER BY and refuses.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 7, seq % 13, IF(seq % 100 = 0, NULL, seq % 5)
+  FROM seq_1_to_2000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+
+--echo #
+--echo # DISTINCT with an ORDER BY of the distinct rows. The rewrite to GROUP BY
+--echo # applies, and the sort is applied to the temp table on the manager, so the
+--echo # whole answer is determined and can be compared as it stands.
+--echo #
+--let $pqa_query= SELECT DISTINCT a FROM t1 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT DISTINCT a, b FROM t1 ORDER BY a, b
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT DISTINCT c FROM t1 ORDER BY c
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # NULLs are one distinct value, and c has them
+--echo #
+--let $pqa_query= SELECT DISTINCT c FROM t1 WHERE c IS NULL OR c > 2 ORDER BY c
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # an expression, and a WHERE
+--echo #
+--let $pqa_query= SELECT DISTINCT b % 4 AS g FROM t1 ORDER BY g
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT DISTINCT a FROM t1 WHERE b > 6 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # over a join, so the distinct rows are ones a worker assembled from two
+--echo # tables. Compared as a multiset: see the declined section for why this one
+--echo # cannot carry an ORDER BY.
+--echo #
+--let $pq_query= SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1
+--let $pq_cols= a,nm
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # nothing qualifies, so there are no distinct rows
+--echo #
+--let $pqa_query= SELECT DISTINCT a FROM t1 WHERE b > 999999 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # DISTINCT with no ORDER BY. The rows are determined, their order is not,
+--echo # so this compares them as a multiset.
+--echo #
+--let $pq_query= SELECT DISTINCT a, b FROM t1
+--let $pq_cols= a,b
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # DISTINCT with a LIMIT, which is the shape the rewrite to GROUP BY leaves
+--echo # alone, so it reaches the gate as a real DISTINCT. Which rows a LIMIT of an
+--echo # unordered result keeps is whichever finish first, exactly as for LIMIT
+--echo # without DISTINCT, so what is checked is that the right number come back
+--echo # and that they really are distinct.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*) AS n, COUNT(DISTINCT b) AS distinct_n
+  FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d;
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, COUNT(DISTINCT b) AS distinct_n
+  FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d;
+--source include/parallel_query_workers_per_query.inc
+
+--echo #
+--echo # and every value it returned is one the table holds
+--echo #
+SELECT COUNT(*) AS all_present FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d
+  WHERE d.b IN (SELECT b FROM t1);
+
+--echo #
+--echo # a LIMIT larger than the number of distinct rows returns all of them, so
+--echo # that answer is determined
+--echo #
+--let $pqa_query= SELECT DISTINCT a FROM t1 ORDER BY a LIMIT 99
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # the shapes that are declined, and what declines each one.
+--echo #
+--echo # ORDER BY of the scan itself: the order would have to come from the
+--echo # driving table, which a chunked scan cannot deliver. Refused by the gate,
+--echo # so the optimizer does not even pick a parallel scan -- EXPLAIN says ALL.
+--echo #
+--let $pqa_query= SELECT a FROM t1 ORDER BY a LIMIT 5
+--source include/parallel_query_aggregate_cmp.inc
+EXPLAIN SELECT a FROM t1 ORDER BY a LIMIT 5;
+
+--echo #
+--echo # a DISTINCT over a join with an ORDER BY. The rewrite to GROUP BY absorbs
+--echo # the ORDER BY only when every field it sorts on is a select-list field it
+--echo # has just grouped by, which holds for the single-table shapes above and not
+--echo # here -- so join->order is still set when the gate looks, and the gate
+--echo # refuses it. Without the ORDER BY the same join runs in the workers.
+--echo #
+--let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # a DISTINCT over a join that does not select from every table: the
+--echo # optimizer marks the unread ones so the join stops at the first match, and
+--echo # that is decided after the gate, so it is declined at execution.
+--echo #
+--let $pqa_query= SELECT DISTINCT t1.a FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a LIMIT 3
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
+--source include/parallel_query_aggregate_cmp.inc
+
+DROP TABLE t1, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

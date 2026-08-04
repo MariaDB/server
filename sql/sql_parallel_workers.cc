@@ -2020,6 +2020,13 @@ static void pwt_assert_join_inert(JOIN *join)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(!join->outer_join);
+  /*
+    By this point DISTINCT has been turned into something else: either the temp
+    table's own uniqueness, or a flag on the aggregation tab for
+    remove_duplicates() to act on, and make_aggr_tables_info() clears the JOIN's
+    flag in both cases. So this is not a restriction, it is a statement that the
+    manager has nothing of its own to do about DISTINCT.
+  */
   DBUG_ASSERT(!join->select_distinct);
   /*
     An ORDER BY the gate did not see, because make_aggr_tables_info() had not run
@@ -2431,13 +2438,35 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     picked is not known until after this runs, so that is checked in
     run_worker_side_join() instead (pwt_plan_needs_group_order).
   */
-  if (join->select_distinct)
-  {
-    DBUG_PRINT("info", ("distinct"));
-    DBUG_RETURN(false);
-  }
+  /*
+    DISTINCT is allowed. It is always carried out on a materialised temp table
+    downstream of the drain, by one of two routines that are both indifferent to
+    the order the rows arrived in: remove_dup_with_hash_index(), or
+    remove_dup_with_compare(), which despite the name compares each row against
+    all the rows after it rather than against its neighbour. So a chunked scan
+    takes nothing away from either.
+
+    Most DISTINCT queries do not reach here as DISTINCT at all. The optimizer
+    rewrites them to GROUP BY (sql_select.cc, "Change DISTINCT to GROUP BY"),
+    which clears select_distinct before this gate runs, and they are then the
+    GROUP BY case. What is left when the rewrite does not happen is DISTINCT with
+    a LIMIT, since the rewrite is conditional on there being no row limit.
+  */
   if (join->order)
   {
+    /*
+      ORDER BY of a scan is refused, and this is the check that does it: an order
+      the driving table's own filesort produces cannot survive being split into
+      chunks that finish in an arbitrary order. Delivering it would need the
+      workers to sort their chunks and the manager to merge them, which is not
+      built.
+
+      This does not refuse an ORDER BY applied to an aggregation temp table --
+      after a GROUP BY, or after a DISTINCT. There join->order is null when this
+      runs and is set later by make_aggr_tables_info(), and the sort happens on
+      the manager once every row has arrived, so the order the rows arrived in is
+      irrelevant. pwt_assert_join_inert() states that as the invariant it is.
+    */
     DBUG_PRINT("info", ("order by"));
     DBUG_RETURN(false);
   }
@@ -2635,6 +2664,27 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
     join->parallel_work_manager= nullptr;
     DBUG_RETURN(-1);
   }
+
+  /*
+    JOIN::optimize_distinct() marks the trailing tables a DISTINCT does not
+    select from, so that the join stops looking for further matches once one row
+    has been produced -- every later match would only make a duplicate for the
+    temp table to remove. It runs from make_aggr_tables_info(), after the gate,
+    so like the group order this can only be asked here.
+
+    A worker that ignored the flag would still answer correctly, since the
+    duplicates it produced would be removed downstream; it would just read more
+    than it had to. It is declined rather than ignored because the workers have
+    not been shown to honour it, and quietly doing more work than the plan asked
+    for is the kind of thing that should be a decision.
+  */
+  for (uint t= 0; t < join->table_count; t++)
+    if (join->join_tab[t].shortcut_for_distinct)
+    {
+      DBUG_PRINT("info", ("distinct shortcut on a table, running serially"));
+      join->parallel_work_manager= nullptr;
+      DBUG_RETURN(-1);
+    }
 
   int err= mgr->init_parallel_workers(thd, join, scan_tab);
   if (err == HA_ERR_UNSUPPORTED)

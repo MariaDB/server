@@ -1,0 +1,495 @@
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 7, seq % 13, IF(seq % 100 = 0, NULL, seq % 5)
+FROM seq_1_to_2000;
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+#
+# DISTINCT with an ORDER BY of the distinct rows. The rewrite to GROUP BY
+# applies, and the sort is applied to the temp table on the manager, so the
+# whole answer is determined and can be compared as it stands.
+#
+# SELECT DISTINCT a FROM t1 ORDER BY a
+SELECT DISTINCT a FROM t1 ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+6
+SELECT DISTINCT a FROM t1 ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+6
+ran_in_the_workers
+1
+# SELECT DISTINCT a, b FROM t1 ORDER BY a, b
+SELECT DISTINCT a, b FROM t1 ORDER BY a, b;
+a	b
+0	0
+0	1
+0	2
+0	3
+0	4
+0	5
+0	6
+0	7
+0	8
+0	9
+0	10
+0	11
+0	12
+1	0
+1	1
+1	2
+1	3
+1	4
+1	5
+1	6
+1	7
+1	8
+1	9
+1	10
+1	11
+1	12
+2	0
+2	1
+2	2
+2	3
+2	4
+2	5
+2	6
+2	7
+2	8
+2	9
+2	10
+2	11
+2	12
+3	0
+3	1
+3	2
+3	3
+3	4
+3	5
+3	6
+3	7
+3	8
+3	9
+3	10
+3	11
+3	12
+4	0
+4	1
+4	2
+4	3
+4	4
+4	5
+4	6
+4	7
+4	8
+4	9
+4	10
+4	11
+4	12
+5	0
+5	1
+5	2
+5	3
+5	4
+5	5
+5	6
+5	7
+5	8
+5	9
+5	10
+5	11
+5	12
+6	0
+6	1
+6	2
+6	3
+6	4
+6	5
+6	6
+6	7
+6	8
+6	9
+6	10
+6	11
+6	12
+SELECT DISTINCT a, b FROM t1 ORDER BY a, b;
+a	b
+0	0
+0	1
+0	2
+0	3
+0	4
+0	5
+0	6
+0	7
+0	8
+0	9
+0	10
+0	11
+0	12
+1	0
+1	1
+1	2
+1	3
+1	4
+1	5
+1	6
+1	7
+1	8
+1	9
+1	10
+1	11
+1	12
+2	0
+2	1
+2	2
+2	3
+2	4
+2	5
+2	6
+2	7
+2	8
+2	9
+2	10
+2	11
+2	12
+3	0
+3	1
+3	2
+3	3
+3	4
+3	5
+3	6
+3	7
+3	8
+3	9
+3	10
+3	11
+3	12
+4	0
+4	1
+4	2
+4	3
+4	4
+4	5
+4	6
+4	7
+4	8
+4	9
+4	10
+4	11
+4	12
+5	0
+5	1
+5	2
+5	3
+5	4
+5	5
+5	6
+5	7
+5	8
+5	9
+5	10
+5	11
+5	12
+6	0
+6	1
+6	2
+6	3
+6	4
+6	5
+6	6
+6	7
+6	8
+6	9
+6	10
+6	11
+6	12
+ran_in_the_workers
+1
+# SELECT DISTINCT c FROM t1 ORDER BY c
+SELECT DISTINCT c FROM t1 ORDER BY c;
+c
+NULL
+0
+1
+2
+3
+4
+SELECT DISTINCT c FROM t1 ORDER BY c;
+c
+NULL
+0
+1
+2
+3
+4
+ran_in_the_workers
+1
+#
+# NULLs are one distinct value, and c has them
+#
+# SELECT DISTINCT c FROM t1 WHERE c IS NULL OR c > 2 ORDER BY c
+SELECT DISTINCT c FROM t1 WHERE c IS NULL OR c > 2 ORDER BY c;
+c
+NULL
+3
+4
+SELECT DISTINCT c FROM t1 WHERE c IS NULL OR c > 2 ORDER BY c;
+c
+NULL
+3
+4
+ran_in_the_workers
+1
+#
+# an expression, and a WHERE
+#
+# SELECT DISTINCT b % 4 AS g FROM t1 ORDER BY g
+SELECT DISTINCT b % 4 AS g FROM t1 ORDER BY g;
+g
+0
+1
+2
+3
+SELECT DISTINCT b % 4 AS g FROM t1 ORDER BY g;
+g
+0
+1
+2
+3
+ran_in_the_workers
+1
+# SELECT DISTINCT a FROM t1 WHERE b > 6 ORDER BY a
+SELECT DISTINCT a FROM t1 WHERE b > 6 ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+6
+SELECT DISTINCT a FROM t1 WHERE b > 6 ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+6
+ran_in_the_workers
+1
+#
+# over a join, so the distinct rows are ones a worker assembled from two
+# tables. Compared as a multiset: see the declined section for why this one
+# cannot carry an ORDER BY.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,nm))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,nm))) AS crc_xor FROM (SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1) d;
+n	crc_sum	crc_xor
+7	13156519870	2718853212
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,nm))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,nm))) AS crc_xor FROM (SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1) d;
+n	crc_sum	crc_xor
+7	13156519870	2718853212
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# nothing qualifies, so there are no distinct rows
+#
+# SELECT DISTINCT a FROM t1 WHERE b > 999999 ORDER BY a
+SELECT DISTINCT a FROM t1 WHERE b > 999999 ORDER BY a;
+a
+SELECT DISTINCT a FROM t1 WHERE b > 999999 ORDER BY a;
+a
+ran_in_the_workers
+1
+#
+# DISTINCT with no ORDER BY. The rows are determined, their order is not,
+# so this compares them as a multiset.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b))) AS crc_xor FROM (SELECT DISTINCT a, b FROM t1) d;
+n	crc_sum	crc_xor
+91	211750305143	1898137835
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b))) AS crc_xor FROM (SELECT DISTINCT a, b FROM t1) d;
+n	crc_sum	crc_xor
+91	211750305143	1898137835
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# DISTINCT with a LIMIT, which is the shape the rewrite to GROUP BY leaves
+# alone, so it reaches the gate as a real DISTINCT. Which rows a LIMIT of an
+# unordered result keeps is whichever finish first, exactly as for LIMIT
+# without DISTINCT, so what is checked is that the right number come back
+# and that they really are distinct.
+#
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*) AS n, COUNT(DISTINCT b) AS distinct_n
+FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d;
+n	distinct_n
+5	5
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, COUNT(DISTINCT b) AS distinct_n
+FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d;
+n	distinct_n
+5	5
+ran_in_the_workers	workers_per_query
+1	4.0000
+#
+# and every value it returned is one the table holds
+#
+SELECT COUNT(*) AS all_present FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d
+WHERE d.b IN (SELECT b FROM t1);
+all_present
+5
+#
+# a LIMIT larger than the number of distinct rows returns all of them, so
+# that answer is determined
+#
+# SELECT DISTINCT a FROM t1 ORDER BY a LIMIT 99
+SELECT DISTINCT a FROM t1 ORDER BY a LIMIT 99;
+a
+0
+1
+2
+3
+4
+5
+6
+SELECT DISTINCT a FROM t1 ORDER BY a LIMIT 99;
+a
+0
+1
+2
+3
+4
+5
+6
+ran_in_the_workers
+1
+#
+# the shapes that are declined, and what declines each one.
+#
+# ORDER BY of the scan itself: the order would have to come from the
+# driving table, which a chunked scan cannot deliver. Refused by the gate,
+# so the optimizer does not even pick a parallel scan -- EXPLAIN says ALL.
+#
+# SELECT a FROM t1 ORDER BY a LIMIT 5
+SELECT a FROM t1 ORDER BY a LIMIT 5;
+a
+0
+0
+0
+0
+0
+SELECT a FROM t1 ORDER BY a LIMIT 5;
+a
+0
+0
+0
+0
+0
+ran_in_the_workers
+0
+EXPLAIN SELECT a FROM t1 ORDER BY a LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2000	Using filesort
+#
+# a DISTINCT over a join with an ORDER BY. The rewrite to GROUP BY absorbs
+# the ORDER BY only when every field it sorts on is a select-list field it
+# has just grouped by, which holds for the single-table shapes above and not
+# here -- so join->order is still set when the gate looks, and the gate
+# refuses it. Without the ORDER BY the same join runs in the workers.
+#
+# SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
+SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
+a	nm
+0	n1
+1	n2
+2	n3
+3	n4
+4	n5
+5	n6
+6	n7
+SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
+a	nm
+0	n1
+1	n2
+2	n3
+3	n4
+4	n5
+5	n6
+6	n7
+ran_in_the_workers
+0
+#
+# a DISTINCT over a join that does not select from every table: the
+# optimizer marks the unread ones so the join stops at the first match, and
+# that is decided after the gate, so it is declined at execution.
+#
+# SELECT DISTINCT t1.a FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a LIMIT 3
+SELECT DISTINCT t1.a FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a LIMIT 3;
+a
+0
+1
+2
+SELECT DISTINCT t1.a FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a LIMIT 3;
+a
+0
+1
+2
+ran_in_the_workers
+0
+# SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
+SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
+nm
+n1
+n2
+n3
+n4
+n5
+n6
+n7
+SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
+nm
+n1
+n2
+n3
+n4
+n5
+n6
+n7
+ran_in_the_workers
+0
+DROP TABLE t1, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;
