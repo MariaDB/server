@@ -17,6 +17,7 @@ SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 ERROR HY000: system call error: No such file or directory: failed to open path: <repair_test.mrn.000010A>
 REPAIR TABLE diaries;
 Table	Op	Msg_type	Msg_text
+repair_test.diaries	repair	Error	system call error: No such file or directory: failed to open path: <repair_test.mrn.000010A>
 repair_test.diaries	repair	status	OK
 SELECT * FROM diaries;
 id	title	body

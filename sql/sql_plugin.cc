@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,9 +66,9 @@ static TYPELIB global_plugin_typelib=
 
 static I_List<i_string> opt_plugin_load_list;
 I_List<i_string> *opt_plugin_load_list_ptr= &opt_plugin_load_list;
-char *opt_plugin_dir_ptr;
-char opt_plugin_dir[FN_REFLEN];
-ulong plugin_maturity;
+READ_ONLY_SYSVAR char *opt_plugin_dir_ptr;
+READ_ONLY_SYSVAR char opt_plugin_dir[FN_REFLEN];
+READ_ONLY_SYSVAR ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
 

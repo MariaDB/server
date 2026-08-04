@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3795,7 +3795,7 @@ privilege_t acl_get(const char *host, const char *ip,
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
+  tmp_db= strmov(strmov(key, safe_str(ip ? ip : host)) + 1, user) + 1;
   end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
 
   if (end >= key + sizeof(key)) // db name was truncated
@@ -9618,8 +9618,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   {
     *username= lex_user->user.str;
     *hostname= lex_user->host.str;
-    do_check_access= strcmp(*username, sctx->priv_user) ||
-                     strcmp(*hostname, sctx->priv_host);
+    do_check_access= !sctx->is_priv_user(*username, *hostname);
   }
 
   if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))

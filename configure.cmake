@@ -1,5 +1,6 @@
 # Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
-# 
+# Copyright (c) 2026, MariaDB plc.
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
@@ -369,6 +370,24 @@ CHECK_FUNCTION_EXISTS (mmap HAVE_MMAP)
 CHECK_FUNCTION_EXISTS (mmap64 HAVE_MMAP64)
 CHECK_FUNCTION_EXISTS (mprotect HAVE_MPROTECT)
 CHECK_FUNCTION_EXISTS (perror HAVE_PERROR)
+
+IF(HAVE_SYS_MMAN_H AND HAVE_MPROTECT)
+  SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+  SET(CMAKE_REQUIRED_FLAGS
+      "${CMAKE_REQUIRED_FLAGS} -Wl,-T,${CMAKE_SOURCE_DIR}/sql/mysqld_ro.lds")
+  CHECK_C_SOURCE_COMPILES("
+    #include <sys/mman.h>
+    __attribute__((section(\"ro_after_init\"))) int hardened= 1;
+    extern char __ro_after_init_start[] __attribute__((weak));
+    extern char __ro_after_init_end[] __attribute__((weak));
+    int main(void) {
+      size_t size= __ro_after_init_end - __ro_after_init_start;
+      mprotect(__ro_after_init_start, size, PROT_READ | PROT_WRITE);
+      return (int)size + hardened;
+    }" HAVE_RO_AFTER_INIT)
+  SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
+ENDIF()
+
 CHECK_FUNCTION_EXISTS (poll HAVE_POLL)
 CHECK_FUNCTION_EXISTS (posix_fallocate HAVE_POSIX_FALLOCATE)
 CHECK_FUNCTION_EXISTS (pread HAVE_PREAD)

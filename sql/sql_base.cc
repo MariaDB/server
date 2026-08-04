@@ -7154,7 +7154,30 @@ find_field_in_tables(THD *thd, Item_ident *item,
   {
     if (report_error == REPORT_ALL_ERRORS ||
         report_error == REPORT_EXCEPT_NON_UNIQUE)
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        If the user has no rights on this column in any candidate table,
+        check_grant_column() will issue a generic "access denied" error
+      */
+      if (check_privileges)
+      {
+        for (TABLE_LIST *tl= first_table; tl != last_table;
+             tl= tl->next_name_resolution_table)
+        {
+          if (db.str && my_strcasecmp(table_alias_charset, tl->db.str, db.str))
+            continue;
+          if (table_name &&
+              my_strcasecmp(table_alias_charset, tl->alias.str, table_name))
+            continue;
+          if (check_grant_column(thd, &tl->grant, tl->db.str,
+                         tl->table_name.str, name, length, thd->security_ctx))
+            return found;
+        }
+      }
+#endif
       my_error(ER_BAD_FIELD_ERROR, MYF(0), item->full_name(), thd_where(thd));
+    }
     else
       found= not_found_field;
   }

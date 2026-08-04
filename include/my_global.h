@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -820,6 +820,7 @@ typedef long long	my_ptrdiff_t;
 
 #define MY_ALIGN(A,L)	   (((A) + (L) - 1) & ~((L) - 1))
 #define MY_ALIGN_DOWN(A,L) ((A) & ~((L) - 1))
+
 #define ALIGN_SIZE(A)	MY_ALIGN((A),sizeof(double))
 #define ALIGN_MAX_UNIT  (sizeof(double))
 /* Size to make addressable obj. */
@@ -1019,6 +1020,20 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #else
 #define MYSQL_PLUGIN_IMPORT
 #endif
+#endif
+
+/*
+  Tag a global variable as "read-only after init". It'll be made read-only
+  just before the server starts accepting connection. All READ_ONLY sysvars
+  must be tagged this way.
+*/
+#if defined(HAVE_RO_AFTER_INIT) && !defined(EMBEDDED_LIBRARY)
+#define READ_ONLY_SYSVAR __attribute__((section("ro_after_init")))
+#elif defined(_MSC_VER) && !defined(EMBEDDED_LIBRARY)
+#pragma section("ro_after_init$m", read, write)
+#define READ_ONLY_SYSVAR __declspec(allocate("ro_after_init$m"))
+#else
+#define READ_ONLY_SYSVAR
 #endif
 
 #include <my_dbug.h>

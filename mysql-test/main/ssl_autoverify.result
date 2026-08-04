@@ -38,7 +38,7 @@ yes
 test.have_ssl()
 yes
 # mysql -unohash -ponetwothree --ssl-verify-server-cert -e "select test.have_ssl()"
-ERROR 2026 (HY000): TLS/SSL error: Certificate verification failure
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
 # mysql -umulti -ppw1 --ssl-verify-server-cert -e "select test.have_ssl()"
 test.have_ssl()
 yes
