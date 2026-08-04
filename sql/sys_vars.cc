@@ -7736,6 +7736,30 @@ static Sys_var_optimizer_cost Sys_optimizer_where_cost(
   CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 100000), DEFAULT(DEFAULT_WHERE_COST), COST_ADJUST(1000));
 
+static Sys_var_optimizer_cost Sys_parallel_query_setup_cost(
+  "parallel_query_setup_cost",
+  "Cost of starting one parallel query worker thread. Increasing this will "
+  "have the optimizer prefer fewer workers, and a serial scan sooner",
+  SESSION_VAR(parallel_query_setup_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000), DEFAULT(DEFAULT_PARALLEL_QUERY_SETUP_COST),
+  COST_ADJUST(1000));
+
+/*
+  A ratio, not a cost, so COST_ADJUST is 1 and the value is used as given --
+  the same as optimizer_disk_read_ratio.
+*/
+static Sys_var_optimizer_cost Sys_parallel_query_row_cost_ratio(
+  "parallel_query_row_cost_ratio",
+  "What a row costs a parallel scan relative to a serial one: a worker copies "
+  "the row into a batch, hands it over and the manager reads it again, where a "
+  "serial scan reads it once. Increasing this will have the optimizer prefer a "
+  "serial scan",
+  SESSION_VAR(parallel_query_row_cost_ratio),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_PARALLEL_QUERY_ROW_COST_RATIO),
+  COST_ADJUST(1));
+
 static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   "optimizer_scan_setup_cost",
   "Extra cost added to TABLE and INDEX scans to get optimizer to prefer "

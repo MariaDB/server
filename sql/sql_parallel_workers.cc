@@ -175,21 +175,6 @@ bool table_can_be_parallel_scanned(TABLE *table)
            table cannot be divided among two or more workers)
 */
 
-/*
-  Per-row cost of reading through a worker rather than serially, as a factor.
-  1.16 was measured on a release build with a scan whose WHERE is cheap, before
-  chunks were split (see Parallel_reader::Ctx::split()). Re-measuring since then
-  gives a figure below 1 in the better of two regimes the same query alternates
-  between, so this is the conservative end of a range rather than a value: it
-  keeps the estimate from claiming a per-row saving that may not be there. A
-  query doing more work per row amortises the transport and sees less than this
-  either way.
-*/
-#define PARALLEL_SCAN_ROW_COST_FACTOR 1.16
-
-/* Cost of starting one worker, in the optimizer's units of milliseconds. */
-#define PARALLEL_WORKER_SETUP_COST    0.022
-
 uint parallel_scan_worker_count(THD *thd, TABLE *table)
 {
   uint n= thd->variables.parallel_worker_threads;
@@ -212,11 +197,17 @@ uint scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
   if (!n)
     return 0;
 
-  const double factor= PARALLEL_SCAN_ROW_COST_FACTOR / (double) n;
+  /*
+    Both factors are session variables rather than constants because they are
+    measured quantities, and measuring them wants sweeping them without a
+    rebuild: parallel_query_row_cost_ratio and parallel_query_setup_cost.
+  */
+  const double factor= thd->variables.parallel_query_row_cost_ratio /
+                       (double) n;
   cost->row_cost.io  *= factor;
   cost->row_cost.cpu *= factor;
   cost->copy_cost    *= factor;
-  cost->row_cost.cpu+= n * PARALLEL_WORKER_SETUP_COST;
+  cost->row_cost.cpu+= n * thd->variables.parallel_query_setup_cost;
   return n;
 }
 

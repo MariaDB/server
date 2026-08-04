@@ -78,6 +78,29 @@
 */
 #define DEFAULT_WHERE_COST             ((double) 3.2e-05)
 
+/*
+  Parallel query. The cost of starting one worker thread, in the same
+  milliseconds the costs above are in, measured as the difference between a
+  query costed for n workers and the same query costed serially.
+*/
+#define DEFAULT_PARALLEL_QUERY_SETUP_COST  ((double) 0.022)
+
+/*
+  What a row costs a parallel scan relative to a serial one, as a multiplier on
+  the scan's per-row cost. Above 1 because a row read by a worker is copied into
+  a batch, handed over under a mutex and read again by the manager, where a
+  serial scan reads it once. Dimensionless, so unlike the costs it is not scaled
+  by COST_ADJUST.
+
+  1.16 was measured on a release build with a scan whose WHERE is cheap, before
+  chunks were split (Parallel_reader::Ctx::split()). Re-measuring afterwards gave
+  a figure below 1 in the better of the two regimes the same query alternates
+  between, so this is the conservative end of a range rather than a value: it
+  keeps the estimate from claiming a per-row saving that may not be there. A
+  query doing more work per row amortises the transport and sees less either way.
+*/
+#define DEFAULT_PARALLEL_QUERY_ROW_COST_RATIO ((double) 1.16)
+
 /* The cost of comparing a key when using range access or sorting */
 #define DEFAULT_KEY_COMPARE_COST       0.000011361
 
