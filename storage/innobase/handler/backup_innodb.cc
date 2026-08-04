@@ -32,6 +32,43 @@
 @return InnoDB transaction */
 trx_t *check_trx_exists(THD *thd) noexcept;
 
+/**
+   Ensure that there are no page writes in progress.
+   @param space_id   tablespace identifier
+   @param end        first page number after the range that is being copied
+*/
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+static void innodb_backup_batch_wait(uint32_t space_id, uint32_t end) noexcept
+{
+  const page_id_t start{space_id, end & ~fil_space_t::BACKUP_BATCH_SIZE};
+  ut_ad(end - 1 > start.page_no());
+  for (page_id_t id{space_id, end - 1};; --id)
+  {
+    auto &chain= buf_pool.page_hash.cell_get(id.fold());
+    page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
+    hash_lock.lock_shared();
+    if (buf_page_t *b{buf_pool.page_hash.get(id, chain)})
+    {
+      if (UNIV_UNLIKELY(b->is_write_fixed()))
+      {
+        if (UNIV_LIKELY(buf_page_t::is_write_fixed(b->fix())))
+        {
+          hash_lock.unlock_shared();
+          b->lock.s_lock();
+          ut_ad(!b->is_write_fixed());
+          b->lock.s_unlock();
+          goto next;
+        }
+        b->unfix();
+      }
+    }
+    hash_lock.unlock_shared();
+  next:
+    if (id == start)
+      break;
+  }
+}
+
 namespace
 {
 /** Backup state; protected by log_sys.latch */
@@ -476,11 +513,11 @@ public:
       logs.clear();
     else
     {
-      delete_logs();
-      logs.clear();
       log_sys.latch.wr_unlock();
       fail= log_sys.backup_stop_archiving(thd);
       log_sys.latch.wr_lock();
+      delete_logs();
+      logs.clear();
     }
 
     log_sys.backup_stop(old_size, thd);
@@ -522,7 +559,7 @@ private:
   static void backup_batch_start(fil_space_t *space, uint32_t end) noexcept
   {
     if (space->backup_start(end))
-      os_aio_wait_until_no_pending_writes(false);
+      innodb_backup_batch_wait(space->id, end);
   }
   /* Stop backing up a tablespace */
   static void backup_batch_stop(fil_space_t *space) noexcept
