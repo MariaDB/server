@@ -9,6 +9,7 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
   add_definitions(-DHAVE_PSI_INTERFACE=)
 ENDIF()
+add_definitions(-DPLUGIN_COLUMNSTORE_VERSION=PLUGIN_VERSION)
 
 # let's temporarily disable the warning, until ColumnStore is fixed
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=suggest-override")
