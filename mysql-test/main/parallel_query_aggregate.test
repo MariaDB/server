@@ -1,0 +1,146 @@
+#
+# MDEV-39492 Parallel Query: aggregates with no GROUP BY.
+#
+# The workers do not aggregate and do not project. They run the join and the
+# WHERE over their chunk and ship the base-table columns of every row that
+# qualified; the manager copies those columns back into its own records and hands
+# each row to the plan's own terminal function, which for these queries is
+# end_send_group(). So the aggregation is the server's, done by the query's own
+# Item_sum objects, over rows that reach them exactly as a serial scan would have
+# left them.
+#
+# Nothing is cloned into a worker except the conditions, no Item_sum is copied,
+# no argument is redirected and no reference array is swapped. That is why every
+# kind of aggregate works here rather than a chosen few: MIN and MAX read their
+# argument through an Item_cache built when they were fixed, AVG and STD keep
+# their own counters, and the DISTINCT variants hold the set in an Aggregator --
+# none of which the transport has to know about, because all of them read base
+# table fields that are populated by the time they are asked.
+#
+# The exception is GROUP_CONCAT, whose value *is* the order the rows arrived in.
+# Workers finish chunks in an order that varies between runs, so it would answer
+# differently each time; it is refused and runs serially. Checked at the bottom.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, IF(seq % 100 = 0, NULL, seq*2), seq*3
+  FROM seq_1_to_2000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+
+--echo #
+--echo # COUNT and SUM: the whole table, and a selective predicate
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*) FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # COUNT of a column, which counts the non-NULL ones. 20 of t1.a are NULL,
+--echo # so this says the column really travels and travels NULL as NULL --
+--echo # COUNT(*) reads no column at all and would agree either way.
+--echo #
+--let $pqa_query= SELECT COUNT(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), COUNT(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # SUM, and several aggregates over different columns at once
+--echo #
+--let $pqa_query= SELECT SUM(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), SUM(a), SUM(b) FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(b), COUNT(a), SUM(a) FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # MIN and MAX, which read their argument through an Item_cache rather than
+--echo # from the argument pointer, and so say that the record itself is right
+--echo # and not merely something pointed at it
+--echo #
+--let $pqa_query= SELECT MIN(a), MAX(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT MIN(a), MAX(b), MIN(pk) FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # the ones that keep their own counters, and the ones that keep a set
+--echo #
+--let $pqa_query= SELECT AVG(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT STD(a), VARIANCE(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(DISTINCT a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(DISTINCT a), COUNT(DISTINCT b) FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT BIT_XOR(a), BIT_OR(pk), BIT_AND(pk) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # an expression as the argument. An expression *over* an aggregate needs a
+--echo # second aggregation stage and so a temp table, which the gate still
+--echo # refuses, so those two run serially here.
+--echo #
+--let $pqa_query= SELECT SUM(a+b) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(a) + 1 FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), SUM(a) + SUM(b), MAX(a) - MIN(a) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # a constant beside the aggregate, which reads no column
+--echo #
+--let $pqa_query= SELECT COUNT(*), 42 FROM t1 WHERE b > 3000
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # HAVING over the aggregate also wants that second stage, so it too is
+--echo # refused for now and answers serially.
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(a) FROM t1 HAVING SUM(a) > 999999999
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # nothing qualifies. One row must still come back, COUNT 0 and the rest
+--echo # NULL, and it comes from end_send_group()'s end-of-records path.
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1 WHERE b > 999999
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), COUNT(a), SUM(a), MIN(a), AVG(a) FROM t1 WHERE b > 999999
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # over a join, so the rows aggregated are ones a worker assembled from two
+--echo # tables
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN COUNT(*), SUM(t1.a), MAX(d1.nm) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # GROUP_CONCAT is refused: its value is the order the rows arrived in, so
+--echo # in the workers it would differ between identical runs. Runs serially.
+--echo #
+--let $pqa_query= SELECT GROUP_CONCAT(a) FROM t1 WHERE b > 5985
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # and an ORDER BY of the aggregate itself
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1 ORDER BY COUNT(*)
+--source include/parallel_query_aggregate_cmp.inc
+
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

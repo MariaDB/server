@@ -1,0 +1,277 @@
+SET @s= @@session.parallel_worker_threads;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, IF(seq % 100 = 0, NULL, seq*2), seq*3
+FROM seq_1_to_2000;
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+#
+# COUNT and SUM: the whole table, and a selective predicate
+#
+# SELECT COUNT(*) FROM t1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2000
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2000
+ran_in_the_workers
+1
+# SELECT COUNT(*) FROM t1 WHERE b > 3000
+SELECT COUNT(*) FROM t1 WHERE b > 3000;
+COUNT(*)
+1000
+SELECT COUNT(*) FROM t1 WHERE b > 3000;
+COUNT(*)
+1000
+ran_in_the_workers
+1
+#
+# COUNT of a column, which counts the non-NULL ones. 20 of t1.a are NULL,
+# so this says the column really travels and travels NULL as NULL --
+# COUNT(*) reads no column at all and would agree either way.
+#
+# SELECT COUNT(a) FROM t1
+SELECT COUNT(a) FROM t1;
+COUNT(a)
+1980
+SELECT COUNT(a) FROM t1;
+COUNT(a)
+1980
+ran_in_the_workers
+1
+# SELECT COUNT(*), COUNT(a) FROM t1
+SELECT COUNT(*), COUNT(a) FROM t1;
+COUNT(*)	COUNT(a)
+2000	1980
+SELECT COUNT(*), COUNT(a) FROM t1;
+COUNT(*)	COUNT(a)
+2000	1980
+ran_in_the_workers
+1
+#
+# SUM, and several aggregates over different columns at once
+#
+# SELECT SUM(a) FROM t1
+SELECT SUM(a) FROM t1;
+SUM(a)
+3960000
+SELECT SUM(a) FROM t1;
+SUM(a)
+3960000
+ran_in_the_workers
+1
+# SELECT COUNT(*), SUM(a), SUM(b) FROM t1 WHERE b > 3000
+SELECT COUNT(*), SUM(a), SUM(b) FROM t1 WHERE b > 3000;
+COUNT(*)	SUM(a)	SUM(b)
+1000	2970000	4501500
+SELECT COUNT(*), SUM(a), SUM(b) FROM t1 WHERE b > 3000;
+COUNT(*)	SUM(a)	SUM(b)
+1000	2970000	4501500
+ran_in_the_workers
+1
+# SELECT SUM(b), COUNT(a), SUM(a) FROM t1 WHERE b > 3000
+SELECT SUM(b), COUNT(a), SUM(a) FROM t1 WHERE b > 3000;
+SUM(b)	COUNT(a)	SUM(a)
+4501500	990	2970000
+SELECT SUM(b), COUNT(a), SUM(a) FROM t1 WHERE b > 3000;
+SUM(b)	COUNT(a)	SUM(a)
+4501500	990	2970000
+ran_in_the_workers
+1
+#
+# MIN and MAX, which read their argument through an Item_cache rather than
+# from the argument pointer, and so say that the record itself is right
+# and not merely something pointed at it
+#
+# SELECT MIN(a), MAX(a) FROM t1
+SELECT MIN(a), MAX(a) FROM t1;
+MIN(a)	MAX(a)
+2	3998
+SELECT MIN(a), MAX(a) FROM t1;
+MIN(a)	MAX(a)
+2	3998
+ran_in_the_workers
+1
+# SELECT MIN(a), MAX(b), MIN(pk) FROM t1 WHERE b > 3000
+SELECT MIN(a), MAX(b), MIN(pk) FROM t1 WHERE b > 3000;
+MIN(a)	MAX(b)	MIN(pk)
+2002	6000	1001
+SELECT MIN(a), MAX(b), MIN(pk) FROM t1 WHERE b > 3000;
+MIN(a)	MAX(b)	MIN(pk)
+2002	6000	1001
+ran_in_the_workers
+1
+#
+# the ones that keep their own counters, and the ones that keep a set
+#
+# SELECT AVG(a) FROM t1
+SELECT AVG(a) FROM t1;
+AVG(a)
+2000.0000
+SELECT AVG(a) FROM t1;
+AVG(a)
+2000.0000
+ran_in_the_workers
+1
+# SELECT STD(a), VARIANCE(a) FROM t1
+SELECT STD(a), VARIANCE(a) FROM t1;
+STD(a)	VARIANCE(a)
+1154.6717	1333266.6667
+SELECT STD(a), VARIANCE(a) FROM t1;
+STD(a)	VARIANCE(a)
+1154.6717	1333266.6667
+ran_in_the_workers
+1
+# SELECT COUNT(DISTINCT a) FROM t1
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+1980
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+1980
+ran_in_the_workers
+1
+# SELECT SUM(DISTINCT a), COUNT(DISTINCT b) FROM t1 WHERE b > 3000
+SELECT SUM(DISTINCT a), COUNT(DISTINCT b) FROM t1 WHERE b > 3000;
+SUM(DISTINCT a)	COUNT(DISTINCT b)
+2970000	1000
+SELECT SUM(DISTINCT a), COUNT(DISTINCT b) FROM t1 WHERE b > 3000;
+SUM(DISTINCT a)	COUNT(DISTINCT b)
+2970000	1000
+ran_in_the_workers
+1
+# SELECT BIT_XOR(a), BIT_OR(pk), BIT_AND(pk) FROM t1
+SELECT BIT_XOR(a), BIT_OR(pk), BIT_AND(pk) FROM t1;
+BIT_XOR(a)	BIT_OR(pk)	BIT_AND(pk)
+3840	2047	0
+SELECT BIT_XOR(a), BIT_OR(pk), BIT_AND(pk) FROM t1;
+BIT_XOR(a)	BIT_OR(pk)	BIT_AND(pk)
+3840	2047	0
+ran_in_the_workers
+1
+#
+# an expression as the argument. An expression *over* an aggregate needs a
+# second aggregation stage and so a temp table, which the gate still
+# refuses, so those two run serially here.
+#
+# SELECT SUM(a+b) FROM t1
+SELECT SUM(a+b) FROM t1;
+SUM(a+b)
+9900000
+SELECT SUM(a+b) FROM t1;
+SUM(a+b)
+9900000
+ran_in_the_workers
+1
+# SELECT SUM(a) + 1 FROM t1
+SELECT SUM(a) + 1 FROM t1;
+SUM(a) + 1
+3960001
+SELECT SUM(a) + 1 FROM t1;
+SUM(a) + 1
+3960001
+ran_in_the_workers
+0
+# SELECT COUNT(*), SUM(a) + SUM(b), MAX(a) - MIN(a) FROM t1
+SELECT COUNT(*), SUM(a) + SUM(b), MAX(a) - MIN(a) FROM t1;
+COUNT(*)	SUM(a) + SUM(b)	MAX(a) - MIN(a)
+2000	9963000	3996
+SELECT COUNT(*), SUM(a) + SUM(b), MAX(a) - MIN(a) FROM t1;
+COUNT(*)	SUM(a) + SUM(b)	MAX(a) - MIN(a)
+2000	9963000	3996
+ran_in_the_workers
+0
+#
+# a constant beside the aggregate, which reads no column
+#
+# SELECT COUNT(*), 42 FROM t1 WHERE b > 3000
+SELECT COUNT(*), 42 FROM t1 WHERE b > 3000;
+COUNT(*)	42
+1000	42
+SELECT COUNT(*), 42 FROM t1 WHERE b > 3000;
+COUNT(*)	42
+1000	42
+ran_in_the_workers
+1
+#
+# HAVING over the aggregate also wants that second stage, so it too is
+# refused for now and answers serially.
+#
+# SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1;
+COUNT(*)
+2000
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1;
+COUNT(*)
+2000
+ran_in_the_workers
+0
+# SELECT SUM(a) FROM t1 HAVING SUM(a) > 999999999
+SELECT SUM(a) FROM t1 HAVING SUM(a) > 999999999;
+SUM(a)
+SELECT SUM(a) FROM t1 HAVING SUM(a) > 999999999;
+SUM(a)
+ran_in_the_workers
+0
+#
+# nothing qualifies. One row must still come back, COUNT 0 and the rest
+# NULL, and it comes from end_send_group()'s end-of-records path.
+#
+# SELECT COUNT(*) FROM t1 WHERE b > 999999
+SELECT COUNT(*) FROM t1 WHERE b > 999999;
+COUNT(*)
+0
+SELECT COUNT(*) FROM t1 WHERE b > 999999;
+COUNT(*)
+0
+ran_in_the_workers
+1
+# SELECT COUNT(*), COUNT(a), SUM(a), MIN(a), AVG(a) FROM t1 WHERE b > 999999
+SELECT COUNT(*), COUNT(a), SUM(a), MIN(a), AVG(a) FROM t1 WHERE b > 999999;
+COUNT(*)	COUNT(a)	SUM(a)	MIN(a)	AVG(a)
+0	0	NULL	NULL	NULL
+SELECT COUNT(*), COUNT(a), SUM(a), MIN(a), AVG(a) FROM t1 WHERE b > 999999;
+COUNT(*)	COUNT(a)	SUM(a)	MIN(a)	AVG(a)
+0	0	NULL	NULL	NULL
+ran_in_the_workers
+1
+#
+# over a join, so the rows aggregated are ones a worker assembled from two
+# tables
+#
+# SELECT STRAIGHT_JOIN COUNT(*), SUM(t1.a), MAX(d1.nm) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1
+SELECT STRAIGHT_JOIN COUNT(*), SUM(t1.a), MAX(d1.nm) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1;
+COUNT(*)	SUM(t1.a)	MAX(d1.nm)
+2000	3960000	n9
+SELECT STRAIGHT_JOIN COUNT(*), SUM(t1.a), MAX(d1.nm) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1;
+COUNT(*)	SUM(t1.a)	MAX(d1.nm)
+2000	3960000	n9
+ran_in_the_workers
+1
+#
+# GROUP_CONCAT is refused: its value is the order the rows arrived in, so
+# in the workers it would differ between identical runs. Runs serially.
+#
+# SELECT GROUP_CONCAT(a) FROM t1 WHERE b > 5985
+SELECT GROUP_CONCAT(a) FROM t1 WHERE b > 5985;
+GROUP_CONCAT(a)
+3992,3994,3996,3998
+SELECT GROUP_CONCAT(a) FROM t1 WHERE b > 5985;
+GROUP_CONCAT(a)
+3992,3994,3996,3998
+ran_in_the_workers
+0
+#
+# and an ORDER BY of the aggregate itself
+#
+# SELECT COUNT(*) FROM t1 ORDER BY COUNT(*)
+SELECT COUNT(*) FROM t1 ORDER BY COUNT(*);
+COUNT(*)
+2000
+SELECT COUNT(*) FROM t1 ORDER BY COUNT(*);
+COUNT(*)
+2000
+ran_in_the_workers
+0
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

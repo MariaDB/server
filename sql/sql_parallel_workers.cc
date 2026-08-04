@@ -706,6 +706,9 @@ static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
 */
 static thread_local pwt_worker *pwt_self;
 
+/* See the definition below can_run_query_in_workers(). */
+static bool pwt_aggregates_supported(THD *thd, JOIN *join);
+
 
 /* Next row of this worker's chunk of the driving table. */
 int pwt_worker::pscan_next_row()
@@ -2023,7 +2026,14 @@ static void pwt_assert_join_inert(JOIN *join)
   DBUG_ASSERT(!join->order);
   /* having is applied by the manager, over its own records, not by a worker. */
   DBUG_ASSERT(!join->procedure);
-  DBUG_ASSERT(!join->sort_and_group);
+  /*
+    sort_and_group is what makes setup_end_select_func() pick end_send_group, and
+    an aggregate query with no GROUP BY has it set -- that is the case the manager
+    now runs. GROUP BY itself is refused by the gate.
+  */
+  DBUG_ASSERT(!join->sort_and_group ||
+              join->select_lex->agg_func_used() ||
+              join->select_lex->with_sum_func);
   DBUG_ASSERT(!join->group_optimized_away);
   DBUG_ASSERT(!(join->select_options & OPTION_FOUND_ROWS));
 #else
@@ -2302,8 +2312,10 @@ void pwt_manager::free_result_tables(THD *thd)
     - no temporary table (rules out GROUP BY, DISTINCT, ORDER BY, window
       functions, SQL_BUFFER_RESULT, ...): the result is the plain concatenation
       of the per-chunk join results;
-    - no LIMIT/OFFSET, SQL_CALC_FOUND_ROWS, aggregate, or PROCEDURE -- these
-      need a global post-pass the workers cannot do independently;
+    - no SQL_CALC_FOUND_ROWS or PROCEDURE -- these need a global post-pass the
+      workers cannot do independently. LIMIT and OFFSET are allowed because the
+      manager applies them on its single thread, and COUNT/SUM with no GROUP BY
+      because the manager aggregates over the rows the workers ship;
     - every condition, ref value and select-list item can be deep-cloned (so
       each worker gets private, thread-safe copies bound to its own tables).
 
@@ -2313,6 +2325,42 @@ void pwt_manager::free_result_tables(THD *thd)
         true  if we can run this query in parallel
         false otherwise
 */
+/*
+  @brief
+    Refuse the aggregates whose value depends on the order the rows arrive in.
+
+  @description
+    The manager runs the plan's own terminal function over base-table records the
+    drain has filled, so an aggregate computes from every qualifying row exactly
+    as it would have serially, whatever kind it is. Nothing here restricts kinds
+    on mechanical grounds -- MIN, AVG, and the DISTINCT variants all work.
+
+    What is left is order. Workers finish chunks in whatever order they finish
+    them, so the rows reach the aggregate in an order that varies run to run.
+    Almost every aggregate is indifferent to that. GROUP_CONCAT is not: its value
+    *is* the order, so in the workers it would return a different string each
+    time, where serially it returns the scan order. A query whose answer changes
+    between identical runs is worse than a query that runs serially, so refuse it
+    and let it run serially.
+
+  @return true if every aggregate in the select list is order-independent.
+*/
+static bool pwt_aggregates_supported(THD *thd, JOIN *join)
+{
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *item;
+
+  while ((item= li++))
+  {
+    if (item->type() != Item::SUM_FUNC_ITEM)
+      continue;
+    if (((Item_sum*) item)->sum_func() == Item_sum::GROUP_CONCAT_FUNC)
+      return false;
+  }
+  return true;
+}
+
+
 bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
 {
   DBUG_ENTER("can_run_query_in_workers");
@@ -2355,9 +2403,10 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_PRINT("info", ("window funcs"));
     DBUG_RETURN(false);
   }
-  if (sl->agg_func_used() || sl->with_sum_func )
+  if ((sl->agg_func_used() || sl->with_sum_func) &&
+      !pwt_aggregates_supported(thd, join))
   {
-    DBUG_PRINT("info", ("aggregate funcs"));
+    DBUG_PRINT("info", ("order-dependent aggregate"));
     DBUG_RETURN(false);
   }
 
@@ -2483,15 +2532,14 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     }
   }
 
-  // select list clonable
-  List_iterator_fast<Item> li(join->fields_list);
-  Item *item;
-  while ((item= li++))
-    if (!pwt_item_is_clonable(thd, item))
-    {
-      DBUG_PRINT("info", ("scan table fields unclonable"));
-      DBUG_RETURN(false);
-    }
+  /*
+    The select list is deliberately not checked for clonability. Nothing clones
+    it: what a worker gets is an Item_field per base-table column the query
+    reads, which is always clonable, and the select list is evaluated on the
+    manager. Probing it was also actively harmful -- pwt_item_is_clonable()
+    copies the item to test it, and copying an Item_sum_min_max crashes, because
+    its copy constructor leaves cmp uninitialised while its cleanup() deletes it.
+  */
   DBUG_RETURN(true);
 }
 
