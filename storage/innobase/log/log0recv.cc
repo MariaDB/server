@@ -2099,6 +2099,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     lsn= file_checkpoint= log_sys.last_checkpoint_lsn;
+    log_sys.archived_checkpoint= lsn;
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
@@ -2177,7 +2178,8 @@ dberr_t recv_sys_t::find_checkpoint()
         log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
                                          field == log_t::CHECKPOINT_1);
     }
-    if (!log_sys.last_checkpoint_lsn)
+    log_sys.archived_checkpoint= log_sys.last_checkpoint_lsn;
+    if (!log_sys.archived_checkpoint)
       goto got_no_checkpoint;
     else if (!log_sys.archived_lsn)
       log_sys.archived_lsn= lsn;

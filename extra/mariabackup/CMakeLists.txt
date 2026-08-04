@@ -114,3 +114,28 @@ ADD_DEPENDENCIES(mbstream GenError)
 IF(MSVC)
   SET_TARGET_PROPERTIES(mbstream PROPERTIES LINK_FLAGS setargv.obj)
 ENDIF()
+
+
+########################################################################
+# mariadb-backup-server: BACKUP SERVER-compatible shell wrapper
+########################################################################
+# A drop-in mariadb-backup-compatible POSIX-sh wrapper that translates the
+# CLI into server-side BACKUP SERVER SQL. Experimental; OFF by default
+# Installed as a mariadb-backup-server; clients opt in via symlink/alias
+# (see extra/mariabackup/scripts/README.md).
+OPTION(WITH_MARIABACKUP_WRAPPER
+  "Install the BACKUP SERVER shell wrapper (mariadb-backup-server)" OFF)
+ADD_FEATURE_INFO(MARIABACKUP_WRAPPER WITH_MARIABACKUP_WRAPPER
+  "BACKUP SERVER-compatible mariadb-backup shell wrapper")
+
+IF(WITH_MARIABACKUP_WRAPPER AND NOT WIN32)
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/scripts/mariadb-backup-server.sh
+    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-backup-server COPYONLY)
+  INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/mariadb-backup-server
+    DESTINATION ${INSTALL_BINDIR} COMPONENT Backup)
+
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/scripts/mbstream-server.sh
+    ${CMAKE_CURRENT_BINARY_DIR}/mbstream-server COPYONLY)
+  INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/mbstream-server
+    DESTINATION ${INSTALL_BINDIR} COMPONENT Backup)
+ENDIF()

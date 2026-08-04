@@ -635,7 +635,7 @@ void log_t::set_buffered(bool buffered) noexcept
 }
 #endif
 
-  /** Try to enable or disable durable writes (update log_write_through) */
+/** Try to enable or disable durable writes (update log_write_through) */
 void log_t::set_write_through(bool write_through)
 {
   if (is_mmap() || high_level_read_only || recv_sys.rpo)
@@ -764,9 +764,12 @@ void log_t::header_rewrite(my_bool archive) noexcept
 
 /** SET GLOBAL innodb_log_archive
 @param archive  the new value of innodb_log_archive
-@param thd      SQL connection */
-void log_t::set_archive(my_bool archive, THD *thd) noexcept
+@param thd      SQL connection
+@param backup   whether the caller is backup_start() or backup_stop()
+@return whether the operation failed */
+bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
 {
+  bool fail= false;
   thd_wait_begin(thd, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
   lsn_t wait_lsn;
@@ -780,12 +783,20 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       my_printf_error(ER_WRONG_USAGE,
                       "SET GLOBAL innodb_log_file_size is in progress",
                       MYF(0));
+    fail:
+      fail= true;
+      wait_lsn= 0;
       break;
     }
     if (archive == this->archive)
       break;
-    if (thd_kill_level(thd))
-      break;
+    if ((!backup || archive) && thd_kill_level(thd))
+      goto fail;
+    if (!backup && this->backup)
+    {
+      my_printf_error(ER_WRONG_USAGE, "BACKUP SERVER is in progress", MYF(0));
+      goto fail;
+    }
 
     if (resize_log.is_opened())
     {
@@ -799,7 +810,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_wait(wait_lsn, false);
+        buf_flush_wait(wait_lsn, !UT_LIST_GET_LEN(buf_pool.flush_list));
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();
@@ -894,7 +905,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (!log.is_opened())
       {
         my_error(ER_ERROR_ON_READ, MYF(0), old_name, errno);
-        break;
+        goto fail;
       }
     }
 #endif
@@ -919,7 +930,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     {
       my_error(ER_ERROR_ON_RENAME, MYF(0), old_name, new_name, my_errno);
       first_lsn= old_first_lsn;
-      break;
+      goto fail;
     }
 
     if (archive)
@@ -951,14 +962,16 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
   thd_wait_end(thd);
   if (wait_lsn)
     mtr_flush_ahead(wait_lsn);
+  return fail;
 }
 
-/** Start resizing the log and release the exclusive latch.
-@param size  requested new file_size
-@param thd   the current thread identifier
+/** Start resizing the log.
+@param size   requested new file_size
+@param thd    the current thread identifier
+@param backup whether the caller is backup_start() or backup_stop()
 @return whether the resizing was started successfully */
-log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
-  noexcept
+log_t::resize_start_status log_t::resize_start(uint64_t size, void *thd,
+                                               bool backup) noexcept
 {
   ut_ad(size >= 4U << 20);
   ut_ad(!(size & 4095));
@@ -989,6 +1002,9 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
       resize_target= size;
     }
   }
+  else if (!backup && this->backup)
+    /* backup_start() or backup_stop() is running */
+    status= RESIZE_FAILED;
   else
   {
     lsn_t start_lsn;
@@ -1088,6 +1104,44 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
 
   log_resize_release();
   return status;
+}
+
+/** Wait for the completion of resize_start() == RESIZE_STARTED */
+void log_t::resize_finish(THD *thd) noexcept
+{
+  for (timespec abstime;;)
+  {
+    if (thd_kill_level(thd))
+    {
+      resize_abort(thd);
+      break;
+    }
+
+    set_timespec(abstime, 5);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    lsn_t resizing= resize_in_progress();
+    if (resizing > buf_pool.get_oldest_modification(0))
+    {
+      buf_pool.page_cleaner_wakeup(true);
+      my_cond_timedwait(&buf_pool.done_flush_list,
+                        &buf_pool.flush_list_mutex.m_mutex, &abstime);
+      resizing= resize_in_progress();
+    }
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    if (!resizing || !resize_running(thd))
+      break;
+    latch.wr_lock();
+    while (resizing > get_lsn())
+    {
+      ut_ad(!is_mmap());
+      /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+      to ensure that the log resizing will complete. */
+      mtr_t mtr{nullptr};
+      mtr.start();
+      mtr.commit_files(last_checkpoint_lsn);
+    }
+    latch.wr_unlock();
+  }
 }
 
 /** Abort a resize_start() that we started. */

@@ -1496,6 +1496,61 @@ struct transaction_participant
   ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
 };
 
+/** BACKUP SERVER target */
+struct backup_target
+{
+#ifdef _WIN32
+  /** Target directory path name, or nullptr if streaming */
+  const char *path;
+#else
+  /** Target directory descriptor, or -1 if streaming */
+  int fd;
+#endif
+};
+
+/** BACKUP SERVER worker specific context */
+struct backup_sink
+{
+#ifdef _WIN32
+  /** A value indicating an invalid stream */
+  static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};
+  /** Target pipe, or NO_STREAM if path!=nullptr */
+  HANDLE stream;
+#else
+  /** A value indicating an invalid file descriptor or stream */
+  static constexpr int NO_STREAM{-1};
+  /** Target pipe, or NO_STREAM if copying to a directory */
+  int stream;
+#endif
+  /** storage engine context returned by handlerton::backup_start() */
+  void *ha_data;
+};
+
+/** BACKUP SERVER execution phase */
+enum backup_phase
+{
+  /** finish backup, possibly after BACKUP_PHASE_ABORT */
+  BACKUP_PHASE_FINISH= -2,
+  /** abort any operation */
+  BACKUP_PHASE_ABORT= -1,
+  /** preparatory phase executed while holding no locks */
+  BACKUP_PHASE_PREPARE_START= 0,
+  /** initial actual work phase; @see MDL_BACKUP_START */
+  BACKUP_PHASE_START,
+  /** copy while new writes to non-transactional tables are blocked;
+  @see MDL_BACKUP_FLUSH */
+  BACKUP_PHASE_NO_BEGIN_NON_TRANS,
+  /** copy while any writes to non-transactional tables are blocked;
+  @see MDL_BACKUP_WAIT_FLUSH */
+  BACKUP_PHASE_NO_DML_NON_TRANS,
+  /** copy files while DDL is blocked; @see MDL_BACKUP_WAIT_DDL */
+  BACKUP_PHASE_NO_DDL,
+  /** determine the logical time of the backup and copy any
+  remaining files while MDL_BACKUP_WAIT_COMMIT is active;
+  this is followed by BACKUP_PHASE_FINISH */
+  BACKUP_PHASE_NO_COMMIT
+};
+
 /*
   handlerton is a singleton structure - one instance per storage engine -
   to provide access to storage engine functionality that works on the
@@ -1892,8 +1947,47 @@ struct handlerton : public transaction_participant
   /*********************************************************************
     backup
   **********************************************************************/
+
+  /** BACKUP STAGE START */
   void (*prepare_for_backup)(void);
+  /** BACKUP STAGE END */
   void (*end_backup)(void);
+
+  /**
+     Start of a BACKUP SERVER phase,
+     when no backup_step() or backup_end() is pending.
+     @param thd     current session
+     @param target  backup target
+     @param phase   BACKUP_PHASE_PREPARE_START, ... (not BACKUP_PHASE_ABORT)
+     @param sink    worker context
+     @return backup context object to be attached to sink, or nullptr
+     @retval -1     on failure
+  */
+  void *(*backup_start)(THD *thd, const backup_target *target,
+                        backup_phase phase, const backup_sink *sink);
+  /**
+     Process a file that was collected in backup_start().
+     @param thd     current session
+     @param target  backup target
+     @param phase   last phase on which backup_start() was successfully invoked
+     @param sink    worker context
+     @return number of files remaining, or negative on error
+     @retval 0 on completion
+  */
+  int (*backup_step)(THD *thd, const backup_target *target,
+                     backup_phase phase, const backup_sink *sink);
+  /**
+     Finish a phase, once all calls for the current phase are completed.
+     @param thd     current sesssion
+     @param target  backup target
+     @param phase   last phase on which backup_start() was successfully
+     invoked, or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+     @param sink    worker context
+     @return error code
+     @retval 0 on success
+  */
+  int (*backup_end)(THD *thd, const backup_target *target, backup_phase phase,
+                    const backup_sink *sink);
 
   /**********************************************************************
    WSREP specific

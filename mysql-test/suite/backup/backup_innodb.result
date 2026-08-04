@@ -1,0 +1,60 @@
+CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO at1 VALUES (2), (3), (5), (7);
+CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+BEGIN;
+INSERT INTO t SET a=1;
+BACKUP SERVER TO '$target_directory';
+ROLLBACK;
+SELECT * FROM t;
+a	b
+1	
+BACKUP SERVER TO '$target_directory' WITH '/bin/false';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH '/bin/false'' at line 1
+BACKUP SERVER TO '$target_directory' WITH 4 CONCURRENT '/bin/false';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH 4 CONCURRENT '/bin/false'' at line 1
+BACKUP SERVER WITH '/bin/false';
+ERROR HY000: IO Write error: (...) BACKUP SERVER
+BEGIN;
+DELETE FROM t;
+connect backup,localhost,root;
+BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
+disconnect backup;
+connection default;
+ROLLBACK;
+SELECT * FROM t;
+a	b
+1	
+DELETE FROM t;
+DROP TABLE at0, at1;
+# restart: --defaults-file=MYSQLTEST_VARDIR/some_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_directory
+SELECT * FROM t;
+a	b
+1	
+DELETE FROM t;
+ERROR HY000: Table 't' is read only
+SELECT * FROM at0;
+i
+1
+1
+2
+3
+5
+SELECT * FROM at1;
+i
+2
+3
+5
+7
+DROP TABLE t, at0, at1;
+ERROR HY000: Table 't' is read only
+SELECT * FROM at0;
+ERROR 42S02: Table 'test.at0' doesn't exist
+SELECT * FROM at1;
+ERROR 42S02: Table 'test.at1' doesn't exist
+# restart
+SELECT * FROM t;
+a	b
+DROP TABLE t;

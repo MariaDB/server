@@ -889,6 +889,10 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 
 	dict_sys.lock(SRW_LOCK_CALL);
 
+	if (fil_system.have_all_spaces) {
+		goto done;
+	}
+
 	if (!spaces && !upgrade
 	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
 		max_space_id = dict_find_max_space_id(&pcur, &mtr);
@@ -985,6 +989,7 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 		ut_free(filepath);
 	}
 
+	fil_system.have_all_spaces = true;
 done:
 	mtr.commit();
 

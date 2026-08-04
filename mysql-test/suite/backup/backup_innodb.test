@@ -1,0 +1,104 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/maybe_debug.inc
+
+--disable_query_log
+call mtr.add_suppression("mariadbd.*: IO Write error:");
+--enable_query_log
+
+CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO at1 VALUES (2), (3), (5), (7);
+CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
+
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+BEGIN;
+INSERT INTO t SET a=1;
+
+--let $target_directory=/tmp/some_directory$MTR_COMBINATION_ARCHIVED
+# comment out the following line (and replace all "rmdir" with "exec rm -fr")
+# to test cross-filesystem copy
+--let $target_directory=$MYSQLTEST_VARDIR/some_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+evalp BACKUP SERVER TO '$target_directory';
+--rmdir $target_directory
+ROLLBACK;
+# BACKUP SERVER will implicitly commit the current transaction
+SELECT * FROM t;
+
+--error ER_PARSE_ERROR
+evalp BACKUP SERVER TO '$target_directory' WITH '/bin/false';
+--error ER_PARSE_ERROR
+evalp BACKUP SERVER TO '$target_directory' WITH 4 CONCURRENT '/bin/false';
+--replace_regex /\(.*\)/(...)/
+--error ER_IO_WRITE_ERROR
+BACKUP SERVER WITH '/bin/false';
+
+BEGIN;
+DELETE FROM t;
+
+--connect backup,localhost,root
+if ($have_debug) {
+SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
+--replace_result $target_directory target_directory
+send_eval BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR start';
+INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
+SET DEBUG_SYNC='now SIGNAL resume';
+--connection backup
+--reap
+}
+if (!$have_debug) {
+--replace_result $target_directory target_directory
+eval BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+}
+
+--disconnect backup
+--connection default
+ROLLBACK;
+SELECT * FROM t;
+DELETE FROM t;
+DROP TABLE at0, at1;
+
+if ($MARIADB_UPGRADE_EXE) {
+let target_directory=$target_directory;
+perl;
+open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+open OUT, ">>", "$ENV{target_directory}/backup.cnf";
+print OUT while (<IN>);
+close(IN);
+close(OUT);
+EOF
+}
+if (!$MARIADB_UPGRADE_EXE) {
+  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+}
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/restart_mysqld.inc
+
+SELECT * FROM t;
+# A nonzero innodb_log_recovery_target makes InnoDB read-only.
+--error ER_OPEN_AS_READONLY
+DELETE FROM t;
+# Non-InnoDB tables are read-write.
+SELECT * FROM at0;
+SELECT * FROM at1;
+--error ER_OPEN_AS_READONLY
+DROP TABLE t, at0, at1;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM at0;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM at1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+
+--rmdir $target_directory
