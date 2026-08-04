@@ -35,6 +35,7 @@ IF(WITH_WSREP)
   # Set the patch version
   SET(WSREP_PATCH_VERSION "22")
 
+  ADD_DEFINITIONS(-DWITH_WSREP)
   ADD_SUBMODULE(wsrep-lib)
 
   # Obtain wsrep API version

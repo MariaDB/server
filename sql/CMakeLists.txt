@@ -307,6 +307,11 @@ IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
     SET_TARGET_PROPERTIES(server PROPERTIES AIX_EXPORT_ALL_SYMBOLS TRUE)
   ENDIF()
   MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
+    IF(MSVC)
+      # ARCHIVE = server.lib only, not server.dll, enough for linking plugins
+      INSTALL(TARGETS server EXPORT mariadb-plugin-targets ARCHIVE
+              DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
+    ENDIF()
 ENDIF()
 
 ADD_LIBRARY(sql_builtins STATIC ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
