@@ -89,16 +89,24 @@ CREATE TABLE tb (a INT, b INT) ENGINE=InnoDB;
 INSERT INTO tb VALUES (1,10),(1,11),(2,20),(3,30),(3,31),(4,40);
 
 --echo # materialized derived table as an inner table: not chosen (expect 0)
+--echo #
+--echo # The derived table is DISTINCT, which the gate refuses, so it contributes
+--echo # nothing to the trace of its own. The check below looks for
+--echo # chosen_for_parallel_scan anywhere in the trace, and what is being asked
+--echo # about is the outer join, so the inner select has to be a shape that could
+--echo # not have been chosen either -- a GROUP BY here would be chosen on its own
+--echo # account and the check would report that instead.
+--echo #
 SET SESSION optimizer_switch='derived_merge=off';
 --disable_result_log
-SELECT ta.a, d.n FROM ta, (SELECT a AS k, COUNT(*) AS n FROM tb GROUP BY a) d
+SELECT ta.a, d.k FROM ta, (SELECT DISTINCT a AS k FROM tb) d
   WHERE d.k = ta.a;
 --enable_result_log
 SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
        AS chosen_for_parallel_scan
   FROM information_schema.optimizer_trace;
 --sorted_result
-SELECT ta.a, d.n FROM ta, (SELECT a AS k, COUNT(*) AS n FROM tb GROUP BY a) d
+SELECT ta.a, d.k FROM ta, (SELECT DISTINCT a AS k FROM tb) d
   WHERE d.k = ta.a;
 SET SESSION optimizer_switch=DEFAULT;
 

@@ -1,0 +1,395 @@
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 7, seq * 3, IF(seq % 100 = 0, NULL, seq)
+FROM seq_1_to_2000;
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+#
+# the groups, compared as a multiset because a GROUP BY with no ORDER BY
+# has no promised order in either direction
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,n,s))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,n,s))) AS crc_xor FROM (SELECT a, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a) d;
+n	crc_sum	crc_xor
+7	14051885752	3538891528
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,n,s))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,n,s))) AS crc_xor FROM (SELECT a, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a) d;
+n	crc_sum	crc_xor
+7	14051885752	3538891528
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# with ORDER BY, which is applied to the aggregation temp table on the
+# manager, after every row has arrived -- so the output is fully ordered
+# and can be compared as it stands
+#
+# SELECT a, COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a
+SELECT a, COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)	MIN(b)	MAX(b)	AVG(b)
+0	285	855855	21	5985	3003.0000
+1	286	856713	3	5988	2995.5000
+2	286	857571	6	5991	2998.5000
+3	286	858429	9	5994	3001.5000
+4	286	859287	12	5997	3004.5000
+5	286	860145	15	6000	3007.5000
+6	285	855000	18	5982	3000.0000
+SELECT a, COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)	MIN(b)	MAX(b)	AVG(b)
+0	285	855855	21	5985	3003.0000
+1	286	856713	3	5988	2995.5000
+2	286	857571	6	5991	2998.5000
+3	286	858429	9	5994	3001.5000
+4	286	859287	12	5997	3004.5000
+5	286	860145	15	6000	3007.5000
+6	285	855000	18	5982	3000.0000
+ran_in_the_workers
+1
+#
+# the aggregate kinds that keep their own state, per group. c has NULLs, so
+# COUNT(c) says the column travels and travels NULL as NULL.
+#
+# SELECT a, COUNT(*), COUNT(c), SUM(c), MIN(c), MAX(c), STD(b) FROM t1 GROUP BY a ORDER BY a
+SELECT a, COUNT(*), COUNT(c), SUM(c), MIN(c), MAX(c), STD(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	COUNT(c)	SUM(c)	MIN(c)	MAX(c)	STD(b)
+0	285	283	283185	7	1995	1727.7100
+1	286	283	282271	1	1996	1733.7723
+2	286	283	283457	2	1997	1733.7723
+3	286	283	282543	3	1998	1733.7723
+4	286	283	283729	4	1999	1733.7723
+5	286	283	282815	5	1993	1733.7723
+6	285	282	282000	6	1994	1727.7100
+SELECT a, COUNT(*), COUNT(c), SUM(c), MIN(c), MAX(c), STD(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	COUNT(c)	SUM(c)	MIN(c)	MAX(c)	STD(b)
+0	285	283	283185	7	1995	1727.7100
+1	286	283	282271	1	1996	1733.7723
+2	286	283	283457	2	1997	1733.7723
+3	286	283	282543	3	1998	1733.7723
+4	286	283	283729	4	1999	1733.7723
+5	286	283	282815	5	1993	1733.7723
+6	285	282	282000	6	1994	1727.7100
+ran_in_the_workers
+1
+#
+# HAVING over the groups, and one that selects nothing
+#
+# SELECT a, COUNT(*) FROM t1 GROUP BY a HAVING COUNT(*) > 285 ORDER BY a
+SELECT a, COUNT(*) FROM t1 GROUP BY a HAVING COUNT(*) > 285 ORDER BY a;
+a	COUNT(*)
+1	286
+2	286
+3	286
+4	286
+5	286
+SELECT a, COUNT(*) FROM t1 GROUP BY a HAVING COUNT(*) > 285 ORDER BY a;
+a	COUNT(*)
+1	286
+2	286
+3	286
+4	286
+5	286
+ran_in_the_workers
+1
+# SELECT a, SUM(b) FROM t1 GROUP BY a HAVING SUM(b) > 999999999 ORDER BY a
+SELECT a, SUM(b) FROM t1 GROUP BY a HAVING SUM(b) > 999999999 ORDER BY a;
+a	SUM(b)
+SELECT a, SUM(b) FROM t1 GROUP BY a HAVING SUM(b) > 999999999 ORDER BY a;
+a	SUM(b)
+ran_in_the_workers
+1
+#
+# grouping by an expression, by more than one column, and by a column the
+# select list does not carry
+#
+# SELECT pk % 5 AS g, COUNT(*), SUM(b) FROM t1 GROUP BY pk % 5 ORDER BY g
+SELECT pk % 5 AS g, COUNT(*), SUM(b) FROM t1 GROUP BY pk % 5 ORDER BY g;
+g	COUNT(*)	SUM(b)
+0	400	1203000
+1	400	1198200
+2	400	1199400
+3	400	1200600
+4	400	1201800
+SELECT pk % 5 AS g, COUNT(*), SUM(b) FROM t1 GROUP BY pk % 5 ORDER BY g;
+g	COUNT(*)	SUM(b)
+0	400	1203000
+1	400	1198200
+2	400	1199400
+3	400	1200600
+4	400	1201800
+ran_in_the_workers
+1
+# SELECT a, pk % 3 AS g, COUNT(*) FROM t1 GROUP BY a, pk % 3 ORDER BY a, g
+SELECT a, pk % 3 AS g, COUNT(*) FROM t1 GROUP BY a, pk % 3 ORDER BY a, g;
+a	g	COUNT(*)
+0	0	95
+0	1	95
+0	2	95
+1	0	95
+1	1	96
+1	2	95
+2	0	95
+2	1	95
+2	2	96
+3	0	96
+3	1	95
+3	2	95
+4	0	95
+4	1	96
+4	2	95
+5	0	95
+5	1	95
+5	2	96
+6	0	95
+6	1	95
+6	2	95
+SELECT a, pk % 3 AS g, COUNT(*) FROM t1 GROUP BY a, pk % 3 ORDER BY a, g;
+a	g	COUNT(*)
+0	0	95
+0	1	95
+0	2	95
+1	0	95
+1	1	96
+1	2	95
+2	0	95
+2	1	95
+2	2	96
+3	0	96
+3	1	95
+3	2	95
+4	0	95
+4	1	96
+4	2	95
+5	0	95
+5	1	95
+5	2	96
+6	0	95
+6	1	95
+6	2	95
+ran_in_the_workers
+1
+# SELECT COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a
+SELECT COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+COUNT(*)	SUM(b)
+285	855855
+286	856713
+286	857571
+286	858429
+286	859287
+286	860145
+285	855000
+SELECT COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+COUNT(*)	SUM(b)
+285	855855
+286	856713
+286	857571
+286	858429
+286	859287
+286	860145
+285	855000
+ran_in_the_workers
+1
+#
+# a WHERE, so the groups are formed from the rows a worker kept
+#
+# SELECT a, COUNT(*), SUM(b) FROM t1 WHERE b > 3000 GROUP BY a ORDER BY a
+SELECT a, COUNT(*), SUM(b) FROM t1 WHERE b > 3000 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+0	143	642642
+1	143	643071
+2	143	643500
+3	143	643929
+4	143	644358
+5	143	644787
+6	142	639213
+SELECT a, COUNT(*), SUM(b) FROM t1 WHERE b > 3000 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+0	143	642642
+1	143	643071
+2	143	643500
+3	143	643929
+4	143	644358
+5	143	644787
+6	142	639213
+ran_in_the_workers
+1
+#
+# nothing qualifies, so there are no groups at all -- unlike an aggregate
+# with no GROUP BY, which still answers one row
+#
+# SELECT a, COUNT(*) FROM t1 WHERE b > 999999 GROUP BY a ORDER BY a
+SELECT a, COUNT(*) FROM t1 WHERE b > 999999 GROUP BY a ORDER BY a;
+a	COUNT(*)
+SELECT a, COUNT(*) FROM t1 WHERE b > 999999 GROUP BY a ORDER BY a;
+a	COUNT(*)
+ran_in_the_workers
+1
+#
+# over a join, so a group collects rows a worker assembled from two tables
+#
+# SELECT STRAIGHT_JOIN d1.nm, COUNT(*), SUM(t1.b) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 GROUP BY d1.nm ORDER BY d1.nm
+SELECT STRAIGHT_JOIN d1.nm, COUNT(*), SUM(t1.b) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 GROUP BY d1.nm ORDER BY d1.nm;
+nm	COUNT(*)	SUM(t1.b)
+n1	200	603000
+n10	200	602400
+n2	200	597600
+n3	200	598200
+n4	200	598800
+n5	200	599400
+n6	200	600000
+n7	200	600600
+n8	200	601200
+n9	200	601800
+SELECT STRAIGHT_JOIN d1.nm, COUNT(*), SUM(t1.b) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 GROUP BY d1.nm ORDER BY d1.nm;
+nm	COUNT(*)	SUM(t1.b)
+n1	200	603000
+n10	200	602400
+n2	200	597600
+n3	200	598200
+n4	200	598800
+n5	200	599400
+n6	200	600000
+n7	200	600600
+n8	200	601200
+n9	200	601800
+ran_in_the_workers
+1
+#
+# LIMIT of an ordered group list, which the manager applies to the groups
+#
+# SELECT a, COUNT(*) FROM t1 GROUP BY a ORDER BY a LIMIT 3
+SELECT a, COUNT(*) FROM t1 GROUP BY a ORDER BY a LIMIT 3;
+a	COUNT(*)
+0	285
+1	286
+2	286
+SELECT a, COUNT(*) FROM t1 GROUP BY a ORDER BY a LIMIT 3;
+a	COUNT(*)
+0	285
+1	286
+2	286
+ran_in_the_workers
+1
+#
+# an index on the grouping column does not by itself change any of this.
+# Whether the plan takes the grouping order from an index is a cost
+# decision, and for a secondary index over few groups a full scan plus the
+# keyed temp table still wins, so this runs in the workers.
+#
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq % 7, seq * 3 FROM seq_1_to_2000;
+# SELECT a, COUNT(*), SUM(b) FROM t2 GROUP BY a ORDER BY a
+SELECT a, COUNT(*), SUM(b) FROM t2 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+0	285	855855
+1	286	856713
+2	286	857571
+3	286	858429
+4	286	859287
+5	286	860145
+6	285	855000
+SELECT a, COUNT(*), SUM(b) FROM t2 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+0	285	855855
+1	286	856713
+2	286	857571
+3	286	858429
+4	286	859287
+5	286	860145
+6	285	855000
+ran_in_the_workers
+1
+#
+# the shapes that are declined, and what declines each one.
+#
+# These two are the plans that want their rows already grouped: EXPLAIN
+# says "Using filesort" and not "Using temporary", so the grouping order
+# comes from sorting the driving table and the terminal is the one that
+# compares each row with the previous one. The optimizer did choose the
+# parallel scan for them -- EXPLAIN still reports type PARALLEL -- and
+# run_worker_side_join() declines at execution, once the terminal is known.
+#
+# SELECT a, COUNT(*), COUNT(DISTINCT c) FROM t1 GROUP BY a ORDER BY a
+SELECT a, COUNT(*), COUNT(DISTINCT c) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	COUNT(DISTINCT c)
+0	285	283
+1	286	283
+2	286	283
+3	286	283
+4	286	283
+5	286	283
+6	285	282
+SELECT a, COUNT(*), COUNT(DISTINCT c) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	COUNT(DISTINCT c)
+0	285	283
+1	286	283
+2	286	283
+3	286	283
+4	286	283
+5	286	283
+6	285	282
+ran_in_the_workers
+0
+# SELECT a, COUNT(*) FROM t1 GROUP BY a WITH ROLLUP
+SELECT a, COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+a	COUNT(*)
+0	285
+1	286
+2	286
+3	286
+4	286
+5	286
+6	285
+NULL	2000
+SELECT a, COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
+a	COUNT(*)
+0	285
+1	286
+2	286
+3	286
+4	286
+5	286
+6	285
+NULL	2000
+ran_in_the_workers
+0
+#
+# GROUP BY the primary key is refused earlier and for a different reason:
+# the plan reads the clustered index in order (EXPLAIN type "index"), and a
+# driving table that is not a full scan is not one the gate accepts.
+#
+# SELECT pk, COUNT(*) FROM t2 GROUP BY pk ORDER BY pk LIMIT 3
+SELECT pk, COUNT(*) FROM t2 GROUP BY pk ORDER BY pk LIMIT 3;
+pk	COUNT(*)
+1	1
+2	1
+3	1
+SELECT pk, COUNT(*) FROM t2 GROUP BY pk ORDER BY pk LIMIT 3;
+pk	COUNT(*)
+1	1
+2	1
+3	1
+ran_in_the_workers
+0
+#
+# and DISTINCT, which the gate refuses on its own terms
+#
+# SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1
+SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1;
+COUNT(*)
+285
+286
+SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1;
+COUNT(*)
+285
+286
+ran_in_the_workers
+0
+DROP TABLE t1, t2, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

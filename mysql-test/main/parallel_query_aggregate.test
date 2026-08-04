@@ -87,9 +87,8 @@ INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
 --source include/parallel_query_aggregate_cmp.inc
 
 --echo #
---echo # an expression as the argument. An expression *over* an aggregate needs a
---echo # second aggregation stage and so a temp table, which the gate still
---echo # refuses, so those two run serially here.
+--echo # an expression as the argument, and an expression *over* an aggregate,
+--echo # which the manager evaluates once the aggregate has its value
 --echo #
 --let $pqa_query= SELECT SUM(a+b) FROM t1
 --source include/parallel_query_aggregate_cmp.inc
@@ -105,8 +104,8 @@ INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
 --source include/parallel_query_aggregate_cmp.inc
 
 --echo #
---echo # HAVING over the aggregate also wants that second stage, so it too is
---echo # refused for now and answers serially.
+--echo # HAVING over the aggregate. The same end_send_group() that computed the
+--echo # aggregate applies it, so it needs nothing of its own.
 --echo #
 --let $pqa_query= SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1
 --source include/parallel_query_aggregate_cmp.inc
@@ -137,7 +136,8 @@ INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
 --source include/parallel_query_aggregate_cmp.inc
 
 --echo #
---echo # and an ORDER BY of the aggregate itself
+--echo # an ORDER BY of the aggregate itself, which is one row and so is dropped
+--echo # by the optimizer rather than making this an ordered plan
 --echo #
 --let $pqa_query= SELECT COUNT(*) FROM t1 ORDER BY COUNT(*)
 --source include/parallel_query_aggregate_cmp.inc

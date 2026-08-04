@@ -2020,20 +2020,29 @@ static void pwt_assert_join_inert(JOIN *join)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(!join->outer_join);
-  DBUG_ASSERT(!join->need_tmp);
   DBUG_ASSERT(!join->select_distinct);
-  DBUG_ASSERT(!join->group && !join->group_list);
-  DBUG_ASSERT(!join->order);
-  /* having is applied by the manager, over its own records, not by a worker. */
-  DBUG_ASSERT(!join->procedure);
   /*
-    sort_and_group is what makes setup_end_select_func() pick end_send_group, and
-    an aggregate query with no GROUP BY has it set -- that is the case the manager
-    now runs. GROUP BY itself is refused by the gate.
+    An ORDER BY the gate did not see, because make_aggr_tables_info() had not run
+    yet when it looked. It is only sound when there is an aggregation temp table
+    for the sort to be applied to, downstream of everything the workers did: then
+    the order is established on the manager, after the rows have arrived, and the
+    arrival order they had is irrelevant. Without one, the order would have to
+    come from the driving scan, which is precisely what a chunked scan does not
+    give.
   */
-  DBUG_ASSERT(!join->sort_and_group ||
-              join->select_lex->agg_func_used() ||
-              join->select_lex->with_sum_func);
+  DBUG_ASSERT(!join->order || join->aggr_tables > 0);
+  /*
+    HAVING, the select list and the aggregates are evaluated by the plan's own
+    terminal function on the manager, over records the drain filled, so none of
+    them is a worker's concern.
+
+    need_tmp, group, group_list and sort_and_group are all legitimately set here:
+    an aggregate sets sort_and_group, and a GROUP BY sets the rest and gets an
+    aggregation temp table that the manager drives the plan into. What must not
+    happen is a plan that expects its rows already grouped, and that is checked
+    by pwt_plan_needs_group_order() once the terminals are known.
+  */
+  DBUG_ASSERT(!join->procedure);
   DBUG_ASSERT(!join->group_optimized_away);
   DBUG_ASSERT(!(join->select_options & OPTION_FOUND_ROWS));
 #else
@@ -2372,11 +2381,15 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_PRINT("info", ("only constant tables"));
     DBUG_RETURN(false);
   }
-  if (join->need_tmp)                             // group/distinct/order/...
-  {
-    DBUG_PRINT("info", ("group/distinct/order by"));
-    DBUG_RETURN(false);
-  }
+  /*
+    need_tmp is not refused. A GROUP BY needs an aggregation temp table and the
+    manager drives the plan into it. The shapes a temp table is otherwise built
+    for -- DISTINCT, ORDER BY, window functions, a procedure -- are each refused
+    on their own terms below and above, which says what is excluded rather than
+    excluding a superset of it. Note it would say little here anyway: this runs
+    from make_join_readinfo(), before make_aggr_tables_info() plans the
+    aggregation, so need_tmp still holds its pre-planning value.
+  */
   /*
     LIMIT and OFFSET are not refused. end_send() applies the limit and
     select_result_sink::send_data_with_check() the offset, both on the manager's
@@ -2410,11 +2423,14 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_RETURN(false);
   }
 
-  if (join->group_list || join->group)
-  {
-    DBUG_PRINT("info", ("group"));
-    DBUG_RETURN(false);
-  }
+  /*
+    GROUP BY is allowed. The manager hands each drained row to the plan's terminal
+    function, so the grouping is done by the server's own aggregation temp table,
+    keyed on the group -- exactly as it would be serially. What is not allowed is
+    a plan that expects the rows grouped already, and which terminal the optimizer
+    picked is not known until after this runs, so that is checked in
+    run_worker_side_join() instead (pwt_plan_needs_group_order).
+  */
   if (join->select_distinct)
   {
     DBUG_PRINT("info", ("distinct"));
@@ -2426,11 +2442,11 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_RETURN(false);
   }
   /*
-    HAVING needs nothing from this gate. It is applied by end_send(), on the
-    manager, over the base-table records the drain has filled from the shipped
-    columns -- so the Item_refs it binds to the select list through resolve to
-    exactly the values a serial scan would have left there. Nothing is cloned, no
-    reference array is touched, and no worker evaluates it.
+    HAVING, the select list and the aggregates need nothing from this gate. They
+    are evaluated by the plan's own terminal function, on the manager, over base
+    table records the drain has filled from the shipped columns -- so they read
+    exactly what they would have read serially. Neither the items nor the
+    reference array are touched, and no worker evaluates any of them.
   */
   if (join->outer_join)                             // no outer joins
   {
@@ -2552,6 +2568,54 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
   @return  0 = handled (result sent), 1 = error, -1 = the engine declined the
            parallel scan (caller should run the query serially instead).
 */
+/*
+  @brief
+    Does this plan need its rows in GROUP BY order?
+
+  @description
+    Workers finish chunks in whatever order they finish them, so rows reach the
+    manager in an order that varies from run to run. Two of the server's group
+    terminals detect a new group by comparing the current row's group values with
+    the previous row's (test_if_group_changed), which is only correct if the rows
+    arrive grouped: end_send_group when the plan needs no temp table, and
+    end_write_group when it fills one. Given unordered rows they would emit a
+    group per run of equal neighbours and answer with too many rows.
+
+    The other two, end_update and end_unique_update, look the group up in the temp
+    table by key for every row, so the arrival order does not matter. Those are
+    what the optimizer picks for a GROUP BY that no index resolves -- the case
+    worth parallelising.
+
+    With no GROUP BY, end_send_group is safe and is what an aggregate query uses:
+    there is one implicit group, group_fields is empty and test_if_group_changed
+    never reports a change.
+
+    This has to be asked after make_aggr_tables_info() has planned the aggregation
+    and chosen the terminals, which is later than can_run_query_in_workers() runs.
+    So it is asked here, and answering yes declines the parallel scan the same way
+    the engine can, leaving do_select() to run the query serially.
+*/
+static bool pwt_plan_needs_group_order(JOIN *join)
+{
+  if (!join->group_list)
+    return false;                     // one implicit group, or none
+
+  for (uint i= 0; i < join->aggr_tables; i++)
+  {
+    JOIN_TAB *at= join->join_tab + join->top_join_tab_count + i;
+    if (at->aggr && at->aggr->get_write_func() == end_write_group)
+      return true;
+  }
+  if (!join->aggr_tables)
+  {
+    JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+    if (last->next_select == end_send_group)
+      return true;
+  }
+  return false;
+}
+
+
 int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
 {
   DBUG_ENTER("run_worker_side_join");
@@ -2564,6 +2628,13 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_RETURN(1);
   }
   join->parallel_work_manager= mgr;
+
+  if (pwt_plan_needs_group_order(join))
+  {
+    DBUG_PRINT("info", ("plan needs group-ordered rows, running serially"));
+    join->parallel_work_manager= nullptr;
+    DBUG_RETURN(-1);
+  }
 
   int err= mgr->init_parallel_workers(thd, join, scan_tab);
   if (err == HA_ERR_UNSUPPORTED)

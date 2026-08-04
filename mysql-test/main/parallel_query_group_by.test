@@ -1,0 +1,161 @@
+#
+# MDEV-39492 Parallel Query: GROUP BY.
+#
+# The manager hands each drained row to the plan's own terminal function, which
+# for a GROUP BY is sub_select_postjoin_aggr(): it writes the row into the
+# server's aggregation temp table, keyed on the group, and at end of records reads
+# that table back and drives everything after it. So the grouping, the aggregates,
+# HAVING over the groups and an ORDER BY of the groups are all the server's own
+# work, done on the manager, exactly as they would be serially. Nothing is added
+# here for any of them.
+#
+# What the workers ship is the base-table columns of the rows that qualified, so
+# the temp table is filled through the same Copy_field pairs create_tmp_table()
+# built for it. That is why the transport carries columns and not projected
+# values: copy_fields() holds raw Field pointers into the base tables, which no
+# amount of re-pointing Items could redirect.
+#
+# The one thing a chunked scan cannot promise is row order, and two of the
+# server's group terminals need it: end_send_group and end_write_group find a new
+# group by comparing each row's group values with the previous row's, so unordered
+# rows would produce a group per run of equal neighbours. The optimizer picks one
+# of those when its plan delivers the rows already grouped, which shows up in
+# EXPLAIN as "Using filesort" without "Using temporary". end_update and
+# end_unique_update look each group up in the temp table by key and do not care
+# what order the rows come in; that is "Using temporary", and it is the plan for a
+# GROUP BY no index resolves -- the case worth parallelising. So the temp-table
+# plans run in the workers and the sorted plans are declined and run serially.
+# Both halves are checked below.
+#
+# Which terminal was chosen is not known when the gate runs, because
+# make_aggr_tables_info() has not planned the aggregation yet, so the decision is
+# taken in run_worker_side_join() and declines the same way the engine can.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+# t1.a is not indexed and t2.a is, so that both sides of the cost decision about
+# where the grouping order comes from are represented
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 7, seq * 3, IF(seq % 100 = 0, NULL, seq)
+  FROM seq_1_to_2000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+
+--echo #
+--echo # the groups, compared as a multiset because a GROUP BY with no ORDER BY
+--echo # has no promised order in either direction
+--echo #
+--let $pq_query= SELECT a, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a
+--let $pq_cols= a,n,s
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # with ORDER BY, which is applied to the aggregation temp table on the
+--echo # manager, after every row has arrived -- so the output is fully ordered
+--echo # and can be compared as it stands
+--echo #
+--let $pqa_query= SELECT a, COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # the aggregate kinds that keep their own state, per group. c has NULLs, so
+--echo # COUNT(c) says the column travels and travels NULL as NULL.
+--echo #
+--let $pqa_query= SELECT a, COUNT(*), COUNT(c), SUM(c), MIN(c), MAX(c), STD(b) FROM t1 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # HAVING over the groups, and one that selects nothing
+--echo #
+--let $pqa_query= SELECT a, COUNT(*) FROM t1 GROUP BY a HAVING COUNT(*) > 285 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT a, SUM(b) FROM t1 GROUP BY a HAVING SUM(b) > 999999999 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # grouping by an expression, by more than one column, and by a column the
+--echo # select list does not carry
+--echo #
+--let $pqa_query= SELECT pk % 5 AS g, COUNT(*), SUM(b) FROM t1 GROUP BY pk % 5 ORDER BY g
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT a, pk % 3 AS g, COUNT(*) FROM t1 GROUP BY a, pk % 3 ORDER BY a, g
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # a WHERE, so the groups are formed from the rows a worker kept
+--echo #
+--let $pqa_query= SELECT a, COUNT(*), SUM(b) FROM t1 WHERE b > 3000 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # nothing qualifies, so there are no groups at all -- unlike an aggregate
+--echo # with no GROUP BY, which still answers one row
+--echo #
+--let $pqa_query= SELECT a, COUNT(*) FROM t1 WHERE b > 999999 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # over a join, so a group collects rows a worker assembled from two tables
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN d1.nm, COUNT(*), SUM(t1.b) FROM t1, d1 WHERE d1.id = t1.pk % 10 + 1 GROUP BY d1.nm ORDER BY d1.nm
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # LIMIT of an ordered group list, which the manager applies to the groups
+--echo #
+--let $pqa_query= SELECT a, COUNT(*) FROM t1 GROUP BY a ORDER BY a LIMIT 3
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # an index on the grouping column does not by itself change any of this.
+--echo # Whether the plan takes the grouping order from an index is a cost
+--echo # decision, and for a secondary index over few groups a full scan plus the
+--echo # keyed temp table still wins, so this runs in the workers.
+--echo #
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq % 7, seq * 3 FROM seq_1_to_2000;
+
+--let $pqa_query= SELECT a, COUNT(*), SUM(b) FROM t2 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # the shapes that are declined, and what declines each one.
+--echo #
+--echo # These two are the plans that want their rows already grouped: EXPLAIN
+--echo # says "Using filesort" and not "Using temporary", so the grouping order
+--echo # comes from sorting the driving table and the terminal is the one that
+--echo # compares each row with the previous one. The optimizer did choose the
+--echo # parallel scan for them -- EXPLAIN still reports type PARALLEL -- and
+--echo # run_worker_side_join() declines at execution, once the terminal is known.
+--echo #
+--let $pqa_query= SELECT a, COUNT(*), COUNT(DISTINCT c) FROM t1 GROUP BY a ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT a, COUNT(*) FROM t1 GROUP BY a WITH ROLLUP
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # GROUP BY the primary key is refused earlier and for a different reason:
+--echo # the plan reads the clustered index in order (EXPLAIN type "index"), and a
+--echo # driving table that is not a full scan is not one the gate accepts.
+--echo #
+--let $pqa_query= SELECT pk, COUNT(*) FROM t2 GROUP BY pk ORDER BY pk LIMIT 3
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # and DISTINCT, which the gate refuses on its own terms
+--echo #
+--let $pqa_query= SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1
+--source include/parallel_query_aggregate_cmp.inc
+
+DROP TABLE t1, t2, d1;
+SET SESSION optimizer_switch= @os;
+SET SESSION parallel_worker_threads= @s;

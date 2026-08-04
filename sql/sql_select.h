@@ -1443,6 +1443,10 @@ public:
     @return return one of enum_nested_loop_state values.
   */
   enum_nested_loop_state end_send();
+  /** write_func getter. Which terminal was chosen says whether the operation
+      needs its rows to arrive already grouped, which the parallel scan cannot
+      promise; see pwt_plan_needs_group_order(). */
+  Next_select_func get_write_func() const { return write_func; }
   /** write_func setter */
   void set_write_func(Next_select_func new_write_func)
   {
