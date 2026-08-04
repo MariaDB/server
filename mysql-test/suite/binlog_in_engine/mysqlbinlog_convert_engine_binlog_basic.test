@@ -14,6 +14,7 @@
 # Fixed timestamp for deterministic event listings (with --timezone=GMT-3
 # from the -master.opt file, matching binlog_in_engine.mysqlbinlog).
 set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET SESSION server_id= 12345;
 
 --echo *** Generate a small workload into binlog-000000.ibb
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -44,6 +45,15 @@ FLUSH BINARY LOGS;
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= Start: binlog v 4
 --source include/search_pattern_in_file.inc
+# The three synthesized events must inherit the timestamp and server ID of the
+# first input event instead of receiving zero-valued headers.
+--let SEARCH_PATTERN= #700121 15:32:22 server id 12345.*Start: binlog v 4
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= #700121 15:32:22 server id 12345.*Gtid list
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= #700121 15:32:22 server id 12345.*Binlog checkpoint conv.000001
+--source include/search_pattern_in_file.inc
+
 # it should not contain the Rotate event in the converted file
 --let SEARCH_PATTERN= Rotate to
 --source include/search_pattern_in_file.inc
