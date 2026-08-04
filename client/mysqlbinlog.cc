@@ -219,12 +219,17 @@ static char default_output_legacy_binlog_prefix[]= "legacy_log";
 
 static char out_file_name[FN_REFLEN + 1]= {0};
 
-/* Used to track the position of the log file for computing legacy end_log_pos for converted legacy binlog file */
+/* Used to track the position of the log file for computing legacy end_log_pos
+ * for converted legacy binlog file */
 static ulonglong log_file_pos= 0;
 static bool log_file_pos_overflow_warning_printed= false;
 
 static rpl_binlog_state_base *gtid_state= NULL;
 
+/* Used for synthetically generated event headers while converting innodb
+ * binlog to legacy */
+static uint32 generated_event_timestamp;
+static uint32 generated_event_server_id;
 
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
@@ -1590,7 +1595,8 @@ static void store_log_file_pos(uchar *pos)
 
 static bool write_event_header(FILE *outfile, Log_event_type event_type,
                                ulong extra_len, time_t timestamp,
-                               my_bool *do_checksum, ha_checksum *crc,
+                               uint32 server_id, my_bool *do_checksum,
+                               ha_checksum *crc,
                                enum_binlog_checksum_alg checksum_alg)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
@@ -1600,20 +1606,18 @@ static bool write_event_header(FILE *outfile, Log_event_type event_type,
                 checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF;
 
   int4store(header, timestamp);
-  header[EVENT_TYPE_OFFSET] = (uchar)event_type;
-  event_len=  LOG_EVENT_HEADER_LEN + extra_len +
-  (*do_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  header[EVENT_TYPE_OFFSET]= (uchar) event_type;
+  event_len= LOG_EVENT_HEADER_LEN + extra_len +
+             (*do_checksum ? BINLOG_CHECKSUM_LEN : 0);
 
-  // TODO: Tarun get this reviewed. what should the server id be? should i get from 
-  // innodb binlog header
-  int4store(header + SERVER_ID_OFFSET, 0);
+  int4store(header + SERVER_ID_OFFSET, server_id);
   int4store(header + EVENT_LEN_OFFSET, event_len);
   /*
-    Notes: For a normal open/current binlog file, the format-description 
-    header flags are typically 0x0001. After clean close, they become 
-    0x0000. 
-    For GTID_LIST_EVENT and BINLOG_CHECKPOINT_EVENT, the flags are 0x0000 typically.
-    TODO: Tarun get this reviewed.
+    Notes: For a normal open/current binlog file, the format-description
+    header flags are typically 0x0001. After clean close, they become
+    0x0000.
+    For GTID_LIST_EVENT and BINLOG_CHECKPOINT_EVENT, the flags are 0x0000
+    typically.
   */
   int2store(header + FLAGS_OFFSET, 0);
   /* Update the log_file_pos */
@@ -1621,18 +1625,19 @@ static bool write_event_header(FILE *outfile, Log_event_type event_type,
   store_log_file_pos(header + LOG_POS_OFFSET);
 
   /* Write this header to outfile */
-  if (my_fwrite(outfile, (const uchar *)header, LOG_EVENT_HEADER_LEN, MYF(MY_NABP))) {
+  if (my_fwrite(outfile, (const uchar *) header, LOG_EVENT_HEADER_LEN,
+                MYF(MY_NABP)))
+  {
     error("Could not write header into converted binlog file '%s'",
           out_file_name);
     return true;
   }
   if (*do_checksum)
   {
-    *crc= my_checksum(0, (uchar*)header, sizeof(header));
+    *crc= my_checksum(0, (uchar *) header, sizeof(header));
   }
   return false;
 }
-
 
 static bool
 write_event_footer(FILE *outfile, my_bool do_checksum, ha_checksum crc)
@@ -1723,10 +1728,11 @@ static bool write_format_description_event_to_legacy_binlog(
     error("Failed due to out-of-memory writing Format_description event");
     return true;
   }
-  /* Write header of FORMAT_DESCRIPTION_EVENT to output legacy binlog file first */
+  /* Write header of FORMAT_DESCRIPTION_EVENT to output legacy binlog file
+   * first */
   if (write_event_header(outfile, FORMAT_DESCRIPTION_EVENT, str.length(),
-                         fdev->created, &do_checksum, &crc,
-                         BINLOG_CHECKSUM_ALG_CRC32))
+                         generated_event_timestamp, generated_event_server_id,
+                         &do_checksum, &crc, BINLOG_CHECKSUM_ALG_CRC32))
   {
     error("Could not write FORMAT_DESCRIPTION_EVENT header to output legacy "
           "binlog file");
@@ -1775,9 +1781,8 @@ static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
   }
 
   /* Write header of GTID_LIST_EVENT to output legacy binlog file first */
-  /* TODO: Tarun verify and fix behaviour of timestamp (ts) */
-  time_t ts= 0;
-  if (write_event_header(outfile, GTID_LIST_EVENT, str.length(), ts,
+  if (write_event_header(outfile, GTID_LIST_EVENT, str.length(),
+                         generated_event_timestamp, generated_event_server_id,
                          &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
   {
     error(
@@ -1847,9 +1852,8 @@ static bool write_binlog_checkpoint_event_to_legacy_binlog(
 
   /* Write header of BINLOG_CHECKPOINT_EVENT to output legacy binlog file first
    */
-  /* TODO: Tarun verify and fix behaviour of timestamp (ts) */
-  time_t ts= 0;
-  if (write_event_header(outfile, BINLOG_CHECKPOINT_EVENT, str.length(), ts,
+  if (write_event_header(outfile, BINLOG_CHECKPOINT_EVENT, str.length(),
+                         generated_event_timestamp, generated_event_server_id,
                          &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
   {
     error("Could not write BINLOG_CHECKPOINT_EVENT header to output legacy "
@@ -1895,10 +1899,9 @@ write_rotate_log_event_to_legacy_binlog(FILE *outfile,
   uint ident_len= (uint) strlen(p);
 
   /* Write header of ROTATE_EVENT */
-  /* TODO: Tarun handle the timestamp */
-  time_t ts= 0;
   if (write_event_header(outfile, ROTATE_EVENT, ident_len + ROTATE_HEADER_LEN,
-                         ts, &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
+                         generated_event_timestamp, generated_event_server_id,
+                         &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
   {
     error("Could not write ROTATE_EVENT header to output legacy binlog file");
     return true;
@@ -2024,6 +2027,11 @@ static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
 */
 static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 {
+  /* 
+      Update the global server_id and timestamp variables
+  */
+  generated_event_server_id= ev->server_id;
+  generated_event_timestamp= (uint32) ev->when;
 
   // if event type is FORMAT_DESCRIPTION_EVENT, store the event in global
   // variable glob_description_event
@@ -2051,7 +2059,6 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
   */
   if (!output_legacy_binlog_file)
   {
-
     if (init_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
                                   sizeof(out_file_name)))
       goto err;
