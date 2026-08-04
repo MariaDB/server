@@ -1402,10 +1402,26 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
   auto start = scan_range.m_start;
 
+  const bool at_leaf = page_is_leaf(buf_block_get_frame(block));
+  const uint16_t at_level = btr_page_get_level(buf_block_get_frame(block));
+
   if (start != nullptr)
   {
+    /* Above the leaves the records are node pointers, keyed by the first key of
+    the child they point at, so the child that *contains* start is the last one
+    whose key is not greater than it -- PAGE_CUR_LE. Searching GE there lands on
+    the following child instead, and the sub-tree that holds start is never
+    descended into: no range is created for it and its rows are silently dropped.
+    At the leaf level the records are the rows themselves and GE is what is
+    wanted. This is the distinction Scan_ctx::search() already makes, and what
+    the comment at the top of this file describes.
+
+    Nothing reached this with a start bound while the SQL layer only asked for
+    whole-table scans. Ctx::split() does: it re-partitions a chunk by descending
+    from the root again, bounded by that chunk's start key. */
     auto err = pread_page_cur_search(block, index, start,
-                                     PAGE_CUR_GE, &page_cursor);
+                                     at_leaf ? PAGE_CUR_GE : PAGE_CUR_LE,
+                                     &page_cursor);
     if (err != DB_SUCCESS)
     {
       return err;
@@ -1431,9 +1447,6 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
   }
 
   mem_heap_t *heap{};
-
-  const bool at_leaf = page_is_leaf(buf_block_get_frame(block));
-  const uint16_t at_level = btr_page_get_level(buf_block_get_frame(block));
 
   Savepoints savepoints{};
 
