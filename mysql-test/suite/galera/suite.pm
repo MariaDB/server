@@ -96,6 +96,9 @@ sub skip_combinations {
   $skip{'t/galera_sst_cn_injection.test'} = 'does not work with OpenSSL <= 1.1.1'
     unless $openssl_ver ge "3.0.0";
 
+  $skip{'include/have_pkill.inc'} = "Need 'pkill' utility"
+            unless which("pkill");
+
   %skip;
 }
 
