@@ -70,7 +70,7 @@ All generated SQL must use **double quotes** for identifiers (DuckDB follows SQL
 
 ### DuckDB source and patches
 
-DuckDB source is at `third_parties/duckdb/` (git submodule). No patches are applied — all compatibility is handled at runtime via `duckdb_mysql_compat.cc`. The build produces a static library; `_GLIBCXX_DEBUG` is explicitly undefined in CMakeLists.txt to avoid ABI mismatch with MariaDB's debug build.
+DuckDB source is at `third_parties/duckdb/` (git submodule). One local patch is applied on top of the pinned submodule commit — `patches/duckdb-pr24061-setval.diff` (backport of upstream PR #24061 adding `setval()`, needed for AUTO_INCREMENT counter repositioning), applied via `PATCH_COMMAND` in `cmake/duckdb.cmake` and to be dropped when the submodule is bumped to a release containing the PR. Other compatibility is handled at runtime via `duckdb_mysql_compat.cc`. The build produces a static library; `_GLIBCXX_DEBUG` is explicitly undefined in CMakeLists.txt to avoid ABI mismatch with MariaDB's debug build.
 
 ### Configuration
 

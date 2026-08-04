@@ -61,6 +61,7 @@ static duckdb_status_t srv_duckdb_status;
 static my_bool copy_ddl_in_batch= TRUE;
 static my_bool dml_in_batch= TRUE;
 static my_bool update_modified_column_only= TRUE;
+static ulonglong autoinc_cache_size= 1000;
 
 static handler *duckdb_create_handler(handlerton *hton, TABLE_SHARE *table,
                                       MEM_ROOT *mem_root);
@@ -262,7 +263,12 @@ static int duckdb_deinit_func(void *p)
 
 /* ----- Share management ----- */
 
-Duckdb_share::Duckdb_share() { thr_lock_init(&lock); }
+Duckdb_share::Duckdb_share()
+{
+  thr_lock_init(&lock);
+  mysql_mutex_init(PSI_INSTRUMENT_ME, &autoinc_refill_mutex,
+                   MY_MUTEX_INIT_FAST);
+}
 
 Duckdb_share *ha_duckdb::get_share()
 {
@@ -458,7 +464,7 @@ static void build_duckdb_blob_map(Field **field_list, MY_BITMAP *map)
 
 /* ----- DML operations ----- */
 
-int ha_duckdb::write_row(const uchar *)
+int ha_duckdb::write_row(const uchar *buf)
 {
   DBUG_ENTER("ha_duckdb::write_row");
   int ret= 0;
@@ -469,6 +475,19 @@ int ha_duckdb::write_row(const uchar *)
 
   ret= duckdb_register_trx(thd);
   if (ret)
+  {
+    dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
+    DBUG_RETURN(ret);
+  }
+
+  /*
+    Fill the AUTO_INCREMENT field. Every row reaches DuckDB with all columns
+    materialized (both the Appender and the SQL insert paths), so the value
+    must be assigned here; the sequence-backed column default in DuckDB is
+    never consulted on this path.
+  */
+  if (table->next_number_field && buf == table->record[0] &&
+      (ret= update_auto_increment()))
   {
     dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
     DBUG_RETURN(ret);
@@ -508,6 +527,119 @@ int ha_duckdb::write_row(const uchar *)
 
   dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
   DBUG_RETURN(ret);
+}
+
+/*
+  Consume `want` ids from the table's AUTO_INCREMENT sequence in one query
+  and return the first id of the block, or 0 on failure (a sequence value is
+  never 0: CREATE SEQUENCE is emitted with START WITH >= 1).
+
+  nextval() calls of a concurrent DuckDB-side writer (batch ingestion through
+  run_in_duckdb relying on the column default) may interleave with ours
+  inside this query. The ids missing from our span belong to that writer, so
+  such a block must not be handed out; detect it by comparing the span width
+  with the block size and retry. MariaDB-side callers cannot cause this: they
+  are serialized on the share's autoinc_refill_mutex.
+*/
+static ulonglong reserve_autoinc_block(THD *thd, const char *db_name,
+                                       const char *table_name, ulonglong want)
+{
+  std::string query=
+      "SELECT min(x), max(x) FROM (SELECT nextval('\"" +
+      std::string(db_name) + "\".\"" + autoinc_sequence_name(table_name) +
+      "\"') AS x FROM range(" + std::to_string(want) + ")) t";
+
+  auto *ctx= get_duckdb_context(thd);
+  for (int attempt= 0; attempt < 3; attempt++)
+  {
+    auto result= myduck::duckdb_query(ctx->get_connection(), query);
+    if (result == nullptr || result->HasError())
+      return 0;
+    auto chunk= result->Fetch();
+    if (chunk == nullptr || chunk->size() == 0)
+      return 0;
+    int64_t lo= chunk->GetValue(0, 0).GetValue<int64_t>();
+    int64_t hi= chunk->GetValue(1, 0).GetValue<int64_t>();
+    if ((ulonglong) (hi - lo) + 1 == want)
+      return (ulonglong) lo;
+  }
+  return 0;
+}
+
+void ha_duckdb::get_auto_increment(ulonglong offset, ulonglong increment,
+                                   ulonglong nb_desired_values,
+                                   ulonglong *first_value,
+                                   ulonglong *nb_reserved_values)
+{
+  DBUG_ENTER("ha_duckdb::get_auto_increment");
+
+  /*
+    The server rounds the first value up to the offset/increment grid
+    (handler.cc:4389: at most first + increment - 1) and then steps
+    `increment` at a time, so it uses ids <= first + nb_desired * increment
+    - 1. Consume exactly that many from the cache to keep the server inside
+    our block while leaving no unused ids behind.
+  */
+  ulonglong need= nb_desired_values * increment;
+  if (need / increment != nb_desired_values) /* multiplication overflow */
+  {
+    *first_value= ULONGLONG_MAX;
+    *nb_reserved_values= 0;
+    DBUG_VOID_RETURN;
+  }
+
+  Duckdb_share::Autoinc_range cur= share->autoinc_range.load();
+  for (;;)
+  {
+    /* Fast path: claim [cur.next, cur.next + need) with one CAS. */
+    while (cur.end - cur.next >= need)
+    {
+      Duckdb_share::Autoinc_range claimed= {cur.next + need, cur.end};
+      if (share->autoinc_range.compare_exchange_weak(cur, claimed))
+      {
+        *first_value= cur.next;
+        *nb_reserved_values= nb_desired_values;
+        DBUG_VOID_RETURN;
+      }
+      /* CAS failure reloaded cur. */
+    }
+
+    mysql_mutex_lock(&share->autoinc_refill_mutex);
+    cur= share->autoinc_range.load();
+    if (cur.end - cur.next >= need)
+    {
+      /* Someone refilled while we waited; back to the fast path. */
+      mysql_mutex_unlock(&share->autoinc_refill_mutex);
+      continue;
+    }
+
+    ulonglong want= std::max(need, autoinc_cache_size);
+    DatabaseTableNames dt(table->s->normalized_path.str);
+    ulonglong first= reserve_autoinc_block(ha_thd(), dt.db_name.c_str(),
+                                           dt.table_name.c_str(), want);
+    if (first == 0)
+    {
+      mysql_mutex_unlock(&share->autoinc_refill_mutex);
+      /* The only failure signal the server understands. */
+      *first_value= ULONGLONG_MAX;
+      *nb_reserved_values= 0;
+      DBUG_VOID_RETURN;
+    }
+    /*
+      Publish the new block minus our own share. A plain store cannot clash
+      with concurrent fast-path claims: those still come from the old range,
+      which lies entirely below `first` because the sequence is monotonic.
+      The remainder of the old block is dropped, not merged: ids between the
+      two blocks may already belong to a DuckDB-side writer. The unused ids
+      become gaps, which AUTO_INCREMENT permits.
+    */
+    share->autoinc_range.store({first + need, first + want});
+    mysql_mutex_unlock(&share->autoinc_refill_mutex);
+
+    *first_value= first;
+    *nb_reserved_values= nb_desired_values;
+    DBUG_VOID_RETURN;
+  }
 }
 
 int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
@@ -1012,6 +1144,19 @@ int ha_duckdb::delete_table(const char *name)
   if (query_result == nullptr || query_result->HasError())
     DBUG_RETURN(HA_DUCKDB_DROP_TABLE_ERROR);
 
+  /*
+    Drop the AUTO_INCREMENT sequence, if any. It must go after the table:
+    while the column default exists the catalog dependency blocks the drop.
+    The name is derived from the table alone, so no lookup is needed and
+    the statement is harmless for tables without AUTO_INCREMENT.
+  */
+  std::string seq_query= "DROP SEQUENCE IF EXISTS \"" + dt.db_name + "\".\"" +
+                         autoinc_sequence_name(dt.table_name) + "\"";
+  auto seq_result= myduck::duckdb_query(ctx->get_connection(), seq_query);
+
+  if (seq_result == nullptr || seq_result->HasError())
+    DBUG_RETURN(HA_DUCKDB_DROP_TABLE_ERROR);
+
   DBUG_RETURN(0);
 }
 
@@ -1229,6 +1374,12 @@ static MYSQL_SYSVAR_BOOL(update_modified_column_only,
                          "Whether to only update modified columns", NULL, NULL,
                          TRUE);
 
+static MYSQL_SYSVAR_ULONGLONG(autoinc_cache_size, autoinc_cache_size,
+                              PLUGIN_VAR_RQCMDARG,
+                              "Number of AUTO_INCREMENT ids reserved from the "
+                              "backing DuckDB sequence per query",
+                              NULL, NULL, 1000, 1, 1048576, 0);
+
 /* ---- Global proxy variables (pushed into DuckDB) ---- */
 
 static MYSQL_SYSVAR_ULONGLONG(memory_limit, myduck::global_memory_limit,
@@ -1355,6 +1506,7 @@ static struct st_mysql_sys_var *duckdb_system_variables[]= {
     MYSQL_SYSVAR(allow_run_in_duckdb),
     MYSQL_SYSVAR(copy_ddl_in_batch), MYSQL_SYSVAR(dml_in_batch),
     MYSQL_SYSVAR(update_modified_column_only),
+    MYSQL_SYSVAR(autoinc_cache_size),
     /* Global proxy */
     MYSQL_SYSVAR(memory_limit), MYSQL_SYSVAR(temp_directory),
     MYSQL_SYSVAR(max_temp_directory_size), MYSQL_SYSVAR(max_threads),
