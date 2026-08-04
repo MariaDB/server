@@ -1,0 +1,183 @@
+call mtr.add_suppression("\\[ERROR\\] Error writing file '.*master-bin.*' .*errno: 9");
+call mtr.add_suppression("\\[ERROR\\] Error writing file");
+call mtr.add_suppression("\\[ERROR\\] Could not use");
+#
+# Sub-case 1: DML on a transactional table
+#
+connection default;
+create table t_trans (id int primary key) engine=innodb;
+create table t2 (id int primary key) engine=innodb;
+connect  con1,localhost,root,,test;
+connect  con3,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+SET DEBUG_DBUG= '+d,commit_after_binlog_ready_before_LOCK_log';
+insert into t_trans values (1);
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+# Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+FLUSH LOGS;
+ERROR HY000: Can't open file: 'master-bin' (errno: 2 "No such file or directory")
+# Ensure binary logging disables for the rest of the server lifespan
+NOT FOUND matches in mysqld.1.err
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+connection default;
+# con1's statement must have committed in the engine
+select * from t_trans;
+id
+1
+# A follow-up commit on a third connection must also succeed without
+# logging another ER_ERROR_ON_WRITE
+connection con3;
+insert into t2 values (102);
+select * from t2 order by id;
+id
+102
+disconnect con1;
+disconnect con3;
+connection default;
+drop table t_trans, t2;
+# restart
+#
+# Sub-case 2: DML on a non-transactional table
+#
+connection default;
+create table t_myisam (id int primary key) engine=myisam;
+create table t2 (id int primary key) engine=innodb;
+connect  con1,localhost,root,,test;
+connect  con3,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+insert into t_myisam values (1);
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+# Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+FLUSH LOGS;
+ERROR HY000: Can't open file: 'master-bin' (errno: 2 "No such file or directory")
+# Ensure binary logging disables for the rest of the server lifespan
+NOT FOUND matches in mysqld.1.err
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+connection default;
+# con1's statement must have committed in the engine
+select * from t_myisam;
+id
+1
+connection con3;
+insert into t2 values (202);
+select * from t2 order by id;
+id
+202
+disconnect con1;
+disconnect con3;
+connection default;
+drop table t_myisam, t2;
+# restart
+#
+# Sub-case 3: Multi-table UPDATE on trans + non-trans
+#
+connection default;
+create table t_trans (id int primary key, v int) engine=innodb;
+create table t_myisam (id int primary key, v int) engine=myisam;
+create table t2 (id int primary key) engine=innodb;
+insert into t_trans values (1, 0), (2, 0);
+insert into t_myisam values (1, 0), (2, 0);
+connect  con1,localhost,root,,test;
+connect  con3,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+update t_trans, t_myisam set t_trans.v = 1, t_myisam.v = 1 where t_trans.id = t_myisam.id;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+# Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+FLUSH LOGS;
+ERROR HY000: Can't open file: 'master-bin' (errno: 2 "No such file or directory")
+# Ensure binary logging disables for the rest of the server lifespan
+NOT FOUND matches in mysqld.1.err
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+connection default;
+# con1's statement must have committed in the engine
+select * from t_trans order by id;
+id	v
+1	1
+2	1
+select * from t_myisam order by id;
+id	v
+1	1
+2	1
+# con2's (default conn's) statement must have committed in the engine
+select * from t2;
+id
+connection con3;
+insert into t2 values (302);
+select * from t2 order by id;
+id
+302
+disconnect con1;
+disconnect con3;
+connection default;
+drop table t_trans, t_myisam, t2;
+# restart
+#
+# Sub-case 4: DML selecting from a temporary table
+#
+connection default;
+create table t_trans (id int primary key) engine=innodb;
+create table t2 (id int primary key) engine=innodb;
+connect  con1,localhost,root,,test;
+connect  con3,localhost,root,,test;
+connection con1;
+create temporary table t_tmp (id int primary key) engine=innodb;
+insert into t_tmp values (1);
+SET DEBUG_SYNC= 'commit_after_binlog_ready_before_LOCK_log SIGNAL paused WAIT_FOR go';
+insert into t_trans (id) select id from t_tmp;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR paused';
+# Trigger the binlog error and permanent closure via a failed rotation
+SET DEBUG_DBUG= '+d,fault_injection_new_file_rotate_event';
+FLUSH LOGS;
+ERROR HY000: Can't open file: 'master-bin' (errno: 2 "No such file or directory")
+# Ensure binary logging disables for the rest of the server lifespan
+NOT FOUND matches in mysqld.1.err
+SET DEBUG_DBUG= '';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+# con1's statement must have committed in the engine
+select * from t_tmp;
+id
+1
+select * from t_trans;
+id
+1
+drop temporary table t_tmp;
+connection default;
+# con2's (default conn's) statement must have committed in the engine
+select * from t2;
+id
+connection con3;
+insert into t2 values (402);
+select * from t2 order by id;
+id
+402
+disconnect con1;
+disconnect con3;
+connection default;
+drop table t_trans, t2;
+# restart
+#
+# Sub-case 5: DDL (CREATE TABLE)
+# TODO: Fill in this test case with MDEV-40171
+#
+#
+# Cleanup
+#
+SET DEBUG_SYNC= 'RESET';
+# End of binlog_close_during_commit.test

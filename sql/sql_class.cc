@@ -1384,7 +1384,6 @@ void THD::init()
   tx_isolation= (enum_tx_isolation) variables.tx_isolation;
   tx_read_only= variables.tx_read_only;
   update_charset();             // plugin_thd_var() changed character sets
-  reset_binlog_local_stmt_filter();
 
   binlog_state= BINLOG_STATE_NONE;
   sync_binlog_state_with_binlog_open_force();
@@ -1642,6 +1641,20 @@ void THD::change_user(void)
 #endif /* WITH_WSREP */
 }
 
+/*
+  Update binlog_state's BINLOG_STATE_FILTER value based on the thread's current
+  default database. I.e. if the default database is to be filtered by option
+  binlog_do_db/binlog_ignore_db options, then BINLOG_STATE_FILTER is set;
+  otherwise, the option is negated.
+*/
+inline void update_binlog_filter_state(THD *thd)
+{
+  thd->binlog_state= (thd->binlog_ready_precheck() && binlog_filter &&
+                      !binlog_filter->db_ok(thd->db.str)) ?
+                         (thd->binlog_state | BINLOG_STATE_FILTER_DB) :
+                         (thd->binlog_state & ~BINLOG_STATE_FILTER_DB);
+}
+
 /**
    Change default database
 
@@ -1683,6 +1696,7 @@ bool THD::set_db(const LEX_CSTRING *new_db)
     my_free((char*) org_db);
   }
   PSI_CALL_set_thread_db(db.str, (int) db.length);
+  update_binlog_filter_state(this);
   return result;
 }
 
@@ -1710,6 +1724,7 @@ void THD::reset_db(const LEX_CSTRING *new_db)
     mysql_mutex_unlock(&LOCK_thd_data);
     PSI_CALL_set_thread_db(db.str, (int) db.length);
   }
+  update_binlog_filter_state(this);
 }
 
 
@@ -2528,13 +2543,12 @@ void THD::cleanup_after_query()
 #endif
   }
   /*
-    Forget the binlog stmt filter for the next query.
+    Forget READONLY for the next query.
     There are some code paths that:
     - do not call THD::decide_logging_format()
     - do call THD::binlog_query(),
     making this reset necessary.
   */
-  reset_binlog_local_stmt_filter();
   binlog_state= binlog_state & ~BINLOG_STATE_READONLY;
   if (first_successful_insert_id_in_cur_stmt > 0)
   {
@@ -6006,11 +6020,7 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
-  /*
-    TODO: Replace by binlog_state & BINLOG_FILTER) when BINLOG_FILTER
-    is set when thd->db.str changes value.
-  */
-  return binlog_filter->db_ok(thd->db.str);
+  return !(thd->binlog_state & BINLOG_STATE_FILTER_DB);
 }
 
 /*
@@ -6934,7 +6944,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     Strip the binlogging restrictions from the state that are calculated
     later in this function
   */
-  binlog_state= (binlog_state & ~(BINLOG_STATE_FILTER | BINLOG_STATE_READONLY));
+  binlog_state= (binlog_state & ~BINLOG_STATE_READONLY);
   /* We should have either binlog or wsrep_emulate_binlog active */
   DBUG_ASSERT((binlog_state & BINLOG_STATE_ACTIVE) &&
               binlog_state & (BINLOG_STATE_OPEN | BINLOG_STATE_WSREP));
@@ -7004,12 +7014,46 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                 (BINLOG_STATE_WSREP | BINLOG_STATE_ACTIVE));
 #endif /* WITH_WSREP */
 
-  if (binlog_format == BINLOG_FORMAT_STMT && !binlog_filter->db_ok(db.str))
-    binlog_state= binlog_state | BINLOG_STATE_FILTER;
+  /*
+    Before actually deciding the logging format, ensure that binlogging is
+    enabled/active. Also, as part of this pre-check, if the pre-configured
+    binlog_format is statement mode, ensure that the default database passes
+    the binlog_do_db/binlog_ignore_db filters. Statement mode logs the query
+    text as a single unit: the databases it modifies may be fully qualified
+    in the query itself, yet the query cannot be split the way row events
+    can, so the filters consider the default database alone. That outcome is
+    independent of the statement and is maintained in BINLOG_STATE_FILTER_DB
+    at each change of default database.
 
+    This pre-check must precede the format decision rather than be left to
+    a write time filter, because the decision enforces the obligations that
+    come with being binlogged. A statement that will never reach the binlog
+    must be exempt from those obligations, not merely have its events
+    discarded once generated. For statement mode, the pre-check separates
+    two cases:
+
+     1) If the default database is filtered: the entire query is always
+        ignored, exempt from the obligations and producing no events, even
+        when the decision would have forced row format over a table limited
+        to row logging (ER_BINLOG_STMT_MODE_AND_ROW_ENGINE). The
+        pre-configured format, not the format the decision would have chosen,
+        selects the filtering semantics.
+
+     2) If the default database is not filtered: the query proceeds to the
+        obligations. That is, the later-decisions may, for example, fail it
+        (ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE), or force it to row format
+        (ER_BINLOG_STMT_MODE_AND_ROW_ENGINE).
+  */
   if (WSREP_EMULATE_BINLOG_NNULL(this) ||
-      (binlog_ready_no_wsrep() && !(binlog_state & BINLOG_STATE_FILTER)))
+      (binlog_ready_no_wsrep() && !(binlog_format == BINLOG_FORMAT_STMT &&
+                                    (binlog_state & BINLOG_STATE_FILTER_DB))))
   {
+    /*
+      Binary logging is used.
+      In case of WSREP (galera) all changes are logged.
+      We are not coming here in case of statement base logging together with
+      an active database filtering on the current database.
+    */
     if (is_bulk_op())
     {
       if (binlog_format == BINLOG_FORMAT_STMT)
@@ -7020,7 +7064,6 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         DBUG_RETURN(-1);
       }
     }
-    reset_binlog_local_stmt_filter();
 
     /*
       Compute one bit field with the union of all the engine
@@ -7420,7 +7463,6 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if ((replicated_tables_count == 0) || ! is_write)
       {
         DBUG_PRINT("info", ("decision: no logging, no replicated table affected"));
-        set_binlog_local_stmt_filter();
         binlog_state|= BINLOG_STATE_READONLY;
       }
       else
@@ -7429,15 +7471,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         {
           my_error((error= ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES), MYF(0));
         }
-        else
-        {
-          clear_binlog_local_stmt_filter();
-        }
       }
-    }
-    else
-    {
-      clear_binlog_local_stmt_filter();
     }
 
     if (unlikely(error))
@@ -7494,12 +7528,12 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         "mysql_bin_log.is_open(): %d   "
                         "(options & OPTION_BIN_LOG): 0x%llx  "
                         "binlog_format: %u  "
-                        "binlog_filter->db_ok(db): %d  "
+                        "BINLOG_STATE_FILTER_DB: %d  "
                         "binlog_status: %x",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
                         (uint) binlog_format,
-                        binlog_filter->db_ok(db.str),
+                        MY_TEST(binlog_state & BINLOG_STATE_FILTER_DB),
                         binlog_state));
 
     /* TODO: Check if the following is really needed */
@@ -8261,15 +8295,6 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_ASSERT(query_arg);
   DBUG_ASSERT(binlog_state & BINLOG_STATE_ACTIVE_WSREP);
 
-  if (get_binlog_local_stmt_filter() == BINLOG_FILTER_SET)
-  {
-    /*
-      The current statement is to be ignored, and not written to
-      the binlog. Do not call issue_unsafe_warnings().
-    */
-    DBUG_RETURN(-1);
-  }
-
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -8407,11 +8432,9 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
 
 bool THD::binlog_current_query_unfiltered()
 {
-  if (!mysql_bin_log.is_open())
+  if (!binlog_ready_no_wsrep())
     return 0;
 
-  reset_binlog_local_stmt_filter();
-  clear_binlog_local_stmt_filter();
   binlog_state= binlog_state & ~BINLOG_STATE_READONLY;
   return binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
                       /* is_trans */     FALSE,

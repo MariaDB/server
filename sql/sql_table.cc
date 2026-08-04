@@ -12526,9 +12526,8 @@ end_inplace:
   THD_STAGE_INFO(thd, stage_end);
   DEBUG_SYNC(thd, "alter_table_before_main_binlog");
 
-  DBUG_ASSERT(!(mysql_bin_log.is_open() &&
-                thd->is_binlog_format_row() &&
-                (create_info->tmp_table())));
+  DBUG_ASSERT(!((mysql_bin_log.is_open() && thd->binlog_ready_no_wsrep()) &&
+                thd->is_binlog_format_row() && (create_info->tmp_table())));
 
   if (start_alter_id)
   {

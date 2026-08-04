@@ -4423,6 +4423,9 @@ int acl_set_default_role(THD *thd,
   if (!strcasecmp(rolename.str, none.str))
     clear_role= TRUE;
 
+  /*
+    TODO: MDEV-38865
+  */
   if (mysql_bin_log.is_open() ||
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {
@@ -11664,7 +11667,7 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   if (result)
     my_error(ER_CANNOT_USER, MYF(0), "RENAME USER", wrong_users.c_ptr_safe());
 
-  if (some_users_renamed && mysql_bin_log.is_open())
+  if (some_users_renamed && thd->binlog_ready_no_wsrep())
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);

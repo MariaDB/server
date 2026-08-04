@@ -3343,7 +3343,7 @@ Item*
 Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
 #ifdef HAVE_REPLICATION
-  if (unlikely(!mysql_bin_log.is_open()))
+  if (unlikely(!(thd->binlog_state & BINLOG_STATE_OPEN)))
 #endif
   {
     my_error(ER_NO_BINARY_LOGGING, MYF(0));

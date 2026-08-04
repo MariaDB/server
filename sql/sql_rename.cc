@@ -183,7 +183,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     */
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_no_wsrep())
     {
       if (not_logged_temporary_tables)
         binlog_error= thd->binlog_renamed_tmp_tables(table_list);

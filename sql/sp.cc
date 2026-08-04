@@ -1467,7 +1467,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     }
 
     if (type() == SP_TYPE_FUNCTION &&
-        !trust_function_creators && mysql_bin_log.is_open())
+        !trust_function_creators && thd->binlog_ready_no_wsrep())
     {
       if (!sp->detistic())
       {
@@ -1715,7 +1715,7 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
   if ((ret= db_find_routine_aux(thd, name, table)) == SP_OK)
   {
     if (type() == SP_TYPE_FUNCTION && ! trust_function_creators &&
-        mysql_bin_log.is_open() &&
+        thd->binlog_ready_no_wsrep() &&
         (chistics->daccess == SP_CONTAINS_SQL ||
          chistics->daccess == SP_MODIFIES_SQL_DATA))
     {
