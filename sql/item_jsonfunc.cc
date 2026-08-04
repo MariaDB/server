@@ -1560,7 +1560,14 @@ String *Item_func_json_extract::read_json(String *str,
       goto error;
     while(count_path)
     {
-      if (str->append((const char *) value, v_len))
+      /*
+        The value is copied, not written: it came out of the document
+        and is already in the character set the result is being built
+        in, so it goes in as it stands.  The separators around it are
+        written, and are converted on the way, which is why they are
+        appended a different way from this.
+      */
+      if (append_simple(str, value, v_len))
         goto error;
       count_path--;
       if (count_path)
@@ -2845,14 +2852,23 @@ String *Item_func_json_array_append::val_str(String *str)
       else
         c_to= je.value_end;
 
+      /*
+        The brackets and the comma are written, and go through a String
+        that converts them; the value and the rest of the document are
+        copied, and must not.  They are already in the character set
+        being built in - they came out of the document, which is what
+        the result is being made from - so converting them writes them
+        a second time.  The arm above copies its two pieces of document
+        the same way, with q_append().
+      */
       if (str->append('[') ||
-          str->append((const char *) c_from, c_to - c_from) ||
+          append_simple(str, c_from, c_to - c_from) ||
           str->append(", ", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
                             (int) n_arg + 1, NULL) ||
           str->append(']') ||
-          str->append((const char *) je.s.c_str,
-                      js->end() - (const char *) je.s.c_str))
+          append_simple(str, je.s.c_str,
+                        js->end() - (const char *) je.s.c_str))
         goto return_null; /* Out of memory. */
     }
     {
