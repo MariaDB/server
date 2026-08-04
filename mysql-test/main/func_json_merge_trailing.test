@@ -1,0 +1,150 @@
+#
+# JSON_MERGE and JSON_MERGE_PATCH read a document argument only as far as
+# its first value.  What they compose comes out of that value and nothing
+# else, so text standing after it never reaches the answer and never
+# stopped one being given.
+#
+# It is still not a document, and every other JSON function says so about
+# the very same text.  These two say so as well, with a note.  A note and
+# not a warning, because a warning becomes an error under a strict mode
+# and would take away an answer that has always been given.
+#
+# So every case below has to keep the value it has always had.  The note
+# is the only thing that is new.
+#
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE_PATCH, ordinary merge - nothing is taken over here
+--echo # ---------------------------------------------------------------
+
+--echo # text after the value of argument 1
+SELECT JSON_MERGE_PATCH('{"a":1} rubbish', '{"b":2}') AS obj_lhs;
+SELECT JSON_MERGE_PATCH('[1,2] rubbish', '{"a":1}') AS arr_lhs;
+
+--echo # text after the value of argument 2
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2} rubbish') AS obj_rhs;
+SELECT JSON_MERGE_PATCH('{"a":1}', '[1,2] rubbish') AS arr_rhs;
+
+--echo # both arguments, so both are named
+SELECT JSON_MERGE_PATCH('{"a":1} rubbish', '{"b":2} nonsense') AS both_args;
+
+--echo # three arguments, the middle one carrying it
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2} rubbish', '{"c":3}') AS middle;
+
+--echo # what stands after the value is a whole document of its own, which
+--echo # goes nowhere
+SELECT JSON_MERGE_PATCH('{"a":1} {"zzz":9}', '{"b":2}') AS second_doc;
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE_PATCH taking a document over, everything before NULL
+--echo # ---------------------------------------------------------------
+
+--echo # taken over and then merged over, so the answer never holds it
+SELECT JSON_MERGE_PATCH(NULL, '[1,2] rubbish', '{"a":1}') AS adopt_merged;
+SELECT JSON_MERGE_PATCH(NULL, '1 rubbish', '{"a":1}') AS adopt_scalar;
+SELECT JSON_MERGE_PATCH(NULL, '"s" rubbish', '{"a":1}') AS adopt_string;
+SELECT JSON_MERGE_PATCH(NULL, '[1,2] [9]', '{"a":1}') AS adopt_second_doc;
+
+--echo # taken over and left as the answer, which is refused as it always
+--echo # was - the warning that refuses it is not replaced by a note
+SELECT JSON_MERGE_PATCH(NULL, '[1,2] rubbish') AS adopt_final;
+
+--echo # an object is the one shape that is not taken over: merged onto
+--echo # SQL NULL it contributes nothing and is dropped.  Being dropped is
+--echo # no reason to say less about it than about the shapes that are
+--echo # kept, the characters standing after it being the same characters
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1} rubbish', '[3,4]') AS drop_obj;
+SELECT JSON_MERGE_PATCH(NULL, '{} rubbish', '[3,4]') AS drop_empty_obj;
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1} {"zzz":9}', '[3,4]') AS drop_obj_doc;
+
+--echo # two of them, so both are named and one saying it does not stand
+--echo # for the other
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1} rubbish', '{"b":2} nonsense')
+  AS drop_two;
+
+--echo # and where the dropped object is the last word, so the answer is
+--echo # SQL NULL and there is no document left to refuse
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1} rubbish') AS drop_obj_final;
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE
+--echo # ---------------------------------------------------------------
+
+SELECT JSON_MERGE('[1,2] rubbish', '{"a":1}') AS merge_lhs;
+SELECT JSON_MERGE('[1,2]', '{"a":1} rubbish') AS merge_rhs;
+SELECT JSON_MERGE('{"a":1} rubbish', '{"b":2} nonsense') AS merge_both;
+SELECT JSON_MERGE('[1]', '[2] rubbish', '[3]') AS merge_middle;
+
+--echo # ---------------------------------------------------------------
+--echo # controls - nothing here may say anything
+--echo # ---------------------------------------------------------------
+
+--echo # an object dropped onto SQL NULL with nothing standing after it
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1}', '[3,4]') AS drop_obj_clean;
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1}') AS drop_obj_clean_final;
+
+--echo # space after the value is not text after the value
+SELECT JSON_MERGE_PATCH('{"a":1}   ', '{"b":2}') AS trailing_space;
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2}
+	 ') AS trailing_ws;
+SELECT JSON_MERGE('[1]   ', '[2]	') AS merge_trailing_space;
+
+--echo # ordinary well formed arguments
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2}') AS clean_patch;
+SELECT JSON_MERGE('[1]', '[2]') AS clean_merge;
+
+--echo # an argument that is not a document from its first character has
+--echo # always been refused, and still is, with a warning and not a note
+SELECT JSON_MERGE_PATCH('rubbish', '{"b":2}') AS bad_lhs;
+SELECT JSON_MERGE_PATCH('{"a":1}', 'rubbish') AS bad_rhs;
+SELECT JSON_MERGE('rubbish', '[2]') AS merge_bad_lhs;
+
+--echo # NULL arguments say nothing either
+SELECT JSON_MERGE_PATCH(NULL, NULL) AS both_null;
+SELECT JSON_MERGE('[1]', NULL) AS merge_null;
+
+--echo # ---------------------------------------------------------------
+--echo # out of a table, so the arguments change from row to row and one
+--echo # row saying it does not settle what another row says
+--echo # ---------------------------------------------------------------
+
+CREATE TABLE t (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t VALUES
+ (1, '{"a":1} rubbish', '{"b":2}'),
+ (2, '{"a":1}',         '{"b":2} nonsense'),
+ (3, '{"a":1}',         '{"b":2}');
+SELECT id, JSON_MERGE_PATCH(a, b) AS v FROM t ORDER BY id;
+SELECT id, JSON_MERGE(a, b) AS v FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo # ---------------------------------------------------------------
+--echo # where the trouble is said to be, which has to be where every
+--echo # other JSON function reading the same bytes says it is
+--echo # ---------------------------------------------------------------
+
+--echo # broken inside the value rather than after it, so the merging
+--echo # stops in the middle and composes out of what it had
+SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS extract_says;
+SELECT JSON_MERGE('{}', '{"a":1 "b":2}') AS merge_says;
+SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}') AS patch_says;
+
+--echo # deeper in, so the position is further along
+SELECT JSON_EXTRACT('{"a":{"x":1 "y":2}}', '$') AS extract_deep;
+SELECT JSON_MERGE('{}', '{"a":{"x":1 "y":2}}') AS merge_deep;
+
+--echo # a document that simply stops, which has no position to give
+SELECT JSON_EXTRACT('{"a":1,', '$') AS extract_stops;
+SELECT JSON_MERGE('{"a":1,', '{}') AS merge_stops_lhs;
+SELECT JSON_MERGE('{}', '{"a":1,') AS merge_stops_rhs;
+
+--echo # ---------------------------------------------------------------
+--echo # a note does not become an error where a warning would
+--echo # ---------------------------------------------------------------
+
+CREATE TABLE t (v JSON);
+SET @sm= @@sql_mode;
+SET sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t VALUES (JSON_MERGE_PATCH('{"a":1} rubbish', '{"b":2}'));
+SET sql_mode=@sm;
+SELECT * FROM t;
+DROP TABLE t;
