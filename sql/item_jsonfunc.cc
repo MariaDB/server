@@ -353,11 +353,59 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
 }
 
 
+/*
+  How a document is punctuated in the loose form - this much after a
+  comma, and this much after a key.
+
+  Named here because two different pieces of code have to agree on it.
+  json_nice() writes it when it reads a document back, and the functions
+  that BUILD a document write it themselves and never read anything
+  back; if those two ever drifted apart, a document said to be in the
+  loose form would not be in it.  The compact and detailed forms are
+  shorter and are taken as the first characters of the same two strings,
+  which is what the lengths below select.
+*/
+static const char json_loose_comma[]= ", ";
+static const char json_loose_colon[]= "\": ";
+
+
+/*
+  Whether a document can be written in this character set at all.
+
+  A document is punctuated with characters that most character sets
+  encode the way ASCII does, and a few do not: swe7 puts national letters
+  where the brackets, the braces and the backslash belong, so the bytes
+  that make an array anywhere else make a word there.  A function that
+  writes an array out in such a character set has written something that
+  is not a document and cannot be read as one - which is what the server
+  has always done with it, and is not for this to change.  What it is
+  for is to keep that result from being taken for a document later.
+
+  Only the functions that write their own punctuation have to ask.  The
+  ones that read their whole result back afterwards read it in the
+  character set it is written in, so a document they accept is one that
+  reads there, and asking would tell them nothing new.
+
+  What decides it is how narrow a character is, not whether the set is
+  ASCII-compatible.  MY_CS_NONASCII marks two unrelated things: sets that
+  put other characters at the ASCII code points, and sets that are simply
+  too wide to hold ASCII a byte at a time.  Only the first is a problem.
+  String::append(char) converts for a set whose characters are never one
+  byte, so ucs2 gets a real bracket, encoded as 005B; where a character
+  can be a single byte the byte goes in as it stands, and in swe7 that
+  byte is a letter.
+*/
+static inline bool is_json_compatible_charset(CHARSET_INFO *cs)
+{
+  return cs->mbminlen > 1 || !(cs->state & MY_CS_NONASCII);
+}
+
+
 static int json_nice(json_engine_t *je, String *nice_js,
                      Item_func_json_format::formats mode, int tab_size=4)
 {
   int depth= 0;
-  static const char *comma= ", ", *colon= "\": ";
+  static const char *comma= json_loose_comma, *colon= json_loose_colon;
   uint comma_len, colon_len;
   int first_value= 1;
   int value_size = 0;
@@ -515,6 +563,76 @@ error:
   DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
                   DBUG_SET("-d,simulate_realloc_out_of_memory"););
   return 1;
+}
+
+
+/*
+  The two below are read by DBUG_ASSERT and by nothing else, so they are
+  here wherever a DBUG_ASSERT is compiled rather than wherever a debug
+  build is.  Those are not the same set: DBUG_ASSERT_AS_PRINTF turns the
+  assertion into a printed complaint and leaves its expression standing,
+  while setting DBUG_OFF, so a guard written the other way round leaves
+  those expressions with nothing to call and that build stops compiling.
+*/
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  Reads a value the way whoever receives it will read it: in the
+  character set the value says it is written in, from one end of it to
+  the other.
+*/
+static bool json_value_reads_as_document(const String *str)
+{
+  /*
+    Which is the question json_valid() is, so it is asked rather than
+    asked again here.
+  */
+  return json_valid(str->ptr(), str->length(), str->charset()) != 0;
+}
+
+
+/*
+  Writes the value out again in the loose form and asks whether that
+  changed anything.  A value already written that way comes back byte
+  for byte; one written any other way does not.
+*/
+static bool json_value_is_nice(const String *str)
+{
+  json_engine_t je;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> nice;
+
+  json_scan_start(&je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+  if (json_nice(&je, &nice, Item_func_json_format::LOOSE))
+    return false;
+
+  return !stringcmp(&nice, str);
+}
+#endif
+
+
+/*
+  A mark is a promise about a run of bytes, and the bytes are right
+  here, so a debug build keeps the promise by reading them.
+
+  Nothing else ever will.  The marks appear in no result and change no
+  output, so one of them being wrong shows up nowhere at all until
+  something starts acting on it - and by then the function that made the
+  promise is a long way from the code that believed it.
+*/
+void Json_result_marks::set(const String *str, bool valid, bool nice)
+{
+  /*
+    The loose form is a formatting of a document, so there is no such
+    thing as a value formatted that way which is not one.  Said before the
+    two below because it holds whatever the bytes turn out to be, and
+    because a caller that arrives here with the pair the wrong way round
+    has lost track of which question it was answering.
+  */
+  DBUG_ASSERT(!nice || valid);
+  DBUG_ASSERT(!valid || json_value_reads_as_document(str));
+  DBUG_ASSERT(!nice || json_value_is_nice(str));
+  m_valid= valid;
+  m_nice= nice;
 }
 
 
@@ -1355,6 +1473,8 @@ String *Item_func_json_extract::read_json(String *str,
   uint has_negative_path= 0;
   THD *thd;
 
+  m_marks.clear();
+
   if ((null_value= args[0]->null_value))
     return 0;
 
@@ -1485,6 +1605,9 @@ String *Item_func_json_extract::read_json(String *str,
 
   if (json_nice(&je, &tmp_js, Item_func_json_format::LOOSE))
     goto error;
+
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(&tmp_js, true, true);
 
 return_ok:
   return &tmp_js;
@@ -2135,6 +2258,31 @@ bool is_json_type(const Item *item)
 
 
 /*
+  What splicing values into a document has left the document able to say
+  about itself.  Starts out saying both and is only ever cleared: one
+  value that cannot be attested to is enough, however many others went
+  in cleanly.
+
+  Named for what holds rather than for what went wrong, and named after
+  the questions an item answers, so that a value's own answer and what
+  became of it here read the same way round.  A document is what the
+  the loose form is a form OF a document, so nothing clears the second
+  without clearing the first.
+
+  A caller that reads the whole of its own result back afterwards learns
+  nothing from these and passes NULL instead - the reading back is a
+  stronger answer than anything collected on the way.  That is every
+  function which EDITS a document today; when the reading back goes,
+  each of them will want a set of these of its own.
+*/
+struct Json_splice_marks
+{
+  bool is_valid;  /* everything that went in read as a document */
+  bool is_nice;   /* everything that went in was written the loose way */
+};
+
+
+/*
   Appends a value whose type is JSON, which is spliced into the result
   as it stands instead of being quoted as a string.  Any complete JSON
   value counts, a bare number or string as much as an object: what the
@@ -2169,9 +2317,13 @@ bool is_json_type(const Item *item)
   'depth' is how many structures the value will sit inside once it has
   been spliced.  Its own nesting adds to that, and it is the total that
   the scanner's limit applies to.
+
+  'marks' is where the parse goes, the bytes having gone in whatever it
+  found.  See Json_splice_marks.
 */
 static int append_json_typed_value(String *str, const String *sv, uint depth,
-                                   const char *fname, int n_param)
+                                   const char *fname, int n_param,
+                                   Json_splice_marks *marks)
 {
   StringBuffer<STRING_BUFFER_USUAL_SIZE> cnv;
   const char *ptr= sv->ptr();
@@ -2247,8 +2399,12 @@ static int append_json_typed_value(String *str, const String *sv, uint depth,
     same thing at the same level for the same reason.
   */
   if (je.s.error)
+  {
+    if (marks)
+      marks->is_valid= marks->is_nice= false;
     report_json_error_ex(ptr, &je, fname, n_param,
                          Sql_condition::WARN_LEVEL_NOTE);
+  }
 
   return append_simple(str, ptr, length);
 }
@@ -2307,7 +2463,8 @@ __attribute__((warn_unused_result))
   out as a string complains through the bad-character note.
 */
 static int append_json_value(String *str, Item *item, String *tmp_val,
-                             uint depth, const char *fname, int n_param)
+                             uint depth, const char *fname, int n_param,
+                             Json_splice_marks *marks)
 {
   if (item->type_handler()->is_bool_type())
   {
@@ -2333,13 +2490,34 @@ static int append_json_value(String *str, Item *item, String *tmp_val,
   }
   {
     String *sv= item->val_json(tmp_val);
+    int rc;
+
     if (item->null_value)
       goto append_null;
     if (is_json_type(item))
-      return append_json_typed_value(str, sv, depth, fname, n_param);
+    {
+      /*
+        Spliced as it stands, so the document being built is written the
+        loose way only if this value was.  Nothing is measured here to
+        find that out - the item is asked, and one that says nothing is
+        taken at its word.
+      */
+      if (marks && !item->is_nice_json())
+        marks->is_nice= false;
+      return append_json_typed_value(str, sv, depth, fname, n_param, marks);
+    }
 
-    return append_escaped_value(str, sv, item->result_type() == STRING_RESULT,
-                                fname, n_param);
+    rc= append_escaped_value(str, sv, item->result_type() == STRING_RESULT,
+                             fname, n_param);
+    /*
+      A character that could not be written leaves the value half
+      written and the quote around it unclosed.  A caller that gives up
+      here does not care; one that carries on is building something that
+      no longer reads as a document.
+    */
+    if (marks && rc == JSON_APPEND_BAD_CHR)
+      marks->is_valid= marks->is_nice= false;
+    return rc;
   }
 
 append_null:
@@ -2351,7 +2529,7 @@ append_null:
 __attribute__((warn_unused_result))
 static int append_json_value_from_field(String *str,
   Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val,
-  uint depth, const char *fname, int n_param)
+  uint depth, const char *fname, int n_param, Json_splice_marks *marks)
 {
   if (i->type_handler()->is_bool_type())
   {
@@ -2377,13 +2555,27 @@ static int append_json_value_from_field(String *str,
   }
   {
     String *sv= f->val_str(tmp_val, key + offset);
+    int rc;
+
     if (f->is_null_in_record(key))
       goto append_null;
     if (is_json_type(i))
-      return append_json_typed_value(str, sv, depth, fname, n_param);
+    {
+      /*
+        The bytes come out of a record rather than off an item, and a
+        record says nothing about how what is in it was written, so the
+        document being built cannot be said to be written the loose way.
+      */
+      if (marks)
+        marks->is_nice= false;
+      return append_json_typed_value(str, sv, depth, fname, n_param, marks);
+    }
 
-    return append_escaped_value(str, sv, i->result_type() == STRING_RESULT,
-                                fname, n_param);
+    rc= append_escaped_value(str, sv, i->result_type() == STRING_RESULT,
+                             fname, n_param);
+    if (marks && rc == JSON_APPEND_BAD_CHR)
+      marks->is_valid= marks->is_nice= false;
+    return rc;
   }
 
 append_null:
@@ -2422,10 +2614,13 @@ static json_append_result append_json_keyname(String *str, Item *item,
     return rc;
   }
 
-  return str->append("\": ", 3) ? JSON_APPEND_OOM : JSON_APPEND_OK;
+  return str->append(STRING_WITH_LEN(json_loose_colon)) ?
+         JSON_APPEND_OOM : JSON_APPEND_OK;
 
 append_null:
-  return str->append("\"\": ", 4) ? JSON_APPEND_OOM : JSON_APPEND_OK;
+  return (str->append('"') ||
+          str->append(STRING_WITH_LEN(json_loose_colon))) ?
+         JSON_APPEND_OOM : JSON_APPEND_OK;
 }
 
 
@@ -2478,20 +2673,23 @@ String *Item_func_json_array::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
+  Json_splice_marks marks= {true, true};
+
+  m_marks.clear();
 
   str->length(0);
   str->set_charset(collation.collation);
 
   if (str->append('[') ||
       ((arg_count > 0) &&
-       append_json_value(str, args[0], &tmp_val, 1, func_name(), 0)))
+       append_json_value(str, args[0], &tmp_val, 1, func_name(), 0, &marks)))
     goto err_return;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
-    if (str->append(", ", 2) ||
+    if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
         append_json_value(str, args[n_arg], &tmp_val, 1, func_name(),
-                          (int) n_arg))
+                          (int) n_arg, &marks))
       goto err_return;
   }
 
@@ -2502,7 +2700,23 @@ String *Item_func_json_array::val_str(String *str)
     result_limit= current_thd->variables.max_allowed_packet;
 
   if (str->length() <= result_limit)
+  {
+    /*
+      Nothing was read back, so what can be said about the array is only
+      what was learned putting it together: the brackets and separators
+      are written here in the loose form, the values that were
+      quoted came out of json_escape() and are documents on their own,
+      and the values that went in as they stand were read as they went.
+
+      All of which holds only where the brackets written above are
+      brackets - see is_json_compatible_charset().
+    */
+    bool is_json_compatible= is_json_compatible_charset(str->charset());
+
+    m_marks.set(str, is_json_compatible && marks.is_valid,
+                is_json_compatible && marks.is_nice);
     return str;
+  }
 
   push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -2549,6 +2763,7 @@ String *Item_func_json_array_append::val_str(String *str)
   THD *thd;
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2612,7 +2827,7 @@ String *Item_func_json_array_append::val_str(String *str)
       if (n_items)
         str->append(", ", 2);
       if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1))
+                            (int) n_arg + 1, NULL))
         goto return_null; /* Out of memory. */
 
       if (str->reserve(str_rest_len, 1024))
@@ -2640,7 +2855,7 @@ String *Item_func_json_array_append::val_str(String *str)
           str->append((const char *) c_from, c_to - c_from) ||
           str->append(", ", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1) ||
+                            (int) n_arg + 1, NULL) ||
           str->append(']') ||
           str->append((const char *) je.s.c_str,
                       js->end() - (const char *) je.s.c_str))
@@ -2667,6 +2882,8 @@ String *Item_func_json_array_append::val_str(String *str)
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 js_error:
@@ -2686,6 +2903,7 @@ String *Item_func_json_array_insert::val_str(String *str)
   THD *thd;
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2798,7 +3016,7 @@ path_err:
         goto return_null; /* Out of memory. */
       }
       if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1))
+                            (int) n_arg + 1, NULL))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
@@ -2838,7 +3056,7 @@ path_err:
         goto return_null; /* Out of memory. */
       }
       if (append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1))
+                            (int) n_arg + 1, NULL))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
@@ -2872,6 +3090,8 @@ path_err:
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 js_error:
@@ -2887,6 +3107,9 @@ String *Item_func_json_object::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
+  Json_splice_marks marks= {true, true};
+
+  m_marks.clear();
 
   str->length(0);
   str->set_charset(collation.collation);
@@ -2894,16 +3117,16 @@ String *Item_func_json_object::val_str(String *str)
   if (str->append('{') ||
       (arg_count > 0 &&
        (append_json_keyname(str, args[0], &tmp_val, func_name(), 0) ||
-        append_json_value(str, args[1], &tmp_val, 1, func_name(), 1))))
+        append_json_value(str, args[1], &tmp_val, 1, func_name(), 1, &marks))))
     goto err_return;
 
   for (n_arg=2; n_arg < arg_count; n_arg+=2)
   {
-    if (str->append(", ", 2) ||
+    if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
         append_json_keyname(str, args[n_arg], &tmp_val, func_name(),
                             (int) n_arg) ||
         append_json_value(str, args[n_arg+1], &tmp_val, 1, func_name(),
-                          (int) n_arg + 1))
+                          (int) n_arg + 1, &marks))
       goto err_return;
   }
 
@@ -2914,7 +3137,14 @@ String *Item_func_json_object::val_str(String *str)
     result_limit= current_thd->variables.max_allowed_packet;
 
   if (str->length() <= result_limit)
+  {
+    /* As in the sister constructor above. */
+    bool is_json_compatible= is_json_compatible_charset(str->charset());
+
+    m_marks.set(str, is_json_compatible && marks.is_valid,
+                is_json_compatible && marks.is_nice);
     return str;
+  }
 
   push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -3145,6 +3375,8 @@ String *Item_func_json_merge::val_str(String *str)
   uint n_arg;
   THD *thd;
 
+  m_marks.clear();
+
   if (args[0]->null_value)
     goto null_return;
 
@@ -3194,6 +3426,8 @@ String *Item_func_json_merge::val_str(String *str)
     goto error_return;
 
   null_value= 0;
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 error_return:
@@ -3458,6 +3692,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
   bool empty_result, merge_to_null;
   THD *thd= current_thd;
 
+  m_marks.clear();
+
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   /* To report errors properly if some JSON is invalid. */
@@ -3529,6 +3765,8 @@ cont_point:
     goto error_return;
 
   null_value= 0;
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 error_return:
@@ -3802,6 +4040,7 @@ String *Item_func_json_insert::val_str(String *str)
   THD *thd;
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -3909,7 +4148,7 @@ String *Item_func_json_insert::val_str(String *str)
              (append_simple(str, v_from, je.s.c_str - v_from) ||
               str->append(", ", 2))) ||
             append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                              (int) n_arg + 1) ||
+                              (int) n_arg + 1, NULL) ||
             (do_array_autowrap && str->append(']')) ||
             append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
           goto js_error; /* Out of memory. */
@@ -3952,7 +4191,7 @@ String *Item_func_json_insert::val_str(String *str)
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
           (n_item > 0 && str->append(", ", 2)) ||
           append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1) ||
+                            (int) n_arg + 1, NULL) ||
           append_simple(str, v_to, js->end() - v_to))
         goto js_error; /* Out of memory. */
     }
@@ -4007,7 +4246,7 @@ String *Item_func_json_insert::val_str(String *str)
 
       if (str->append("\":", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                            (int) n_arg + 1) ||
+                            (int) n_arg + 1, NULL) ||
           append_simple(str, v_to, js->end() - v_to))
         goto js_error; /* Out of memory. */
     }
@@ -4032,7 +4271,7 @@ v_found:
 
     if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
         append_json_value(str, args[n_arg+1], &tmp_val, 0, func_name(),
-                          (int) n_arg + 1) ||
+                          (int) n_arg + 1, NULL) ||
         append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
       goto js_error; /* Out of memory. */
 continue_point:
@@ -4057,6 +4296,8 @@ continue_point:
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 js_error:
@@ -4087,6 +4328,7 @@ String *Item_func_json_remove::val_str(String *str)
   THD *thd;
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if (args[0]->null_value)
     goto null_return;
@@ -4269,6 +4511,8 @@ v_found:
     goto js_error;
 
   null_value= 0;
+  /* The reading back just above is what sets both marks. */
+  m_marks.set(str, true, true);
   return str;
 
 js_error:
@@ -4524,7 +4768,8 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
 }
 
 
-static int append_json_path(String *str, const json_path_t *p)
+static int append_json_path(String *str, const json_path_t *p,
+                            bool *path_bytes_well_formed)
 {
   const json_path_step_t *c;
 
@@ -4541,6 +4786,17 @@ static int append_json_path(String *str, const json_path_t *p)
     }
     else /*JSON_PATH_ARRAY*/
     {
+      /*
+        The brackets go in through String::append(), which converts them,
+        so a set that writes no character in one byte gets a bracket of
+        its own width.  The number between them does not go that way: the
+        digits are written as themselves, whatever the set.  It is the
+        one part of a path not formatted the way the rest of it is, and one
+        stray byte is enough to leave every character after it reading
+        from the wrong place.
+      */
+      if (str->charset()->mbminlen > 1)
+        *path_bytes_well_formed= false;
 
       if (str->append('[') ||
           str->append_ulonglong(c->n_item) ||
@@ -4562,6 +4818,9 @@ String *Item_func_json_search::val_str(String *str)
   uint n_arg;
   int array_sizes[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
+  bool path_bytes_well_formed= true;
+
+  m_marks.clear();
 
   if (args[0]->null_value || args[2]->null_value)
     goto null_return;
@@ -4622,10 +4881,11 @@ String *Item_func_json_search::val_str(String *str)
           if (n_path_found == 2)
           {
             if (str->append('[') ||
-                append_json_path(str, &sav_path))
+                append_json_path(str, &sav_path, &path_bytes_well_formed))
                 goto js_error;
           }
-          if (str->append(", ", 2) || append_json_path(str, &p))
+          if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
+              append_json_path(str, &p, &path_bytes_well_formed))
             goto js_error;
         }
         if (mode_one)
@@ -4642,7 +4902,7 @@ end:
     goto null_return;
   if (n_path_found == 1)
   {
-    if (append_json_path(str, &sav_path))
+    if (append_json_path(str, &sav_path, &path_bytes_well_formed))
       goto js_error;
   }
   else
@@ -4651,6 +4911,26 @@ end:
       goto js_error;
   }
 
+  /*
+    A path is written out as a JSON string, and the keys that go into it
+    are copied from the document with whatever escaping they were
+    written with there - a key holding a quote was already written with
+    that quote escaped, or the document would not have read.  Several
+    paths are put in an array with the loose formatting between them.
+
+    None of that is worth anything if the bytes do not read at all, and
+    a path carrying an array index in a set that writes no character in
+    one byte does not - see the number written into it.  A set that can
+    write answers only for what went through it, so the path says for
+    itself whether it was written, and an unencoded one is passed on as
+    the bytes it is rather than as a document.
+  */
+  {
+    bool result_is_document= is_json_compatible_charset(str->charset()) &&
+                             path_bytes_well_formed;
+
+    m_marks.set(str, result_is_document, result_is_document);
+  }
   null_value= 0;
   return str;
 
@@ -4711,6 +4991,8 @@ String *Item_func_json_format::val_str(String *str)
   int tab_size= 4;
   THD *thd;
 
+  m_marks.clear();
+
   if ((null_value= args[0]->null_value))
     return 0;
 
@@ -4745,15 +5027,28 @@ String *Item_func_json_format::val_str(String *str)
     return 0;
   }
 
+  /*
+    Read back and written out again, so is_valid holds whatever the
+    argument was - but only json_loose() writes the loose form, the
+    other two formats being the whole point of the other two names.
+  */
+  m_marks.set(str, true, fmt == LOOSE);
   return str;
 }
 
 
+/*
+  Nothing is read and nothing is written: the argument's value is passed
+  straight on.  So whatever the argument was able to say about it is
+  still true of it here, and this function says neither more nor less.
+*/
 String *Item_func_json_format::val_json(String *str)
 {
   String *js= args[0]->val_json(&tmp_js);
+  m_marks.clear();
   if ((null_value= args[0]->null_value))
     return 0;
+  m_marks.set(js, args[0]->is_valid_json(), args[0]->is_nice_json());
   return js;
 }
 
@@ -4897,6 +5192,7 @@ void Item_func_json_arrayagg::clear()
 {
   m_bad_element= false;
   m_closed= false;
+  m_elements_valid= true;
   Item_func_group_concat::clear();
 }
 
@@ -4921,9 +5217,14 @@ void Item_func_json_arrayagg::clear()
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
   int rc;
+  Json_splice_marks marks= {true, true};
 
   m_tmp_json.length(0);
-  if ((rc= append_json_value(&m_tmp_json, i, tmp, 1, json_arrayagg_name, 0)))
+  rc= append_json_value(&m_tmp_json, i, tmp, 1, json_arrayagg_name, 0, &marks);
+  if (!marks.is_valid)
+    m_elements_valid= false;
+
+  if (rc)
   {
     if (rc == JSON_APPEND_OOM)
       m_bad_element= true;
@@ -4937,11 +5238,16 @@ String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
     String *tmp, const uchar *key, size_t offset)
 {
   int rc;
+  Json_splice_marks marks= {true, true};
 
   m_tmp_json.length(0);
 
-  if ((rc= append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp,
-                                        1, json_arrayagg_name, 0)))
+  rc= append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp,
+                                   1, json_arrayagg_name, 0, &marks);
+  if (!marks.is_valid)
+    m_elements_valid= false;
+
+  if (rc)
   {
     if (rc == JSON_APPEND_OOM)
       m_bad_element= true;
@@ -4978,6 +5284,8 @@ Item *Item_func_json_arrayagg::copy_or_same(THD* thd)
 
 String* Item_func_json_arrayagg::val_str(String *str)
 {
+  m_marks.clear();
+
   if ((str= Item_func_group_concat::val_str(str)))
   {
     String s;
@@ -5009,24 +5317,46 @@ String* Item_func_json_arrayagg::val_str(String *str)
     }
 
     /*
-      The brackets are already round what the parent returned, this
-      group having been asked for once before.
+      Asked for a second time, the group is already inside its brackets
+      and there is nothing left to do to it.  What can be said about it
+      is said either way: the answer is about the value, and the value
+      is the same one.
     */
-    if (m_closed)
-      return str;
+    if (!m_closed)
+    {
+      /*
+        The brackets are put on last, so a buffer that will not take them
+        leaves behind something that reads as a value of its own rather
+        than as the array it is meant to be.
+      */
+      if (s.append('['))
+        goto bad_result;
+
+      s.swap(*str);
+      if (str->append(s) || str->append(']'))
+        goto bad_result;
+
+      m_closed= true;
+    }
 
     /*
-      The brackets are put on last, so a buffer that will not take them
-      leaves behind something that reads as a value of its own rather
-      than as the array it is meant to be.
-    */
-    if (s.append('['))
-      goto bad_result;
+      A group that was cut to fit the length limit is cut at the byte
+      the limit falls on, so what stands between the brackets can be
+      half an element - or, where the cut lands just past an opening
+      quote and that quote is written back to close the string, an
+      element no row of the group ever held.  One that carried
+      something not readable as JSON is a group with that in it still.
+      Either way the brackets are around something this cannot answer
+      for.
 
-    s.swap(*str);
-    if (str->append(s) || str->append(']'))
-      goto bad_result;
-    m_closed= true;
+      Never said to be nicely written: what goes between the elements is
+      the separator this function inherits from GROUP_CONCAT, a comma
+      with nothing after it, where a nicely written document puts a
+      space there as well.  There is no asking for another one - the
+      grammar takes no SEPARATOR here and writes that comma itself.
+    */
+    m_marks.set(str, is_json_compatible_charset(str->charset()) &&
+                     m_elements_valid && !warning_for_row, false);
   }
   return str;
 
@@ -5038,7 +5368,8 @@ bad_result:
 
 Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
-  :Item_sum(thd, item), m_bad_pair(false), m_closed(false)
+  :Item_sum(thd, item), m_bad_pair(false), m_closed(false),
+   m_pairs_valid(true)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
@@ -5122,6 +5453,7 @@ void Item_func_json_objectagg::clear()
   */
   m_bad_pair= false;
   m_closed= false;
+  m_pairs_valid= true;
   if (result.append('{'))
     m_bad_pair= true;
 }
@@ -5130,6 +5462,7 @@ void Item_func_json_objectagg::clear()
 bool Item_func_json_objectagg::add()
 {
   StringBuffer<MAX_FIELD_WIDTH> buf;
+  Json_splice_marks marks= {true, true};
   String *key;
   int rc;
 
@@ -5160,14 +5493,22 @@ bool Item_func_json_objectagg::add()
     if (rc == JSON_APPEND_OOM)
       goto bad_pair;
     report_bad_chr_note(func_name(), 1);
+    /*
+      However much of the key could be written went in and the pair was
+      finished around it, so the object is complete and its keys are
+      not what was asked for.
+    */
+    m_pairs_valid= false;
   }
 
   if (result.append(STRING_WITH_LEN("\":")))
     goto bad_pair;
 
   buf.length(0);
-  if (append_json_value(&result, args[1], &buf, 1, func_name(), 1) ==
-      JSON_APPEND_OOM)
+  rc= append_json_value(&result, args[1], &buf, 1, func_name(), 1, &marks);
+  if (!marks.is_valid)
+    m_pairs_valid= false;
+  if (rc == JSON_APPEND_OOM)
     goto bad_pair;
 
   return 0;
@@ -5187,6 +5528,8 @@ bad_pair:
 String* Item_func_json_objectagg::val_str(String* str)
 {
   DBUG_ASSERT(fixed());
+  m_marks.clear();
+
   if (null_value)
     return 0;
 
@@ -5197,6 +5540,13 @@ String* Item_func_json_objectagg::val_str(String* str)
   }
   m_closed= true;
 
+  /*
+    Never said to be nicely written: a key is followed here by a colon
+    and the value straight after it, where the loose form puts a space
+    between the two.
+  */
+  m_marks.set(&result, is_json_compatible_charset(result.charset()) &&
+                       m_pairs_valid, false);
   return &result;
 }
 
@@ -5207,6 +5557,8 @@ String *Item_func_json_normalize::val_str(String *buf)
   json_engine_t je;
   THD *thd;
   String *raw_json= args[0]->val_str(&tmp);
+
+  m_marks.clear();
 
   DYNAMIC_STRING normalized_json;
   if (init_dynamic_string(&normalized_json, NULL, 0, 0))
@@ -5233,6 +5585,13 @@ String *Item_func_json_normalize::val_str(String *buf)
   if (buf->append(normalized_json.str, normalized_json.length))
     goto null_return;
 
+  /*
+    Written out afresh from a document that was read through in full,
+    and written in the character set this function declares, whatever
+    the argument arrived in.  Not written the loose way, though: the
+    normal form puts nothing after a comma or a colon.
+  */
+  m_marks.set(buf, true, false);
   goto end;
 
 null_return:

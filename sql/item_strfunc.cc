@@ -3885,13 +3885,23 @@ String *Item_func_conv_charset::val_str(String *str)
   DBUG_ASSERT(fixed());
   if (use_cached_value)
     return null_value ? 0 : &str_value;
+  m_marks.clear();
   String *arg= args[0]->val_str(&tmp_value);
   String_copier_for_item copier(current_thd);
-  return ((null_value= args[0]->null_value ||
-                       copier.copy_with_warn(collation.collation, str,
-                                             arg->charset(), arg->ptr(),
-                                             arg->length(), arg->length()))) ?
-    0 : str;
+  if ((null_value= args[0]->null_value ||
+                   copier.copy_with_warn(collation.collation, str,
+                                         arg->charset(), arg->ptr(),
+                                         arg->length(), arg->length())))
+    return 0;
+  /*
+    Asked of the argument only now, after it has been evaluated: what it
+    answers is about the value it has just passed, which is the one
+    that was converted.
+  */
+  if (!copier.most_important_error_pos() &&
+      collation.collation != &my_charset_bin)
+    m_marks.set(str, args[0]->is_valid_json(), args[0]->is_nice_json());
+  return str;
 }
 
 bool Item_func_conv_charset::fix_length_and_dec(THD *thd)

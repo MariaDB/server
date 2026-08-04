@@ -182,6 +182,8 @@ protected:
 
 class Item_json_func: public Item_str_func
 {
+protected:
+  Json_result_marks m_marks;
 public:
   Item_json_func(THD *thd)
    :Item_str_func(thd) { }
@@ -195,6 +197,8 @@ public:
   {
     return Type_handler_json_common::json_type_handler(max_length);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
 };
 
 
@@ -243,15 +247,29 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *to) override
   {
+    m_marks.clear();
     null_value= Json_path_extractor::extract(to, args[0], args[1],
                                              collation.collation, func_name_cstring(), true);
-    return null_value ? NULL : to;
+    if (null_value)
+      return NULL;
+    /*
+      Not said to be nicely formatted: the piece is copied out with
+      whatever spacing the document it came from was written with.
+    */
+    m_marks.set(to, true, false);
+    return to;
   }
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
     return je->check_and_get_value_complex(res, error);
   }
+  /*
+    Returns a slice of the searched document, delimited by the two ends
+    of a value the scanner has just parsed.  A fully parsed value is a
+    document in its own right.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -352,6 +370,12 @@ public:
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }
+  /*
+    The values found are put together into a result of their own, and
+    that result is then read back through json_nice() before it is
+    passed on.  Anything it cannot read comes back as NULL.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -453,6 +477,14 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_append") };
     return name;
   }
+  /*
+    Every function that EDITS a document reads the whole of what it has
+    written back through json_nice() before handing it over, and hands
+    back NULL for anything that will not read.  That reading is what
+    makes is_valid true for the result, and it is the same in all six
+    of them.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -511,6 +543,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_preserve") };
     return name;
   }
+  /* Reads its result back, as the other editing functions do. */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -535,6 +569,11 @@ protected:
 };
 
 
+/*
+  Reads its argument through in full and writes the document out again
+  in a normal form, in utf8mb4 whatever the argument arrived in.  What
+  it writes is the compact formatting, so it is never in the loose form.
+*/
 class Item_func_json_normalize: public Item_json_func
 {
 public:
@@ -547,6 +586,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool is_valid_json_static() const override { return true; }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_normalize>(thd, this); }
 };
@@ -641,6 +681,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count/2; }
+  /* Reads its result back, as the other editing functions do. */
+  bool is_valid_json_static() const override { return true; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING json_set=    {STRING_WITH_LEN("json_set") };
@@ -671,6 +713,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_remove") };
     return name;
   }
+  /* Reads its result back, as the other editing functions do. */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -725,6 +769,11 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
+  /*
+    A path is a JSON string, and every path this returns is built out
+    of pieces of a document that has just been read through.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -792,6 +841,18 @@ protected:
     clear().
   */
   bool m_closed;
+  /*
+    Whether everything that went into this group leaves the array around
+    it answerable for.  Cleared by a value that did not read as JSON, or
+    one holding a character that could not be written, which is dropped
+    and leaves the separator either side of it with nothing between
+    them.  Reset for each group by clear(), the same as above, and kept
+    apart from it because they say different things - that one means the
+    group is missing a row, this one that the group is complete and
+    still not a document.
+  */
+  bool m_elements_valid;
+  Json_result_marks m_marks;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -800,7 +861,7 @@ public:
                           bool limit_clause, Item *row_limit, Item *offset_limit):
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
                              is_separator, limit_clause, row_limit, offset_limit),
-      m_bad_element(false), m_closed(false)
+      m_bad_element(false), m_closed(false), m_elements_valid(true)
   {
   }
   /*
@@ -811,7 +872,8 @@ public:
     not JSON.
   */
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
-    Item_func_group_concat(thd, item), m_bad_element(false), m_closed(false)
+    Item_func_group_concat(thd, item), m_bad_element(false),
+    m_closed(false), m_elements_valid(true)
   {
     m_tmp_json.set_charset(collation.collation);
   }
@@ -819,6 +881,8 @@ public:
   {
     return Type_handler_json_common::json_type_handler_sum(this);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
 
   LEX_CSTRING func_name_cstring() const override
   {
@@ -855,6 +919,18 @@ class Item_func_json_objectagg : public Item_sum
     would write one brace per call.  Reset for each group by clear().
   */
   bool m_closed;
+  /*
+    Whether everything that went into this group leaves the object
+    around it answerable for.  Cleared by a key or a value holding a
+    character that could not be written, which goes in as however much
+    of it fitted, or by a value that did not read as JSON.  Reset for
+    each group by clear(), and kept apart from the flag above for the
+    same reason as in the sister aggregate - one means a pair is
+    missing, this one that the pairs are all there and still do not make
+    a document.
+  */
+  bool m_pairs_valid;
+  Json_result_marks m_marks;
 public:
   /*
     The opening brace is not written here.  This runs while the
@@ -864,7 +940,8 @@ public:
     once per group and once the width is known.
   */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
-    Item_sum(thd, key, value), m_bad_pair(false), m_closed(false)
+    Item_sum(thd, key, value), m_bad_pair(false), m_closed(false),
+    m_pairs_valid(true)
   {
     quick_group= FALSE;
   }
@@ -882,6 +959,8 @@ public:
   {
     return Type_handler_json_common::json_type_handler_sum(this);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
   void clear() override;
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }        // not used

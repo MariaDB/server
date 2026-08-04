@@ -1,0 +1,377 @@
+#
+# 1. Building a document out of values answering is_valid
+#
+SELECT JSON_ARRAY() AS empty_array,
+JSON_OBJECT() AS empty_object;
+empty_array	empty_object
+[]	{}
+SELECT JSON_ARRAY(1, 'two', NULL, TRUE, 3.5) AS scalars;
+scalars
+[1, "two", null, true, 3.5]
+SELECT JSON_OBJECT('a', 1, 'b', 'two', 'c', NULL) AS pairs;
+pairs
+{"a": 1, "b": "two", "c": null}
+SELECT JSON_ARRAY(JSON_ARRAY(1, 2), JSON_OBJECT('a', 1)) AS nested;
+nested
+[[1, 2], {"a": 1}]
+SELECT JSON_OBJECT('k', JSON_ARRAY(1, 2)) AS nested_in_object;
+nested_in_object
+{"k": [1, 2]}
+SELECT JSON_ARRAY(JSON_SET('{"a": 1}', '$.b', 2)) AS edited_then_built;
+edited_then_built
+[{"a": 1, "b": 2}]
+SELECT JSON_ARRAY(JSON_EXTRACT('{"a": [1, 2]}', '$.a')) AS extracted_then_built;
+extracted_then_built
+[[1, 2]]
+#
+# 2. Building a document out of values that cannot be
+#
+#    A JSON column holds whatever was in it when the check was off,
+#    and nothing between the column and here reads it.  The value
+#    goes in as it stands, as it always has, and the note is what
+#    says so.
+#
+CREATE TABLE tj (id INT, j JSON);
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tj VALUES (1, '{"a": 1}'), (2, '{"a":1,'), (3, ''), (4, '{"a":1}');
+SET SESSION check_constraint_checks = ON;
+SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 1)) AS from_good;
+from_good
+[{"a": 1}]
+SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 2)) AS from_broken;
+from_broken
+[{"a":1,]
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 3)) AS from_empty;
+from_empty
+[]
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+SELECT JSON_OBJECT('k', (SELECT j FROM tj WHERE id = 2)) AS from_broken_object;
+from_broken_object
+{"k": {"a":1,}
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+#
+#    The compact one reads perfectly well and is simply not
+#    written the way this function writes.
+#
+SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 4)) AS from_compact;
+from_compact
+[{"a":1}]
+#
+# 3. Editing a document
+#
+SELECT JSON_SET('{"a": 1}', '$.b', 2) AS set_done,
+JSON_INSERT('{"a": 1}', '$.b', 2) AS insert_done,
+JSON_REPLACE('{"a": 1}', '$.a', 2) AS replace_done;
+set_done	insert_done	replace_done
+{"a": 1, "b": 2}	{"a": 1, "b": 2}	{"a": 2}
+SELECT JSON_REMOVE('{"a": 1, "b": 2}', '$.a') AS removed,
+JSON_ARRAY_APPEND('[1]', '$', 2) AS appended,
+JSON_ARRAY_INSERT('[1, 3]', '$[1]', 2) AS inserted;
+removed	appended	inserted
+{"b": 2}	[1, 2]	[1, 2, 3]
+SELECT JSON_MERGE('[1]', '[2]') AS merged,
+JSON_MERGE_PATCH('{"a": 1}', '{"b": 2}') AS patched;
+merged	patched
+[1, 2]	{"a": 1, "b": 2}
+SELECT JSON_SET((SELECT j FROM tj WHERE id = 2), '$.b', 2) AS set_over_broken;
+set_over_broken
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SELECT JSON_SET('{"a": 1}', '$.b', (SELECT j FROM tj WHERE id = 2))
+AS set_with_broken;
+set_with_broken
+NULL
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 3 to function 'json_set'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 21
+#
+# 4. Reading a document out of another one
+#
+SELECT JSON_EXTRACT('{"a": [1, 2], "b": 3}', '$.a') AS extracted,
+JSON_EXTRACT('{"a": 1, "b": 2}', '$.a', '$.b') AS extracted_two;
+extracted	extracted_two
+[1, 2]	[1, 2]
+SELECT JSON_QUERY('{"a": [1,2]}', '$.a') AS queried;
+queried
+[1,2]
+SELECT JSON_KEYS('{"a": 1, "b": 2}') AS keys_of;
+keys_of
+["a", "b"]
+SELECT JSON_SEARCH('{"a": "x", "b": "x"}', 'all', 'x') AS searched_all,
+JSON_SEARCH('{"a": "x"}', 'one', 'x') AS searched_one;
+searched_all	searched_one
+["$.a", "$.b"]	"$.a"
+SELECT JSON_NORMALIZE('{"b": 1, "a": 2}') AS normalized;
+normalized
+{"a":2.0E0,"b":1.0E0}
+SELECT JSON_COMPACT('{"a": [1, 2]}') AS compacted,
+JSON_LOOSE('{"a":[1,2]}') AS loosened;
+compacted	loosened
+{"a":[1,2]}	{"a": [1, 2]}
+SELECT JSON_DETAILED('{"a": 1}') AS detailed;
+detailed
+{
+    "a": 1
+}
+#
+#    JSON_VALID reads its argument through val_json(), where the
+#    format functions pass the value straight through without touching
+#    it, so nothing here is written out afresh.
+#
+SELECT JSON_VALID(JSON_LOOSE('{"a":1}')) AS loose_forwarded,
+JSON_VALID(JSON_COMPACT('{"a": 1}')) AS compact_forwarded,
+JSON_VALID(JSON_LOOSE((SELECT j FROM tj WHERE id = 2)))
+AS broken_forwarded;
+loose_forwarded	compact_forwarded	broken_forwarded
+1	1	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+#
+# 5. Building a document a row at a time
+#
+CREATE TABLE tg (g INT, v INT, s VARCHAR(16));
+INSERT INTO tg VALUES (1, 1, 'a'), (1, 2, 'b'), (2, 3, 'c'), (2, 4, 'd');
+SELECT g, JSON_ARRAYAGG(v) AS arr, JSON_OBJECTAGG(s, v) AS obj
+FROM tg GROUP BY g ORDER BY g;
+g	arr	obj
+1	[1,2]	{"a":1, "b":2}
+2	[3,4]	{"c":3, "d":4}
+SELECT JSON_ARRAY(JSON_ARRAYAGG(v)) AS agg_then_built FROM tg;
+agg_then_built
+[[1,2,3,4]]
+SELECT g, JSON_ARRAYAGG(v) AS arr FROM tg GROUP BY g WITH ROLLUP;
+g	arr
+1	[1,2]
+2	[3,4]
+NULL	[1,2,3,4]
+#
+#    A group cut to fit group_concat_max_len is cut at the byte
+#    the limit falls on.  Here that lands just past an opening
+#    quote, and the quote written back to close the string leaves
+#    an element no row of the group held - a whole document, and
+#    one row of it invented.  A group built out of a broken column
+#    is complete too, and is not a document at all.
+#
+SET @save_len = @@group_concat_max_len;
+SET SESSION group_concat_max_len = 10;
+SELECT JSON_ARRAYAGG(s) AS cut FROM tg;
+cut
+["a","b",""]
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = @save_len;
+SELECT JSON_ARRAYAGG(j) AS agg_broken FROM tj;
+agg_broken
+[{"a": 1},{"a":1,,,{"a":1}]
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+SELECT JSON_OBJECTAGG(id, j) AS objagg_broken FROM tj;
+objagg_broken
+{"1":{"a": 1}, "2":{"a":1,, "3":, "4":{"a":1}}
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+#
+# 6. Character sets
+#
+#    In swe7 the bytes that encode brackets and braces elsewhere
+#    encode national letters, so a document cannot be written in it
+#    at all.  The bytes returned are the same ones as always.
+#
+SELECT HEX(JSON_ARRAY(_swe7 0x61)) AS array_in_swe7,
+JSON_VALID(JSON_ARRAY(_swe7 0x61)) AS array_in_swe7_valid;
+array_in_swe7	array_in_swe7_valid
+5B2261225D	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT HEX(JSON_ARRAYAGG(CONVERT(s USING swe7))) AS agg_in_swe7 FROM tg;
+agg_in_swe7
+5B2261222C2262222C2263222C2264225D
+SELECT HEX(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING ucs2))) AS array_in_ucs2,
+JSON_VALID(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING ucs2)))
+AS array_in_ucs2_valid;
+array_in_ucs2	array_in_ucs2_valid
+005B002200E90022005D	1
+SELECT JSON_VALID(JSON_OBJECT('k', CONVERT(_utf8mb4 0xC3A8 USING utf16)))
+AS object_in_utf16_valid;
+object_in_utf16_valid
+1
+SELECT HEX(JSON_ARRAY(_binary 0x61)) AS array_in_binary;
+array_in_binary
+5B2261225D
+#
+#    A character set whose characters are never a single byte
+#    encodes the punctuation properly, so a document can be written
+#    in it and these results really are documents.  sjis is not
+#    such a set: it stores ASCII a byte at a time and puts a yen
+#    sign where the backslash belongs.
+#
+SELECT HEX(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING utf32)) ) AS array_in_utf32,
+JSON_VALID(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING utf32)))
+AS array_in_utf32_valid;
+array_in_utf32	array_in_utf32_valid
+0000005B00000022000000E9000000220000005D	1
+SELECT JSON_VALID(JSON_ARRAY(CONVERT(s USING ucs2))) AS array_of_col_ucs2
+FROM tg ORDER BY v;
+array_of_col_ucs2
+1
+1
+1
+1
+SELECT JSON_VALID(JSON_OBJECT(CONVERT(s USING utf16), v)) AS object_in_utf16
+FROM tg ORDER BY v;
+object_in_utf16
+1
+1
+1
+1
+SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(s USING ucs2))) AS agg_in_ucs2
+FROM tg GROUP BY g ORDER BY g;
+agg_in_ucs2
+1
+1
+SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(s USING utf16), v)) AS objectagg_utf16
+FROM tg GROUP BY g ORDER BY g;
+objectagg_utf16
+1
+1
+SELECT HEX(JSON_ARRAY(CONVERT(_utf8mb4 0x5C USING sjis))) AS backslash_in_sjis,
+JSON_VALID(JSON_ARRAY(CONVERT(_utf8mb4 0x5C USING sjis)))
+AS backslash_in_sjis_valid;
+backslash_in_sjis	backslash_in_sjis_valid
+5B22815F815F225D	1
+#
+# 7. Values that arrive through a conversion
+#
+#    A conversion that lost nothing kept the characters it was
+#    given; one that had to put a question mark in its place did
+#    not, and what it produced is not the value that went in.
+#
+SELECT JSON_VALID(CONVERT(JSON_OBJECT('a', 1) USING ucs2)) AS converted_valid;
+converted_valid
+1
+SELECT JSON_ARRAY(CONVERT(JSON_OBJECT('a', 1) USING utf8mb4)) AS converted_built;
+converted_built
+[{"a": 1}]
+SELECT HEX(CONVERT(JSON_ARRAY(_utf8mb4 0xC3A9) USING swe7)) AS converted_lossy;
+converted_lossy
+3F2260223F
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x5B to 'swe7'
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4 0x7B2261223A317D USING latin1), '$.b',
+_utf8mb4 0xC3A9)) AS mixed_charsets,
+JSON_VALID(JSON_SET(CONVERT(_utf8mb4 0x7B2261223A317D USING latin1),
+'$.b', _utf8mb4 0xC3A9)) AS mixed_charsets_valid;
+mixed_charsets	mixed_charsets_valid
+7B2261223A20312C202262223A2022E9227D	1
+#
+#    Conversion to binary keeps the bytes and relabels them, so a
+#    document written two bytes to the character comes out as twice
+#    as many characters, and is no longer one.  Nothing is lost, so
+#    the copier has nothing to report about it.
+#
+SELECT HEX(CONVERT(CONVERT(JSON_ARRAY(1) USING ucs2) USING binary))
+AS relabelled_bytes,
+JSON_VALID(CONVERT(CONVERT(JSON_ARRAY(1) USING ucs2) USING binary))
+AS relabelled_valid;
+relabelled_bytes	relabelled_valid
+005B0031005D	0
+Warnings:
+Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 1
+SELECT JSON_ARRAY(CONVERT(CONVERT(JSON_OBJECT('a', 1) USING ucs2)
+USING binary)) AS built_from_relabelled;
+built_from_relabelled
+[ { " a " :   1 }]
+Warnings:
+Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+#
+# 8. Values that arrive through a reference
+#
+SELECT JSON_ARRAY(x) AS through_derived
+FROM (SELECT JSON_OBJECT('a', 1) AS x) d;
+through_derived
+[{"a": 1}]
+SELECT JSON_ARRAY(x) AS through_broken_derived
+FROM (SELECT j AS x FROM tj WHERE id = 2) d;
+through_broken_derived
+[{"a":1,]
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+CREATE VIEW v1 AS SELECT JSON_OBJECT('a', 1) AS x;
+SELECT JSON_ARRAY(x) AS through_view FROM v1;
+through_view
+[{"a": 1}]
+DROP VIEW v1;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(v)) AS through_aggregate_ref
+FROM tg GROUP BY g ORDER BY g;
+through_aggregate_ref
+[[1,2]]
+[[3,4]]
+#
+#    A reference into a merged view on the inner side of an outer
+#    join returns NULL for a row the join filled in, without asking
+#    the item it refers to.  The second row below is such a row and
+#    follows one that matched, so anything remembered from the
+#    first would still be there.
+#
+CREATE TABLE touter (id INT);
+CREATE TABLE tinner (id INT);
+INSERT INTO touter VALUES (1),(2);
+INSERT INTO tinner VALUES (1);
+CREATE VIEW vinner AS SELECT id, JSON_OBJECT('a', id) AS x FROM tinner;
+SELECT touter.id, JSON_ARRAY(vinner.x) AS through_outer_join_view
+FROM touter LEFT JOIN vinner ON touter.id = vinner.id ORDER BY touter.id;
+id	through_outer_join_view
+1	[{"a": 1}]
+2	[null]
+SELECT touter.id, JSON_VALID(vinner.x) AS through_outer_join_view_valid
+FROM touter LEFT JOIN vinner ON touter.id = vinner.id ORDER BY touter.id;
+id	through_outer_join_view_valid
+1	1
+2	NULL
+DROP VIEW vinner;
+DROP TABLE tinner;
+DROP TABLE touter;
+DROP TABLE tg;
+DROP TABLE tj;
+#
+# 9. Items that are copied
+#
+#    Pushing a condition into a derived table copies the expression
+#    that produces the column, leaving two items in two places of
+#    the plan.  A copy has produced no value of its own yet.
+#
+CREATE TABLE tc (a INT, b VARCHAR(32));
+INSERT INTO tc VALUES (1, 'x'), (2, 'y');
+SELECT * FROM (SELECT a, JSON_ARRAY(1, 2) AS j FROM tc) d WHERE d.j LIKE '[%';
+a	j
+1	[1, 2]
+2	[1, 2]
+SELECT * FROM (SELECT a, JSON_ARRAY(a, b) AS j FROM tc) d WHERE d.j LIKE '[%';
+a	j
+1	[1, "x"]
+2	[2, "y"]
+SELECT * FROM (SELECT a, JSON_OBJECT('k', a) AS j FROM tc) d
+WHERE d.j = '{"k": 1}';
+a	j
+1	{"k": 1}
+#
+#    A table definition holding a JSON expression is copied whole
+#    when the table is altered.
+#
+CREATE TABLE tv (a INT, j VARCHAR(64) AS (JSON_ARRAY(a)) VIRTUAL,
+CHECK (JSON_VALID(JSON_OBJECT('a', a))));
+INSERT INTO tv (a) VALUES (1), (2);
+ALTER TABLE tv ADD COLUMN c INT;
+SELECT * FROM tv ORDER BY a;
+a	j	c
+1	[1]	NULL
+2	[2]	NULL
+DROP TABLE tv;
+DROP TABLE tc;
