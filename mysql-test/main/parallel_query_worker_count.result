@@ -143,5 +143,40 @@ COUNT(*)	SUM(a)	SUM(b)
 SELECT COUNT(*), SUM(a), SUM(b) FROM t3;
 COUNT(*)	SUM(a)	SUM(b)
 1000	500500	1001000
-DROP TABLE t1, t2, t3, t4;
+#
+# A worker runs the whole join over its chunk, not only the scan, so the
+# cost of every table joined after the driving one is divided between the
+# workers as well. Costing only the driving table would overstate what the
+# plan costs and understate how much parallelism is worth, by exactly the
+# part of the join that follows the split table.
+#
+# t5 is the driving table and needs leaf pages enough for the workers asked
+# for; t6 is reached by eq_ref, once per row of t5.
+#
+CREATE TABLE t5 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t5 SELECT seq, seq % 100, seq FROM seq_1_to_20000;
+CREATE TABLE t6 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t6 SELECT seq, seq FROM seq_1_to_20000;
+ANALYZE TABLE t5, t6 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t5	analyze	status	Engine-independent statistics collected
+test.t5	analyze	status	OK
+test.t6	analyze	status	Engine-independent statistics collected
+test.t6	analyze	status	OK
+SET SESSION parallel_worker_threads= 0;
+SET @drive0= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[1]') AS DOUBLE);
+SET @inner0= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[2]') AS DOUBLE);
+SET SESSION parallel_worker_threads= 8;
+SET @drive8= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[1]') AS DOUBLE);
+SET @inner8= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[2]') AS DOUBLE);
+# expect 1 1 8: both tables are discounted, and the joined table by exactly
+# the worker count -- it is divided, where the driving table also carries the
+# per-row transport factor and the per-worker setup charge, so its own ratio
+# is not the worker count and is not checked here
+SELECT @drive8 < @drive0 AS driving_discounted,
+@inner8 < @inner0 AS joined_table_discounted,
+ROUND(@inner0 / @inner8) AS joined_divided_by;
+driving_discounted	joined_table_discounted	joined_divided_by
+1	1	8
+DROP TABLE t1, t2, t3, t4, t5, t6;
 SET SESSION parallel_worker_threads= @s;

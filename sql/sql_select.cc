@@ -8782,8 +8782,9 @@ struct best_plan
 
 /* Defined in sql_parallel_workers.cc */
 extern bool table_can_be_parallel_scanned(TABLE *table);
-extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
-                                         ALL_READ_COST *cost);
+extern uint scale_cost_for_parallel_scan(THD *thd, TABLE *table,
+                                        ALL_READ_COST *cost);
+extern uint parallel_join_divisor(const POSITION *positions, uint const_tables);
 
 
 void
@@ -8803,6 +8804,12 @@ best_access_path(JOIN      *join,
   TABLE *table= s->table;
   handler *file= table->file;
   my_bool found_constraint= 0;
+  /*
+    Set if the scan costed for the driving table was costed as a parallel one,
+    to the number of workers it was divided between. Recorded on the position
+    below, but only if that scan is what was finally chosen.
+  */
+  uint parallel_workers= 0;
   /*
     key_dependent is 0 if all key parts could be used or if there was an
     EQ_REF table found (which uses all key parts). In other words, we cannot
@@ -9975,7 +9982,7 @@ best_access_path(JOIN      *join,
       estimate is untouched.
     */
     if (type == JT_ALL && idx == join->const_tables)
-      scale_cost_for_parallel_scan(thd, table, &cost);
+      parallel_workers= scale_cost_for_parallel_scan(thd, table, &cost);
 
      /*
        Note: the condition checked here is very out of date and incorrect.
@@ -10126,6 +10133,20 @@ best_access_path(JOIN      *join,
   pos->records_out=  best.records_out;
   pos->identical_keys= best.identical_keys;
   pos->read_time=    best.cost;
+  pos->parallel_workers= (idx == join->const_tables && best.type == JT_ALL ?
+                          parallel_workers : 0);
+  if (idx > join->const_tables)
+  {
+    /*
+      A worker runs the whole join over its chunk, so this table's work is
+      divided between the workers exactly as the driving table's scan is. Applied
+      to the cost recorded for the plan and not while the access method was being
+      chosen just above, because dividing every candidate by the same number
+      cannot change which is cheapest.
+    */
+    if (const uint n= parallel_join_divisor(join_positions, join->const_tables))
+      pos->read_time/= (double) n;
+  }
   pos->key=          best.key;
   pos->forced_index= best.forced_index;
   pos->type=         best.type;

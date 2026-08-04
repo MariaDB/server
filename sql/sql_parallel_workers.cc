@@ -190,25 +190,75 @@ bool table_can_be_parallel_scanned(TABLE *table)
 /* Cost of starting one worker, in the optimizer's units of milliseconds. */
 #define PARALLEL_WORKER_SETUP_COST    0.022
 
-bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
+uint parallel_scan_worker_count(THD *thd, TABLE *table)
 {
   uint n= thd->variables.parallel_worker_threads;
   if (n < 2 ||                                   // disabled, or no speed-up
       !table_can_be_parallel_scanned(table))
-    return false;
+    return 0;
 
   /* No more workers than the engine will have chunks to give them. */
   if (const size_t chunks= table->file->pscan_chunk_count_estimate())
     set_if_smaller(n, (uint) chunks);
   if (n < 2)
-    return false;                    // one chunk: nothing to divide
+    return 0;                        // one chunk: nothing to divide
+  return n;
+}
+
+
+uint scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
+{
+  const uint n= parallel_scan_worker_count(thd, table);
+  if (!n)
+    return 0;
 
   const double factor= PARALLEL_SCAN_ROW_COST_FACTOR / (double) n;
   cost->row_cost.io  *= factor;
   cost->row_cost.cpu *= factor;
   cost->copy_cost    *= factor;
   cost->row_cost.cpu+= n * PARALLEL_WORKER_SETUP_COST;
-  return true;
+  return n;
+}
+
+
+/*
+  @brief
+    How much of a joined table's cost the workers divide between them.
+
+  @description
+    A worker does not only scan its chunk of the driving table: it runs the whole
+    join over that chunk, so the work of every table joined after the driving one
+    is divided between the workers just as the scan is. The optimizer costs those
+    tables one at a time, after the driving table's access has been chosen, so
+    this is asked once per table and answers with the divisor to apply to what
+    that table costs.
+
+    It is deliberately not applied while the access method for the table is being
+    chosen, only to the cost recorded for the plan. Dividing every candidate by
+    the same number cannot change which one is cheapest, so doing it earlier would
+    buy nothing and would risk changing a choice by scaling one candidate's cost
+    components and not another's. The driving table is the exception and is scaled
+    while its access is chosen, because there the division is what can make a full
+    scan worth more than an index -- which is a choice, and the point.
+
+  @param  positions     the plan prefix, whose first non-const entry is the
+                        driving table and carries the worker count that was used
+                        to scale it
+  @param  const_tables  index of the driving table in positions
+
+  @return the number of workers the join is being divided between, or 0 if this
+          plan's driving table is not being parallel-scanned and nothing is.
+*/
+
+uint parallel_join_divisor(const POSITION *positions, uint const_tables)
+{
+  const POSITION *driver= positions + const_tables;
+  /*
+    parallel_workers is only left non-zero when the access finally chosen for the
+    driving table was the scan that was costed as parallel, so there is nothing
+    further to check here: a driving table that ended up on an index carries 0.
+  */
+  return driver->parallel_workers;
 }
 
 
