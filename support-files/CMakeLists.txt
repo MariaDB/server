@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-# Copyright (c) 2012, 2022, MariaDB
+# Copyright (c) 2012, 2026, MariaDB plc
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -256,4 +256,10 @@ IF(UNIX AND NOT WITHOUT_SERVER)
                    WORKING_DIRECTORY \$ENV{DESTDIR}${prefix})"
                    COMPONENT SupportFiles)
   ENDIF(INSTALL_SYSCONFDIR)
+
+  FILE(READ ${CMAKE_SOURCE_DIR}/cmake/install_layout.cmake install_layout.cmake)
+  FILE(READ ${CMAKE_SOURCE_DIR}/cmake/plugin.cmake plugin.cmake)
+  CONFIGURE_FILE(mariadb-plugin-config.cmake.in mariadb-plugin-config.cmake @ONLY)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb-plugin-config.cmake DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/
+          COMPONENT Development)
 ENDIF()
