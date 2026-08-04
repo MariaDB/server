@@ -3377,6 +3377,46 @@ continue_j2:
 }
 
 
+/*
+  Says what is wrong with a document argument that was read only as far
+  as its first value, when anything is.
+
+  These two functions read a document argument no further than that.
+  What they compose comes out of that value and nothing else, so neither
+  text standing after it nor a break the reading never got as far as
+  reaches the answer, and neither has ever stopped an answer being
+  given.  What is there is still not a document, and every other JSON
+  function says so about the very same characters.
+
+  Saying so here takes nothing away, which is why it is a note.  A
+  warning becomes an error under a strict mode, and that would take away
+  an answer that has always been given back.  An argument the merging
+  broke off inside arrives here already refused, and is reported from
+  where it was refused: an engine that has been refused does not move
+  again, so carrying the reading on cannot relocate the complaint.
+
+  The reading is carried on from where the merging left off rather than
+  started again, so an argument with nothing after its value pays one
+  step and no more.  It is carried on over a copy, because a reading
+  done to find out whether to say something must not be the reason
+  anything else is said: the caller reports its own failures out of its
+  own engine, and this must leave that engine where it found it.
+*/
+static void report_json_trailing_note(const json_engine_t *je,
+                                      const String *js,
+                                      const char *fname, int n_param)
+{
+  json_engine_t tail= *je;
+
+  while (json_scan_next(&tail) == 0)
+    /* There is nothing left to compose from, only to read. */;
+
+  if (tail.s.error)
+    report_json_error_ex(js->ptr(), &tail, fname, n_param,
+                         Sql_condition::WARN_LEVEL_NOTE);
+}
+
+
 String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
@@ -3412,6 +3452,16 @@ String *Item_func_json_merge::val_str(String *str)
 
     if (do_merge(str, &je1, &je2))
       goto error_return;
+
+    /*
+      Both were read as far as their first value and no further.  Only
+      the first turn of the loop has a document argument on the left:
+      after it, the left is what this function itself composed, and
+      nothing stands after that.
+    */
+    if (n_arg == 1)
+      report_json_trailing_note(&je1, js1, func_name(), 0);
+    report_json_trailing_note(&je2, js2, func_name(), (int) n_arg);
 
     {
       /* Swap str and js1. */
@@ -3727,6 +3777,35 @@ String *Item_func_json_merge_patch::val_str(String *str)
     {
       if (json_read_value(&je2))
         goto error_return;
+
+      /*
+        Said before it is settled whether the argument goes into the
+        answer at all.  An object merged onto SQL NULL contributes
+        nothing and is dropped just below, and being dropped makes what
+        stands after it no more a document than it was; the very same
+        characters are spoken for in every other argument position.
+
+        Only the first value was read, so getting to the end of it comes
+        first here, where the merging below does it for itself.  A value
+        that cannot be got to the end of is one the merging will report
+        on in its own words; there is nothing to add to that.
+
+        Not asked at all of a value already attested to.
+        Being a document is a statement about the whole of it - a value
+        with anything standing after it is not one - so the walk could
+        only ever come back saying what is already known, and it is the
+        walk this whole exercise is about not making.  It is the one the
+        released server did not make either: it took the first value and
+        copied the rest in unread.
+      */
+      if (!args[n_arg]->is_valid_json())
+      {
+        json_engine_t adopted= je2;
+
+        if (json_value_scalar(&adopted) || !json_skip_level(&adopted))
+          report_json_trailing_note(&adopted, js2, func_name(), (int) n_arg);
+      }
+
       if (je2.value_type == JSON_VALUE_OBJECT)
         goto cont_point;
 
@@ -3739,6 +3818,7 @@ String *Item_func_json_merge_patch::val_str(String *str)
       */
       if (str->copy(js2->ptr(), js2->length(), js2->charset()))
         goto error_return;
+
       goto cont_point;
     }
 
@@ -3752,6 +3832,16 @@ String *Item_func_json_merge_patch::val_str(String *str)
 
     if (do_merge_patch(str, &je1, &je2, &empty_result))
       goto error_return;
+
+    /*
+      Both were read as far as their first value and no further.  Only
+      the first turn of the loop has a document argument on the left:
+      after it, the left is what this function itself composed, or a
+      document taken over, which was spoken for where it was taken.
+    */
+    if (n_arg == 1)
+      report_json_trailing_note(&je1, js1, func_name(), 0);
+    report_json_trailing_note(&je2, js2, func_name(), (int) n_arg);
 
     if (empty_result)
       str->append(STRING_WITH_LEN("null"));
