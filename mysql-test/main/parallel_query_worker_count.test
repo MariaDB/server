@@ -37,9 +37,23 @@ SELECT a, b FROM t1 WHERE b > 0;
 --source include/parallel_query_workers_per_query.inc
 
 --echo #
---echo # t2 spans many leaf pages, so the request is met in full
+--echo # Two workers is below the floor. Splitting a scan two ways saves less than
+--echo # the exchange between the workers and the manager costs -- measured at 0.59
+--echo # of the serial speed, and one worker at 0.36 -- so fewer than three is
+--echo # declined and the query runs serially, however many leaf pages the table
+--echo # has to divide.
 --echo #
 SET SESSION parallel_worker_threads= 2;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t2 WHERE b > 0;
+--enable_result_log
+--source include/parallel_query_workers_per_query.inc
+
+--echo #
+--echo # Three is the floor, and t2 spans leaf pages enough to meet it in full
+--echo #
+SET SESSION parallel_worker_threads= 3;
 FLUSH STATUS;
 --disable_result_log
 SELECT a, b FROM t2 WHERE b > 0;

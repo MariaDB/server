@@ -5,12 +5,16 @@
 #
 set @save_dbug=@@global.debug_dbug;
 set global debug_dbug="+d,pwt_error_to_queue_oom";
-set session parallel_worker_threads=1;
+set session parallel_worker_threads=4;
 # The prototype worker emits either a warning or my_error() depending on the
 # parity of its thread id. Either path runs through error_to_queue; the
 # DBUG injection forces both into the OOM branch, so neither the original
 # warning nor the original error reaches the user. We expect just the
-# manager-surfaced ER_OUTOFMEMORY warning.
+# manager-surfaced ER_OUTOFMEMORY warnings.
+#
+# Four workers rather than one: fewer than PARALLEL_QUERY_MIN_WORKERS are
+# declined and run serially, and then no worker reaches the injection at
+# all. Asking for one used to work and quietly stopped testing anything.
 create table t1 (a int) engine=innodb;
 insert into t1 select seq from seq_1_to_2000;
 select * from t1 where a > 1999;

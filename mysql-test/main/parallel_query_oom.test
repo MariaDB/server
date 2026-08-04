@@ -18,13 +18,17 @@
 
 set @save_dbug=@@global.debug_dbug;
 set global debug_dbug="+d,pwt_error_to_queue_oom";
-set session parallel_worker_threads=1;
+set session parallel_worker_threads=4;
 
 --echo # The prototype worker emits either a warning or my_error() depending on the
 --echo # parity of its thread id. Either path runs through error_to_queue; the
 --echo # DBUG injection forces both into the OOM branch, so neither the original
 --echo # warning nor the original error reaches the user. We expect just the
---echo # manager-surfaced ER_OUTOFMEMORY warning.
+--echo # manager-surfaced ER_OUTOFMEMORY warnings.
+--echo #
+--echo # Four workers rather than one: fewer than PARALLEL_QUERY_MIN_WORKERS are
+--echo # declined and run serially, and then no worker reaches the injection at
+--echo # all. Asking for one used to work and quietly stopped testing anything.
 create table t1 (a int) engine=innodb;
 # The table needs more leaf pages than one: the engine divides a table by
 # its B-tree and declines a table it cannot divide, so a two-row table runs

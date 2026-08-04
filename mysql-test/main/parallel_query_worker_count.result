@@ -16,13 +16,25 @@ SELECT a, b FROM t1 WHERE b > 0;
 ran_in_the_workers	workers_per_query
 0	NULL
 #
-# t2 spans many leaf pages, so the request is met in full
+# Two workers is below the floor. Splitting a scan two ways saves less than
+# the exchange between the workers and the manager costs -- measured at 0.59
+# of the serial speed, and one worker at 0.36 -- so fewer than three is
+# declined and the query runs serially, however many leaf pages the table
+# has to divide.
 #
 SET SESSION parallel_worker_threads= 2;
 FLUSH STATUS;
 SELECT a, b FROM t2 WHERE b > 0;
 ran_in_the_workers	workers_per_query
-1	2.0000
+0	NULL
+#
+# Three is the floor, and t2 spans leaf pages enough to meet it in full
+#
+SET SESSION parallel_worker_threads= 3;
+FLUSH STATUS;
+SELECT a, b FROM t2 WHERE b > 0;
+ran_in_the_workers	workers_per_query
+1	3.0000
 SET SESSION parallel_worker_threads= 8;
 FLUSH STATUS;
 SELECT a, b FROM t2 WHERE b > 0;

@@ -175,6 +175,23 @@ bool table_can_be_parallel_scanned(TABLE *table)
            table cannot be divided among two or more workers)
 */
 
+/*
+  Fewest workers worth using. Below this the parallel path is slower than the
+  serial one, and not marginally: measured on a release build, 4000000 rows,
+  scan bound by I/O, one worker runs at 0.36 of the serial speed and two at 0.59.
+  Three is where it crosses over -- 1.42 -- and it climbs to 1.74 at five, which
+  on the six-core machine it was measured on is one worker per core with the
+  manager taking the last.
+
+  The cause is not the scan. Every row a worker reads is copied into a batch,
+  handed over under a mutex and read again by the manager, which drains one
+  worker at a time; with one or two workers there is no slack in that exchange
+  and the manager and workers alternate rather than overlap. So this is a floor
+  on the number of workers, not on the size of the table, and it is a constant
+  because it is a property of the exchange rather than of the machine.
+*/
+#define PARALLEL_QUERY_MIN_WORKERS 3
+
 uint parallel_scan_worker_count(THD *thd, TABLE *table)
 {
   uint n= thd->variables.parallel_worker_threads;
@@ -1256,19 +1273,12 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
   if (const size_t chunks= file->pscan_chunk_count())
   {
     /*
-      One chunk is not a division of labour. The single worker would read the
+      One chunk is not a division of labour: the single worker would read the
       whole table by itself, which is a serial scan performed by another thread,
       plus a row copied into the batch buffer, a mutex handed over and a re-read
-      by the manager for every row of it -- measured at some 1.16 times the cost
-      of the serial reader. A table the engine cannot divide is a table for
-      which the serial path is simply better, so decline and let do_select()
-      take it.
-
-      This tests the chunk count and not the worker count. Those differ when
-      parallel_worker_threads is 1: the table divides, the user asked for one
-      worker, and one worker on a table that divides is theirs to ask for -- it
-      is not even always slower, since the worker's scan overlaps the manager's
-      sending of the rows it has already produced.
+      by the manager for every row of it. A table the engine cannot divide is a
+      table for which the serial path is simply better, so decline and let
+      do_select() take it.
     */
     if (chunks < 2)
     {
@@ -1276,6 +1286,23 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
       return HA_ERR_UNSUPPORTED;
     }
     set_if_smaller(n, (uint) chunks);
+  }
+
+  /*
+    And decline if what is left is too few workers to be worth the exchange. The
+    count tested is the one after the clamp, because a table that divides only
+    two ways gives two workers however many were asked for.
+
+    This used to say that one worker was the user's to ask for and was not even
+    reliably slower, on the grounds that the worker's scan overlaps the manager's
+    sending. Measured on a release build, one worker runs at 0.36 of the serial
+    speed and two at 0.59, so that reasoning was wrong -- it came from a debug
+    build, where the scan is inflated enough to hide the exchange.
+  */
+  if (n < PARALLEL_QUERY_MIN_WORKERS)
+  {
+    file->pscan_end_coordinator();
+    return HA_ERR_UNSUPPORTED;
   }
 
   workers= (pwt_worker *) my_malloc(key_memory_pwt_workers,
