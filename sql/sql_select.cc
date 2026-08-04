@@ -8785,6 +8785,8 @@ extern bool table_can_be_parallel_scanned(TABLE *table);
 extern uint scale_cost_for_parallel_scan(THD *thd, TABLE *table,
                                         ALL_READ_COST *cost);
 extern uint parallel_join_divisor(const POSITION *positions, uint const_tables);
+extern double parallel_query_drain_cost(THD *thd, const POSITION *positions,
+                                        uint const_tables, double rows);
 
 
 void
@@ -10771,6 +10773,16 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     record_count= current_record_count;
   }
 
+  /*
+    What the manager spends draining the rows this plan produces. Serial: no
+    number of workers reduces it, which is why it is added here rather than
+    divided anywhere.
+  */
+  read_time= COST_ADD(read_time,
+                      parallel_query_drain_cost(thd, join->positions,
+                                                join->const_tables,
+                                                record_count));
+
   if (join->sort_by_table &&
       join->sort_by_table != join->positions[join->const_tables].table->table)
   {
@@ -12526,6 +12538,13 @@ best_extension_by_limited_search(JOIN      *join,
           'join' is either the best partial QEP with 'search_depth' relations,
           or the best complete QEP so far, whichever is smaller.
         */
+        /* The manager's serial drain of this plan's rows; see hook above. */
+        current_read_time=
+          COST_ADD(current_read_time,
+                   parallel_query_drain_cost(thd, join->positions,
+                                             join->const_tables,
+                                             current_record_count));
+
         if (join->sort_by_table &&
             join->sort_by_table !=
             join->positions[join->const_tables].table->table)

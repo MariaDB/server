@@ -86,20 +86,25 @@
 #define DEFAULT_PARALLEL_QUERY_SETUP_COST  ((double) 0.022)
 
 /*
-  What a row costs a parallel scan relative to a serial one, as a multiplier on
-  the scan's per-row cost. Above 1 because a row read by a worker is copied into
-  a batch, handed over under a mutex and read again by the manager, where a
-  serial scan reads it once. Dimensionless, so unlike the costs it is not scaled
-  by COST_ADJUST.
+  What the manager spends per row that reaches it, on the one thread it has.
+  Every row a worker keeps is copied into a batch, handed over under a mutex and
+  read out again by the manager, which drains one worker at a time. None of that
+  divides between the workers, so this is the part of a parallel scan that more
+  workers cannot make cheaper.
 
-  1.16 was measured on a release build with a scan whose WHERE is cheap, before
-  chunks were split (Parallel_reader::Ctx::split()). Re-measuring afterwards gave
-  a figure below 1 in the better of the two regimes the same query alternates
-  between, so this is the conservative end of a range rather than a value: it
-  keeps the estimate from claiming a per-row saving that may not be there. A
-  query doing more work per row amortises the transport and sees less either way.
+  Measured on a release build at 29.6 ns per row, and the same figure came out of
+  a scan bound by I/O and a scan resident in the buffer pool, which is what says
+  it is the exchange being measured and not the read. It is charged on the rows
+  that reach the manager -- the join's output -- and not on the rows scanned,
+  because a row the WHERE rejects never crosses.
+
+  Two things it does not yet account for. The row is copied, so a wider row should
+  cost more, and this was measured on a narrow one. And a query whose terminal is
+  more than a send -- a GROUP BY probing an aggregation temp table, say -- adds its
+  own serial cost on top, which the optimizer already accounts for separately and
+  which must simply not be divided.
 */
-#define DEFAULT_PARALLEL_QUERY_ROW_COST_RATIO ((double) 1.16)
+#define DEFAULT_PARALLEL_QUERY_DRAIN_ROW_COST ((double) 2.96e-05)
 
 /* The cost of comparing a key when using range access or sorting */
 #define DEFAULT_KEY_COMPARE_COST       0.000011361

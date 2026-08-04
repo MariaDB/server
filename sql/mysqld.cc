@@ -5449,10 +5449,11 @@ static int init_server_components()
       Every COST_ADJUST(1000) variable needs a line here: the startup path stores
       the option default in the units the user gives it in and this is what
       converts it, where SET goes through Sys_var_optimizer_cost::*_update() and
-      converts itself. parallel_query_row_cost_ratio is a ratio with
-      COST_ADJUST(1) and must not be converted.
+      converts itself. A variable with COST_ADJUST(1) is used as given and must
+      not appear here.
     */
     us_to_ms(global_system_variables.parallel_query_setup_cost);
+    us_to_ms(global_system_variables.parallel_query_drain_row_cost);
   }
 
   /*

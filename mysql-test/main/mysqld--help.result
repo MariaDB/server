@@ -1005,12 +1005,12 @@ The following specify which files/extra groups are read (specified before remain
  Cost of checking the row against the WHERE clause.
  Increasing this will have the optimizer to prefer plans
  with less row combinations
- --parallel-query-row-cost-ratio=# 
- What a row costs a parallel scan relative to a serial
- one: a worker copies the row into a batch, hands it over
- and the manager reads it again, where a serial scan reads
- it once. Increasing this will have the optimizer prefer a
- serial scan
+ --parallel-query-drain-row-cost=# 
+ What the manager spends on each row a worker sends it:
+ the row is copied into a batch, handed over and read out
+ again, on the manager's single thread. More workers do
+ not divide this. Increasing it will have the optimizer
+ prefer a serial scan for queries that return many rows
  --parallel-query-setup-cost=# 
  Cost of starting one parallel query worker thread.
  Increasing this will have the optimizer prefer fewer
@@ -2005,7 +2005,7 @@ optimizer-trace
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 optimizer-where-cost 0.032
-parallel-query-row-cost-ratio 1.16
+parallel-query-drain-row-cost 0.0296
 parallel-query-setup-cost 22
 parallel-worker-threads 0
 path CURRENT_SCHEMA

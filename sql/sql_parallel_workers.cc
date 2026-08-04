@@ -215,17 +215,55 @@ uint scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
     return 0;
 
   /*
-    Both factors are session variables rather than constants because they are
-    measured quantities, and measuring them wants sweeping them without a
-    rebuild: parallel_query_row_cost_ratio and parallel_query_setup_cost.
+    The scan itself divides: n workers read a chunk each. ALL_READ_COST holds
+    totals for reading the table rather than per-row figures, so this is a plain
+    division.
+
+    What does not divide is what the manager then does with the rows, and that is
+    not costed here -- it depends on how many rows survive the whole join, which
+    is not known while a single table's access is being chosen. See
+    parallel_query_drain_cost(), called once the join order is costed.
   */
-  const double factor= thd->variables.parallel_query_row_cost_ratio /
-                       (double) n;
-  cost->row_cost.io  *= factor;
-  cost->row_cost.cpu *= factor;
-  cost->copy_cost    *= factor;
+  cost->row_cost.io  /= (double) n;
+  cost->row_cost.cpu /= (double) n;
+  cost->copy_cost    /= (double) n;
   cost->row_cost.cpu+= n * thd->variables.parallel_query_setup_cost;
   return n;
+}
+
+
+/*
+  @brief
+    What the manager spends draining a plan's rows, which no number of workers
+    reduces.
+
+  @description
+    Every row that survives the join is copied into a batch by the worker that
+    produced it, handed over under a mutex, and read out again by the manager,
+    which drains one worker at a time. That work is serial: it happens on the one
+    thread whatever the workers are doing, and it is the reason a parallel scan
+    stops getting faster well before it runs out of workers.
+
+    Charged on the rows the join produces rather than on the rows the driving
+    table scans, because those differ as soon as there is a join to fan out or
+    filter, and it is the rows reaching the manager that are copied.
+
+    Asked once, where the join order's cost is complete, next to where a sort of
+    the result is costed. The consequence is that the driving table's own access
+    decision does not see this term -- a parallel scan is compared against an
+    index for that table without it -- which is the same approximation the sort
+    cost already makes, and is second order beside charging it on the wrong row
+    count.
+
+  @return the cost to add to the plan, or 0 if this plan is not parallel.
+*/
+
+double parallel_query_drain_cost(THD *thd, const POSITION *positions,
+                                 uint const_tables, double rows)
+{
+  if (!positions[const_tables].parallel_workers)
+    return 0.0;
+  return rows * thd->variables.parallel_query_drain_row_cost;
 }
 
 

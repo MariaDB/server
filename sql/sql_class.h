@@ -789,7 +789,7 @@ typedef struct system_variables
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
   /* Parallel query cost factors, see scale_cost_for_parallel_scan() */
-  double parallel_query_setup_cost, parallel_query_row_cost_ratio;
+  double parallel_query_setup_cost, parallel_query_drain_row_cost;
   double log_slow_query_time_double, max_statement_time_double;
   double log_slow_always_query_time_double;
   double sample_percentage;
