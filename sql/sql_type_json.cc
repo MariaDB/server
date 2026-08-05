@@ -118,6 +118,38 @@ bool Type_handler_json_common::has_json_valid_constraint(const Field *field)
 
 
 /**
+   Whether a check constraint asks nothing but whether one particular
+   column holds a document, that column being the one the constraint
+   belongs to.
+
+   has_json_valid_constraint() above deliberately does not ask WHICH column
+   the constraint reads: CHECK(json_valid(other_column)) types this column
+   as JSON, and has done for as long as the type has existed.  Leaving the
+   check unrun needs the stronger question, because what was written into
+   this column says nothing about what is in another one, and that question
+   is the one asked here.
+*/
+
+bool Type_handler_json_common::is_json_valid_of_field(Virtual_column_info *check,
+                                                      const Field *field)
+{
+  Item_func *func;
+  Item *arg;
+
+  if (!check || check->get_vcol_type() != VCOL_CHECK_FIELD ||
+      !check->expr || check->expr->type() != Item::FUNC_ITEM)
+    return false;
+  func= static_cast<Item_func *>(check->expr);
+  if (func->functype() != Item_func::JSON_VALID_FUNC ||
+      func->argument_count() != 1)
+    return false;
+  arg= func->arguments()[0]->real_item();
+  return arg->type() == Item::FIELD_ITEM &&
+         static_cast<Item_field *>(arg)->field == field;
+}
+
+
+/**
    Create JSON_VALID(field_name) expression
 */
 

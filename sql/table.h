@@ -1355,6 +1355,31 @@ public:
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* On INSERT: fields that the user specified a value for */
   MY_BITMAP	has_value_set;
+  /*
+    Fields whose bytes in record[0] were written from an Item that answered
+    is_valid_json(), by a store that kept every character of it.  A
+    json_valid() check over such a field can only find out what is already
+    known, so verify_constraints() leaves it unread.
+
+    The bits last one row image and no longer.  verify_constraints() reads
+    them and clears the whole bitmap on every way out of itself, and
+    TABLE::init() clears it at the start of a statement.  Whatever writes
+    record[0] without setting a bit therefore leaves it clear, and the
+    check runs - which is what every writer other than the three store
+    sites does.
+  */
+  MY_BITMAP	is_valid_json_set;
+  /*
+    Whether any column of this table carries a check that asks nothing but
+    whether that same column holds a document - which is the only thing the
+    bitmap above is ever read for.
+
+    Worked out once, where the checks are worked out, because the writers
+    would otherwise ask a field about every column of every row on the
+    chance that one of them was constrained.  Where no column is, no bit
+    can ever be set and nothing reads one.
+  */
+  bool          has_own_json_valid_check;
 
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1623,6 +1648,45 @@ public:
   void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  /*
+    The constraint loop alone.  Call verify_constraints() instead: it is
+    what clears is_valid_json_set afterwards, and every way out of this
+    one leaves the marks standing.
+  */
+  int run_check_constraints(bool ignore_failure);
+  /*
+    Take back whatever was said about the bytes standing in record[0].
+
+    Asked only of a table some column of which carries a check that could
+    read a mark.  Where none does no bit can ever be set, and the writers
+    below run on every row of every table in the instance: the guard is
+    what keeps a bitmap nothing ever reads from being walked by all of
+    them.
+  */
+  void clear_is_valid_json_marks()
+  {
+    if (has_own_json_valid_check)
+      bitmap_clear_all(&is_valid_json_set);
+  }
+  /*
+    Put a whole row image into record[0].  This is what restore_record()
+    does, and the reason it is a method rather than the memcpy it reads
+    as.
+
+    Whatever replaces a row image wholesale leaves nothing that was said
+    about the one before it still true, and the list of places that do it
+    is open where the list of places that say something is closed.  Naming
+    them one at a time is how one gets missed, and a missed one is a check
+    that quietly stops being run.
+  */
+  void restore_record_image(const uchar *from)
+  {
+    memcpy(record[0], from, (size_t) s->reclength);
+    clear_is_valid_json_marks();
+  }
+#ifndef DBUG_OFF
+  void check_json_valid_mark(Virtual_column_info *check);
+#endif
   void free_engine_stats();
   void update_engine_independent_stats();
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)

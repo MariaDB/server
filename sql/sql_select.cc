@@ -20781,6 +20781,9 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->has_value_set,
                  (my_bitmap_map*) bitmaps, field_count);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&table->is_valid_json_set,
+                 (my_bitmap_map*) bitmaps, field_count);
   /* write_set and all_set are copies of read_set */
   table->def_write_set= table->def_read_set;
   table->s->all_set= table->def_read_set;

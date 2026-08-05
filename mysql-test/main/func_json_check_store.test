@@ -1,0 +1,249 @@
+--echo #
+--echo # What a check constraint has to read for itself, whatever wrote the
+--echo # value.
+--echo #
+--echo # A value that arrived from something that attested to it is only
+--echo # the value the check will read if TWO things hold: the store put
+--echo # those same characters in the row and nothing has written over them
+--echo # since.  Every case below is one where one of the two fails, and
+--echo # the check has to read the row for itself.
+--echo #
+--echo # These answers are what a released server gives.  A value getting
+--echo # in here that reads back as not a document is a value that got past
+--echo # the constraint declaring it must be one.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. Stores that do not put down the characters they were given.
+--echo #
+
+--echo # BINARY pads with NUL, and the padding is part of what is stored
+CREATE TABLE t1 (b BINARY(20) CHECK (JSON_VALID(b)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+DROP TABLE t1;
+
+--echo # CHAR pads too, with spaces, which are not read back
+CREATE TABLE t1 (c CHAR(20) CHECK (JSON_VALID(c)));
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES ('not a document');
+SELECT c, JSON_VALID(c) AS reads_as_a_document FROM t1;
+DROP TABLE t1;
+
+--echo # ENUM keeps the member it matched, not the text it was given
+CREATE TABLE t1 (e ENUM('True','banana') CHECK (JSON_VALID(e)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_COMPACT('true'));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_COMPACT('2'));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+DROP TABLE t1;
+
+--echo # SET the same
+CREATE TABLE t1 (s SET('True','1') CHECK (JSON_VALID(s)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_COMPACT('true'));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+DROP TABLE t1;
+
+--echo # a column that DOES put down what it was given takes the document
+CREATE TABLE t1 (v VARCHAR(64) CHECK (JSON_VALID(v)),
+                 t LONGTEXT CHECK (JSON_VALID(t)));
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), JSON_ARRAY(1, 2));
+SELECT v, t FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # 2. A stored generated column is written twice: once from what was
+--echo # given, and again from its own expression, which is what stays.
+--echo #
+
+SET @sql_mode_saved = @@sql_mode;
+SET @@sql_mode = '';
+CREATE TABLE t1 (a VARCHAR(20), j LONGTEXT AS (a) STORED CHECK (JSON_VALID(j)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 (a, j) VALUES ('not a document', JSON_OBJECT('k', 1));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+--echo # and the value the expression does produce is taken
+INSERT INTO t1 (a, j) VALUES ('{"k":1}', JSON_OBJECT('k', 1));
+SELECT a, j FROM t1;
+--echo # the same on update
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET a = 'not a document';
+SELECT a, j FROM t1;
+DROP TABLE t1;
+SET @@sql_mode = @sql_mode_saved;
+
+--echo #
+--echo # 3. A row whose writing ends before the check is reached leaves
+--echo # nothing behind for the NEXT row to be read with.
+--echo #
+
+--echo # an update where one row comes out exactly as it went in
+CREATE TABLE t1 (id INT PRIMARY KEY, b INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, 1, JSON_OBJECT('k', 1));
+SET @@check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (2, 0, 'not a document');
+SET @@check_constraint_checks = ON;
+DELIMITER |;
+CREATE TRIGGER t1t BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF OLD.id = 1 THEN SET NEW.j = JSON_OBJECT('k', 1); END IF;
+END|
+DELIMITER ;|
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET b = b + (id = 2);
+SELECT id, b, j FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo # an insert through a view whose own check refuses the row first
+CREATE TABLE t1 (id INT PRIMARY KEY, b INT,
+                 j VARCHAR(64) DEFAULT 'not a document'
+                   CHECK (JSON_VALID(j)));
+CREATE VIEW v1 AS SELECT id, b, j FROM t1 WHERE b > 0 WITH CHECK OPTION;
+DELIMITER |;
+CREATE TRIGGER t1t BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF NEW.id = 1 THEN SET NEW.j = JSON_OBJECT('k', 1); END IF;
+END|
+DELIMITER ;|
+INSERT IGNORE INTO v1 (id, b) VALUES (1, 0), (2, 1);
+SELECT id, b, j FROM t1 ORDER BY id;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # 4. A row written twice over, where the SECOND writing does not
+--echo # touch the column at all.
+--echo #
+--echo # The first writing puts a document there and attests to it; the
+--echo # old row's bytes are then put back, and the update clause leaves
+--echo # the column alone.  What the check reads is the old bytes, which
+--echo # nothing has attested.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+SET @@check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (1, 0, 'not a document');
+SET @@check_constraint_checks = ON;
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, 1, JSON_OBJECT('x', 1))
+  ON DUPLICATE KEY UPDATE a = 1;
+SELECT id, a, j FROM t1 ORDER BY id;
+--echo # and where the update clause DOES write the column, it is read the
+--echo # ordinary way
+INSERT INTO t1 VALUES (1, 2, JSON_OBJECT('x', 1))
+  ON DUPLICATE KEY UPDATE j = JSON_OBJECT('y', 2);
+SELECT id, a, j FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 5. Stores that put down every byte they were given and call them
+--echo # by another name.
+--echo #
+--echo # A binary column takes the bytes of a document written in some
+--echo # other character set exactly as they stand, and a column in some
+--echo # other set takes the bytes of a binary one the same way.  Neither
+--echo # writes the characters again, so what the row holds is not the
+--echo # characters that were attested, and the check has to read it.
+--echo #
+
+--echo # a document written in a wide set, into a binary column
+CREATE TABLE t1 (j BLOB CHECK (JSON_VALID(j)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (CONVERT(JSON_OBJECT('a', 1) USING ucs2));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (CONVERT(JSON_ARRAY(1, 2) USING utf16));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+--echo # the same documents in a set the column can take go in
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)), (JSON_ARRAY(1, 2));
+SELECT j FROM t1;
+DROP TABLE t1;
+
+--echo # a binary document, into a column written in a wide set
+CREATE TABLE t1 (j TEXT CHARACTER SET ucs2 CHECK (JSON_VALID(j)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_ARRAY(_binary'ab'));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_OBJECT(_binary'k', 1));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+DROP TABLE t1;
+
+--echo # a store that does write the characters again, in the column's
+--echo # own set, keeps the document
+CREATE TABLE t1 (j TEXT CHARACTER SET latin1 CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)), (JSON_ARRAY(1, 2));
+SELECT j FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # 6. A row split in two by an update over part of its period.  Such
+--echo # an update writes the pieces of the old row that the period does
+--echo # not cover as new rows, and it writes them by putting the saved
+--echo # copy of the row back into the buffer the checks read.  Anything
+--echo # said about what stood there before is about the value the update
+--echo # wrote, not the one just restored, so it goes with the row it was
+--echo # about.
+--echo #
+--echo # A trigger is what makes the difference visible: it writes the
+--echo # document column while the piece is being made, so the check has
+--echo # something to catch.
+--echo #
+
+CREATE TABLE t1 (id INT,
+                 j VARCHAR(64) CHECK (JSON_VALID(j)),
+                 s DATE, e DATE, PERIOD FOR apptime(s,e)) CHARSET utf8mb4;
+INSERT INTO t1 (id, j, s, e)
+       VALUES (1, '{"a":1}', '1999-01-01', '2018-12-12'),
+              (2, '[1,2]',   '1999-01-01', '2018-12-12');
+
+UPDATE t1 FOR PORTION OF apptime FROM '2000-01-01' TO '2018-01-01'
+       SET id= id + 5;
+--sorted_result
+SELECT id, j, JSON_TYPE(j) AS ty, s, e FROM t1;
+
+--echo # the same split with the pieces given documents of their own
+CREATE TABLE t2 (id INT,
+                 j VARCHAR(64) CHECK (JSON_VALID(j)),
+                 s DATE, e DATE, PERIOD FOR apptime(s,e)) CHARSET utf8mb4;
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+  SET NEW.j = JSON_INSERT(NEW.j, '$.piece', NEW.id);
+INSERT INTO t2 (id, j, s, e)
+       VALUES (1, '{"a":1}', '1999-01-01', '2018-12-12'),
+              (2, '{"b":2}', '1999-01-01', '2018-12-12');
+UPDATE t2 FOR PORTION OF apptime FROM '2000-01-01' TO '2018-01-01'
+       SET id= id + 5;
+--sorted_result
+SELECT id, j, JSON_TYPE(j) AS ty, s, e FROM t2;
+
+--echo # the row the update itself writes is checked as any other row is,
+--echo # and it is written after the pieces have been, so what the pieces
+--echo # left behind must not be believed of it: a portion set to
+--echo # something that is not a document is refused
+CREATE TABLE t3 (id INT,
+                 j VARCHAR(64) CHECK (JSON_VALID(j)),
+                 s DATE, e DATE, PERIOD FOR apptime(s,e)) CHARSET utf8mb4;
+CREATE TRIGGER t3_bi BEFORE INSERT ON t3 FOR EACH ROW
+  SET NEW.j = JSON_INSERT(NEW.j, '$.piece', NEW.id);
+INSERT INTO t3 (id, j, s, e)
+       VALUES (1, '{"a":1}', '1999-01-01', '2018-12-12'),
+              (2, '{"b":2}', '1999-01-01', '2018-12-12');
+--error ER_CONSTRAINT_FAILED
+UPDATE t3 FOR PORTION OF apptime FROM '2000-01-01' TO '2018-01-01'
+       SET j= 'not a document';
+--sorted_result
+SELECT id, j, s, e FROM t3;
+
+--echo # and one set to a document goes in
+UPDATE t3 FOR PORTION OF apptime FROM '2000-01-01' TO '2018-01-01'
+       SET j= JSON_OBJECT('portion', id);
+--sorted_result
+SELECT id, j, JSON_TYPE(j) AS ty, s, e FROM t3;
+
+DROP TABLE t3, t2, t1;

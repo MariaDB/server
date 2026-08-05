@@ -10452,6 +10452,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   field->table->copy_blobs= copy_blobs_saved;
   field->set_has_explicit_value();
+  if (field->table->has_own_json_valid_check)
+    field->set_is_valid_json(item, err_code);
 
   return err_code < 0;
 }
