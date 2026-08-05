@@ -612,7 +612,8 @@ Package: mariadb-server-10.6
 Architecture: any
 Suggests: mariadb-test,
           netcat-openbsd
-Recommends: libhtml-template-perl
+Recommends: libhtml-template-perl,
+            stunnel
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
