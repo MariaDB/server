@@ -489,6 +489,93 @@ set optimizer_replay_context='';
 SELECT a, b, v FROM t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-40553: unprintable gis ranges in trace and context
+--echo #
+CREATE TABLE t1 (
+  id INT,
+  g GEOMETRY NOT NULL,
+  KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+
+set optimizer_replay_context='opt_context';
+
+--echo # The ranges must match the recorded ones, so no warning is produced
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo # The same, replayed from the context read straight out of
+--echo # INFORMATION_SCHEMA.OPTIMIZER_CONTEXT rather than from the script.
+--echo # The literal in the script must read back as the JSON itself, so
+--echo # both ways of getting at it produce the same ranges.
+CREATE TABLE t1 (
+  id INT,
+  g GEOMETRY NOT NULL,
+  KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+set @opt_context=
+    (select REGEXP_SUBSTR(
+         context,
+         '(?<=set @opt_context=\')([\n\r].*)*(?=\';#opt_context_ends)')
+         from information_schema.optimizer_context);
+set optimizer_record_context=0;
+set optimizer_replay_context='opt_context';
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+set optimizer_replay_context='';
+drop table t1;
+
+--echo #
+--echo # A key value may hold a single quote (0x27). It must not end the
+--echo # string literal that carries the context in the recorded script.
+--echo #
+create table t1 (a varbinary(10), key a_idx(a)) engine=myisam;
+insert into t1 values
+  (0x2700),(0x2701),(0x2702),(0x2703),(0x2704),(0x2705),(0x2706),(0x2707);
+analyze table t1;
+
+set optimizer_record_context=1;
+explain select * from t1 where a=0x2700 or a=0x2701 or a=0x2702 or a=0x2703;
+set @opt_context=
+    (select REGEXP_SUBSTR(
+         context,
+         '(?<=set @opt_context=\')([\n\r].*)*(?=\';#opt_context_ends)')
+         from information_schema.optimizer_context);
+set optimizer_record_context=0;
+--echo # The quote is recorded as its JSON escape:
+select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.ranges')) as ranges_in_ctx;
+set optimizer_replay_context='opt_context';
+explain select * from t1 where a=0x2700 or a=0x2701 or a=0x2702 or a=0x2703;
+set optimizer_replay_context='';
+drop table t1;
+
 --echo # End of 13.1 tests
 
 drop database db1;

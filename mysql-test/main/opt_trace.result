@@ -13845,6 +13845,306 @@ select json_valid(@trace);
 json_valid(@trace)
 1
 drop table t1;
+#
+# MDEV-40553: unprintable gis ranges in trace and context
+#
+create table t1 (
+id int,
+g1 geometry not null,
+g2 geometry,
+key k_prefix (g1(5)),
+key k_full (g1(200)),
+key k_null (g2(200))
+) engine=myisam;
+insert into t1 select seq, point(seq, seq), point(seq, seq) from seq_1_to_5;
+insert into t1 values (6, point(6,6), NULL);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# The index holds the whole value.
+# It is printed as a binary string, like any other BLOB prefix.
+explain
+select id from t1 force index (k_full) where g1=point(2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	k_full	k_full	202	const	1	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "k_full",
+            "ranges": 
+            ["(\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@) <= (g1) <= (\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@)"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 1,
+            "cost": 0.002574553,
+            "chosen": true
+        }
+    ]
+]
+# multiple ranges
+explain 
+select id from t1 force index (k_full)
+where g1=point(3,3) or g1=linestring(point(1,1), point(2,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_full	k_full	202	NULL	2	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "k_full",
+            "ranges": 
+            [
+                "(\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08@\\x00\\x00\\x00\\x00\\x00\\x00\\x08@) <= (g1) <= (\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08@\\x00\\x00\\x00\\x00\\x00\\x00\\x08@)",
+                "(\\x00\\x00\\x00\\x00\\x01\\x02\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@) <= (g1) <= (\\x00\\x00\\x00\\x00\\x01\\x02\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@)"
+            ],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 2,
+            "cost": 0.004394164,
+            "chosen": true
+        }
+    ]
+]
+# NULL values and multiple ranges
+explain 
+select id from t1 force index (k_null)
+where g2=point(3,3) or g2 is null or g2=linestring(point(1,1), point(2,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_null	k_null	203	NULL	3	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "k_null",
+            "ranges": 
+            [
+                "(NULL) <= (g2) <= (NULL)",
+                "(\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08@\\x00\\x00\\x00\\x00\\x00\\x00\\x08@) <= (g2) <= (\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08@\\x00\\x00\\x00\\x00\\x00\\x00\\x08@)",
+                "(\\x00\\x00\\x00\\x00\\x01\\x02\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@) <= (g2) <= (\\x00\\x00\\x00\\x00\\x01\\x02\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\xF0?\\x00\\x00\\x00\\x00\\x00\\x00\\x00@\\x00\\x00\\x00\\x00\\x00\\x00\\x00@)"
+            ],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 3,
+            "cost": 0.006213775,
+            "chosen": true
+        }
+    ]
+]
+# The index holds only a prefix of the value.
+# It is printed as a binary string, like any other BLOB prefix.
+explain
+select id from t1 force index (k_prefix) where g1=point(2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	k_prefix	k_prefix	7	const	6	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "k_prefix",
+            "ranges": 
+            ["(\\x00\\x00\\x00\\x00\\x01) <= (g1) <= (\\x00\\x00\\x00\\x00\\x01)"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 6,
+            "cost": 0.008743898,
+            "chosen": true
+        }
+    ]
+]
+drop table t1;
+#
+# A SPATIAL index stores the MBR of the value. It is printed as the
+# WKT of the MBR together with the spatial relation the range uses.
+#
+create table t2 (
+id int,
+g geometry not null,
+spatial key (g)
+) engine=myisam;
+insert into t2 select seq, point(seq, seq) from seq_1_to_20;
+insert into t2 values
+(21, geomfromtext('LINESTRING(0 0, 5 8)')),
+(22, geomfromtext('POLYGON((0 0, 0 3, 3 3, 3 0, 0 0))'));
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# mbrcontains(value, column)
+explain
+select id from t2 where mbrcontains(geomfromtext('POLYGON((0 0,0 3,3 3,3 0,0 0))'), g);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRWITHIN (POLYGON((0 0,3 0,3 3,0 3,0 0)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 4,
+            "cost": 0.00627616,
+            "chosen": true
+        }
+    ]
+]
+# mbrwithin(column, value)
+explain
+select id from t2 where mbrwithin(g, geomfromtext('LINESTRING(1 1, 9 12)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	9	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRWITHIN (POLYGON((1 1,9 1,9 12,1 12,1 1)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 9,
+            "cost": 0.012445505,
+            "chosen": true
+        }
+    ]
+]
+# The other spatial relations
+explain
+select id from t2 where mbrcontains(g, geomfromtext('POINT(2 2)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	3	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRCONTAINS (POLYGON((2 2,2 2,2 2,2 2,2 2)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 3,
+            "cost": 0.005042291,
+            "chosen": true
+        }
+    ]
+]
+explain
+select id from t2 where mbrequals(g, geomfromtext('POINT(7 7)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	1	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBREQUALS (POLYGON((7 7,7 7,7 7,7 7,7 7)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 1,
+            "cost": 0.002574553,
+            "chosen": true
+        }
+    ]
+]
+explain
+select id from t2 where mbrintersects(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 4,
+            "cost": 0.00627616,
+            "chosen": true
+        }
+    ]
+]
+# mbrtouches/mbroverlaps all use the mbrintersects relation
+explain
+select id from t2 where mbrtouches(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 4,
+            "cost": 0.00627616,
+            "chosen": true
+        }
+    ]
+]
+explain
+select id from t2 where mbroverlaps(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g",
+            "ranges": 
+            ["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"],
+            "rowid_ordered": false,
+            "using_mrr": false,
+            "index_only": false,
+            "rows": 4,
+            "cost": 0.00627616,
+            "chosen": true
+        }
+    ]
+]
+explain
+select id from t2 where mbrdisjoint(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	g	NULL	NULL	NULL	22	Using where
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as rsa from information_schema.optimizer_trace;
+rsa
+[
+    [
+        {
+            "index": "g"
+        }
+    ]
+]
+drop table t2;
+# End of 13.1 tests
 set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;

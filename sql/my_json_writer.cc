@@ -525,9 +525,13 @@ void Single_line_formatting_helper::disable_and_flush()
     }
     else
     {
-      //if (nr == 1)
-      //  owner->start_array();
-      owner->add_str(str, len);
+      /*
+        The buffer holds the values as they were passed to
+        Json_writer::add_escaped_str(), that is, already escaped. Print them
+        as-is, the way flush_on_one_line() does. Passing them through
+        Json_writer::add_str() here would escape them a second time.
+      */
+      owner->add_escaped_str(str, len);
     }
     
     nr++;
