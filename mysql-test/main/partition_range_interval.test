@@ -880,7 +880,9 @@ show create table t1;
 set timestamp= unix_timestamp('2026-05-06 00:00:00');
 lock tables v1 write;
 update v1 set c= date_add(c, interval 3 day);
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 show create table t1;
 unlock tables;
 
@@ -915,7 +917,9 @@ set timestamp= unix_timestamp('2026-05-06 03:00:00');
 lock tables t1 write;
 execute s;
 execute s;
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 show create table t1;
 unlock tables;
 drop prepare s;
@@ -931,7 +935,9 @@ lock tables t1 write;
 call sp;
 set timestamp= unix_timestamp('2026-05-10 05:00:00');
 call sp;
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 show create table t1;
 unlock tables;
 drop procedure sp;
@@ -960,7 +966,10 @@ end|
 delimiter ;|
 
 --disable_ps_protocol
+# Service connection timestamp is still whatever the actual time is
+--disable_view_protocol
 select * from t2 where d = f(42);
+--enable_view_protocol
 --enable_ps_protocol
 select * from t1;
 SHOW CREATE TABLE t1;
