@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 --echo #
 --echo # MDEV-40610: an unescaped column DEFAULT string must not inject DuckDB SQL
