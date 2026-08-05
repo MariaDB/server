@@ -1,0 +1,78 @@
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1, REPEAT('x', 4000));
+CREATE TABLE t2 (a INT) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (1),(2),(3),(4);
+connect  reader,localhost,root,,test;
+connect  writer,localhost,root,,test;
+connection reader;
+connection writer;
+SET SESSION lock_wait_timeout= 60;
+#
+# The freed blob blocks are handed to another row
+#
+connection default;
+CREATE PROCEDURE churn_blob_memory()
+BEGIN
+SET DEBUG_SYNC= 'now SIGNAL writer_started';
+UPDATE t1 SET b= REPEAT('y', 4000) WHERE a = 1;
+INSERT INTO t1 VALUES (2, REPEAT('z', 4000)), (3, REPEAT('w', 4000));
+END|
+connection default;
+SELECT GET_LOCK('const_row_gate', 60);
+GET_LOCK('const_row_gate', 60)
+1
+connection reader;
+SELECT LEFT(t1.b, 16) AS head, LENGTH(t1.b) AS len FROM t1, t2 WHERE t2.a = GET_LOCK('const_row_gate', 60);
+connection default;
+connection writer;
+CALL churn_blob_memory();
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR writer_started';
+DO RELEASE_LOCK('const_row_gate');
+connection reader;
+head	len
+xxxxxxxxxxxxxxxx	4000
+DO RELEASE_ALL_LOCKS();
+connection writer;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+connection default;
+DROP PROCEDURE churn_blob_memory;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, REPEAT('x', 4000));
+#
+# The blob blocks are released outright
+#
+CREATE PROCEDURE churn_blob_memory()
+BEGIN
+SET DEBUG_SYNC= 'now SIGNAL writer_started';
+DELETE FROM t1;
+INSERT INTO t1 VALUES (2, REPEAT('z', 9000));
+END|
+connection default;
+SELECT GET_LOCK('const_row_gate', 60);
+GET_LOCK('const_row_gate', 60)
+1
+connection reader;
+SELECT LEFT(t1.b, 16) AS head, LENGTH(t1.b) AS len FROM t1, t2 WHERE t2.a = GET_LOCK('const_row_gate', 60);
+connection default;
+connection writer;
+CALL churn_blob_memory();
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR writer_started';
+DO RELEASE_LOCK('const_row_gate');
+connection reader;
+head	len
+xxxxxxxxxxxxxxxx	4000
+DO RELEASE_ALL_LOCKS();
+connection writer;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+disconnect reader;
+disconnect writer;
+DROP PROCEDURE churn_blob_memory;
+DROP TABLE t1, t2;

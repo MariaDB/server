@@ -809,6 +809,8 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
            - GET_LOCK_UNLOCK      : If we should send TL_IGNORE to store lock
            - GET_LOCK_STORE_LOCKS : Store lock info in TABLE
            - GET_LOCK_SKIP_SEQUENCES : Ignore sequences (for temporary unlock)
+           - GET_LOCK_SKIP_ZERO_COPY_ROWS : Ignore tables whose already-read
+             row would not survive the unlock (for temporary unlock)
            - GET_LOCK_ON_THD      : Store lock in thd->mem_root
 
   Temporary tables are not locked (as these are single user), except for
@@ -831,7 +833,10 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     
     if ((likely(!t->s->tmp_table) ||
          (t->s->tmp_table == TRANSACTIONAL_TMP_TABLE)) &&
-        (!(flags & GET_LOCK_SKIP_SEQUENCES) || t->s->sequence == 0))
+        (!(flags & GET_LOCK_SKIP_SEQUENCES) || t->s->sequence == 0) &&
+        (!(flags & GET_LOCK_SKIP_ZERO_COPY_ROWS) ||
+         !(t->file->ha_table_flags2() &
+           HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK)))
     {
       lock_count+= t->file->lock_count();
       table_count++;
@@ -864,7 +869,10 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     THR_LOCK_DATA **locks_start;
 
     if ((table->s->tmp_table && table->s->tmp_table != TRANSACTIONAL_TMP_TABLE)
-       || (flags & GET_LOCK_SKIP_SEQUENCES && table->s->sequence != NULL))
+       || (flags & GET_LOCK_SKIP_SEQUENCES && table->s->sequence != NULL)
+       || (flags & GET_LOCK_SKIP_ZERO_COPY_ROWS &&
+           (table->file->ha_table_flags2() &
+            HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK)))
       continue;
     lock_type= table->reginfo.lock_type;
     DBUG_ASSERT(lock_type != TL_WRITE_DEFAULT && lock_type != TL_READ_DEFAULT);
