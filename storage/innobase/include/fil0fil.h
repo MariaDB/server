@@ -408,11 +408,7 @@ private:
   /** Whether any corruption of this tablespace has been reported */
   mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
-  /** BACKUP SERVER flag in write_or_backup */
-  static constexpr uint8_t BACKUP{128};
-  /** whether there is a pending write or backup */
-  std::atomic<uint8_t> write_or_backup{0};
-  /** first page number that is not being backed up */
+  /** first page number that is not yet being backed up, or 0 */
   std::atomic<uint32_t> backup_end{0};
 
 public:
@@ -1061,42 +1057,17 @@ public:
     VALIDATE_IMPORT
   };
 
-  /** Note that writes are being submitted to the tablespace.
-  @return whether a backup is pending */
-  bool writing_start() noexcept
-  {
-    uint8_t wb{write_or_backup.fetch_add(1, std::memory_order_acq_rel)};
-    ut_ad(~wb & (BACKUP - 1));
-    return wb & BACKUP;
-  }
-
-  /** Note that we there are no more pending writes to the tablespace. */
-  void writing_stop() noexcept
-  {
-    ut_d(uint8_t wb=) write_or_backup.fetch_sub(1, std::memory_order_release);
-    ut_ad(wb & ~BACKUP);
-  }
-
   /** Note that we backing up some pages of the underlying files.
-  @param last_page   the last page that is being backed up */
-  bool backup_start(uint32_t last_page) noexcept
+  @param last_page   the last page that is being backed up (0=stop backup) */
+  void backup_start(uint32_t last_page) noexcept
   {
-    backup_end.store(last_page, std::memory_order_relaxed);
-    uint8_t wb{write_or_backup.fetch_add(BACKUP, std::memory_order_acq_rel)};
-    ut_ad(!(wb & BACKUP));
-    return wb & ~BACKUP;
+    backup_end.store(last_page, std::memory_order_release);
   }
   /** Note that we are not currently backing up the underlying files. */
-  void backup_stop() noexcept
-  {
-    backup_end.store(0, std::memory_order_relaxed);
-    ut_d(uint8_t wb=)
-      write_or_backup.fetch_sub(BACKUP, std::memory_order_release);
-    ut_ad(wb & BACKUP);
-  }
+  void backup_stop() noexcept { backup_start(0); }
   /** @return the first page number that is not being backed up */
   uint32_t backup_page_end() const noexcept
-  { return backup_end.load(std::memory_order_relaxed); }
+  { return backup_end.load(std::memory_order_acquire); }
 
   /** The size of a backup copy_file() batch in pages */
   static constexpr uint32_t BACKUP_BATCH_SIZE{64};

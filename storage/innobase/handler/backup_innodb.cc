@@ -35,14 +35,13 @@ trx_t *check_trx_exists(THD *thd) noexcept;
 /**
    Ensure that there are no page writes in progress.
    @param space_id   tablespace identifier
-   @param end        first page number after the range that is being copied
+   @param end        last page number that is being copied
 */
-ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 static void innodb_backup_batch_wait(uint32_t space_id, uint32_t end) noexcept
 {
-  const page_id_t start{space_id, end & ~fil_space_t::BACKUP_BATCH_SIZE};
+  const page_id_t start{space_id, end & ~(fil_space_t::BACKUP_BATCH_SIZE - 1)};
   ut_ad(end - 1 > start.page_no());
-  for (page_id_t id{space_id, end - 1};; --id)
+  for (page_id_t id{space_id, end};; --id)
   {
     auto &chain= buf_pool.page_hash.cell_get(id.fold());
     page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
@@ -577,8 +576,12 @@ private:
   @param end  last page to copy */
   static void backup_batch_start(fil_space_t *space, uint32_t end) noexcept
   {
-    if (space->backup_start(end))
-      innodb_backup_batch_wait(space->id, end);
+#if 1 // FIXME: remove this
+    if (!end)
+      return;
+#endif
+    space->backup_start(end);
+    innodb_backup_batch_wait(space->id, end - 1);
   }
   /* Stop backing up a tablespace */
   static void backup_batch_stop(fil_space_t *space) noexcept
