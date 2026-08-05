@@ -26,6 +26,28 @@
 #include "item_sum.h"
 #include "sql_type_json.h"
 
+#ifndef DBUG_OFF
+/*
+  Holds the reading count still across a reading the released server does
+  not do.
+
+  The count is of the work a server does, and a debug build's reading back
+  of a value to check what was claimed about it is not that work: counting
+  it would move a number kept to watch queries for reasons no query has.
+  Where the reading is one call the count is taken straight back off it;
+  where it is a whole expression, whose readings the caller cannot count,
+  the figure is put back as it stood.
+*/
+class Json_scans_unbilled
+{
+  THD *m_thd;
+  ulong m_scans;
+public:
+  Json_scans_unbilled(THD *thd);
+  ~Json_scans_unbilled();
+};
+#endif
+
 class json_path_with_flags
 {
 public:
