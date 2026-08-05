@@ -2,66 +2,34 @@
 # MDEV-39169: resolveip IPv6 support
 #
 #
-# IPv4 special addresses (deterministic, no DNS needed)
+# Special addresses
 #
 Broadcast
 Null-IP-Addr
-#
-# IPv4 reverse lookup
-#
-Host name of 127.0.0.1 is HOSTNAME
-#
-# IPv4 reverse lookup (silent mode)
-#
-HOSTNAME
-#
-# IPv6 special address (deterministic, no DNS needed)
-#
 Null-IP-Addr
-#
-# IPv6 unspecified address (full form)
-#
 Null-IP-Addr
-#
-# IPv6 reverse lookup
-#
-Host name of ::1 is HOSTNAME
-#
-# IPv6 reverse lookup (silent mode)
-#
-HOSTNAME
-#
-# IPv6 IPv4-mapped address
-#
-Host name of ::ffff:127.0.0.1 is HOSTNAME
-#
-# IPv6 full form address
-#
-Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is HOSTNAME
-#
-# Multiple addresses in one call
-#
 Broadcast
 Null-IP-Addr
 #
-# Mixed IPv4 and IPv6 addresses
+# Several addresses in one call, mixed address families
 #
 Broadcast
 Null-IP-Addr
+Broadcast
+Null-IP-Addr
 #
-# Mixed IP address and hostname
+# Address without a host name is reverse-resolved, not treated as a
+# host name ("hostname" in the error, not "hostid")
 #
-REPLACED
-REPLACED
+resolveip: Unable to find hostname for '192.0.2.1'
+resolveip: Unable to find hostname for '::ffff:192.0.2.1'
 #
-# Invalid hostname
+# Unresolvable host name (.invalid never resolves, RFC 6761)
 #
 resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR
 #
-# Invalid address mixed with valid address
+# Unresolvable host name after a valid address
 #
 Broadcast
 resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR
-#
-# End of 13.0 tests
-#
+# End of 13.2 tests
