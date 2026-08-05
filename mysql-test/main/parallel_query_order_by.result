@@ -1,0 +1,244 @@
+SET @s= @@session.parallel_worker_threads;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, seq FROM seq_1_to_40000;
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.d1	analyze	status	Engine-independent statistics collected
+test.d1	analyze	status	OK
+#
+# Ordered by a column of the inner table, so the sort cannot be done before
+# the join and is applied to a temp table on the manager. Runs in the
+# workers, and the whole answer is determined, so it is compared as it
+# stands. Every ORDER BY here is a total order -- ties would be free to come
+# back either way round and would say nothing.
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a;
+a	nm
+120	n1
+119	n10
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a;
+a	nm
+120	n1
+119	n10
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+ran_in_the_workers
+1
+#
+# descending, and on more than one column
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm DESC, t1.a DESC
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm DESC, t1.a DESC;
+a	nm
+118	n9
+117	n8
+116	n7
+115	n6
+114	n5
+113	n4
+112	n3
+111	n2
+119	n10
+120	n1
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm DESC, t1.a DESC;
+a	nm
+118	n9
+117	n8
+116	n7
+115	n6
+114	n5
+113	n4
+112	n3
+111	n2
+119	n10
+120	n1
+ran_in_the_workers
+1
+# SELECT STRAIGHT_JOIN t1.a, t1.b, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.b DESC, t1.a
+SELECT STRAIGHT_JOIN t1.a, t1.b, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.b DESC, t1.a;
+a	b	nm
+120	40000	n1
+119	39999	n10
+111	39991	n2
+112	39992	n3
+113	39993	n4
+114	39994	n5
+115	39995	n6
+116	39996	n7
+117	39997	n8
+118	39998	n9
+SELECT STRAIGHT_JOIN t1.a, t1.b, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.b DESC, t1.a;
+a	b	nm
+120	40000	n1
+119	39999	n10
+111	39991	n2
+112	39992	n3
+113	39993	n4
+114	39994	n5
+115	39995	n6
+116	39996	n7
+117	39997	n8
+118	39998	n9
+ran_in_the_workers
+1
+#
+# ordered by an expression over the inner table
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY REVERSE(d1.nm), t1.a
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY REVERSE(d1.nm), t1.a;
+a	nm
+119	n10
+120	n1
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY REVERSE(d1.nm), t1.a;
+a	nm
+119	n10
+120	n1
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+ran_in_the_workers
+1
+#
+# with a LIMIT, which the manager applies to the sorted rows, so the prefix
+# is the one a serial run produces rather than whichever rows arrived first
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 3
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 3;
+a	nm
+120	n1
+119	n10
+111	n2
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 3;
+a	nm
+120	n1
+119	n10
+111	n2
+ran_in_the_workers
+1
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 2 OFFSET 4
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 2 OFFSET 4;
+a	nm
+113	n4
+114	n5
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 2 OFFSET 4;
+a	nm
+113	n4
+114	n5
+ran_in_the_workers
+1
+#
+# nothing qualifies, so there is nothing to order
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 999999 ORDER BY d1.nm, t1.a
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 999999 ORDER BY d1.nm, t1.a;
+a	nm
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 999999 ORDER BY d1.nm, t1.a;
+a	nm
+ran_in_the_workers
+1
+#
+# the plans that are declined, and what they have in common: EXPLAIN shows
+# "Using filesort" against the table the workers would scan, with no
+# "Using temporary" to put the sort above the join.
+#
+# a single table can only be ordered by sorting itself
+#
+# SELECT a FROM t1 WHERE b > 39990 ORDER BY a
+SELECT a FROM t1 WHERE b > 39990 ORDER BY a;
+a
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+SELECT a FROM t1 WHERE b > 39990 ORDER BY a;
+a
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+ran_in_the_workers
+0
+EXPLAIN SELECT a FROM t1 WHERE b > 39990 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	40000	Using where; Using filesort
+#
+# and a join ordered by a column of the driving table can be sorted before
+# the join, which is cheaper serially and unavailable to the workers
+#
+# SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a;
+a	nm
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+119	n10
+120	n1
+SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a;
+a	nm
+111	n2
+112	n3
+113	n4
+114	n5
+115	n6
+116	n7
+117	n8
+118	n9
+119	n10
+120	n1
+ran_in_the_workers
+0
+EXPLAIN SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	40000	Using where; Using filesort
+1	SIMPLE	d1	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

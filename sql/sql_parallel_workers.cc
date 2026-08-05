@@ -2098,6 +2098,8 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
 
   /* Rowid filters and range/index_merge access. */
   DBUG_ASSERT(!tab->rowid_filter);
+  /* Declined in run_worker_side_join(): the chunks cannot arrive sorted. */
+  DBUG_ASSERT(!tab->filesort);
   DBUG_ASSERT(!tab->select || !tab->select->quick);
 
   /* Materialized derived tables, CTEs and split materialization. */
@@ -2135,15 +2137,12 @@ static void pwt_assert_join_inert(JOIN *join)
   */
   DBUG_ASSERT(!join->select_distinct);
   /*
-    An ORDER BY the gate did not see, because make_aggr_tables_info() had not run
-    yet when it looked. It is only sound when there is an aggregation temp table
-    for the sort to be applied to, downstream of everything the workers did: then
-    the order is established on the manager, after the rows have arrived, and the
-    arrival order they had is irrelevant. Without one, the order would have to
-    come from the driving scan, which is precisely what a chunked scan does not
-    give.
+    An ORDER BY is allowed here, and what makes it sound is not the ORDER BY but
+    where its sort went: run_worker_side_join() has already declined any plan with
+    a filesort on a table the workers scan, so an order that survives to here is
+    one established on the manager after the rows arrived. pwt_assert_tab_inert()
+    states the per-table half of that.
   */
-  DBUG_ASSERT(!join->order || join->aggr_tables > 0);
   /*
     HAVING, the select list and the aggregates are evaluated by the plan's own
     terminal function on the manager, over records the drain filled, so none of
@@ -2558,24 +2557,17 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     GROUP BY case. What is left when the rewrite does not happen is DISTINCT with
     a LIMIT, since the rewrite is conditional on there being no row limit.
   */
-  if (join->order)
-  {
-    /*
-      ORDER BY of a scan is refused, and this is the check that does it: an order
-      the driving table's own filesort produces cannot survive being split into
-      chunks that finish in an arbitrary order. Delivering it would need the
-      workers to sort their chunks and the manager to merge them, which is not
-      built.
+  /*
+    ORDER BY is not refused here. Whether it can be honoured depends on where the
+    optimizer puts the sort, and that is decided after this runs.
 
-      This does not refuse an ORDER BY applied to an aggregation temp table --
-      after a GROUP BY, or after a DISTINCT. There join->order is null when this
-      runs and is set later by make_aggr_tables_info(), and the sort happens on
-      the manager once every row has arrived, so the order the rows arrived in is
-      irrelevant. pwt_assert_join_inert() states that as the invariant it is.
-    */
-    DBUG_PRINT("info", ("order by"));
-    DBUG_RETURN(false);
-  }
+    A sort applied above the join, to an aggregation temp table, runs on the
+    manager once every row has arrived, so the order the rows arrived in does not
+    matter -- that shape works. A sort applied to the driving table, so that the
+    join consumes it in order, does not: the chunks finish in an arbitrary order
+    and no worker sorts anything. run_worker_side_join() declines that once the
+    plan is known, by looking for a filesort on a table the workers scan.
+  */
   /*
     HAVING, the select list and the aggregates need nothing from this gate. They
     are evaluated by the plan's own terminal function, on the manager, over base

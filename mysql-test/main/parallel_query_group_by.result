@@ -377,7 +377,10 @@ pk	COUNT(*)
 ran_in_the_workers
 0
 #
-# and DISTINCT, which the gate refuses on its own terms
+# A DISTINCT of the grouped rows, ordered, runs in the workers: both the
+# dedup and the sort are applied above the join, on the manager. It used to
+# be declined here, for the ORDER BY, until the sort was allowed where it
+# sits above the join -- see main.parallel_query_order_by.
 #
 # SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1
 SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1;
@@ -389,7 +392,7 @@ COUNT(*)
 285
 286
 ran_in_the_workers
-0
+1
 DROP TABLE t1, t2, d1;
 SET SESSION optimizer_switch= @os;
 SET SESSION parallel_worker_threads= @s;

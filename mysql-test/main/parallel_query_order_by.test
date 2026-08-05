@@ -1,0 +1,98 @@
+#
+# MDEV-39492 Parallel Query: ORDER BY.
+#
+# Whether an ORDER BY can be honoured by the workers depends on where the
+# optimizer put the sort, and not on the ORDER BY itself.
+#
+# A sort applied *above* the join -- to an aggregation temp table, which EXPLAIN
+# shows as "Using temporary; Using filesort" -- runs on the manager after every
+# row has arrived. The order the rows arrived in is then irrelevant, and the query
+# runs in the workers and comes back ordered. The optimizer chooses that shape
+# when the order depends on something the driving table cannot supply, such as a
+# column of an inner table.
+#
+# A sort applied *to the driving table*, so that the join consumes it already
+# ordered, cannot be honoured: the chunks finish in whatever order they finish and
+# no worker sorts anything. Those plans are declined at execution -- the gate
+# cannot tell them apart, because which shape it is has not been decided when the
+# gate runs -- and they run serially. Delivering them would mean each worker
+# sorting its chunk and the manager merging the sorted streams, which is not built.
+#
+# So the test for it is a filesort on a table the workers scan, not the presence of
+# an ORDER BY. Both halves are below, and the queries that are declined are next to
+# the ones that are not, because nothing in the SQL says which you will get.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, seq FROM seq_1_to_40000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, nm VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n',seq) FROM seq_1_to_10;
+
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+
+--echo #
+--echo # Ordered by a column of the inner table, so the sort cannot be done before
+--echo # the join and is applied to a temp table on the manager. Runs in the
+--echo # workers, and the whole answer is determined, so it is compared as it
+--echo # stands. Every ORDER BY here is a total order -- ties would be free to come
+--echo # back either way round and would say nothing.
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # descending, and on more than one column
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm DESC, t1.a DESC
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, t1.b, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.b DESC, t1.a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # ordered by an expression over the inner table
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY REVERSE(d1.nm), t1.a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # with a LIMIT, which the manager applies to the sorted rows, so the prefix
+--echo # is the one a serial run produces rather than whichever rows arrived first
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 3
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY d1.nm, t1.a LIMIT 2 OFFSET 4
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # nothing qualifies, so there is nothing to order
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 999999 ORDER BY d1.nm, t1.a
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # the plans that are declined, and what they have in common: EXPLAIN shows
+--echo # "Using filesort" against the table the workers would scan, with no
+--echo # "Using temporary" to put the sort above the join.
+--echo #
+--echo # a single table can only be ordered by sorting itself
+--echo #
+--let $pqa_query= SELECT a FROM t1 WHERE b > 39990 ORDER BY a
+--source include/parallel_query_aggregate_cmp.inc
+EXPLAIN SELECT a FROM t1 WHERE b > 39990 ORDER BY a;
+
+--echo #
+--echo # and a join ordered by a column of the driving table can be sorted before
+--echo # the join, which is cheaper serially and unavailable to the workers
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a
+--source include/parallel_query_aggregate_cmp.inc
+EXPLAIN SELECT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a % 10 + 1 AND t1.b > 39990 ORDER BY t1.a;
+
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

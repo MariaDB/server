@@ -3545,56 +3545,6 @@ int JOIN::optimize_stage2()
     }
   }
 
-  /*
-    make_join_readinfo() decided whether the driving table would be scanned in
-    parallel, and the plan has been able to change since: the
-    test_if_skip_sort_order() calls above may have given that table an ordered
-    index scan so that it supplies the GROUP BY or ORDER BY order for free, and an
-    ordered scan is not one that can be handed out in chunks.
-
-    So re-check, and clear the decision if it no longer holds. EXPLAIN already
-    reports the truth by accident -- it prints PARALLEL only for a table whose
-    access is still a full scan -- but the optimizer trace was left asserting a
-    parallel scan that would not happen, and JOIN::worker_side_parallel was left
-    set, so do_select() went on to build a manager and ask the engine for chunks
-    before something further down declined. Neither is a small matter to read: a
-    trace that names a table as chosen when the query then runs serially is a
-    trace that sends you looking in the wrong place.
-  */
-  if (worker_side_parallel)
-  {
-    JOIN_TAB *par= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
-    const bool still_a_chunkable_scan=
-      par && par->type == JT_ALL &&
-      par->read_first_record == join_init_read_record &&
-      !(par->select && par->select->quick);
-
-    if (!still_a_chunkable_scan)
-    {
-      if (par)
-        par->use_parallel_scan= false;
-      worker_side_parallel= false;
-    }
-    if (unlikely(thd->trace_started()))
-    {
-      Json_writer_object trace_pscan(thd);
-      if (still_a_chunkable_scan)
-        trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
-      else
-      {
-        trace_pscan.add("parallel_scan_abandoned",
-                        par ? par->table->alias.c_ptr() : "");
-        /* Named so it can be grepped for: "cause" is a common trace key. */
-        trace_pscan.add("parallel_scan_abandoned_because",
-                        ordered_index_usage == ordered_index_group_by ?
-                        "an index now supplies the GROUP BY order" :
-                        ordered_index_usage == ordered_index_order_by ?
-                        "an index now supplies the ORDER BY order" :
-                        "the access path is no longer a full table scan");
-      }
-    }
-  }
-
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
@@ -3630,6 +3580,69 @@ int JOIN::optimize_stage2()
 
   if (init_range_rowid_filters())
     DBUG_RETURN(1);
+
+  /*
+    make_join_readinfo() decided whether the driving table would be scanned in
+    parallel, and the plan has been able to change in two ways since. The
+    test_if_skip_sort_order() calls may have given that table an ordered index
+    scan so that it supplies the GROUP BY or ORDER BY order for free; and
+    make_aggr_tables_info() may have attached a filesort to it, so that the join
+    consumes it already sorted. Neither is a scan that can be handed out in
+    chunks: the chunks finish in whatever order they finish.
+
+    So this is asked here, where the plan has stopped changing, rather than where
+    the choice was made. EXPLAIN reports the first case correctly by accident --
+    it prints PARALLEL only for a table whose access is still a full scan -- but
+    not the second, where the access is still a full scan and it is the filesort
+    above it that cannot be honoured. And the optimizer trace was left asserting a
+    parallel scan that would not happen, while JOIN::worker_side_parallel was left
+    set, so do_select() went on to build a manager and ask the engine for chunks
+    before something further down declined. A trace naming a table as chosen when
+    the query then runs serially is a trace that sends you looking in the wrong
+    place.
+  */
+  if (worker_side_parallel)
+  {
+    JOIN_TAB *par= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+    JOIN_TAB *sorted= NULL;
+    for (uint t= const_tables; t < table_count; t++)
+      if (join_tab[t].filesort)
+      {
+        sorted= join_tab + t;
+        break;
+      }
+    const bool still_a_chunkable_scan=
+      par && !sorted && par->type == JT_ALL &&
+      par->read_first_record == join_init_read_record &&
+      !(par->select && par->select->quick);
+
+    if (!still_a_chunkable_scan)
+    {
+      if (par)
+        par->use_parallel_scan= false;
+      worker_side_parallel= false;
+    }
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_pscan(thd);
+      if (still_a_chunkable_scan)
+        trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
+      else
+      {
+        trace_pscan.add("parallel_scan_abandoned",
+                        par ? par->table->alias.c_ptr() : "");
+        /* Named so it can be grepped for: "cause" is a common trace key. */
+        trace_pscan.add("parallel_scan_abandoned_because",
+                        sorted ?
+                        "the rows would have to reach the join sorted" :
+                        ordered_index_usage == ordered_index_group_by ?
+                        "an index now supplies the GROUP BY order" :
+                        ordered_index_usage == ordered_index_order_by ?
+                        "an index now supplies the ORDER BY order" :
+                        "the access path is no longer a full table scan");
+      }
+    }
+  }
 
   error= 0;
 

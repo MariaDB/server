@@ -397,11 +397,59 @@ a
 ran_in_the_workers
 1
 #
+# DISTINCT over a join, ordered. The sort goes above the join, onto the temp
+# table the DISTINCT already needs, so it comes back ordered from the
+# workers. Both of these were declined until the sort was allowed where it
+# sits above the join.
+#
+# SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
+SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
+a	nm
+0	n1
+1	n2
+2	n3
+3	n4
+4	n5
+5	n6
+6	n7
+SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
+a	nm
+0	n1
+1	n2
+2	n3
+3	n4
+4	n5
+5	n6
+6	n7
+ran_in_the_workers
+1
+# SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
+SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
+nm
+n1
+n2
+n3
+n4
+n5
+n6
+n7
+SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
+nm
+n1
+n2
+n3
+n4
+n5
+n6
+n7
+ran_in_the_workers
+1
+#
 # the shapes that are declined, and what declines each one.
 #
-# ORDER BY of the scan itself: the order would have to come from the
-# driving table, which a chunked scan cannot deliver. Refused by the gate,
-# so the optimizer does not even pick a parallel scan -- EXPLAIN says ALL.
+# A single table can only be ordered by sorting itself, and a scan handed out
+# in chunks cannot arrive sorted. EXPLAIN says ALL rather than PARALLEL
+# because the choice is withdrawn once the sort is attached to the table.
 #
 # SELECT a FROM t1 ORDER BY a LIMIT 5
 SELECT a FROM t1 ORDER BY a LIMIT 5;
@@ -424,34 +472,6 @@ EXPLAIN SELECT a FROM t1 ORDER BY a LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2000	Using filesort
 #
-# a DISTINCT over a join with an ORDER BY. The rewrite to GROUP BY absorbs
-# the ORDER BY only when every field it sorts on is a select-list field it
-# has just grouped by, which holds for the single-table shapes above and not
-# here -- so join->order is still set when the gate looks, and the gate
-# refuses it. Without the ORDER BY the same join runs in the workers.
-#
-# SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
-SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
-a	nm
-0	n1
-1	n2
-2	n3
-3	n4
-4	n5
-5	n6
-6	n7
-SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm;
-a	nm
-0	n1
-1	n2
-2	n3
-3	n4
-4	n5
-5	n6
-6	n7
-ran_in_the_workers
-0
-#
 # a DISTINCT over a join that does not select from every table: the
 # optimizer marks the unread ones so the join stops at the first match, and
 # that is decided after the gate, so it is declined at execution.
@@ -467,27 +487,6 @@ a
 0
 1
 2
-ran_in_the_workers
-0
-# SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
-SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
-nm
-n1
-n2
-n3
-n4
-n5
-n6
-n7
-SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm;
-nm
-n1
-n2
-n3
-n4
-n5
-n6
-n7
 ran_in_the_workers
 0
 DROP TABLE t1, d1;

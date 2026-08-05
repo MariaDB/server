@@ -23,17 +23,15 @@
 # producing duplicates for the temp table to discard. That is decided after the
 # gate has run, so it is declined at execution instead; checked at the bottom.
 #
-# ORDER BY is a different matter and is not enabled here. An ORDER BY of the scan
-# itself is still refused: that order comes from the driving table's own filesort,
-# which cannot survive being split into chunks, and delivering it would need the
-# workers to sort their chunks and the manager to merge them.
+# An ORDER BY of the distinct rows works, by two different routes. Where the
+# rewrite to GROUP BY absorbs the ORDER BY -- which it does when every field sorted
+# on is a select-list field it has just grouped by -- the sort is part of the
+# grouping. Where it does not, as over a join, the sort is applied above the join,
+# to the temp table the DISTINCT needs anyway. Either way it runs on the manager
+# once every row has arrived, so the order the rows arrived in does not matter.
 #
-# An ORDER BY does come along for free where the rewrite to GROUP BY absorbs it,
-# which it does when every field being sorted on is a select-list field it has
-# just grouped by -- the sort then runs on the manager over the finished temp
-# table and join->order is null by the time the gate looks. That covers the
-# single-table shapes below. Where it does not hold, as over a join, the gate
-# still sees an ORDER BY and refuses.
+# What is still refused is an ORDER BY of the scan itself, where the order would
+# have to come from the driving table; see main.parallel_query_order_by.
 #
 --source include/have_innodb.inc
 --source include/have_sequence.inc
@@ -129,25 +127,26 @@ SELECT COUNT(*) AS all_present FROM (SELECT DISTINCT b FROM t1 LIMIT 5) d
 --source include/parallel_query_aggregate_cmp.inc
 
 --echo #
+--echo # DISTINCT over a join, ordered. The sort goes above the join, onto the temp
+--echo # table the DISTINCT already needs, so it comes back ordered from the
+--echo # workers. Both of these were declined until the sort was allowed where it
+--echo # sits above the join.
+--echo #
+--let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
 --echo # the shapes that are declined, and what declines each one.
 --echo #
---echo # ORDER BY of the scan itself: the order would have to come from the
---echo # driving table, which a chunked scan cannot deliver. Refused by the gate,
---echo # so the optimizer does not even pick a parallel scan -- EXPLAIN says ALL.
+--echo # A single table can only be ordered by sorting itself, and a scan handed out
+--echo # in chunks cannot arrive sorted. EXPLAIN says ALL rather than PARALLEL
+--echo # because the choice is withdrawn once the sort is attached to the table.
 --echo #
 --let $pqa_query= SELECT a FROM t1 ORDER BY a LIMIT 5
 --source include/parallel_query_aggregate_cmp.inc
 EXPLAIN SELECT a FROM t1 ORDER BY a LIMIT 5;
-
---echo #
---echo # a DISTINCT over a join with an ORDER BY. The rewrite to GROUP BY absorbs
---echo # the ORDER BY only when every field it sorts on is a select-list field it
---echo # has just grouped by, which holds for the single-table shapes above and not
---echo # here -- so join->order is still set when the gate looks, and the gate
---echo # refuses it. Without the ORDER BY the same join runs in the workers.
---echo #
---let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN t1.a, d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a, d1.nm
---source include/parallel_query_aggregate_cmp.inc
 
 --echo #
 --echo # a DISTINCT over a join that does not select from every table: the
@@ -155,8 +154,6 @@ EXPLAIN SELECT a FROM t1 ORDER BY a LIMIT 5;
 --echo # that is decided after the gate, so it is declined at execution.
 --echo #
 --let $pqa_query= SELECT DISTINCT t1.a FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY t1.a LIMIT 3
---source include/parallel_query_aggregate_cmp.inc
---let $pqa_query= SELECT DISTINCT STRAIGHT_JOIN d1.nm FROM t1, d1 WHERE d1.id = t1.a + 1 ORDER BY d1.nm
 --source include/parallel_query_aggregate_cmp.inc
 
 DROP TABLE t1, d1;

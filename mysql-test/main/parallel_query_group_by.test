@@ -151,7 +151,10 @@ INSERT INTO t2 SELECT seq, seq % 7, seq * 3 FROM seq_1_to_2000;
 --source include/parallel_query_aggregate_cmp.inc
 
 --echo #
---echo # and DISTINCT, which the gate refuses on its own terms
+--echo # A DISTINCT of the grouped rows, ordered, runs in the workers: both the
+--echo # dedup and the sort are applied above the join, on the manager. It used to
+--echo # be declined here, for the ORDER BY, until the sort was allowed where it
+--echo # sits above the join -- see main.parallel_query_order_by.
 --echo #
 --let $pqa_query= SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1
 --source include/parallel_query_aggregate_cmp.inc
