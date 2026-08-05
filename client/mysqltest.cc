@@ -3807,8 +3807,23 @@ void do_exec(struct st_command *command)
 
   if (error)
   {
-    uint status= WEXITSTATUS(error);
+    uint status;
     int i;
+
+#ifdef _WIN32
+    status= WEXITSTATUS(error);
+#else
+    /* WEXITSTATUS() is only valid for a normal exit; a process killed by an
+       uncaught signal must be translated using the shell's 128+signal
+       convention, or the real error is silently lost as status 0. */
+    if (WIFEXITED(error))
+      status= WEXITSTATUS(error);
+    else if (WIFSIGNALED(error))
+      status= 128 + WTERMSIG(error);
+    else
+      status= error;
+
+#endif
 
     if (command->abort_on_error)
     {
