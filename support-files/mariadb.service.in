@@ -98,9 +98,6 @@ ExecStartPre=/bin/sh -c "umask 222; \
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
-# Unset _WSREP_START_POSITION/_WSREP_NEW_CLUSTER environment variable.
-ExecStartPost=/bin/rm -f @INSTALL_RUNDIR@/wsrep-start-position @INSTALL_RUNDIR@/wsrep-new-cluster
-
 @SYSTEMD_EXECSTARTPOST@
 
 KillSignal=SIGTERM

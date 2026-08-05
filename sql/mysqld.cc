@@ -3218,6 +3218,21 @@ pthread_handler_t signal_hand(void *)
 static void check_data_home(const char *path)
 {}
 
+void truncate_systemd_env_files()
+{
+#if defined(MARIADB_RUNDIR) && defined(__linux__)
+  truncate(MARIADB_RUNDIR "/wsrep-start-position", 0);
+  truncate(MARIADB_RUNDIR "/wsrep-new-cluster", 0);
+#endif
+}
+
+void purge_systemd_env_files()
+{
+#if defined(MARIADB_RUNDIR) && defined(__linux__)
+  unlink(MARIADB_RUNDIR "/wsrep-start-position");
+  unlink(MARIADB_RUNDIR "/wsrep-new-cluster");
+#endif
+}
 #endif /*!EMBEDDED_LIBRARY*/
 #endif	/* _WIN32*/
 
@@ -5550,6 +5565,16 @@ int mysqld_main(int argc, char **argv)
   my_progname= argv[0];
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
   mysqld_server_started= mysqld_server_initialized= 0;
+
+#if !defined(EMBEDDED_LIBRARY) && defined(__linux__)
+  /* truncate as soon on starting to ensure they are cleared */
+  truncate_systemd_env_files();
+  /*
+    and on exit, remove ensure its not manipluated to inject environment
+    variables.
+  */
+  atexit(purge_systemd_env_files);
+#endif
 
   if (init_early_variables())
     exit(1);
