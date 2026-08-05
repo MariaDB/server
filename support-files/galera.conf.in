@@ -29,4 +29,6 @@ ExecStart=
 ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
 # Unset _WSREP_START_POSITION/_WSREP_NEW_CLUSTER environment variable.
-ExecStartPost=/bin/rm -f @INSTALL_RUNDATADIR@/wsrep-start-position @INSTALL_RUNDATADIR@/wsrep-new-cluster
+# This is ExecStopPost to ensure it hasn't been manipulated during execution of
+# MariaDB. ref: MDEV-40629
+ExecStopPost=/bin/rm -f @INSTALL_RUNDATADIR@/wsrep-start-position @INSTALL_RUNDATADIR@/wsrep-new-cluster
