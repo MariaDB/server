@@ -229,7 +229,7 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
     "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "stunnel")
   SETA(CPACK_RPM_test_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}" "socat")
 ENDIF()
 
