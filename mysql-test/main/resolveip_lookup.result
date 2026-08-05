@@ -1,0 +1,25 @@
+#
+# MDEV-39169: resolveip reverse lookups
+#
+#
+# IPv4
+#
+Host name of 127.0.0.1 is HOSTNAME
+HOSTNAME
+#
+# IPv6, short and long form
+#
+Host name of ::1 is HOSTNAME
+HOSTNAME
+Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is HOSTNAME
+#
+# IPv4-mapped IPv6
+#
+Host name of ::ffff:127.0.0.1 is HOSTNAME
+HOSTNAME
+#
+# An address and a host name in one call
+#
+HOSTNAME
+LOOPBACK_ADDR
+# End of 13.2 tests
