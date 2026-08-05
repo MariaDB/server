@@ -1659,10 +1659,23 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
-    Odd but realistic worst case is when all characters
-    of the argument turn into '\uXXXX\uXXXX', which is 12.
+    Odd but realistic worst case is when every character of the argument
+    has to be escaped, and six is what one of them costs.
+
+    A character is written as the hex of its UTF-16 form, one unit for a
+    character of the first plane and two for any other, each unit taking
+    a `\uXXXX` of its own - so twelve where a pair is needed.  A pair is
+    only ever needed for a character the set being written into cannot
+    carry, and the set here is utf8mb4, which carries every character
+    there is.  So nothing is escaped for want of somewhere to put it and
+    what is left is the handful JSON will not have literally: a quote, a
+    backslash, and the control characters, all of them inside the first
+    plane and none of them costing more than six.
+
+    The two for the quotes around the whole of it are this function's
+    own.
   */
-  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 6 + 2);
   return FALSE;
 }
 
@@ -3538,6 +3551,68 @@ append_null:
 }
 
 
+/*
+  How much room a value needs in a document being built, before any
+  value has been seen and so out of what the argument says about itself.
+
+  A value that is already a document goes in as it stands, but it is
+  written out again with the rest and a space arrives after every
+  separator it brought with it, so the room for it covers the writing
+  the same way JSON_REMOVE asks for it to.  One written as text and not
+  a document is written as a JSON string, and twice its characters is
+  what is asked for that.
+
+  Twice does not cover an escaping: a character written out as the hex
+  of its UTF-16 form costs six, and twelve where the character needs a
+  pair of them, so a value escaped throughout is asked for too little
+  and is cut.  What it costs turns on the character set being written
+  into as well as the value's own, neither of them alone, and pricing
+  it properly widens what these functions declare enough to move a
+  result from a memory temporary table onto disk.  That is left to be
+  done together with the work that stops a declared width deciding
+  where a temporary table lives.
+
+  A string carries no separators of its own, so the spacing has nothing
+  to add to it.  A boolean is written as one of the two words 'true' and
+  'false', the longer of which is five characters.  What is left is a
+  number, which is written as itself.  A value that is not there at all
+  is written as 'null', so nothing is ever shorter than four characters.
+
+  The punctuation that goes around it is the caller's to ask for.
+
+  Whether it IS a document has to be the question the writing asks, and
+  not a shorter one that happens to agree most of the time.  Aggregating
+  the arguments into one character set wraps whichever of them has to
+  move, and the wrapper attests to itself when asked for a type handler
+  - so a document that arrived wrapped would be priced as a string and
+  charged for quotes that the writing, which looks through the wrapper,
+  is never going to put round it.  is_json_type() is that same look.
+*/
+static ulonglong json_value_reserve(Item *arg)
+{
+  /*
+    A document is a string: every type handler in the JSON collection is
+    built over a string one.  An argument of any other result type is
+    not one and its own type has said so, so the look through the
+    wrappers round it is only made where it can come back yes.
+  */
+  const bool is_string= arg->result_type() == STRING_RESULT;
+  const bool is_document= is_string && is_json_type(arg);
+  ulonglong length;
+
+  if (is_string && !is_document)
+    length= static_cast<ulonglong>(arg->max_char_length()) * 2 + 2;
+  else if (arg->type_handler()->is_bool_type())
+    length= 5;
+  else if (is_document)
+    length= static_cast<ulonglong>(arg->max_char_length()) * 2;
+  else
+    length= arg->max_char_length();
+
+  return length < 4 ? 4 : length;
+}
+
+
 bool Item_func_json_array::fix_length_and_dec(THD *thd)
 {
   ulonglong char_length= 2;
@@ -3559,23 +3634,7 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-  {
-    ulonglong arg_length;
-    Item *arg= args[n_arg];
-
-    if (arg->result_type() == STRING_RESULT &&
-        !Type_handler_json_common::is_json_type_handler(arg->type_handler()))
-      arg_length= arg->max_char_length() * 2; /*escaping possible */
-    else if (arg->type_handler()->is_bool_type())
-      arg_length= 5;
-    else
-      arg_length= arg->max_char_length();
-
-    if (arg_length < 4)
-      arg_length= 4; /* can be 'null' */
-
-    char_length+= arg_length + 4;
-  }
+    char_length+= json_value_reserve(args[n_arg]) + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
@@ -3657,13 +3716,18 @@ bool Item_func_json_array_append::fix_length_and_dec(THD *thd)
   ulonglong char_length;
 
   collation.set(args[0]->collation);
-  char_length= args[0]->max_char_length();
+  /*
+    The document is written out again around what is added to it, a
+    space arriving after every separator that is copied, so the room for
+    it has to cover the writing and not only the reading - the same
+    allowance JSON_REMOVE asks for, adding the same spacing.
+  */
+  char_length= static_cast<ulonglong>(args[0]->max_char_length()) * 2;
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+=
-        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
+    char_length+= json_value_reserve(args[n_arg+1]) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -5420,7 +5484,13 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   collation.set(args[0]->collation);
-  char_length= args[0]->max_char_length();
+  /*
+    The document is written out again around what is put into it, a
+    space arriving after every separator that is copied, so the room for
+    it has to cover the writing and not only the reading - the same
+    allowance JSON_REMOVE asks for, adding the same spacing.
+  */
+  char_length= static_cast<ulonglong>(args[0]->max_char_length()) * 2;
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
@@ -5429,8 +5499,8 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
       In the resulting JSON we can insert the property
       name from the path, and the value itself.
     */
-    char_length+= args[n_arg/2]->max_char_length() + 6;
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+= static_cast<ulonglong>(args[n_arg]->max_char_length()) + 6;
+    char_length+= json_value_reserve(args[n_arg+1]) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -5885,7 +5955,15 @@ return_null:
 bool Item_func_json_remove::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length;
+  /*
+    What is left of the document is written out again, with a space after
+    every separator that is copied, so what comes back can be longer than
+    what went in even though something was taken out of it.  A separator
+    has a value on either side of it and the shortest value is one
+    character, so at worst every second character gains one - which is
+    the allowance JSON_LOOSE asks for, adding the same spacing.
+  */
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 2);
 
   mark_constant_paths(paths, args+1, arg_count-1);
   set_maybe_null();
