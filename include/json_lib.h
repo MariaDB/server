@@ -273,6 +273,14 @@ typedef struct st_json_engine_t
 } json_engine_t;
 
 
+#ifndef DBUG_OFF
+/*
+  Told about every reading of a value, when somebody has asked to be.
+  See json_scan_start() for why this is where the telling happens.
+*/
+extern void (*json_scan_start_hook)(void);
+#endif
+
 int json_scan_start(json_engine_t *je,
                         CHARSET_INFO *i_cs, const uchar *str, const uchar *end);
 int json_scan_next(json_engine_t *j);
