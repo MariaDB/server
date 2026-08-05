@@ -894,4 +894,17 @@ let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
 --error 1
 --exec echo "let \$a = \$(-18446744073709551616);" | $MYSQL_TEST 2>&1
 
+--echo #
+--echo # MDEV-37865: IF() function is returning incorrect error
+--echo #
+
+--echo # Test case: unknown function name that is a prefix of a known one
+--error 1
+--exec echo "let \$a = \$(if(null, 'fallback', 'actual'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(l('AB'));" | $MYSQL_TEST 2>&1
+
 --echo # Expression evaluation tests completed successfully
+
+--echo # End of 10.6 tests

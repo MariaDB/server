@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3850,7 +3850,11 @@ privilege_t acl_get(const char *host, const char *ip,
       [key_data_size + 1, key_data_size + MY_CS_MBMAXLEN].
   */
   CharBuffer<key_data_size + MY_CS_MBMAXLEN> key;
-  key.append(Lex_cstring_strlen(safe_str(ip))).append_char('\0')
+  /*
+    localhost connections have ip=0, host="localhost", roles have ip="",
+    host="". Fall back to host, otherwise both get the same key.
+  */
+  key.append(Lex_cstring_strlen(safe_str(ip ? ip : host))).append_char('\0')
      .append(Lex_cstring_strlen(user)).append_char('\0');
   tmp_db= key.end();
   key.append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
@@ -9677,8 +9681,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   {
     *username= lex_user->user.str;
     *hostname= lex_user->host.str;
-    do_check_access= strcmp(*username, sctx->priv_user) ||
-                     strcmp(*hostname, sctx->priv_host);
+    do_check_access= !sctx->is_priv_user(lex_user->user, lex_user->host);
   }
 
   if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))

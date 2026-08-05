@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2022, MariaDB Corporation.
+# Copyright (c) 2010, 2026, MariaDB plc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -359,6 +359,16 @@ ENDIF()
 DTRACE_INSTRUMENT_STATIC_LIBS(mariadbd
  "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
 
+IF(HAVE_RO_AFTER_INIT)
+  GET_TARGET_PROPERTY(RO_AFTER_INIT_LDFLAGS mariadbd LINK_FLAGS)
+  IF(NOT RO_AFTER_INIT_LDFLAGS)
+    SET(RO_AFTER_INIT_LDFLAGS)
+  ENDIF()
+  SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS
+    "${RO_AFTER_INIT_LDFLAGS} -Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/mysqld_ro.lds")
+  SET_TARGET_PROPERTIES(mariadbd PROPERTIES
+    LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mysqld_ro.lds)
+ENDIF()
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
 MARK_AS_ADVANCED(WITH_MYSQLD_LDFLAGS)

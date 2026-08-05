@@ -23,6 +23,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include "heap.h"
+#include "my_compare.h"
 
 static int get_options(int argc, char *argv[]);
 

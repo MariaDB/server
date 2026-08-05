@@ -3886,8 +3886,23 @@ end:
 #endif
   if (error)
   {
-    uint status= WEXITSTATUS(error);
+    uint status;
     int i;
+
+#ifdef _WIN32
+    status= WEXITSTATUS(error);
+#else
+    /* WEXITSTATUS() is only valid for a normal exit; a process killed by an
+       uncaught signal must be translated using the shell's 128+signal
+       convention, or the real error is silently lost as status 0. */
+    if (WIFEXITED(error))
+      status= WEXITSTATUS(error);
+    else if (WIFSIGNALED(error))
+      status= 128 + WTERMSIG(error);
+    else
+      status= error;
+
+#endif
 
     if (command->abort_on_error)
     {
@@ -5657,7 +5672,7 @@ static void primary(Expression_value *result, const char **s)
     enum func_type func_type= get_expr_function_type(start,
                                                      end - start);
     if (func_type == FUNC_UNKNOWN)
-      die("Syntax error: Unknown function");
+      die("Syntax error: Unknown function '%.*s'", (int) (end - start), start);
 
     *s= end + 1; // skip '('
     handle_expr_function_call(func_type, result, s);
@@ -6104,47 +6119,48 @@ static void expr(Expression_value *result, const char **s)
 
 static struct {
   const char *name;
+  size_t length;
   enum func_type type;
 } function_table[]= {
     // Numeric functions
-    {"abs", FUNC_ABS},
-    {"bin", FUNC_BIN},
-    {"conv", FUNC_CONV},
-    {"hex", FUNC_HEX},
-    {"oct", FUNC_OCT},
+    {STRING_WITH_LEN("abs"), FUNC_ABS},
+    {STRING_WITH_LEN("bin"), FUNC_BIN},
+    {STRING_WITH_LEN("conv"), FUNC_CONV},
+    {STRING_WITH_LEN("hex"), FUNC_HEX},
+    {STRING_WITH_LEN("oct"), FUNC_OCT},
     // String functions
-    {"concat", FUNC_CONCAT},
-    {"concat_ws", FUNC_CONCAT_WS},
-    {"greatest", FUNC_GREATEST},
-    {"insert", FUNC_INSERT},
-    {"instr", FUNC_INSTR},
-    {"lcase", FUNC_LOWER},
-    {"least", FUNC_LEAST},
-    {"length", FUNC_LENGTH},
-    {"locate", FUNC_LOCATE},
-    {"lower", FUNC_LOWER},
-    {"lpad", FUNC_LPAD},
-    {"ltrim", FUNC_LTRIM},
-    {"repeat", FUNC_REPEAT},
-    {"replace", FUNC_REPLACE},
-    {"reverse", FUNC_REVERSE},
-    {"rpad", FUNC_RPAD},
-    {"rtrim", FUNC_RTRIM},
-    {"substr", FUNC_SUBSTR},
-    {"substring", FUNC_SUBSTR},
-    {"substring_index", FUNC_SUBSTR_IDX},
-    {"trim", FUNC_TRIM},
-    {"ucase", FUNC_UPPER},
-    {"upper", FUNC_UPPER},
+    {STRING_WITH_LEN("concat"), FUNC_CONCAT},
+    {STRING_WITH_LEN("concat_ws"), FUNC_CONCAT_WS},
+    {STRING_WITH_LEN("greatest"), FUNC_GREATEST},
+    {STRING_WITH_LEN("insert"), FUNC_INSERT},
+    {STRING_WITH_LEN("instr"), FUNC_INSTR},
+    {STRING_WITH_LEN("lcase"), FUNC_LOWER},
+    {STRING_WITH_LEN("least"), FUNC_LEAST},
+    {STRING_WITH_LEN("length"), FUNC_LENGTH},
+    {STRING_WITH_LEN("locate"), FUNC_LOCATE},
+    {STRING_WITH_LEN("lower"), FUNC_LOWER},
+    {STRING_WITH_LEN("lpad"), FUNC_LPAD},
+    {STRING_WITH_LEN("ltrim"), FUNC_LTRIM},
+    {STRING_WITH_LEN("repeat"), FUNC_REPEAT},
+    {STRING_WITH_LEN("replace"), FUNC_REPLACE},
+    {STRING_WITH_LEN("reverse"), FUNC_REVERSE},
+    {STRING_WITH_LEN("rpad"), FUNC_RPAD},
+    {STRING_WITH_LEN("rtrim"), FUNC_RTRIM},
+    {STRING_WITH_LEN("substr"), FUNC_SUBSTR},
+    {STRING_WITH_LEN("substring"), FUNC_SUBSTR},
+    {STRING_WITH_LEN("substring_index"), FUNC_SUBSTR_IDX},
+    {STRING_WITH_LEN("trim"), FUNC_TRIM},
+    {STRING_WITH_LEN("ucase"), FUNC_UPPER},
+    {STRING_WITH_LEN("upper"), FUNC_UPPER},
     // Regexp functions
-    {"regexp_instr", FUNC_REGEXP_INSTR},
-    {"regexp_replace", FUNC_REGEXP_REPLACE},
-    {"regexp_substr", FUNC_REGEXP_SUBSTR},
+    {STRING_WITH_LEN("regexp_instr"), FUNC_REGEXP_INSTR},
+    {STRING_WITH_LEN("regexp_replace"), FUNC_REGEXP_REPLACE},
+    {STRING_WITH_LEN("regexp_substr"), FUNC_REGEXP_SUBSTR},
     // Null functions
-    {"coalesce", FUNC_COALESCE},
-    {"ifnull", FUNC_IFNULL},
-    {"nullif", FUNC_NULLIF},
-    {NULL, FUNC_UNKNOWN}
+    {STRING_WITH_LEN("coalesce"), FUNC_COALESCE},
+    {STRING_WITH_LEN("ifnull"), FUNC_IFNULL},
+    {STRING_WITH_LEN("nullif"), FUNC_NULLIF},
+    {NULL, 0, FUNC_UNKNOWN}
 };
 
 
@@ -6384,9 +6400,9 @@ void func_oct(Expression_value args[], int count, Expression_value *result)
   @param[out] result Expression_value to store result
 
   @details
-    Converts a number to hexadecimal representation.
     HEX(N) returns a string representation of the hexadecimal value of N.
     This is equivalent to CONV(N, 10, 16).
+    HEX(str) returns a hexadecimal representation of the bytes of str.
 
   @note Dies if argument count != 1
 */
@@ -6396,7 +6412,15 @@ void func_hex(Expression_value args[], int count, Expression_value *result)
   if (count != 1)
     die("hex() expects 1 argument, got %d", count);
 
-  convert_base_helper(args[0].to_string(), 10, 16, result);
+  if (args[0].is_numeric)
+    convert_base_helper(args[0].to_string(), 10, 16, result);
+  else
+  {
+    My_string str= args[0].to_string();
+    My_string hex_str;
+    hex_str.set_hex(str.ptr(), str.length());
+    result->set_string(hex_str.ptr(), hex_str.length());
+  }
 }
 
 
@@ -7652,7 +7676,8 @@ enum func_type get_expr_function_type(const char *name, size_t len)
 {
   for (int i= 0; function_table[i].name; ++i)
   {
-    if (!strncasecmp(function_table[i].name, name, len))
+    if (function_table[i].length == len &&
+        !strncasecmp(function_table[i].name, name, len))
       return function_table[i].type;
   }
   return FUNC_UNKNOWN;

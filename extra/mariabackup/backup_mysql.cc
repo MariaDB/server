@@ -348,6 +348,30 @@ read_mysql_one_value(MYSQL *mysql, const char *query)
   return read_mysql_one_value(mysql, query, 0/*offset*/, 1/*total columns*/);
 }
 
+/** Poll InnoDB's durably flushed redo LSN from the running server.
+Log copier uses this as its parse limit; it never accepts a redo log
+record whose end exceeds this LSN
+@param connection MariaDB client connection
+@retval 0 on failure, lsn on success */
+uint64_t get_log_flushed_lsn(MYSQL *connection) noexcept
+{
+  if (!connection)
+    return 0;
+
+  uint64_t lsn= 0;
+  MYSQL_RES *res= xb_mysql_query(connection,
+                                 "SHOW STATUS LIKE 'Innodb_lsn_flushed'",
+                                 true, false);
+   if (!res)
+     return 0;
+
+   if (MYSQL_ROW row= mysql_fetch_row(res))
+     if (row[1])
+       lsn= strtoull(row[1], nullptr, 10);
+   mysql_free_result(res);
+  return lsn;
+}
+
 
 static
 bool

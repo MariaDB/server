@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,8 +84,8 @@
 
 LOGGER logger;
 
-const char *log_bin_index= 0;
-const char *log_bin_basename= 0;
+READ_ONLY_SYSVAR const char *log_bin_index= 0;
+READ_ONLY_SYSVAR const char *log_bin_basename= 0;
 
 MYSQL_BIN_LOG mysql_bin_log(&sync_binlog_period);
 
@@ -10581,7 +10581,7 @@ ulong tc_log_page_waits= 0;
 
 static const uchar tc_log_magic[]={(uchar) 254, 0x23, 0x05, 0x74};
 
-ulong opt_tc_log_size;
+READ_ONLY_SYSVAR ulong opt_tc_log_size;
 ulong tc_log_max_pages_used=0, tc_log_page_size=0, tc_log_cur_pages_used=0;
 
 int TC_LOG_MMAP::open(const char *opt_name)
