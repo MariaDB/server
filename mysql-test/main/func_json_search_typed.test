@@ -1,0 +1,100 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # JSON_SEARCH always returns a document.
+--echo #
+--echo # Every path it produces is built out of pieces of a document it
+--echo # has just read through, and the punctuation round them is its
+--echo # own.  Several paths go inside brackets, which needs a character
+--echo # set that can encode a bracket; a document written in one that
+--echo # cannot is a scalar, there being no way to write a container in
+--echo # it, so it holds one value and one path comes back.
+--echo #
+--echo # So the answer is a document whatever was asked, and a column
+--echo # filled from this function is a column of documents.  What that
+--echo # buys is the reading that a later reader of the column would
+--echo # otherwise have to do to find that out.
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":"x","b":"y"}'), (2, '{"c":"x","d":"z"}');
+
+--echo #
+--echo # 1. The two shapes of answer
+--echo #
+SELECT id, JSON_SEARCH(j, 'one', 'x') AS one_path,
+           JSON_SEARCH(j, 'all', 'x') AS all_paths FROM t1 ORDER BY id;
+SELECT id, JSON_TYPE(JSON_SEARCH(j, 'one', 'x')) AS one_ty,
+           JSON_TYPE(JSON_SEARCH(j, 'all', '%')) AS all_ty
+       FROM t1 ORDER BY id;
+
+--echo #
+--echo # 2. Branches of a union agreeing about it
+--echo #
+--echo #    A union settles what its column holds from what every branch
+--echo #    says it always returns, and both of these say a document.
+--echo #
+SELECT JSON_SEARCH('{"a":"x","b":"y"}', 'one', 'x') AS p
+UNION
+SELECT JSON_SEARCH('{"c":"z"}', 'one', 'z');
+
+SELECT JSON_TYPE(p) AS ty FROM
+  (SELECT JSON_SEARCH('{"a":"x"}', 'all', '%') AS p
+   UNION ALL
+   SELECT JSON_SEARCH('{"b":"y","c":"y"}', 'all', '%')) u;
+
+--echo #
+--echo # 3. A list of values written out in the statement
+--echo #
+VALUES (JSON_SEARCH('{"a":"x"}', 'one', 'x')),
+       (JSON_SEARCH('{"b":"y"}', 'one', 'y'));
+
+--echo #
+--echo # 4. A column of a table the server built for itself
+--echo #
+SELECT p FROM (SELECT JSON_SEARCH(j, 'all', '%') AS p FROM t1) d
+  GROUP BY p ORDER BY p;
+
+CREATE TABLE t2 AS SELECT id, JSON_SEARCH(j, 'all', '%') AS p FROM t1;
+SELECT id, p, JSON_TYPE(p) AS ty FROM t2 ORDER BY id;
+DROP TABLE t2;
+
+--echo #
+--echo # 5. A column of a table the statement named
+--echo #
+--echo #    A path written into a column that only takes documents is
+--echo #    accepted, which is the same claim put the other way round.
+--echo #
+CREATE TABLE t3 (id INT, p VARCHAR(64) CHECK (JSON_VALID(p))) CHARSET utf8mb4;
+INSERT INTO t3 SELECT id, JSON_SEARCH(j, 'all', '%') FROM t1;
+SELECT id, p, JSON_TYPE(p) AS ty FROM t3 ORDER BY id;
+DROP TABLE t3;
+
+--echo #
+--echo # 6. The reading that is not done
+--echo #
+--echo #    A path spliced into a new document out of a temporary table
+--echo #    the server built is taken as it stands; the same query with
+--echo #    the column's answer taken away reads it again.
+--echo #
+SET optimizer_switch='derived_merge=off';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+  GROUP BY p;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+SET SESSION debug_dbug = '+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+  GROUP BY p;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug = DEFAULT;
+SET optimizer_switch=DEFAULT;
+
+DROP TABLE t1;

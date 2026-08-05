@@ -184,6 +184,12 @@ class Item_json_func: public Item_str_func
 {
 protected:
   Json_result_marks m_marks;
+  /*
+    Hand a document back as this function's answer rather than reading it
+    again to find out what it is - out of line, where the rule it stands
+    on is written.
+  */
+  String *hand_back_json(String *to, const String *from);
 public:
   Item_json_func(THD *thd)
    :Item_str_func(thd) { }
@@ -253,10 +259,15 @@ public:
     if (null_value)
       return NULL;
     /*
-      Not said to be nicely spelled: the piece is copied out with
-      whatever spacing the document it came from was written with.
+      The piece is copied out with whatever spacing the document it came
+      from was written with, so it is formatted the loose way exactly when
+      that document was.  Cutting it out cannot change that: the loose
+      form writes the same punctuation wherever a value sits, so a value
+      inside a document is written there the way it would be written on
+      its own, and the two ends of the cut are the two ends of the value
+      with no spacing of the document's left on either side.
     */
-    m_marks.set(to, true, false);
+    m_marks.set(to, true, args[0]->is_nice_json());
     return to;
   }
   bool check_and_get_value(Json_engine_scan *je,
@@ -371,9 +382,13 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }
   /*
-    The values found are put together into a result of their own, and
-    that result is then read back through json_nice() before it is
-    handed over.  Anything it cannot read comes back as NULL.
+    The values found are put together into a result of their own.  Each
+    of them was read as a document on the way in and is written back out
+    as one, so what holds them is all that can be wrong with the result
+    - and that is the brackets, written only when several values can
+    match.  In a character set that cannot encode those, the result is
+    read back through json_nice() as it always was, and anything that
+    will not read comes back as NULL.
   */
   bool is_valid_json_static() const override { return true; }
 
@@ -478,11 +493,16 @@ public:
     return name;
   }
   /*
-    Every function that EDITS a document reads the whole of what it has
-    written back through json_nice() before handing it over, and hands
-    back NULL for anything that will not read.  That reading is what
-    makes is_valid true for the result, and it is the same in all six
-    of them.
+    Each of the six functions that EDIT a document returns a document
+    or NULL, and for the same two reasons in all of them.
+
+    Where the document it was given is_valid, and the result character
+    set can represent the punctuation being written, the result is a
+    document by construction: the parts retained were parsed as one on
+    input, and what goes between them is written here.  Where either
+    does not hold, the whole result is re-parsed through json_nice()
+    before being returned, and anything that fails to parse gives
+    NULL.
   */
   bool is_valid_json_static() const override { return true; }
 
@@ -543,7 +563,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_preserve") };
     return name;
   }
-  /* Reads its result back, as the other editing functions do. */
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
   bool is_valid_json_static() const override { return true; }
 
 protected:
@@ -586,6 +609,11 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  /*
+    Written out afresh from a document read through in full, and always
+    in utf8mb4, which can encode everything written into it whatever the
+    argument arrived in.
+  */
   bool is_valid_json_static() const override { return true; }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_normalize>(thd, this); }
@@ -681,7 +709,10 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count/2; }
-  /* Reads its result back, as the other editing functions do. */
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
   bool is_valid_json_static() const override { return true; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -713,7 +744,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_remove") };
     return name;
   }
-  /* Reads its result back, as the other editing functions do. */
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
   bool is_valid_json_static() const override { return true; }
 
 protected:
@@ -770,8 +804,12 @@ public:
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
   /*
-    A path is a JSON string, and every path this hands back is built out
-    of pieces of a document that has just been read through.
+    A path is a JSON string, and every path returned here is built from
+    pieces of a document that has just been parsed.  Several of them go
+    inside brackets, which needs a character set that can represent a
+    bracket - and a document in a character set that cannot is a
+    scalar, there being no way to write a container in it, so it holds
+    one value and yields one path.
   */
   bool is_valid_json_static() const override { return true; }
 

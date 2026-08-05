@@ -1,0 +1,227 @@
+CREATE TABLE t1 (id INT, js VARCHAR(64), v VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"A":1,"B":2}', 'X'), (2, '{"A":3,"B":4}', 'Y');
+#
+# 1. Document and value both built into the buffer offered them
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v)) AS ins FROM t1;
+ins
+{"A": 1, "B": 2, "c": "XX"}
+{"A": 3, "B": 4, "c": "YY"}
+SELECT JSON_INSERT(LOWER(js), '$.c', LOWER(v)) AS ins_low FROM t1;
+ins_low
+{"a": 1, "b": 2, "c": "x"}
+{"a": 3, "b": 4, "c": "y"}
+SELECT JSON_INSERT(REVERSE(REVERSE(js)), '$.c', UPPER(v)) AS ins_rev FROM t1;
+ins_rev
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_SET(CONCAT(js, ''), '$.A', CONCAT(v, v)) AS st FROM t1;
+st
+{"A": "XX", "B": 2}
+{"A": "YY", "B": 4}
+SELECT JSON_REPLACE(CONCAT(js, ''), '$.A', CONCAT(v, v)) AS rep FROM t1;
+rep
+{"A": "XX", "B": 2}
+{"A": "YY", "B": 4}
+SELECT JSON_REMOVE(CONCAT(js, ''), '$.A') AS rem FROM t1;
+rem
+{"B": 2}
+{"B": 4}
+SELECT JSON_ARRAY_APPEND(CONCAT('[', js, ']'), '$', CONCAT(v, v)) AS app
+FROM t1;
+app
+[{"A": 1, "B": 2}, "XX"]
+[{"A": 3, "B": 4}, "YY"]
+SELECT JSON_ARRAY_INSERT(CONCAT('[', js, ']'), '$[0]', CONCAT(v, v)) AS ari
+FROM t1;
+ari
+["XX", {"A": 1, "B": 2}]
+["YY", {"A": 3, "B": 4}]
+SELECT JSON_MERGE(CONCAT(js, ''), CONCAT('{"c":"', v, '"}')) AS mrg FROM t1;
+mrg
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_MERGE_PATCH(CONCAT(js, ''), CONCAT('{"c":"', v, '"}')) AS mpt
+FROM t1;
+mpt
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+#
+# 2. More than one path, so the document read from on the second
+#    pass is the one the first pass wrote
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v),
+'$.d', CONCAT(v, v, v)) AS two_paths FROM t1;
+two_paths
+{"A": 1, "B": 2, "c": "XX", "d": "XXX"}
+{"A": 3, "B": 4, "c": "YY", "d": "YYY"}
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v),
+'$.zz.deeper', CONCAT(v, v),
+'$.d', CONCAT(v, v, v)) AS three_paths FROM t1;
+three_paths
+{"A": 1, "B": 2, "c": "XX", "d": "XXX"}
+{"A": 3, "B": 4, "c": "YY", "d": "YYY"}
+SELECT JSON_MERGE(CONCAT(js, ''), CONCAT('{"c":"', v, '"}'),
+CONCAT('{"d":"', v, '"}')) AS mrg3 FROM t1;
+mrg3
+{"A": 1, "B": 2, "c": "X", "d": "X"}
+{"A": 3, "B": 4, "c": "Y", "d": "Y"}
+#
+# 3. A value that grows a great deal, so a buffer holding it has
+#    to be found somewhere else
+#
+#    These are the only cases here big enough to make a buffer
+#    move, and so the only ones that reach what this file is
+#    about.  How long the answer is cannot be what they ask:
+#    copying out of a buffer that has moved brings back the same
+#    number of bytes it would have brought back intact, so a
+#    length is exactly the measure that survives the fault.  They
+#    ask instead whether the answer still reads as a document,
+#    whether the member nobody touched came through, and what
+#    stands at both ends of the value that grew.
+#
+SELECT LENGTH(g) AS grown, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a, JSON_EXTRACT(g, '$.B') AS kept_b,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(CONCAT(js, ''), '$.c', REPEAT(v, 5000)) AS g
+FROM t1) AS x;
+grown	parses	kept_a	kept_b	value_head	value_tail
+5025	1	1	2	XXXXXXXX	XXXXXXXX
+5025	1	3	4	YYYYYYYY	YYYYYYYY
+SELECT LENGTH(g) AS mgrown, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a, JSON_EXTRACT(g, '$.B') AS kept_b,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_tail
+FROM (SELECT JSON_MERGE(CONCAT(js, ''),
+CONCAT('{"c":"', REPEAT(v, 5000), '"}')) AS g
+FROM t1) AS x;
+mgrown	parses	kept_a	kept_b	value_head	value_tail
+5025	1	1	2	XXXXXXXX	XXXXXXXX
+5025	1	3	4	YYYYYYYY	YYYYYYYY
+#
+# 4. A user variable holding the document, written to by the
+#    expression that works out the value
+#
+SET @d= '{"a":1111111111}';
+SELECT JSON_INSERT(@d, '$.b', (@d := REPEAT('z', 30))) AS uvar;
+uvar
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+SET @d= '{"a":1111111111}';
+SELECT LENGTH(g) AS uvar_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.a') AS kept_a,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(@d, '$.b', (@d := REPEAT('z', 100000))) AS g) AS x;
+uvar_big	parses	kept_a	value_head	value_tail
+100026	1	1111111111	zzzzzzzz	zzzzzzzz
+SET @d= '[1111111111]';
+SELECT JSON_ARRAY_APPEND(@d, '$', (@d := REPEAT('z', 30))) AS uvar_app;
+uvar_app
+[1111111111, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"]
+SET @d= '{"a":1111111111}';
+SELECT JSON_MERGE(@d, (@d := '{"b":2}')) AS uvar_mrg;
+uvar_mrg
+{"a": 1111111111, "b": 2}
+#
+# 5. A routine's own variable holding the document, with the
+#    value worked out by calling something
+#
+CREATE FUNCTION f_grow(n INT) RETURNS TEXT
+BEGIN
+RETURN REPEAT('z', n);
+END|
+CREATE PROCEDURE p_edit()
+BEGIN
+DECLARE d TEXT DEFAULT '{"a":1111111111}';
+SELECT JSON_INSERT(d, '$.b', f_grow(30)) AS sp_ins;
+SELECT LENGTH(g) AS sp_ins_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.a') AS kept_a,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(d, '$.b', f_grow(50000)) AS g) AS x;
+SELECT JSON_INSERT(CONCAT(d, ''), '$.b', f_grow(30)) AS sp_ins_concat;
+SELECT JSON_MERGE(d, CONCAT('{"b":"', f_grow(30), '"}')) AS sp_mrg;
+SELECT JSON_REMOVE(CONCAT(d, ''), '$.a') AS sp_rem;
+END|
+CALL p_edit();
+sp_ins
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_ins_big	parses	kept_a	value_head	value_tail
+50026	1	1111111111	zzzzzzzz	zzzzzzzz
+sp_ins_concat
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_mrg
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_rem
+{}
+DROP PROCEDURE p_edit;
+DROP FUNCTION f_grow;
+#
+# 6. A column read straight out of the row, which is the one
+#    producer that returns the row itself
+#
+SELECT JSON_INSERT(js, '$.c', (SELECT MAX(v) FROM t1)) AS col_sub FROM t1;
+col_sub
+{"A": 1, "B": 2, "c": "Y"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_INSERT(js, '$.c', (SELECT COUNT(*) FROM t1)) AS col_cnt FROM t1;
+col_cnt
+{"A": 1, "B": 2, "c": 2}
+{"A": 3, "B": 4, "c": 2}
+#
+# 7. A value that is itself a document
+#
+#    Everything above passes a plain string, which is copied
+#    a character at a time with quotes put round it.  A value
+#    that is already a document goes in another way: its bytes
+#    are noted down where they stand, and only then is the
+#    composing written into the buffer they may have to share.
+#    That is the one place in this work where a note of where
+#    something was outlives an append, so it is the one that
+#    belongs here.
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_EXTRACT(CONCAT('{"q":[1,', v, ']}'), '$.q'))
+AS typed_ins FROM t1;
+typed_ins
+{"A": 1, "B": 2, "c": null}
+{"A": 3, "B": 4, "c": null}
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 9
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 9
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_OBJECT('k', CONCAT(v, v))) AS typed_built FROM t1;
+typed_built
+{"A": 1, "B": 2, "c": {"k": "XX"}}
+{"A": 3, "B": 4, "c": {"k": "YY"}}
+SELECT JSON_MERGE(CONCAT(js, ''),
+JSON_OBJECT('c', CONCAT(v, v))) AS typed_mrg FROM t1;
+typed_mrg
+{"A": 1, "B": 2, "c": "XX"}
+{"A": 3, "B": 4, "c": "YY"}
+#
+#    The same where the value is long enough to move a buffer
+#    while it is being written out.
+#
+SELECT LENGTH(g) AS typed_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a,
+JSON_LENGTH(JSON_EXTRACT(g, '$.c')) AS value_members,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c[0]')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c[1]')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_ARRAY(REPEAT(v, 5000), REPEAT(v, 5000))) AS g
+FROM t1) AS x;
+typed_big	parses	kept_a	value_members	value_head	value_tail
+10031	1	1	2	XXXXXXXX	XXXXXXXX
+10031	1	3	2	YYYYYYYY	YYYYYYYY
+#
+#    And where the document being edited is a user variable that
+#    the value expression writes to, with the value a document.
+#
+SET @d= '{"a":1111111111}';
+SELECT JSON_INSERT(@d, '$.b',
+JSON_ARRAY((@d := REPEAT('z', 30)), 2)) AS typed_uvar;
+typed_uvar
+{"a": 1111111111, "b": ["zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", 2]}
+DROP TABLE t1;

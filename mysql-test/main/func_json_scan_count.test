@@ -1,0 +1,434 @@
+--source include/have_debug.inc
+
+#
+# How many times the JSON functions read a value.
+#
+# These functions return the same answer however many times they read
+# what they are working on, so no result anywhere says how much reading
+# was done.  Json_scans says it, and nothing else does: a reading that
+# stops happening shows up here or nowhere.
+#
+# The counts below are therefore not a statement about anything a caller
+# can see.  They are a record of work, kept so that work taken away
+# later has to be taken away on purpose and in the open, and so that
+# work quietly added back shows up as a test that fails.
+#
+# A debug build also reads values back to check what the functions claim
+# about them.  That reading is not counted - it is the build's work and
+# not the server's, and counting it would move these numbers for reasons
+# no query is responsible for.
+#
+
+CREATE TABLE t1 (id INT, js VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"a":1,"b":2}'), (2, '{"a":3,"b":4}');
+
+CREATE TABLE t2 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t2 VALUES (1, '{"a":1,"b":2}'), (2, '{"a":3,"b":4}');
+
+CREATE TABLE t3 (id INT, js VARCHAR(200));
+INSERT INTO t3 VALUES (1, CONCAT('{"a":"', REPEAT('x', 80), '"}')),
+                      (2, CONCAT('{"a":"', REPEAT('y', 80), '"}'));
+
+--echo #
+--echo # A function that edits a document reads it once to find the place
+--echo # to edit, and then reads its own result back to find out how to
+--echo # write it.  Two rows, two readings each.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(js, '$.c', 3) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_SET(js, '$.a', 9) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_REPLACE(js, '$.a', 9) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_REMOVE(js, '$.a') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_APPEND(js, '$.a', 7) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_INSERT(js, '$.a[0]', 7) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Merging reads both documents, and then reads the result.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE(js, '{"c":3}') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE_PATCH(js, '{"c":3}') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A function that only reads pays for ONE reading, not two.  The
+--echo # walk to the path and the writing out of what was found are the
+--echo # same reading carried on, so nothing is read twice; that is what
+--echo # this work did to reading, and the count below is where it says
+--echo # so.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_EXTRACT(js, '$.a') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A path that matches nothing costs the same one reading, there
+--echo # being nothing to write out and nothing to read back either way.
+--echo # It is here to say that finding something is what has stopped
+--echo # costing extra, not that finding nothing ever did.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_EXTRACT(js, '$.zz') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Chained edits pay only for the innermost link.  That one is
+--echo # given a document out of a column that attests is_valid false,
+--echo # so it reads its result back before returning it.  Every link
+--echo # after it is handed a document answering is_valid, and
+--echo # attests to its own result the same way.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d', 4) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_REMOVE(JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d', 4), '$.a')
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same for each of the others, each handed the is_valid
+--echo # result of the one before it.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_APPEND(JSON_INSERT(js, '$.b', JSON_ARRAY(1, 2)), '$.b', 3)
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_INSERT(JSON_INSERT(js, '$.b', JSON_ARRAY(1, 2)), '$.b[0]', 3)
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The two above put their value at a key the document already
+--echo # has, so nothing is put there and what they append to is the
+--echo # scalar that was there all along, which has to be wrapped in an
+--echo # array first.  At a key the document does NOT have, the value
+--echo # goes in and the array they append to is that value.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_APPEND(JSON_INSERT(js, '$.c', JSON_ARRAY(1, 2)), '$.c', 3)
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY_INSERT(JSON_INSERT(js, '$.c', JSON_ARRAY(1, 2)), '$.c[0]', 3)
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), JSON_OBJECT('d', 4)) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE_PATCH(JSON_INSERT(js, '$.c', 3), JSON_OBJECT('d', 4))
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A merge whose other argument attests is_valid false reads the
+--echo # answer back, every document that goes into it having a say in
+--echo # how it is written.  A written-out literal is such a document:
+--echo # nothing has read it, so nothing can say how it is written.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), js) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), '{"d":4}') FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A document answering is_valid but NOT is_nice is read back like
+--echo # one answering is_valid false.
+--echo # Picking a piece out of a document returns the piece as it was
+--echo # formatted where it came from, so that is such a document; picking
+--echo # values out and putting them together writes them out afresh, so
+--echo # that one is not.  The same edit is put to each below, and the
+--echo # difference between the two counts is the reading back.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_QUERY(js, '$'), '$.c', 3) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_EXTRACT(js, '$'), '$.c', 3) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Asking for a document in a particular formatting reads nothing at
+--echo # all when what asked for it wanted a document rather than text.
+--echo # Both of these therefore cost what the edit alone costs, and
+--echo # neither the formatting asked for nor the reading it would have
+--echo # taken happens.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_COMPACT(js), '$.c', 3) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_LOOSE(js), '$.c', 3) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A value spliced into a document being built is read too, to find
+--echo # out whether it is a document at all.  A column that is not typed
+--echo # as JSON is written out as a string instead and is not read.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(js, js) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A column that IS typed as JSON is read, the type being a promise
+--echo # nothing on the way here has checked.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(j, j) FROM t2;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A value that something has already read and attested to is not
+--echo # read again.  Two values, and neither of them costs a reading,
+--echo # so what is left is what the two of them cost to make.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(js, '$.a'), JSON_EXTRACT(js, '$.b')) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_OBJECT('x', JSON_EXTRACT(js, '$.a'), 'y', JSON_EXTRACT(js, '$.b'))
+  FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_INSERT(js, '$.c', 3), JSON_INSERT(js, '$.d', 4)) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same where the value goes into a document being EDITED
+--echo # rather than built.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(js, '$.c', JSON_EXTRACT(js, '$.a')) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d',
+                   JSON_INSERT(js, '$.e', 5)) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # What is skipped there is a reading that would have measured how
+--echo # deep the value goes, and how deep it ends up decides whether the
+--echo # result can be read at all.  How long the value is answers that
+--echo # for a short one - it cannot nest deeper than half its length -
+--echo # and answers nothing for a long one, which is read as before.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(js, '$')) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Asking whether a value is a document reads it once.  There is
+--echo # nothing here left to take away.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_VALID(js) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Nothing read, nothing counted.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT id FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+
+--echo #
+--echo # A function that only reports on a document parses it through to
+--echo # check that it is one, and that parse is the whole of what it
+--echo # costs on a large document.  Out of a column nothing has attested to
+--echo # anything, so it is made: once to check the document and once to
+--echo # read the value being reported on.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_TYPE(js) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same over a document an item has attested is_valid.  The
+--echo # editing costs what it always did, and the reporting costs one
+--echo # reading rather than two: there is nothing left to check.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_TYPE(JSON_INSERT(js, '$.c', 3)) FROM t1;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The answers are unchanged either way.  JSON_LENGTH,
+--echo # JSON_EXTRACT and JSON_CONTAINS_PATH stop parsing early over an
+--echo # attested value too, which no count here can show - they carry
+--echo # the parse on inside one reading rather than starting another.
+--echo #
+SELECT JSON_TYPE(JSON_INSERT('{"a":1}', '$.b', 2)) AS attested_type,
+       JSON_TYPE('{"a":1,"b":2}') AS plain_type;
+SELECT JSON_LENGTH(JSON_INSERT('{"a":1}', '$.b', 2)) AS attested_length,
+       JSON_LENGTH('{"a":1,"b":2}') AS plain_length;
+SELECT JSON_EXTRACT(JSON_INSERT('{"a":1}', '$.b', 2), '$.a') AS attested_x,
+       JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS plain_x;
+SELECT JSON_CONTAINS_PATH(JSON_INSERT('{"a":1}', '$.b', 2),
+                          'one', '$.a') AS attested_cp,
+       JSON_CONTAINS_PATH('{"a":1,"b":2}', 'one', '$.a') AS plain_cp;
+SELECT JSON_CONTAINS_PATH(JSON_INSERT('{"a":1}', '$.b', 2),
+                          'all', '$.a', '$.b') AS attested_cp_all,
+       JSON_CONTAINS_PATH('{"a":1,"b":2}', 'all', '$.a', '$.b') AS plain_cp_all;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+--echo #
+--echo # A document attested in one character set, spliced into a
+--echo # result being built in another.  It is converted first, because the
+--echo # result is read in the character set it is built in - and a
+--echo # conversion that lost nothing kept the characters it was given, so
+--echo # what was answered about the value still holds of what came out of
+--echo # it.  One reading for the value that was built, none for putting it
+--echo # in.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_SET('{"x":1}', '$.p',
+                CONVERT(JSON_OBJECT('a', 1) USING latin1));
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Two of them, one reading each and none for either splice.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_SET('{"x":1}', '$.p',
+                CONVERT(JSON_OBJECT('a', 1) USING latin1),
+                '$.q',
+                CONVERT(JSON_OBJECT('b', 2) USING latin1));
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same value with no conversion in the way, which is what the
+--echo # two above now cost.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_SET('{"x":1}', '$.p', JSON_OBJECT('a', 1));
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A conversion that could not encode a character put a question mark
+--echo # in its place, so the value that comes out is not the value that
+--echo # was attested.  The bytes that arrived go in unchanged, as they
+--echo # always have, and they are read.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_SET('{"x":1}', '$.p',
+                CONVERT(JSON_OBJECT('a', _utf8mb4 0xE4BDA0) USING latin1));
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
