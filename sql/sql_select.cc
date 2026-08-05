@@ -2881,9 +2881,15 @@ int JOIN::optimize_stage2()
       Unlock all tables, except sequences, as accessing these may still
       require table updates. It's safe to ignore result code as all
       tables where opened for read only.
+
+      A const table's row stays in record[0] and is read from there for the
+      rest of the statement, so a table that answered the read with pointers
+      into memory it shares with other connections has to stay locked too --
+      see HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK.
     */
     (void) mysql_unlock_some_tables(thd, table, const_tables,
-                                    GET_LOCK_SKIP_SEQUENCES);
+                                    GET_LOCK_SKIP_SEQUENCES |
+                                    GET_LOCK_SKIP_ZERO_COPY_ROWS);
   }
   if (!conds && outer_join)
   {

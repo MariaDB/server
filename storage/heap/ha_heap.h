@@ -25,6 +25,7 @@ class ha_heap final : public handler
   HP_INFO *file;
   HP_SHARE *internal_share;
   key_map btree_keys;
+  ulonglong int_table_flags2;
   /* number of records changed since last statistics update */
   ulong   records_changed;
   ulong   saved_current_record;  /* for remember_rnd_pos() / restart_rnd_next() */
@@ -44,6 +45,10 @@ public:
             HA_REC_NOT_IN_SEQ | HA_CAN_INSERT_DELAYED | HA_NO_TRANSACTIONS |
             HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_HASH_KEYS |
             HA_CAN_GEOMETRY | HA_CAN_BIT_FIELD);
+  }
+  ulonglong table_flags2() const override
+  {
+    return int_table_flags2;
   }
   ulong index_flags(uint inx, uint part, bool all_parts) const override
   {

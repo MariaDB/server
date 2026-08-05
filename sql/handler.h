@@ -397,6 +397,18 @@ enum chf_create_flags {
 
 #define HA_LAST_TABLE_FLAG HA_NO_ONLINE_ALTER
 
+/*
+  All table flags are used, the following are a new set of flags
+  stored in table_flags_part2
+*/
+
+/*
+  Set if one cannot access rowdata, like blobs, after unlock, either because
+  the engine frees row data or the row data may be overwritten by other
+  connections. This happens with the zero-copy blobs in the heap engine.
+*/
+#define HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK (1ULL << 0)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */
@@ -3762,6 +3774,10 @@ public:
     DBUG_ASSERT((cached_table_flags >> 1) < HA_LAST_TABLE_FLAG);
     return cached_table_flags;
   }
+  Table_flags ha_table_flags2() const
+  {
+    return table_flags2();
+  }
   /**
     These functions represent the public interface to *users* of the
     handler class, hence they are *not* virtual. For the inheritance
@@ -5491,6 +5507,7 @@ private:
   */
   virtual int reset() { return 0; }
   virtual Table_flags table_flags(void) const= 0;
+  virtual Table_flags table_flags2() const { return 0; }
   /**
     Is not invoked for non-transactional temporary tables.
 
