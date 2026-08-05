@@ -57,7 +57,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
-  `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+  `t` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t3;
 Table	Create Table
@@ -155,7 +155,7 @@ DROP TABLE t1;
 #
 SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					j	250 (format=json)	9437310	16	Y	0	39	33
+def					j	250 (format=json)	18874566	16	Y	0	39	33
 j
 {"a": {"b":"c"}}
 #

@@ -475,12 +475,12 @@ v
 [1]
 SELECT JSON_OBJECT('a',1) AS v;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	253 (format=json)	72	8	Y	0	39	45
+def					v	253 (format=json)	104	8	Y	0	39	45
 v
 {"a": 1}
 SELECT JSON_SET('{}','$.a',1) AS v;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	253 (format=json)	68	8	Y	0	39	45
+def					v	253 (format=json)	84	8	Y	0	39	45
 v
 {"a": 1}
 SELECT JSON_EXTRACT('{"a":1}','$.a') AS v;
@@ -495,7 +495,7 @@ v
 a
 SELECT JSON_QUOTE('a') AS v;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	253	56	3	Y	128	39	45
+def					v	253	48	3	Y	128	39	45
 v
 "a"
 SELECT JSON_KEYS('{"a":1}') AS v;

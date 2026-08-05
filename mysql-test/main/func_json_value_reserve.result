@@ -1,0 +1,622 @@
+SET @save_optimizer_switch= @@optimizer_switch;
+CREATE TABLE t1 (v VARCHAR(200));
+INSERT INTO t1 VALUES ('{"x":1}'), ('{"x":2}');
+CREATE TABLE t2 (v VARCHAR(10), s VARCHAR(20));
+INSERT INTO t2 VALUES ('{"x":1}', REPEAT(CHAR(1),20)),
+('{"x":2}', REPEAT(CHAR(2),20));
+CREATE TABLE t3 (v VARCHAR(200));
+INSERT INTO t3 VALUES (CONCAT('{"x":"', REPEAT('a',190), '"}')),
+(CONCAT('{"x":"', REPEAT('b',190), '"}'));
+#
+# What is asked for, taken off the result itself rather than off
+# a column it was put in.  Nothing about where the result goes can
+# reach this number, so it says what the arithmetic came to and
+# nothing else.  The Length column is the one to read.
+#
+SELECT JSON_SET(v, '$.p', 'z') AS one_pair FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					one_pair	253 (format=json)	425	18	Y	0	39	8
+one_pair
+{"x": 1, "p": "z"}
+{"x": 2, "p": "z"}
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w') AS two_pairs FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					two_pairs	253 (format=json)	450	28	Y	0	39	8
+two_pairs
+{"x": 1, "p": "z", "q": "w"}
+{"x": 2, "p": "z", "q": "w"}
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w', '$.s', 'y') AS three_pairs
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					three_pairs	253 (format=json)	475	38	Y	0	39	8
+three_pairs
+{"x": 1, "p": "z", "q": "w", "s": "y"}
+{"x": 2, "p": "z", "q": "w", "s": "y"}
+SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS plain_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					plain_value	253 (format=json)	335	47	Y	0	39	8
+plain_value
+{"x": 1, "p": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+{"x": 2, "p": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS escaped_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					escaped_value	253 (format=json)	235	57	Y	0	39	8
+escaped_value
+{"x": 1, "p": "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\""}
+{"x": 2, "p": "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\""}
+SELECT JSON_SET(v, '$.p', s) AS wide_escape_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					wide_escape_value	253 (format=json)	235	137	Y	0	39	8
+wide_escape_value
+{"x": 1, "p": "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"}
+{"x": 2, "p": "\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002"}
+SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS document_fills_column FROM t3;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					document_fills_column	253 (format=json)	615	248	Y	0	39	8
+document_fills_column
+{"x": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "p": "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\""}
+{"x": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "p": "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\""}
+#
+# The same numbers again, read off the column a result is put in.
+# The document, then a path and a value for each pair.
+#
+CREATE TABLE d1 AS SELECT JSON_SET(v, '$.p', 'z') AS r FROM t1;
+SHOW CREATE TABLE d1;
+Table	Create Table
+d1	CREATE TABLE `d1` (
+  `r` varchar(425) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d1;
+CREATE TABLE d2 AS
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w') AS r FROM t1;
+SHOW CREATE TABLE d2;
+Table	Create Table
+d2	CREATE TABLE `d2` (
+  `r` varchar(450) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d2;
+CREATE TABLE d3 AS
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w', '$.s', 'y') AS r FROM t1;
+SHOW CREATE TABLE d3;
+Table	Create Table
+d3	CREATE TABLE `d3` (
+  `r` varchar(475) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d3;
+SET @@optimizer_switch='derived_merge=off';
+#
+# A value longer than the document it goes into.  The result is
+# put in a column here, so what is asked for is what is kept.
+#
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('z',5000))) AS produced FROM t1;
+produced
+5017
+5017
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', REPEAT('z',5000)) AS r FROM t1) AS d;
+kept	valid
+5017	1
+5017	1
+#
+# A small document, so that what is asked for stays under the
+# width above which a result is given a blob to live in.  The
+# column stays a VARCHAR, so the arithmetic is what decides the
+# answer rather than the change of type.
+#
+CREATE TABLE d4 AS SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS r FROM t2;
+SHOW CREATE TABLE d4;
+Table	Create Table
+d4	CREATE TABLE `d4` (
+  `r` varchar(335) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d4;
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('z',30))) AS produced FROM t2;
+produced
+47
+47
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS r FROM t2) AS d;
+kept	valid
+47	1
+47	1
+#
+# A value whose characters are written with an escape apiece, so
+# what goes in is twice what was passed.
+#
+CREATE TABLE d5 AS SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t2;
+SHOW CREATE TABLE d5;
+Table	Create Table
+d5	CREATE TABLE `d5` (
+  `r` varchar(235) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d5;
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('"',20))) AS produced FROM t2;
+produced
+57
+57
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t2) AS d;
+kept	valid
+57	1
+57	1
+#
+# A value whose characters cannot be written as they stand and are escaped
+# out instead, six characters for each one.  Allowing for two
+# characters apiece is not enough for these.
+#
+CREATE TABLE d6 AS SELECT JSON_SET(v, '$.p', s) AS r FROM t2;
+SHOW CREATE TABLE d6;
+Table	Create Table
+d6	CREATE TABLE `d6` (
+  `r` varchar(235) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d6;
+SELECT LENGTH(s) AS value_length FROM t2;
+value_length
+20
+20
+SELECT LENGTH(JSON_SET(v, '$.p', s)) AS produced FROM t2;
+produced
+137
+137
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', s) AS r FROM t2) AS d;
+kept	valid
+137	1
+137	1
+#
+# A document that fills the column it is held in, with a short
+# value that has to be written with escapes.  The document is
+# allowed twice its own width and no more, so whatever the
+# number below comes to over that is the room for the path and
+# the value or it is nothing at all.
+#
+CREATE TABLE d7 AS SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t3;
+SHOW CREATE TABLE d7;
+Table	Create Table
+d7	CREATE TABLE `d7` (
+  `r` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d7;
+SELECT LENGTH(v) AS document FROM t3;
+document
+198
+198
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('"',20))) AS produced FROM t3;
+produced
+248
+248
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t3) AS d;
+kept	valid
+248	1
+248	1
+#
+# The long value in the last pair of three, which is the one the
+# loop reaches last.
+#
+SELECT LENGTH(JSON_SET(v, '$.p', 'x', '$.q', 'y',
+'$.s', REPEAT('z',5000))) AS produced FROM t1;
+produced
+5037
+5037
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$.p', 'x', '$.q', 'y',
+'$.s', REPEAT('z',5000)) AS r FROM t1) AS d;
+kept	valid
+5037	1
+5037	1
+#
+# JSON_INSERT and JSON_REPLACE, whose length the same function
+# works out.
+#
+SELECT LENGTH(JSON_INSERT(v, '$.p', REPEAT('z',5000))) AS produced FROM t1;
+produced
+5017
+5017
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_INSERT(v, '$.p', REPEAT('z',5000)) AS r FROM t1) AS d;
+kept	valid
+5017	1
+5017	1
+SELECT LENGTH(JSON_REPLACE(v, '$.x', REPEAT('z',5000))) AS produced FROM t1;
+produced
+5009
+5009
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_REPLACE(v, '$.x', REPEAT('z',5000)) AS r FROM t1) AS d;
+kept	valid
+5009	1
+5009	1
+#
+# A path long enough to be worth counting.  The name it adds is
+# what goes into the result, so the room for it is asked for once.
+#
+SELECT LENGTH(JSON_SET(v, CONCAT('$.', REPEAT('p',300)), 'z')) AS produced
+FROM t1;
+produced
+317
+317
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, CONCAT('$.', REPEAT('p',300)), 'z') AS r
+FROM t1) AS d;
+kept	valid
+317	1
+317	1
+#
+# The same room asked for where it is checked rather than cut.
+#
+CREATE TABLE d8 AS SELECT JSON_SET(v, '$.p', REPEAT('z',5000)) AS r FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid FROM d8;
+kept	valid
+5017	1
+5017	1
+DROP TABLE d8;
+#
+# A document held in a column wide enough that nothing it is asked
+# to hold can overflow it.
+#
+CREATE TABLE t4 (j JSON);
+INSERT INTO t4 VALUES ('{"x":1}'), ('{"x":2}');
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(j, '$.p', REPEAT('z',5000)) AS r FROM t4) AS d;
+kept	valid
+5017	1
+5017	1
+DROP TABLE t4;
+#
+# The same room, asked for by the functions that build a document
+# rather than edit one, and by the two that append to an array.
+# All four work it out the same way and all four are given a value
+# whose characters have to be escaped.
+#
+SELECT JSON_ARRAY(s) AS array_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					array_value	253 (format=json)	208	124	Y	0	39	8
+array_value
+["\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"]
+["\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002"]
+SELECT JSON_OBJECT('k', s) AS object_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					object_value	253 (format=json)	224	129	Y	0	39	8
+object_value
+{"k": "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"}
+{"k": "\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002"}
+SELECT JSON_ARRAY_APPEND(v, '$.x', s) AS appended FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					appended	253 (format=json)	226	134	Y	0	39	8
+appended
+{"x": [1, "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"]}
+{"x": [2, "\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002"]}
+SELECT JSON_ARRAY_INSERT(JSON_SET(v, '$.x', JSON_ARRAY(1)), '$.x[0]', s)
+AS inserted FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					inserted	253 (format=json)	312	134	Y	0	39	8
+inserted
+{"x": ["\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001", 1]}
+{"x": ["\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002\u0002", 1]}
+SELECT LENGTH(JSON_ARRAY(s)) AS produced FROM t2;
+produced
+124
+124
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_ARRAY(s) AS r FROM t2) AS d;
+kept	valid
+124	1
+124	1
+SELECT LENGTH(JSON_OBJECT('k', s)) AS produced FROM t2;
+produced
+129
+129
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_OBJECT('k', s) AS r FROM t2) AS d;
+kept	valid
+129	1
+129	1
+SELECT LENGTH(JSON_ARRAY_APPEND(v, '$.x', s)) AS produced FROM t2;
+produced
+134
+134
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_ARRAY_APPEND(v, '$.x', s) AS r FROM t2) AS d;
+kept	valid
+134	1
+134	1
+#
+# What the widest escape actually costs.  A character that cannot
+# be written as it stands is escaped as a backslash, a 'u' and
+# the hex of its UTF-16 form, which is four figures for most
+# characters and eight for the ones outside the first plane: ten
+# characters at the very worst, never more.
+#
+# The difference between allowing ten and allowing twelve is a
+# width apiece, and a width decides whether a result is small
+# enough to be kept in a VARCHAR at all.
+#
+CREATE TABLE t7 (s VARCHAR(45));
+INSERT INTO t7 VALUES (REPEAT('a',45)), (REPEAT('b',45));
+SELECT JSON_QUOTE(s) AS quoted FROM t7;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					quoted	253	452	47	Y	128	39	8
+quoted
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+CREATE TABLE d9 AS SELECT JSON_ARRAY(s) AS r FROM t7;
+SHOW CREATE TABLE d9;
+Table	Create Table
+d9	CREATE TABLE `d9` (
+  `r` varchar(458) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE d9;
+DROP TABLE t7;
+#
+# A value that is already a document goes in as it stands, so the
+# room for it is asked for once over and not twelve times.
+#
+SELECT JSON_ARRAY(JSON_QUERY(v, '$')) AS document_value FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					document_value	253 (format=json)	26	9	Y	0	39	8
+document_value
+[{"x":1}]
+[{"x":2}]
+#
+# A function that takes something out and writes what is left out
+# again, a space arriving after every separator it copies.  One
+# element of two characters goes and twenty-eight spaces come, so
+# the room asked for has to cover the writing here as well.
+#
+CREATE TABLE t5 (v VARCHAR(64)) CHARSET utf8mb4;
+INSERT INTO t5 VALUES
+('[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]'),
+('[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]');
+SELECT JSON_REMOVE(v, '$[0]') AS removed FROM t5;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					removed	253 (format=json)	128	87	Y	0	39	8
+removed
+[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+SELECT LENGTH(v) AS document FROM t5;
+document
+61
+61
+SELECT LENGTH(JSON_REMOVE(v, '$[0]')) AS produced FROM t5;
+produced
+87
+87
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_REMOVE(v, '$[0]') AS r FROM t5) AS d;
+kept	valid
+87	1
+87	1
+#
+# A path that matches nothing, where nothing is taken out at all
+# and only the spacing arrives.
+#
+SELECT LENGTH(JSON_REMOVE(v, '$.nothing')) AS produced FROM t5;
+produced
+90
+90
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_REMOVE(v, '$.nothing') AS r FROM t5) AS d;
+kept	valid
+90	1
+90	1
+#
+# The neighbour that adds the same spacing without taking anything
+# out, and the one that only ever takes spacing away.
+#
+SELECT LENGTH(JSON_LOOSE(v)) AS produced FROM t5;
+produced
+90
+90
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_LOOSE(v) AS r FROM t5) AS d;
+kept	valid
+90	1
+90	1
+SELECT LENGTH(JSON_COMPACT(v)) AS produced FROM t5;
+produced
+61
+61
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_COMPACT(v) AS r FROM t5) AS d;
+kept	valid
+61	1
+61	1
+#
+# The same spacing arrives when a document is edited rather than
+# cut down, the whole of it being written out again around whatever
+# was put in.  A document packed tight enough that the spacing
+# alone outgrows it is the shape that says whether the room for the
+# document covers the writing or only the reading.
+#
+SELECT LENGTH(JSON_SET(v, '$[30]', 1)) AS produced FROM t5;
+produced
+93
+93
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_SET(v, '$[30]', 1) AS r FROM t5) AS d;
+kept	valid
+93	1
+93	1
+SELECT LENGTH(JSON_INSERT(v, '$[30]', 1)) AS produced FROM t5;
+produced
+93
+93
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_INSERT(v, '$[30]', 1) AS r FROM t5) AS d;
+kept	valid
+93	1
+93	1
+SELECT LENGTH(JSON_REPLACE(v, '$[0]', 9)) AS produced FROM t5;
+produced
+90
+90
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_REPLACE(v, '$[0]', 9) AS r FROM t5) AS d;
+kept	valid
+90	1
+90	1
+#
+# The two that append to an array, which write the document out
+# again in the same way.
+#
+SELECT LENGTH(JSON_ARRAY_APPEND(v, '$', 1)) AS produced FROM t5;
+produced
+93
+93
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_ARRAY_APPEND(v, '$', 1) AS r FROM t5) AS d;
+kept	valid
+93	1
+93	1
+SELECT LENGTH(JSON_ARRAY_INSERT(v, '$[0]', 1)) AS produced FROM t5;
+produced
+93
+93
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_ARRAY_INSERT(v, '$[0]', 1) AS r FROM t5) AS d;
+kept	valid
+93	1
+93	1
+#
+# A value that is already a document goes in as it stands, but what
+# goes in is written out again with the rest, so the room for it
+# has to cover the spacing too.
+#
+SELECT LENGTH(JSON_MERGE(JSON_QUERY(v, '$'), JSON_QUERY(v, '$'))) AS produced
+FROM t5;
+produced
+180
+180
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_MERGE(JSON_QUERY(v, '$'), JSON_QUERY(v, '$')) AS r
+FROM t5) AS d;
+kept	valid
+180	1
+180	1
+DROP TABLE t5;
+#
+# The same, patched rather than merged, over two documents that
+# have no name in common so that what comes back holds all of both.
+# The columns are no wider than what they hold, so the room asked
+# for is what the two of them say and nothing is over from the
+# declaring.
+#
+CREATE TABLE t6 (v1 VARCHAR(37), v2 VARCHAR(37)) CHARSET utf8mb4;
+INSERT INTO t6 VALUES
+('{"a":1,"b":1,"c":1,"d":1,"e":1,"f":1}',
+'{"g":1,"h":1,"i":1,"j":1,"k":1,"l":1}'),
+('{"m":2,"n":2,"o":2,"p":2,"q":2,"r":2}',
+'{"s":2,"t":2,"u":2,"v":2,"w":2,"x":2}');
+SELECT LENGTH(v1) AS document FROM t6;
+document
+37
+37
+SELECT LENGTH(JSON_MERGE_PATCH(JSON_QUERY(v1, '$'),
+JSON_QUERY(v2, '$'))) AS produced FROM t6;
+produced
+96
+96
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+FROM (SELECT JSON_MERGE_PATCH(JSON_QUERY(v1, '$'),
+JSON_QUERY(v2, '$')) AS r FROM t6) AS d;
+kept	valid
+96	1
+96	1
+DROP TABLE t6;
+#
+# The same document priced twice: once with every argument already in
+# the character set the result is written in, and once with one of them
+# having to be converted to get there.
+#
+# Aggregating the sets wraps the argument that has to move, and what is
+# asked for has to see through that wrapper the same way the writing
+# does.  A document goes in as it stands whether it arrived wrapped or
+# not, so it costs what a document costs; read as a plain string it
+# would be charged ten characters apiece for an escaping that never
+# happens.  Both columns below are therefore declared the same width,
+# and hold the same answer - the miscounting was only ever room asked
+# for and not taken, so no value was ever cut short by it.
+#
+CREATE TABLE t4 (v VARCHAR(20) CHARACTER SET latin1,
+u VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t4 VALUES ('{"x":1}', '{"y":1}'), ('{"x":2}', '{"y":2}');
+CREATE TABLE t7 (v VARCHAR(20) CHARACTER SET utf8mb4,
+u VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t7 VALUES ('{"x":1}', '{"y":1}'), ('{"x":2}', '{"y":2}');
+CREATE TABLE m1 AS SELECT JSON_ARRAY(JSON_QUERY(v,'$'), u) AS r FROM t4;
+SHOW CREATE TABLE m1;
+Table	Create Table
+m1	CREATE TABLE `m1` (
+  `r` varchar(152) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TABLE s1 AS SELECT JSON_ARRAY(JSON_QUERY(v,'$'), u) AS r FROM t7;
+SHOW CREATE TABLE s1;
+Table	Create Table
+s1	CREATE TABLE `s1` (
+  `r` varchar(152) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT r FROM m1 ORDER BY r;
+r
+[{"x":1}, "{\"y\":1}"]
+[{"x":2}, "{\"y\":2}"]
+SELECT r FROM s1 ORDER BY r;
+r
+[{"x":1}, "{\"y\":1}"]
+[{"x":2}, "{\"y\":2}"]
+DROP TABLE m1, s1;
+#
+# An object is built by the same arithmetic and moves the same way.
+#
+CREATE TABLE m2 AS SELECT JSON_OBJECT('k', JSON_QUERY(v,'$'), 'l', u) AS r
+FROM t4;
+SHOW CREATE TABLE m2;
+Table	Create Table
+m2	CREATE TABLE `m2` (
+  `r` varchar(184) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TABLE s2 AS SELECT JSON_OBJECT('k', JSON_QUERY(v,'$'), 'l', u) AS r
+FROM t7;
+SHOW CREATE TABLE s2;
+Table	Create Table
+s2	CREATE TABLE `s2` (
+  `r` varchar(184) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE m2, s2;
+#
+# THE CONTROL: the same two columns through a function that EDITS a
+# document.  Those take the set of the document they were given rather
+# than aggregating over their arguments, so no wrapper is built and
+# there is nothing to see through.  Both are declared the same width in
+# both worlds, which is what says the widths above move because of the
+# wrapping and not because two sets are in play.
+#
+CREATE TABLE m3 AS
+SELECT JSON_INSERT(JSON_QUERY(u,'$'), '$.k', JSON_QUERY(v,'$')) AS r
+FROM t4;
+SHOW CREATE TABLE m3;
+Table	Create Table
+m3	CREATE TABLE `m3` (
+  `r` varchar(73) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE TABLE s3 AS
+SELECT JSON_INSERT(JSON_QUERY(u,'$'), '$.k', JSON_QUERY(v,'$')) AS r
+FROM t7;
+SHOW CREATE TABLE s3;
+Table	Create Table
+s3	CREATE TABLE `s3` (
+  `r` varchar(73) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT r FROM m3 ORDER BY r;
+r
+{"y": 1, "k": {"x": 1}}
+{"y": 2, "k": {"x": 2}}
+SELECT r FROM s3 ORDER BY r;
+r
+{"y": 1, "k": {"x": 1}}
+{"y": 2, "k": {"x": 2}}
+DROP TABLE m3, s3;
+DROP TABLE t4, t7;
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1, t2, t3;
