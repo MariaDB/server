@@ -1,0 +1,437 @@
+#
+# The room a function asks for the document it is going to return.
+#
+# The length has to be named before any value has been seen, so it is
+# asked for out of what the arguments say about themselves.  A result
+# that does not fit what was asked for is cut where it stands, and what
+# is left of a document is not one.
+#
+# A value that is not already a document goes in as a JSON string, so
+# what is asked for has to cover what the writing makes of it and not
+# what was passed.  Twice its characters is what is asked, and a value
+# that is not there at all is still written as four.
+#
+# Twice does not cover an escaping - that costs six for a character, or
+# twelve where the set being written into cannot carry it - and pricing
+# it does not stand here yet.  Where that leaves a value escaped
+# throughout is recorded below, under the heading that says so.
+#
+# The document a function is given has the same to attest to.  It is
+# written out again with a space after every separator that is copied,
+# so what comes back can be longer than what went in whether something
+# was taken out of it, put into it, or neither.
+#
+SET @save_optimizer_switch= @@optimizer_switch;
+
+CREATE TABLE t1 (v VARCHAR(200));
+INSERT INTO t1 VALUES ('{"x":1}'), ('{"x":2}');
+
+CREATE TABLE t2 (v VARCHAR(10), s VARCHAR(20));
+INSERT INTO t2 VALUES ('{"x":1}', REPEAT(CHAR(1),20)),
+                      ('{"x":2}', REPEAT(CHAR(2),20));
+
+CREATE TABLE t3 (v VARCHAR(200));
+INSERT INTO t3 VALUES (CONCAT('{"x":"', REPEAT('a',190), '"}')),
+                      (CONCAT('{"x":"', REPEAT('b',190), '"}'));
+
+--echo #
+--echo # What is asked for, taken off the result itself rather than off
+--echo # a column it was put in.  Nothing about where the result goes can
+--echo # reach this number, so it says what the arithmetic came to and
+--echo # nothing else.  The Length column is the one to read.
+--echo #
+--enable_metadata
+SELECT JSON_SET(v, '$.p', 'z') AS one_pair FROM t1;
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w') AS two_pairs FROM t1;
+SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w', '$.s', 'y') AS three_pairs
+  FROM t1;
+SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS plain_value FROM t2;
+SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS escaped_value FROM t2;
+SELECT JSON_SET(v, '$.p', s) AS wide_escape_value FROM t2;
+SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS document_fills_column FROM t3;
+--disable_metadata
+
+--echo #
+--echo # The same numbers again, read off the column a result is put in.
+--echo # The document, then a path and a value for each pair.
+--echo #
+CREATE TABLE d1 AS SELECT JSON_SET(v, '$.p', 'z') AS r FROM t1;
+SHOW CREATE TABLE d1;
+DROP TABLE d1;
+
+CREATE TABLE d2 AS
+  SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w') AS r FROM t1;
+SHOW CREATE TABLE d2;
+DROP TABLE d2;
+
+CREATE TABLE d3 AS
+  SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w', '$.s', 'y') AS r FROM t1;
+SHOW CREATE TABLE d3;
+DROP TABLE d3;
+
+SET @@optimizer_switch='derived_merge=off';
+
+--echo #
+--echo # A value longer than the document it goes into.  The result is
+--echo # put in a column here, so what is asked for is what is kept.
+--echo #
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('z',5000))) AS produced FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', REPEAT('z',5000)) AS r FROM t1) AS d;
+
+--echo #
+--echo # A small document, so that what is asked for stays under the
+--echo # width above which a result is given a blob to live in.  The
+--echo # column stays a VARCHAR, so the arithmetic is what decides the
+--echo # answer rather than the change of type.
+--echo #
+CREATE TABLE d4 AS SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS r FROM t2;
+SHOW CREATE TABLE d4;
+DROP TABLE d4;
+
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('z',30))) AS produced FROM t2;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS r FROM t2) AS d;
+
+--echo #
+--echo # A value whose characters are written with an escape apiece, so
+--echo # what goes in is twice what was passed.
+--echo #
+CREATE TABLE d5 AS SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t2;
+SHOW CREATE TABLE d5;
+DROP TABLE d5;
+
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('"',20))) AS produced FROM t2;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t2) AS d;
+
+--echo #
+--echo # A value whose characters cannot be written as they stand and are
+--echo # escaped out instead, six characters for each one.  Twice the
+--echo # characters does not cover that, and this is the room that is
+--echo # still asked for short.
+--echo #
+--echo # STILL BROKEN AND KNOWN TO BE.  Pricing an escaping properly needs
+--echo # both character sets to have a say, and it widens what these
+--echo # functions declare by enough to move a result out of a memory
+--echo # temporary table onto disk.  It is left until a declared width no
+--echo # longer decides where a temporary table lives, and what is
+--echo # recorded below is what that leaves standing.
+--echo #
+--echo # Written into a table of its own, the store says so and the
+--echo # statement stops.
+--echo #
+--error ER_DATA_TOO_LONG
+CREATE TABLE d6 AS SELECT JSON_SET(v, '$.p', s) AS r FROM t2;
+
+SELECT LENGTH(s) AS value_length FROM t2;
+SELECT LENGTH(JSON_SET(v, '$.p', s)) AS produced FROM t2;
+
+--echo #
+--echo # Written into an internal temporary table, nothing says anything:
+--echo # that store does not raise count_cuted_fields, so the document is
+--echo # cut where it stands and what is left of it is not one.  'valid'
+--echo # reading 0 here is the same defect going unremarked.
+--echo #
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', s) AS r FROM t2) AS d;
+
+--echo #
+--echo # A document that fills the column it is held in, with a short
+--echo # value that has to be written with escapes.  The document is
+--echo # allowed twice its own width and no more, so whatever the
+--echo # number below comes to over that is the room for the path and
+--echo # the value or it is nothing at all.
+--echo #
+CREATE TABLE d7 AS SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t3;
+SHOW CREATE TABLE d7;
+DROP TABLE d7;
+
+SELECT LENGTH(v) AS document FROM t3;
+SELECT LENGTH(JSON_SET(v, '$.p', REPEAT('"',20))) AS produced FROM t3;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS r FROM t3) AS d;
+
+--echo #
+--echo # The long value in the last pair of three, which is the one the
+--echo # loop reaches last.
+--echo #
+SELECT LENGTH(JSON_SET(v, '$.p', 'x', '$.q', 'y',
+                          '$.s', REPEAT('z',5000))) AS produced FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$.p', 'x', '$.q', 'y',
+                           '$.s', REPEAT('z',5000)) AS r FROM t1) AS d;
+
+--echo #
+--echo # JSON_INSERT and JSON_REPLACE, whose length the same function
+--echo # works out.
+--echo #
+SELECT LENGTH(JSON_INSERT(v, '$.p', REPEAT('z',5000))) AS produced FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_INSERT(v, '$.p', REPEAT('z',5000)) AS r FROM t1) AS d;
+
+SELECT LENGTH(JSON_REPLACE(v, '$.x', REPEAT('z',5000))) AS produced FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_REPLACE(v, '$.x', REPEAT('z',5000)) AS r FROM t1) AS d;
+
+--echo #
+--echo # A path long enough to be worth counting.  The name it adds is
+--echo # what goes into the result, so the room for it is asked for once.
+--echo #
+SELECT LENGTH(JSON_SET(v, CONCAT('$.', REPEAT('p',300)), 'z')) AS produced
+  FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, CONCAT('$.', REPEAT('p',300)), 'z') AS r
+          FROM t1) AS d;
+
+--echo #
+--echo # The same room asked for where it is checked rather than cut.
+--echo #
+CREATE TABLE d8 AS SELECT JSON_SET(v, '$.p', REPEAT('z',5000)) AS r FROM t1;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid FROM d8;
+DROP TABLE d8;
+
+--echo #
+--echo # A document held in a column wide enough that nothing it is asked
+--echo # to hold can overflow it.
+--echo #
+CREATE TABLE t4 (j JSON);
+INSERT INTO t4 VALUES ('{"x":1}'), ('{"x":2}');
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(j, '$.p', REPEAT('z',5000)) AS r FROM t4) AS d;
+DROP TABLE t4;
+
+--echo #
+--echo # The same room, asked for by the functions that build a document
+--echo # rather than edit one, and by the two that append to an array.
+--echo # All four work it out the same way and all four are given a value
+--echo # whose characters have to be escaped.
+--echo #
+--enable_metadata
+SELECT JSON_ARRAY(s) AS array_value FROM t2;
+SELECT JSON_OBJECT('k', s) AS object_value FROM t2;
+SELECT JSON_ARRAY_APPEND(v, '$.x', s) AS appended FROM t2;
+SELECT JSON_ARRAY_INSERT(JSON_SET(v, '$.x', JSON_ARRAY(1)), '$.x[0]', s)
+  AS inserted FROM t2;
+--disable_metadata
+
+SELECT LENGTH(JSON_ARRAY(s)) AS produced FROM t2;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_ARRAY(s) AS r FROM t2) AS d;
+
+SELECT LENGTH(JSON_OBJECT('k', s)) AS produced FROM t2;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_OBJECT('k', s) AS r FROM t2) AS d;
+
+SELECT LENGTH(JSON_ARRAY_APPEND(v, '$.x', s)) AS produced FROM t2;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_ARRAY_APPEND(v, '$.x', s) AS r FROM t2) AS d;
+
+--echo #
+--echo # What an escape costs where it is JSON_QUOTE doing the writing.
+--echo # A character that cannot be written as it stands is escaped as a
+--echo # backslash, a 'u' and the hex of its UTF-16 form, which is four
+--echo # figures for a character of the first plane and a second escape
+--echo # after it for any other.
+--echo #
+--echo # The pair is only ever reached for a character the set being
+--echo # written into cannot carry, and this function writes into
+--echo # utf8mb4, which carries everything there is.  So six apiece is
+--echo # the whole of it, and every width over that is room asked for
+--echo # that nothing can take.
+--echo #
+--echo # The constructor below is asked for twice its argument instead,
+--echo # which is the room that does not cover an escaping - see above.
+--echo #
+CREATE TABLE t7 (s VARCHAR(45));
+INSERT INTO t7 VALUES (REPEAT('a',45)), (REPEAT('b',45));
+
+--enable_metadata
+SELECT JSON_QUOTE(s) AS quoted FROM t7;
+--disable_metadata
+
+CREATE TABLE d9 AS SELECT JSON_ARRAY(s) AS r FROM t7;
+SHOW CREATE TABLE d9;
+DROP TABLE d9;
+DROP TABLE t7;
+
+--echo #
+--echo # A value that is already a document goes in as it stands, and it
+--echo # is written out again with the spacing, so the room for it is
+--echo # asked for twice over and no quotes are asked for round it.
+--echo #
+--enable_metadata
+SELECT JSON_ARRAY(JSON_QUERY(v, '$')) AS document_value FROM t2;
+--disable_metadata
+
+--echo #
+--echo # A function that takes something out and writes what is left out
+--echo # again, a space arriving after every separator it copies.  One
+--echo # element of two characters goes and twenty-eight spaces come, so
+--echo # the room asked for has to cover the writing here as well.
+--echo #
+CREATE TABLE t5 (v VARCHAR(64)) CHARSET utf8mb4;
+INSERT INTO t5 VALUES
+  ('[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]'),
+  ('[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]');
+
+--enable_metadata
+SELECT JSON_REMOVE(v, '$[0]') AS removed FROM t5;
+--disable_metadata
+
+SELECT LENGTH(v) AS document FROM t5;
+SELECT LENGTH(JSON_REMOVE(v, '$[0]')) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_REMOVE(v, '$[0]') AS r FROM t5) AS d;
+
+--echo #
+--echo # A path that matches nothing, where nothing is taken out at all
+--echo # and only the spacing arrives.
+--echo #
+SELECT LENGTH(JSON_REMOVE(v, '$.nothing')) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_REMOVE(v, '$.nothing') AS r FROM t5) AS d;
+
+--echo #
+--echo # The neighbour that adds the same spacing without taking anything
+--echo # out, and the one that only ever takes spacing away.
+--echo #
+SELECT LENGTH(JSON_LOOSE(v)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_LOOSE(v) AS r FROM t5) AS d;
+
+SELECT LENGTH(JSON_COMPACT(v)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_COMPACT(v) AS r FROM t5) AS d;
+
+--echo #
+--echo # The same spacing arrives when a document is edited rather than
+--echo # cut down, the whole of it being written out again around whatever
+--echo # was put in.  A document packed tight enough that the spacing
+--echo # alone outgrows it is the shape that says whether the room for the
+--echo # document covers the writing or only the reading.
+--echo #
+SELECT LENGTH(JSON_SET(v, '$[30]', 1)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_SET(v, '$[30]', 1) AS r FROM t5) AS d;
+
+SELECT LENGTH(JSON_INSERT(v, '$[30]', 1)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_INSERT(v, '$[30]', 1) AS r FROM t5) AS d;
+
+SELECT LENGTH(JSON_REPLACE(v, '$[0]', 9)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_REPLACE(v, '$[0]', 9) AS r FROM t5) AS d;
+
+--echo #
+--echo # The two that append to an array, which write the document out
+--echo # again in the same way.
+--echo #
+SELECT LENGTH(JSON_ARRAY_APPEND(v, '$', 1)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_ARRAY_APPEND(v, '$', 1) AS r FROM t5) AS d;
+
+SELECT LENGTH(JSON_ARRAY_INSERT(v, '$[0]', 1)) AS produced FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_ARRAY_INSERT(v, '$[0]', 1) AS r FROM t5) AS d;
+
+--echo #
+--echo # A value that is already a document goes in as it stands, but what
+--echo # goes in is written out again with the rest, so the room for it
+--echo # has to cover the spacing too.
+--echo #
+SELECT LENGTH(JSON_MERGE(JSON_QUERY(v, '$'), JSON_QUERY(v, '$'))) AS produced
+  FROM t5;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_MERGE(JSON_QUERY(v, '$'), JSON_QUERY(v, '$')) AS r
+          FROM t5) AS d;
+
+DROP TABLE t5;
+
+--echo #
+--echo # The same, patched rather than merged, over two documents that
+--echo # have no name in common so that what comes back holds all of both.
+--echo # The columns are no wider than what they hold, so the room asked
+--echo # for is what the two of them say and nothing is over from the
+--echo # declaring.
+--echo #
+CREATE TABLE t6 (v1 VARCHAR(37), v2 VARCHAR(37)) CHARSET utf8mb4;
+INSERT INTO t6 VALUES
+  ('{"a":1,"b":1,"c":1,"d":1,"e":1,"f":1}',
+   '{"g":1,"h":1,"i":1,"j":1,"k":1,"l":1}'),
+  ('{"m":2,"n":2,"o":2,"p":2,"q":2,"r":2}',
+   '{"s":2,"t":2,"u":2,"v":2,"w":2,"x":2}');
+
+SELECT LENGTH(v1) AS document FROM t6;
+SELECT LENGTH(JSON_MERGE_PATCH(JSON_QUERY(v1, '$'),
+                               JSON_QUERY(v2, '$'))) AS produced FROM t6;
+SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
+  FROM (SELECT JSON_MERGE_PATCH(JSON_QUERY(v1, '$'),
+                                JSON_QUERY(v2, '$')) AS r FROM t6) AS d;
+
+DROP TABLE t6;
+
+--echo #
+--echo # The same document priced twice: once with every argument already in
+--echo # the character set the result is written in, and once with one of them
+--echo # having to be converted to get there.
+--echo #
+--echo # Aggregating the sets wraps the argument that has to move, and what is
+--echo # asked for has to see through that wrapper the same way the writing
+--echo # does.  A document goes in as it stands whether it arrived wrapped or
+--echo # not, so it costs what a document costs; read as a plain string it
+--echo # would be charged for the two quote characters that the writing is
+--echo # never going to put round it.  Both columns below are declared the
+--echo # same width,
+--echo # and hold the same answer - the miscounting was only ever room asked
+--echo # for and not taken, so no value was ever cut short by it.
+--echo #
+CREATE TABLE t4 (v VARCHAR(20) CHARACTER SET latin1,
+                 u VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t4 VALUES ('{"x":1}', '{"y":1}'), ('{"x":2}', '{"y":2}');
+CREATE TABLE t7 (v VARCHAR(20) CHARACTER SET utf8mb4,
+                 u VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t7 VALUES ('{"x":1}', '{"y":1}'), ('{"x":2}', '{"y":2}');
+
+CREATE TABLE m1 AS SELECT JSON_ARRAY(JSON_QUERY(v,'$'), u) AS r FROM t4;
+SHOW CREATE TABLE m1;
+CREATE TABLE s1 AS SELECT JSON_ARRAY(JSON_QUERY(v,'$'), u) AS r FROM t7;
+SHOW CREATE TABLE s1;
+SELECT r FROM m1 ORDER BY r;
+SELECT r FROM s1 ORDER BY r;
+DROP TABLE m1, s1;
+
+--echo #
+--echo # An object is built by the same arithmetic and moves the same way.
+--echo #
+CREATE TABLE m2 AS SELECT JSON_OBJECT('k', JSON_QUERY(v,'$'), 'l', u) AS r
+  FROM t4;
+SHOW CREATE TABLE m2;
+CREATE TABLE s2 AS SELECT JSON_OBJECT('k', JSON_QUERY(v,'$'), 'l', u) AS r
+  FROM t7;
+SHOW CREATE TABLE s2;
+DROP TABLE m2, s2;
+
+--echo #
+--echo # THE CONTROL: the same two columns through a function that EDITS a
+--echo # document.  Those take the set of the document they were given rather
+--echo # than aggregating over their arguments, so no wrapper is built and
+--echo # there is nothing to see through.  Both are declared the same width in
+--echo # both worlds, which is what says the widths above move because of the
+--echo # wrapping and not because two sets are in play.
+--echo #
+CREATE TABLE m3 AS
+  SELECT JSON_INSERT(JSON_QUERY(u,'$'), '$.k', JSON_QUERY(v,'$')) AS r
+  FROM t4;
+SHOW CREATE TABLE m3;
+CREATE TABLE s3 AS
+  SELECT JSON_INSERT(JSON_QUERY(u,'$'), '$.k', JSON_QUERY(v,'$')) AS r
+  FROM t7;
+SHOW CREATE TABLE s3;
+SELECT r FROM m3 ORDER BY r;
+SELECT r FROM s3 ORDER BY r;
+DROP TABLE m3, s3;
+DROP TABLE t4, t7;
+
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1, t2, t3;
