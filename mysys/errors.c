@@ -21,7 +21,7 @@
 
 const char *globerrs[GLOBERRS]=
 {
-  "Can't create/write to file '%s' (Errcode: %M)",
+  "Can't create/write to file '%.256T' (Errcode: %M)",
   "Error reading file '%s' (Errcode: %M)",
   "Error writing file '%s' (Errcode: %M)",
   "Error on close of '%s' (Errcode: %M)",
@@ -71,7 +71,7 @@ void init_glob_errs(void)
 
 void init_glob_errs()
 {
-  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%s' (Errcode: %M)";
+  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%.256T' (Errcode: %M)";
   EE(EE_READ)		= "Error reading file '%s' (Errcode: %M)";
   EE(EE_WRITE)		= "Error writing file '%s' (Errcode: %M)";
   EE(EE_BADCLOSE)	= "Error on close of '%'s (Errcode: %M)";
