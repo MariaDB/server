@@ -11077,6 +11077,40 @@ void Item_cache::store(Item *item)
   value_cached= FALSE;
 }
 
+
+/**
+  @brief
+    Build a clone of an Item_cache.
+
+  @details
+    'example' is an ordinary pointer, so the copy constructor alone would give a
+    new cache still reading the expression the original caches, and every node
+    below the cache would then belong to both trees. Clone the expression as
+    well, the way Item_func_or_sum::deep_copy() clones its arguments, and keep
+    the invariant setup() establishes between 'example' and 'cached_field'.
+
+    An expression that cannot be cloned -- a subquery, for one -- makes the
+    cache unclonable too, rather than half copied.
+
+  @return clone of the item
+  @retval 0 on a failure, or if 'example' cannot be cloned
+*/
+
+Item* Item_cache::deep_copy(THD *thd) const
+{
+  Item *example_clone= NULL;
+  if (example && !(example_clone= example->deep_copy_with_checks(thd)))
+    return NULL;
+  Item_cache *copy= static_cast<Item_cache *>(shallow_copy_with_checks(thd));
+  if (unlikely(!copy))
+    return NULL;
+  copy->example= example_clone;
+  if (cached_field && example_clone &&
+      example_clone->type() == Item::FIELD_ITEM)
+    copy->cached_field= ((Item_field *) example_clone)->field;
+  return copy;
+}
+
 void Item_cache::print(String *str, enum_query_type query_type)
 {
   if (example &&                                 // There is a cached item
@@ -11727,6 +11761,44 @@ void Item_cache_row::set_null()
   for (uint i= 0; i < item_count; i++)
     values[i]->set_null();
 };
+
+
+/**
+  @brief
+    Build a clone of an Item_cache_row.
+
+  @details
+    A row cache holds a cache per column in values[], and those are not reached
+    through 'example', so Item_cache::deep_copy() leaves them shared. Clone the
+    array too, on a fresh allocation: the copy must not write through the
+    original's.
+
+  @return clone of the item
+  @retval 0 on a failure, or if any element cannot be cloned
+*/
+
+Item* Item_cache_row::deep_copy(THD *thd) const
+{
+  Item_cache_row *copy=
+    static_cast<Item_cache_row *>(Item_cache::deep_copy(thd));
+  if (unlikely(!copy) || !values)
+    return copy;
+
+  Item_cache **values_clone= thd->calloc<Item_cache *>(item_count);
+  if (unlikely(!values_clone))
+    return NULL;
+  for (uint i= 0; i < item_count; i++)
+  {
+    if (!values[i])
+      continue;
+    Item *el_clone= values[i]->deep_copy_with_checks(thd);
+    if (unlikely(!el_clone))
+      return NULL;
+    values_clone[i]= static_cast<Item_cache *>(el_clone);
+  }
+  copy->values= values_clone;
+  return copy;
+}
 
 
 double Item_type_holder::val_real()

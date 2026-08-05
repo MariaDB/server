@@ -505,9 +505,9 @@ void pwt_worker::close_worker_tables()
 
   @description
     A copy is only usable by a worker if it shares no node at all with the item
-    it came from. Several classes implement deep_copy() as a shallow copy while
-    still holding child items -- every Item_cache, Item_outer_ref and
-    Item_copy_string -- so their copy keeps pointing at the original's children.
+    it came from. Some classes implement deep_copy() as a shallow copy while
+    still holding child items -- Item_outer_ref and Item_copy_string -- so their
+    copy keeps pointing at the original's children.
 
     Two things then go wrong with a shared node. The worker repoints the
     Item_field leaves of its copy at its own tables, so a shared leaf moves the
@@ -519,7 +519,7 @@ void pwt_worker::close_worker_tables()
 
     Walking with find_item_processor asks whether a tree reaches one given
     object, so collecting the copy's nodes and asking that of the original
-    covers both, and covers the classes not yet met rather than the three above.
+    covers both, and covers the classes not yet met rather than the two above.
 */
 static bool pwt_clone_shares_nodes(Item *src, Item *clone)
 {

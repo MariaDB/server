@@ -620,6 +620,48 @@ void Item_sum::cleanup()
   const_item_cache= false;
 }
 
+
+/**
+  @brief
+    Build a clone of an Item_sum.
+
+  @details
+    Item_func_or_sum::deep_copy() clones the arguments and repoints args at the
+    copy's own array, then two members of an aggregate need the same treatment.
+
+    orig_args addresses tmp_orig_args, inside the object, whenever there are no
+    more than two arguments, so a copied pointer would leave get_args() handing
+    the rest of the server the original's array, and fix_fields() writing into
+    it. Point it at the clone's own, holding the cloned arguments.
+
+    The aggregator belongs to the item it was made for, whose cleanup() deletes
+    it, and both items sit on the statement's free list, so a copied pointer
+    would be deleted twice. Give the clone one of its own, which is what
+    Item_sum::Item_sum(THD*, Item_sum*) does for the ROLLUP copies.
+
+  @return clone of the item
+  @retval 0 on a failure
+*/
+
+Item* Item_sum::deep_copy(THD *thd) const
+{
+  Item_sum *clone= static_cast<Item_sum *>(Item_func_or_sum::deep_copy(thd));
+  if (unlikely(!clone))
+    return NULL;
+
+  clone->orig_args= clone->tmp_orig_args;
+  if (arg_count > 2 &&
+      unlikely(!(clone->orig_args= thd->alloc<Item*>(arg_count))))
+    return NULL;
+  if (arg_count)
+    memcpy(clone->orig_args, clone->args, sizeof(Item *) * arg_count);
+
+  clone->aggr= NULL;
+  if (aggr && unlikely(clone->set_aggregator(thd, aggr->Aggrtype())))
+    return NULL;
+  return clone;
+}
+
 Item *Item_sum::result_item(THD *thd, Field *field)
 {
   return new (thd->mem_root) Item_field(thd, field);
@@ -2502,6 +2544,43 @@ void Item_sum_min_max::cleanup()
   was_values= TRUE;
   DBUG_VOID_RETURN;
 }
+
+
+/**
+  @brief
+    Build a clone of an Item_sum_min_max.
+
+  @details
+    Besides the aggregator, MIN() and MAX() hold an Arg_comparator that
+    cleanup() deletes, and it was given the addresses of this object's own
+    'value' and 'arg_cache' members, so a copy of the pointer would compare the
+    original's caches and be deleted twice. setup_hybrid() builds all three
+    together, which is what fix_fields() calls, so call it for the clone. A
+    clone of a fixed item is fixed, so nothing else will do it.
+
+  @return clone of the item
+  @retval 0 on a failure
+*/
+
+Item* Item_sum_min_max::deep_copy(THD *thd) const
+{
+  Item_sum_min_max *clone=
+    static_cast<Item_sum_min_max *>(Item_sum::deep_copy(thd));
+  if (unlikely(!clone))
+    return NULL;
+  clone->direct_added= FALSE;
+  clone->direct_item= NULL;
+  clone->value= clone->arg_cache= NULL;
+  clone->cmp= NULL;
+  if (!clone->is_window_func_sum_expr())
+  {
+    clone->setup_hybrid(thd, clone->args[0], NULL);
+    if (unlikely(!clone->cmp))          // setup_hybrid() ran out of memory
+      return NULL;
+  }
+  return clone;
+}
+
 
 void Item_sum_min_max::no_rows_in_result()
 {

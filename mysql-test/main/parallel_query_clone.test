@@ -2,13 +2,19 @@
 # MDEV-39492 Parallel Query: a worker's copy of an expression has to own every
 # node of it.
 #
-# Several item classes implement deep_copy() as a shallow copy while still
-# holding child items, every Item_cache, Item_outer_ref and Item_copy_string
-# among them, so their copy keeps pointing at the original's children. A shared
-# leaf is repointed at a worker's tables, moving the manager's own item with it.
-# A shared node that is not a leaf carries evaluation state that several workers
-# then write at once. The gate refuses such an item, which leaves the query
-# running serially and answering correctly.
+# Some item classes implement deep_copy() as a shallow copy while still holding
+# child items, Item_outer_ref and Item_copy_string among them, so their copy
+# keeps pointing at the original's children. A shared leaf is repointed at a
+# worker's tables, moving the manager's own item with it. A shared node that is
+# not a leaf carries evaluation state that several workers then write at once.
+# The gate refuses such an item, which leaves the query running serially and
+# answering correctly.
+#
+# Item_cache used to be in that list, which mattered far more than the name
+# suggests: JOIN::cache_const_exprs() wraps every non-trivial constant
+# subexpression of a WHERE in one, so a condition as ordinary as
+# "d <= DATE'1998-12-01' - INTERVAL '63' DAY" was refused. The bottom of this
+# file is that case, which now runs in the workers.
 #
 --source include/have_innodb.inc
 --source include/not_embedded.inc
@@ -66,3 +72,38 @@ SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
 DROP TABLE t6;
 
 DROP TABLE t1,t2,t3,t4,t5;
+
+--echo #
+--echo # A constant subexpression in the WHERE is wrapped in an Item_cache by
+--echo # JOIN::cache_const_exprs(), so the condition the workers have to copy has
+--echo # one in the middle of it. EXPLAIN says PARALLEL for each of these, and
+--echo # ALL for every one of them before Item_cache learnt to clone what it
+--echo # caches. The types differ because the cache class follows the type of the
+--echo # expression, and each class had to be copied correctly.
+--echo #
+CREATE TABLE t7 (pk INT PRIMARY KEY, d DATE, q INT, c CHAR(8)) ENGINE=InnoDB;
+INSERT INTO t7 SELECT seq, DATE'1998-01-01' + INTERVAL (seq%700) DAY, seq%50,
+  CONCAT('n', seq%9) FROM seq_1_to_40000;
+ANALYZE TABLE t7 PERSISTENT FOR ALL;
+SET SESSION parallel_worker_threads=8;
+
+--echo # Item_cache_date, and the shape TPC-H Q1 uses
+EXPLAIN SELECT q FROM t7 WHERE d <= DATE'1998-12-01' - INTERVAL '63' DAY;
+--echo # Item_cache_int
+EXPLAIN SELECT q FROM t7 WHERE q <= 3 + 4;
+--echo # Item_cache_decimal
+EXPLAIN SELECT q FROM t7 WHERE q <= 7.5 * 2;
+--echo # Item_cache_double
+EXPLAIN SELECT q FROM t7 WHERE q <= SQRT(2) * 10;
+--echo # Item_cache_str
+EXPLAIN SELECT q FROM t7 WHERE c <= CONCAT('n', '4');
+
+--echo #
+--echo # and the answers are the ones a serial run gives
+--echo #
+--let $pqa_query= SELECT COUNT(*) c, SUM(q) s FROM t7 WHERE d <= DATE'1998-12-01' - INTERVAL '63' DAY
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT c, COUNT(*) n FROM t7 WHERE q <= 3 + 4 AND c <= CONCAT('n','4') GROUP BY c ORDER BY c
+--source include/parallel_query_aggregate_cmp.inc
+
+DROP TABLE t7;
