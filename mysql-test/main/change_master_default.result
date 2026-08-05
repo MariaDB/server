@@ -258,6 +258,11 @@ master_ssl_crlpath
 using_gtid	Slave_Pos
 master_retry_count	100000
 slave_heartbeat_period	60.000
+#
+# MDEV-40122: `+DEFAULT` is not a valid value for master_heartbeat_period
+#
+CHANGE MASTER TO master_heartbeat_period= +DEFAULT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DEFAULT' at line 1
 # Clean-up
 DROP PROCEDURE show_defaultable_fields;
 RESET SLAVE 'unset' ALL;

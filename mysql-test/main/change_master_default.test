@@ -138,6 +138,15 @@ FROM information_schema.slave_status ORDER BY connection_name;
 --query_vertical CALL show_defaultable_fields()
 
 
+--echo #
+--echo # MDEV-40122: `+DEFAULT` is not a valid value for master_heartbeat_period
+--echo #
+
+# The `+` prefix may only precede a numeric literal, not `DEFAULT`
+--error ER_PARSE_ERROR
+CHANGE MASTER TO master_heartbeat_period= +DEFAULT;
+
+
 --echo # Clean-up
 
 DROP PROCEDURE show_defaultable_fields;
