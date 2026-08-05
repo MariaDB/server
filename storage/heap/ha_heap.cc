@@ -91,8 +91,8 @@ static handler *heap_create_handler(handlerton *hton,
 *****************************************************************************/
 
 ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
-  :handler(hton, table_arg), file(0), records_changed(0), key_stat_version(0), 
-  internal_table(0)
+  :handler(hton, table_arg), file(0), int_table_flags2(0),
+   records_changed(0), key_stat_version(0), internal_table(0)
 {
 }
 
@@ -151,6 +151,12 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
     used.
     */
   key_stat_version= file->s->key_stat_version-1;
+  if (file->s->blob_count)
+  {
+    /* Mark that table may have zerocopy blobs and unlock is not safe */
+    int_table_flags2|= HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK;
+  }
+
 end:
   return (file ? 0 : 1);
 }

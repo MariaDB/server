@@ -1,0 +1,86 @@
+#
+# A const table's blob must not outlive the lock that protected it.
+#
+# A single-row table is read during optimization and its row is kept in
+# record[0] for the rest of the statement.  The optimizer then releases the
+# lock on every const table, on the premise -- stated in its own comment --
+# that all it did was read, so the row is already in hand.
+#
+# For a MEMORY table with a blob the row is not in hand.  hp_read_blobs()
+# aims record[0]'s blob pointer straight into the shared record memory
+# instead of copying the value, so once the lock is gone another connection
+# is free to overwrite, free or recycle the bytes the const row still points
+# at, and the statement goes on reading them.
+#
+# The two rounds below cover the two ways that memory changes hands: reuse
+# (UPDATE frees the chain, INSERT hands the same blocks to another row) and
+# outright release (DELETE with no WHERE goes through delete_all_rows()).
+#
+# The reader is parked with GET_LOCK() rather than with a stored function.
+# A stored function would put the statement into prelocked mode, and the
+# const-table unlock is skipped altogether in that mode, so the code path
+# under test would never run.
+#
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1, REPEAT('x', 4000));
+
+# Several rows, so this one cannot become a const table itself and the join
+# still has an execution phase for the reader to park in.
+CREATE TABLE t2 (a INT) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (1),(2),(3),(4);
+
+connect (reader,localhost,root,,test);
+connect (writer,localhost,root,,test);
+
+--connection reader
+let $reader_id= `SELECT CONNECTION_ID()`;
+
+--connection writer
+let $writer_id= `SELECT CONNECTION_ID()`;
+# A bad interleaving should fail fast rather than hang for a day.
+SET SESSION lock_wait_timeout= 60;
+
+--echo #
+--echo # The freed blob blocks are handed to another row
+--echo #
+--connection default
+DELIMITER |;
+CREATE PROCEDURE churn_blob_memory()
+BEGIN
+  SET DEBUG_SYNC= 'now SIGNAL writer_started';
+  UPDATE t1 SET b= REPEAT('y', 4000) WHERE a = 1;
+  INSERT INTO t1 VALUES (2, REPEAT('z', 4000)), (3, REPEAT('w', 4000));
+END|
+DELIMITER ;|
+
+--source blob_const_unlock.inc
+
+--connection default
+DROP PROCEDURE churn_blob_memory;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, REPEAT('x', 4000));
+
+--echo #
+--echo # The blob blocks are released outright
+--echo #
+DELIMITER |;
+CREATE PROCEDURE churn_blob_memory()
+BEGIN
+  SET DEBUG_SYNC= 'now SIGNAL writer_started';
+  DELETE FROM t1;
+  INSERT INTO t1 VALUES (2, REPEAT('z', 9000));
+END|
+DELIMITER ;|
+
+--source blob_const_unlock.inc
+
+--connection default
+CHECK TABLE t1;
+
+disconnect reader;
+disconnect writer;
+
+DROP PROCEDURE churn_blob_memory;
+DROP TABLE t1, t2;
