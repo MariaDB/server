@@ -68,6 +68,11 @@ fi
 
 # Create a MariaDB user and group. Do not report any problems if it already exists.
 groupadd -r %{mysqld_group} 2> /dev/null || true
-useradd -M -r --home %{mysqldatadir} --shell /sbin/nologin --comment "MariaDB server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
+# --home must not be datadir: mysqld reads ~/.my.cnf, so FILE priv could plant one there.
+useradd -M -r --home /nonexistent --shell /sbin/nologin --comment "MariaDB server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 # The user may already exist, make sure it has the proper group nevertheless (BUG#12823)
 usermod --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
+# Migrate existing installs off the old datadir-as-home setting.
+if [ "`getent passwd %{mysqld_user} 2> /dev/null | cut -d: -f6`" = "%{mysqldatadir}" ]; then
+  usermod -d /nonexistent %{mysqld_user} 2> /dev/null || true
+fi
