@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 --echo #
 --echo # Basic DuckDB handler test: DDL and DML operations
 --echo #

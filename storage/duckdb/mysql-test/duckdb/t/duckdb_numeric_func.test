@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 # 1. CONV(), CRC32(), MOD, DIV, TRUNCATE() is not support yet.
 # 2. The RAND() function in duckdb and mysql uses different random number generation algorithms, so it cannot support the seed argument.
