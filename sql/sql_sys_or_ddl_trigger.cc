@@ -744,12 +744,20 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
     return true;
 
   int ret;
-#if !defined(DBUG_OFF)
+  /*
+    Check existence of a trigger by its name the second time.
+    Do that this time under protection of MDL lock in the namespace
+      MDL_key::TRIGGER
+    It is not possible to check for presence of a trigger by its name
+    immediately under the MDL lock since that would result in broken
+    some tests
+  */
   ret= fetch_trigger_record_by_name(event_table, thd->lex->spname);
-  DBUG_ASSERT(ret == false);
-#else
-  (void)fetch_trigger_record_by_name(event_table, thd->lex->spname);
-#endif
+  if (ret)
+  {
+    *no_ddl_trigger_found= true;
+    return false;
+  }
 
   ret= event_table->file->ha_delete_row(event_table->record[0]);
   if (ret)
