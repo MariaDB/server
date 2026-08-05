@@ -821,10 +821,37 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
 
 
 
+#ifndef DBUG_OFF
+/*
+  Called whenever a value is about to be read, if anybody has asked to
+  be told.
+
+  Every reading of a JSON value begins here - the calls that look like
+  they start one of their own (json_valid(), json_valid_engine(),
+  json_get_path_start(), and the normalizing build) all come through
+  this function - so this is the one place where a count of readings is
+  a count of readings rather than a list of the ways of asking for one.
+  Counting anywhere else means keeping such a list, and a list of that
+  kind is wrong the day something is added to it.
+
+  Nobody is told unless somebody asks: the server sets this and nothing
+  else does, so the tools and the tests that link this code in are
+  unaffected.  Debug builds only, and there is nothing here for a
+  released server to do.
+*/
+void (*json_scan_start_hook)(void)= NULL;
+#endif
+
+
 int json_scan_start(json_engine_t *je,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
 {
   static const uint32_t no_time_to_die= 0;
+
+#ifndef DBUG_OFF
+  if (json_scan_start_hook)
+    json_scan_start_hook();
+#endif
 
   json_string_setup(&je->s, i_cs, str, end);
   je->stack[0]= JST_DONE;

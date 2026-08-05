@@ -997,6 +997,22 @@ typedef struct system_status_var
   ulong filesort_scan_count_;
   ulong filesort_pq_sorts_;
   ulong optimizer_join_prefixes_check_calls;
+#ifndef DBUG_OFF
+  /*
+    How many times the JSON functions have started the parser, over whole
+    documents and over single spliced values alike.
+
+    It counts work rather than results, and that is the point of it: the
+    JSON functions are meant to give the same answers however many times
+    they read a value, so the number of readings is the one thing a test
+    can watch that is allowed to change.  Nothing else would show a
+    reading that stopped happening.
+
+    Debug builds only.  There is nothing here for a released server to
+    offer anybody.
+  */
+  ulong json_scans;
+#endif
 
   /* Features used */
   ulong feature_custom_aggregate_functions; /* +1 when custom aggregate

@@ -1,0 +1,143 @@
+SET @d29= CONCAT(REPEAT('{"a":', 29), '1', REPEAT('}', 29));
+SET @d30= CONCAT(REPEAT('{"a":', 30), '1', REPEAT('}', 30));
+SET @p29= CONCAT('$', REPEAT('.a', 29));
+SET @p30= CONCAT('$', REPEAT('.a', 30));
+#
+# 1. Two structures put 30 deep make 32 and do not read back;
+#    the same two put 29 deep make 31 and do
+#
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+JSON_EXTRACT('{"b":{"c":1}}', '$')) AS too_deep;
+too_deep
+NULL
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_replace' at position 15
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_replace' at position 187
+SELECT JSON_REPLACE(JSON_EXTRACT(@d29, '$'), @p29,
+JSON_EXTRACT('{"b":{"c":1}}', '$')) AS in_limit;
+in_limit
+{"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"b": {"c": 1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+#
+# 2. A value of nothing but brackets, where how long it is says
+#    exactly how deep it goes and there is no room to be wrong by
+#
+SELECT JSON_REPLACE(JSON_EXTRACT(@d29, '$'), @p29,
+JSON_EXTRACT('[[1]]', '$')) AS br_limit;
+br_limit
+{"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": [[1]]}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+JSON_EXTRACT('[[1]]', '$')) AS br_deep;
+br_deep
+NULL
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_replace' at position 5
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_replace' at position 182
+#
+# 3. A scalar sits at whatever depth it is put and adds none of
+#    its own
+#
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+JSON_EXTRACT('[7]', '$[0]')) AS scalar_deep;
+scalar_deep
+{"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": 7}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+#
+# 4. The same through a document answering is_valid false, which is
+#    read back in full and so is where the limit has always been
+#    noticed
+#
+SELECT JSON_REPLACE(@d30, @p30, JSON_EXTRACT('{"b":{"c":1}}', '$')) AS raw_deep;
+raw_deep
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_replace' at position 157
+SELECT JSON_REPLACE(@d29, @p29, JSON_EXTRACT('{"b":{"c":1}}', '$')) AS raw_limit;
+raw_limit
+{"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"b": {"c": 1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+#
+# 5. A value written out by hand is a string rather than a
+#    document, so it goes in quoted and takes one level whatever
+#    is written in it
+#
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30, '{"b":{"c":1}}') AS quoted;
+quoted
+{"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": {"a": "{\"b\":{\"c\":1}}"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+#
+# 6. A function that BUILDS a document puts the value one level
+#    inside the array or object it is making
+#
+SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SET @d30a= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SELECT JSON_ARRAY(JSON_EXTRACT(@d31, '$')) AS built_deep;
+built_deep
+[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT JSON_ARRAY(JSON_EXTRACT(@d30a, '$')) AS built_limit;
+built_limit
+[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+#
+# 10. Wrapping, where the new array is a structure the document
+#     being read never had.  What was found is put inside it and
+#     the value goes in beside them both, so the value sits one
+#     level below where the path reached.
+#
+#     A value written out as a string has nothing inside it, so
+#     where it sits is the whole of how deep the answer goes and
+#     there is nothing left to read to find that out.
+#
+SET @w31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SET @w30= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SET @wp31= CONCAT('$', REPEAT('[0]', 31));
+SET @wp30= CONCAT('$', REPEAT('[0]', 30));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w31, '$'), @wp31, 2) AS wrap_deep;
+wrap_deep
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 32
+SELECT JSON_ARRAY_APPEND(@w31, @wp31, 2) AS wrap_deep_read_back;
+wrap_deep_read_back
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 32
+#
+#     One level shallower both answer, which is what says the two
+#     above are refused for their depth and not for their shape.
+#
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w30, '$'), @wp30, 2) AS wrap_limit;
+wrap_limit
+[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+SELECT JSON_ARRAY_APPEND(@w30, @wp30, 2) AS wrap_limit_read_back;
+wrap_limit_read_back
+[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1, 2]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+#
+#     A value that is a document of its own is read, and reaches
+#     the same refusal through what the reading found rather than
+#     through where it was put.
+#
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w31, '$'), @wp31,
+JSON_EXTRACT('2', '$')) AS wrap_deep_typed;
+wrap_deep_typed
+NULL
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_array_append' at position 1
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 32
+#
+#     The functions that wrap while INSERTING name the place they
+#     are inserting at, so reaching this far down takes a path one
+#     step longer than a path is allowed to be, and the path is
+#     what refuses them.  Appending names the value instead and
+#     needs no step for the array it adds, which is why it is the
+#     one that gets here.
+#
+SELECT JSON_INSERT(JSON_EXTRACT(@w31, '$'), CONCAT(@wp31, '[1]'), 2)
+AS insert_wrap_deep;
+insert_wrap_deep
+NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_insert' at position 96
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT(@w31, '$'), CONCAT(@wp31, '[1]'), 2)
+AS ainsert_wrap_deep;
+ainsert_wrap_deep
+NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_array_insert' at position 96
