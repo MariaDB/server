@@ -9427,17 +9427,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    if (table->vfield && fields.elements)
-    {
-      Item *fld= (Item_field*) fields.head();
-      Item_field *item_field= fld->field_for_view_update();
-      if (item_field)
-      {
-        DBUG_ASSERT(table == item_field->field->table);
-        result|= table->update_virtual_fields(table->file,
-                                              VCOL_UPDATE_FOR_WRITE);
-      }
-    }
+    if (table->vfield)
+      result|= table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 }
