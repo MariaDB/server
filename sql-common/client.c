@@ -2297,6 +2297,21 @@ error:
 }
 
 
+/*
+  A packet whose first byte is one of these means "this plugin's turn is
+  over": either the server wants a different plugin (AUTH_SWITCH_PLUGIN_PACKET,
+  the traditional 0xFE), or the current factor succeeded and the server wants
+  the next one in an AND (multi-factor) chain (AUTH_NEXT_FACTOR_PACKET, 0x02).
+  Mirrors is_auth_switch_command() in libmariadb/plugins/auth/my_auth.c.
+*/
+#define AUTH_SWITCH_PLUGIN_PACKET 254
+#define AUTH_NEXT_FACTOR_PACKET     2
+
+static inline my_bool is_auth_switch_command(uchar cmd)
+{
+  return cmd == AUTH_SWITCH_PLUGIN_PACKET || cmd == AUTH_NEXT_FACTOR_PACKET;
+}
+
 /**
   vio->read_packet() callback method for client authentication plugins
 
@@ -2335,8 +2350,8 @@ static int client_mpvio_read_packet(struct st_plugin_vio *mpv, uchar **buf)
   mpvio->last_read_packet_len= pkt_len;
   *buf= mysql->net.read_pos;
 
-  /* was it a request to change plugins ? */
-  if (pkt_len == packet_error || **buf == 254)
+  /* was it a request to change plugins, or to start the next auth factor? */
+  if (pkt_len == packet_error || is_auth_switch_command(**buf))
     return (int)packet_error; /* if yes, this plugin shan't continue */
 
   /*
@@ -2464,6 +2479,13 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 {
   const char    *auth_plugin_name;
   auth_plugin_t *auth_plugin;
+  /* the plugin+password of the last factor that could hash a password,
+     remembered for the self-signed-cert fingerprint check below - a later
+     factor in an AND (multi-factor) chain may be passwordless (e.g.
+     unix_socket, gssapi), so we must not lose the trust an earlier
+     hashing factor established. */
+  auth_plugin_t *trust_plugin= NULL;
+  char          *trust_passwd= NULL;
   MCPVIO_EXT    mpvio;
   ulong		pkt_length;
   int           res;
@@ -2518,7 +2540,8 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
   compile_time_assert(CR_OK == -1);
   compile_time_assert(CR_ERROR == 0);
-  if (res > CR_OK && (mysql->net.last_errno || mysql->net.read_pos[0] != 254))
+  if (res > CR_OK && (mysql->net.last_errno ||
+                      !is_auth_switch_command(mysql->net.read_pos[0])))
   {
     /*
       the plugin returned an error. write it down in mysql,
@@ -2551,10 +2574,27 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     DBUG_RETURN (1);
   }
 
-  if (mysql->net.read_pos[0] == 254)
+  while (is_auth_switch_command(mysql->net.read_pos[0]))
   {
-    /* The server asked to use a different authentication plugin */
-    if (pkt_length == 1)
+    /*
+      AUTH_SWITCH_PLUGIN_PACKET: the server asked to use a different
+        authentication plugin.
+      AUTH_NEXT_FACTOR_PACKET: the current factor succeeded, the server
+        asked for the next factor in an AND (multi-factor) chain.
+      Either way, remember this factor's plugin/password if it can hash a
+      password, before moving to the next plugin - see the trust_plugin
+      comment above.
+    */
+    my_bool is_next_factor= mysql->net.read_pos[0] == AUTH_NEXT_FACTOR_PACKET;
+
+    if (!trust_plugin && auth_plugin->hash_password_bin &&
+        mysql->passwd && mysql->passwd[0])
+    {
+      trust_plugin= auth_plugin;
+      trust_passwd= mysql->passwd;
+    }
+
+    if (!is_next_factor && pkt_length == 1)
     {
       /* old "use short scramble" packet */
       DBUG_PRINT ("info", ("old use short scramble packet from server"));
@@ -2564,13 +2604,14 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     }
     else
     {
-      /* new "use different plugin" packet */
+      /* new "use different plugin" / "next factor" packet */
       uint len;
       auth_plugin_name= (char*)mysql->net.read_pos + 1;
       len= (uint)strlen(auth_plugin_name); /* safe as my_net_read always appends \0 */
       mpvio.cached_server_reply.pkt_len= pkt_length - len - 2;
       mpvio.cached_server_reply.pkt= mysql->net.read_pos + len + 2;
-      DBUG_PRINT ("info", ("change plugin packet from server for plugin %s",
+      DBUG_PRINT ("info", ("%s packet from server for plugin %s",
+                           is_next_factor ? "next factor" : "change plugin",
                            auth_plugin_name));
     }
 
@@ -2578,21 +2619,20 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
                          auth_plugin_name, MYSQL_CLIENT_AUTHENTICATION_PLUGIN)))
       DBUG_RETURN (1);
 
-    /* refuse insecure plugin if TLS is in doubt */
-    if (mysql->tls_self_signed_error && !auth_plugin->hash_password_bin)
-    {
-      set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
-                  ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
-      DBUG_RETURN (1);
-    }
+    /*
+      No TLS-trust pre-flight here: a later factor may be passwordless
+      (e.g. gssapi) as long as an earlier factor was hashing - the
+      fingerprint check at the tail handles that via trust_plugin.
+    */
 
     mpvio.plugin= auth_plugin;
     res= auth_plugin->authenticate_user((struct st_plugin_vio *)&mpvio, mysql);
 
-    DBUG_PRINT ("info", ("second authenticate_user returned %s", 
-                         res == CR_OK ? "CR_OK" : 
+    DBUG_PRINT ("info", ("%s authenticate_user returned %s",
+                         is_next_factor ? "next-factor" : "second",
+                         res == CR_OK ? "CR_OK" :
                          res == CR_ERROR ? "CR_ERROR" :
-                         res == CR_OK_HANDSHAKE_COMPLETE ? 
+                         res == CR_OK_HANDSHAKE_COMPLETE ?
                          "CR_OK_HANDSHAKE_COMPLETE" : "error"));
     if (res > CR_OK)
     {
@@ -2618,6 +2658,15 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       }
     }
   }
+
+  /* Final factor completed. Capture if we haven't yet. */
+  if (!trust_plugin && auth_plugin->hash_password_bin &&
+      mysql->passwd && mysql->passwd[0])
+  {
+    trust_plugin= auth_plugin;
+    trust_passwd= mysql->passwd;
+  }
+
   /*
     net->read_pos[0] should always be 0 here if the server implements
     the protocol correctly
@@ -2634,11 +2683,9 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
               !mysql->options.extension->tls_allow_invalid_server_cert);
   DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
   DBUG_ASSERT(!mysql->options.ssl_capath || !mysql->options.ssl_capath[0]);
-  DBUG_ASSERT(auth_plugin->hash_password_bin);
-  DBUG_ASSERT(mysql->passwd[0]);
 
   parse_ok_packet(mysql, pkt_length); /* set mysql->info */
-  if (mysql->info && mysql->info[0] == '\1')
+  if (mysql->info && mysql->info[0] == '\1' && trust_plugin)
   {
     uchar fp[128], buf[1024], digest[256/8];
     size_t buflen= sizeof(buf);
@@ -2647,7 +2694,9 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     X509 *cert= SSL_get_peer_certificate((SSL*)mysql->net.vio->ssl_arg);
     X509_digest(cert, EVP_sha256(), fp, &fplen);
     X509_free(cert);
-    auth_plugin->hash_password_bin(mysql, buf, &buflen);
+    /* hash_password_bin reads mysql->passwd; use the trust factor's one */
+    mysql->passwd= trust_passwd;
+    trust_plugin->hash_password_bin(mysql, buf, &buflen);
     my_sha256_multi(digest, buf, buflen, mysql->scramble, SCRAMBLE_LENGTH,
                     fp, fplen, NULL);
     mysql->info= NULL; /* no need to confuse the client with binary info */

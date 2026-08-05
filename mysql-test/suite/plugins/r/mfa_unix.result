@@ -1,0 +1,29 @@
+#
+# unix_socket AND mysql_native_password
+#
+create user 'USER' identified via unix_socket AND mysql_native_password as password("good");
+grant select on test.* to 'USER';
+# correct username, correct password = ok
+select user(), current_user();
+user()	current_user()
+USER@localhost	USER@%
+disconnect con1;
+connection default;
+# correct username, no password = not ok
+ERROR 28000: Access denied for user 'USER'@'localhost'
+ERROR 28000: Access denied for user 'USER'@'localhost' (using password: YES)
+drop user 'USER';
+#
+# mysql_native_password AND unix_socket (reversed order)
+#
+create user 'USER' identified via mysql_native_password as password("good") AND unix_socket;
+grant select on test.* to 'USER';
+# correct password = ok
+select user(), current_user();
+user()	current_user()
+USER@localhost	USER@%
+disconnect con1;
+connection default;
+# wrong password = not ok
+ERROR 28000: Access denied for user 'USER'@'localhost' (using password: YES)
+drop user 'USER';

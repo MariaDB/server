@@ -1,0 +1,41 @@
+#
+# MDEV-33387 mariadb-backup connecting to a multi-factor (AND) account
+#
+# mariadb-backup uses the server's own internal client (sql-common/client.c),
+# not the bundled libmariadb connector, so it needs its own AuthNextFactor
+# (0x02) handling and CLIENT_MULTI_FACTOR_AUTHENTICATION advertisement.
+#
+# unix_socket needs no secret at all (it's a peer-credential check), so this
+# combines it with a real, distinct password on the second factor - unlike
+# a same-password-both-factors setup, here the two factors genuinely differ:
+# one has no client-supplied input, the other has an actual chosen secret.
+#
+--source include/not_embedded.inc
+--source include/have_unix_socket.inc
+
+if (`SELECT count(*) <> 0 FROM mysql.user WHERE user = '$USER'`) {
+  skip \$USER=$USER which exists in mysql.user;
+}
+
+--replace_result $USER USER
+eval CREATE USER '$USER' IDENTIFIED VIA unix_socket AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+--replace_result $USER USER
+eval GRANT RELOAD, PROCESS ON *.* TO '$USER';
+
+let $plugin_dir=`SELECT @@plugin_dir`;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--echo # mariadb-backup with correct credentials (unix_socket + correct password) succeeds
+--replace_result $USER USER
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --plugin-dir=$plugin_dir -u$USER -pTr0ub4dor3xyz --backup --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+
+--echo # mariadb-backup with wrong password (unix_socket succeeds, password factor 2 fails) fails
+--replace_result $USER USER
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --plugin-dir=$plugin_dir -u$USER -pWrongPassword --backup --target-dir=$targetdir;
+
+--replace_result $USER USER
+eval DROP USER '$USER';

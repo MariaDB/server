@@ -190,6 +190,7 @@ public:
   LEX_CSTRING default_rolename;
   struct AUTH { LEX_CSTRING plugin, auth_string, salt; } *auth;
   uint nauth;
+  USER_AUTH::logical_operator auth_combine_op;
   bool account_locked;
   bool password_expired;
   my_time_t password_last_changed;
@@ -1969,9 +1970,13 @@ class User_table_json: public User_table
     const char *array;
     int vl;
     const char *v;
-
-    if (get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    if (!get_value("auth_or", JSV_ARRAY, &array, &array_len))
+      u->auth_combine_op= USER_AUTH::OR;
+    else if (!get_value("auth_and", JSV_ARRAY, &array, &array_len))
+      u->auth_combine_op= USER_AUTH::AND;
+    else
     {
+      u->auth_combine_op= USER_AUTH::NONE;
       u->alloc_auth(root, 1);
       return get_auth1(thd, root, u, 0);
     }
@@ -2031,10 +2036,16 @@ class User_table_json: public User_table
 
   bool set_auth(const ACL_USER &u) const override
   {
-    size_t array_len;
-    const char *array;
-    if (u.nauth == 1 && get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    if (u.nauth == 1)
+    {
+      DBUG_ASSERT(u.auth_combine_op == USER_AUTH::NONE);
+      /* Remove possible "auth_or" and "auth_and" left from before ALTER USER */
+      remove_key("auth_or");
+      remove_key("auth_and");
       return set_auth1(u, 0);
+    }
+
+    DBUG_ASSERT(u.auth_combine_op != USER_AUTH::NONE);
 
     StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
@@ -2069,7 +2080,21 @@ class User_table_json: public User_table
       json.append('}');
     }
     json.append(']');
-    return set_value("auth_or", json.ptr(), json.length(), false) == JSV_BAD_JSON;
+
+    const char *combine_op_key;
+    switch (u.auth_combine_op)
+    {
+      case USER_AUTH::AND:
+        combine_op_key= "auth_and";
+        break;
+      case USER_AUTH::OR:
+        combine_op_key= "auth_or";
+        break;
+      default:
+        DBUG_ASSERT(0);
+        return 1;
+    }
+    return set_value(combine_op_key, json.ptr(), json.length(), false) == JSV_BAD_JSON;
   }
   bool set_auth1(const ACL_USER &u, uint i) const
   {
@@ -2494,6 +2519,45 @@ class User_table_json: public User_table
       return false;
     return true;
   }
+
+  /**
+    Remove key from auth.json. Used with "auth_or" and "auth_and"
+    when they disappear as a result of ALTER USER, that converts
+    multi-plugin authentication to single-plugin.
+  */
+  bool remove_key(const char* key) const
+  {
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || !res->length())
+      return false;
+    const char *key_start, *key_end;
+    int comma_pos;
+    json_engine_t je;
+    MEM_ROOT tmp_mem_root;
+    init_alloc_root(PSI_INSTRUMENT_MEM, &tmp_mem_root,
+                    BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
+    mem_root_dynamic_array_init(&tmp_mem_root, PSI_INSTRUMENT_MEM,
+                                &je.stack, sizeof(int), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+    if (json_locate_key(&je, res->ptr(), res->ptr() + res->length(), key,
+        &key_start, &key_end, &comma_pos))
+    {
+      free_root(&tmp_mem_root, MYF(0));
+      DBUG_ASSERT(0);
+      return true;
+    }
+    free_root(&tmp_mem_root, MYF(0));
+    if (!key_start)
+      return false;
+    String new_val;
+    new_val.set_charset(res->charset());
+    new_val.append(res->ptr(), key_start - res->ptr());
+    if (key_end != res->ptr() + res->length())
+      new_val.append(key_end, res->ptr() + res->length() - key_end);
+    m_table->field[2]->store(new_val.ptr(), new_val.length(), new_val.charset());
+    return false;
+  }
+
   enum json_types set_value(const char *key,
                             const char *val, size_t vlen, bool string) const
   {
@@ -4357,6 +4421,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
       return 1;
 
     USER_AUTH *auth= combo.auth;
+    acl_user->auth_combine_op= auth->auth_combine_op;
     for (uint i= 0; i < nauth; i++, auth= auth->next)
     {
       work_copy[i].plugin= auth->plugin;
@@ -5685,6 +5750,30 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
     else
       auth->plugin= guess_auth_plugin(thd, auth->auth_str.length);
+  }
+
+  if (nauth > 1 && combo->auth->auth_combine_op == USER_AUTH::AND)
+  {
+    uint password_plugins= 0;
+    for (USER_AUTH *auth= combo->auth; auth; auth= auth->next)
+    {
+      plugin_ref ref= my_plugin_lock_by_name(thd, &auth->plugin,
+                                             MYSQL_AUTHENTICATION_PLUGIN);
+      if (ref)
+      {
+        st_mysql_auth *info= (st_mysql_auth *) plugin_decl(ref)->info;
+        if (info->hash_password)
+          password_plugins++;
+        plugin_unlock(thd, ref);
+      }
+    }
+    if (password_plugins > 1)
+    {
+      my_printf_error(ER_NOT_SUPPORTED_YET, "Multiple password-based"
+                      " plugins in multi-factor authentication"
+                      " is not supported", MYF(0));
+      goto end;
+    }
   }
 
   /* Update table columns with new privileges */
@@ -10952,7 +11041,12 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
     for (uint i=0; i < acl_user->nauth; i++)
     {
       if (i)
-        result->append(STRING_WITH_LEN(" OR "));
+      {
+        if (acl_user->auth_combine_op == USER_AUTH::AND)
+          result->append(STRING_WITH_LEN(" AND "));
+        else
+          result->append(STRING_WITH_LEN(" OR "));
+      }
       result->append(&acl_user->auth[i].plugin);
       if (acl_user->auth[i].auth_string.length)
       {
@@ -15439,7 +15533,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
   int packets_read, packets_written; ///< counters for send/received packets
   bool make_it_fail;
   /** when plugin returns a failure this tells us what really happened */
-  enum { SUCCESS, FAILURE, RESTART } status;
+  enum { SUCCESS, FAILURE, RESTART, NEXT_FACTOR } status;
 };
 
 /**
@@ -15661,12 +15755,16 @@ static bool secure_auth(THD *thd)
   @retval 0 ok
   @retval 1 error
 */
-static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
-                                       const uchar *data, uint data_len)
+/* Command byte sent to the client to change the active auth plugin.
+   CMD_* prefix avoids collision with MPVIO_EXT::status::NEXT_FACTOR. */
+enum change_plugin_command { CMD_NEXT_FACTOR= 0x02, CMD_SWITCH_AUTH= 0xFE };
+
+static bool send_change_plugin_packet(MPVIO_EXT *mpvio,
+                                      const uchar *data, uint data_len,
+                                      enum change_plugin_command cmd)
 {
   NET *net= &mpvio->auth_info.thd->net;
-  static uchar switch_plugin_request_buf[]= { 254 };
-  DBUG_ENTER("send_plugin_request_packet");
+  DBUG_ENTER("send_change_plugin_packet");
 
   const char *client_auth_plugin=
     ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
@@ -15675,50 +15773,56 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   DBUG_EXECUTE_IF("auth_invalid_plugin", client_auth_plugin="foo/bar"; );
   DBUG_ASSERT(client_auth_plugin);
 
-  /*
-    we send an old "short 4.0 scramble request", if we need to request a
-    client to use 4.0 auth plugin (short scramble) and the scramble was
-    already sent to the client
-
-    below, cached_client_reply.plugin is the plugin name that client has used,
-    client_auth_plugin is derived from mysql.user table, for the given
-    user account, it's the plugin that the client need to use to login.
-  */
-  bool switch_from_long_to_short_scramble=
-    client_auth_plugin == old_password_plugin_name.str &&
-    Lex_ident_plugin(mpvio->cached_client_reply.plugin).
-      streq(native_password_plugin_name);
-
-  if (switch_from_long_to_short_scramble)
-    DBUG_RETURN (secure_auth(mpvio->auth_info.thd) ||
-                 my_net_write(net, switch_plugin_request_buf, 1) ||
-                 net_flush(net));
-
-  /*
-    We never request a client to switch from a short to long scramble.
-    Plugin-aware clients can do that, but traditionally it meant to
-    ask an old 4.0 client to use the new 4.1 authentication protocol.
-  */
-  bool switch_from_short_to_long_scramble=
-    client_auth_plugin == native_password_plugin_name.str &&
-    Lex_ident_plugin(mpvio->cached_client_reply.plugin).
-      streq(old_password_plugin_name);
-
-  if (switch_from_short_to_long_scramble)
+  if (cmd == CMD_SWITCH_AUTH)
   {
-    my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
-                      ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
-    DBUG_RETURN (1);
+    /*
+      we send an old "short 4.0 scramble request", if we need to request a
+      client to use 4.0 auth plugin (short scramble) and the scramble was
+      already sent to the client
+
+      below, cached_client_reply.plugin is the plugin name that client has used,
+      client_auth_plugin is derived from mysql.user table, for the given
+      user account, it's the plugin that the client need to use to login.
+    */
+    bool switch_from_long_to_short_scramble=
+      client_auth_plugin == old_password_plugin_name.str &&
+      Lex_ident_plugin(mpvio->cached_client_reply.plugin).
+        streq(native_password_plugin_name);
+
+    if (switch_from_long_to_short_scramble)
+      DBUG_RETURN (secure_auth(mpvio->auth_info.thd) ||
+                   my_net_write(net, (uchar*) "\xfe", 1) ||
+                   net_flush(net));
+
+    /*
+      We never request a client to switch from a short to long scramble.
+      Plugin-aware clients can do that, but traditionally it meant to
+      ask an old 4.0 client to use the new 4.1 authentication protocol.
+    */
+    bool switch_from_short_to_long_scramble=
+      client_auth_plugin == native_password_plugin_name.str &&
+      Lex_ident_plugin(mpvio->cached_client_reply.plugin).
+        streq(old_password_plugin_name);
+
+    if (switch_from_short_to_long_scramble)
+    {
+      my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
+      general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
+                        ER_THD(mpvio->auth_info.thd,
+                               ER_NOT_SUPPORTED_AUTH_MODE));
+      DBUG_RETURN (1);
+    }
   }
 
-  DBUG_PRINT("info", ("requesting client to use the %s plugin",
-                      client_auth_plugin));
-  DBUG_RETURN(net_write_command(net, switch_plugin_request_buf[0],
+  DBUG_PRINT("info", ("requesting client to use the %s plugin (%s)",
+                      client_auth_plugin,
+                      cmd == CMD_NEXT_FACTOR ? "next factor" : "auth switch"));
+  DBUG_RETURN(net_write_command(net, (uchar) cmd,
                                 (uchar*) client_auth_plugin,
                                 strlen(client_auth_plugin) + 1,
                                 (uchar*) data, data_len));
 }
+
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 
@@ -16377,9 +16481,10 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
       !client_plugin.streq(Lex_cstring_strlen(client_auth_plugin)))
   {
     mpvio->cached_client_reply.plugin= client_plugin;
-    if (send_plugin_request_packet(mpvio,
+    if (send_change_plugin_packet(mpvio,
                                    (uchar*) mpvio->cached_server_packet.pkt,
-                                   mpvio->cached_server_packet.pkt_len))
+                                   mpvio->cached_server_packet.pkt_len,
+                                   CMD_SWITCH_AUTH))
       return packet_error;
 
     passwd_len= my_net_read(&thd->net);
@@ -16418,7 +16523,11 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
   if (mpvio->packets_written == 0)
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
-    res= send_plugin_request_packet(mpvio, packet, packet_len);
+    res= send_change_plugin_packet(mpvio, packet, packet_len, CMD_SWITCH_AUTH);
+  else if (mpvio->status == MPVIO_EXT::NEXT_FACTOR)
+    res= send_change_plugin_packet(mpvio, packet, packet_len,
+           mpvio->auth_info.thd->client_capabilities &
+           CLIENT_MULTI_FACTOR_AUTHENTICATION ? CMD_NEXT_FACTOR : CMD_SWITCH_AUTH);
   else /* plugin data, prefixed with 1 */
     res= net_write_command(&mpvio->auth_info.thd->net, 1, (uchar*)"", 0,
                            packet, packet_len);
@@ -16444,7 +16553,8 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   MYSQL_SERVER_AUTH_INFO * const ai= &mpvio->auth_info;
   ulong pkt_len;
   DBUG_ENTER("server_mpvio_read_packet");
-  if (mpvio->status == MPVIO_EXT::RESTART)
+  if (mpvio->status == MPVIO_EXT::RESTART ||
+      mpvio->status == MPVIO_EXT::NEXT_FACTOR)
   {
     const char *client_auth_plugin=
       ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
@@ -16837,11 +16947,23 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       name we found that we need to switch to a non-default plugin
     */
     for (mpvio.curr_auth= mpvio.status != MPVIO_EXT::RESTART;
-         res != CR_OK && mpvio.curr_auth < acl_user->nauth;
+         mpvio.curr_auth < acl_user->nauth;
          mpvio.curr_auth++)
     {
+      if (acl_user->auth_combine_op == USER_AUTH::AND)
+      {
+        if (res != CR_OK && mpvio.curr_auth)
+          break;
+        mpvio.status= res == CR_OK ? MPVIO_EXT::NEXT_FACTOR
+                                   : MPVIO_EXT::RESTART;
+      }
+      else
+      {
+        if (res == CR_OK)
+          break;
+        mpvio.status= MPVIO_EXT::RESTART;
+      }
       thd->clear_error();
-      mpvio.status= MPVIO_EXT::RESTART;
       res= do_auth_once(thd, &acl_user->auth[mpvio.curr_auth].plugin, &mpvio);
     }
   }
@@ -17067,7 +17189,36 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                                    mpvio.auth_info.external_user, MYF(0));
 
   if (initialized && !com_change_user_pkt_len)
-    make_ssl_info(thd, acl_user->auth[mpvio.curr_auth-1].salt, ssl_info);
+  {
+    /* Salt used for the fingerprint challenge:
+       - OR auth: only curr_auth-1 actually authenticated the user
+       - AND auth (MFA): first factor whose plugin does password hashing.
+         Passwordless / non-hashing plugins (unix_socket, gssapi, pam) store
+         their auth string in salt too, so salt.length alone isn't enough.
+       Use mpvio.acl_user (the AUTHENTICATED user), not the local acl_user
+       which may have been reassigned to a proxy target above. */
+    const ACL_USER *auth_user= mpvio.acl_user;
+    LEX_CSTRING trust_salt= auth_user->auth[mpvio.curr_auth - 1].salt;
+    if (auth_user->auth_combine_op == USER_AUTH::AND)
+    {
+      trust_salt= LEX_CSTRING{NULL, 0};
+      for (uint i= 0; i < mpvio.curr_auth; i++)
+      {
+        bool unlock= false;
+        plugin_ref p= get_auth_plugin(thd, auth_user->auth[i].plugin, &unlock);
+        st_mysql_auth *pi= p ? (st_mysql_auth *) plugin_decl(p)->info : NULL;
+        bool is_hashing= pi && pi->hash_password;
+        if (p && unlock)
+          plugin_unlock(thd, p);
+        if (is_hashing && auth_user->auth[i].salt.length)
+        {
+          trust_salt= auth_user->auth[i].salt;
+          break;
+        }
+      }
+    }
+    make_ssl_info(thd, trust_salt, ssl_info);
+  }
 
   my_ok(thd, 0, 0, ssl_info[0] == '\1' ? ssl_info : NULL);
 

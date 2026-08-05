@@ -1,0 +1,164 @@
+#
+# MDEV-33387 Multi-factor authentication - Windows plugins
+#
+# Tests MFA (AND) with combinations of Windows-only auth plugins:
+#   - mysql_native_password (password)
+#   - named_pipe (OS peer credential via named pipe)
+#   - gssapi (SSPI on Windows, built-in)
+#
+--source include/windows.inc
+
+if (!$AUTH_NAMED_PIPE_SO)
+{
+  skip No auth_named_pipe plugin;
+}
+
+INSTALL SONAME 'auth_named_pipe';
+
+if (!$USERNAME) {
+  skip USERNAME variable is undefined;
+}
+
+if (`SELECT count(*) <> 0 FROM mysql.user WHERE user = '$USERNAME'`) {
+  skip \$USERNAME=$USERNAME which exists in mysql.user;
+}
+
+--echo #
+--echo # named_pipe AND mysql_native_password
+--echo #
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH named_pipe AND mysql_native_password AS PASSWORD("good");
+
+--echo # correct username and password = ok
+connect(pipe_con,localhost,$USERNAME,good,,,,PIPE);
+--replace_result $USERNAME USERNAME
+SELECT USER(),CURRENT_USER();
+disconnect pipe_con;
+connection default;
+
+--echo # correct username, no password = not ok
+--disable_query_log
+--replace_result $USERNAME USERNAME
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+connect(pipe_con,localhost,$USERNAME,,,,,PIPE);
+--enable_query_log
+
+--echo # correct username, wrong password = not ok
+--disable_query_log
+--replace_result $USERNAME USERNAME
+--error ER_ACCESS_DENIED_ERROR
+connect(pipe_con,localhost,$USERNAME,bad,,,,PIPE);
+--enable_query_log
+
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+--echo # wrong username = not ok
+CREATE USER nosuchuser IDENTIFIED WITH named_pipe AND mysql_native_password AS PASSWORD("good");
+--disable_query_log
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+connect(pipe_con,localhost,nosuchuser,good,,,,PIPE);
+--enable_query_log
+DROP USER nosuchuser;
+
+--echo #
+--echo # mysql_native_password AND named_pipe (reversed order)
+--echo #
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND named_pipe;
+connect(pipe_con,localhost,$USERNAME,good,,,,PIPE);
+--replace_result $USERNAME USERNAME
+SELECT USER(),CURRENT_USER();
+disconnect pipe_con;
+connection default;
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+--echo #
+--echo # gssapi AND mysql_native_password
+--echo #
+--echo # gssapi fails (username mismatch), correct password => not ok
+CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,nosuchuser,good,);
+DROP USER nosuchuser;
+
+--echo # gssapi succeeds, password fails = not ok
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,$USERNAME,,);
+
+--echo # gssapi succeeds, password succeeds = ok
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+connect (con1,localhost,$USERNAME,good,);
+--replace_result $USERNAME USERNAME
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+
+--echo #
+--echo # mysql_native_password AND gssapi (reversed order)
+--echo #
+--replace_result $USERNAME USERNAME
+eval ALTER USER '$USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND gssapi;
+--replace_result $USERNAME USERNAME
+eval SHOW CREATE USER $USERNAME;
+# fail because of bad password
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,$USERNAME,,);
+# succeed with good password
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+connect (con1,localhost,$USERNAME,good,);
+disconnect con1;
+connection default;
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+--echo #
+--echo # invalid password AND gssapi = not ok
+--echo #
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH mysql_native_password AS '1234567890123456789012345678901234567890a' AND gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+--replace_result $USERNAME USERNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,$USERNAME,,);
+connection default;
+--replace_result $USERNAME USERNAME
+eval DROP USER $USERNAME;
+
+--echo #
+--echo # 3-factor MFA: native_password AND named_pipe AND gssapi (over PIPE)
+--echo #
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND named_pipe AND gssapi;
+--replace_result $USERNAME USERNAME
+--exec $MYSQL --protocol pipe -u $USERNAME -pgood -e "select user(), current_user()" 2>&1
+
+--echo # wrong password (fails at factor 1) = not ok
+--replace_result $USERNAME USERNAME
+--error 1
+--exec $MYSQL --protocol pipe -u $USERNAME -pbad -e "select 1" 2>&1
+
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+--echo #
+--echo # MFA with --ssl-verify-server-cert (password-hash verification)
+--echo #
+--echo # 2-factor: gssapi AND mysql_native_password over TCP with TLS
+--echo #
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+--replace_result $USERNAME USERNAME
+--exec $MYSQL --ssl-verify-server-cert -u %USERNAME% -pgood -e "SELECT 1 AS connected" 2>&1
+
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+UNINSTALL SONAME 'auth_named_pipe';

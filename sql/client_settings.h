@@ -34,7 +34,8 @@
                              CLIENT_SECURE_CONNECTION | \
                              CLIENT_PLUGIN_AUTH | \
                              CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
-                             CLIENT_CONNECT_ATTRS)
+                             CLIENT_CONNECT_ATTRS | \
+                             CLIENT_MULTI_FACTOR_AUTHENTICATION)
 
 #define read_user_name(A) A[0]= 0
 #undef _CUSTOMCONFIG_

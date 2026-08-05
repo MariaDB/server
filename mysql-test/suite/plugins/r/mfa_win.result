@@ -1,0 +1,97 @@
+INSTALL SONAME 'auth_named_pipe';
+#
+# named_pipe AND mysql_native_password
+#
+CREATE USER 'USERNAME' IDENTIFIED WITH named_pipe AND mysql_native_password AS PASSWORD("good");
+# correct username and password = ok
+connect pipe_con,localhost,$USERNAME,good,,,,PIPE;
+SELECT USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+USERNAME@localhost	USERNAME@%
+disconnect pipe_con;
+connection default;
+# correct username, no password = not ok
+ERROR 28000: Access denied for user 'USERNAME'@'localhost'
+# correct username, wrong password = not ok
+ERROR 28000: Access denied for user 'USERNAME'@'localhost' (using password: YES)
+DROP USER 'USERNAME';
+# wrong username = not ok
+CREATE USER nosuchuser IDENTIFIED WITH named_pipe AND mysql_native_password AS PASSWORD("good");
+ERROR 28000: Access denied for user 'nosuchuser'@'localhost'
+DROP USER nosuchuser;
+#
+# mysql_native_password AND named_pipe (reversed order)
+#
+CREATE USER 'USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND named_pipe;
+connect pipe_con,localhost,$USERNAME,good,,,,PIPE;
+SELECT USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+USERNAME@localhost	USERNAME@%
+disconnect pipe_con;
+connection default;
+DROP USER 'USERNAME';
+#
+# gssapi AND mysql_native_password
+#
+# gssapi fails (username mismatch), correct password => not ok
+CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+connect(localhost,nosuchuser,good,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,nosuchuser,good,;
+ERROR 28000: GSSAPI name mismatch, requested 'nosuchuser', actual name 'USERNAME'
+DROP USER nosuchuser;
+# gssapi succeeds, password fails = not ok
+CREATE USER 'USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+connect(localhost,USERNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$USERNAME,,;
+ERROR 28000: Access denied for user 'USERNAME'@'localhost' (using password: NO)
+# gssapi succeeds, password succeeds = ok
+connect  con1,localhost,$USERNAME,good,;
+SELECT USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+USERNAME@localhost	USERNAME@%
+disconnect con1;
+connection default;
+#
+# mysql_native_password AND gssapi (reversed order)
+#
+ALTER USER 'USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND gssapi;
+SHOW CREATE USER USERNAME;
+CREATE USER for USERNAME@%
+CREATE USER `USERNAME`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND gssapi
+connect(localhost,USERNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$USERNAME,,;
+ERROR 28000: Access denied for user 'USERNAME'@'localhost' (using password: NO)
+connect  con1,localhost,$USERNAME,good,;
+disconnect con1;
+connection default;
+DROP USER 'USERNAME';
+#
+# invalid password AND gssapi = not ok
+#
+CREATE USER 'USERNAME' IDENTIFIED WITH mysql_native_password AS '1234567890123456789012345678901234567890a' AND gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+connect(localhost,USERNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$USERNAME,,;
+ERROR 28000: Access denied for user 'USERNAME'@'localhost' (using password: YES)
+connection default;
+DROP USER USERNAME;
+#
+# 3-factor MFA: native_password AND named_pipe AND gssapi (over PIPE)
+#
+CREATE USER 'USERNAME' IDENTIFIED WITH mysql_native_password AS PASSWORD("good") AND named_pipe AND gssapi;
+user()	current_user()
+USERNAME@localhost	USERNAME@%
+# wrong password (fails at factor 1) = not ok
+ERROR 1045 (28000): Access denied for user 'USERNAME'@'localhost' (using password: YES)
+DROP USER 'USERNAME';
+#
+# MFA with --ssl-verify-server-cert (password-hash verification)
+#
+# 2-factor: gssapi AND mysql_native_password over TCP with TLS
+#
+CREATE USER 'USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD("good");
+connected
+1
+DROP USER 'USERNAME';
+UNINSTALL SONAME 'auth_named_pipe';

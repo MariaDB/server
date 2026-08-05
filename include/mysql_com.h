@@ -292,6 +292,9 @@ enum enum_indicator_type
 /* permit sending unit result-set for BULK commands */
 #define MARIADB_CLIENT_BULK_UNIT_RESULTS (1ULL << 37)
 
+/* client supports AuthNextFactor (0x02) packet for multi-factor auth */
+#define CLIENT_MULTI_FACTOR_AUTHENTICATION (1UL << 28)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -333,7 +336,8 @@ enum enum_indicator_type
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
-                           MARIADB_CLIENT_BULK_UNIT_RESULTS)
+                           MARIADB_CLIENT_BULK_UNIT_RESULTS|\
+                           CLIENT_MULTI_FACTOR_AUTHENTICATION)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched

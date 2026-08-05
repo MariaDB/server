@@ -1,0 +1,50 @@
+install plugin pam soname 'auth_pam.so';
+create user test_pam identified via pam using 'mariadb_mtr';
+grant all on test.* to test_pam;
+create user pam_test;
+grant all on test.* to pam_test;
+grant proxy on pam_test to test_pam;
+#
+# mysql_native_password AND pam
+#
+CREATE USER pam_mfa IDENTIFIED VIA mysql_native_password AS PASSWORD('goodpassword') AND pam USING 'mariadb_mtr';
+GRANT ALL ON test.* TO pam_mfa;
+GRANT PROXY ON pam_test TO pam_mfa;
+# correct password + correct pam PIN = ok
+Now, the magic number!
+PIN: 9212
+select user(), current_user(), database();
+user()	current_user()	database()
+pam_mfa@localhost	pam_test@%	test
+# wrong password (fails at factor 1) = not ok
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'pam_mfa'@'localhost' (using password: YES)
+# correct password, wrong pam PIN (fails at factor 2) = not ok
+Now, the magic number!
+PIN: 9224
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'pam_mfa'@'localhost' (using password: YES)
+DROP USER pam_mfa;
+#
+# pam AND mysql_native_password (reversed order)
+#
+CREATE USER pam_mfa2 IDENTIFIED VIA pam USING 'mariadb_mtr' AND mysql_native_password AS PASSWORD('goodpassword');
+GRANT ALL ON test.* TO pam_mfa2;
+GRANT PROXY ON pam_test TO pam_mfa2;
+# correct pam PIN + correct password = ok
+Now, the magic number!
+PIN: 9212
+select user(), current_user(), database();
+user()	current_user()	database()
+pam_mfa2@localhost	pam_mfa2@%	test
+# wrong pam PIN (fails at factor 1) = not ok
+Now, the magic number!
+PIN: 9224
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'pam_mfa2'@'localhost' (using password: NO)
+DROP USER pam_mfa2;
+#
+# 3-factor MFA: unix_socket AND mysql_native_password AND pam
+# (over unix_socket; no TLS since unix_socket requires socket transport).
+# Exercises the AuthNextFactor (0x02) flow twice.
+#
+DROP USER test_pam;
+DROP USER pam_test;
+UNINSTALL PLUGIN pam;

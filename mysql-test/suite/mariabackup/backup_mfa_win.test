@@ -1,0 +1,57 @@
+#
+# MDEV-33387 mariadb-backup connecting to a multi-factor (AND) account
+#
+# mariadb-backup uses the server's own internal client (sql-common/client.c),
+# not the bundled libmariadb connector, so it needs its own AuthNextFactor
+# (0x02) handling and CLIENT_MULTI_FACTOR_AUTHENTICATION advertisement.
+#
+# gssapi (SSPI) actually exercises client-side plugin negotiation - unlike
+# named_pipe/unix_socket, which succeed with zero client cooperation, gssapi
+# requires the client to run a real SSPI handshake. Combined with a real,
+# distinct password on the second factor, this is a stronger test of the
+# dynamic client-plugin-loading and AuthNextFactor mechanics than a
+# same-password-both-factors setup.
+#
+--source include/windows.inc
+--source include/not_embedded.inc
+
+if (!$USERNAME) {
+  skip USERNAME variable is undefined;
+}
+
+if (`SELECT count(*) <> 0 FROM mysql.user WHERE user = '$USERNAME'`) {
+  skip \$USERNAME=$USERNAME which exists in mysql.user;
+}
+
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+--replace_result $USERNAME USERNAME
+eval GRANT RELOAD, PROCESS ON *.* TO '$USERNAME';
+
+let $plugin_dir=`SELECT @@plugin_dir`;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--echo # mariadb-backup with correct credentials (gssapi + correct password) succeeds
+--replace_result $USERNAME USERNAME
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --plugin-dir=$plugin_dir -u$USERNAME -pTr0ub4dor3xyz --backup --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+
+--echo # mariadb-backup with wrong password (gssapi succeeds, password factor 2 fails) fails
+--replace_result $USERNAME USERNAME
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf -u$USERNAME -pWrongPassword --backup --no-lock --target-dir=$targetdir;
+
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+--echo # mariadb-backup where factor 1 (non-existent gssapi user) fails, even with correct password
+CREATE USER 'testuser' IDENTIFIED WITH gssapi USING 'nosuchuser' AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+GRANT RELOAD, PROCESS ON *.* TO 'testuser';
+
+--echo # factor 1 (gssapi as nosuchuser) fails, password is correct but never checked
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf -u testuser -pTr0ub4dor3xyz --backup --no-lock --target-dir=$targetdir;
+
+DROP USER 'testuser';

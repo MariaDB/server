@@ -1,0 +1,97 @@
+#
+# MDEV-33387 Multi-factor authentication with PAM
+#
+# Tests MFA (AND) combining PAM with mysql_native_password.
+# Guarded by /etc/pam.d/mariadb_mtr (see pam_init.inc).
+#
+let $PAM_PLUGIN_VERSION= $AUTH_PAM_SO;
+--source pam_init.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # mysql_native_password AND pam
+--echo #
+CREATE USER pam_mfa IDENTIFIED VIA mysql_native_password AS PASSWORD('goodpassword') AND pam USING 'mariadb_mtr';
+GRANT ALL ON test.* TO pam_mfa;
+# mariadb_mtr PAM service sets PAM_USER=pam_test, so we need a proxy grant
+GRANT PROXY ON pam_test TO pam_mfa;
+
+--write_file $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt
+9212
+select user(), current_user(), database();
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/pam_mfa_bad.txt
+9224
+EOF
+
+--echo # correct password + correct pam PIN = ok
+--exec $MYSQL_TEST -u pam_mfa -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt 2>&1
+
+--echo # wrong password (fails at factor 1) = not ok
+--error 1
+--exec $MYSQL_TEST -u pam_mfa -pbad < $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt 2>&1
+
+--echo # correct password, wrong pam PIN (fails at factor 2) = not ok
+--error 1
+--exec $MYSQL_TEST -u pam_mfa -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_bad.txt 2>&1
+
+--source include/wait_until_count_sessions.inc
+DROP USER pam_mfa;
+
+--echo #
+--echo # pam AND mysql_native_password (reversed order)
+--echo #
+CREATE USER pam_mfa2 IDENTIFIED VIA pam USING 'mariadb_mtr' AND mysql_native_password AS PASSWORD('goodpassword');
+GRANT ALL ON test.* TO pam_mfa2;
+GRANT PROXY ON pam_test TO pam_mfa2;
+
+--echo # correct pam PIN + correct password = ok
+--exec $MYSQL_TEST -u pam_mfa2 -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt 2>&1
+
+--echo # wrong pam PIN (fails at factor 1) = not ok
+--error 1
+--exec $MYSQL_TEST -u pam_mfa2 -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_bad.txt 2>&1
+
+--source include/wait_until_count_sessions.inc
+DROP USER pam_mfa2;
+
+--echo #
+--echo # 3-factor MFA: unix_socket AND mysql_native_password AND pam
+--echo # (over unix_socket; no TLS since unix_socket requires socket transport).
+--echo # Exercises the AuthNextFactor (0x02) flow twice.
+--echo #
+if (`select count(*) = 1 from information_schema.plugins where plugin_name = 'unix_socket' and plugin_status='active'`)
+{
+--replace_result $USER USER
+eval CREATE USER '$USER' IDENTIFIED VIA unix_socket AND mysql_native_password AS PASSWORD('goodpassword') AND pam USING 'mariadb_mtr';
+--replace_result $USER USER
+eval GRANT ALL ON test.* TO '$USER';
+
+--echo # correct = ok
+--exec $MYSQL_TEST -u $USER -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt 2>&1
+
+--echo # wrong password (factor 2 fails) = not ok
+--replace_result $USER USER
+--error 1
+--exec $MYSQL_TEST -u $USER -pbad < $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt 2>&1
+
+--echo # wrong pam PIN (factor 3 fails) = not ok
+--replace_result $USER USER
+--error 1
+--exec $MYSQL_TEST -u $USER -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_mfa_bad.txt 2>&1
+
+--source include/wait_until_count_sessions.inc
+--replace_result $USER USER
+eval DROP USER '$USER';
+}
+
+--remove_file $MYSQLTEST_VARDIR/tmp/pam_mfa_good.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/pam_mfa_bad.txt
+
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
+# Clean up users created by pam_init.inc
+DROP USER test_pam;
+DROP USER pam_test;
+UNINSTALL PLUGIN pam;

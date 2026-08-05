@@ -1,0 +1,10 @@
+CREATE USER 'USERNAME' IDENTIFIED WITH gssapi AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+GRANT RELOAD, PROCESS ON *.* TO 'USERNAME';
+# mariadb-backup with correct credentials (gssapi + correct password) succeeds
+# mariadb-backup with wrong password (gssapi succeeds, password factor 2 fails) fails
+DROP USER 'USERNAME';
+# mariadb-backup where factor 1 (non-existent gssapi user) fails, even with correct password
+CREATE USER 'testuser' IDENTIFIED WITH gssapi USING 'nosuchuser' AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+GRANT RELOAD, PROCESS ON *.* TO 'testuser';
+# factor 1 (gssapi as nosuchuser) fails, password is correct but never checked
+DROP USER 'testuser';

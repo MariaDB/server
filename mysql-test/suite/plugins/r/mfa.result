@@ -1,0 +1,95 @@
+INSTALL PLUGIN three_attempts SONAME 'dialog_examples.so';
+#
+# mysql_native_password AND three_attempts
+#
+CREATE USER mfa_dlg IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+GRANT SELECT ON test.* TO mfa_dlg;
+# correct password (used by both factors) = ok
+SELECT USER(), CURRENT_USER();
+USER()	CURRENT_USER()
+mfa_dlg@localhost	mfa_dlg@%
+disconnect con1;
+connection default;
+# wrong password (fails at factor 1) = not ok
+ERROR 28000: Access denied for user 'mfa_dlg'@'localhost' (using password: YES)
+DROP USER mfa_dlg;
+#
+# three_attempts AND mysql_native_password (reversed order)
+#
+CREATE USER mfa_dlg IDENTIFIED VIA three_attempts USING 'good' AND mysql_native_password AS PASSWORD('good');
+GRANT SELECT ON test.* TO mfa_dlg;
+# correct password = ok
+SELECT USER(), CURRENT_USER();
+USER()	CURRENT_USER()
+mfa_dlg@localhost	mfa_dlg@%
+disconnect con1;
+connection default;
+# wrong secret on all 3 attempts (fails at factor 1, the dialog) = not ok
+Password, please: ******
+Password, please: ******
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mfa_dlg'@'localhost' (using password: YES)
+DROP USER mfa_dlg;
+# factor 1 (dialog) ok, factor 2 (password) wrong = not ok
+CREATE USER mfa_dlg2 IDENTIFIED VIA three_attempts USING 'good' AND mysql_native_password AS PASSWORD('different');
+GRANT SELECT ON test.* TO mfa_dlg2;
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mfa_dlg2'@'localhost' (using password: YES)
+DROP USER mfa_dlg2;
+#
+# Distinct per-factor secrets
+#
+CREATE USER mfa_2f IDENTIFIED VIA mysql_native_password AS PASSWORD('native_secret') AND three_attempts USING 'dialog_secret';
+GRANT SELECT ON test.* TO mfa_2f;
+# correct factor-2 secret (2nd attempt, via stdin) = ok
+Password, please: *************
+SELECT USER(), CURRENT_USER();
+USER()	CURRENT_USER()
+mfa_2f@localhost	mfa_2f@%
+# factor-2 secret wrong on all 3 attempts = not ok
+Password, please: ******
+Password, please: ******
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mfa_2f'@'localhost' (using password: YES)
+DROP USER mfa_2f;
+#
+# The AND predicate is persisted and round-trips through SHOW CREATE USER
+#
+CREATE USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+SHOW CREATE USER mfa_show;
+CREATE USER for mfa_show@%
+CREATE USER `mfa_show`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND three_attempts USING 'good'
+# ALTER to a single factor drops the AND (exercises auth_and removal)
+ALTER USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good');
+SHOW CREATE USER mfa_show;
+CREATE USER for mfa_show@%
+CREATE USER `mfa_show`@`%` IDENTIFIED BY PASSWORD '*8409037B3E362D6DAE24C8E667F4D3B66716144E'
+# ALTER back to multi-factor restores it
+ALTER USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+SHOW CREATE USER mfa_show;
+CREATE USER for mfa_show@%
+CREATE USER `mfa_show`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND three_attempts USING 'good'
+DROP USER mfa_show;
+#
+# Two password-based plugins in MFA is not allowed
+#
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') AND mysql_native_password AS PASSWORD('p2');
+ERROR 42000: Multiple password-based plugins in multi-factor authentication is not supported
+#
+# Mixing AND/OR operators is not allowed
+#
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') AND three_attempts USING 'p1' OR three_attempts USING 'p1';
+ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') OR three_attempts USING 'p1' AND three_attempts USING 'p1';
+ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'
+#
+# MFA with --ssl-verify-server-cert (password-hash verification)
+#
+# The server sends a fingerprint challenge in the OK packet.
+# The client uses the password hash to verify the server certificate,
+# so self-signed certs should be accepted even without --ssl-ca.
+#
+CREATE USER mfa_tls IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+GRANT SELECT ON test.* TO mfa_tls;
+# MFA + ssl-verify-server-cert should succeed (fingerprint proves server)
+connected
+1
+DROP USER mfa_tls;
+UNINSTALL PLUGIN three_attempts;

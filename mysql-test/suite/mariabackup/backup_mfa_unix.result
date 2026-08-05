@@ -1,0 +1,5 @@
+CREATE USER 'USER' IDENTIFIED VIA unix_socket AND mysql_native_password AS PASSWORD('Tr0ub4dor3xyz');
+GRANT RELOAD, PROCESS ON *.* TO 'USER';
+# mariadb-backup with correct credentials (unix_socket + correct password) succeeds
+# mariadb-backup with wrong password (unix_socket succeeds, password factor 2 fails) fails
+DROP USER 'USER';

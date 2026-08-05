@@ -1,0 +1,161 @@
+#
+# MDEV-33387 Multi-factor authentication - portable machinery test
+#
+# This test exercises the OS-independent parts of MFA:
+#   - the AuthNextFactor (0x02) protocol round-trip between two factors,
+#   - a non-hashing plugin (three_attempts) participating in an AND chain,
+#   - persistence of the AND predicate in mysql.global_priv (auth_and JSON),
+#     including ALTER USER converting multi-factor <-> single-factor,
+#   - the negative cases (two password plugins, mixed AND/OR),
+#   - the TLS fingerprint / password-hash server verification path.
+#
+# Real multi-factor combinations of *different plugin types* (OS peer
+# credentials + password, PAM PIN + password, ...) live in the OS-specific
+# tests mfa_unix / mfa_win / mfa_unix_pam.
+#
+# We use three_attempts (dialog_examples) as the portable non-hashing factor:
+# unlike PAM it needs no OS-level setup. Most blocks below share one password
+# across both factors, so dialog's client plugin answers its first attempt
+# from mysql->passwd without prompting. The "distinct secrets" block further
+# down drives a genuinely different factor-2 secret via stdin instead.
+#
+--source include/not_embedded.inc
+
+if (!$DIALOG_EXAMPLES_SO) {
+  skip No dialog examples plugin;
+}
+
+--replace_result .dll .so
+eval INSTALL PLUGIN three_attempts SONAME '$DIALOG_EXAMPLES_SO';
+
+--echo #
+--echo # mysql_native_password AND three_attempts
+--echo #
+CREATE USER mfa_dlg IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+GRANT SELECT ON test.* TO mfa_dlg;
+
+--echo # correct password (used by both factors) = ok
+--disable_query_log
+--connect(con1,localhost,mfa_dlg,good,,,,)
+--enable_query_log
+SELECT USER(), CURRENT_USER();
+--disconnect con1
+--connection default
+
+--echo # wrong password (fails at factor 1) = not ok
+--disable_query_log
+--error ER_ACCESS_DENIED_ERROR
+--connect(con1,localhost,mfa_dlg,bad,,,,)
+--enable_query_log
+
+DROP USER mfa_dlg;
+
+--echo #
+--echo # three_attempts AND mysql_native_password (reversed order)
+--echo #
+CREATE USER mfa_dlg IDENTIFIED VIA three_attempts USING 'good' AND mysql_native_password AS PASSWORD('good');
+GRANT SELECT ON test.* TO mfa_dlg;
+
+--echo # correct password = ok
+--disable_query_log
+--connect(con1,localhost,mfa_dlg,good,,,,)
+--enable_query_log
+SELECT USER(), CURRENT_USER();
+--disconnect con1
+--connection default
+
+--echo # wrong secret on all 3 attempts (fails at factor 1, the dialog) = not ok
+--write_file $MYSQLTEST_VARDIR/tmp/mfa_dlg_bad.txt
+wrong1
+wrong2
+EOF
+--error 1
+--exec $MYSQL_TEST -u mfa_dlg -pbad < $MYSQLTEST_VARDIR/tmp/mfa_dlg_bad.txt 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mfa_dlg_bad.txt
+
+DROP USER mfa_dlg;
+
+--echo # factor 1 (dialog) ok, factor 2 (password) wrong = not ok
+CREATE USER mfa_dlg2 IDENTIFIED VIA three_attempts USING 'good' AND mysql_native_password AS PASSWORD('different');
+GRANT SELECT ON test.* TO mfa_dlg2;
+--error 1
+--exec $MYSQL_TEST -u mfa_dlg2 -pgood 2>&1
+DROP USER mfa_dlg2;
+
+--echo #
+--echo # Distinct per-factor secrets
+--echo #
+# factor 1 (native) = 'native_secret', factor 2 (dialog) = 'dialog_secret' - two
+# genuinely different secrets, not the same string reused. The client's first
+# attempt at the dialog prompt auto-answers with mysql->passwd ('native_secret'),
+# which is wrong for factor 2, so three_attempts retries and falls back to
+# reading stdin (get_tty_password(), no controlling terminal under MTR) - the
+# same stream mysqltest reads its own script from.
+CREATE USER mfa_2f IDENTIFIED VIA mysql_native_password AS PASSWORD('native_secret') AND three_attempts USING 'dialog_secret';
+GRANT SELECT ON test.* TO mfa_2f;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mfa_2f_ok.txt
+dialog_secret
+SELECT USER(), CURRENT_USER();
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/mfa_2f_bad.txt
+wrong1
+wrong2
+EOF
+
+--echo # correct factor-2 secret (2nd attempt, via stdin) = ok
+--exec $MYSQL_TEST -u mfa_2f -pnative_secret < $MYSQLTEST_VARDIR/tmp/mfa_2f_ok.txt 2>&1
+
+--echo # factor-2 secret wrong on all 3 attempts = not ok
+--error 1
+--exec $MYSQL_TEST -u mfa_2f -pnative_secret < $MYSQLTEST_VARDIR/tmp/mfa_2f_bad.txt 2>&1
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mfa_2f_ok.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/mfa_2f_bad.txt
+DROP USER mfa_2f;
+
+--echo #
+--echo # The AND predicate is persisted and round-trips through SHOW CREATE USER
+--echo #
+CREATE USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+SHOW CREATE USER mfa_show;
+
+--echo # ALTER to a single factor drops the AND (exercises auth_and removal)
+ALTER USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good');
+SHOW CREATE USER mfa_show;
+
+--echo # ALTER back to multi-factor restores it
+ALTER USER mfa_show IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+SHOW CREATE USER mfa_show;
+DROP USER mfa_show;
+
+--echo #
+--echo # Two password-based plugins in MFA is not allowed
+--echo #
+--error ER_NOT_SUPPORTED_YET
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') AND mysql_native_password AS PASSWORD('p2');
+
+--echo #
+--echo # Mixing AND/OR operators is not allowed
+--echo #
+--error ER_NOT_SUPPORTED_YET
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') AND three_attempts USING 'p1' OR three_attempts USING 'p1';
+--error ER_NOT_SUPPORTED_YET
+CREATE USER mfa_bad IDENTIFIED VIA mysql_native_password AS PASSWORD('p1') OR three_attempts USING 'p1' AND three_attempts USING 'p1';
+
+--echo #
+--echo # MFA with --ssl-verify-server-cert (password-hash verification)
+--echo #
+--echo # The server sends a fingerprint challenge in the OK packet.
+--echo # The client uses the password hash to verify the server certificate,
+--echo # so self-signed certs should be accepted even without --ssl-ca.
+--echo #
+CREATE USER mfa_tls IDENTIFIED VIA mysql_native_password AS PASSWORD('good') AND three_attempts USING 'good';
+GRANT SELECT ON test.* TO mfa_tls;
+
+--echo # MFA + ssl-verify-server-cert should succeed (fingerprint proves server)
+--exec $MYSQL --ssl-verify-server-cert -u mfa_tls -pgood -e "SELECT 1 AS connected" 2>&1
+
+DROP USER mfa_tls;
+
+UNINSTALL PLUGIN three_attempts;

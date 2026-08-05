@@ -1,0 +1,68 @@
+#
+# MDEV-33387 Multi-factor authentication - Unix plugins
+#
+# Tests MFA (AND) combining unix_socket and mysql_native_password.
+#
+--source include/not_embedded.inc
+--source include/have_unix_socket.inc
+
+if (`SELECT count(*) <> 0 FROM mysql.user WHERE user = '$USER'`) {
+  skip \$USER=$USER which exists in mysql.user;
+}
+
+--echo #
+--echo # unix_socket AND mysql_native_password
+--echo #
+--replace_result $USER USER
+eval create user '$USER' identified via unix_socket AND mysql_native_password as password("good");
+--replace_result $USER USER
+eval grant select on test.* to '$USER';
+
+--echo # correct username, correct password = ok
+--disable_query_log
+--connect(con1,localhost,$USER,good,,,,)
+--enable_query_log
+--replace_result $USER USER
+select user(), current_user();
+--disconnect con1
+--connection default
+
+--echo # correct username, no password = not ok
+--disable_query_log
+--replace_result $USER USER
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+--connect(con1,localhost,$USER,,,,,)
+--replace_result $USER USER
+--error ER_ACCESS_DENIED_ERROR
+--connect(con1,localhost,$USER,bad,,,,)
+--enable_query_log
+
+--replace_result $USER USER
+eval drop user '$USER';
+
+--echo #
+--echo # mysql_native_password AND unix_socket (reversed order)
+--echo #
+--replace_result $USER USER
+eval create user '$USER' identified via mysql_native_password as password("good") AND unix_socket;
+--replace_result $USER USER
+eval grant select on test.* to '$USER';
+
+--echo # correct password = ok
+--disable_query_log
+--connect(con1,localhost,$USER,good,,,,)
+--enable_query_log
+--replace_result $USER USER
+select user(), current_user();
+--disconnect con1
+--connection default
+
+--echo # wrong password = not ok
+--disable_query_log
+--replace_result $USER USER
+--error ER_ACCESS_DENIED_ERROR
+--connect(con1,localhost,$USER,bad,,,,)
+--enable_query_log
+
+--replace_result $USER USER
+eval drop user '$USER';

@@ -237,9 +237,18 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
 struct USER_AUTH : public Sql_alloc
 {
+  /* How this factor combines with the next one in the auth list:
+     NONE for a single-factor account, OR for alternatives, AND for MFA. */
+  enum logical_operator
+  {
+    NONE= 0,
+    OR= 1,
+    AND= 2
+  };
   LEX_CSTRING plugin, auth_str, pwtext;
   USER_AUTH *next;
-  USER_AUTH() : next(NULL)
+  logical_operator auth_combine_op;
+  USER_AUTH() : next(NULL), auth_combine_op(NONE)
   {
     plugin.str= auth_str.str= "";
     pwtext.str= NULL;
