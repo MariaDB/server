@@ -232,7 +232,7 @@ search:
                       &is_enabled, &is_timed);
 
   /* Else create a new record in program stat array. */
-  pfs= global_program_container.allocate(& dirty_state);
+  pfs= global_program_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     /* Do the assignments. */

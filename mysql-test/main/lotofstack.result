@@ -108,4 +108,11 @@ SELECT ST_GeomFromText(CONCAT(REPEAT('GEOMETRYCOLLECTION(',5000),'POINT(1 1)',RE
 #
 set @a=concat(0x0107000000, repeat(0x010000000107000000, 120000), 0x00000000);
 SELECT ST_GeomFromWKB(@a);
+#
+# MDEV-39750 ExtractValue does not control recursion depth.
+#
+SELECT ExtractValue('<a/>', REPEAT('(', 100000));
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 10.6 tests

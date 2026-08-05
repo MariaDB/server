@@ -43,7 +43,7 @@
 struct row_prepared_stmt_instances
 {
   /** Column OBJECT_INSTANCE_BEGIN. */
-  const void *m_identity;
+  pfs_identity m_identity;
 
   /** Column STMT_ID. */
   ulonglong m_stmt_id;
