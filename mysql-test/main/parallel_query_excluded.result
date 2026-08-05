@@ -100,6 +100,48 @@ a
 3
 4
 SET SESSION optimizer_switch=DEFAULT;
+#
+# A choice the plan then takes away. The driving table is picked in
+# make_join_readinfo(), before test_if_skip_sort_order() has had its say,
+# and that can hand the table an ordered index scan so it supplies the
+# GROUP BY order for free -- which is not a scan that can be handed out in
+# chunks. So the trace records a candidate first and what became of it
+# afterwards, and chosen_for_parallel_scan names only tables that really
+# are scanned in parallel.
+#
+CREATE TABLE t_ord (k1 INT, k2 INT, v INT, PRIMARY KEY(k1,k2)) ENGINE=InnoDB;
+INSERT INTO t_ord SELECT seq DIV 4, seq MOD 4, seq FROM seq_1_to_40000;
+ANALYZE TABLE t_ord PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_ord	analyze	status	Engine-independent statistics collected
+test.t_ord	analyze	status	OK
+set session parallel_worker_threads=8;
+# The LIMIT makes the ordered index scan the cheaper plan, so the candidate
+# is abandoned (expect 1 0 1, and the reason)
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 LIMIT 5;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')   IS NOT NULL AS candidate,
+JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan')  IS NOT NULL AS chosen,
+JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')   IS NOT NULL AS abandoned,
+JSON_UNQUOTE(JSON_EXTRACT(trace,
+'$**.parallel_scan_abandoned_because[0]')) AS abandoned_because
+FROM information_schema.optimizer_trace;
+candidate	chosen	abandoned	abandoned_because
+1	0	1	["an index now supplies the GROUP BY order"]
+# and it really does not run in the workers (expect 0 / NULL)
+FLUSH STATUS;
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 LIMIT 5;
+ran_in_the_workers	workers_per_query
+0	NULL
+# Without the LIMIT the temp-table plan keeps the full scan, so the same
+# table survives as a real choice (expect 1 1 0)
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 HAVING SUM(v) > 999999999;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
+JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
+FROM information_schema.optimizer_trace;
+candidate	chosen	abandoned
+1	1	0
+DROP TABLE t_ord;
 DROP TABLE ta, tb;
 SET optimizer_trace= @save_optimizer_trace;
 set session parallel_worker_threads=default;

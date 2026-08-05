@@ -2,12 +2,15 @@
 # MDEV-39492 Parallel Query: tables that cannot be shipped row-by-row through a
 # worker batch table are excluded from parallel worker scan.
 #
-# JOIN::choose_parallel_scan() records the table picked for the parallel scan
-# in the optimizer trace as "chosen_for_parallel_scan". An ordinary table is
-# chosen; a table is rejected by the use_parallel_scan gate when it has a
-# BLOB/TEXT (blob-backed) column, uses the MERGE engine, or is fulltext-searched
-# (a MATCH ... AGAINST refers to it). We assert presence/absence of that trace
-# key (1/0) rather than the temporary row-multiplication behaviour.
+# The gate in make_join_readinfo() records the table it picks as
+# "parallel_scan_candidate", and JOIN::optimize_stage2() then reports what became
+# of it once the plan has stopped changing: "chosen_for_parallel_scan" if it is
+# still a scan that can be handed out in chunks, "parallel_scan_abandoned" with a
+# reason if the plan took it away. An ordinary table is chosen; a table is
+# rejected by the gate when it has a BLOB/TEXT (blob-backed) column, uses the
+# MERGE engine, or is fulltext-searched (a MATCH ... AGAINST refers to it). We
+# assert presence/absence of those trace keys (1/0) rather than the temporary
+# row-multiplication behaviour.
 #
 -- source include/have_innodb.inc
 --source include/not_embedded.inc
@@ -122,6 +125,52 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 --sorted_result
 SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
 SET SESSION optimizer_switch=DEFAULT;
+
+--echo #
+--echo # A choice the plan then takes away. The driving table is picked in
+--echo # make_join_readinfo(), before test_if_skip_sort_order() has had its say,
+--echo # and that can hand the table an ordered index scan so it supplies the
+--echo # GROUP BY order for free -- which is not a scan that can be handed out in
+--echo # chunks. So the trace records a candidate first and what became of it
+--echo # afterwards, and chosen_for_parallel_scan names only tables that really
+--echo # are scanned in parallel.
+--echo #
+--source include/have_sequence.inc
+CREATE TABLE t_ord (k1 INT, k2 INT, v INT, PRIMARY KEY(k1,k2)) ENGINE=InnoDB;
+INSERT INTO t_ord SELECT seq DIV 4, seq MOD 4, seq FROM seq_1_to_40000;
+ANALYZE TABLE t_ord PERSISTENT FOR ALL;
+set session parallel_worker_threads=8;
+
+--echo # The LIMIT makes the ordered index scan the cheaper plan, so the candidate
+--echo # is abandoned (expect 1 0 1, and the reason)
+--disable_result_log
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 LIMIT 5;
+--enable_result_log
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')   IS NOT NULL AS candidate,
+       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan')  IS NOT NULL AS chosen,
+       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')   IS NOT NULL AS abandoned,
+       JSON_UNQUOTE(JSON_EXTRACT(trace,
+         '$**.parallel_scan_abandoned_because[0]')) AS abandoned_because
+  FROM information_schema.optimizer_trace;
+
+--echo # and it really does not run in the workers (expect 0 / NULL)
+FLUSH STATUS;
+--disable_result_log
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 LIMIT 5;
+--enable_result_log
+--source include/parallel_query_workers_per_query.inc
+
+--echo # Without the LIMIT the temp-table plan keeps the full scan, so the same
+--echo # table survives as a real choice (expect 1 1 0)
+--disable_result_log
+SELECT k1, SUM(v) FROM t_ord GROUP BY k1 HAVING SUM(v) > 999999999;
+--enable_result_log
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
+       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
+  FROM information_schema.optimizer_trace;
+
+DROP TABLE t_ord;
 
 DROP TABLE ta, tb;
 SET optimizer_trace= @save_optimizer_trace;
