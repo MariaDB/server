@@ -813,7 +813,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
     return false;
   }
 
-  if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+  if (UNIV_UNLIKELY(lsn < space->create_lsn))
   {
     ut_ad(!space->is_temporary());
     ut_ad(!space->is_being_imported());
@@ -1092,7 +1092,7 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
                        (FIL_PAGE_LSN +
                         (bpage->zip.data ? bpage->zip.data : bpage->frame)));
     ut_ad(lsn >= bpage->oldest_modification());
-    if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+    if (UNIV_UNLIKELY(lsn < space->create_lsn))
     {
       ut_a(!bpage->flush(space));
       mysql_mutex_unlock(&buf_pool.mutex);

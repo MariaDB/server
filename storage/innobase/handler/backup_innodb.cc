@@ -311,21 +311,26 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
-            !space.is_being_imported() &&
-            /* FIXME: how to initialize create_lsn for old files, to
-            have efficient incremental backup?
-            fil_node_t::read_page0() cannot assign it from
-            FIL_PAGE_LSN because that would not reflect the file
-            creation but for example allocating or freeing a page.
+            !space.is_being_imported() && !space.is_stopping())
+        {
+          /* FIXME: how to initialize create_lsn for old files, to
+          have efficient incremental backup?
+          fil_node_t::read_page0() cannot assign it from
+          FIL_PAGE_LSN because that would not reflect the file
+          creation but for example allocating or freeing a page.
 
-            The easy parts of initializing space->create_lsn are
-            as follows:
-            (1) In log_parse_file() when processing FILE_CREATE
-            (2) In deferred_spaces.create() */
-            space.get_create_lsn() < start)
-          queue.emplace_back
-            (uint64_t{std::min(space.size, space.free_limit)} << 32 |
-             space.id);
+          The easy parts of initializing space->create_lsn are
+          as follows:
+          (1) In log_parse_file() when processing FILE_CREATE
+          (2) In deferred_spaces.create()
+          (3) In fil_ibd_create() outside recovery */
+          uint64_t s{space.id};
+#if 1 /* MDEV-39694 FIXME: recover FILE_CREATE by creating files */
+          if (space.create_lsn < start)
+#endif
+            s|= uint64_t{std::min(space.size, space.free_limit)} << 32;
+          queue.emplace_back(s);
+        }
       mysql_mutex_unlock(&fil_system.mutex);
     }
     log_sys.latch.wr_unlock();
@@ -437,6 +442,20 @@ public:
       }
       for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain);;)
       {
+# ifdef HAVE_POSIX_FALLOCATE
+        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+        {
+          const uint32_t page_size{space->physical_size()};
+          if ((limit * page_size) & 4095)
+            /* os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+            multiples of 4096 bytes. There may be up to 3 pages
+            (of 1024 bytes) that have not been written out yet.
+            We must cap the limit to the actual file size. */
+            limit=
+              std::min(limit,
+                       uint32_t(os_file_get_size(node->handle) / page_size));
+        }
+# endif
         if ((res= (*method)(fd, node, start, limit)))
           break;
         fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
@@ -668,7 +687,7 @@ private:
 
       if (node->size > limit)
       {
-        /* Expand the file to its logical size. */
+        /* Expand the target file to its logical size. */
 #ifdef _WIN32
         LARGE_INTEGER li;
         li.QuadPart= uint64_t{node->size} * page_size;

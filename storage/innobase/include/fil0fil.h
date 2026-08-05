@@ -425,9 +425,11 @@ private:
   /** LSN of freeing last page; protected by freed_range_mutex */
   lsn_t last_freed_lsn= 0;
 
-  /** LSN of undo tablespace creation or 0; protected by latch */
-  lsn_t create_lsn= 0;
 public:
+  /** LSN of tablespace creation or undo tablespace reinitialization;
+  protected by fil_system.mutex and (is_stopped() or log_sys.latch) */
+  Atomic_relaxed<lsn_t> create_lsn{0};
+
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
   { return UNIV_UNLIKELY(id == SRV_TMP_SPACE_ID); }
@@ -440,12 +442,6 @@ public:
 
   /** @return whether a page has been freed */
   inline bool is_freed(uint32_t page) noexcept;
-
-  /** Set create_lsn. */
-  inline void set_create_lsn(lsn_t lsn) noexcept;
-
-  /** @return the latest tablespace rebuild LSN, or 0 */
-  lsn_t get_create_lsn() const noexcept { return create_lsn; }
 
   /** Apply freed_ranges to the file.
   @param writable whether the file is writable

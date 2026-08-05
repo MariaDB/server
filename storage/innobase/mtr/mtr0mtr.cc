@@ -595,14 +595,6 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
-/** Set create_lsn. */
-inline void fil_space_t::set_create_lsn(lsn_t lsn) noexcept
-{
-  /* Concurrent log_checkpoint_low() must be impossible. */
-  ut_ad(latch.have_wr());
-  create_lsn= lsn;
-}
-
 /** Commit a mini-transaction that is shrinking a tablespace.
 @param space   tablespace that is being shrunk
 @param size    new size in pages */
@@ -635,7 +627,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   if (space.id == TRX_SYS_SPACE)
     srv_sys_space.set_last_file_size(file->size);
   else
-    space.set_create_lsn(m_commit_lsn);
+    space.create_lsn= m_commit_lsn;
 
   mysql_mutex_unlock(&fil_system.mutex);
 
