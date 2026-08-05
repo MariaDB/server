@@ -3119,6 +3119,16 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                      bitmaps_used*share->column_bitmap_size),
                    share->fields);
   }
+  /*
+    Unlike has_value_set above this one is always initialised: it is read
+    for every row that is written, and the TABLE this was memcpy'd from
+    would otherwise leave it pointing at the client thread's bitmap.
+    The fourth block of the four allocated above is its own.
+  */
+  my_bitmap_init(&copy->is_valid_json_set,
+                 (my_bitmap_map*) (bitmap +
+                                   (bitmaps_used + 1)*share->column_bitmap_size),
+                 share->fields);
   copy->tmp_set.bitmap= 0;                      // To catch errors
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;

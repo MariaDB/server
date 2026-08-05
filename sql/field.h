@@ -581,6 +581,9 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   - whether the field is used in a partitioning expression
 */
 
+/* A check constraint that is not one column's JSON_VALID() over itself */
+#define NO_JSON_VALID_FIELD ((field_index_t) ~0U)
+
 class Virtual_column_info: public Sql_alloc,
                            private Type_handler_hybrid_field_type
 {
@@ -603,12 +606,21 @@ public:
   Lex_ident name;                               /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
+  /*
+    Worked out once at open: for a column's own check constraint that asks
+    nothing but whether that very column holds a document, the index of the
+    column.  A check over another column, one wrapped in anything else, and
+    a check belonging to the table rather than a column all leave this
+    NO_JSON_VALID_FIELD and are always run.  See TABLE::is_valid_json_set.
+  */
+  field_index_t json_valid_field_index;
 
   Virtual_column_info()
    :Type_handler_hybrid_field_type(&type_handler_null),
     vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
-    utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0)
+    utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0),
+    json_valid_field_index(NO_JSON_VALID_FIELD)
   {
     name.str= NULL;
     name.length= 0;
@@ -1215,6 +1227,30 @@ public:
   void clear_has_explicit_value()
   {
     bitmap_clear_bit(&table->has_value_set, field_index);
+  }
+
+  /*
+    Attest to the value just stored here, by the one rule every store site
+    applies: the Item said it was a document, the store kept every
+    character of it, and nothing went wrong while it happened.  Anything
+    else clears the mark - a store that failed leaves bytes behind too.
+    See TABLE::is_valid_json_set.
+
+    Written here and read nowhere here.  The one place that reads a mark
+    is TABLE::verify_constraints, which has the bitmap in front of it and
+    asks it by name; giving this class the short question as well would
+    put "does this field attest to its bytes" within reach of anything
+    that wanted it, and this is not that question.  It is true of one row
+    image between a store and the next check and false everywhere a
+    reader would think to ask, which is a thing to be read by the one
+    caller that knows that and by nobody who does not.
+  */
+  bool is_character_preserving() const;
+  bool is_attestation_preserved(const Item *item, int store_rc) const;
+  void set_is_valid_json(const Item *item, int store_rc);
+  void clear_is_valid_json()
+  {
+    bitmap_clear_bit(&table->is_valid_json_set, field_index);
   }
 
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const

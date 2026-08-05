@@ -1,0 +1,305 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # How many times a column's check constraint reads what is stored.
+--echo #
+--echo # A JSON column's check reads every value written into it to find
+--echo # out whether it is a document.  Where the value came out of a JSON
+--echo # function, that has been answered already, and the reading finds
+--echo # out nothing.
+--echo #
+--echo # No query can see the difference - a value that is a document is
+--echo # stored either way - so nothing but Json_scans says whether the
+--echo # reading happened.  The counts below are the record of it.  A count
+--echo # that goes up is a reading that came back.
+--echo #
+--echo # A debug build reads values back twice over to check what was
+--echo # claimed about them - once for what the JSON functions claim, and
+--echo # once, wherever a check is left unrun, for what the column was
+--echo # marked with.  Neither reading is counted: they are the debug
+--echo # build's work and not the server's, and counting them would move
+--echo # these numbers for reasons no query is responsible for.  A count
+--echo # of 0 below therefore means the check did not read, not that the
+--echo # reading went uncounted.
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (id INT PRIMARY KEY, j VARCHAR(64));
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+
+--echo #
+--echo # ONE row, from a function that builds a document out of scalars.
+--echo # Building it reads nothing - there is nothing there to read - so
+--echo # every reading counted here is the check reading the value back.
+--echo #
+FLUSH STATUS;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO such rows.  The check reads once per row, so this is twice
+--echo # the count above and nothing else.
+--echo #
+DELETE FROM t1;
+FLUSH STATUS;
+INSERT INTO t1 VALUES (2, JSON_OBJECT('a', 1)), (3, JSON_ARRAY(1, 2));
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO rows written out as literals.  Nothing has read them, so the
+--echo # check is the only thing that can find out whether they are
+--echo # documents, and its reading is not work that can be taken away.
+--echo # Two rows, one reading each.
+--echo #
+DELETE FROM t1;
+FLUSH STATUS;
+INSERT INTO t1 VALUES (4, '{"a":1}'), (5, '[1,2]');
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO rows, each put through JSON_COMPACT on the way in - so TWO
+--echo # calls, not one.  Writing a document out compactly means reading
+--echo # it, and that reading is the function's own and stays.  Each row
+--echo # therefore costs one reading for the function, plus whatever the
+--echo # check still costs.
+--echo #
+DELETE FROM t1;
+FLUSH STATUS;
+INSERT INTO t1 VALUES (6, JSON_COMPACT('{"a":1}')), (7, JSON_COMPACT('[1,2]'));
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO rows updated, so TWO calls to JSON_SET.  Editing a document
+--echo # that came out of a column costs the function TWO readings of its
+--echo # own - one to find the place to edit and one to read its result
+--echo # back, the column having no say in how it was formatted.  Four
+--echo # readings for the two rows, plus whatever the check still costs.
+--echo #
+DELETE FROM t1;
+INSERT INTO t1 VALUES (8, JSON_OBJECT('a', 1)), (9, JSON_OBJECT('b', 2));
+FLUSH STATUS;
+UPDATE t1 SET j = JSON_SET(j, '$.c', 3);
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO rows read out of another table, one JSON_COMPACT call each,
+--echo # counting the same way as the two-call case above.
+--echo #
+DELETE FROM t1;
+FLUSH STATUS;
+INSERT INTO t1 SELECT id, JSON_COMPACT(j) FROM t2 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # ONE row, written twice over, and read once per writing: what the
+--echo # first writing attested does not carry over to the second.
+--echo # Both values are built out of scalars, so neither costs a reading
+--echo # of its own and the count is the two checks alone.
+--echo #
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('b', 2))
+  ON DUPLICATE KEY UPDATE j = JSON_OBJECT('c', 3);
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # ONE row into a column with no check at all, built out of scalars.
+--echo # Nothing reads it anywhere, and nothing is counted.
+--echo #
+FLUSH STATUS;
+INSERT INTO t2 VALUES (3, JSON_OBJECT('a', 1));
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # TWO rows through a trigger that edits the value on the way in.
+--echo # The trigger's JSON_INSERT is handed NEW.j, which is a column and
+--echo # says nothing about itself, so it costs the same TWO readings per
+--echo # row as the update above - four for the two rows - plus whatever
+--echo # the check still costs.
+--echo #
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = JSON_INSERT(NEW.j, '$.seen', 1);
+FLUSH STATUS;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1)), (2, JSON_OBJECT('b', 2));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # ONE row, into a column whose check reads a DIFFERENT column.
+--echo # What was written into the one says nothing about the other, so
+--echo # the check keeps reading: one reading, and it stays.
+--echo #
+CREATE TABLE t1 (a VARCHAR(64) CHECK (JSON_VALID(b)), b VARCHAR(64));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), JSON_OBJECT('b', 2));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # TWO rows into a column whose check asks something else as well.
+--echo # Both values are built out of scalars, so the count is the checks
+--echo # alone - one per row, and both stay.
+--echo #
+CREATE TABLE t1 (j VARCHAR(64) CHECK (JSON_VALID(j) AND LENGTH(j) < 40));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)), (JSON_OBJECT('b', 2));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # TWO rows into a table with a table-level check, which is not a
+--echo # column's check whatever it asks.  One reading per row, and both
+--echo # stay.
+--echo #
+CREATE TABLE t1 (id INT, j VARCHAR(64), CONSTRAINT ck CHECK (JSON_VALID(j)));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1)), (2, JSON_OBJECT('b', 2));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # The same function asked directly, outside any check.
+--echo #
+--echo # A column's check IS json_valid(), so the reading left unrun
+--echo # above is the one json_valid() itself makes, and it is left
+--echo # unrun for the same reason wherever the value has answered.
+--echo # TWO values built out of scalars, neither of them read.
+--echo #
+FLUSH STATUS;
+SELECT JSON_VALID(JSON_OBJECT('a', 1)) AS built_object,
+       JSON_VALID(JSON_ARRAY(1, 2)) AS built_array;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same two values written out, which nothing has answered
+--echo # for.  One reading each, and both stay.
+--echo #
+FLUSH STATUS;
+SELECT JSON_VALID('{"a": 1}') AS written_object,
+       JSON_VALID('[1, 2]') AS written_array;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO values that are not documents at all.  Each is read, and
+--echo # each says so.
+--echo #
+FLUSH STATUS;
+SELECT JSON_VALID('not a document') AS text,
+       JSON_VALID('[1, 2') AS unfinished;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # TWO rows into a COMPRESSED column whose check asks nothing but
+--echo # whether it holds a document.  A compressed store does not put
+--echo # down the characters it was handed: it puts down an image of them
+--echo # behind a header of its own.  Nothing the value answered can be
+--echo # carried by bytes like that, so the check reads for itself - one
+--echo # reading per row, and both stay.
+--echo #
+--echo # The two values are built out of scalars and cost no reading of
+--echo # their own.  They differ in length on purpose: the short one is
+--echo # put down as it stands behind the header and the long one is
+--echo # packed, and neither is the text that was passed.
+--echo #
+CREATE TABLE t1 (j VARCHAR(1024) COMPRESSED CHECK (JSON_VALID(j)));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)),
+                      (JSON_OBJECT('a', REPEAT('x', 200)));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # The same two rows into a LONGTEXT COMPRESSED column, which is a
+--echo # different class of field storing the same way.  Both compressed
+--echo # classes answer the same question about themselves, so neither
+--echo # has to be named for either to be refused.
+--echo #
+CREATE TABLE t1 (j LONGTEXT COMPRESSED CHECK (JSON_VALID(j)));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)),
+                      (JSON_OBJECT('a', REPEAT('x', 200)));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # THE CONTROL: the same two values into the same two column types
+--echo # with the compression taken off.  These put down what they were
+--echo # handed, so the check is left unrun and nothing is counted - which
+--echo # is what makes the counts above a fact about compressing rather
+--echo # than about the values, the widths or the types.
+--echo #
+CREATE TABLE t1 (j VARCHAR(1024) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (j LONGTEXT CHECK (JSON_VALID(j)));
+FLUSH STATUS;
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)),
+                      (JSON_OBJECT('a', REPEAT('x', 200)));
+INSERT INTO t2 VALUES (JSON_OBJECT('a', 1)),
+                      (JSON_OBJECT('a', REPEAT('x', 200)));
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # TWO rows whose checked column is written by a trigger and by
+--echo # nothing else.  An assignment in a trigger is a store like any
+--echo # other and attests to what it put down, so the check is left
+--echo # unrun.  The value is built out of scalars and reads nothing of
+--echo # its own, so nothing at all is counted.
+--echo #
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = JSON_OBJECT('seen', NEW.id);
+FLUSH STATUS;
+INSERT INTO t1 (id) VALUES (1), (2);
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # The same trigger over a table where no column carries a check.
+--echo # Nothing here can ever be asked whether it holds a document, so
+--echo # the assignment does not stop to attest to what it stored - the
+--echo # restraint the other two store sites already showed.  A debug
+--echo # build stops the server where a mark is set that nothing can
+--echo # read, which is what says the restraint is being shown.
+--echo #
+CREATE TABLE t1 (id INT, j VARCHAR(64));
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = JSON_OBJECT('seen', NEW.id);
+FLUSH STATUS;
+INSERT INTO t1 (id) VALUES (1), (2);
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t1;
+
+--echo #
+--echo # A row cut in two, where each piece is written over the row image
+--echo # the piece before it left behind.
+--echo #
+--echo # An update over part of a period writes back, as rows of their
+--echo # own, the pieces the update did not cover.  Each piece is built by
+--echo # putting the row back as it stood and writing one end of the
+--echo # period over it, and the check runs on what that came to - so the
+--echo # answer a trigger gave for the piece before is an answer about
+--echo # bytes that are no longer there.
+--echo #
+--echo # THREE readings: one for the update itself, whose SET does not
+--echo # touch the checked column, and one for each of the two pieces.  A
+--echo # piece written over an answer that was left standing would show up
+--echo # as a count of two.
+--echo #
+CREATE TABLE t1 (id INT, s DATE, e DATE, j VARCHAR(64) CHECK (JSON_VALID(j)),
+                 PERIOD FOR p(s, e));
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = JSON_OBJECT('seen', NEW.id);
+INSERT INTO t1 (id, s, e) VALUES (1, '2000-01-01', '2010-01-01');
+FLUSH STATUS;
+UPDATE t1 FOR PORTION OF p FROM '2002-01-01' TO '2003-01-01' SET id = 2;
+SHOW STATUS LIKE 'Json_scans';
+SELECT id, s, e, j FROM t1 ORDER BY s;
+DROP TABLE t1;

@@ -38,6 +38,8 @@ public:
   static const Type_handler *json_type_handler_sum(const Item_sum *sum);
   static const Type_handler *json_type_handler_from_generic(const Type_handler *th);
   static bool has_json_valid_constraint(const Field *field);
+  static bool is_json_valid_of_field(Virtual_column_info *check,
+                                     const Field *field);
   static const Type_collection *type_collection();
   static bool is_json_type_handler(const Type_handler *handler)
   {

@@ -2687,6 +2687,111 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff)
 }
 
 
+/*
+  Whether a store into this field that answered 0 puts down exactly the
+  characters it was handed.
+
+  Only such a field can carry what an Item answered about those characters,
+  JSON being written in characters.  CHAR and BINARY pad what they are
+  given and the padding is part of what is stored; ENUM and SET keep the
+  member they matched rather than the text that matched it; GEOMETRY and
+  the compressed types put down something else entirely; and the rest
+  convert.  Every one of those answers 0 while doing it.
+
+  Asked of real_type() rather than answered by a virtual, so that a field
+  type has to be NAMED here to be trusted.  A field type nobody has looked
+  at is untrusted, and a new subclass of a trusted one does not inherit the
+  trust - which is the way round that costs a check that was going to pass,
+  rather than the way round that admits a value that is not a document.
+
+  That holds for every subclass that says what it is: Field_geom derives
+  from Field_blob and answers MYSQL_TYPE_GEOMETRY, so naming the blobs
+  below does not name it.  The compressed classes are the exception and
+  the reason for the question below the comment: they derive from a named
+  type and go on answering its real_type(), saying nothing anywhere that
+  a switch could read.  They are asked about their compression instead,
+  which is the one thing they do say.
+
+  A virtual is safe THAT way round.  It is asked in order to REFUSE, so a
+  field type that has never heard of it is left where it started - refused
+  unless something below names it - and the inheritance that costs the
+  trust cannot grant any.
+*/
+
+bool Field::is_character_preserving() const
+{
+  if (compression_method())
+    return false;
+
+  switch (real_type()) {
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_BLOB:
+    return true;
+  default:
+    return false;
+  }
+}
+
+
+/*
+  The one rule every store site applies, asked in one place.
+
+  A store that returned 0 into a field that puts down what it is given
+  mapped every character across without putting anything in its place.
+  JSON is written in characters, so a document that arrived that way is
+  still a document; anything else leaves the caller with nothing to say.
+
+  Mapped across, and not merely carried across.  A store into or out of
+  a binary field keeps the bytes and calls them by the other set's name,
+  which is a different string of characters - so a document written in
+  ucs2 and put into a BLOB arrives as bytes that read back as nothing at
+  all.  conversion_keeps_characters() is the question, rather than the
+  plain my_charset_same() the two standing grants ask: those are said
+  once about values not yet made, where a store that would convert has
+  not happened yet and cannot be counted on, and this one is said with
+  the store already done and its answer in hand.
+
+  The item is asked before the field type is, the two being in the order
+  that refuses soonest.  Every value a table is given arrives here, and
+  one virtual answering no for everything that is not a document costs
+  less than the two virtuals and the switch that work out what this
+  field would have done with it.
+*/
+
+bool Field::is_attestation_preserved(const Item *item, int store_rc) const
+{
+  CHARSET_INFO *from= item->collation.collation;
+
+  return store_rc == 0 && item->is_valid_json() &&
+         is_character_preserving() &&
+         String_copier::conversion_keeps_characters(charset(), from) &&
+         !table->in_use->is_error();
+}
+
+
+void Field::set_is_valid_json(const Item *item, int store_rc)
+{
+  /*
+    The list of places that set a mark is closed, and every one of them
+    asks first whether any column of this table carries a check that
+    could ever read one.  Said here as well as at each of them, because
+    the closed list is what the debug reading in TABLE rests on: a site
+    added later that sets a mark on a table nobody asked about is a site
+    that will go on setting marks nothing polices.
+  */
+  DBUG_ASSERT(table->has_own_json_valid_check);
+
+  if (is_attestation_preserved(item, store_rc))
+    bitmap_set_bit(&table->is_valid_json_set, field_index);
+  else
+    bitmap_clear_bit(&table->is_valid_json_set, field_index);
+}
+
+
 int Field::set_default()
 {
   if (default_value)
@@ -11825,6 +11930,12 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
   Virtual_column_info* dst= new (thd->mem_root) Virtual_column_info(*this);
   if (!dst)
     return NULL;
+  /*
+    The copy's expression reads other Item_fields than the ones this was
+    worked out against, so it has to be worked out again when the table
+    the copy belongs to is opened.
+  */
+  dst->json_valid_field_index= NO_JSON_VALID_FIELD;
   if (expr)
   {
     dst->expr= expr->deep_copy_with_checks(thd);

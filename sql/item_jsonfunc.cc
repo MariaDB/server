@@ -76,6 +76,17 @@ static struct Json_scan_count_hook
 {
   Json_scan_count_hook() { json_scan_start_hook= json_count_scan; }
 } json_scan_count_hook;
+
+
+Json_scans_unbilled::Json_scans_unbilled(THD *thd)
+ :m_thd(thd), m_scans(thd->status_var.json_scans)
+{ }
+
+
+Json_scans_unbilled::~Json_scans_unbilled()
+{
+  m_thd->status_var.json_scans= m_scans;
+}
 #endif
 
 
@@ -1327,6 +1338,20 @@ bool Item_func_json_valid::val_bool()
 
   if ((null_value= args[0]->null_value))
     return 0;
+
+  /*
+    What this function asks is what a value answers about itself, so
+    where the value has answered there is nothing left to find out.
+
+    It is the same reading the check constraint leaves unrun at the
+    field boundary, left unrun here at the most direct site there is,
+    and the two cannot disagree: a mark says the characters read back
+    as a document, which is exactly what the walk below would go and
+    see.  Nothing is said either way, the answer being true, and the
+    reading is the only thing that could have said anything.
+  */
+  if (args[0]->is_valid_json())
+    return true;
 
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
