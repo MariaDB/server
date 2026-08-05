@@ -863,10 +863,28 @@ static int send_heartbeat_event(binlog_send_info *info,
     event_len+= HB_SUB_HEADER_LEN;
   }
 
+  size_t hb_header_len= sizeof(header);
+#ifndef DBUG_OFF
+  /*
+    Corrupt the heartbeat event to test that a replica can correctly identify
+    malformed events. 17 bytes keeps LOG_POS_OFFSET on the wire and clears
+    queue_event()'s minimum length, so the heartbeat parser rejects it.
+    13 bytes falls under that minimum, so queue_event() rejects it first.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_truncated_heartbeat", hb_header_len= 17;);
+  DBUG_EXECUTE_IF("binlog_sender_undersized_heartbeat", hb_header_len= 13;);
+  if (hb_header_len != sizeof(header))
+  {
+    ident_len= 0;
+    event_len= hb_header_len + (sub_header_in_use ? HB_SUB_HEADER_LEN : 0) +
+      (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  }
+#endif
+
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
-  packet->append(header, sizeof(header));
+  packet->append(header, hb_header_len);
   if (sub_header_in_use)
     packet->append(sub_header_buf, sizeof(sub_header_buf));
   packet->append(p, ident_len);                    // log_file_name
@@ -874,7 +892,7 @@ static int send_heartbeat_event(binlog_send_info *info,
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
-    ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
+    ha_checksum crc= my_checksum(0, (uchar*) header, hb_header_len);
     if (sub_header_in_use)
       crc= my_checksum(crc, (uchar*) sub_header_buf, sizeof(sub_header_buf));
     crc= my_checksum(crc, (uchar*) p, ident_len);

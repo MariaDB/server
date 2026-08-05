@@ -6686,12 +6686,34 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   bool dbg_crash_after_enqueue_gtid_flag= false;
 #endif
 
+  /* The shortest event a master of this binlog version can legally send. */
+  ulong min_event_len=
+    mi->rli.relay_log.description_event_for_queue->binlog_version < 4 ?
+    OLD_HEADER_LEN : LOG_EVENT_MINIMAL_HEADER_LEN;
 
   DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_OFF || 
               checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF || 
               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32); 
 
   DBUG_ENTER("queue_event");
+
+  /*
+    Reject an event that is shorter than the common header before anything
+    reads that header. The code below indexes into the header unconditionally,
+    and several of the per-type parsers derive a body length by subtracting
+    the header length, which wraps on a shorter event.
+    event_checksum_test() subtracts BINLOG_CHECKSUM_LEN in the same way.
+  */
+  if (unlikely(event_len < min_event_len))
+  {
+    error= ER_SLAVE_FATAL_ERROR;
+    error_msg.append(STRING_WITH_LEN("Event from master is shorter than its "
+                                     "common header; the event's length: "));
+    error_msg.append_ulonglong(event_len);
+    unlock_data_lock= FALSE;
+    goto err;
+  }
+
   /*
     FD_queue checksum alg description does not apply in a case of
     FD itself. The one carries both parts of the checksum data.
