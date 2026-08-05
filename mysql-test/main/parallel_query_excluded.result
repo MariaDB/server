@@ -1,19 +1,20 @@
 SET @save_optimizer_trace= @@optimizer_trace;
 SET optimizer_trace='enabled=on';
 CREATE TABLE t_plain (a INT) engine=innodb;
-INSERT INTO t_plain VALUES (1),(2),(3);
+INSERT INTO t_plain SELECT seq FROM seq_1_to_20000;
 CREATE TABLE t_blob (a INT, b BLOB) engine=innodb;
-INSERT INTO t_blob VALUES (1,'x'),(2,'y'),(3,'z');
+INSERT INTO t_blob SELECT seq, 'x' FROM seq_1_to_20000;
 CREATE TABLE t_text (a INT, b TEXT) engine=innodb;
-INSERT INTO t_text VALUES (1,'x'),(2,'y'),(3,'z');
+INSERT INTO t_text SELECT seq, 'x' FROM seq_1_to_20000;
 CREATE TABLE t_m1 (a INT) ENGINE=MyISAM;
-INSERT INTO t_m1 VALUES (1),(2),(3);
+INSERT INTO t_m1 SELECT seq FROM seq_1_to_10000;
 CREATE TABLE t_m2 (a INT) ENGINE=MyISAM;
-INSERT INTO t_m2 VALUES (4),(5),(6);
+INSERT INTO t_m2 SELECT seq+10000 FROM seq_1_to_10000;
 CREATE TABLE t_merge (a INT) ENGINE=MERGE UNION=(t_m1,t_m2) INSERT_METHOD=LAST;
 CREATE TABLE t_ft (a INT, b VARCHAR(64), FULLTEXT(b)) ENGINE=innodb;
-INSERT INTO t_ft VALUES (1,'alpha beta'),(2,'gamma delta'),(3,'epsilon zeta');
-set session parallel_worker_threads=2;
+INSERT INTO t_ft SELECT seq, IF(seq % 2, 'alpha beta', 'gamma delta')
+FROM seq_1_to_20000;
+set session parallel_worker_threads=8;
 # plain table: chosen for parallel scan (expect 1)
 SELECT a FROM t_plain;
 SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
@@ -56,28 +57,25 @@ DROP TABLE t_plain, t_blob, t_text, t_merge, t_m1, t_m2, t_ft;
 # they do serially, because they run serially.
 #
 CREATE TABLE ta (a INT) ENGINE=InnoDB;
-INSERT INTO ta VALUES (1),(2),(3),(4);
+INSERT INTO ta SELECT seq FROM seq_1_to_20000;
 CREATE TABLE tb (a INT, b INT) ENGINE=InnoDB;
-INSERT INTO tb VALUES (1,10),(1,11),(2,20),(3,30),(3,31),(4,40);
-# materialized derived table as an inner table: not chosen (expect 0)
-#
-# The derived table is DISTINCT, which the gate refuses, so it contributes
-# nothing to the trace of its own. The check below looks for
-# chosen_for_parallel_scan anywhere in the trace, and what is being asked
-# about is the outer join, so the inner select has to be a shape that could
-# not have been chosen either -- a GROUP BY here would be chosen on its own
-# account and the check would report that instead.
+INSERT INTO tb SELECT seq % 5000, seq FROM seq_1_to_20000;
+# a materialized derived table used as an inner table is not one of the
+# tables chosen. What is chosen is tb, the base table inside the derived
+# table's own select, which is a scan of its own and nothing to do with the
+# outer join. The chosen tables are named rather than counted, because
+# asking only whether anything was chosen cannot tell those two apart --
+# recorded as a 1 here for years while the comment claimed it was a 0.
 #
 SET SESSION optimizer_switch='derived_merge=off';
 SELECT ta.a, d.k FROM ta, (SELECT DISTINCT a AS k FROM tb) d
-WHERE d.k = ta.a;
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
-AS chosen_for_parallel_scan
+WHERE d.k = ta.a AND ta.a <= 4;
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS chosen_tables
 FROM information_schema.optimizer_trace;
-chosen_for_parallel_scan
-1
+chosen_tables
+["tb"]
 SELECT ta.a, d.k FROM ta, (SELECT DISTINCT a AS k FROM tb) d
-WHERE d.k = ta.a;
+WHERE d.k = ta.a AND ta.a <= 4;
 a	k
 1	1
 2	2
@@ -86,14 +84,13 @@ a	k
 SET SESSION optimizer_switch=DEFAULT;
 # FirstMatch semijoin: not chosen (expect 0)
 SET SESSION optimizer_switch='semijoin=on,firstmatch=on,loosescan=off,materialization=off';
-SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
-AS chosen_for_parallel_scan
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb) AND a <= 4;
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS chosen_tables
 FROM information_schema.optimizer_trace;
-chosen_for_parallel_scan
-0
+chosen_tables
+NULL
 # one row per matching ta row, not one per tb match
-SELECT a FROM ta WHERE a IN (SELECT a FROM tb);
+SELECT a FROM ta WHERE a IN (SELECT a FROM tb) AND a <= 4;
 a
 1
 2

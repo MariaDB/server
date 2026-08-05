@@ -148,22 +148,31 @@ bool table_can_be_parallel_scanned(TABLE *table)
     parallel_scan_io_divisor). The index components are left untouched: this only
     ever discounts a full table scan.
 
-    N is not parallel_worker_threads. A chunk cannot be smaller than a leaf
-    page, so a table of fewer leaf pages than there are threads cannot occupy
-    them all whatever is asked for, and a worker with no chunk reads nothing
-    (see init_parallel_workers, which starts no more workers than chunks). The
-    engine supplies that ceiling. Taking the request at face value instead is
-    the difference between believing a scan of a hundred pages is fifty times
-    cheaper and its being at best a hundredth of that off, which is enough to
-    prefer a parallel full scan over a perfectly good index.
+    N is chosen for this scan and is not parallel_worker_threads, which is the
+    ceiling the user allows rather than a number to be taken at face value. Two
+    things bound it and then a cost decides it.
 
-    Two costs the division does not express are added back. The worker path is
-    more expensive per row than the serial one, because rows are copied into a
-    batch buffer, handed over under a mutex and re-read by the manager. And
-    each worker has to be created, with its own THD, table instances, cloned
-    items and row buffer, measured at some 22 microseconds. The setup term is
-    what makes the optimizer decline parallelism for a query too small to
-    amortise it rather than relying on a threshold.
+    A chunk cannot be smaller than a leaf page, so a table of fewer leaf pages
+    than there are threads cannot occupy them all whatever is asked for, and a
+    worker with no chunk reads nothing (see init_parallel_workers, which starts
+    no more workers than chunks). The engine supplies that ceiling. Believing
+    the request instead is the difference between a scan of a hundred pages
+    looking fifty times cheaper and its being at best a hundredth of that off,
+    which is enough to prefer a parallel full scan over a perfectly good index.
+
+    Within that ceiling the count is the one that costs least, which is not the
+    largest. Each worker has to be created, with its own THD, table instances,
+    cloned items and row buffer, measured at some 22 microseconds, and that is
+    paid per worker while what a worker saves falls as more of them are added.
+    The two meet at a minimum: see parallel_scan_worker_count(). A scan whose
+    best count still costs more than reading the table serially is left to the
+    serial reader, so the setup term declines parallelism for a query too small
+    to amortise it rather than a threshold doing it.
+
+    The row path is also more expensive per row than the serial one, because
+    rows are copied into a batch buffer, handed over under a mutex and re-read
+    by the manager. That cost falls on the rows reaching the manager rather than
+    the rows scanned and is charged by parallel_query_drain_cost().
 
     Eligibility mirrors the runtime gate in make_join_readinfo() exactly
     (engine support, no blob-backed columns, not fulltext-searched, a real base
@@ -195,22 +204,6 @@ bool table_can_be_parallel_scanned(TABLE *table)
   because it is a property of the exchange rather than of the machine.
 */
 #define PARALLEL_QUERY_MIN_WORKERS 3
-
-uint parallel_scan_worker_count(THD *thd, TABLE *table)
-{
-  uint n= thd->variables.parallel_worker_threads;
-  if (n < 2 ||                                   // disabled, or no speed-up
-      !table_can_be_parallel_scanned(table))
-    return 0;
-
-  /* No more workers than the engine will have chunks to give them. */
-  if (const size_t chunks= table->file->pscan_chunk_count_estimate())
-    set_if_smaller(n, (uint) chunks);
-  if (n < 2)
-    return 0;                        // one chunk: nothing to divide
-  return n;
-}
-
 
 /*
   @brief
@@ -258,9 +251,129 @@ double parallel_scan_io_divisor(TABLE *table, uint n)
 }
 
 
+/*
+  What a scan of this table costs the serial reader, in optimizer time units.
+  ALL_READ_COST keeps its I/O component in blocks while the other two are
+  already times, so the engine's own constants convert it.
+*/
+
+static double pwt_serial_scan_cost(TABLE *table, const ALL_READ_COST *cost)
+{
+  return table->file->io_cost(cost->row_cost) + cost->row_cost.cpu +
+         cost->copy_cost;
+}
+
+
+/*
+  The same scan run by n workers: the three terms scale_cost_for_parallel_scan()
+  applies, evaluated rather than applied so that counts can be compared, plus
+  what the n workers cost to create.
+*/
+
+static double pwt_parallel_scan_cost(THD *thd, TABLE *table,
+                                     const ALL_READ_COST *cost, uint n)
+{
+  return table->file->io_cost(cost->row_cost) /
+           parallel_scan_io_divisor(table, n) +
+         (cost->row_cost.cpu + cost->copy_cost) / n +
+         n * thd->variables.parallel_query_setup_cost;
+}
+
+
+/*
+  @brief
+    How many workers to scan this table with.
+
+  @description
+    Chosen per scan, because what a scan gains from another worker depends on
+    that table: on how finely the engine will divide it, on how much of it has to
+    come from storage rather than the buffer pool, and on how much work there is
+    to divide in the first place. A query holding two parallel scans -- TPC-H
+    Q15 does, materialising its view twice -- gets a count for each rather than
+    one for both.
+
+    parallel_worker_threads is the ceiling the user allows and not the number to
+    use. Below it the count is the one that costs least: another worker divides
+    the scan a little further and adds a whole worker's setup, and those meet at
+    a minimum. The cost is convex in n -- both divided terms fall, the setup term
+    rises -- so walking upwards until it stops falling finds that minimum, and
+    the walk is short because the setup term is steep.
+
+    A count whose cost is still worse than reading the table serially is no count
+    at all: 0 says so, the position records it, and make_join_readinfo() leaves
+    the scan to the serial reader. That is what keeps a query too small to
+    amortise a worker out of the workers without a row-count threshold.
+
+  @return the worker count to cost and to run with, or 0 for none.
+*/
+
+uint parallel_scan_worker_count(THD *thd, TABLE *table,
+                                const ALL_READ_COST *cost)
+{
+  uint cap= thd->variables.parallel_worker_threads;
+  if (!cap || !table_can_be_parallel_scanned(table))
+    return 0;
+
+  /*
+    No more workers than the engine will have chunks to give them. The engine
+    answers 0 when it cannot say, and InnoDB under-reports small tables badly:
+    measured, a 2000-row table whose clustered index occupies six pages records
+    n_leaf_pages=1, while a 40000-row one records 84 of its 97 pages correctly.
+    Believing the 1 would refuse every small table its workers, when the engine
+    goes on to divide it into chunks enough for them.
+
+    So the table's own size in pages, which the I/O term of 'cost' is derived
+    from and is therefore already trusted, is used where it is the larger. That
+    keeps the ceiling for an index that really is one page -- there the two agree
+    -- and lifts it where only the statistic says so.
+  */
+  /*
+    No more workers than the engine will have chunks to give them, where it can
+    say. One chunk is not such an answer. InnoDB's count is stat_n_leaf_pages,
+    which is initialised to 1 and only measured by ANALYZE, and even measured it
+    under-reports a small table badly: a 2000-row table whose clustered index
+    occupies six pages records one leaf page, while a 40000-row one records 84 of
+    its 97 pages correctly. So 1 means "a single page, or nothing measured", and
+    taking it as a ceiling would refuse every small table its workers when the
+    engine goes on to divide them into chunks enough for all of them.
+
+    Two or more is worth believing. Below that the real count decides:
+    pscan_chunk_count() at execution clamps this again and declines outright
+    below two, so a table that genuinely is one page still runs serially -- the
+    optimizer will have costed it as parallel, which is the price of the engine
+    not distinguishing the two cases.
+  */
+  if (const size_t chunks= table->file->pscan_chunk_count_estimate())
+    if (chunks > 1)
+      set_if_smaller(cap, (uint) chunks);
+  /*
+    Below the floor the exchange costs more than it saves whatever the table
+    looks like, so there is nothing to search. init_parallel_workers() applies
+    the same floor to the count the engine finally offers, and agreeing with it
+    here is what stops the optimizer costing a scan that then runs serially.
+  */
+  if (cap < PARALLEL_QUERY_MIN_WORKERS)
+    return 0;
+
+  uint best_n= PARALLEL_QUERY_MIN_WORKERS;
+  double best_cost= pwt_parallel_scan_cost(thd, table, cost, best_n);
+  for (uint n= best_n + 1; n <= cap; n++)
+  {
+    const double c= pwt_parallel_scan_cost(thd, table, cost, n);
+    if (c >= best_cost)
+      break;                            // convex in n: this was the minimum
+    best_cost= c;
+    best_n= n;
+  }
+  return best_cost < pwt_serial_scan_cost(table, cost) ? best_n : 0;
+}
+
+
+
+
 uint scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
 {
-  const uint n= parallel_scan_worker_count(thd, table);
+  const uint n= parallel_scan_worker_count(thd, table, cost);
   if (!n)
     return 0;
 
@@ -1326,7 +1439,12 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
 {
   uint i= 0;
 
-  uint n= thd->variables.parallel_worker_threads;
+  /*
+    The count the optimizer chose for this scan, not the session ceiling: a
+    query can hold more than one parallel scan and they need not agree. 0 means
+    the optimizer costed this scan as a serial one, so run it as one.
+  */
+  uint n= scan_tab->parallel_workers;
   if (n == 0)
     return HA_ERR_UNSUPPORTED;
 

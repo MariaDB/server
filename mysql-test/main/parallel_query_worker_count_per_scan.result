@@ -1,0 +1,109 @@
+SET @s= @@session.parallel_worker_threads;
+SET @t= @@session.optimizer_trace;
+SET @os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t_tiny (pk INT PRIMARY KEY, a INT) ENGINE=InnoDB;
+INSERT INTO t_tiny SELECT seq, seq % 97 FROM seq_1_to_500;
+CREATE TABLE t_mid (pk INT PRIMARY KEY, a INT) ENGINE=InnoDB;
+INSERT INTO t_mid SELECT seq, seq % 97 FROM seq_1_to_25000;
+CREATE TABLE t_lge (pk INT PRIMARY KEY, a INT) ENGINE=InnoDB;
+INSERT INTO t_lge SELECT seq, seq % 97 FROM seq_1_to_200000;
+ANALYZE TABLE t_tiny, t_mid, t_lge PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_tiny	analyze	status	Engine-independent statistics collected
+test.t_tiny	analyze	status	OK
+test.t_mid	analyze	status	Engine-independent statistics collected
+test.t_mid	analyze	status	OK
+test.t_lge	analyze	status	Engine-independent statistics collected
+test.t_lge	analyze	status	OK
+SET SESSION optimizer_trace='enabled=on';
+SET SESSION parallel_worker_threads= 64;
+#
+# Three scans, one ceiling, three answers. Neither of the two that run is
+# at the ceiling: both are the count that costs least for that scan.
+#
+SELECT SUM(a) FROM (SELECT a FROM t_tiny) d;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_workers') AS tiny_500_rows
+FROM information_schema.optimizer_trace;
+tiny_500_rows
+NULL
+SELECT SUM(a) FROM (SELECT a FROM t_mid) d;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_workers') AS mid_25000_rows
+FROM information_schema.optimizer_trace;
+mid_25000_rows
+[14]
+SELECT SUM(a) FROM (SELECT a FROM t_lge) d;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_workers') AS lge_200000_rows
+FROM information_schema.optimizer_trace;
+lge_200000_rows
+[39]
+#
+# and in one query, two scans with a count each, reported in the order the
+# selects were optimized
+#
+SELECT (SELECT SUM(a) FROM (SELECT a FROM t_mid) d),
+(SELECT SUM(a) FROM (SELECT a FROM t_lge) d);
+SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') AS tables,
+JSON_EXTRACT(trace,'$**.parallel_scan_workers') AS workers_per_scan
+FROM information_schema.optimizer_trace;
+tables	workers_per_scan
+["t_lge", "t_mid"]	[39, 14]
+#
+# the ceiling still binds where the scan would want more than it allows
+#
+SET SESSION parallel_worker_threads= 6;
+SELECT SUM(a) FROM (SELECT a FROM t_lge) d;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_workers') AS lge_capped_at_6
+FROM information_schema.optimizer_trace;
+lge_capped_at_6
+[6]
+#
+# A ceiling below the floor cannot be met, so nothing is chosen. Before
+# the count was chosen per scan the trace named such a scan as chosen and
+# execution then declined it, the floor being applied there.
+#
+SET SESSION parallel_worker_threads= 2;
+SELECT SUM(a) FROM (SELECT a FROM t_lge) d;
+SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NULL AS none_chosen
+FROM information_schema.optimizer_trace;
+none_chosen
+1
+#
+# and the count that was costed is the count that runs
+#
+SET SESSION optimizer_trace='enabled=off';
+SET SESSION parallel_worker_threads= 64;
+FLUSH STATUS;
+SELECT SUM(a) FROM (SELECT a FROM t_mid) d;
+ran_in_the_workers	workers_per_query
+1	14.0000
+FLUSH STATUS;
+SELECT SUM(a) FROM (SELECT a FROM t_lge) d;
+ran_in_the_workers	workers_per_query
+1	39.0000
+#
+# the answers are the ones a serial run gives
+#
+SET SESSION parallel_worker_threads= @s;
+# SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_mid) d
+SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_mid) d;
+s	c
+1199148	25000
+SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_mid) d;
+s	c
+1199148	25000
+ran_in_the_workers
+1
+# SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_lge) d
+SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_lge) d;
+s	c
+9599502	200000
+SELECT SUM(a) AS s, COUNT(*) AS c FROM (SELECT a FROM t_lge) d;
+s	c
+9599502	200000
+ran_in_the_workers
+1
+DROP TABLE t_tiny, t_mid, t_lge;
+SET SESSION optimizer_switch= @os;
+SET SESSION optimizer_trace= @t;
+SET SESSION parallel_worker_threads= @s;

@@ -669,6 +669,13 @@ typedef struct st_join_table {
   bool          sorted;
   bool          cached_pfs_batch_update;
   bool          use_parallel_scan;
+  /*
+    Workers to scan this table with, chosen for this scan by
+    parallel_scan_worker_count() and copied here from the chosen plan's POSITION
+    so that execution runs the count the plan was costed with. A query can hold
+    several parallel scans and they need not agree. 0 when this table is not one.
+  */
+  uint          parallel_workers;
 
   /* 
     If it's not 0 the number stored this field indicates that the index

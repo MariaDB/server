@@ -3623,7 +3623,10 @@ int JOIN::optimize_stage2()
     if (!still_a_chunkable_scan)
     {
       if (par)
+      {
         par->use_parallel_scan= false;
+        par->parallel_workers= 0;
+      }
       worker_side_parallel= false;
     }
     if (unlikely(thd->trace_started()))
@@ -3631,7 +3634,7 @@ int JOIN::optimize_stage2()
       Json_writer_object trace_pscan(thd);
       if (still_a_chunkable_scan)
       {
-        const uint n= positions[const_tables].parallel_workers;
+        const uint n= par->parallel_workers;
         trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
         trace_pscan.add("parallel_scan_workers", (longlong) n);
         /*
@@ -16741,6 +16744,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
             /* Read with index_first / index_next */
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;
             tab->use_parallel_scan= false;
+            tab->parallel_workers= 0;
 	  }
 	}
         if (have_quick_select &&
@@ -16852,13 +16856,23 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   */
   JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
                                     WITHOUT_CONST_TABLES);
-  if (join->thd->variables.parallel_worker_threads > 0 &&       //1
+  /*
+    The worker count comes from the chosen plan rather than from the session
+    variable: it was decided per scan while the driving table's access was
+    costed, and 0 means that scan was costed as a serial one. best_positions is
+    the chosen plan -- positions is the search's working array and still holds
+    whichever candidate was costed last.
+  */
+  const uint workers= first ? join->best_positions[join->const_tables]
+                                  .parallel_workers : 0;
+  if (workers > 0 &&                                            //1
       first && first->type == JT_ALL &&                         //2
       first->read_first_record == join_init_read_record &&      //3
       !(first->select && first->select->quick) &&               //4
       table_can_be_parallel_scanned(first->table) &&            //5
       can_run_query_in_workers(join, first))                    //6
   {
+    first->parallel_workers= workers;
     first->use_parallel_scan= join->worker_side_parallel= true;
     if (unlikely(join->thd->trace_started()))
     {

@@ -93,9 +93,13 @@ SELECT a, b FROM t3 WHERE b > 0;
 
 --echo #
 --echo # t4's B-tree has a level between its root and its leaves, and the root
---echo # holds only two records. Those two ranges are split into enough pieces
---echo # to keep every worker asked for busy, so the request is met in full
+--echo # holds only two records. Those two ranges are split into enough pieces to
+--echo # keep every worker the optimizer chose busy, so the count is met in full
 --echo # even though the tree divides the table two ways to begin with.
+--echo #
+--echo # The count is fewer than the eight allowed: it is chosen for this scan
+--echo # from what the scan costs, and t4 is small enough that an eighth worker's
+--echo # setup costs more than the eighth of the scan it takes away.
 --echo #
 CREATE TABLE t4 (pk CHAR(200) PRIMARY KEY, a INT) ENGINE=InnoDB;
 INSERT INTO t4 SELECT LPAD(seq,200,'x'), seq FROM seq_1_to_6000;
@@ -133,12 +137,18 @@ SELECT COUNT(*), SUM(a), BIT_XOR(CRC32(pk)) FROM (SELECT pk, a FROM t4) d;
 SET SESSION optimizer_switch= default;
 
 --echo #
---echo # The optimizer bounds its divisor by how finely the table can be
---echo # divided, which is its leaf page count: a chunk cannot be smaller than a
---echo # leaf page. The bound is read from the index statistics, so they have to
---echo # have been gathered, and InnoDB reports t3 as a single leaf page, which
---echo # is the count for a table it will not divide at all. So t3 is costed as
---echo # the serial scan it is nearly certain to be, whatever is asked for.
+--echo # The optimizer's bound on how finely a table can be divided is the leaf
+--echo # page count, and InnoDB answers 1 both for an index that really is one
+--echo # page and for one it has not measured. A 2000-row table whose clustered
+--echo # index occupies six pages answers 1, and so does t3, which the engine then
+--echo # divides into three chunks and scans in parallel. So 1 is treated as no
+--echo # answer at all, and t3 is costed with a worker count of its own like any
+--echo # other table.
+--echo #
+--echo # This section once asserted that t3 was costed as a serial scan, on the
+--echo # strength of that 1. It was costed as serial and then run in parallel from
+--echo # the session variable, which is the mismatch the per-scan count removes:
+--echo # t3 is now costed parallel and run parallel, with the same count.
 --echo #
 ANALYZE TABLE t3 PERSISTENT FOR ALL;
 
@@ -156,8 +166,17 @@ SET SESSION parallel_worker_threads= 16;
 --enable_query_log
 SET @c16= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
 
---echo # expect 1: no discount for a table reported as one leaf page
+--echo # expect 0: t3 is costed with a chosen worker count like any other table
 SELECT @c0 = @c16 AS costed_as_serial;
+
+--echo # and it runs with the count it was costed with, three rather than the
+--echo # sixteen allowed: t3 is small, so a fourth worker costs more than it saves
+SET SESSION parallel_worker_threads= 16;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t3 WHERE b > 0;
+--enable_result_log
+--source include/parallel_query_workers_per_query.inc
 
 --echo #
 --echo # t4 has leaf pages to spare and a level under its root to divide them
