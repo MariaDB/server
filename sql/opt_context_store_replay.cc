@@ -1110,10 +1110,13 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
   StringBuffer<512> output(&my_charset_utf8mb4_bin);
 
   /*
-    The table could have fields that do not have a default value
-    but are not in the table->read_set.
-    The record doesn't have values for those.
-    Use a relaxed sql_mode setting so that REPLACE INTO doesn't fail.
+    Due to use of prepare_captured_row_read(), we have values for all
+    table columns.
+
+    However, the row that we're trying to dump might have been inserted into
+    the table with relaxed settings (no strict mode).
+    So, use relaxed @@sql_mode setting here also to make the RELACE statement
+    is processed (i.e. not fails with an error).
   */
   output.append(
     STRING_WITH_LEN("SET STATEMENT sql_mode="
