@@ -2520,7 +2520,7 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
     goto wait_for_unfix;
   }
 
-  /* Ensure that another buf_page_get_low() or buf_page_t::page_fix()
+  /* Ensure that another buf_page_get_low() or buf_pool_t::page_fix()
   will wait for block->page.lock.x_unlock(). buf_relocate() will
   copy the state from b to block and replace b with block in page_hash. */
   b->set_state(buf_page_t::READ_FIX);

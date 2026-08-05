@@ -644,6 +644,17 @@ public:
   /** @return whether this block is read fixed */
   bool is_read_fixed() const noexcept { return is_read_fixed(state()); }
 
+  /** Try to write-fix a block.
+  @return previous state; a write-fix was acquired if
+  !is_freed(state) && !is_io_fixed(state) holds */
+  inline uint32_t write_fix_try() noexcept;
+  /** Write-unfix a block. */
+  void write_unfix() noexcept
+  {
+    ut_d(const uint32_t s=) zip.fix.fetch_sub(WRITE_FIX - UNFIXED);
+    ut_ad(is_write_fixed(s));
+  }
+
   /** @return if this belongs to buf_pool.unzip_LRU */
   bool belongs_to_unzip_LRU() const noexcept
   { return UNIV_LIKELY_NULL(zip.data) && frame; }

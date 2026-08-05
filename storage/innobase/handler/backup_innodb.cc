@@ -32,33 +32,59 @@
 @return InnoDB transaction */
 trx_t *check_trx_exists(THD *thd) noexcept;
 
+/** Try to write-fix a block.
+@return previous state; a write-fix was acquired if
+!is_freed(state) && !is_io_fixed(state) holds */
+inline uint32_t buf_page_t::write_fix_try() noexcept
+{
+  uint32_t s{state()};
+  ut_ad(s >= FREED);
+  while (!is_freed(s) && !is_io_fixed(s) &&
+         !zip.fix.compare_exchange_strong(s, s + (WRITE_FIX - UNFIXED),
+                                          std::memory_order_acquire,
+                                          std::memory_order_relaxed));
+  return s;
+}
+
 /**
    Ensure that there are no page writes in progress.
+   @param end        array of fil_space_t::BACKUP_BATCH_SIZE block descriptors
    @param space_id   tablespace identifier
-   @param end        last page number that is being copied
+   @param end_page   last page number that is being copied
+   @return pointer to the new end of the array, of write-fixed blocks
 */
-static void innodb_backup_batch_wait(uint32_t space_id, uint32_t end) noexcept
+static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
+                                             uint32_t space_id,
+                                             uint32_t end_page)
+  noexcept
 {
-  const page_id_t start{space_id, end & ~(fil_space_t::BACKUP_BATCH_SIZE - 1)};
-  ut_ad(end - 1 > start.page_no());
-  for (page_id_t id{space_id, end};; --id)
+  const page_id_t start
+    {space_id, end_page & ~(fil_space_t::BACKUP_BATCH_SIZE - 1)};
+  ut_ad(end_page - 1 > start.page_no());
+  for (page_id_t id{space_id, end_page};; --id)
   {
     auto &chain= buf_pool.page_hash.cell_get(id.fold());
     page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
     hash_lock.lock_shared();
-    if (buf_page_t *b{buf_pool.page_hash.get(id, chain)})
+    *end= buf_pool.page_hash.get(id, chain);
+    if (buf_page_t *b= *end)
     {
-      if (UNIV_UNLIKELY(b->is_write_fixed()))
+      uint32_t state= b->write_fix_try();
+      if (b->is_freed(state));
+      else if (!b->is_io_fixed(state))
+        end++;
+      else if (b->is_write_fixed(state))
       {
-        if (UNIV_LIKELY(buf_page_t::is_write_fixed(b->fix())))
-        {
-          hash_lock.unlock_shared();
-          b->lock.s_lock();
-          ut_ad(!b->is_write_fixed());
-          b->lock.s_unlock();
-          goto next;
-        }
+        b->fix();
+        hash_lock.unlock_shared();
+        b->lock.s_lock();
         b->unfix();
+        state= b->write_fix_try();
+        ut_ad(!b->is_io_fixed(state));
+        b->lock.s_unlock();
+        if (!b->is_freed(state))
+          end++;
+        goto next;
       }
     }
     hash_lock.unlock_shared();
@@ -66,6 +92,7 @@ static void innodb_backup_batch_wait(uint32_t space_id, uint32_t end) noexcept
     if (id == start)
       break;
   }
+  return end;
 }
 
 namespace
@@ -572,20 +599,41 @@ public:
   }
 
 private:
-  /** Safely start backing up a tablespace file
-  @param end  last page to copy */
-  static void backup_batch_start(fil_space_t *space, uint32_t end) noexcept
+  /**
+     Safely start backing up a tablespace file.
+     @param end      array of fil_space_t::BACKUP_BATCH_SIZE block descriptors
+     @param space    tablespace that is being backed up
+     @param end_page first page not to copy
+     @return pointer to the new end of the array, of write-fixed blocks
+  */
+  static buf_page_t **backup_batch_start(buf_page_t **end,
+                                         fil_space_t *space, uint32_t end_page)
+    noexcept
   {
 #if 1 // FIXME: remove this
-    if (!end)
-      return;
+    if (!end_page)
+      return end;
 #endif
-    space->backup_start(end);
-    innodb_backup_batch_wait(space->id, end - 1);
+    ut_ad(end_page);
+    /* buf_pool.mutex synchronizes with fil_space_t::backup_page_end() */
+    mysql_mutex_lock(&buf_pool.mutex);
+    space->backup_start(end_page);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    return innodb_backup_batch_wait(end, space->id, end_page - 1);
   }
-  /* Stop backing up a tablespace */
-  static void backup_batch_stop(fil_space_t *space) noexcept
-  { space->backup_stop(); }
+  /**
+     Stop backing up a tablespace.
+     @param space   tablespace
+     @param begin   first write-fixed block descriptor
+     @param end     end of write-fixed block descriptors
+  */
+  static void backup_batch_stop(fil_space_t *space,
+                                buf_page_t **begin, buf_page_t **end) noexcept
+  {
+    space->backup_stop();
+    while (begin != end)
+      (*begin++)->write_unfix();
+  }
 
   /**
      Delete unnecessary logs that had been created for backup.
@@ -706,10 +754,11 @@ private:
 
       for (uint32_t page{0}; page < limit; )
       {
+        buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end= blocks;
         {
-          const uint32_t end{start + fil_space_t::BACKUP_BATCH_SIZE};
-          backup_batch_start(node->space, end);
-          start= end;
+          const uint32_t end_page{start + fil_space_t::BACKUP_BATCH_SIZE};
+          end= backup_batch_start(end, node->space, end_page);
+          start= end_page;
         }
         uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
         /* TODO: avoid copying freed page ranges, or pages that were
@@ -717,7 +766,7 @@ private:
         err= copy_file(node->handle, f, uint64_t{page} * page_size,
                        uint64_t{last} * page_size);
         page= last;
-        backup_batch_stop(node->space);
+        backup_batch_stop(node->space, blocks, end);
         if (err)
           break;
       }
@@ -763,10 +812,11 @@ private:
 
     for (uint32_t page{0}; page < limit; )
     {
+      buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end= blocks;
       {
-        const uint32_t end{start + fil_space_t::BACKUP_BATCH_SIZE};
-        backup_batch_start(node->space, end);
-        start= end;
+        const uint32_t end_page{start + fil_space_t::BACKUP_BATCH_SIZE};
+        end= backup_batch_start(end, node->space, end_page);
+        start= end_page;
       }
       uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
       /* TODO: avoid copying freed page ranges, or pages that were
@@ -775,7 +825,7 @@ private:
                                 uint64_t{page} * page_size,
                                 uint64_t{last} * page_size);
       page= last;
-      backup_batch_stop(node->space);
+      backup_batch_stop(node->space, blocks, end);
       if (err)
         break;
     }

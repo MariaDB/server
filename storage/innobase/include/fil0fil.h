@@ -409,7 +409,7 @@ private:
   mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
   /** first page number that is not yet being backed up, or 0 */
-  std::atomic<uint32_t> backup_end{0};
+  Atomic_relaxed<uint32_t> backup_end{0};
 
 public:
   /** mutex to protect freed_ranges and last_freed_lsn */
@@ -1059,15 +1059,11 @@ public:
 
   /** Note that we backing up some pages of the underlying files.
   @param last_page   the last page that is being backed up (0=stop backup) */
-  void backup_start(uint32_t last_page) noexcept
-  {
-    backup_end.store(last_page, std::memory_order_release);
-  }
+  void backup_start(uint32_t last_page) noexcept { backup_end= last_page; }
   /** Note that we are not currently backing up the underlying files. */
   void backup_stop() noexcept { backup_start(0); }
   /** @return the first page number that is not being backed up */
-  uint32_t backup_page_end() const noexcept
-  { return backup_end.load(std::memory_order_acquire); }
+  inline uint32_t backup_page_end() const noexcept;
 
   /** The size of a backup copy_file() batch in pages */
   static constexpr uint32_t BACKUP_BATCH_SIZE{64};

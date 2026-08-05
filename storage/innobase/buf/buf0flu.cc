@@ -820,6 +820,19 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
     goto freed;
   }
 
+  if (UNIV_UNLIKELY(is_io_fixed(s)))
+  {
+    /*
+      A thread must be executing between
+      InnoDB_backup::backup_batch_start() and
+      InnoDB_backup::backup_batch_stop(),
+      backing up this page.
+    */
+    ut_ad(is_write_fixed(s));
+    lock.u_unlock(true);
+    return false;
+  }
+
   ut_d(const auto f=) zip.fix.fetch_add(WRITE_FIX - UNFIXED);
   ut_ad(f >= UNFIXED);
   ut_ad(f < READ_FIX);
@@ -1284,6 +1297,14 @@ ATTRIBUTE_COLD static size_t buf_flush_LRU_to_withdraw(size_t to_withdraw,
       buf_pool.will_be_withdrawn(bpage.zip.data, size))
     to_withdraw--;
   return to_withdraw;
+}
+
+
+/** @return the first page number that is not being backed up */
+inline uint32_t fil_space_t::backup_page_end() const noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  return backup_end.load(std::memory_order_acquire);
 }
 
 /** Flush dirty blocks from the end buf_pool.LRU,
@@ -1770,26 +1791,23 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         uint32_t page, backup_page_end;
         page= bpage->id().page_no();
-        backup_page_end= space->backup_page_end(); // FIXME: no buf_pool.mutex
+        backup_page_end= space->backup_page_end();
         if (UNIV_UNLIKELY(page < backup_page_end) &&
             page >= backup_page_end - space->BACKUP_BATCH_SIZE)
         {
           bpage->lock.u_unlock(true);
         skip:
-          mysql_mutex_lock(&buf_pool.mutex);
           mysql_mutex_lock(&buf_pool.flush_list_mutex);
           may_have_skipped= true;
           goto done;
         }
 
-        const bool written{bpage->flush(space)};
-
-        if (written)
+        if (bpage->flush(space))
         {
           ++n_flush;
+          mysql_mutex_lock(&buf_pool.mutex);
           if (!--max_n_flush)
             goto skip;
-          mysql_mutex_lock(&buf_pool.mutex);
         }
       }
 
