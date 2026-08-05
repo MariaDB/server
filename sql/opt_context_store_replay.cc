@@ -2371,53 +2371,39 @@ MY_BITMAP *widen_read_set_no_vcols(TABLE *table)
   return saved_read_set;
 }
 
+
 /*
-  Re-read a const/system table row with ALL but Virtual columns and
-  record it for the optimizer context.
+  @brief
+    Prepare a TABLE to read a row which will be captured into the optimizer
+    context.
 
-  join_read_system()/join_read_const() only fetch the columns present in
-  table->read_set. That's sufficient for execution, but when we record the
-  const row for replay it yields an incomplete REPLACE INTO -- columns that
-  are NOT NULL and have no default then depend on a relaxed sql_mode (see
-  Optimizer_context_recorder::record_table_row()). Widen read_set to all
-  columns, re-read the single row, record it, then restore read_set so the
-  chosen plan is not disturbed.
+  @detail
+    The query has set up table->read_set to only include columns of interest.
+    However, we need to read all non-virtual columns to produce a valid INSERT
+    statement. This may require disabling 'index-only' read.
 
-  The caller must have cached the row the optimizer actually used in
-  record[1] before calling this. We re-read the full row into record[0] only
-  to record it, then unconditionally restore record[0] from record[1] so that
-  recording leaves execution's record[0] byte-for-byte identical to the
-  non-recording case -- regardless of whether the re-read found a row.
+  @param  table  IN  Table we're processing
+  @param  state  OUT Save the state here.
 */
-void record_const_row_full(JOIN_TAB *tab, bool is_system)
+
+void Optimizer_context_recorder::prepare_captured_row_read(TABLE *table,
+                                                           Opt_ctx_recorder_state *state)
 {
-  TABLE *table= tab->table;
-  Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder;
+  state->table= table;
+  state->keyread_state= table->file->ha_end_active_keyread();
+  state->saved_read_set= widen_read_set_no_vcols(table);
+}
 
-  uint saved_status= table->status;
-  MY_BITMAP *saved_read_set= widen_read_set_no_vcols(table);
 
-  int error;
-  /*
-    Re-read the single const row with the widened read_set, mirroring how the
-    optimizer originally fetched it: a system table (join_read_system) has at
-    most one row, read via the primary key; a const eq_ref table
-    (join_read_const) is fetched by an exact lookup on tab->ref.
-  */
-  if (is_system)
-    error= table->file->ha_read_first_row(table->record[0],
-                                          table->s->primary_key);
-  else
-    error= table->file->ha_index_read_idx_map(
-        table->record[0], tab->ref.key, (uchar *) tab->ref.key_buff,
-        make_prev_keypart_map(tab->ref.key_parts), HA_READ_KEY_EXACT);
+/*
+  @brief
+    Restore the table state previously saved by prepare_captured_row_read.
+*/
 
-  if (likely(!error))
-    rec->record_current_table_row(table); // records the full record[0]
+void Optimizer_context_recorder::finish_captured_row_read(Opt_ctx_recorder_state *state)
+{
+  if (state->saved_read_set)
+    state->table->column_bitmaps_set(state->saved_read_set, state->table->write_set);
 
-  /* Recording must not perturb the row execution uses: restore it. */
-  restore_record(table, record[1]);
-
-  table->column_bitmaps_set(saved_read_set, table->write_set);
-  table->status= saved_status;
+  state->table->file->ha_restart_keyread(state->keyread_state);
 }

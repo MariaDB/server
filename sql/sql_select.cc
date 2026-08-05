@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "opt_context_store_replay.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -25083,6 +25084,11 @@ join_read_system(JOIN_TAB *tab)
   int error;
   if (table->status & STATUS_GARBAGE)		// If first read
   {
+    /* Prepare to capture the constant row for the Optimizer Context */
+    Opt_ctx_recorder_state state;
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      rec->prepare_captured_row_read(table, &state);
+
     if (unlikely((error=
                   table->file->ha_read_first_row(table->record[0],
                                                  table->s->primary_key))))
@@ -25094,9 +25100,16 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
+
+    /* Capture the constant row for the Optimizer Context */
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+    {
+      if (!error)
+        rec->record_current_table_row(table);
+      rec->finish_captured_row_read(&state);
+    }
+
     store_record(table, record[1]);     // cache the row the optimizer used
-    if (tab->join->thd->opt_ctx_recorder)
-      record_const_row_full(tab, true); // re-read full row, record, restore
   }
   else if (!table->status)			// Only happens with left join
     restore_record(table,record[1]);			// restore old record
@@ -25135,11 +25148,25 @@ join_read_const(JOIN_TAB *tab)
         /* This is probably needed for analyze table */
         tab->index= tab->ref.key;
       }
+
+      /* Prepare to capture the constant row for the Optimizer Context */
+      Opt_ctx_recorder_state state;
+      if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+        rec->prepare_captured_row_read(table, &state);
+
       error= file->
         ha_index_read_idx_map(table->record[0],tab->ref.key,
                               (uchar*) tab->ref.key_buff,
                               make_prev_keypart_map(tab->ref.key_parts),
                               HA_READ_KEY_EXACT);
+
+      /* Capture the constant row for the Optimizer Context */
+      if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      {
+        if (!error)
+          rec->record_current_table_row(table);
+        rec->finish_captured_row_read(&state);
+      }
       file->ha_end_keyread();
     }
     if (unlikely(error))
@@ -25152,8 +25179,6 @@ join_read_const(JOIN_TAB *tab)
       return -1;
     }
     store_record(table, record[1]);      // cache the row the optimizer used
-    if (tab->join->thd->opt_ctx_recorder)
-      record_const_row_full(tab, false); // re-read full row, record, restore
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
   {
