@@ -30,7 +30,7 @@ select *from json_table(
     @list_ranges,
     '$[*][*]' columns(index_name text path '$.index_name',
                       ranges json path '$.ranges',
-                      num_rows int path '$.num_rows',
+                      num_rows bigint unsigned path '$.num_rows',
                       max_index_blocks int path '$.max_index_blocks',
                       max_row_blocks int path '$.max_row_blocks'
     )) as jt;

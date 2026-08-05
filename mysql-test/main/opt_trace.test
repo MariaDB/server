@@ -1364,6 +1364,15 @@ select json_valid(@trace);
 
 drop table t1;
 
+--echo #
+--echo # MDEV-40553: unprintable gis ranges in trace and context
+--echo #
+--let $opt_gis_range_print_use_trace= 1
+--source include/opt_gis_range_print.inc
+--let $opt_gis_range_print_use_trace=
+
+--echo # End of 13.1 tests
+
 set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;

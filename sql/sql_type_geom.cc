@@ -1001,6 +1001,90 @@ uint Field_geom::get_key_image(uchar *buff,uint length, const uchar *ptr_arg,
   return Field_blob::get_key_image_itRAW(ptr_arg, buff, length);
 }
 
+/*
+  @brief
+    Print the value of a key part over a GEOMETRY column.
+
+  @detail
+    SPATIAL indexes do not store the column value. They store its MBR
+    (Minimum Bounding Rectangle) instead, as four doubles:
+      xmin, xmax, ymin, ymax
+    Print the MBR as a WKT POLYGON, with the same vertex order
+    ST_Envelope() uses (see Geometry::envelope()). Note this does not
+    hold for a geometry with no MBR (an empty or unparsable one): its
+    key image is all-zero (see Geometry::get_key_image_itMBR()), which
+    this function then prints as the same POLYGON a real MBR at the
+    origin would produce; ST_Envelope() itself does not have this
+    ambiguity, as it returns an empty GEOMETRYCOLLECTION for that case.
+    For the other index types the key holds the value (or its prefix),
+    which is printed by Field::print_key_part_value().
+*/
+
+void Field_geom::print_key_part_value(String *out, const uchar *key,
+                                      uint32 length, imagetype image_type)
+{
+  if (image_type != itMBR)
+  {
+    Field::print_key_part_value(out, key, length, image_type);
+    return;
+  }
+
+  /*
+    The key part is expected to hold a full MBR (four doubles); this should
+    not happen for a SPATIAL index, whose key_part->length is always
+    SIZEOF_STORED_DOUBLE * 4, but be graceful about it instead of reading
+    past the key.
+  */
+  DBUG_ASSERT(length >= SIZEOF_STORED_DOUBLE * 4);
+  if (length < SIZEOF_STORED_DOUBLE * 4)
+  {
+    out->append(STRING_WITH_LEN("<invalid MBR key length>"));
+    return;
+  }
+
+  if (real_maybe_null())
+  {
+    /*
+      SPATIAL keys do not support NULL, but be graceful here as this is
+      only used for printing.
+    */
+    if (*key)
+    {
+      DBUG_ASSERT(0); // SPATIAL keys do not support NULL, see item_geofunc.cc
+      out->append(NULL_clex_str);
+      return;
+    }
+    key++;                                      // Skip the null byte
+  }
+
+  double xmin, xmax, ymin, ymax;
+  float8get(xmin, key);
+  float8get(xmax, key + SIZEOF_STORED_DOUBLE);
+  float8get(ymin, key + SIZEOF_STORED_DOUBLE * 2);
+  float8get(ymax, key + SIZEOF_STORED_DOUBLE * 3);
+
+  const double points[5][2]= {{xmin, ymin}, {xmax, ymin}, {xmax, ymax},
+                              {xmin, ymax}, {xmin, ymin}};
+  /*
+    array_elements(points) doubles, plus "POLYGON((", "))", the commas and
+    spaces between them (32 bytes is ample slack for those separators).
+  */
+  if (out->reserve(MY_GCVT_MAX_FIELD_WIDTH * array_elements(points) * 2 + 32))
+    return;                                     // Out of memory
+
+  out->qs_append(STRING_WITH_LEN("POLYGON(("));
+  for (uint i= 0; i < array_elements(points); i++)
+  {
+    if (i)
+      out->qs_append(',');
+    out->qs_append(points[i][0]);
+    out->qs_append(' ');
+    out->qs_append(points[i][1]);
+  }
+  out->qs_append(STRING_WITH_LEN("))"));
+}
+
+
 Binlog_type_info Field_geom::binlog_type_info() const
 {
   DBUG_ASSERT(Field_geom::type() == binlog_type());
