@@ -1130,8 +1130,12 @@ void Optimizer_context_recorder::record_records_in_range(
   rec_in_range_ctx->keynr= keynr;
   String min_key;
   String max_key;
-  print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+  Field::imagetype image_type=
+      Field::image_type(tbl->key_info[keynr].algorithm);
+  print_key_value(&min_key, key_part, min_range->key, min_range->length,
+                  image_type);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length,
+                  image_type);
 
   if (!(rec_in_range_ctx->min_key= strdup_root(mem_root, &min_key)))
     return; // OOM
@@ -1965,8 +1969,12 @@ bool Optimizer_context_replay::infuse_records_in_range(
   String min_key;
   String max_key;
   String tbl_name;
-  print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+  Field::imagetype image_type=
+      Field::image_type(tbl->key_info[keynr].algorithm);
+  print_key_value(&min_key, key_part, min_range->key, min_range->length,
+                  image_type);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length,
+                  image_type);
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=

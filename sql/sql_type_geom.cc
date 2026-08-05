@@ -1001,6 +1001,79 @@ uint Field_geom::get_key_image(uchar *buff,uint length, const uchar *ptr_arg,
   return Field_blob::get_key_image_itRAW(ptr_arg, buff, length);
 }
 
+/*
+  @brief
+    Print the value of a key part over a GEOMETRY column.
+
+  @detail
+    SPATIAL indexes do not store the column value. They store its MBR
+    (Minimum Bounding Rectangle) instead, as four doubles:
+      xmin, xmax, ymin, ymax
+    Print the MBR as a WKT POLYGON, the same way ST_Envelope() would
+    return it.
+    For the other index types the key holds the value (or its prefix),
+    which is printed by Field_blob::print_key_value().
+*/
+
+void Field_geom::print_key_part_value(String *out, const uchar *key,
+                                      uint32 length, imagetype image_type)
+{
+  if (image_type != itMBR)
+  {
+    Field_blob::print_key_part_value(out, key, length, image_type);
+    return;
+  }
+
+  if (real_maybe_null())
+  {
+    /*
+      SPATIAL keys do not support NULL, but be graceful here as this is
+      only used for printing.
+    */
+    if (*key)
+    {
+      out->append(NULL_clex_str);
+      return;
+    }
+    key++;                                      // Skip the null byte
+  }
+
+  if (length < SIZEOF_STORED_DOUBLE * 4)
+  {
+    /*
+      The key part is too short to hold a full MBR (four doubles). This should
+      not happen for a SPATIAL index, but be graceful and print whatever bytes
+      are there as a binary string instead of reading past the key.
+    */
+    DBUG_ASSERT(0);
+    print_key_value_binary(out, key, length);
+    return;
+  }
+
+  double xmin, xmax, ymin, ymax;
+  float8get(xmin, key);
+  float8get(xmax, key + SIZEOF_STORED_DOUBLE);
+  float8get(ymin, key + SIZEOF_STORED_DOUBLE * 2);
+  float8get(ymax, key + SIZEOF_STORED_DOUBLE * 3);
+
+  if (out->reserve(MY_GCVT_MAX_FIELD_WIDTH * 10 + 32))
+    return;                                     // Out of memory
+
+  out->qs_append(STRING_WITH_LEN("POLYGON(("));
+  const double points[5][2]= {{xmin, ymin}, {xmax, ymin}, {xmax, ymax},
+                              {xmin, ymax}, {xmin, ymin}};
+  for (uint i= 0; i < array_elements(points); i++)
+  {
+    if (i)
+      out->qs_append(',');
+    out->qs_append(points[i][0]);
+    out->qs_append(' ');
+    out->qs_append(points[i][1]);
+  }
+  out->qs_append(STRING_WITH_LEN("))"));
+}
+
+
 Binlog_type_info Field_geom::binlog_type_info() const
 {
   DBUG_ASSERT(Field_geom::type() == binlog_type());
