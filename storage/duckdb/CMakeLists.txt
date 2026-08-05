@@ -63,8 +63,10 @@ IF(TARGET duckdb)
   ADD_SUBDIRECTORY(convertor)
   ADD_SUBDIRECTORY(runtime)
 
+  # atomic: GCC lowers the 16-byte atomic ops of the AUTO_INCREMENT block
+  # cache (Duckdb_share::autoinc_range) to libatomic calls.
   target_link_libraries(duckdb duckdb_runtime duckdb_convertor duckdb_common
-    ${DUCKDB_LIBRARY}
+    ${DUCKDB_LIBRARY} atomic
   )
 
   duckdb_setup_target(duckdb)

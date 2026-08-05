@@ -1,0 +1,80 @@
+--source ../include/have_duckdb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # Cross-engine RYOW: early query termination.
+--echo #
+--echo # With LIMIT (or any other early stop) DuckDB stops pulling chunks from
+--echo # the external table scan, so the scan is never driven to end-of-file.
+--echo # The handler scan started behind the server's back must still be
+--echo # finished, otherwise the table cannot be closed cleanly.
+--echo #
+--echo # FLUSH TABLES below forces the table to be closed inside the test
+--echo # instead of at shutdown, so that a leaked scan is detected here.
+--echo #
+--echo # NOTE: the leak itself is caught by DBUG_ASSERT(inited == NONE) in
+--echo # handler::~handler(), which is compiled out when DBUG_OFF is set.  This
+--echo # test therefore only proves the absence of a leak in a debug build; in a
+--echo # release build it merely checks the query results.
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS cross_engine_ryow_limit;
+--enable_warnings
+CREATE DATABASE cross_engine_ryow_limit CHARACTER SET utf8mb4;
+USE cross_engine_ryow_limit;
+
+SET @old_max_threads= @@global.duckdb_max_threads;
+SET GLOBAL duckdb_max_threads= 4;
+
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, score INT) ENGINE=InnoDB;
+
+INSERT INTO t_duck SELECT seq, CONCAT('v', seq) FROM seq_1_to_3000;
+INSERT INTO t_inno SELECT seq, seq FROM seq_1_to_3000;
+
+SET SESSION duckdb_cross_engine_ryow=1;
+
+--echo
+--echo # (1) LIMIT stops the scan long before end-of-file
+--echo
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=1;
+SELECT d.id, i.score
+  FROM t_duck d JOIN t_inno i ON d.id = i.id
+  ORDER BY d.id LIMIT 1;
+
+--echo
+--echo # (2) The same external table is usable again in the same transaction
+--echo
+SELECT d.id, i.score
+  FROM t_duck d JOIN t_inno i ON d.id = i.id
+  ORDER BY d.id LIMIT 2;
+SELECT score FROM t_inno WHERE id = 1;
+ROLLBACK;
+
+--echo
+--echo # (3) Closing the table must not hit a leaked scan
+--echo
+FLUSH TABLES;
+SELECT COUNT(*) FROM t_inno;
+
+--echo
+--echo # (4) Early termination combined with an aggregate that stops early
+--echo
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+SELECT EXISTS (SELECT 1 FROM t_duck d JOIN t_inno i ON d.id = i.id WHERE i.score = 999) AS found;
+ROLLBACK;
+FLUSH TABLES;
+
+--echo
+--echo # Cleanup
+--echo
+SET SESSION duckdb_cross_engine_ryow=DEFAULT;
+SET GLOBAL duckdb_max_threads= @old_max_threads;
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP DATABASE cross_engine_ryow_limit;
+
+--source ../include/cleanup_duckdb.inc

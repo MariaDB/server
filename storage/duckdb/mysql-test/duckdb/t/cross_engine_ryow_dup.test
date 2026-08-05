@@ -1,0 +1,88 @@
+--source ../include/have_duckdb.inc
+
+--echo #
+--echo # Cross-engine RYOW: the same external table referenced more than once.
+--echo #
+--echo # The external table registry is keyed by table name, so two references
+--echo # to one table would collapse onto a single TABLE/handler and produce two
+--echo # concurrent scans over one cursor.  Such queries must not be pushed
+--echo # down; the server executes them itself and the results must still show
+--echo # the uncommitted writes of the current transaction.
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS cross_engine_ryow_dup;
+--enable_warnings
+CREATE DATABASE cross_engine_ryow_dup CHARACTER SET utf8mb4;
+USE cross_engine_ryow_dup;
+
+SET @old_max_threads= @@global.duckdb_max_threads;
+SET GLOBAL duckdb_max_threads= 4;
+
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, score INT) ENGINE=InnoDB;
+
+INSERT INTO t_duck VALUES (1,'alpha'),(2,'beta'),(3,'gamma');
+INSERT INTO t_inno VALUES (1,10),(2,20),(3,30);
+
+SET SESSION duckdb_cross_engine_ryow=1;
+
+--echo
+--echo # (1) Self-join of the external table under two aliases
+--echo
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+--sorted_result
+SELECT d.id, a.score AS a_score, b.score AS b_score
+  FROM t_duck d
+  JOIN t_inno a ON d.id = a.id
+  JOIN t_inno b ON a.id = b.id;
+ROLLBACK;
+
+--echo
+--echo # (2) The external table used both in the join and in a subquery
+--echo
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=3;
+--sorted_result
+SELECT d.id, i.score
+  FROM t_duck d JOIN t_inno i ON d.id = i.id
+  WHERE i.score = (SELECT MAX(score) FROM t_inno);
+ROLLBACK;
+
+--echo
+--echo # (3) The external table twice in a UNION
+--echo
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=1;
+--sorted_result
+SELECT d.id, i.score FROM t_duck d JOIN t_inno i ON d.id = i.id WHERE i.id = 1
+UNION ALL
+SELECT d.id, i.score FROM t_duck d JOIN t_inno i ON d.id = i.id WHERE i.id = 2;
+ROLLBACK;
+
+--echo
+--echo # (4) A single reference is still pushed down and still sees own writes
+--echo
+BEGIN;
+UPDATE t_inno SET score=555 WHERE id=2;
+--sorted_result
+SELECT d.id, i.score FROM t_duck d JOIN t_inno i ON d.id = i.id;
+ROLLBACK;
+
+--echo
+--echo # (5) Committed state is intact
+--echo
+--sorted_result
+SELECT d.id, i.score FROM t_duck d JOIN t_inno i ON d.id = i.id;
+
+--echo
+--echo # Cleanup
+--echo
+SET SESSION duckdb_cross_engine_ryow=DEFAULT;
+SET GLOBAL duckdb_max_threads= @old_max_threads;
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP DATABASE cross_engine_ryow_dup;
+
+--source ../include/cleanup_duckdb.inc

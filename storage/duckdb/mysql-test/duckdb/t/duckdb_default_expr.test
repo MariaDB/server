@@ -1,0 +1,78 @@
+--source ../include/have_duckdb.inc
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS db_default_expr CHARACTER SET utf8mb4;
+USE db_default_expr;
+--enable_query_log
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-40266: DEFAULT(NEXT VALUE FOR seq) must not break the DuckDB DDL
+--echo #
+
+CREATE SEQUENCE s START WITH 1 INCREMENT BY 1;
+
+--echo # CREATE TABLE
+CREATE TABLE t (id BIGINT NOT NULL DEFAULT(NEXT VALUE FOR s) PRIMARY KEY, a INT) ENGINE=DuckDB;
+SHOW WARNINGS;
+SHOW CREATE TABLE t;
+
+--echo # The DuckDB column must carry no default: MariaDB always supplies the value.
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+
+INSERT INTO t (a) VALUES (10);
+INSERT INTO t (a) VALUES (20);
+SELECT id, a FROM t ORDER BY id;
+
+--echo # ADD COLUMN
+CREATE SEQUENCE s2 START WITH 100 INCREMENT BY 1;
+ALTER TABLE t ADD COLUMN b BIGINT DEFAULT(NEXT VALUE FOR s2);
+SHOW WARNINGS;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+
+INSERT INTO t (a) VALUES (30);
+SELECT id, a, b FROM t ORDER BY id;
+
+--echo # MODIFY COLUMN, adding a sequence default to a plain column
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT(NEXT VALUE FOR s2);
+SHOW WARNINGS;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+
+INSERT INTO t () VALUES ();
+SELECT id, a, b FROM t ORDER BY id;
+
+--echo # MODIFY COLUMN, replacing a sequence default with a literal
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT 7;
+SHOW WARNINGS;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+
+--echo # MODIFY COLUMN, replacing a literal default with an expression
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT (1+1);
+SHOW WARNINGS;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' AND column_name = 'a'");
+
+--echo # Insert bypassing MariaDB: relies on the DuckDB-side expression default.
+SELECT run_in_duckdb("INSERT INTO db_default_expr.t(id, b) VALUES(1000, 1000)");
+SELECT a FROM t WHERE id = 1000;
+
+DROP TABLE t;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+--echo #
+--echo # Non-sequence expression defaults keep reaching DuckDB
+--echo #
+
+CREATE TABLE t2 (id INT PRIMARY KEY, a INT DEFAULT (1+1), b VARCHAR(10) DEFAULT ('1+1')) ENGINE=DuckDB;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't2' ORDER BY column_name");
+
+INSERT INTO t2 (id) VALUES (1);
+--echo # Insert bypassing MariaDB: relies on the DuckDB-side default.
+SELECT run_in_duckdb("INSERT INTO db_default_expr.t2(id) VALUES(2)");
+SELECT * FROM t2 ORDER BY id;
+
+DROP TABLE t2;
+
+--disable_query_log
+DROP DATABASE db_default_expr;
+--enable_query_log

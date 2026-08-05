@@ -1,0 +1,153 @@
+SET NAMES utf8mb4;
+#
+# MDEV-40266: DEFAULT(NEXT VALUE FOR seq) must not break the DuckDB DDL
+#
+CREATE SEQUENCE s START WITH 1 INCREMENT BY 1;
+# CREATE TABLE
+CREATE TABLE t (id BIGINT NOT NULL DEFAULT(NEXT VALUE FOR s) PRIMARY KEY, a INT) ENGINE=DuckDB;
+Warnings:
+Note	1105	DuckDB: sequence default of column 'id' is not forwarded to DuckDB; MariaDB supplies the value
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	DuckDB: sequence default of column 'id' is not forwarded to DuckDB; MariaDB supplies the value
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` bigint(20) NOT NULL DEFAULT nextval(`db_default_expr`.`s`),
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=DUCKDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# The DuckDB column must carry no default: MariaDB always supplies the value.
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 2]
+a	NULL
+id	NULL
+
+
+INSERT INTO t (a) VALUES (10);
+INSERT INTO t (a) VALUES (20);
+SELECT id, a FROM t ORDER BY id;
+id	a
+1	10
+2	20
+# ADD COLUMN
+CREATE SEQUENCE s2 START WITH 100 INCREMENT BY 1;
+ALTER TABLE t ADD COLUMN b BIGINT DEFAULT(NEXT VALUE FOR s2);
+Warnings:
+Note	1105	DuckDB: sequence default of column 'b' is not forwarded to DuckDB; MariaDB supplies the value
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	DuckDB: sequence default of column 'b' is not forwarded to DuckDB; MariaDB supplies the value
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 3]
+a	NULL
+b	NULL
+id	NULL
+
+
+INSERT INTO t (a) VALUES (30);
+SELECT id, a, b FROM t ORDER BY id;
+id	a	b
+1	10	NULL
+2	20	NULL
+3	30	100
+# MODIFY COLUMN, adding a sequence default to a plain column
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT(NEXT VALUE FOR s2);
+Warnings:
+Note	1105	DuckDB: sequence default of column 'a' is not forwarded to DuckDB; MariaDB supplies the value
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	DuckDB: sequence default of column 'a' is not forwarded to DuckDB; MariaDB supplies the value
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 3]
+a	NULL
+b	NULL
+id	NULL
+
+
+INSERT INTO t () VALUES ();
+SELECT id, a, b FROM t ORDER BY id;
+id	a	b
+1	10	NULL
+2	20	NULL
+3	30	100
+4	101	102
+# MODIFY COLUMN, replacing a sequence default with a literal
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT 7;
+SHOW WARNINGS;
+Level	Code	Message
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' ORDER BY column_name")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 3]
+a	'7'
+b	NULL
+id	NULL
+
+
+# MODIFY COLUMN, replacing a literal default with an expression
+ALTER TABLE t MODIFY COLUMN a INT DEFAULT (1+1);
+SHOW WARNINGS;
+Level	Code	Message
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' AND column_name = 'a'");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't' AND column_name = 'a'")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 1]
+a	(1 + 1)
+
+
+# Insert bypassing MariaDB: relies on the DuckDB-side expression default.
+SELECT run_in_duckdb("INSERT INTO db_default_expr.t(id, b) VALUES(1000, 1000)");
+run_in_duckdb("INSERT INTO db_default_expr.t(id, b) VALUES(1000, 1000)")
+Count	
+BIGINT	
+[ Rows: 1]
+1
+
+
+SELECT a FROM t WHERE id = 1000;
+a
+2
+DROP TABLE t;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+#
+# Non-sequence expression defaults keep reaching DuckDB
+#
+CREATE TABLE t2 (id INT PRIMARY KEY, a INT DEFAULT (1+1), b VARCHAR(10) DEFAULT ('1+1')) ENGINE=DuckDB;
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't2' ORDER BY column_name");
+run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_default_expr' AND table_name = 't2' ORDER BY column_name")
+column_name	column_default	
+VARCHAR	VARCHAR	
+[ Rows: 3]
+a	(1 + 1)
+b	'1+1'
+id	NULL
+
+
+INSERT INTO t2 (id) VALUES (1);
+# Insert bypassing MariaDB: relies on the DuckDB-side default.
+SELECT run_in_duckdb("INSERT INTO db_default_expr.t2(id) VALUES(2)");
+run_in_duckdb("INSERT INTO db_default_expr.t2(id) VALUES(2)")
+Count	
+BIGINT	
+[ Rows: 1]
+1
+
+
+SELECT * FROM t2 ORDER BY id;
+id	a	b
+1	2	1+1
+2	2	1+1
+DROP TABLE t2;
