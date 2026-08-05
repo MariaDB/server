@@ -1073,6 +1073,22 @@ protected:
                  backpatch_instr_type itype);
 
 public:
+
+  /**
+    Check whether the top level statement is CREATE TRIGGER.
+
+    Return true in case the top level statement is CREATE TRIGGER,
+    else return false.
+  */
+
+  bool create_trigger_is_top_statement() const
+  {
+    const LEX *top_lex= m_lex.head();
+
+    return top_lex && top_lex->sql_command == SQLCOM_CREATE_TRIGGER;
+  }
+
+
   /*
     List of lists of Item_trigger_field objects representing all fields in
     old/new version of row in trigger. We use this list of lists for checking

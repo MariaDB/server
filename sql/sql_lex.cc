@@ -4113,6 +4113,15 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       thd->lex= top;
       thd->lex->sphead= NULL;
     }
+    else if (thd->lex->sphead->create_trigger_is_top_statement())
+    {
+      /*
+        In case an error happens on parsing the CREATE TRIGGER statement,
+        destroy an instance of sp_head to avoid memory leaks
+      */
+      sp_head::destroy(thd->lex->sphead);
+      thd->lex->sphead= nullptr;
+    }
     else
       thd->lex->sphead->unwind_aux_lexes_and_restore_original_lex();
   }

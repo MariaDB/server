@@ -19098,18 +19098,30 @@ trigger_tail_sys:
             LEX *lex= Lex;
             Lex_input_stream *lip= YYLIP;
 
+            /*
+              Prohibit creation of a trigger from within the another
+              trigger's body, as it implemented for triggers on dml
+            */
+            if (unlikely(lex->sphead))
+              my_yyabort_error((ER_SP_NO_RECURSIVE_CREATE, MYF(0), "TRIGGER"));
+
             if (unlikely(!lex->make_sp_head(thd, lex->spname,
                                             &sp_handler_trigger,
                                             DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
+            /*
+              Set lex->sql_command before parsing the rule sp_proc_stmt
+              in order to be able to clean up sp_head object properly in case
+              there is syntax error in a trigger body.
+              (@see LEX::cleanup_lex_after_parse_error)
+            */
+            lex->sql_command= SQLCOM_CREATE_TRIGGER;
           }
           sp_proc_stmt
           {
             LEX *lex= Lex;
-
-            lex->sql_command= SQLCOM_CREATE_TRIGGER;
 
             if (lex->sp_body_finalize_trigger(thd))
               MYSQL_YYABORT;

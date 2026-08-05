@@ -218,4 +218,22 @@ CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
 DROP TABLE mysql.event;
 RENAME TABLE mysql.ev_bk TO mysql.event;
 
+--echo # Restart server in order to reload a defintion of
+--echo # the table mysql.event in memory
+--source include/restart_mysqld.inc
+
 --echo # End of Test 10.
+
+--echo #
+--echo # MDEV-40064: Memory leak with unparseble trigger for startup body
+--echo #
+
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+
+UPDATE mysql.event SET body='not valid sql ;;;' WHERE name='trg1';
+
+--source include/restart_mysqld.inc
+SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name='trg1';
+
+# Clean up
+DROP TRIGGER trg1;
