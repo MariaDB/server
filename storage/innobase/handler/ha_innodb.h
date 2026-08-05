@@ -522,6 +522,7 @@ protected:
 	{ return m_parallel_reader.chunks_created(); }
 
 	size_t pscan_chunk_count_estimate() const override;
+	ulonglong engine_cache_size() const override;
 
 	Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx) override;
 

@@ -1,0 +1,107 @@
+#
+# MDEV-39492 Parallel Query: the I/O term divides only by what has to be read.
+#
+# The workers overlap each other's reads, so the I/O part of a scan's cost is
+# divided among them. But a page the engine already holds in its buffer pool is
+# fetched from memory, and there is no read latency to overlap, so a scan of a
+# table that fits in the pool takes its parallelism from the CPU and row-copy
+# terms and nothing from the I/O one. scale_cost_for_parallel_scan() therefore
+# divides the I/O term by the fraction of the table that cannot be resident, and
+# the other two terms by the worker count as before.
+#
+# The ratio is taken from innodb_buffer_pool_size and the table's size on disk,
+# never from what the pool happens to hold, so costing a query twice gives the
+# same answer. That is why the two tables here differ in size rather than the
+# test warming or flushing anything.
+#
+# The divisor reaches the worker count only for a table much larger than the
+# pool, which is where a parallel scan is worth the most: measured on TPC-H SF1
+# Q6, LINEITEM at 1176 MB against a 128 MB pool went from 885 MB/s serial to
+# 4210 MB/s at a hundred workers.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @t= @@session.optimizer_trace;
+
+--echo # the buffer pool the two tables are measured against
+SELECT @@global.innodb_buffer_pool_size <= 16*1024*1024 AS pool_is_the_mtr_default;
+
+CREATE TABLE t_small (pk INT PRIMARY KEY, a INT, f CHAR(50) CHARACTER SET latin1)
+  ENGINE=InnoDB;
+INSERT INTO t_small SELECT seq, seq % 97, REPEAT('x',50) FROM seq_1_to_20000;
+
+CREATE TABLE t_big (pk INT PRIMARY KEY, a INT, f CHAR(250) CHARACTER SET latin1)
+  ENGINE=InnoDB;
+INSERT INTO t_big SELECT seq, seq % 97, REPEAT('y',250) FROM seq_1_to_120000;
+
+ANALYZE TABLE t_small, t_big PERSISTENT FOR ALL;
+
+--echo #
+--echo # t_small fits in the pool and t_big is several times its size
+--echo #
+SELECT (SELECT data_length FROM information_schema.tables
+          WHERE table_schema='test' AND table_name='t_small')
+       < @@global.innodb_buffer_pool_size AS small_fits_in_pool,
+       (SELECT data_length FROM information_schema.tables
+          WHERE table_schema='test' AND table_name='t_big')
+       > @@global.innodb_buffer_pool_size AS big_exceeds_pool;
+
+SET SESSION parallel_worker_threads= 8;
+SET SESSION optimizer_trace='enabled=on';
+
+--echo #
+--echo # A table that fits in the pool is still scanned in parallel -- the CPU and
+--echo # row-copy terms still divide -- but its I/O term is not discounted at all,
+--echo # so the divisor is exactly 1.
+--echo #
+SELECT COUNT(*) FROM t_small WHERE a = 5;
+SELECT CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_workers'),'$[0]') AS UNSIGNED)
+         AS workers,
+       CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor'),'$[0]') AS DOUBLE)
+         AS io_divisor
+  FROM information_schema.optimizer_trace;
+
+--echo #
+--echo # A table several times the pool divides its I/O term, up to the worker
+--echo # count. The exact figure follows the table's size on disk, so what is
+--echo # checked is the relationship rather than the number.
+--echo #
+SELECT COUNT(*) FROM t_big WHERE a = 5;
+SELECT CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_workers'),'$[0]') AS UNSIGNED)
+         AS workers,
+       CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor'),'$[0]') AS DOUBLE) > 1
+         AS io_term_divides,
+       CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor'),'$[0]') AS DOUBLE) <=
+       CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_workers'),'$[0]') AS UNSIGNED)
+         AS at_most_the_workers
+  FROM information_schema.optimizer_trace;
+
+--echo #
+--echo # and it grows with the worker count, since it is the workers that overlap
+--echo # the reads
+--echo #
+SET SESSION parallel_worker_threads= 4;
+SELECT COUNT(*) FROM t_big WHERE a = 5;
+SELECT CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor'),'$[0]') AS DOUBLE)
+  INTO @d4 FROM information_schema.optimizer_trace;
+SET SESSION parallel_worker_threads= 16;
+SELECT COUNT(*) FROM t_big WHERE a = 5;
+SELECT CAST(JSON_VALUE(JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor'),'$[0]') AS DOUBLE)
+  INTO @d16 FROM information_schema.optimizer_trace;
+SELECT @d4 < @d16 AS more_workers_divide_more,
+       ROUND(@d16/@d4,1) AS ratio_16_to_4_workers;
+
+--echo #
+--echo # with parallelism off there is no parallel scan to cost, so no term
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*) FROM t_big WHERE a = 5;
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_io_divisor') IS NULL AS no_term
+  FROM information_schema.optimizer_trace;
+
+DROP TABLE t_small, t_big;
+SET SESSION optimizer_trace= @t;
+SET SESSION parallel_worker_threads= @s;

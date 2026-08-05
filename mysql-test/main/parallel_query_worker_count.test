@@ -163,8 +163,14 @@ SELECT @c0 = @c16 AS costed_as_serial;
 --echo # t4 has leaf pages to spare and a level under its root to divide them
 --echo # by, so its ceiling is those pages, not the two ranges the root starts
 --echo # with. Below the ceiling the divisor is the worker count, so the cost
---echo # keeps falling past the two-range mark until the per-worker setup
---echo # outweighs what another worker saves.
+--echo # keeps falling past the two-range mark -- until the per-worker setup
+--echo # outweighs what another worker saves, which for a table this size happens
+--echo # while there are still leaf pages to spare: t4 is well inside the buffer
+--echo # pool, so its I/O term does not divide at all and only the CPU and
+--echo # row-copy terms are left to pay for another worker. See
+--echo # main.parallel_query_io_cost. What is checked is therefore that the cost
+--echo # falls past two workers, which is the claim about the ceiling, and not
+--echo # where the fall stops, which is a property of the cost constants.
 --echo #
 ANALYZE TABLE t4 PERSISTENT FOR ALL;
 
@@ -182,16 +188,16 @@ SET SESSION parallel_worker_threads= 6;
 --enable_query_log
 SET @d6= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
 
-SET SESSION parallel_worker_threads= 8;
+SET SESSION parallel_worker_threads= 2;
 --let $out=`ANALYZE FORMAT=json SELECT a FROM t4 WHERE a > 0`
 --disable_query_log
 --eval SET @j= '$out'
 --enable_query_log
-SET @d8= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
+SET @d2= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
 
---echo # expect 1 1: the scan is discounted, and eight workers are still costed
---echo # below six, which the root's two ranges alone could never pay for
-SELECT @d0 > @d6 AS parallel_costs_less, @d8 < @d6 AS improves_past_the_root_fanout;
+--echo # expect 1 1: the scan is discounted, and six workers are still costed
+--echo # below two, which the root's two ranges alone could never pay for
+SELECT @d0 > @d6 AS parallel_costs_less, @d6 < @d2 AS improves_past_the_root_fanout;
 
 --echo #
 --echo # the answer does not depend on how many workers were started

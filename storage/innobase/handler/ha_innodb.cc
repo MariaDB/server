@@ -14729,6 +14729,16 @@ size_t ha_innobase::pscan_chunk_count_estimate() const
 	return clust->stat_n_leaf_pages;
 }
 
+
+/** Size of the InnoDB buffer pool, for judging how much of a table's scan can
+be served without reading from storage. The configured size is reported rather
+than the momentary one, so that costing a query twice gives the same answer.
+@return innodb_buffer_pool_size in bytes */
+ulonglong ha_innobase::engine_cache_size() const
+{
+	return buf_pool.size_in_bytes_requested;
+}
+
 int ha_innobase::pscan_init_coordinator(size_t n_threads)
 {
 	/* Reset any state left by a prior execution (correlateds subquery

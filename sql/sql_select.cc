@@ -2210,6 +2210,10 @@ JOIN::init_range_rowid_filters()
     1   error
 */
 
+/* Defined in sql_parallel_workers.cc, with the other parallel-scan costing. */
+extern double parallel_scan_io_divisor(TABLE *table, uint n);
+
+
 int
 JOIN::optimize_inner()
 {
@@ -3626,7 +3630,18 @@ int JOIN::optimize_stage2()
     {
       Json_writer_object trace_pscan(thd);
       if (still_a_chunkable_scan)
+      {
+        const uint n= positions[const_tables].parallel_workers;
         trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
+        trace_pscan.add("parallel_scan_workers", (longlong) n);
+        /*
+          How much of the scan's I/O cost was divided among the workers, which is
+          the worker count for a table too large to be held in the engine's cache
+          and 1.0 for one that fits in it. See parallel_scan_io_divisor().
+        */
+        trace_pscan.add("parallel_scan_io_divisor",
+                        parallel_scan_io_divisor(par->table, n));
+      }
       else
       {
         trace_pscan.add("parallel_scan_abandoned",

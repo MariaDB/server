@@ -114,8 +114,14 @@ costed_as_serial
 # t4 has leaf pages to spare and a level under its root to divide them
 # by, so its ceiling is those pages, not the two ranges the root starts
 # with. Below the ceiling the divisor is the worker count, so the cost
-# keeps falling past the two-range mark until the per-worker setup
-# outweighs what another worker saves.
+# keeps falling past the two-range mark -- until the per-worker setup
+# outweighs what another worker saves, which for a table this size happens
+# while there are still leaf pages to spare: t4 is well inside the buffer
+# pool, so its I/O term does not divide at all and only the CPU and
+# row-copy terms are left to pay for another worker. See
+# main.parallel_query_io_cost. What is checked is therefore that the cost
+# falls past two workers, which is the claim about the ceiling, and not
+# where the fall stops, which is a property of the cost constants.
 #
 ANALYZE TABLE t4 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
@@ -125,11 +131,11 @@ SET SESSION parallel_worker_threads= 0;
 SET @d0= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
 SET SESSION parallel_worker_threads= 6;
 SET @d6= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
-SET SESSION parallel_worker_threads= 8;
-SET @d8= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
-# expect 1 1: the scan is discounted, and eight workers are still costed
-# below six, which the root's two ranges alone could never pay for
-SELECT @d0 > @d6 AS parallel_costs_less, @d8 < @d6 AS improves_past_the_root_fanout;
+SET SESSION parallel_worker_threads= 2;
+SET @d2= CAST(JSON_EXTRACT(JSON_EXTRACT(@j,'$**.cost'),'$[0]') AS DOUBLE);
+# expect 1 1: the scan is discounted, and six workers are still costed
+# below two, which the root's two ranges alone could never pay for
+SELECT @d0 > @d6 AS parallel_costs_less, @d6 < @d2 AS improves_past_the_root_fanout;
 parallel_costs_less	improves_past_the_root_fanout
 1	1
 #

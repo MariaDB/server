@@ -3807,6 +3807,15 @@ public:
   */
   virtual size_t pscan_chunk_count_estimate() const { return 0; }
 
+  /*
+    Size in bytes of the engine's page cache, or 0 if it has none or will not
+    say. This is the configured size and not a measurement of what the cache
+    currently holds, so it does not move between two executions of the same
+    query -- the same reason DISK_READ_RATIO is a constant rather than a cache
+    statistic, see optimizer_defaults.h.
+  */
+  virtual ulonglong engine_cache_size() const { return 0; }
+
   /* Call from the master thread to get context data for each worker */
   virtual Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx)
   {
