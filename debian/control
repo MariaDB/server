@@ -978,6 +978,7 @@ Depends:
  lsof [linux-any],
  mariadb-server (= ${server:Version}),
  rsync,
+ stunnel,
  socat,
  ${misc:Depends},
  ${shlibs:Depends},
