@@ -3946,7 +3946,9 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       goto err;
     /* Initialize the GTID state tracker used to generate GTID_LIST_EVENT while
      converting the engine binlog to legacy binlog */
-    if (opt_convert_engine_binlog && !gtid_state) {
+    if (opt_convert_engine_binlog)
+    {
+      delete gtid_state;
       gtid_state= new rpl_binlog_state_base();
       gtid_state->init();
       /* initialize this gtid state from the header of the innodb binlog file */
