@@ -1,0 +1,259 @@
+--source include/not_embedded.inc
+
+#
+# MDEV-25515 User Account Host Names using CIDR notation
+#
+
+call mtr.add_suppression("ignored, the host is not a valid ip/netmask");
+
+--echo # CIDR is stored in the netmask form
+CREATE USER c1@'127.0.0.0/8'   IDENTIFIED BY 'pw';
+CREATE USER c2@'127.0.0.0/24'  IDENTIFIED BY 'pw';
+CREATE USER c3@'127.0.0.1/32'  IDENTIFIED BY 'pw';
+CREATE USER c4@'127.0.0.0/31'  IDENTIFIED BY 'pw';
+CREATE USER c5@'0.0.0.0/1'     IDENTIFIED BY 'pw';
+CREATE USER n1@'127.0.0.0/255.0.0.0'     IDENTIFIED BY 'pw';
+CREATE USER n2@'127.0.0.0/255.255.255.0' IDENTIFIED BY 'pw';
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'c_' OR User LIKE 'n_'
+ORDER BY User;
+SHOW CREATE USER c1@'127.0.0.0/8';
+SHOW GRANTS FOR c2@'127.0.0.0/24';
+
+--echo # Both spellings are the same account
+CREATE USER dup@'127.0.0.0/8' IDENTIFIED BY 'pw';
+--error ER_CANNOT_USER
+CREATE USER dup@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'other';
+CREATE USER IF NOT EXISTS dup@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'other';
+
+--error ER_CANNOT_USER
+CREATE USER dup@'127.000.0.0/8' IDENTIFIED BY 'other';
+--error ER_CANNOT_USER
+CREATE USER dup@'127.0.0.0/+8'  IDENTIFIED BY 'other';
+--error ER_CANNOT_USER
+CREATE USER dup@'127.0.0.0/ 8'  IDENTIFIED BY 'other';
+--error ER_CANNOT_USER
+CREATE USER dup@'127.0.0.0/255.000.0.0' IDENTIFIED BY 'other';
+SELECT User, Host FROM mysql.global_priv WHERE User='dup';
+DROP USER dup@'127.0.0.0/8';
+
+--echo # Matching is unchanged
+connect (con1,127.0.0.1,c1,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+connect (con1,127.0.0.1,c2,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+connect (con1,127.0.0.1,c3,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+connect (con1,127.0.0.1,c4,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+connect (con1,127.0.0.1,c5,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+connect (con1,127.0.0.1,n1,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+CREATE USER z1@'127.0.0.0/32' IDENTIFIED BY 'pw';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,127.0.0.1,z1,pw,,$MASTER_MYPORT,);
+DROP USER z1@'127.0.0.0/32';
+
+
+--echo # Either spelling resolves to the same row, in every privilege table
+CREATE DATABASE cidr_db;
+CREATE TABLE cidr_db.t (a INT);
+GRANT SELECT ON cidr_db.* TO c1@'127.0.0.0/255.0.0.0';
+SHOW GRANTS FOR c1@'127.0.0.0/8';
+GRANT INSERT ON cidr_db.* TO c1@'127.0.0.0/8';
+REVOKE SELECT ON cidr_db.* FROM c1@'127.0.0.0/8';
+SELECT User, Host FROM mysql.db WHERE User='c1';
+GRANT SELECT ON cidr_db.t TO c1@'127.0.0.0/8';
+SELECT User, Host FROM mysql.tables_priv WHERE User='c1';
+REVOKE SELECT ON cidr_db.t FROM c1@'127.0.0.0/255.0.0.0';
+SET PASSWORD FOR c1@'127.0.0.0/8' = PASSWORD('pw2');
+ALTER USER c1@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'pw';
+RENAME USER c1@'127.0.0.0/8' TO c1@'127.0.0.0/16';
+SELECT User, Host FROM mysql.global_priv WHERE User='c1';
+SELECT User, Host FROM mysql.db          WHERE User='c1';
+RENAME USER c1@'127.0.0.0/255.255.0.0' TO c1@'127.0.0.0/8';
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM c1@'127.0.0.0/255.0.0.0';
+SHOW GRANTS FOR c1@'127.0.0.0/8';
+DROP TABLE cidr_db.t;
+DROP DATABASE cidr_db;
+
+--echo # GRANT normalises the host of an account it auto-creates
+CREATE TABLE test.t (a INT);
+CREATE PROCEDURE test.p1() SELECT 1;
+CREATE ROLE cidr_role;
+GRANT SELECT ON test.* TO g1@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT SELECT ON test.t TO g2@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT EXECUTE ON PROCEDURE test.p1 TO g3@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT cidr_role       TO g4@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT PROXY ON ''@'%' TO g5@'10.0.0.0/24' IDENTIFIED BY 'pw';
+SELECT User, Host FROM mysql.global_priv   WHERE User LIKE 'g_' ORDER BY User;
+SELECT User, Host FROM mysql.db            WHERE User='g1';
+SELECT User, Host FROM mysql.tables_priv   WHERE User='g2';
+SELECT User, Host FROM mysql.procs_priv    WHERE User='g3';
+SELECT User, Host FROM mysql.roles_mapping WHERE User='g4';
+SELECT User, Host FROM mysql.proxies_priv  WHERE User='g5';
+DROP USER g1@'10.0.0.0/255.255.255.0', g2@'10.0.0.0/255.255.255.0',
+          g3@'10.0.0.0/255.255.255.0', g4@'10.0.0.0/255.255.255.0',
+          g5@'10.0.0.0/255.255.255.0';
+DROP ROLE cidr_role;
+DROP PROCEDURE test.p1;
+DROP TABLE test.t;
+
+--echo # DEFINER reaches the same grammar rule
+CREATE USER def@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT ALL ON test.* TO def@'10.0.0.0/255.255.255.0';
+CREATE DEFINER=def@'10.0.0.0/24' VIEW test.v1 AS SELECT 1;
+CREATE DEFINER=def@'10.0.0.0/24' PROCEDURE test.p2() SELECT 1;
+SELECT definer FROM information_schema.views
+  WHERE table_schema='test' AND table_name='v1';
+SELECT definer FROM information_schema.routines
+  WHERE routine_schema='test' AND routine_name='p2';
+DROP VIEW test.v1;
+DROP PROCEDURE test.p2;
+DROP USER def@'10.0.0.0/255.255.255.0';
+
+--echo # A host without '/' is not a masked host and is untouched
+CREATE USER v1@'%', v2@'10.0.0.%', v3@'127.0.0._', v4@'localhost',
+            v5@'127.0.0.1', v6@'::1';
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'v_' ORDER BY User;
+DROP USER v1@'%', v2@'10.0.0.%', v3@'127.0.0._', v4@'localhost',
+          v5@'127.0.0.1', v6@'::1';
+
+--echo # A malformed mask is rejected, quoting the host as it was written
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e01@'10.0.0.0/33';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e02@'10.0.0.0/0';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e03@'10.0.0.0/-1';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e04@'10.0.0.0/0.0.0.0';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e05@'10.0.0.0/255.0.255.0';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e06@'10.0.0.0/255.255.0.255';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e07@'10.1.2.3/24';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e08@'10.1.2.3/255.255.255.0';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e09@'127.0.0.0/1';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e10@'2001:db8::/32';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e11@'10.0.0.%/24';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e12@'10.0.0.0/abc';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e13@'10.0.0.0/';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER e14@'10.0.0.0/24x';
+--error ER_INVALID_HOST_NETMASK
+GRANT SELECT ON test.* TO e20@'10.0.0.0/33' IDENTIFIED BY 'pw';
+--error ER_INVALID_HOST_NETMASK
+GRANT SELECT ON test.* TO e21@'10.1.2.3/24' IDENTIFIED BY 'pw';
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'e__';
+
+--error ER_CANNOT_USER
+ALTER USER e30@'10.0.0.0/33' IDENTIFIED BY 'pw';
+--error ER_NONEXISTING_GRANT
+REVOKE SELECT ON test.* FROM e30@'10.0.0.0/33';
+
+--echo # RENAME USER validates the target only
+CREATE USER r1@'127.0.0.0/8' IDENTIFIED BY 'pw';
+--error ER_CANNOT_USER
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.1.2.3/24';
+--error ER_CANNOT_USER
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/255.0.255.0';
+SHOW WARNINGS;
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/16';
+SELECT User, Host FROM mysql.global_priv WHERE User='r1';
+DROP USER r1@'10.0.0.0/255.255.0.0';
+
+--echo # acl_load() skips a stored row whose mask it cannot honour
+CREATE USER leg@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.0.0.0/255.0.255.0' WHERE User='leg';
+FLUSH PRIVILEGES;
+--error ER_NONEXISTING_GRANT
+SHOW GRANTS FOR leg@'10.0.0.0/255.0.255.0';
+RENAME USER leg@'10.0.0.0/255.0.255.0' TO leg@'10.0.0.0/16';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR leg@'10.0.0.0/255.255.0.0';
+DROP USER leg@'10.0.0.0/255.255.0.0';
+
+CREATE USER leg2@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.1.2.3/255.255.255.0' WHERE User='leg2';
+FLUSH PRIVILEGES;
+DROP USER leg2@'10.1.2.3/255.255.255.0';
+SELECT User, Host FROM mysql.global_priv WHERE User='leg2';
+
+CREATE USER leg3@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.0.0.0/24' WHERE User='leg3';
+FLUSH PRIVILEGES;
+--error ER_NONEXISTING_GRANT
+SHOW GRANTS FOR leg3@'10.0.0.0/24';
+--error ER_CANNOT_USER
+DROP USER leg3@'10.0.0.0/24';
+DELETE FROM mysql.global_priv WHERE User='leg3';
+FLUSH PRIVILEGES;
+
+--echo # ... in tables_priv and procs_priv too
+CREATE DATABASE legdb;
+CREATE TABLE legdb.t (a INT);
+CREATE PROCEDURE legdb.p() SELECT 1;
+CREATE USER legt@'%' IDENTIFIED BY 'pw';
+GRANT SELECT  ON legdb.t           TO legt@'%';
+GRANT EXECUTE ON PROCEDURE legdb.p TO legt@'%';
+connect (con1,127.0.0.1,legt,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT * FROM legdb.t;
+CALL legdb.p();
+disconnect con1;
+connection default;
+UPDATE mysql.tables_priv SET Host='127.0.0.0/255.0.255.0' WHERE User='legt';
+UPDATE mysql.procs_priv  SET Host='127.0.0.0/255.0.255.0' WHERE User='legt';
+FLUSH PRIVILEGES;
+connect (con1,127.0.0.1,legt,pw,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM legdb.t;
+--error ER_PROCACCESS_DENIED_ERROR
+CALL legdb.p();
+disconnect con1;
+connection default;
+DELETE FROM mysql.tables_priv WHERE User='legt';
+DELETE FROM mysql.procs_priv  WHERE User='legt';
+DROP USER legt@'%';
+DROP PROCEDURE legdb.p;
+DROP TABLE legdb.t;
+DROP DATABASE legdb;
+
+DROP USER c1@'127.0.0.0/8', c2@'127.0.0.0/24', c3@'127.0.0.1/32',
+          c4@'127.0.0.0/31', c5@'0.0.0.0/1',
+          n1@'127.0.0.0/255.0.0.0', n2@'127.0.0.0/255.255.255.0';
+FLUSH PRIVILEGES;
+
+#
+# End of MDEV-25515 tests
+#

@@ -1,0 +1,313 @@
+call mtr.add_suppression("ignored, the host is not a valid ip/netmask");
+# CIDR is stored in the netmask form
+CREATE USER c1@'127.0.0.0/8'   IDENTIFIED BY 'pw';
+CREATE USER c2@'127.0.0.0/24'  IDENTIFIED BY 'pw';
+CREATE USER c3@'127.0.0.1/32'  IDENTIFIED BY 'pw';
+CREATE USER c4@'127.0.0.0/31'  IDENTIFIED BY 'pw';
+CREATE USER c5@'0.0.0.0/1'     IDENTIFIED BY 'pw';
+CREATE USER n1@'127.0.0.0/255.0.0.0'     IDENTIFIED BY 'pw';
+CREATE USER n2@'127.0.0.0/255.255.255.0' IDENTIFIED BY 'pw';
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'c_' OR User LIKE 'n_'
+ORDER BY User;
+User	Host
+c1	127.0.0.0/255.0.0.0
+c2	127.0.0.0/255.255.255.0
+c3	127.0.0.1/255.255.255.255
+c4	127.0.0.0/255.255.255.254
+c5	0.0.0.0/128.0.0.0
+n1	127.0.0.0/255.0.0.0
+n2	127.0.0.0/255.255.255.0
+SHOW CREATE USER c1@'127.0.0.0/8';
+CREATE USER for c1@127.0.0.0/255.0.0.0
+CREATE USER `c1`@`127.0.0.0/255.0.0.0` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+SHOW GRANTS FOR c2@'127.0.0.0/24';
+Grants for c2@127.0.0.0/255.255.255.0
+GRANT USAGE ON *.* TO `c2`@`127.0.0.0/255.255.255.0` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+# Both spellings are the same account
+CREATE USER dup@'127.0.0.0/8' IDENTIFIED BY 'pw';
+CREATE USER dup@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'other';
+ERROR HY000: Operation CREATE USER failed for 'dup'@'127.0.0.0/255.0.0.0'
+CREATE USER IF NOT EXISTS dup@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'other';
+Warnings:
+Note	1973	Can't create user 'dup'@'127.0.0.0/255.0.0.0'; it already exists
+CREATE USER dup@'127.000.0.0/8' IDENTIFIED BY 'other';
+ERROR HY000: Operation CREATE USER failed for 'dup'@'127.0.0.0/255.0.0.0'
+CREATE USER dup@'127.0.0.0/+8'  IDENTIFIED BY 'other';
+ERROR HY000: Operation CREATE USER failed for 'dup'@'127.0.0.0/255.0.0.0'
+CREATE USER dup@'127.0.0.0/ 8'  IDENTIFIED BY 'other';
+ERROR HY000: Operation CREATE USER failed for 'dup'@'127.0.0.0/255.0.0.0'
+CREATE USER dup@'127.0.0.0/255.000.0.0' IDENTIFIED BY 'other';
+ERROR HY000: Operation CREATE USER failed for 'dup'@'127.0.0.0/255.0.0.0'
+SELECT User, Host FROM mysql.global_priv WHERE User='dup';
+User	Host
+dup	127.0.0.0/255.0.0.0
+DROP USER dup@'127.0.0.0/8';
+# Matching is unchanged
+connect  con1,127.0.0.1,c1,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+c1@127.0.0.0/255.0.0.0
+disconnect con1;
+connection default;
+connect  con1,127.0.0.1,c2,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+c2@127.0.0.0/255.255.255.0
+disconnect con1;
+connection default;
+connect  con1,127.0.0.1,c3,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+c3@127.0.0.1/255.255.255.255
+disconnect con1;
+connection default;
+connect  con1,127.0.0.1,c4,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+c4@127.0.0.0/255.255.255.254
+disconnect con1;
+connection default;
+connect  con1,127.0.0.1,c5,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+c5@0.0.0.0/128.0.0.0
+disconnect con1;
+connection default;
+connect  con1,127.0.0.1,n1,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+n1@127.0.0.0/255.0.0.0
+disconnect con1;
+connection default;
+CREATE USER z1@'127.0.0.0/32' IDENTIFIED BY 'pw';
+connect(127.0.0.1,z1,pw,test,MASTER_PORT,MASTER_SOCKET);
+connect  con1,127.0.0.1,z1,pw,,$MASTER_MYPORT,;
+ERROR 28000: Access denied for user 'z1'@'localhost' (using password: YES)
+DROP USER z1@'127.0.0.0/32';
+# Either spelling resolves to the same row, in every privilege table
+CREATE DATABASE cidr_db;
+CREATE TABLE cidr_db.t (a INT);
+GRANT SELECT ON cidr_db.* TO c1@'127.0.0.0/255.0.0.0';
+SHOW GRANTS FOR c1@'127.0.0.0/8';
+Grants for c1@127.0.0.0/255.0.0.0
+GRANT USAGE ON *.* TO `c1`@`127.0.0.0/255.0.0.0` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+GRANT SELECT ON `cidr_db`.* TO `c1`@`127.0.0.0/255.0.0.0`
+GRANT INSERT ON cidr_db.* TO c1@'127.0.0.0/8';
+REVOKE SELECT ON cidr_db.* FROM c1@'127.0.0.0/8';
+SELECT User, Host FROM mysql.db WHERE User='c1';
+User	Host
+c1	127.0.0.0/255.0.0.0
+GRANT SELECT ON cidr_db.t TO c1@'127.0.0.0/8';
+SELECT User, Host FROM mysql.tables_priv WHERE User='c1';
+User	Host
+c1	127.0.0.0/255.0.0.0
+REVOKE SELECT ON cidr_db.t FROM c1@'127.0.0.0/255.0.0.0';
+SET PASSWORD FOR c1@'127.0.0.0/8' = PASSWORD('pw2');
+ALTER USER c1@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'pw';
+RENAME USER c1@'127.0.0.0/8' TO c1@'127.0.0.0/16';
+SELECT User, Host FROM mysql.global_priv WHERE User='c1';
+User	Host
+c1	127.0.0.0/255.255.0.0
+SELECT User, Host FROM mysql.db          WHERE User='c1';
+User	Host
+c1	127.0.0.0/255.255.0.0
+RENAME USER c1@'127.0.0.0/255.255.0.0' TO c1@'127.0.0.0/8';
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM c1@'127.0.0.0/255.0.0.0';
+SHOW GRANTS FOR c1@'127.0.0.0/8';
+Grants for c1@127.0.0.0/255.0.0.0
+GRANT USAGE ON *.* TO `c1`@`127.0.0.0/255.0.0.0` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+DROP TABLE cidr_db.t;
+DROP DATABASE cidr_db;
+# GRANT normalises the host of an account it auto-creates
+CREATE TABLE test.t (a INT);
+CREATE PROCEDURE test.p1() SELECT 1;
+CREATE ROLE cidr_role;
+GRANT SELECT ON test.* TO g1@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT SELECT ON test.t TO g2@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT EXECUTE ON PROCEDURE test.p1 TO g3@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT cidr_role       TO g4@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT PROXY ON ''@'%' TO g5@'10.0.0.0/24' IDENTIFIED BY 'pw';
+SELECT User, Host FROM mysql.global_priv   WHERE User LIKE 'g_' ORDER BY User;
+User	Host
+g1	10.0.0.0/255.255.255.0
+g2	10.0.0.0/255.255.255.0
+g3	10.0.0.0/255.255.255.0
+g4	10.0.0.0/255.255.255.0
+g5	10.0.0.0/255.255.255.0
+SELECT User, Host FROM mysql.db            WHERE User='g1';
+User	Host
+g1	10.0.0.0/255.255.255.0
+SELECT User, Host FROM mysql.tables_priv   WHERE User='g2';
+User	Host
+g2	10.0.0.0/255.255.255.0
+SELECT User, Host FROM mysql.procs_priv    WHERE User='g3';
+User	Host
+g3	10.0.0.0/255.255.255.0
+SELECT User, Host FROM mysql.roles_mapping WHERE User='g4';
+User	Host
+g4	10.0.0.0/255.255.255.0
+SELECT User, Host FROM mysql.proxies_priv  WHERE User='g5';
+User	Host
+g5	10.0.0.0/255.255.255.0
+DROP USER g1@'10.0.0.0/255.255.255.0', g2@'10.0.0.0/255.255.255.0',
+g3@'10.0.0.0/255.255.255.0', g4@'10.0.0.0/255.255.255.0',
+g5@'10.0.0.0/255.255.255.0';
+DROP ROLE cidr_role;
+DROP PROCEDURE test.p1;
+DROP TABLE test.t;
+# DEFINER reaches the same grammar rule
+CREATE USER def@'10.0.0.0/24' IDENTIFIED BY 'pw';
+GRANT ALL ON test.* TO def@'10.0.0.0/255.255.255.0';
+CREATE DEFINER=def@'10.0.0.0/24' VIEW test.v1 AS SELECT 1;
+CREATE DEFINER=def@'10.0.0.0/24' PROCEDURE test.p2() SELECT 1;
+SELECT definer FROM information_schema.views
+WHERE table_schema='test' AND table_name='v1';
+definer
+def@10.0.0.0/255.255.255.0
+SELECT definer FROM information_schema.routines
+WHERE routine_schema='test' AND routine_name='p2';
+definer
+def@10.0.0.0/255.255.255.0
+DROP VIEW test.v1;
+DROP PROCEDURE test.p2;
+DROP USER def@'10.0.0.0/255.255.255.0';
+# A host without '/' is not a masked host and is untouched
+CREATE USER v1@'%', v2@'10.0.0.%', v3@'127.0.0._', v4@'localhost',
+v5@'127.0.0.1', v6@'::1';
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'v_' ORDER BY User;
+User	Host
+v1	%
+v2	10.0.0.%
+v3	127.0.0._
+v4	localhost
+v5	127.0.0.1
+v6	::1
+DROP USER v1@'%', v2@'10.0.0.%', v3@'127.0.0._', v4@'localhost',
+v5@'127.0.0.1', v6@'::1';
+# A malformed mask is rejected, quoting the host as it was written
+CREATE USER e01@'10.0.0.0/33';
+ERROR HY000: Invalid masked host '10.0.0.0/33' for user 'e01'
+CREATE USER e02@'10.0.0.0/0';
+ERROR HY000: Invalid masked host '10.0.0.0/0' for user 'e02'
+CREATE USER e03@'10.0.0.0/-1';
+ERROR HY000: Invalid masked host '10.0.0.0/-1' for user 'e03'
+CREATE USER e04@'10.0.0.0/0.0.0.0';
+ERROR HY000: Invalid masked host '10.0.0.0/0.0.0.0' for user 'e04'
+CREATE USER e05@'10.0.0.0/255.0.255.0';
+ERROR HY000: Invalid masked host '10.0.0.0/255.0.255.0' for user 'e05'
+CREATE USER e06@'10.0.0.0/255.255.0.255';
+ERROR HY000: Invalid masked host '10.0.0.0/255.255.0.255' for user 'e06'
+CREATE USER e07@'10.1.2.3/24';
+ERROR HY000: Invalid masked host '10.1.2.3/24' for user 'e07'
+CREATE USER e08@'10.1.2.3/255.255.255.0';
+ERROR HY000: Invalid masked host '10.1.2.3/255.255.255.0' for user 'e08'
+CREATE USER e09@'127.0.0.0/1';
+ERROR HY000: Invalid masked host '127.0.0.0/1' for user 'e09'
+CREATE USER e10@'2001:db8::/32';
+ERROR HY000: Invalid masked host '2001:db8::/32' for user 'e10'
+CREATE USER e11@'10.0.0.%/24';
+ERROR HY000: Invalid masked host '10.0.0.%/24' for user 'e11'
+CREATE USER e12@'10.0.0.0/abc';
+ERROR HY000: Invalid masked host '10.0.0.0/abc' for user 'e12'
+CREATE USER e13@'10.0.0.0/';
+ERROR HY000: Invalid masked host '10.0.0.0/' for user 'e13'
+CREATE USER e14@'10.0.0.0/24x';
+ERROR HY000: Invalid masked host '10.0.0.0/24x' for user 'e14'
+GRANT SELECT ON test.* TO e20@'10.0.0.0/33' IDENTIFIED BY 'pw';
+ERROR HY000: Invalid masked host '10.0.0.0/33' for user 'e20'
+GRANT SELECT ON test.* TO e21@'10.1.2.3/24' IDENTIFIED BY 'pw';
+ERROR HY000: Invalid masked host '10.1.2.3/24' for user 'e21'
+SELECT User, Host FROM mysql.global_priv WHERE User LIKE 'e__';
+User	Host
+ALTER USER e30@'10.0.0.0/33' IDENTIFIED BY 'pw';
+ERROR HY000: Operation ALTER USER failed for 'e30'@'10.0.0.0/33'
+REVOKE SELECT ON test.* FROM e30@'10.0.0.0/33';
+ERROR 42000: There is no such grant defined for user 'e30' on host '10.0.0.0/33'
+# RENAME USER validates the target only
+CREATE USER r1@'127.0.0.0/8' IDENTIFIED BY 'pw';
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.1.2.3/24';
+ERROR HY000: Operation RENAME USER failed for 'r1'@'10.1.2.3/24'
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/255.0.255.0';
+ERROR HY000: Operation RENAME USER failed for 'r1'@'10.0.0.0/255.0.255.0'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4269	Invalid masked host '10.0.0.0/255.0.255.0' for user 'r1'
+Error	1396	Operation RENAME USER failed for 'r1'@'10.0.0.0/255.0.255.0'
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/16';
+SELECT User, Host FROM mysql.global_priv WHERE User='r1';
+User	Host
+r1	10.0.0.0/255.255.0.0
+DROP USER r1@'10.0.0.0/255.255.0.0';
+# acl_load() skips a stored row whose mask it cannot honour
+CREATE USER leg@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.0.0.0/255.0.255.0' WHERE User='leg';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR leg@'10.0.0.0/255.0.255.0';
+ERROR 42000: There is no such grant defined for user 'leg' on host '10.0.0.0/255.0.255.0'
+RENAME USER leg@'10.0.0.0/255.0.255.0' TO leg@'10.0.0.0/16';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR leg@'10.0.0.0/255.255.0.0';
+Grants for leg@10.0.0.0/255.255.0.0
+GRANT USAGE ON *.* TO `leg`@`10.0.0.0/255.255.0.0` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+DROP USER leg@'10.0.0.0/255.255.0.0';
+CREATE USER leg2@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.1.2.3/255.255.255.0' WHERE User='leg2';
+FLUSH PRIVILEGES;
+DROP USER leg2@'10.1.2.3/255.255.255.0';
+SELECT User, Host FROM mysql.global_priv WHERE User='leg2';
+User	Host
+CREATE USER leg3@'10.0.0.0/24' IDENTIFIED BY 'pw';
+UPDATE mysql.global_priv SET Host='10.0.0.0/24' WHERE User='leg3';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR leg3@'10.0.0.0/24';
+ERROR 42000: There is no such grant defined for user 'leg3' on host '10.0.0.0/255.255.255.0'
+DROP USER leg3@'10.0.0.0/24';
+ERROR HY000: Operation DROP USER failed for 'leg3'@'10.0.0.0/255.255.255.0'
+DELETE FROM mysql.global_priv WHERE User='leg3';
+FLUSH PRIVILEGES;
+# ... in tables_priv and procs_priv too
+CREATE DATABASE legdb;
+CREATE TABLE legdb.t (a INT);
+CREATE PROCEDURE legdb.p() SELECT 1;
+CREATE USER legt@'%' IDENTIFIED BY 'pw';
+GRANT SELECT  ON legdb.t           TO legt@'%';
+GRANT EXECUTE ON PROCEDURE legdb.p TO legt@'%';
+connect  con1,127.0.0.1,legt,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT * FROM legdb.t;
+a
+CALL legdb.p();
+1
+1
+disconnect con1;
+connection default;
+UPDATE mysql.tables_priv SET Host='127.0.0.0/255.0.255.0' WHERE User='legt';
+UPDATE mysql.procs_priv  SET Host='127.0.0.0/255.0.255.0' WHERE User='legt';
+FLUSH PRIVILEGES;
+connect  con1,127.0.0.1,legt,pw,,$MASTER_MYPORT,;
+connection con1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+legt@%
+SELECT * FROM legdb.t;
+ERROR 42000: SELECT command denied to user 'legt'@'localhost' for table `legdb`.`t`
+CALL legdb.p();
+ERROR 42000: execute command denied to user 'legt'@'%' for routine 'legdb.p'
+disconnect con1;
+connection default;
+DELETE FROM mysql.tables_priv WHERE User='legt';
+DELETE FROM mysql.procs_priv  WHERE User='legt';
+DROP USER legt@'%';
+DROP PROCEDURE legdb.p;
+DROP TABLE legdb.t;
+DROP DATABASE legdb;
+DROP USER c1@'127.0.0.0/8', c2@'127.0.0.0/24', c3@'127.0.0.1/32',
+c4@'127.0.0.0/31', c5@'0.0.0.0/1',
+n1@'127.0.0.0/255.0.0.0', n2@'127.0.0.0/255.255.255.0';
+FLUSH PRIVILEGES;
