@@ -12414,3 +12414,5 @@ ER_PARTITION_INTERVAL_MAXVALUE
         eng "MAXVALUE is not allowed in range partitioning with interval"
 ER_RANGE_INTERVAL_PART_FAILED
         eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
+ER_INVALID_HOST_NETMASK
+        eng "Invalid masked host '%s' for user '%s'"
