@@ -2849,9 +2849,16 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     The select list is deliberately not checked for clonability. Nothing clones
     it: what a worker gets is an Item_field per base-table column the query
     reads, which is always clonable, and the select list is evaluated on the
-    manager. Probing it was also actively harmful -- pwt_item_is_clonable()
-    copies the item to test it, and copying an Item_sum_min_max crashes, because
-    its copy constructor leaves cmp uninitialised while its cleanup() deletes it.
+    manager.
+
+    Probing it used to be actively harmful as well -- pwt_item_is_clonable()
+    copies the item to test it, and copying an aggregate crashed. That is no
+    longer so: Item_sum::deep_copy() and Item_sum_min_max::deep_copy() give a
+    clone its own aggregator, comparator and orig_args, where the implicit copy
+    constructor left all three aliasing the original's to be deleted twice.
+    Every aggregate the server has now clones independently, checked at
+    execution time. It is still not probed, because there is still nothing that
+    clones it.
   */
   DBUG_RETURN(true);
 }
