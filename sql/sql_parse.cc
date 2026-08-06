@@ -4545,6 +4545,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_INSERT_SELECT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+    Running_stmt_guard guard(thd, active_dml_stmt::INSERTING_STMT);
     select_insert *sel_result;
     select_result *result= NULL;
     bool explain= MY_TEST(lex->describe);
