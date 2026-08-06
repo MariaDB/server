@@ -16824,7 +16824,12 @@ user_name:
                 check_host_name(&$$->host))
               MYSQL_YYABORT;
             if ($$->host.str[0])
+            {
               $$->host= thd->make_ident_casedn($$->host);
+              $$->host= normalize_masked_host(thd, $$->host);
+              if (unlikely(!$$->host.str))
+                MYSQL_YYABORT;
+            }
             else
               $$->host= host_not_specified;
           }
