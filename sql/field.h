@@ -5943,7 +5943,14 @@ public:
   Field *from_field,*to_field;
   String tmp;					// For items
 
-  Copy_field() = default;
+  /*
+    set(uchar*, Field*) has no destination field to record and records
+    neither field, and set(Field*, Field*, bool) returns early for a
+    MYSQL_TYPE_NULL destination without recording them either.  Both kinds
+    of entry go in the same array, so start them absent rather than
+    leaving them to read as whatever the memory held.
+  */
+  Copy_field() : from_field(NULL), to_field(NULL) {}
   ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 
   void set(uchar *to,Field *from);		// Field to string
