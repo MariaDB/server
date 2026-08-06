@@ -87,6 +87,17 @@ INSERT INTO t5b VALUES (1, '{');
 --error ER_CONSTRAINT_FAILED
 INSERT INTO t5b VALUES (0, '{');
 SELECT id, j, JSON_VALID(j) AS valid FROM t5b;
+--echo # an AND whose parts all have to hold, but where none of them is
+--echo # the call: the promise is inside an OR one level down, so the
+--echo # constraint can pass without it and the column stays ordinary
+CREATE TABLE t5d (id INT,
+                  j LONGTEXT CHECK (LENGTH(j) > 0 AND
+                                    (json_valid(j) OR id > 0)));
+INSERT INTO t5d VALUES (1, '{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5d VALUES (0, '{');
+INSERT INTO t5d VALUES (0, '{"a":1}');
+SELECT id, j, JSON_VALID(j) AS valid FROM t5d ORDER BY id, j;
 --echo # a constraint attached to one column that tests a different column
 CREATE TABLE t5c (a LONGTEXT, b LONGTEXT CHECK (json_valid(a)));
 INSERT INTO t5c VALUES ('{"a":1}', '{');
@@ -104,7 +115,7 @@ INSERT INTO t5e VALUES ('');
 SELECT j, JSON_VALID(j) AS valid FROM t5e ORDER BY j;
 SELECT JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS still_valid
   FROM t5e ORDER BY j;
-DROP TABLE t5b, t5c, t5e;
+DROP TABLE t5b, t5c, t5d, t5e;
 
 --echo #
 --echo # 3. Switching the check off, which is what makes a stored document

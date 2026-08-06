@@ -3095,7 +3095,7 @@ SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
 JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}')
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 25
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 21
 SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
 JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }')
 ["", "k2"]

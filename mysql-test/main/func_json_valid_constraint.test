@@ -1,0 +1,216 @@
+--echo #
+--echo # Which column a JSON_VALID check constraint makes a JSON column
+--echo #
+--echo # A string column is a JSON column when it carries a check constraint
+--echo # that says that column holds a document.  A constraint that reads
+--echo # another column, or no column at all, says nothing about this one.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # A constraint reading another column
+--echo #
+--echo # d is the ordinary usage and e an ordinary JSON column, both controls.
+
+CREATE TABLE t1 (
+  a VARCHAR(100) CHECK (JSON_VALID(b)),
+  b VARCHAR(100),
+  d VARCHAR(100) CHECK (JSON_VALID(d)),
+  e JSON
+);
+SHOW CREATE TABLE t1;
+
+--echo # what the server tells a client the columns are
+--enable_metadata
+SELECT a, b, d, e FROM t1;
+--disable_metadata
+
+SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' ORDER BY COLUMN_NAME;
+
+--echo #
+--echo # a is unconstrained, so it can hold text that is not a document
+--echo #
+INSERT INTO t1 VALUES ('not json at all', '{"x":1}', '{"y":2}', '{"z":3}');
+SELECT a, JSON_VALID(a) AS a_is_a_document FROM t1;
+
+--echo # a is quoted like the ordinary column it is, not spliced
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t1;
+SELECT JSON_SET('{}', '$.k', b) AS from_b FROM t1;
+
+--echo # the controls are spliced
+SELECT JSON_SET('{}', '$.k', d) AS from_d FROM t1;
+SELECT JSON_SET('{}', '$.k', e) AS from_e FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # The same column holding a document that IS well formed
+--echo #
+--echo # Whether a is spliced or quoted decides whether the document nests
+--echo # or arrives as a string, and it must not depend on b's constraint.
+--echo #
+
+CREATE TABLE t2 (
+  a VARCHAR(100) CHECK (JSON_VALID(b)),
+  b VARCHAR(100),
+  d VARCHAR(100) CHECK (JSON_VALID(d))
+);
+INSERT INTO t2 VALUES ('{"p":1}', '{"x":1}', '{"p":1}');
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t2;
+SELECT JSON_SET('{}', '$.k', b) AS from_b FROM t2;
+SELECT JSON_SET('{}', '$.k', d) AS from_d FROM t2;
+DROP TABLE t2;
+
+--echo #
+--echo # A constraint that constrains nothing
+--echo #
+--echo # JSON_VALID('{}') is a constant true, so the column keeps no
+--echo # promise about its contents whatsoever.
+--echo #
+
+CREATE TABLE t3 (a VARCHAR(100) CHECK (JSON_VALID('{}')));
+--enable_metadata
+SELECT a FROM t3;
+--disable_metadata
+INSERT INTO t3 VALUES ('not json at all');
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t3;
+DROP TABLE t3;
+
+--echo #
+--echo # The constraint is still enforced, on the column it names
+--echo #
+
+CREATE TABLE t4 (a VARCHAR(100) CHECK (JSON_VALID(b)), b VARCHAR(100));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t4 VALUES ('anything', 'not json');
+INSERT INTO t4 VALUES ('anything', '{"x":1}');
+SELECT a, b FROM t4;
+DROP TABLE t4;
+
+--echo #
+--echo # A table level constraint types neither column, as before
+--echo #
+
+CREATE TABLE t5 (
+  a VARCHAR(100),
+  b VARCHAR(100),
+  CONSTRAINT c CHECK (JSON_VALID(b))
+);
+--enable_metadata
+SELECT a, b FROM t5;
+--disable_metadata
+DROP TABLE t5;
+
+--echo #
+--echo # A check that asks more than whether the column holds a document
+--echo #
+--echo # What types a column is JSON_VALID() of it and nothing else.  An
+--echo # AND keeps the promise and an OR does not, but a promise kept is
+--echo # not a column typed, and neither shape is typed.  Each is told so,
+--echo # in the words that fit it.
+--echo #
+
+CREATE TABLE t7 (
+  a TEXT CHECK (LENGTH(a) > 0 AND JSON_VALID(a)),
+  b TEXT CHECK (LENGTH(b) > 0 OR JSON_VALID(b)),
+  c TEXT CHECK (LENGTH(d) > 0 AND JSON_VALID(d)),
+  d TEXT
+);
+CREATE TABLE t8 (d TEXT CHECK (JSON_VALID(d)));
+
+--echo # the protocol tells the client what the warnings told the writer:
+--echo # none of the three is a JSON column, and a column whose check is
+--echo # the call alone still is
+--enable_metadata
+SELECT a, b, c, d FROM t7;
+SELECT d FROM t8;
+--disable_metadata
+
+--echo # and what each does with a document says the same: quoted, where a
+--echo # column whose check is the call alone is spliced
+INSERT INTO t7 VALUES ('{"p":1}', '{"p":1}', '{"p":1}', '{"p":1}'),
+                      ('[1,2]', '[1,2]', '[1,2]', '[1,2]');
+INSERT INTO t8 VALUES ('{"p":1}'), ('[1,2]');
+SELECT JSON_SET('{}', '$.k', a) AS from_and_shape FROM t7;
+SELECT JSON_SET('{}', '$.k', d) AS from_call_alone FROM t8;
+DROP TABLE t7, t8;
+
+--echo #
+--echo # A column the server itself wrote the constraint for stays JSON
+--echo #
+--echo # Both a declared JSON column and the columns of a temporary table
+--echo # built for grouping carry a constraint over themselves.
+--echo #
+
+CREATE TABLE t6 (j JSON, s VARCHAR(100) CHECK (JSON_VALID(s)));
+INSERT INTO t6 VALUES ('{"x":1}', '{"y":2}'), ('{"x":3}', '{"y":4}');
+
+--enable_metadata
+SELECT j, s FROM t6 GROUP BY j, s;
+--disable_metadata
+
+SELECT JSON_SET('{}', '$.k', j) AS from_j,
+       JSON_SET('{}', '$.k', s) AS from_s
+FROM (SELECT j, s FROM t6 GROUP BY j, s) AS grouped;
+
+SELECT JSON_ARRAYAGG(j) AS agg_j, JSON_ARRAYAGG(s) AS agg_s FROM t6;
+
+DROP TABLE t6;
+
+--echo #
+--echo # A row image a trigger reads through OLD. or NEW. is reached
+--echo # through a SECOND set of field objects, copied from the table's
+--echo # own so that they can point at the other record buffer.  A copy is
+--echo # the same column of the same table and carries the same check, so
+--echo # it is the same JSON column, and what it holds goes into a
+--echo # document as a document.
+--echo #
+--echo # Which columns get copied is not the same on the two sides.  The
+--echo # OLD. buffer is built whenever there is an update or delete
+--echo # trigger and copies every column; the NEW. buffer is built only
+--echo # where some column of the table cannot be null, and copies only
+--echo # the columns that cannot be.  So the five cases below that read a
+--echo # copy are not the five a reader would guess, and the two that
+--echo # read the table's own fields are here to say which is which.
+--echo #
+--echo # Every answer below is what a released server gives.
+--echo #
+CREATE TABLE lg (tag VARCHAR(24), v TEXT);
+CREATE TABLE t7 (id INT, j JSON);
+CREATE TABLE t8 (id INT, j JSON NOT NULL);
+INSERT INTO t7 VALUES (1, '{"a":1}');
+INSERT INTO t8 VALUES (1, '{"a":1}');
+
+CREATE TRIGGER tr1 BEFORE UPDATE ON t7 FOR EACH ROW
+  INSERT INTO lg VALUES ('nullable OLD upd', JSON_SET('{}','$.k',OLD.j)),
+                        ('nullable NEW upd', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr2 BEFORE UPDATE ON t8 FOR EACH ROW
+  INSERT INTO lg VALUES ('notnull OLD upd', JSON_SET('{}','$.k',OLD.j)),
+                        ('notnull NEW upd', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr3 BEFORE INSERT ON t7 FOR EACH ROW
+  INSERT INTO lg VALUES ('nullable NEW ins', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr4 BEFORE INSERT ON t8 FOR EACH ROW
+  INSERT INTO lg VALUES ('notnull NEW ins', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr5 BEFORE DELETE ON t7 FOR EACH ROW
+  INSERT INTO lg VALUES ('nullable OLD del', JSON_SET('{}','$.k',OLD.j));
+
+UPDATE t7 SET id = 2;
+UPDATE t8 SET id = 2;
+INSERT INTO t7 VALUES (3, '{"b":2}');
+INSERT INTO t8 VALUES (3, '{"b":2}');
+DELETE FROM t7 WHERE id = 3;
+
+SELECT tag, v FROM lg ORDER BY tag, v;
+
+--echo #
+--echo # THE CONTROLS: the same two columns read through the table's own
+--echo # fields, where there is no copy in the way.  These were never in
+--echo # question, and they say that the answers above are about the
+--echo # copying and not about the columns.
+--echo #
+SELECT JSON_SET('{}','$.k',j) AS direct_nullable FROM t7 ORDER BY 1;
+SELECT JSON_SET('{}','$.k',j) AS direct_notnull FROM t8 ORDER BY 1;
+
+DROP TABLE lg, t7, t8;
