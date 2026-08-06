@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-39252 At runtime list removed variables that have been set
+--echo #
+
+--echo #
+--echo # List INFORMATION_SCHEMA.REMOVED_STARTUP_OPTIONS
+--echo # Use --nowarnings
+--echo #
+SELECT OPTION_NAME, OPTION_VALUE, SOURCE, HANDLING FROM INFORMATION_SCHEMA.REMOVED_STARTUP_OPTIONS;

@@ -1,0 +1,4 @@
+!include include/default_my.cnf
+
+[mysqld.1]
+innodb_log_files_in_group=2
