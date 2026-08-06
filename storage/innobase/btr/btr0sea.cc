@@ -1291,7 +1291,7 @@ retry:
   ut_ad(state == buf_page_t::REMOVE_HASH || state >= buf_page_t::UNFIXED);
   ut_ad(state == buf_page_t::REMOVE_HASH ||
         !(~buf_page_t::LRU_MASK & state) || block->page.lock.have_any());
-  ut_ad(!buf_page_t::is_read_fixed(state));
+  ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
   ut_ad(page_is_leaf(block->page.frame));
 
   /* We must not dereference block->index here, because it could be freed
