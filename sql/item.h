@@ -2279,15 +2279,6 @@ public:
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
-    Data type format implied by the CHECK CONSTRAINT,
-    to be sent to the client in the result set metadata.
-  */
-  virtual bool set_format_by_check_constraint(Send_field_extended_metadata *)
-                                                                        const
-  {
-    return false;
-  }
-  /*
     set value of aggregate function in case of no rows for grouping were found
   */
   virtual void no_rows_in_result() {}
@@ -2431,6 +2422,12 @@ public:
 
   virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
   virtual bool find_function_processor (void *arg) { return 0; }
+  /*
+    Whether this is a JSON_VALID() call reading the column named by arg.
+    Used while a table is being defined, where the expression is not fixed
+    yet and a column can only be recognised by its name.
+  */
+  virtual bool json_valid_of_column_processor (void *) { return 0; }
   /*
     Check if a partition function is allowed
     SYNOPSIS

@@ -37,6 +37,13 @@ public:
   static const Type_handler *json_blob_type_handler_by_length_bytes(uint len);
   static const Type_handler *json_type_handler_sum(const Item_sum *sum);
   static const Type_handler *json_type_handler_from_generic(const Type_handler *th);
+  static bool is_json_valid_of_field_expr(const Item *expr,
+                                          const Field *field);
+  static bool is_json_valid_of_name(const Item *expr,
+                                    const LEX_CSTRING &name);
+  static void warn_if_json_valid_does_not_type(THD *thd,
+                                               Virtual_column_info *check,
+                                               const LEX_CSTRING &name);
   static bool has_json_valid_constraint(const Field *field);
   static bool is_json_valid_of_field(Virtual_column_info *check,
                                      const Field *field);

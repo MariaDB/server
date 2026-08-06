@@ -7502,17 +7502,22 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
 void Field_longstr::make_send_field(Send_field *field)
 {
   Field_str::make_send_field(field);
-  if (check_constraint)
-  {
-    /*
-      Append the format that is implicitly implied by the CHECK CONSTRAINT.
-      For example:
-        CREATE TABLE t1 (js longtext DEFAULT NULL CHECK (json_valid(a)));
-        SELECT j FROM t1;
-      will add "format=json" to the extended type info metadata for t1.js.
-    */
-    check_constraint->expr->set_format_by_check_constraint(field);
-  }
+  /*
+    Append the format that is implicitly implied by the CHECK CONSTRAINT.
+    For example:
+      CREATE TABLE t1 (js longtext DEFAULT NULL CHECK (json_valid(js)));
+      SELECT js FROM t1;
+    will add "format=json" to the extended type info metadata for t1.js.
+
+    What is asked is what types the column, which is the same question
+    Field_string::type_handler() below asks and the same answer.  A column
+    the client is told is a document is a column whose values it may pass
+    to a parser without quoting them, and that is what being typed JSON
+    means here; a check the column cannot pass without holding a document
+    is a weaker thing and does not type it.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    Type_handler_json_common::set_format_name(field);
 }
 
 
@@ -10950,8 +10955,12 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 
 bool Column_definition::validate_check_constraint(THD *thd)
 {
-  return check_constraint &&
-         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+  if (!check_constraint)
+    return false;
+  Type_handler_json_common::warn_if_json_valid_does_not_type(thd,
+                                                             check_constraint,
+                                                             field_name);
+  return check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
 }
 
 

@@ -140,6 +140,8 @@ DROP TABLE t1;
 # the check keeps reading: one reading, and it stays.
 #
 CREATE TABLE t1 (a VARCHAR(64) CHECK (JSON_VALID(b)), b VARCHAR(64));
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
 FLUSH STATUS;
 INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), JSON_OBJECT('b', 2));
 SHOW STATUS LIKE 'Json_scans';
@@ -152,6 +154,8 @@ DROP TABLE t1;
 # alone - one per row, and both stay.
 #
 CREATE TABLE t1 (j VARCHAR(64) CHECK (JSON_VALID(j) AND LENGTH(j) < 40));
+Warnings:
+Warning	4271	CHECK constraint of column 'j' asks more than JSON_VALID() of it; the column is not a JSON column
 FLUSH STATUS;
 INSERT INTO t1 VALUES (JSON_OBJECT('a', 1)), (JSON_OBJECT('b', 2));
 SHOW STATUS LIKE 'Json_scans';
