@@ -156,4 +156,15 @@ set @a=concat(0x0107000000, repeat(0x010000000107000000, 120000), 0x00000000);
 SELECT ST_GeomFromWKB(@a);
 --enable_result_log
 
+--echo #
+--echo # MDEV-39750 ExtractValue does not control recursion depth.
+--echo #
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('(', 100000));
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
+
 --echo # End of 10.6 tests
