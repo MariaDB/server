@@ -1898,8 +1898,6 @@ end:
 }
 
 #endif // MYSQL_CLIENT
-/* TODO: Tarun get this reviewed. changed the base class name from
-rpl_gtid_base to rpl_binlog_state_base (also get reviewed the ifndef blocks )*/
 /* Helper functions for update. */
 int
 rpl_binlog_state_base::element::update_element(const rpl_gtid *gtid)

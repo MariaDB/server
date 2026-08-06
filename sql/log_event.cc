@@ -2384,7 +2384,6 @@ Format_description_log_event::to_packet(String *packet)
   p += 2;
   memcpy(p, server_version, ST_SERVER_VER_LEN);
   p+= ST_SERVER_VER_LEN;
-/* TODO: Tarun get this reviewed */
 #ifdef MYSQL_SERVER
   if (!dont_set_created)
     created= get_time();
