@@ -1,0 +1,48 @@
+--source include/have_64bit_timestamp.inc
+--source include/have_partition.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-40467 Auto-partition fails when using maximum timestamp
+--echo #
+
+SET time_zone='+00:00';
+set timestamp=4294967295;
+
+--echo ## out of range with TIMESTAMP
+create table t1 (c timestamp) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 day
+(
+PARTITION p0 VALUES LESS THAN ('2106-02-01')
+);
+
+--error ER_DATA_OUT_OF_RANGE
+insert into t1 values ('2026-04-20');
+show create table t1;
+drop table t1;
+
+--echo ## fine with DATE type
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 day
+(
+PARTITION p0 VALUES LESS THAN ('2106-02-01')
+);
+
+insert into t1 values ('2026-04-20');
+show create table t1;
+drop table t1;
+
+--echo ## fine with DATETIME type
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 day
+(
+PARTITION p0 VALUES LESS THAN ('2106-02-01')
+);
+
+insert into t1 values ('2026-04-20');
+show create table t1;
+drop table t1;
+SET time_zone=default;
