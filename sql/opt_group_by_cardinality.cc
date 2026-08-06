@@ -86,7 +86,8 @@ int cmp_items_by_used_tables(const void *a_val, const void *b_val)
     Number of rows that will be left after grouping operation
 */
 
-double estimate_post_group_cardinality(JOIN *join, double join_output_card)
+double estimate_post_group_cardinality(JOIN *join, double join_output_card,
+                                       ORDER *group_list)
 {
   Dynamic_array<Item*> group_cols(join->thd->mem_root);
   ORDER *cur_group;
@@ -101,7 +102,7 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     sub-arrays that refer to just one table.
     Also check that each item depends on just one table (if not, bail out).
   */
-  for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
+  for (cur_group= group_list; cur_group; cur_group= cur_group->next)
   {
     Item *item= *cur_group->item;
     table_map map= item->used_tables();

@@ -6420,7 +6420,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           records= COST_MULT(records, rr);
 
       if (join->group_list)
-        records= estimate_post_group_cardinality(join, records);
+        records= estimate_post_group_cardinality(join, records, join->group_list);
 
       rows= double_to_rows(records);
       set_if_smaller(rows, unit->lim.get_select_limit());

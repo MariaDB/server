@@ -37,17 +37,22 @@
     with 1 for zero elements.
 */
 
-static ha_rows handle_single_part_rownumber( Item_window_func *item_row_number)
+static ha_rows handle_single_part_rownumber(JOIN *join, Item_window_func *item_row_number)
 {
   if (item_row_number->window_spec->partition_list &&
       item_row_number->window_spec->partition_list->elements)
   {
+    ORDER *part_list=  item_row_number->window_spec->partition_list->first;
+    double card= 
+        estimate_post_group_cardinality(join, join->join_record_count,
+                                        part_list);
+    return join->join_record_count / card;
+#if 0
     double records= 1;
     const uint max_tables= 16;
     TABLE *tables[max_tables];
     double table_distinct[max_tables];
     uint table_count= 0;
-    ORDER *part_list=  item_row_number->window_spec->partition_list->first;
     for (; part_list; part_list= part_list->next)
     {
       if ((*part_list->item)->type() == Item::FIELD_ITEM)
@@ -68,7 +73,7 @@ static ha_rows handle_single_part_rownumber( Item_window_func *item_row_number)
         {
           table_records= table->file->stats.records;
           if (table_records == HA_POS_ERROR)
-            table_records= 1000; // Fallback default
+            table_records= 1000; // Fallback default DOES THIS EVER HAPPEN?
         }
 
         double diff_values= 1.0;
@@ -106,9 +111,11 @@ static ha_rows handle_single_part_rownumber( Item_window_func *item_row_number)
     for (uint i= 0; i < table_count; i++)
       records*= table_distinct[i];
     return records < 1.0 ? (ha_rows)1 : (ha_rows)records;
+#endif
   }
   else
-  {
+  { 
+    // No PARTITION BY clause. All rows are unique.
     return (ha_rows)1;
   }
 }
@@ -150,21 +157,17 @@ bool est_derived_window_fn_cardinality(st_select_lex* derived,
                                        Field **reg_fields,
                                        uint key_parts)
 {
-  uint fc= 0;
-
-  while (fc < key_parts)
+  for (uint fc=0 ; fc < key_parts; fc++)
   {
-    uint ic= 0;
-    if (!reg_fields[fc])
-    {
-      fc++;
+    if (!reg_fields[fc]) // TODO: what is that?
       continue;
-    }
+
     uint field_index= reg_fields[fc]->field_index;
     List_iterator_fast<Item> li(*derived->get_item_list());
     Item *item;
 
     // find our window function in the item list
+    uint ic= 0;
     while ((item= li++))
     {
       // if the single part key is on our window function
@@ -174,13 +177,12 @@ bool est_derived_window_fn_cardinality(st_select_lex* derived,
 
         if (item_row_num->window_func()->sum_func() == Item_sum::ROW_NUMBER_FUNC)
         {
-          *out_records= (ulong)handle_single_part_rownumber(item_row_num);
+          *out_records= (ulong)handle_single_part_rownumber(derived->join, item_row_num);
           return true;
         }
       }
       ic++;
     }
-    fc++;
   }
 
   return false;
