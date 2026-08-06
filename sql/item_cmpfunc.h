@@ -3695,8 +3695,6 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref) override;
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
-    override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;

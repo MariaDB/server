@@ -148,11 +148,10 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
-    override
+  bool json_valid_of_column_processor(void *arg) override
   {
-    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
-    return to->set_format_name(fmt);
+    return Type_handler_json_common::
+             is_json_valid_of_name(this, *(const LEX_CSTRING *) arg);
   }
   enum Functype functype() const override { return JSON_VALID_FUNC; }
 

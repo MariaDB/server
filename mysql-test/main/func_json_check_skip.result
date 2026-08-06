@@ -137,7 +137,9 @@ DROP TABLE t1;
 # check, however much it looks like one.
 #
 CREATE TABLE t1 (a VARCHAR(64) CHECK (JSON_VALID(b)), b VARCHAR(64));
-# a is handed a document, b is not; the check reads b and refuses
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+# a is given a document, b is not; the check reads b and refuses
 INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), 'not a document');
 ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
 SELECT COUNT(*) AS rows_that_got_in FROM t1;
@@ -155,6 +157,8 @@ DROP TABLE t1;
 # document keeps asking it.
 #
 CREATE TABLE t1 (j VARCHAR(64) CHECK (JSON_VALID(j) AND LENGTH(j) < 12));
+Warnings:
+Warning	4271	CHECK constraint of column 'j' asks more than JSON_VALID() of it; the column is not a JSON column
 INSERT INTO t1 VALUES (JSON_OBJECT('a', 1));
 INSERT INTO t1 VALUES (JSON_OBJECT('aaaaaaaaaa', 1));
 ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
