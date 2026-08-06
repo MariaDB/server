@@ -11,7 +11,7 @@ SELECT * FROM t_b WHERE id = 1 FOR UPDATE;
 id	c
 1	0
 connect node_1_victim, 127.0.0.1, root, , test, $NODE_MYPORT_1;
-SET SESSION tx_isolation = 'READ-COMMITTED';
+SET SESSION transaction_isolation = 'READ-COMMITTED';
 BEGIN;
 UPDATE t_a SET c = c + 1 WHERE id > 0;
 connection node_1;
