@@ -1,0 +1,47 @@
+#
+# Test for issue MDEV-37013
+# The test scenario is developed by Stefan Frye,
+# just shortened and simplified in this test script
+# 
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE k (
+  id_k INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+ 
+CREATE TABLE b (
+  id_b INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  id_k INT NOT NULL,
+  KEY (id_k),
+  CONSTRAINT b_ibfk_1 FOREIGN KEY (id_k)
+    REFERENCES k (id_k) ON DELETE CASCADE
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+ 
+CREATE TABLE d (
+  id_d INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  id_k INT NOT NULL,
+  KEY (id_k),
+  id_type INT NOT NULL,
+  g DATE NOT NULL,
+  unique_monat DATE AS (IF(id_type = 3, g, NULL)),
+  UNIQUE KEY (unique_monat, id_k, id_type,  g),
+ CONSTRAINT d_id_kind_foreign FOREIGN KEY (id_k)
+    REFERENCES k (id_k) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO k (id_k, name) VALUES (13, 'Testkind');
+
+INSERT INTO b (id_k) VALUES (13), (13);
+
+INSERT INTO d (id_k, id_type, g) VALUES
+  (13, 1, '2025-08-01'),
+  (13, 3, '2025-09-01');
+  
+START TRANSACTION;
+UPDATE k SET name = 'new_name' WHERE id_k IN ('13');
+DELETE FROM k WHERE id_k IN ('13');
+COMMIT;
+
