@@ -313,7 +313,8 @@ void mtr_t::release_unlogged()
       buf_block_t *block= static_cast<buf_block_t*>(slot.object);
       ut_d(const auto s=) block->page.unfix();
       ut_ad(s >= buf_page_t::FREED);
-      ut_ad(s < buf_page_t::READ_FIX);
+      /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+      ut_ad(!buf_page_t::is_read_fixed(s));
 
       if (slot.type & MTR_MEMO_MODIFY)
       {
@@ -440,7 +441,8 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
         ut_ad(b->page.id() < end_page_id);
         ut_d(const auto s= b->page.state());
         ut_ad(s > buf_page_t::FREED);
-        ut_ad(s < buf_page_t::READ_FIX);
+        /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+        ut_ad(!buf_page_t::is_read_fixed(s));
         ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <=
               mtr->m_commit_lsn);
         mach_write_to_8(b->page.frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
@@ -672,7 +674,8 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
       const page_id_t id{b->page.id()};
       const auto s= b->page.state();
       ut_ad(s > buf_page_t::FREED);
-      ut_ad(s < buf_page_t::READ_FIX);
+      /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+      ut_ad(!buf_page_t::is_read_fixed(s));
       ut_ad(b->page.frame);
       ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= m_commit_lsn);
       ut_ad(!b->page.zip.data); // we no not shrink ROW_FORMAT=COMPRESSED
@@ -1540,7 +1543,8 @@ buf_block_t *mtr_t::page_lock(buf_block_t *block, ulint rw_latch) noexcept
   case RW_SX_LATCH:
     fix_type= MTR_MEMO_PAGE_SX_FIX;
     block->page.lock.u_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
     break;
   default:
     ut_ad(rw_latch == RW_X_LATCH);
@@ -1551,7 +1555,8 @@ buf_block_t *mtr_t::page_lock(buf_block_t *block, ulint rw_latch) noexcept
       page_lock_upgrade(*block);
       return block;
     }
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
   }
 
 done:
@@ -1586,11 +1591,13 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
     break;
   case RW_SX_LATCH:
     block->page.lock.u_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
     break;
   case RW_X_LATCH:
     block->page.lock.x_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
   }
 
   ut_ad(page_id_t(page_get_space_id(block->page.frame),

@@ -2501,7 +2501,12 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
   case buf_page_t::REINIT + 1:
     break;
   default:
-    ut_ad(state < buf_page_t::READ_FIX);
+    /*
+      There may be a fake "write fix" if a thread is executing
+      between InnoDB_backup::backup_batch_start() and
+      InnoDB_backup::backup_batch_stop() on this page.
+    */
+    ut_ad(!buf_page_t::is_read_fixed(state));
 
     if (state < buf_page_t::UNFIXED + 1)
     {
@@ -2879,7 +2884,17 @@ ignore_unfixed:
 				if (!nowait) {
 					goto latch_waited;
 				} else {
-					ut_ad(state < buf_page_t::READ_FIX);
+					/* If a thread is executing between
+					InnoDB_backup::backup_batch_start() and
+					InnoDB_backup::backup_batch_stop()
+					for this page, a fake "write
+					fix" may exist. We are free to
+					modify the page in the buffer
+					pool, but buf_page_t::flush()
+					will refuse to write it to the
+					file system. */
+					ut_ad(!buf_page_t::
+					      is_read_fixed(state));
 				}
 				/* fall through */
 			case RW_S_LATCH:
@@ -2893,8 +2908,7 @@ ignore_unfixed:
 	} else {
 not_read_fixed:
 		ut_ad(state > buf_page_t::FREED);
-		ut_ad(state < buf_page_t::READ_FIX
-		      || state > buf_page_t::WRITE_FIX);
+		ut_ad(!buf_page_t::is_read_fixed(state));
 		if (UNIV_UNLIKELY(!block->page.frame
 				  && mode == BUF_PEEK_IF_IN_POOL)) {
 			/* The BUF_PEEK_IF_IN_POOL mode is mainly used
@@ -2956,7 +2970,8 @@ wait_for_unzip:
 		break;
 	case RW_SX_LATCH:
 		block->page.lock.u_lock();
-		ut_ad(!block->page.is_io_fixed());
+                /* A fake "write fix" of InnoDB_backup may exist */
+		ut_ad(!block->page.is_read_fixed());
 		break;
 	default:
 		ut_ad(rw_latch == RW_X_LATCH);
@@ -3039,7 +3054,8 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
     goto fail;
   else
   {
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
 
     if (modify_clock != block->modify_clock || block->page.is_freed())
     {
@@ -3198,24 +3214,33 @@ retry:
         mysql_mutex_unlock(&buf_pool.mutex);
 
         bpage->lock.x_lock();
-        const page_id_t id{bpage->id()};
-        if (UNIV_UNLIKELY(id != page_id))
+        if (UNIV_UNLIKELY(bpage->id() != page_id))
         {
-          ut_ad(id.is_corrupted());
+          ut_ad(bpage->id().is_corrupted());
           ut_ad(bpage->is_freed());
+        backtrack:
           bpage->unfix();
           bpage->lock.x_unlock();
           goto retry;
         }
         mysql_mutex_lock(&buf_pool.mutex);
         state= bpage->state();
-        ut_ad(!bpage->is_io_fixed(state));
         ut_ad(bpage->buf_fix_count(state));
       }
       else
         state= bpage->state();
 
       ut_ad(state > buf_page_t::FREED);
+
+      if (UNIV_UNLIKELY(buf_page_t::is_write_fixed(state)))
+        /* A thread should be executing between
+        InnoDB_backup::backup_batch_start() and
+        InnoDB_backup::backup_batch_stop() on this page.
+
+        We play it safe and will wait until the fake "write fix"
+        has been cleared. */
+        goto backtrack;
+
       ut_ad(state < buf_page_t::READ_FIX);
       /* In addition to our buffer-fix, there may be another that is
       held by a concurrent IORequest::read_complete() that had
@@ -3831,8 +3856,7 @@ void buf_pool_t::validate() noexcept
 			/* do nothing */
 			break;
 		default:
-			if (f >= buf_page_t::READ_FIX
-			    && f < buf_page_t::WRITE_FIX) {
+			if (buf_page_t::is_read_fixed(f)) {
 				/* A read-fixed block is not
 				necessarily in the page_hash yet. */
 				break;

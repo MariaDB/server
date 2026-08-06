@@ -245,7 +245,7 @@ void buf_flush_remove_pages(uint32_t id) noexcept
     {
       const auto s= bpage->state();
       ut_ad(s >= buf_page_t::REMOVE_HASH);
-      ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
+      ut_ad(!buf_page_t::is_read_fixed(s));
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
       const page_id_t bpage_id(bpage->id());
@@ -1374,11 +1374,14 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 
     if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
     {
-      ut_ad(!bpage->is_io_fixed());
+      /* A fake "write fix" of InnoDB_backup may have been set
+      meanwhile. We will recheck it at evict: */
+      ut_ad(!bpage->is_read_fixed());
       switch (bpage->oldest_modification()) {
       case 2:
         /* LRU flushing will always evict pages of the temporary tablespace,
         in buf_page_write_complete(). */
+        ut_ad(!bpage->is_io_fixed());
         ++n->evicted;
         break;
       case 1:
@@ -1392,6 +1395,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         /* fall through */
       case 0:
         bpage->lock.u_unlock(true);
+        /* Reload the state in case InnoDB_backup::backup_batch_stop()
+        had cleared its fake "write fix". */
+        state= bpage->state();
         goto evict;
       }
       /* Block is ready for flush. Dispatch an IO request. */
@@ -1569,7 +1575,9 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       if (!bpage->lock.u_lock_try(true))
         goto skip;
 
-      ut_ad(!bpage->is_io_fixed());
+      /* A fake "write fix" of InnoDB_backup may exist;
+      we will check it in buf_page_t::flush() */
+      ut_ad(!bpage->is_read_fixed());
 
       if (bpage->oldest_modification() == 1)
       {
