@@ -354,6 +354,16 @@ namespace
       size_t len= strlen(file_name);
       if (len < 4)
         return false;
+      if (!memcmp(file_name, tmp_file_prefix, tmp_file_prefix_length))
+        /*
+          As noted in MDEV-25854, file names that start with #sql
+          must be excluded from the backup. For example, a call to
+          MDL_context::upgrade_shared_lock() in
+          mysql_inplace_alter_table() could time out, resulting in
+          cleanup_table_after_inplace_alter() deleting a
+          #sql-alter*.frm file before we get a chance to copy it.
+        */
+        return false;
       uint32_t suffix;
       memcpy(&suffix, file_name + len - 4, 4);
       switch (suffix) {
