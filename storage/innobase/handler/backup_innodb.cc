@@ -735,22 +735,33 @@ private:
 #endif
       const uint32_t page_size{node->space->physical_size()};
       int err{0};
+      if (node->size < limit)
+        limit= node->size;
+      /*
+        For the system tablespace, there is a minimum size has been configured
+        which may be larger than the currently used size. Preserve the
+        original size.
 
-      if (node->size > limit)
+        For other persistent data files, fil_node_t::read_page0()
+        expects at least 4 * innodb_page_size bytes. Small
+        ROW_FORMAT=COMPRESSED files may be zero-filled to this size.
+      */
+      const uint64_t min_size=
+        std::max(uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift,
+                 uint64_t{node->size} * page_size);
+      if (uint64_t{limit} * page_size < min_size)
       {
-        /* Expand the target file to its logical size. */
+        /* Expand the target file to the minimum size. */
 #ifdef _WIN32
         LARGE_INTEGER li;
-        li.QuadPart= uint64_t{node->size} * page_size;
+        li.QuadPart= min_size;
         err= !SetFilePointerEx(f, li, nullptr, FILE_BEGIN) || !SetEndOfFile(f);
 #else
-        err= ftruncate(f, uint64_t{node->size} * page_size);
+        err= ftruncate(f, min_size);
 #endif
         if (err)
           limit= 0;
       }
-      else if (node->size < limit)
-        limit= node->size;
 
       for (uint32_t page{0}; page < limit; )
       {
@@ -793,8 +804,10 @@ private:
   static int stream(IF_WIN(HANDLE,int) stream, fil_node_t *node,
                     uint32_t start, uint32_t limit) noexcept
   {
-    const uint32_t file_size{node->size},
-      page_size{node->space->physical_size()};
+    const uint32_t page_size{node->space->physical_size()},
+      file_size= std::max(std::max(limit, node->size),
+                          (FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift) /
+                          page_size);
     backup_chunk chunk[2]{
       {0, uint64_t{limit} * page_size},
       {uint64_t{file_size} * page_size, 0}
