@@ -288,7 +288,21 @@ static std::string get_field_default_for_duckdb(Field *field,
     String str(buf, sizeof(buf), system_charset_info);
     String *val= field->val_str(&str);
     if (val && val->length() > 0)
-      default_value= "'" + std::string(val->ptr(), val->length()) + "'";
+    {
+      /*
+        Escape the literal by doubling any embedded single quote so a crafted
+        DEFAULT string cannot terminate the generated DuckDB literal and inject
+        further DuckDB statements (MDEV-40610). escape_quotes_for_mysql() is
+        charset aware and performs exactly this doubling.
+      */
+      std::string escaped(2 * val->length(), '\0');
+      my_bool overflow;
+      size_t escaped_len= escape_quotes_for_mysql(val->charset(), &escaped[0],
+                                                  0, val->ptr(), val->length(),
+                                                  &overflow);
+      escaped.resize(escaped_len);
+      default_value= "'" + escaped + "'";
+    }
     else
       default_value= "NULL";
   }

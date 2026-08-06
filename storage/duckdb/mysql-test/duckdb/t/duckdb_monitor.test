@@ -1,4 +1,7 @@
 --source ../include/have_duckdb.inc
+# MDEV-40449: MSan reports use-of-uninitialized-value in
+# duckdb::JemallocExtension::ThreadFlush (false positive from uninstrumented jemalloc).
+--source include/not_msan.inc
 
 #
 # DuckDB monitoring status variables test.
