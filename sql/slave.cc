@@ -6507,7 +6507,8 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     mi->checksum_alg_before_fd : mi->rli.relay_log.relay_log_checksum_alg;
 
   const uchar *save_buf= NULL; // needed for checksumming the fake Rotate event
-  uchar rot_buf[LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN + FN_REFLEN];
+  uchar rot_buf[LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN + FN_REFLEN +
+                BINLOG_CHECKSUM_LEN];
 
   /* The shortest event a master of this binlog version can legally send. */
   ulong min_event_len=
@@ -6628,7 +6629,47 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     goto err;
   case ROTATE_EVENT:
   {
-    Rotate_log_event rev(buf, checksum_alg != BINLOG_CHECKSUM_ALG_OFF ?
+    /*
+      RSC_1 and RSC_2 below rewrite the fake Rotate (the one that opens a
+      connection, naming the binary log file the dump starts in; the file
+      switches later in the connection send more, but by then the first
+      format description event has left the relay log carrying the master's
+      algorithm) through rot_buf, and the first two conditions here are the
+      pair that selects them: a fake Rotate that carries a checksum the
+      relay log does not, or the reverse. Both cases memcpy() into rot_buf
+      a length taken from event_len, so event_len has to be bounded before
+      they run. The Rotate_log_event constructed below does not bound it.
+      That constructor caps only new_log_ident, the copy of the file name
+      it keeps for itself, so event_len remains the length the master sent.
+      This check is placed at the start of the case block so a rejected event
+      will not change replication state.
+    */
+    bool is_fake_rotate= uint4korr(&buf[0]) == 0;
+    bool event_has_checksum= checksum_alg != BINLOG_CHECKSUM_ALG_OFF;
+    bool relay_log_has_checksum=
+      mi->rli.relay_log.relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_OFF;
+
+    /* The longest Rotate a master can send under its own checksum policy. */
+    ulong max_rotate_len=
+      LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN + FN_REFLEN +
+      (event_has_checksum ? BINLOG_CHECKSUM_LEN : 0);
+
+    if (unlikely(is_fake_rotate &&
+                 event_has_checksum != relay_log_has_checksum &&
+                 event_len > max_rotate_len))
+    {
+      error= ER_SLAVE_FATAL_ERROR;
+      error_msg.append(STRING_WITH_LEN("Rotate event from master names a "
+                                       "binary log file longer than the "
+                                       "maximum file name length; the event's "
+                                       "length: "));
+      error_msg.append_ulonglong(event_len);
+      error_msg.append(STRING_WITH_LEN(", the maximum: "));
+      error_msg.append_ulonglong(max_rotate_len);
+      goto err;
+    }
+
+    Rotate_log_event rev(buf, event_has_checksum ?
                          event_len - BINLOG_CHECKSUM_LEN : event_len,
                          mi->rli.relay_log.description_event_for_queue);
 
@@ -6730,8 +6771,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
               to compute checksum for its first FD event for RL
               the fake Rotate gets checksummed here.
     */
-    if (uint4korr(&buf[0]) == 0 && checksum_alg == BINLOG_CHECKSUM_ALG_OFF &&
-        mi->rli.relay_log.relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+    if (is_fake_rotate && !event_has_checksum && relay_log_has_checksum)
     {
       ha_checksum rot_crc= 0;
       event_len += BINLOG_CHECKSUM_LEN;
@@ -6754,8 +6794,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         RSC_2: If NM \and fake Rotate \and slave does not compute checksum
         the fake Rotate's checksum is stripped off before relay-logging.
       */
-      if (uint4korr(&buf[0]) == 0 && checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-          mi->rli.relay_log.relay_log_checksum_alg == BINLOG_CHECKSUM_ALG_OFF)
+      if (is_fake_rotate && event_has_checksum && !relay_log_has_checksum)
       {
         event_len -= BINLOG_CHECKSUM_LEN;
         memcpy(rot_buf, buf, event_len);
