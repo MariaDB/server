@@ -109,7 +109,7 @@ connection slave;
 set @saved_dbug = @@global.debug_dbug;
 set @@global.debug_dbug='d,simulate_checksum_test_failure';
 start slave io_thread;
-include/wait_for_slave_io_error.inc [errno=1595,1913]
+include/wait_for_slave_io_error.inc [errno=1743]
 set @@global.debug_dbug = @saved_dbug;
 start slave io_thread;
 include/wait_for_slave_param.inc [Read_Master_Log_Pos]
