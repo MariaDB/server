@@ -113,5 +113,11 @@ if [ "$wsrep_on" -eq 1 ]; then
   wsrep_recover_position
 fi
 
-echo "$start_pos_opt"
+if [ -n "$INVOCATION_ID" ] && [ -n "$start_pos_opt" ]; then
+    # INVOCATION_ID is an indication of running under systemd where we
+    # want the full env variable
+    echo "_WSREP_START_POSITION=$start_pos_opt"
+else
+    echo "$start_pos_opt"
+fi
 
