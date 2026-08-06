@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 # 1. In Duckdb, some string function does not support blob fields as input
 # 2. Regex-related functions are basically incompatible, and regex functions will be processed uniformly in the future.
