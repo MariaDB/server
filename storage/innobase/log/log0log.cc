@@ -810,7 +810,18 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_wait(wait_lsn, !UT_LIST_GET_LEN(buf_pool.flush_list));
+        const bool must_pad{!UT_LIST_GET_LEN(buf_pool.flush_list)};
+        if (must_pad)
+        {
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+          to ensure that the log resizing will complete. */
+          mtr_t mtr{nullptr};
+          mtr.start();
+          mtr.commit_files(last_checkpoint_lsn);
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        }
+        buf_flush_wait(wait_lsn, must_pad);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();
