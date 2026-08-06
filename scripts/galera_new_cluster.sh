@@ -21,11 +21,11 @@ EOF
     exit 0
 fi
 
-echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > "@INSTALL_RUNDATADIR@/wsrep-new-cluster" && \
+echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > "@INSTALL_RUNDIR@/wsrep-new-cluster" && \
     systemctl restart mariadb.service
 
 extcode=$?
 
-rm -f "@INSTALL_RUNDATADIR@/wsrep-new-cluster"
+rm -f "@INSTALL_RUNDIR@/wsrep-new-cluster"
 
 exit $extcode
