@@ -3064,7 +3064,8 @@ void st_select_lex_unit::set_unique_exclude()
 
 bool st_select_lex_unit::check_distinct_in_union()
 {
-  if (union_distinct && !union_distinct->next_select())
+  if (union_distinct && !union_distinct->next_select() &&
+      union_distinct->distinct)
     return true;
   return false;
 }
