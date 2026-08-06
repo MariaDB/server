@@ -1422,6 +1422,188 @@ void pwt_manager::free_queue()
 }
 
 
+
+#ifndef DBUG_OFF
+/*
+  @brief
+    Check that Item_sum::direct_add() folds a partial aggregate in correctly.
+
+  @description
+    direct_add() is the primitive worker-side pre-aggregation would merge with:
+    a worker aggregates its chunk and the manager folds each partial into the
+    group's running value. It exists on Item_sum_sum (a decimal and a real
+    overload), Item_sum_count and Item_sum_min_max -- and has no caller anywhere
+    in the server, so nothing else exercises it.
+
+    There is therefore no SQL that reaches it, and this is the call. It runs
+    under the pwt_verify_direct_add DBUG keyword, on a clone of each of the
+    query's aggregates so the query's own answer is untouched, and reports
+    through the diagnostics area so that main.parallel_query_direct_add can pin
+    the arithmetic. Feeding a NULL partial matters as much as feeding a value:
+    a worker whose chunk held no qualifying row for a group contributes one, and
+    it must not read as a zero.
+
+    add() and clear() are private; aggregator_add() and aggregator_clear() are
+    the way in, so the clone is given a simple aggregator to route through.
+*/
+
+static void pwt_dbug_verify_direct_add(THD *thd, JOIN *join)
+{
+  List_iterator_fast<Item> ai(join->fields_list);
+  Item *it;
+
+  while ((it= ai++))
+  {
+    if (it->type() != Item::SUM_FUNC_ITEM)
+      continue;
+
+    Item *copy= it->deep_copy_with_checks(thd);
+    if (!copy)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "direct_add: aggregate could not be cloned");
+      continue;
+    }
+    Item_sum *a= (Item_sum *) copy;
+    if (a->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR))
+      continue;
+
+    switch (a->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+    {
+      Item_sum_count *x= (Item_sum_count *) a;
+      x->aggregator_clear();
+      x->direct_add((longlong) 5); x->aggregator_add();
+      x->direct_add((longlong) 7); x->aggregator_add();
+      const longlong two= x->val_int();
+      /* a worker whose chunk had no qualifying row ships a zero */
+      x->aggregator_clear();
+      x->direct_add((longlong) 0); x->aggregator_add();
+      x->direct_add((longlong) 3); x->aggregator_add();
+      x->direct_add((longlong) 0); x->aggregator_add();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "direct_add COUNT: 5+7=%lld (want 12), "
+                          "0+3+0=%lld (want 3)", two, x->val_int());
+      break;
+    }
+    case Item_sum::SUM_FUNC:
+    {
+      Item_sum_sum *x= (Item_sum_sum *) a;
+      const bool dec= x->result_type() == DECIMAL_RESULT;
+      my_decimal d;
+      x->aggregator_clear();
+      if (dec)
+      {
+        int2my_decimal(E_DEC_FATAL_ERROR, (longlong) 3, false, &d);
+        x->direct_add(&d);
+      }
+      else
+        x->direct_add(3.0, false);
+      x->aggregator_add();
+      if (dec)
+      {
+        int2my_decimal(E_DEC_FATAL_ERROR, (longlong) 4, false, &d);
+        x->direct_add(&d);
+      }
+      else
+        x->direct_add(4.0, false);
+      x->aggregator_add();
+      const double sum= x->val_real();
+
+      /*
+        A NULL partial. The two overloads say so differently: the real one takes
+        a flag, the decimal one takes a null pointer, where a pointer to decimal
+        zero would mean the value 0.
+      */
+      x->aggregator_clear();
+      if (dec)
+        x->direct_add((my_decimal *) NULL);
+      else
+        x->direct_add(0.0, true);
+      x->aggregator_add();
+      (void) x->val_real();
+      const bool stayed_null= x->null_value;
+      if (dec)
+      {
+        int2my_decimal(E_DEC_FATAL_ERROR, (longlong) 5, false, &d);
+        x->direct_add(&d);
+      }
+      else
+        x->direct_add(5.0, false);
+      x->aggregator_add();
+      const double after= x->val_real();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "direct_add SUM/%s: 3+4=%g (want 7), "
+                          "NULL stays null=%d (want 1), then +5=%g (want 5)",
+                          dec ? "decimal" : "real", sum, (int) stayed_null,
+                          after);
+      break;
+    }
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+    {
+      const bool is_min= a->sum_func() == Item_sum::MIN_FUNC;
+      if (a->get_arg(0)->result_type() != INT_RESULT)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_UNKNOWN_ERROR,
+                            "direct_add %s: skipped, argument is not integer",
+                            is_min ? "MIN" : "MAX");
+        break;
+      }
+      Item_sum_min_max *x= (Item_sum_min_max *) a;
+      x->aggregator_clear();
+      x->direct_add(new (thd->mem_root) Item_int(thd, (longlong) 5));
+      x->aggregator_add();
+      x->direct_add(new (thd->mem_root) Item_int(thd, (longlong) 3));
+      x->aggregator_add();
+      const longlong two= x->val_int();
+
+      /* a NULL partial must be skipped rather than become the extreme */
+      x->aggregator_clear();
+      x->direct_add(new (thd->mem_root) Item_null(thd));
+      x->aggregator_add();
+      (void) x->val_int();
+      const bool stayed_null= x->null_value;
+      x->direct_add(new (thd->mem_root) Item_int(thd, (longlong) 9));
+      x->aggregator_add();
+      x->direct_add(new (thd->mem_root) Item_int(thd, (longlong) 4));
+      x->aggregator_add();
+      x->direct_add(new (thd->mem_root) Item_int(thd, (longlong) 7));
+      x->aggregator_add();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "direct_add %s: 5,3=%lld (want %lld), "
+                          "NULL stays null=%d (want 1), "
+                          "then 9,4,7=%lld (want %lld)",
+                          is_min ? "MIN" : "MAX", two, is_min ? 3LL : 5LL,
+                          (int) stayed_null, x->val_int(),
+                          is_min ? 4LL : 9LL);
+      break;
+    }
+    default:
+      /*
+        No direct_add on this class. BIT_AND/OR/XOR do not need one, being
+        self-composing: a partial in args[0] and an ordinary add merges. AVG,
+        STD and VARIANCE do need one, because a partial average cannot be
+        averaged -- they would have to ship the state their temp-table field
+        already holds.
+      */
+      {
+        /* func_name() carries the opening parenthesis; drop it. */
+        const LEX_CSTRING nm= a->func_name_cstring();
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_UNKNOWN_ERROR,
+                            "direct_add: no overload for %.*s",
+                            (int) (nm.length && nm.str[nm.length - 1] == '('
+                                   ? nm.length - 1 : nm.length), nm.str);
+      }
+      break;
+    }
+  }
+}
+#endif /* DBUG_OFF */
+
+
 /**
   @brief
     Initialise our parallel worker threads, setting their own new THD objects.
@@ -1798,6 +1980,12 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
       goto cleanup_thread_create;
     }
   }
+  /*
+    Once per query and on the manager's thread, so the notes reach the user's
+    diagnostics area rather than a worker's. See pwt_dbug_verify_direct_add().
+  */
+  DBUG_EXECUTE_IF("pwt_verify_direct_add",
+                  pwt_dbug_verify_direct_add(thd, join););
   return 0;
 
 cleanup_thread_create:

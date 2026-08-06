@@ -1,0 +1,68 @@
+SET @s= @@session.parallel_worker_threads;
+SET @d= @@global.debug_dbug;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, r DOUBLE, m DECIMAL(20,4))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 97, seq / 7, seq FROM seq_1_to_40000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET SESSION parallel_worker_threads= 8;
+SET GLOBAL debug_dbug='+d,pwt_verify_direct_add';
+#
+# The check runs from init_parallel_workers(), so it only happens when the
+# workers really run. The row count is reported to prove they did: were
+# this query to fall back to serial execution there would be no notes at
+# all, and the absence would look like a pass.
+#
+FLUSH STATUS;
+SELECT COUNT(i), SUM(i), MIN(i), MAX(i) FROM t1;
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	direct_add COUNT: 5+7=12 (want 12), 0+3+0=3 (want 3)
+Note	1105	direct_add SUM/decimal: 3+4=7 (want 7), NULL stays null=1 (want 1), then +5=5 (want 5)
+Note	1105	direct_add MIN: 5,3=3 (want 3), NULL stays null=1 (want 1), then 9,4,7=4 (want 4)
+Note	1105	direct_add MAX: 5,3=5 (want 5), NULL stays null=1 (want 1), then 9,4,7=9 (want 9)
+ran_in_the_workers	workers_per_query
+1	8.0000
+#
+# SUM has a decimal overload and a real one, reached by the type of what
+# is summed: SUM over an integer or a decimal gives a decimal result, SUM
+# over a double a real one.
+#
+SELECT SUM(m), SUM(r) FROM t1;
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	direct_add SUM/decimal: 3+4=7 (want 7), NULL stays null=1 (want 1), then +5=5 (want 5)
+Note	1105	direct_add SUM/real: 3+4=7 (want 7), NULL stays null=1 (want 1), then +5=5 (want 5)
+#
+# MIN and MAX over something that is not an integer are not driven here,
+# only reported: the partials fed in would have to be items of the
+# argument's own type for the comparator to be given the same work it
+# does in earnest.
+#
+SELECT MIN(r), MAX(m) FROM t1;
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	direct_add MIN: skipped, argument is not integer
+Note	1105	direct_add MAX: skipped, argument is not integer
+#
+# and the aggregates a partials scheme would have to refuse or decompose
+#
+SELECT BIT_XOR(i), AVG(i), STD(i), VARIANCE(i) FROM t1;
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	direct_add: no overload for bit_xor
+Note	1105	direct_add: no overload for avg
+Note	1105	direct_add: no overload for std
+Note	1105	direct_add: no overload for variance
+#
+# COUNT(*) is parsed with one argument, so it reaches the same overload
+#
+SELECT COUNT(*) FROM t1;
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	direct_add COUNT: 5+7=12 (want 12), 0+3+0=3 (want 3)
+DROP TABLE t1;
+SET GLOBAL debug_dbug= @d;
+SET SESSION parallel_worker_threads= @s;

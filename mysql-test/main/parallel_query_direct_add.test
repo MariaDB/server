@@ -1,0 +1,96 @@
+#
+# MDEV-39492 Parallel Query: Item_sum::direct_add() folds a partial aggregate in.
+#
+# direct_add() is the primitive worker-side pre-aggregation would merge with. A
+# worker aggregates its own chunk and the manager folds each worker's partial
+# into the group's running value, which is a different operation from adding a
+# row: for COUNT it adds a count rather than incrementing, and for MIN and MAX it
+# has to reach the Item_cache that add() reads rather than args[0].
+#
+# It exists on Item_sum_sum -- with separate decimal and real overloads --
+# Item_sum_count and Item_sum_min_max, and it has no caller anywhere in the
+# server. So no SQL reaches it and nothing else exercises it. This test
+# introduces the call, under a DBUG keyword, on clones of the query's own
+# aggregates so the query's answer is untouched, and pins the arithmetic.
+#
+# Feeding a NULL partial matters as much as feeding a value. A worker whose chunk
+# held no qualifying row for a group ships one, and it must be skipped rather
+# than read as a zero or become the minimum. The two SUM overloads say NULL
+# differently and it is easy to get backwards: the real one takes a flag, the
+# decimal one takes a null pointer, where a pointer to decimal zero would mean
+# the value 0.
+#
+# What has no direct_add is reported too, which is where the boundary of a
+# partials scheme sits. BIT_AND/OR/XOR need none, being self-composing. AVG, STD
+# and VARIANCE do need one: a partial average cannot be averaged, and they would
+# have to ship the state their temp-table field already holds.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @d= @@global.debug_dbug;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, r DOUBLE, m DECIMAL(20,4))
+  ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 97, seq / 7, seq FROM seq_1_to_40000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET SESSION parallel_worker_threads= 8;
+SET GLOBAL debug_dbug='+d,pwt_verify_direct_add';
+
+--echo #
+--echo # The check runs from init_parallel_workers(), so it only happens when the
+--echo # workers really run. The row count is reported to prove they did: were
+--echo # this query to fall back to serial execution there would be no notes at
+--echo # all, and the absence would look like a pass.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(i), SUM(i), MIN(i), MAX(i) FROM t1;
+--enable_result_log
+SHOW WARNINGS;
+--source include/parallel_query_workers_per_query.inc
+
+--echo #
+--echo # SUM has a decimal overload and a real one, reached by the type of what
+--echo # is summed: SUM over an integer or a decimal gives a decimal result, SUM
+--echo # over a double a real one.
+--echo #
+--disable_result_log
+SELECT SUM(m), SUM(r) FROM t1;
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # MIN and MAX over something that is not an integer are not driven here,
+--echo # only reported: the partials fed in would have to be items of the
+--echo # argument's own type for the comparator to be given the same work it
+--echo # does in earnest.
+--echo #
+--disable_result_log
+SELECT MIN(r), MAX(m) FROM t1;
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # and the aggregates a partials scheme would have to refuse or decompose
+--echo #
+--disable_result_log
+SELECT BIT_XOR(i), AVG(i), STD(i), VARIANCE(i) FROM t1;
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # COUNT(*) is parsed with one argument, so it reaches the same overload
+--echo #
+--disable_result_log
+SELECT COUNT(*) FROM t1;
+--enable_result_log
+SHOW WARNINGS;
+
+DROP TABLE t1;
+SET GLOBAL debug_dbug= @d;
+SET SESSION parallel_worker_threads= @s;
