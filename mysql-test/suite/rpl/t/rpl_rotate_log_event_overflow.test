@@ -1,0 +1,182 @@
+#
+#   This test verifies that a replica rejects a fake Rotate event that names
+# a binary log file longer than the longest file name a replica can hold. The
+# replica rewrites the checksum of that event through a buffer of its own
+# whenever the master's binlog_checksum setting differs from the checksum its
+# relay log carries. Both directions of that difference are covered, and
+# replication must be able to resume after each. The replica connects by
+# binlog file position, so each resume also verifies the rejected event left
+# those coordinates untouched.
+#
+#   MDEV-40492 reported that the replica sized the copy into that buffer from
+# the length the master sent, and overran it.
+#
+#   Note the relay log takes its checksum from the last format description
+# event the replica queued, so each case changes binlog_checksum on the master
+# while the IO thread is stopped. That is, the fake Rotate of the next
+# connection arrives ahead of the format description event that settles the
+# difference again.
+#
+# References:
+#  * MDEV-40492: queue_event: fake ROTATE checksum adjust copies into fixed
+#    rot_buf without bounding event_len (stack OOB)
+#  * MDEV-39689: Slave Overflow on Malformed Table_map_log_event
+#
+
+--source include/have_debug.inc
+# Test is format independent
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Rotate event from master names a binary log file longer");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+
+--echo #
+--echo # Initialize test data
+--echo #
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+set @saved_dbug= @@global.debug_dbug;
+set @saved_checksum= @@global.binlog_checksum;
+
+--echo #
+--echo # Test Case 1: the master adds no checksum and the relay log carries one
+--echo #
+
+# Replicating from a master that adds a checksum gives the relay log one.
+--connection master
+set @@global.binlog_checksum= CRC32;
+insert into t1 values (2);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+# The dump thread reads the injection when the replica reconnects below.
+--connection master
+set @@global.binlog_checksum= NONE;
+set @@global.debug_dbug= "+d,binlog_sender_oversized_fake_rotate";
+
+# The IO thread can reject the event before include/start_slave.inc observes
+# the thread running, and the include reports a nonzero Last_IO_Errno as a
+# failure of its own.
+--connection slave
+START SLAVE;
+
+--echo # Waiting for the IO thread to reject the oversized Rotate event
+# queue_event() reports 1593, then handle_slave_io() overwrites it with 1595
+--let $slave_io_errno= 1595
+--let $show_slave_io_error= 1
+# A setup that leaves the master and the relay log agreeing shows up here as
+# a timeout. Keep that timeout short rather than the default of five minutes.
+--let $slave_timeout= 30
+--source include/wait_for_slave_io_error.inc
+--let $slave_timeout=
+
+# The reported maximum bounds a name of FN_REFLEN bytes behind the same headers
+--echo # Ensure the event was rejected before the replica copied it
+--let $assert_text= The IO thread reported an oversized Rotate event
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Rotate event from master names a binary log file longer than the maximum file name length;.*the maximum: 539
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+# Restore the master's checksum before the IO thread reconnects. The relay log
+# takes its checksum from the next format description event, so the reconnect
+# leaves the master and the relay log agreeing again.
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+set @@global.binlog_checksum= @saved_checksum;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Test Case 2: the master adds a checksum and the relay log carries none
+--echo #
+
+# Replicating from a master that adds no checksum leaves the relay log
+# without one.
+--connection master
+set @@global.binlog_checksum= NONE;
+insert into t1 values (3);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+# The dump thread reads the injection when the replica reconnects below.
+--connection master
+set @@global.binlog_checksum= CRC32;
+set @@global.debug_dbug= "+d,binlog_sender_oversized_fake_rotate";
+
+# The IO thread can reject the event before include/start_slave.inc observes
+# the thread running, and the include reports a nonzero Last_IO_Errno as a
+# failure of its own.
+--connection slave
+START SLAVE;
+
+--echo # Waiting for the IO thread to reject the oversized Rotate event
+--let $slave_io_errno= 1595
+--let $show_slave_io_error= 1
+# A setup that leaves the master and the relay log agreeing shows up here as
+# a timeout. Keep that timeout short rather than the default of five minutes.
+--let $slave_timeout= 30
+--source include/wait_for_slave_io_error.inc
+--let $slave_timeout=
+
+# The reported maximum bounds a name of FN_REFLEN bytes behind the same
+# headers, plus that checksum.
+--echo # Ensure the event was rejected before the replica copied it
+--let $assert_text= The IO thread reported an oversized Rotate event
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Rotate event from master names a binary log file longer than the maximum file name length;.*the maximum: 543
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+# Restore the master's checksum before the IO thread reconnects. The relay log
+# takes its checksum from the next format description event, so the reconnect
+# leaves the master and the relay log agreeing again.
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+set @@global.binlog_checksum= @saved_checksum;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Ensure replication works after the oversized Rotate events
+--echo #
+--connection master
+insert into t1 values (4);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_rotate_log_event_overflow.test
