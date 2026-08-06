@@ -1057,6 +1057,13 @@ typedef struct system_status_var
   */
   ulong parallel_scan_chunks;
 
+  /*
+    +1 for a parallel scan whose workers aggregated their own chunk and shipped
+    one row of partial values each, instead of shipping every qualifying row for
+    the manager to aggregate. See pwt_preagg_supported().
+  */
+  ulong parallel_partial_aggregations;
+
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
   ulong select_range_count_;

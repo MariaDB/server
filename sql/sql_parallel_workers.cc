@@ -984,6 +984,51 @@ int pwt_worker::pscan_next_row()
   concatenates the images, so the projection happens once, on the thread that
   produced the row.
 */
+/*
+  @brief
+    Add this joined row to the worker's own aggregates.
+
+  @description
+    Nothing is shipped here. The worker's chunk becomes one row of partial
+    values, sent once at end of records by emit_partial_row(), so this is where a
+    query's per-row work stops being the manager's.
+*/
+
+int pwt_worker::accumulate_partial()
+{
+  for (uint i= 0; i < manager->n_sums; i++)
+    if (worker_sums[i]->aggregator_add())
+      return 1;
+  return 0;
+}
+
+
+/*
+  @brief
+    Ship this worker's partial aggregate values as a single row.
+
+  @description
+    One column per aggregate, in the order pwt_manager::setup_preagg() defined
+    them, so the manager folds column i into aggregate i. A worker whose chunk
+    held no qualifying row still ships: its COUNT is 0 and its other partials are
+    NULL, and merging those changes nothing, which is the same answer as not
+    shipping at all and one fewer case to reason about.
+*/
+
+int pwt_worker::emit_partial_row()
+{
+  for (uint i= 0; i < manager->n_sums; i++)
+    worker_sums[i]->save_in_field(result_table->field[i], false);
+
+  if (manager->fatal_error)
+    return 1;
+
+  memcpy(batch_rows, result_table->record[0], manager->reclength);
+  batch_count= 1;
+  return 0;
+}
+
+
 int pwt_worker::emit_joined_row()
 {
   for (uint i= 0; i < proj_count; i++)
@@ -1074,6 +1119,19 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
                                            bool end_of_records)
 {
   DBUG_ENTER("pwt_end_send");
+
+  if (pwt_self->manager->preagg)
+  {
+    /*
+      Pre-aggregating: every row goes into this worker's own aggregates, and the
+      end-of-records call is where the partial row is shipped. Which is why the
+      worker runs the join twice, exactly as do_select() does.
+    */
+    const int rc= end_of_records ? pwt_self->emit_partial_row()
+                                 : pwt_self->accumulate_partial();
+    DBUG_RETURN(rc ? NESTED_LOOP_ERROR : NESTED_LOOP_OK);
+  }
+
   if (end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
 
@@ -1178,6 +1236,11 @@ int pwt_worker::worker_run_query()
       all hang off this worker's own JOIN_TABs, so the executor never touches
       the manager's. pwt_end_send() takes each finished row.
     */
+    /* Start this chunk's partials from empty. */
+    if (mgr->preagg)
+      for (uint k= 0; k < mgr->n_sums; k++)
+        worker_sums[k]->aggregator_clear();
+
     pwt_self= this;
     enum_nested_loop_state rc= sub_select(worker_join, join_tabs, FALSE);
     if (rc >= NESTED_LOOP_OK && !thd->killed)
@@ -1604,6 +1667,252 @@ static void pwt_dbug_verify_direct_add(THD *thd, JOIN *join)
 #endif /* DBUG_OFF */
 
 
+
+/*
+  @brief
+    Whether this query's aggregates can be computed by the workers and merged.
+
+  @description
+    Merging a partial is not adding a row: COUNT has to add a count rather than
+    increment, and MIN and MAX have to reach the Item_cache their add() reads
+    rather than args[0]. Item_sum::direct_add() does exactly that, and exists on
+    Item_sum_count, Item_sum_sum -- a decimal and a real overload -- and
+    Item_sum_min_max. Those four are the aggregates this accepts.
+
+    What is refused, and why:
+
+      - A GROUP BY. Each worker would need its own grouping structure keyed on
+        the group, and the manager a merge per group rather than one per query.
+        Nothing here is in the way of that; it is simply not built.
+      - AVG, STD and VARIANCE. A partial average cannot be averaged. Their state
+        would have to be shipped -- (sum, count), and (n, sum, sum-of-squares) --
+        which their temp-table field already holds, so this is a shape question
+        rather than an impossibility.
+      - BIT_AND, BIT_OR and BIT_XOR, which have no direct_add. They do not need
+        one, being self-composing, but folding them in means redirecting args[0]
+        and that is a second mechanism for a rare case.
+      - The DISTINCT variants, whose set has to be complete before it can be
+        counted. The server agrees: every merge path asserts the aggregator is
+        not a DISTINCT one.
+      - A select list holding anything but those aggregates and constants. Only
+        the partials are shipped, so the manager has no base-table row to
+        evaluate anything else against.
+
+    Asked at execution time, from run_worker_side_join(), because which terminal
+    the optimizer chose is not known when the gate runs -- the same reason
+    pwt_plan_needs_group_order() is asked there. A query that fails this still
+    runs in the workers, shipping its rows the way it did before.
+*/
+
+static bool pwt_preagg_supported(JOIN *join)
+{
+  if (join->group_list || join->group || !join->sum_funcs)
+    return false;
+  if (!join->select_lex->agg_func_used() && !join->select_lex->with_sum_func)
+    return false;
+
+  /*
+    The terminal has to be the one that sends a group at end of records, reached
+    directly rather than through a temp-table aggregation stage: that is the one
+    whose end-of-records call sends the aggregate's single row from whatever the
+    aggregates hold, which is what merging partials into them relies on.
+  */
+  if (join->aggr_tables)
+    return false;
+  JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+  if (last->next_select != end_send_group)
+    return false;
+
+  uint n= 0;
+  for (Item_sum **s= join->sum_funcs; *s; s++, n++)
+  {
+    Item_sum *a= *s;
+    if (a->has_with_distinct())
+      return false;
+    switch (a->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+      break;
+    case Item_sum::SUM_FUNC:
+      /* the two overloads between them cover a decimal and a real result */
+      if (a->result_type() != DECIMAL_RESULT && a->result_type() != REAL_RESULT)
+        return false;
+      break;
+    default:
+      return false;
+    }
+    if (a->argument_count() != 1)
+      return false;
+    /*
+      The worker evaluates the argument against its own tables, so it needs a
+      copy of its own. Asked here rather than discovered in clone_worker_sums(),
+      where failing would abort the query: a query whose argument cannot be
+      copied should ship its rows instead, which is what saying no here does.
+    */
+    if (!pwt_item_is_clonable(join->thd, a->get_arg(0)))
+      return false;
+  }
+  if (!n)
+    return false;
+
+  /*
+    Every item the terminal will send has to be one of those aggregates or a
+    constant, since a partial row carries nothing else.
+  */
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *it;
+  while ((it= li++))
+    if (it->type() != Item::SUM_FUNC_ITEM && !it->const_item())
+      return false;
+  return true;
+}
+
+
+/*
+  @brief
+    Collect the query's aggregates and define result_table from them.
+
+  @description
+    One column per aggregate, of the aggregate's own result type, so a partial
+    value survives the trip byte for byte. The column definitions are clones, as
+    for the row transport, so the query's own aggregates are never bound to a tmp
+    field. partial_items are Item_fields over the manager's result_table, which
+    is what direct_add(Item *) needs for MIN and MAX; the other overloads read
+    the field directly.
+
+  @return true on error.
+*/
+
+bool pwt_manager::setup_preagg(THD *thd, JOIN *join)
+{
+  n_sums= 0;
+  for (Item_sum **s= join->sum_funcs; *s; s++)
+    n_sums++;
+  if (!(mgr_sums= thd->alloc<Item_sum*>(n_sums)) ||
+      !(partial_items= thd->alloc<Item*>(n_sums)))
+    return true;
+
+  uint i= 0;
+  for (Item_sum **s= join->sum_funcs; *s; s++)
+  {
+    mgr_sums[i]= *s;
+    /*
+      A clone defines the column. Item_sum::deep_copy() gives it its own
+      aggregator, comparator and orig_args, so defining a column from it cannot
+      disturb the aggregate the query will actually use.
+    */
+    Item *c= (*s)->deep_copy_with_checks(thd);
+    if (!c || result_defn.push_back(c, thd->mem_root))
+      return true;
+    i++;
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Give this worker its own aggregates to accumulate its chunk into.
+
+  @description
+    The aggregate itself is cloned and its argument is cloned and rebound
+    separately, by the same route the row transport rebinds an expression: the
+    aggregate must not go through fix_fields() again, because Item_sum::fix_fields
+    registers the aggregate with the select_lex the manager is also using. So the
+    shell is copied, the rebound argument is grafted in, and setup_caches() then
+    rebuilds whatever the shell derived from the old argument -- for MIN and MAX
+    that is the Item_cache pair and the comparator bound to them, and for the
+    others nothing.
+
+  @return true on error.
+*/
+
+bool pwt_manager::clone_worker_sums(THD *thd, pwt_worker *worker)
+{
+  if (!(worker->worker_sums= thd->alloc<Item_sum*>(n_sums)))
+    return true;
+
+  for (uint i= 0; i < n_sums; i++)
+  {
+    Item *c= mgr_sums[i]->deep_copy_with_checks(thd);
+    if (!c)
+      return true;
+    Item_sum *w= (Item_sum *) c;
+
+    Item *arg= pwt_clone_rebind(thd, mgr_sums[i]->get_arg(0),
+                                mgr_tables, worker->worker_tables, n_tables);
+    if (!arg)
+      return true;
+    w->arguments()[0]= arg;
+    w->get_orig_args()[0]= arg;
+    w->setup_caches(thd);
+
+    /*
+      Its own aggregator, so that add() has one to route through and it is not
+      the aggregator the query's own aggregate is using.
+    */
+    if (w->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR))
+      return true;
+    worker->worker_sums[i]= w;
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Fold the partial row now in result_table into the query's own aggregates.
+
+  @description
+    One direct_add() per aggregate, choosing the overload by what the aggregate
+    is. A NULL partial comes from a worker whose chunk held no qualifying row,
+    and has to be skipped rather than read as a zero or taken as the extreme --
+    which is what each overload does with it, given that it is told. The two SUM
+    overloads are told differently: the real one by a flag, the decimal one by a
+    null pointer, where a pointer to decimal zero would mean the value 0.
+
+  @return true on error.
+*/
+
+bool pwt_manager::merge_partial_row()
+{
+  for (uint i= 0; i < n_sums; i++)
+  {
+    Item_sum *a= mgr_sums[i];
+    Field *f= result_table->field[i];
+
+    switch (a->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+      ((Item_sum_count *) a)->direct_add(f->is_null() ? 0 : f->val_int());
+      break;
+    case Item_sum::SUM_FUNC:
+      if (a->result_type() == DECIMAL_RESULT)
+      {
+        my_decimal buf;
+        ((Item_sum_sum *) a)->direct_add(f->is_null() ? (my_decimal *) NULL
+                                                      : f->val_decimal(&buf));
+      }
+      else
+        ((Item_sum_sum *) a)->direct_add(f->is_null() ? 0.0 : f->val_real(),
+                                         f->is_null());
+      break;
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+      ((Item_sum_min_max *) a)->direct_add(partial_items[i]);
+      break;
+    default:
+      DBUG_ASSERT(0);                          // pwt_preagg_supported() lied
+      return true;
+    }
+    if (a->aggregator_add())
+      return true;
+  }
+  any_partial= true;
+  return false;
+}
+
+
 /**
   @brief
     Initialise our parallel worker threads, setting their own new THD objects.
@@ -1754,6 +2063,13 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     never bound to a tmp field; it defines the columns, and the manager plus
     every worker create an identical-layout copy.
   */
+  preagg= pwt_preagg_supported(join);
+  if (preagg && setup_preagg(thd, join))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sums * sizeof(void*)));
+    goto cleanup_old_workers;
+  }
+  if (!preagg)
   {
     for (uint t= 0; t < n_tables; t++)
     {
@@ -1825,6 +2141,23 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     filler shipped for a query that reads no column, and it has nowhere to go
     back to.
   */
+  if (preagg)
+  {
+    /*
+      Nothing is copied back: the columns are partial aggregate values, not
+      base-table columns. What is needed instead is a way to read each of them
+      as an Item, for the direct_add() overload MIN and MAX take.
+    */
+    n_copy_back= 0;
+    for (uint i= 0; i < n_sums; i++)
+      if (!(partial_items[i]= new (thd->mem_root)
+                                Item_field(thd, result_table->field[i])))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+        goto cleanup_old_workers;
+      }
+  }
+  else
   {
     List_iterator_fast<Item> si(ship_list);
     Item *it;
@@ -2227,6 +2560,23 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
       break;
     }
 
+    if (preagg)
+    {
+      /*
+        A row of partial values, not a base-table row. Fold it into the query's
+        own aggregates and take the next one: the terminal is not called per row
+        here, because calling it would add the partial row itself to the
+        aggregates on top of the partial it carries. It is called once below, at
+        end of records, which is the call that sends the result.
+      */
+      if (merge_partial_row())
+      {
+        ret= 1;
+        break;
+      }
+      continue;
+    }
+
     /* Put the shipped columns back where the plan expects to find them. */
     for (uint i= 0; i < n_copy_back; i++)
       (*copy_back[i].do_copy)(&copy_back[i]);
@@ -2257,7 +2607,16 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
     /*
       End of records. This is the call that sends an aggregate's single row, and
       the one that makes a temp-table stage read back what it accumulated.
+
+      When the partials have been merged, the aggregates already hold the answer
+      and what is wanted from end_send_group() is only that it send them. It
+      decides that from join->first_record: false means no row was ever seen, and
+      it clears the aggregates and reports an empty result. So say a row was
+      seen -- one arrived, in partial form. If none did, leaving it false is
+      right, and the empty-result answer is the one a serial run gives.
     */
+    if (preagg && any_partial)
+      join->first_record= 1;
     enum_nested_loop_state nls= (*last_tab->next_select)(join, last_tab + 1,
                                                         TRUE);
     if (nls < NESTED_LOOP_OK)
@@ -2305,8 +2664,14 @@ bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
     a table with fewer fields than the projection walks over.
   */
   const ulonglong opts= join->select_options | TMP_TABLE_ALL_COLUMNS;
+  /*
+    save_sum_fields, the third flag, has to be set when the columns are the
+    query's aggregates: without it create_tmp_table() gives an Item_sum no field
+    at all, and "SELECT COUNT(*)" builds a table of no columns. It is passed only
+    for that layout because for a list holding no aggregate it has nothing to do.
+  */
   TABLE *t= create_tmp_table(thd, result_tmp_param, defn,
-                             nullptr, false, false,
+                             nullptr, false, preagg,
                              opts, HA_POS_ERROR,
                              &empty_clex_str, true, false);
   if (!t)
@@ -2733,6 +3098,12 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
 {
   TABLE **from= mgr_tables;
   TABLE **to= worker->worker_tables;
+
+  if (preagg)
+  {
+    worker->proj_count= 0;
+    return clone_worker_sums(thd, worker);
+  }
 
   // shipped columns -> per-item projection into result_table->field[i]
   worker->proj_count= ship_list.elements;
@@ -3175,6 +3546,8 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
   */
   status_var_increment(thd->status_var.parallel_queries_executed);
   thd->status_var.parallel_workers_started+= mgr->nworkers;
+  if (mgr->preagg)
+    status_var_increment(thd->status_var.parallel_partial_aggregations);
 
   DBUG_RETURN(mgr->manager_collect_and_send(join));
 }

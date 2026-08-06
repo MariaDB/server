@@ -1,0 +1,180 @@
+#
+# MDEV-39492 Parallel Query: the workers aggregate their own chunk.
+#
+# An aggregate over a whole scan used to ship every qualifying row to the
+# manager, which then aggregated them on its single thread. That per-row work is
+# what no number of workers reduces, and for an aggregate query it is nearly all
+# of the query. Now each worker aggregates its own chunk and ships one row of
+# partial values, and the manager folds those into the query's own aggregates
+# with Item_sum::direct_add() before letting the plan's own terminal send the
+# result. The manager's work becomes one row per worker instead of one row per
+# qualifying row.
+#
+# Parallel_partial_aggregations counts the scans that took this path, so a query
+# that quietly fell back to shipping rows cannot look like one that did not.
+#
+# What is accepted is COUNT, SUM, MIN and MAX, without DISTINCT, over a query
+# with no GROUP BY whose select list holds nothing but those and constants: those
+# four are what direct_add() folds a partial into. Everything else still runs in
+# the workers, shipping its rows as before, and the bottom of this file checks
+# each refusal so that the boundary is a stated one.
+#
+# SUM over a floating-point column is not compared exactly here, and not because
+# of this feature: a parallel scan hands the manager its rows in whatever order
+# the chunks finish, so a float sum already varied between two runs of the same
+# query before the workers aggregated anything. Pre-aggregation changes how much
+# the low bits move, not whether they move. SUM over a DECIMAL is exact and is
+# compared as such.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), r DOUBLE)
+  ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, IF(seq % 100 = 0, NULL, seq % 13),
+                      seq, seq / 8 FROM seq_1_to_40000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, seq * 10 FROM seq_1_to_50;
+
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+
+--echo #
+--echo # Every accepted aggregate, against the serial answer. The comparison
+--echo # include runs the query serially and then with workers, so a difference
+--echo # shows as two unequal result blocks.
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), COUNT(i), COUNT(n) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(i), SUM(d) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT MIN(i), MAX(i), MIN(n), MAX(n) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), SUM(i), MIN(i), MAX(i), COUNT(n), SUM(d) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # and it really was pre-aggregated
+--echo #
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1;
+--enable_result_log
+--source include/parallel_query_preagg_ratio.inc
+--source include/parallel_query_workers_per_query.inc
+
+--echo #
+--echo # A column that is entirely NULL. Each worker's partial is NULL and
+--echo # merging them has to leave the answer NULL rather than 0, while COUNT of
+--echo # the same column is 0.
+--echo #
+--let $pqa_query= SELECT SUM(n), MIN(n), MAX(n), COUNT(n) FROM t1 WHERE n IS NULL
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # No qualifying row at all. Every worker ships an empty partial, so the
+--echo # manager has partials but no values in them: COUNT is 0 and the rest are
+--echo # NULL, which is the row a serial run sends.
+--echo #
+--let $pqa_query= SELECT COUNT(*), COUNT(i), SUM(i), SUM(d), MIN(i), MAX(i) FROM t1 WHERE i > 999999
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # rows in some chunks and not others, so some partials are empty and some
+--echo # are not
+--echo #
+--let $pqa_query= SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d < 500
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d > 39500
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # constants in the select list are allowed: the terminal evaluates them
+--echo #
+--let $pqa_query= SELECT 42, COUNT(*), 'x' FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # HAVING is applied by the terminal to the merged values, so it decides
+--echo # whether the one row is sent
+--echo #
+--let $pqa_query= SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT COUNT(*) FROM t1 HAVING COUNT(*) < 0
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # over a join: each worker aggregates the rows it assembled from both
+--echo # tables
+--echo #
+--let $pqa_query= SELECT STRAIGHT_JOIN COUNT(*), SUM(d1.v), MIN(d1.v), MAX(d1.v) FROM t1, d1 WHERE d1.id = t1.i % 50 + 1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # an expression as the aggregate's argument, which the worker evaluates
+--echo # against its own tables
+--echo #
+--let $pqa_query= SELECT COUNT(i + 1), SUM(i * 2), MIN(i + 1), MAX(-i) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # SUM over a double, compared rounded. The value moves in its low bits
+--echo # between runs of the same query whether or not the workers aggregate,
+--echo # because the rows reach the manager in whatever order the chunks finish.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT ROUND(SUM(r), 3) FROM t1;
+SET SESSION parallel_worker_threads= 8;
+SELECT ROUND(SUM(r), 3) FROM t1;
+
+--echo #
+--echo # The shapes that are refused, each still running in the workers and
+--echo # shipping its rows: Parallel_partial_aggregations stays 0 while
+--echo # Parallel_queries_executed does not.
+--echo #
+let $pqp_shapes= 8;
+--echo # 1 AVG: a partial average cannot be averaged
+--echo # 2 STD and 3 VARIANCE: the same, needing more state than a value
+--echo # 4 BIT_XOR: self-composing but has no direct_add overload
+--echo # 5 COUNT(DISTINCT): the set has to be complete before it is counted
+--echo # 6 an expression over an aggregate: nothing but partials is shipped
+--echo # 7 GROUP BY: a partial per group is not built
+--echo # 8 a bare column beside an aggregate
+--disable_query_log
+--disable_result_log
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT AVG(i) FROM t1;
+SELECT STD(i) FROM t1;
+SELECT VARIANCE(i) FROM t1;
+SELECT BIT_XOR(i) FROM t1;
+SELECT COUNT(DISTINCT i) FROM t1;
+SELECT SUM(i) + 1 FROM t1;
+SELECT i, COUNT(*) FROM t1 GROUP BY i ORDER BY i LIMIT 1;
+SET SESSION sql_mode='';
+SELECT pk, COUNT(*) FROM t1;
+SET SESSION sql_mode=DEFAULT;
+--enable_result_log
+--enable_query_log
+--source include/parallel_query_preagg_ratio.inc
+--let $pqp_ran= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pqp_ran >= $pqp_shapes AS every_shape_still_ran_in_the_workers
+--enable_query_log
+
+--echo #
+--echo # and the refused shapes answer as they do serially
+--echo #
+--let $pqa_query= SELECT AVG(i), STD(i), VARIANCE(i), BIT_XOR(i), COUNT(DISTINCT i) FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT SUM(i) + 1 FROM t1
+--source include/parallel_query_aggregate_cmp.inc
+
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

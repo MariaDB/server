@@ -1,0 +1,233 @@
+SET @s= @@session.parallel_worker_threads;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), r DOUBLE)
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, IF(seq % 100 = 0, NULL, seq % 13),
+seq, seq / 8 FROM seq_1_to_40000;
+CREATE TABLE d1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, seq * 10 FROM seq_1_to_50;
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.d1	analyze	status	Engine-independent statistics collected
+test.d1	analyze	status	OK
+#
+# Every accepted aggregate, against the serial answer. The comparison
+# include runs the query serially and then with workers, so a difference
+# shows as two unequal result blocks.
+#
+# SELECT COUNT(*) FROM t1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40000
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40000
+ran_in_the_workers
+1
+# SELECT COUNT(*), COUNT(i), COUNT(n) FROM t1
+SELECT COUNT(*), COUNT(i), COUNT(n) FROM t1;
+COUNT(*)	COUNT(i)	COUNT(n)
+40000	40000	39600
+SELECT COUNT(*), COUNT(i), COUNT(n) FROM t1;
+COUNT(*)	COUNT(i)	COUNT(n)
+40000	40000	39600
+ran_in_the_workers
+1
+# SELECT SUM(i), SUM(d) FROM t1
+SELECT SUM(i), SUM(d) FROM t1;
+SUM(i)	SUM(d)
+19867500	800020000.000000
+SELECT SUM(i), SUM(d) FROM t1;
+SUM(i)	SUM(d)
+19867500	800020000.000000
+ran_in_the_workers
+1
+# SELECT MIN(i), MAX(i), MIN(n), MAX(n) FROM t1
+SELECT MIN(i), MAX(i), MIN(n), MAX(n) FROM t1;
+MIN(i)	MAX(i)	MIN(n)	MAX(n)
+0	996	0	12
+SELECT MIN(i), MAX(i), MIN(n), MAX(n) FROM t1;
+MIN(i)	MAX(i)	MIN(n)	MAX(n)
+0	996	0	12
+ran_in_the_workers
+1
+# SELECT COUNT(*), SUM(i), MIN(i), MAX(i), COUNT(n), SUM(d) FROM t1
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i), COUNT(n), SUM(d) FROM t1;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)	COUNT(n)	SUM(d)
+40000	19867500	0	996	39600	800020000.000000
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i), COUNT(n), SUM(d) FROM t1;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)	COUNT(n)	SUM(d)
+40000	19867500	0	996	39600	800020000.000000
+ran_in_the_workers
+1
+#
+# and it really was pre-aggregated
+#
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1;
+preaggregated_per_scan
+1.0000
+ran_in_the_workers	workers_per_query
+1	8.0000
+#
+# A column that is entirely NULL. Each worker's partial is NULL and
+# merging them has to leave the answer NULL rather than 0, while COUNT of
+# the same column is 0.
+#
+# SELECT SUM(n), MIN(n), MAX(n), COUNT(n) FROM t1 WHERE n IS NULL
+SELECT SUM(n), MIN(n), MAX(n), COUNT(n) FROM t1 WHERE n IS NULL;
+SUM(n)	MIN(n)	MAX(n)	COUNT(n)
+NULL	NULL	NULL	0
+SELECT SUM(n), MIN(n), MAX(n), COUNT(n) FROM t1 WHERE n IS NULL;
+SUM(n)	MIN(n)	MAX(n)	COUNT(n)
+NULL	NULL	NULL	0
+ran_in_the_workers
+1
+#
+# No qualifying row at all. Every worker ships an empty partial, so the
+# manager has partials but no values in them: COUNT is 0 and the rest are
+# NULL, which is the row a serial run sends.
+#
+# SELECT COUNT(*), COUNT(i), SUM(i), SUM(d), MIN(i), MAX(i) FROM t1 WHERE i > 999999
+SELECT COUNT(*), COUNT(i), SUM(i), SUM(d), MIN(i), MAX(i) FROM t1 WHERE i > 999999;
+COUNT(*)	COUNT(i)	SUM(i)	SUM(d)	MIN(i)	MAX(i)
+0	0	NULL	NULL	NULL	NULL
+SELECT COUNT(*), COUNT(i), SUM(i), SUM(d), MIN(i), MAX(i) FROM t1 WHERE i > 999999;
+COUNT(*)	COUNT(i)	SUM(i)	SUM(d)	MIN(i)	MAX(i)
+0	0	NULL	NULL	NULL	NULL
+ran_in_the_workers
+1
+#
+# rows in some chunks and not others, so some partials are empty and some
+# are not
+#
+# SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d < 500
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d < 500;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+499	124750	1	499
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d < 500;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+499	124750	1	499
+ran_in_the_workers
+1
+# SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d > 39500
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d > 39500;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+500	313113	0	996
+SELECT COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 WHERE d > 39500;
+COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+500	313113	0	996
+ran_in_the_workers
+1
+#
+# constants in the select list are allowed: the terminal evaluates them
+#
+# SELECT 42, COUNT(*), 'x' FROM t1
+SELECT 42, COUNT(*), 'x' FROM t1;
+42	COUNT(*)	x
+42	40000	x
+SELECT 42, COUNT(*), 'x' FROM t1;
+42	COUNT(*)	x
+42	40000	x
+ran_in_the_workers
+1
+#
+# HAVING is applied by the terminal to the merged values, so it decides
+# whether the one row is sent
+#
+# SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1;
+COUNT(*)
+40000
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) > 1;
+COUNT(*)
+40000
+ran_in_the_workers
+1
+# SELECT COUNT(*) FROM t1 HAVING COUNT(*) < 0
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) < 0;
+COUNT(*)
+SELECT COUNT(*) FROM t1 HAVING COUNT(*) < 0;
+COUNT(*)
+ran_in_the_workers
+1
+#
+# over a join: each worker aggregates the rows it assembled from both
+# tables
+#
+# SELECT STRAIGHT_JOIN COUNT(*), SUM(d1.v), MIN(d1.v), MAX(d1.v) FROM t1, d1 WHERE d1.id = t1.i % 50 + 1
+SELECT STRAIGHT_JOIN COUNT(*), SUM(d1.v), MIN(d1.v), MAX(d1.v) FROM t1, d1 WHERE d1.id = t1.i % 50 + 1;
+COUNT(*)	SUM(d1.v)	MIN(d1.v)	MAX(d1.v)
+40000	10169000	10	500
+SELECT STRAIGHT_JOIN COUNT(*), SUM(d1.v), MIN(d1.v), MAX(d1.v) FROM t1, d1 WHERE d1.id = t1.i % 50 + 1;
+COUNT(*)	SUM(d1.v)	MIN(d1.v)	MAX(d1.v)
+40000	10169000	10	500
+ran_in_the_workers
+1
+#
+# an expression as the aggregate's argument, which the worker evaluates
+# against its own tables
+#
+# SELECT COUNT(i + 1), SUM(i * 2), MIN(i + 1), MAX(-i) FROM t1
+SELECT COUNT(i + 1), SUM(i * 2), MIN(i + 1), MAX(-i) FROM t1;
+COUNT(i + 1)	SUM(i * 2)	MIN(i + 1)	MAX(-i)
+40000	39735000	1	0
+SELECT COUNT(i + 1), SUM(i * 2), MIN(i + 1), MAX(-i) FROM t1;
+COUNT(i + 1)	SUM(i * 2)	MIN(i + 1)	MAX(-i)
+40000	39735000	1	0
+ran_in_the_workers
+1
+#
+# SUM over a double, compared rounded. The value moves in its low bits
+# between runs of the same query whether or not the workers aggregate,
+# because the rows reach the manager in whatever order the chunks finish.
+#
+SET SESSION parallel_worker_threads= 0;
+SELECT ROUND(SUM(r), 3) FROM t1;
+ROUND(SUM(r), 3)
+100002500.000
+SET SESSION parallel_worker_threads= 8;
+SELECT ROUND(SUM(r), 3) FROM t1;
+ROUND(SUM(r), 3)
+100002500.000
+#
+# The shapes that are refused, each still running in the workers and
+# shipping its rows: Parallel_partial_aggregations stays 0 while
+# Parallel_queries_executed does not.
+#
+# 1 AVG: a partial average cannot be averaged
+# 2 STD and 3 VARIANCE: the same, needing more state than a value
+# 4 BIT_XOR: self-composing but has no direct_add overload
+# 5 COUNT(DISTINCT): the set has to be complete before it is counted
+# 6 an expression over an aggregate: nothing but partials is shipped
+# 7 GROUP BY: a partial per group is not built
+# 8 a bare column beside an aggregate
+preaggregated_per_scan
+0.0000
+every_shape_still_ran_in_the_workers
+1
+#
+# and the refused shapes answer as they do serially
+#
+# SELECT AVG(i), STD(i), VARIANCE(i), BIT_XOR(i), COUNT(DISTINCT i) FROM t1
+SELECT AVG(i), STD(i), VARIANCE(i), BIT_XOR(i), COUNT(DISTINCT i) FROM t1;
+AVG(i)	STD(i)	VARIANCE(i)	BIT_XOR(i)	COUNT(DISTINCT i)
+496.6875	288.3775	83161.5938	120	997
+SELECT AVG(i), STD(i), VARIANCE(i), BIT_XOR(i), COUNT(DISTINCT i) FROM t1;
+AVG(i)	STD(i)	VARIANCE(i)	BIT_XOR(i)	COUNT(DISTINCT i)
+496.6875	288.3775	83161.5938	120	997
+ran_in_the_workers
+1
+# SELECT SUM(i) + 1 FROM t1
+SELECT SUM(i) + 1 FROM t1;
+SUM(i) + 1
+19867501
+SELECT SUM(i) + 1 FROM t1;
+SUM(i) + 1
+19867501
+ran_in_the_workers
+1
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;
