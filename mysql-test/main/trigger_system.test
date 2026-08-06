@@ -237,3 +237,11 @@ SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name='trg1';
 
 # Clean up
 DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40074: Create or replace does not work for trigger for startup/shutdown
+--echo #
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+--echo # Clean up
+DROP TRIGGER trg1;

@@ -576,14 +576,29 @@ bool mysql_create_sys_trigger(THD *thd)
       return false;
     }
 
-    Event_parse_data::enum_kind trg_kind=
-      (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
-    if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
-      my_error(ER_TRG_EVENT_CONFLICTS_NAME,  MYF(0),
-               "Event", thd->lex->spname->m_name.str);
+    if (thd->lex->create_info.or_replace())
+    {
+      /* Drop the existing trigger */
+      int ret= event_table->file->ha_delete_row(event_table->record[0]);
+      if (ret)
+      {
+        event_table->file->print_error(ret, MYF(0));
+        return true;
+      }
+      unregister_trigger(thd->lex->spname);
+    }
     else
-      report_trg_already_exist_error(thd->lex->spname);
-    return true;
+    {
+      Event_parse_data::enum_kind trg_kind=
+        (Event_parse_data::enum_kind)
+          event_table->field[ET_FIELD_KIND]->val_int();
+      if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+        my_error(ER_TRG_EVENT_CONFLICTS_NAME,  MYF(0),
+                 "Event", thd->lex->spname->m_name.str);
+      else
+        report_trg_already_exist_error(thd->lex->spname);
+      return true;
+    }
   }
 
   if (store_trigger_metadata(thd, thd->lex, event_table, thd->lex->sphead,

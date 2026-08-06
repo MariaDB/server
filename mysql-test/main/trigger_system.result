@@ -193,3 +193,10 @@ SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name='trg1';
 db	name	status	kind	when	body
 test	trg1	ENABLED	STARTUP	AFTER	not valid sql ;;;
 DROP TRIGGER trg1;
+#
+# MDEV-40074: Create or replace does not work for trigger for startup/shutdown
+#
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+# Clean up
+DROP TRIGGER trg1;
