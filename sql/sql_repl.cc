@@ -223,6 +223,24 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   String *packet= info->packet;
   ha_checksum crc= 0;
 
+#ifndef DBUG_OFF
+  /*
+    Name a binary log file longer than any file name a replica can hold, to
+    test that a replica bounds the event before copying it into a buffer of
+    its own. The length is a large multiple of FN_REFLEN rather than one byte
+    over it, so that the copy of a replica missing the bound runs past its
+    whole stack frame. An overrun of a few hundred bytes only reaches the
+    buffers next to the target, which that replica never reads on this path.
+    The name is replaced here, ahead of the header, so that both the event
+    length the header carries and the checksum below cover it.
+  */
+  static char oversized_ident[32 * FN_REFLEN];
+  DBUG_EXECUTE_IF("binlog_sender_oversized_fake_rotate",
+                  memset(oversized_ident, 'a', sizeof(oversized_ident));
+                  p= oversized_ident;
+                  ident_len= (uint) sizeof(oversized_ident););
+#endif
+
   /* reset transmit packet for the fake rotate event below */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
