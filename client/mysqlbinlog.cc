@@ -1797,11 +1797,6 @@ static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
     return true;
   }
 
-  /* 
-    TODO: Tarun get this reviewed. We are disabling/not supporting the checksum in every event.
-    Should I keep the below code for extensibility?
-    (do_checksum will always be false here)
-  */
   if (do_checksum) {
     crc= my_checksum(crc, (uchar*)str.ptr(), str.length());
   }
@@ -3661,6 +3656,13 @@ static Exit_status check_header(IO_CACHE* file,
   int read_error;
 
   delete glob_description_event;
+  /*
+     Use the current build's server version in the synthesized
+     FORMAT_DESCRIPTION_EVENT written during engine-binlog conversion.
+   */
+  if (opt_convert_engine_binlog)
+    strmake(server_version, MYSQL_SERVER_VERSION, sizeof(server_version) - 1);
+
   if (!(glob_description_event= new Format_description_log_event(4)))
   {
     error("Failed creating Format_description_log_event; out of memory?");
@@ -4048,7 +4050,6 @@ err:
 end:
   if (output_legacy_binlog_file)
   {
-    /* TODO: Tarun write the STOP_EVENT maybe? */
     my_fclose(output_legacy_binlog_file, MYF(0));
     output_legacy_binlog_file= NULL;
   }

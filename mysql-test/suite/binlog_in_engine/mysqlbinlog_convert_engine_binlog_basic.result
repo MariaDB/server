@@ -17,6 +17,7 @@ FLUSH BINARY LOGS;
 FOUND 1 /Gtid list/ in conv_listing.txt
 FOUND 1 /Binlog checkpoint conv.000001/ in conv_listing.txt
 FOUND 1 /Start: binlog v 4/ in conv_listing.txt
+FOUND 1 /server v 13.1.0-MariaDB/ in conv_listing.txt
 FOUND 1 /#700121 15:32:22 server id 12345.*Start: binlog v 4/ in conv_listing.txt
 FOUND 1 /#700121 15:32:22 server id 12345.*Gtid list/ in conv_listing.txt
 FOUND 1 /#700121 15:32:22 server id 12345.*Binlog checkpoint conv.000001/ in conv_listing.txt
