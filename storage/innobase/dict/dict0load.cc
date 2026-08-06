@@ -938,7 +938,15 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 		newly created or rebuilt tables or partitions, but
 		will otherwise ignore the flag. */
 
-		if (fil_space_for_table_exists_in_mem(space_id, flags)) {
+		fil_space_t* space
+			= fil_space_for_table_exists_in_mem(space_id, flags);
+
+		if (space) {
+			if (upgrade) {
+				space->get_size();
+			}
+		next:
+			max_space_id = ut_max(max_space_id, space_id);
 			continue;
 		}
 
@@ -963,11 +971,13 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 		const bool not_dropped{!rec_get_deleted_flag(rec, 0)};
 
 		/* Check that the .ibd file exists. */
-		if (fil_ibd_open(space_id, dict_tf_to_fsp_flags(flags),
-				 not_dropped
-				 ? fil_space_t::VALIDATE_NOTHING
-				 : fil_space_t::MAYBE_MISSING,
-				 name, filepath)) {
+		space = fil_ibd_open(
+			space_id, dict_tf_to_fsp_flags(flags),
+			not_dropped
+			? fil_space_t::VALIDATE_NOTHING
+			: fil_space_t::MAYBE_MISSING,
+			name, filepath);
+		if (space && (!upgrade || space->get_size())) {
 		} else if (!not_dropped) {
 		} else if (srv_operation == SRV_OPERATION_NORMAL
 			   && srv_start_after_restore
@@ -984,12 +994,11 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 					  static_cast<int>(len), field);
 		}
 
-		max_space_id = ut_max(max_space_id, space_id);
-
 		ut_free(filepath);
+		goto next;
 	}
 
-	fil_system.have_all_spaces = true;
+	fil_system.have_all_spaces = upgrade;
 done:
 	mtr.commit();
 
