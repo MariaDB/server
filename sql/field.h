@@ -1253,6 +1253,91 @@ public:
     bitmap_clear_bit(&table->is_valid_json_set, field_index);
   }
 
+  /*
+    Attest to every value this field will ever hold, given once while
+    the table was being built.  Only a temporary table the server built
+    for itself has anywhere to keep such an answer, so everything else
+    says no by having no bitmap at all.
+    See TABLE::is_valid_json_static_set.
+  */
+  bool is_valid_json_static() const
+  {
+    return table->is_valid_json_static_set &&
+           bitmap_is_set(table->is_valid_json_static_set, field_index);
+  }
+  /*
+    Whether every value that has reached this field was also written the
+    loose way - see TABLE::is_nice_json_static_set.  Asked through the
+    answer above, a formatting being nothing to say about a column whose
+    values are not known to be documents.
+  */
+  bool is_nice_json_static() const
+  {
+    return is_valid_json_static() &&
+           bitmap_is_set(table->is_nice_json_static_set, field_index);
+  }
+  /*
+    How deep the deepest value that has reached this field goes, or
+    JSON_DEPTH_UNKNOWN where no such thing is being kept - see
+    TABLE::json_static_depth.  Asked through the answer above like the
+    formatting is, and out of line because that constant is declared where
+    a field cannot see it.
+  */
+  uint json_static_depth() const;
+  void raise_json_static_depth(uint depth);
+  void forget_json_static_depth();
+  void set_is_valid_json_static(const Item *item);
+  void clear_is_nice_json_static()
+  {
+    if (table->is_nice_json_static_set)
+      bitmap_clear_bit(table->is_nice_json_static_set, field_index);
+  }
+  void clear_is_valid_json_static()
+  {
+    if (table->is_valid_json_static_set)
+      bitmap_clear_bit(table->is_valid_json_static_set, field_index);
+    /*
+      Kept in step rather than left to the reader above to hide, so that
+      the two bitmaps say the same thing as each other and not merely the
+      same thing when read in the one order.
+    */
+    clear_is_nice_json_static();
+    forget_json_static_depth();
+  }
+  void confirm_is_valid_json_static(uint32 handed_length, bool is_nice,
+                                    uint depth, CHARSET_INFO *cs);
+  void confirm_is_valid_json_static_from(Field *from);
+  void confirm_json_static_value(bool is_nice, uint depth);
+
+
+  /*
+    What this field can say about the bytes it is holding.  The long
+    form of why it can be believed is at Item_field::is_valid_json().
+
+    Asked by everything that reads a value through a field rather than
+    through the item that made it - Item_field for the field it names,
+    and the Item_ref family for the result field it reads a copy out
+    of.
+
+    A row holding no value at all is not attested, and that is asked
+    here rather than left to the reader.  The grant is about the column:
+    it is given once, where the table is built, and what it says is that
+    every value the column comes to hold arrived from something that
+    attests to the values it makes.  That is as true of a row that came
+    out SQL NULL as of any other, there being no value in it to be wrong
+    about - so the grant goes on standing over such a row while there
+    are no characters under it to have been attested.  A caller that
+    reads it there puts the answer down somewhere the NULL itself cannot
+    go, the column taking whatever it takes in place of one, and the
+    answer is then about bytes nothing ever saw.
+  */
+  bool attests_is_valid_json() const
+  { return !is_null() && is_valid_json_static(); }
+  bool attests_is_nice_json() const
+  { return !is_null() && is_nice_json_static(); }
+  uint attested_json_depth() const
+  { return json_static_depth(); }
+
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
   { DBUG_ASSERT(0); return 0; }
   my_time_t get_timestamp(ulong *sec_part) const
@@ -5950,7 +6035,19 @@ public:
     of entry go in the same array, so start them absent rather than
     leaving them to read as whatever the memory held.
   */
-  Copy_field() : from_field(NULL), to_field(NULL) {}
+  /*
+    Whether the destination attests to every value it holds, worked out
+    where the entry is made rather than once a row.  The bit behind it is
+    SET only while a temporary table is being built, which is before any
+    entry here is made; afterwards it is only ever cleared, and the
+    confirm the copy loop makes reads it again.  So a yes recorded here
+    is an upper bound and costs at most a question that answers no,
+    while asking per row costs two loads and a test for every copied
+    column of every grouped query in the instance.
+  */
+  bool to_needs_confirm;
+  Copy_field()
+   : from_field(NULL), to_field(NULL), to_needs_confirm(false) {}
   ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 
   void set(uchar *to,Field *from);		// Field to string

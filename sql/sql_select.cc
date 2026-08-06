@@ -3797,6 +3797,13 @@ bool JOIN::make_aggr_tables_info()
 
         /* Give storage engine access to temporary table */
         gbh->table= table;
+        /*
+          And it is the engine that writes its rows - see
+          TABLE::set_filled_by_engine(), and select_handler::
+          create_tmp_table(), which says the same of the table it
+          builds out of the same call.
+        */
+        table->set_filled_by_engine();
         pushdown_query->store_data_in_temp_table= need_tmp;
         pushdown_query->having= having;
 
@@ -20896,6 +20903,11 @@ TABLE *Create_tmp_table::start(THD *thd,
   Field **reg_field;
   uint *blob_field;
   key_part_map *const_key_parts;
+  MY_BITMAP *json_static_valid_map;
+  uchar *json_static_valid_bits;
+  MY_BITMAP *json_static_nice_map;
+  uchar *json_static_nice_bits;
+  uint *json_static_depth;
   /* Treat sum functions as normal ones when loose index scan is used. */
   m_save_sum_fields|= param->precomputed_group_by;
   DBUG_ENTER("Create_tmp_table::start");
@@ -20993,6 +21005,11 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
                         &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &json_static_valid_map, sizeof(MY_BITMAP),
+                        &json_static_valid_bits, bitmap_buffer_size(field_count),
+                        &json_static_nice_map, sizeof(MY_BITMAP),
+                        &json_static_nice_bits, bitmap_buffer_size(field_count),
+                        &json_static_depth, sizeof(uint) * field_count,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {
@@ -21013,6 +21030,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   bzero((char*) m_from_field, sizeof(Field*) * field_count);
   /* const_key_parts is used in sort_and_filter_keyuse */
   bzero((char*) const_key_parts, sizeof(*const_key_parts));
+  bzero((char*) json_static_depth, sizeof(uint) * field_count);
 
   table->mem_root= own_root;
   mem_root_save= thd->mem_root;
@@ -21027,6 +21045,35 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->temp_pool_slot= m_temp_pool_slot;
   table->copy_blobs= 1;
   table->in_use= thd;
+
+  /*
+    A table built here is the server's own, and each of its fields has one
+    producer, known while the field is being made.  So this is a table
+    that can attest to what will be written into it, and the bitmap
+    being here at all is what says so - see
+    TABLE::is_valid_json_static_set.  It is sized for every field the
+    table may come to have, the fields being added after this.
+  */
+  table->is_valid_json_static_set= json_static_valid_map;
+  my_bitmap_init(table->is_valid_json_static_set,
+                 (my_bitmap_map*) json_static_valid_bits, field_count);
+  /*
+    The formatting of what is written there, kept beside it and made here
+    for the same reason - see TABLE::is_nice_json_static_set.  The two
+    are made together and given up together, so nothing has to ask which
+    of them a table has.
+  */
+  table->is_nice_json_static_set= json_static_nice_map;
+  my_bitmap_init(table->is_nice_json_static_set,
+                 (my_bitmap_map*) json_static_nice_bits, field_count);
+  /*
+    And how deep it goes, kept beside the two of them and for the same
+    reason - see TABLE::json_static_depth.  An entry is written when the
+    field it belongs to is added, so what is here now is only what a
+    field never added would have been read as, and nothing reads one of
+    those.
+  */
+  table->json_static_depth= json_static_depth;
   table->no_rows_with_nulls= param->force_not_null_cols;
   table->group_concat= param->group_concat;
   table->expr_arena= thd;
@@ -21144,6 +21191,7 @@ bool Create_tmp_table::add_fields(THD *thd,
                 Item_field(thd, new_field)))
             goto err;
           ((Item_field*) tmp_item)->set_refers_to_temp_table();
+          Item *producer= arg;
           arg= sum_item->set_arg(i, thd, tmp_item);
           thd->mem_root= &table->mem_root;
 
@@ -21151,6 +21199,13 @@ bool Create_tmp_table::add_fields(THD *thd,
           add_field(table, new_field, fieldnr++, param->force_not_null_cols);
           m_field_count[current_counter]++;
           m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
+
+          /*
+            Said after add_field() for the reason given at the other such
+            call below.  The item that fills the field is kept aside above,
+            set_arg() having by now put the replacement in its place.
+          */
+          new_field->set_is_valid_json_static(producer);
 
           if (!(new_field->flags & NOT_NULL_FLAG))
           {
@@ -21236,6 +21291,13 @@ bool Create_tmp_table::add_fields(THD *thd,
       add_field(table, new_field, fieldnr++, param->force_not_null_cols);
       m_field_count[current_counter]++;
       m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
+
+      /*
+        Said here rather than where the field was made, add_field() being
+        where the field learns its own number and so the first place it
+        can be spoken about.
+      */
+      new_field->set_is_valid_json_static(item);
 
       if (item->marker == MARKER_NULL_KEY && item->maybe_null())
       {
@@ -28445,7 +28507,17 @@ copy_fields(TMP_TABLE_PARAM *param)
   DBUG_ASSERT((ptr != NULL && end >= ptr) || (ptr == NULL && end == NULL));
 
   for (; ptr != end; ptr++)
+  {
     (*ptr->do_copy)(ptr);
+    /*
+      The other route that goes around field_conv() - see there.  Whether
+      there is anything to confirm was settled where the entry was made:
+      an entry set up by Copy_field::set(uchar*, Field*) records neither
+      field and answers no, both kinds of entry sharing this array.
+    */
+    if (unlikely(ptr->to_needs_confirm))
+      ptr->to_field->confirm_is_valid_json_static_from(ptr->from_field);
+  }
 
   List_iterator_fast<Item> it(param->copy_funcs);
   Item_copy *item;

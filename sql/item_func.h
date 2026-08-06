@@ -3602,6 +3602,18 @@ public:
   String *str_result(String *str) override;
   my_decimal *val_decimal_result(my_decimal *) override;
   bool is_null_result() override;
+  /*
+    str_result() above is the one of the five that does not merely read
+    somewhere else: it assigns the variable and then returns what is
+    in it.  So these cannot be written the way the other four are, by
+    putting the question to whatever that reads - putting a question to
+    it would perform the assignment.  They say nothing instead, which
+    is what there is to say: nothing keeps marks for a user variable,
+    so there would be nothing to pass on even if asking were free.
+  */
+  bool is_valid_json_result() const override { return false; }
+  bool is_nice_json_result() const override { return false; }
+  uint last_depth_result() const override { return JSON_DEPTH_UNKNOWN; }
   bool update_hash(void *ptr, size_t length, const Type_handler *th,
                    CHARSET_INFO *cs);
   bool send(Protocol *protocol, st_value *buffer) override;

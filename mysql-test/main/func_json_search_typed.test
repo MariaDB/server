@@ -72,4 +72,29 @@ INSERT INTO t3 SELECT id, JSON_SEARCH(j, 'all', '%') FROM t1;
 SELECT id, p, JSON_TYPE(p) AS ty FROM t3 ORDER BY id;
 DROP TABLE t3;
 
+--echo #
+--echo # 6. The reading that is not done
+--echo #
+--echo #    A path spliced into a new document out of a temporary table
+--echo #    the server built is taken as it stands; the same query with
+--echo #    the column's answer taken away reads it again.
+--echo #
+SET optimizer_switch='derived_merge=off';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+  GROUP BY p;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+SET SESSION debug_dbug = '+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+  GROUP BY p;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug = DEFAULT;
+SET optimizer_switch=DEFAULT;
+
 DROP TABLE t1;

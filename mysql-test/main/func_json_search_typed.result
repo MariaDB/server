@@ -84,4 +84,27 @@ id	p	ty
 1	["$.a", "$.b"]	ARRAY
 2	["$.c", "$.d"]	ARRAY
 DROP TABLE t3;
+#
+# 6. The reading that is not done
+#
+#    A path spliced into a new document out of a temporary table
+#    the server built is taken as it stands; the same query with
+#    the column's answer taken away reads it again.
+#
+SET optimizer_switch='derived_merge=off';
+FLUSH STATUS;
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+GROUP BY p;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+SET SESSION debug_dbug = '+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
+GROUP BY p;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+SET SESSION debug_dbug = DEFAULT;
+SET optimizer_switch=DEFAULT;
 DROP TABLE t1;

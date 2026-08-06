@@ -1,0 +1,551 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # How many times a value out of the server's own temporary table is
+--echo # read to find out whether it is a document.
+--echo #
+--echo # No query can see the difference - the reading could only have found
+--echo # out what was already known - so nothing but Json_scans says whether
+--echo # it happened.  The counts below are the record of it.  A count that
+--echo # goes up is a reading that came back.
+--echo #
+--echo # A debug build reads values back to check what was claimed about
+--echo # them, and none of those readings are counted: they are the debug
+--echo # build's work and not the server's.  A count of 0 below therefore
+--echo # means nothing read, not that a reading went uncounted.
+--echo #
+
+SET NAMES utf8mb4;
+SET optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+
+--echo #
+--echo # 1. TWO rows out of a base column, spliced into a new document.
+--echo # A column says nothing about itself, so each row is read once and
+--echo # that reading is not work that can be taken away.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(j) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 2. The same two rows, put through a function that attests to what
+--echo # it returns, and spliced without a temporary table in between.
+--echo # JSON_EXTRACT reads its input once; the splice reads nothing.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_EXTRACT(j, '$')) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 3. The same, with a temporary table in between.  What the function
+--echo # answered is what the column was built to hold, so the count is the
+--echo # function's own readings and nothing else.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 4. The same shape with a producer that answers per evaluation
+--echo # rather than for every one of them.  Nothing can be said about the
+--echo # column at the time it is made, so each row is read on the way out.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_OBJECT('a', id) AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 5. Through a GROUP BY, which writes a temporary table of its own.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1 GROUP BY id, j) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 6. A UNION, whose column has one producer per branch.  The
+--echo # branches are where those producers are all in reach, so what the
+--echo # column answers is what every one of them answers, and the count
+--echo # is their own readings and nothing else.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+   UNION ALL
+   SELECT JSON_EXTRACT(j, '$') FROM t1) d;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 7. A table the user asked for, which is not the server's own.
+--echo #
+CREATE TEMPORARY TABLE tt (x VARCHAR(64) CHECK (JSON_VALID(x))) CHARSET utf8mb4;
+INSERT INTO tt SELECT JSON_EXTRACT(j, '$') FROM t1;
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM tt;
+SHOW STATUS LIKE 'Json_scans';
+DROP TEMPORARY TABLE tt;
+
+--echo #
+--echo # 8. A store that came up short takes back what was said about the
+--echo # column, so its rows are read on the way out like anything else.
+--echo #
+--echo # No function asks for less room than it goes on to use, so nothing
+--echo # arrives short of its own accord and the short store is arranged
+--echo # for here.  The query is the one from 3, so the count below is what
+--echo # 3 would have come to with nothing said about its column.
+--echo #
+SET @old_debug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+--echo #
+--echo # 9. Two temporary tables one after the other.  The second is built
+--echo # before a row of the first exists, so what the first says then is
+--echo # the most it will ever say.  Every row put across asks it again,
+--echo # and what is left to count is the first table's own readings.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+  (SELECT x AS y FROM
+    (SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 10. Asking what a materialized value IS, rather than splicing it.
+--echo # JSON_TYPE reads its argument whatever anyone says about it: what is
+--echo # promised is that the value is a document, not which one.
+--echo #
+FLUSH STATUS;
+SELECT JSON_TYPE(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 11. An aggregate gathers its elements in a table of its own and
+--echo # reads them back out of a record rather than off the item that put
+--echo # them there.  The column is what attests to them.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(j, '$')) AS r FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 12. The same, with a producer that attests per evaluation rather
+--echo # than to every value it makes.  Its column is read on the way out,
+--echo # so the total matches 11 from the other side: 11's two readings are
+--echo # the producer's own, these two are the readings back 11 was spared.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id)) AS r FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 13. An aggregate whose arguments are buffered before the group can
+--echo # be built - a join with a grouping the rows do not arrive in.  The
+--echo # argument is put into a table of its own on the way past, and read
+--echo # back off that column.
+--echo #
+--echo # Each group gathers the same row more than once, so what is
+--echo # gathered reads the same whichever order the rows arrive in - an
+--echo # order a grouping does not fix and this file must not depend on.
+--echo #
+CREATE TABLE t13 (id INT, g INT, j VARCHAR(64) CHECK (JSON_VALID(j)))
+  CHARSET utf8mb4;
+INSERT INTO t13 VALUES (1, 1, '{"a":1}'), (2, 2, '{"b":2}');
+CREATE TABLE t13m (g INT);
+INSERT INTO t13m VALUES (1), (1), (2), (2);
+FLUSH STATUS;
+SELECT JSON_OBJECTAGG(a.id, JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+  WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 14. The same shape gathered into an array instead.  The table the
+--echo # aggregate gathers in is built out of the buffer's column rather
+--echo # than out of the function that filled it, and asks that column
+--echo # again for every element it is handed.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+  WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 15. The chain of 9, with a store into the FIRST table that comes
+--echo # up short.  That column gives up its answer, and the second has to
+--echo # hear about it although it was built long before.  The query is
+--echo # the one from 9, so the count is what 9 would have come to with
+--echo # neither column answering.
+--echo #
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+  (SELECT x AS y FROM
+    (SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+--echo #
+--echo # 16. The same chain, with the row that crosses BETWEEN the two
+--echo # tables arriving short instead.  The first column still answers
+--echo # for what it holds; it is the second that stops.
+--echo #
+SET SESSION debug_dbug='+d,json_tmp_chain_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+  (SELECT x AS y FROM
+    (SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+--echo #
+--echo # 17. The buffered aggregate of 14, with the store into the buffer
+--echo # coming up short.  The aggregate's own table is filled from that
+--echo # buffer field to field rather than off an item, so this is the
+--echo # case that says the field-to-field route asks as well.
+--echo #
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+  WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+--echo #
+--echo # 18. A grouping that needs no temporary table of its own still has
+--echo # to hold a value across the group it belongs to, and it holds it in
+--echo # a buffer rather than in a column.  A HAVING or an ORDER BY reads
+--echo # what it reads out of that buffer.
+--echo #
+--echo # A buffer holds one value at a time and is filled right beside the
+--echo # item that made it, so what that item says about the value is put
+--echo # away together with the value and is about it still when it is read
+--echo # back.
+--echo #
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+  HAVING JSON_ARRAY(x) <> '[]';
+SHOW STATUS LIKE 'Json_scans';
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+  ORDER BY JSON_ARRAY(x);
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 19. The same with a producer that attests to the value it has
+--echo # just made rather than for every value it will ever make.  A column
+--echo # cannot be told about one of those, being made before any of them
+--echo # exists; a buffer is filled after, so what it holds is attested to
+--echo # like anything else and nothing is read at all.
+--echo #
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_OBJECT('a', id) AS x FROM t1
+  HAVING JSON_ARRAY(x) <> '[]';
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 20. A buffer filled from a COLUMN rather than from an item, which
+--echo # is the route a value takes when it is wide enough to be kept apart
+--echo # from the row it belongs to.  What the column says is what the
+--echo # buffer puts away.
+--echo #
+CREATE TABLE t20 (id INT, j JSON) CHARSET utf8mb4;
+INSERT INTO t20 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+FLUSH STATUS;
+SELECT MAX(d.id) AS m, d.x AS y FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t20) d
+  HAVING JSON_ARRAY(y) <> '[]';
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE t20;
+
+--echo #
+--echo # 21. A buffer that could not take what it was handed keeps what it
+--echo # held before, which nothing here can attest to.  Nothing arrives
+--echo # that way of its own accord - it takes a failure to find the room -
+--echo # so it is arranged for.  The query is the one from 18, so the count
+--echo # is what 18 would have come to with the buffer saying nothing.
+--echo #
+SET SESSION debug_dbug='+d,json_copy_not_kept';
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+  HAVING JSON_ARRAY(x) <> '[]';
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+--echo #
+--echo # 22. The same UNION with one branch that attests per evaluation
+--echo # rather than to every value it makes.  One branch not attesting is
+--echo # the whole column not attesting, there being no telling which
+--echo # branch a row came out of once it is in there.  So every row is
+--echo # read on the way out - four - on top of the two the JSON_EXTRACT
+--echo # branch read itself.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+   UNION ALL
+   SELECT JSON_OBJECT('a', id) FROM t1) d;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 23. The same again with a branch that is a column, which says
+--echo # nothing about itself and so says nothing for the column it is
+--echo # written into either.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+   UNION ALL
+   SELECT j FROM t1) d;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 24. Rows written one list at a time rather than one branch at a
+--echo # time, which is the same column with the same one producer per
+--echo # row and is asked the same way.
+--echo #
+FLUSH STATUS;
+WITH d(x) AS
+  (VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_QUERY('{"b":2}', '$')))
+SELECT JSON_ARRAY(x) AS r FROM d ORDER BY r;
+SHOW STATUS LIKE 'Json_scans';
+--echo #
+--echo # And one list that answers per evaluation is the same column not
+--echo # answering, exactly as one branch is.
+--echo #
+FLUSH STATUS;
+WITH d(x) AS
+  (VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_OBJECT('b', 2)))
+SELECT JSON_ARRAY(x) AS r FROM d ORDER BY r;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 25. A recursive CTE, whose column is built once the parts that do
+--echo # not go round have agreed on a type - the parts that DO go round
+--echo # not being reached at all, so nothing there can be asked and the
+--echo # ones that were reached do not answer in their place.
+--echo #
+FLUSH STATUS;
+WITH RECURSIVE r AS (
+  SELECT 1 AS n, JSON_EXTRACT(j, '$') AS x FROM t1
+  UNION ALL
+  SELECT n + 1, JSON_OBJECT('n', n) FROM r WHERE n < 2)
+SELECT JSON_ARRAY(x) AS y FROM r ORDER BY y;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 26. A function that EDITS a document rather than building one.
+--echo # It composes its answer and then reads the whole of it back, that
+--echo # reading being where the spacing gets settled - unless what it was
+--echo # given was already spaced that way, which is a second thing such a
+--echo # column can say and says here.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(x, '$.z', 9) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 27. The same over a column whose producer returns a document
+--echo # formatted some other way - JSON_QUERY copying a sub-document out as
+--echo # it stands rather than writing one.  Attested, and not written
+--echo # for, so the reading back stays.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(x, '$.z', 9) AS r FROM
+  (SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 28. The formatting carried from one such table into the next, which
+--echo # the second column asks the first about at every row it is given.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+--echo #
+--echo # And taken back where what the first holds is formatted otherwise.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d1) d2 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 29. The same across the copier that fills a grouping's table,
+--echo # which is a different way of putting a row across and is asked the
+--echo # same thing.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d1 GROUP BY id, x) d2
+  ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 30. And that copier taking it back, for the same reason and by
+--echo # asking the same source.
+--echo #
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d1 GROUP BY id, x) d2
+  ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # Everything above is short enough that half its length is inside
+--echo # the limit, so nothing there was ever read to find out how deep it
+--echo # goes.  These are not: at over a hundred characters the length says
+--echo # nothing useful, and what the column can say about the depth is the
+--echo # only thing left.
+--echo #
+CREATE TABLE t31 (id INT, j VARCHAR(400) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t31 VALUES
+  (1, CONCAT('{"a":[1,2],"pad":"', REPEAT('x', 100), '"}')),
+  (2, CONCAT('{"b":[3,4],"pad":"', REPEAT('y', 100), '"}'));
+
+--echo #
+--echo # 31. Two long rows out of a base column.  A column of a table the
+--echo # user asked for says nothing about how deep its values go any more
+--echo # than about anything else, so each row is read.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(j) AS r FROM t31 ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 32. The same through a temporary table.  The producer counted the
+--echo # depth while it wrote and the column kept the figure, so the splice
+--echo # has what it needs without the length being asked.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 33. The same carried from one such table into the next, which the
+--echo # second column takes from the first at every row it is given.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(y) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d1) d2 ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 34. An aggregate gathering its elements out of such a column,
+--echo # which is the only thing left there to ask.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAYAGG(x)) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 35. A producer that returns a piece of a document it was given
+--echo # rather than one it wrote counted nothing, so the column has no
+--echo # figure to keep and the reading stays.  The count is what 32 would
+--echo # have come to with nothing said.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_QUERY(j, '$') AS x FROM t31) d ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 36. A column written by more than one producer keeps the deepest
+--echo # of all its rows, so where every one of them counted, every row
+--echo # gets the figure.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31
+   UNION ALL
+   SELECT id, JSON_EXTRACT(j, '$.a') FROM t31) d;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # And one row that nobody counted is the whole column saying
+--echo # nothing, the deepest of the rows being unknown once one of them
+--echo # is.  The same four rows, one pair of them uncounted.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31
+   UNION ALL
+   SELECT id, JSON_QUERY(j, '$') FROM t31) d;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t31;
+
+--echo #
+--echo # 37. Branches written in different character sets.  A column takes
+--echo # one set for all of them, and a branch in another set is stored
+--echo # into it converting - except into the binary set, which converts
+--echo # nothing at all and keeps every byte under the other set's name.
+--echo # Rows that arrived that way are not the documents that were
+--echo # written, so the column takes its answer back and every row is
+--echo # read on the way out.
+--echo #
+CREATE TABLE t37 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET ucs2;
+INSERT INTO t37 VALUES ('{"a":1}'), ('[1,2]');
+CREATE TABLE t37b (b BLOB);
+INSERT INTO t37b VALUES ('{"b":2}'), ('[3,4]');
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT JSON_QUERY(j, '$') AS x FROM t37
+   UNION ALL
+   SELECT JSON_QUERY(b, '$') FROM t37b) d;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 38. The same two branches with the wide one alone, so that the
+--echo # column takes that same set and every character arrives as the one
+--echo # written.  Nothing is taken back, and the count is the branches'
+--echo # own readings and nothing else - which is what 37 would have come
+--echo # to had the characters come across.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT JSON_QUERY(j, '$') AS x FROM t37
+   UNION ALL
+   SELECT JSON_QUERY(j, '$') FROM t37) d;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t37, t37b;
+
+DROP TABLE t1;
+DROP TABLE t13, t13m;

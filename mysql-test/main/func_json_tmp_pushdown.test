@@ -1,0 +1,43 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # A temporary table an engine fills carries no attestations about
+--echo # its values.
+--echo #
+--echo # A query pushed down whole borrows the server's own temporary table
+--echo # for its columns and then has the engine write the rows into it, so
+--echo # nothing a column was made from ever sees what arrives in it.  The
+--echo # table drops its attestations where it is filled, and a debug
+--echo # build asserts at the other end - where the engine's rows are read
+--echo # - that something on the way in did drop them.
+--echo #
+--echo # Nothing here is a document.  The engine below gathers a sum, and a
+--echo # sum is not one; what is reached is that dropping itself, which is
+--echo # what is being asked about.  The results are ordinary results and
+--echo # are here to stay ordinary.
+--echo #
+--echo # Each case is explained before it is run.  An engine that stopped
+--echo # taking one of these queries would leave the case running down the
+--echo # ordinary path and passing without going near what it is here for,
+--echo # and the EXPLAIN is what says it did not.
+--echo #
+
+--echo #
+--echo # 1. A group gathered by the engine and sent straight out.
+--echo #
+EXPLAIN SELECT SUM(seq) FROM seq_1_to_10;
+SELECT SUM(seq) FROM seq_1_to_10;
+
+--echo #
+--echo # 2. The same held in a temporary table on the way, which is the
+--echo #    other half of that execution and the half that writes rows.
+--echo #
+EXPLAIN SELECT DISTINCT SUM(seq), COUNT(*) FROM seq_1_to_100;
+SELECT DISTINCT SUM(seq), COUNT(*) FROM seq_1_to_100;
+
+--echo #
+--echo # 3. Two gatherings ordered, so the rows are held and then read
+--echo #    back out of the table they were held in.
+--echo #
+EXPLAIN SELECT SUM(seq), COUNT(seq) FROM seq_1_to_5 ORDER BY 1;
+SELECT SUM(seq), COUNT(seq) FROM seq_1_to_5 ORDER BY 1;

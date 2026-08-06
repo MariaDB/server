@@ -3896,11 +3896,22 @@ String *Item_func_conv_charset::val_str(String *str)
   /*
     Asked of the argument only now, after it has been evaluated: what it
     answers is about the value it has just passed, which is the one
-    that was converted.
+    that was converted.  A conversion that lost nothing kept the
+    characters it was given, and how deeply a value nests is a property
+    of characters like the other two, so all three carry across.
+
+    Where the copy kept the BYTES and called them something else it
+    kept no such thing, and that is what the second test is for - see
+    String_copier::conversion_keeps_characters(), which reads the branch
+    this very copier took.  Either end being the binary set is enough:
+    bytes going into it are relabelled, and bytes coming out of it are
+    read as whatever the other set makes of them.
   */
   if (!copier.most_important_error_pos() &&
-      collation.collation != &my_charset_bin)
-    m_marks.set(str, args[0]->is_valid_json(), args[0]->is_nice_json());
+      String_copier::conversion_keeps_characters(collation.collation,
+                                                 arg->charset()))
+    m_marks.set(str, args[0]->is_valid_json(), args[0]->is_nice_json(),
+                args[0]->last_depth());
   return str;
 }
 
