@@ -77,11 +77,12 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
       {
         b->fix();
         hash_lock.unlock_shared();
-        b->lock.s_lock();
+        /* Wait for any pending buf_page_t::flush() to complete. */
+        b->lock.u_lock();
         b->unfix();
         state= b->write_fix_try();
         ut_ad(!b->is_io_fixed(state));
-        b->lock.s_unlock();
+        b->lock.u_unlock();
         if (!b->is_freed(state))
           end++;
         goto next;
