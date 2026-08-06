@@ -32,3 +32,20 @@ install soname 'file_key_management';
 --let SEARCH_PATTERN=the filekey is too long
 --source filekeys_badtest.inc
 --remove_file $datadir/bad.key
+
+--echo #
+--echo # MDEV-40658 file_key_management crash on empty FILE: file
+--echo #
+--let $datadir=`select @@datadir`
+--write_file $datadir/bad.key
+
+
+EOF
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--error 2
+install soname 'file_key_management';
+--let SEARCH_PATTERN=Cannot decrypt .*filekeys-data.enc. Wrong key
+--source filekeys_badtest.inc
+--remove_file $datadir/bad.key
+
+--echo # End of 10.6 tests
