@@ -492,7 +492,13 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
           ut_ad(bpage->oldest_modification() < mtr->m_commit_lsn);
           ut_ad(bpage->id() < end_page_id);
           ut_ad(s >= buf_page_t::FREED);
-          ut_ad(s < buf_page_t::READ_FIX);
+          /* If a thread is executing between
+          InnoDB_backup::backup_batch_start() and
+          InnoDB_backup::backup_batch_stop() for this page, a fake
+          "write fix" may exist. We are free to modify the page in the
+          buffer pool, but buf_page_t::flush() will refuse to write it
+          to the file system. */
+          ut_ad(!buf_page_t::is_read_fixed(s));
           ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
                 mtr->m_commit_lsn);
           mach_write_to_8(bpage->frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
