@@ -2025,9 +2025,10 @@ public:
         later would pair an answer about a value it has since gone on to
         produce with the one frozen above.
       */
-      if (!null_value && safe && cs != &my_charset_bin)
+      if (!null_value && safe &&
+          String_copier::conversion_keeps_characters(cs, str->charset()))
         m_marks.set(&str_value, args[0]->is_valid_json(),
-                    args[0]->is_nice_json());
+                    args[0]->is_nice_json(), args[0]->last_depth());
     }
     else
     {
@@ -2095,6 +2096,7 @@ public:
   }
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
   void print(String *str, enum_query_type query_type) override;
   int save_in_field(Field*, bool) override;
 

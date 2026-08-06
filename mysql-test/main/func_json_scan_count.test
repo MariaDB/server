@@ -305,15 +305,140 @@ SHOW STATUS LIKE 'Json_scans';
 --echo #
 --echo # What is skipped there is a reading that would have measured how
 --echo # deep the value goes, and how deep it ends up decides whether the
---echo # result can be read at all.  How long the value is answers that
---echo # for a short one - it cannot nest deeper than half its length -
---echo # and answers nothing for a long one, which is read as before.
+--echo # result can be read at all.  Two things answer that without a
+--echo # reading, and the smaller of them is taken.  How long the value
+--echo # is answers it for a short one, which cannot nest deeper than half
+--echo # its length, and says nothing about a long one.  What the function
+--echo # that wrote the value counted as it wrote answers it whatever the
+--echo # length - which is what the documents below are, at eighty-odd
+--echo # characters and one structure deep.
 --echo #
 FLUSH STATUS;
 --disable_result_log
 SELECT JSON_ARRAY(JSON_EXTRACT(js, '$')) FROM t3;
 --enable_result_log
 SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_OBJECT('k', JSON_EXTRACT(js, '$')) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # And it carries, which is what the length could never do: every
+--echo # step out used to read the whole of the long value again.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(js, '$'))) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_INSERT(JSON_EXTRACT(js, '$'), '$.c', 3)) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A name that only asks for a formatting hands the value straight
+--echo # on, and passes on what was counted about it with it.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_COMPACT(JSON_EXTRACT(js, '$'))) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A value nobody counted is read, as it always was.  The column
+--echo # here is a caller's own text: it is cut into by JSON_QUERY, which
+--echo # can say the piece is a document but not how deep the document it
+--echo # came out of went.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_QUERY(js, '$')) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A group writes its pairs as they arrive and is as deep as the
+--echo # deepest of them, so the object it makes is spliced without being
+--echo # read.  Its sister gathers its elements through a table, and the
+--echo # column of that table keeps the deepest of the rows put into it,
+--echo # so they are not read on the way back out either.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_OBJECTAGG(id, JSON_EXTRACT(js, '$'))) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A name given to a value in the select list and used again later
+--echo # in the same statement reaches it through a reference, and a
+--echo # reference reads what the item's RESULT side passes.  For
+--echo # nearly every item that is the value the item made, so what was
+--echo # said about the value is said about this - and the splice below
+--echo # costs the reading it costs when the expression is written out
+--echo # where it is used.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_OBJECT('a', js) AS o FROM t1 HAVING JSON_ARRAY(o) IS NOT NULL;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A grouped query moves the aggregate out of the expression around
+--echo # it and puts a reference in its place, so the array below is
+--echo # built over a reference rather than over the aggregate.  All
+--echo # three answers travel together through it, the depth among them:
+--echo # the array these gather is long enough that its length says more
+--echo # levels than a document is allowed, so a depth that went missing
+--echo # here would show up as the whole thing being read again.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3 GROUP BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A search returns one path as a string and several as an array
+--echo # of strings, so what it makes nests one level at the most and it
+--echo # knows which as it writes.  The paths here are long, so the
+--echo # length says nothing useful and only that count keeps the answer
+--echo # from being read again where it is spliced.
+--echo #
+CREATE TABLE t4 (id INT, js TEXT);
+INSERT INTO t4 VALUES
+  (1, '{"customer_record":{"order_lines":[{"sku_code":"xa"},{"sku_code":"xb"}]}}'),
+  (2, '{"customer_record":{"order_lines":[{"sku_code":"xc"},{"sku_code":"xd"}]}}');
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'all', 'x%')) FROM t4;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # One path found, which is a string and nests nothing at all
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'one', 'x%')) FROM t4;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t4;
 
 --echo #
 --echo # Asking whether a value is a document reads it once.  There is
@@ -432,3 +557,19 @@ SELECT JSON_SET('{"x":1}', '$.p',
                 CONVERT(JSON_OBJECT('a', _utf8mb4 0xE4BDA0) USING latin1));
 --enable_result_log
 SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # A conversion FROM the binary character set is not a conversion at
+--echo # all: there is nothing to convert from, so the bytes go across
+--echo # untouched and are read as whatever the other set makes of them.
+--echo # That is a different string of characters and, for a document,
+--echo # usually not one - so nothing carries and the value that comes out
+--echo # is read wherever it is used.
+--echo #
+SELECT HEX(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary;
+SELECT JSON_VALID(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary_valid;
+
+--echo #
+--echo # And the same going the other way, which was always refused
+--echo #
+SELECT HEX(CONVERT(JSON_ARRAY('ab') USING binary)) AS to_binary;

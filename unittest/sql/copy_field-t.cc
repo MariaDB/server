@@ -25,7 +25,9 @@
   either.  Entries of both kinds are put in one array, which callers walk
   with a single loop, so from_field and to_field have to read as absent
   where they were never filled in rather than as whatever the memory the
-  array was built on happened to hold.
+  array was built on happened to hold.  The same goes for the bit the
+  destination carries, which the field to string overload never records
+  either and which decides whether the copy confirms the attestation.
 */
 
 #include <my_global.h>
@@ -39,6 +41,24 @@
   distinguishable from memory it cleared.
 */
 static const int POISON= 0xAB;
+
+
+/**
+  Whether a bool reads back as false.
+
+  Asked of the byte rather than of the value.  A bool holding neither 0
+  nor 1 makes any comparison of it undefined, and ok() takes anything
+  but zero for a pass, so a plain comparison would silently pass over
+  exactly the memory this file is about.
+*/
+
+static bool starts_false(const bool *flag)
+{
+  unsigned char raw;
+
+  memcpy(&raw, flag, sizeof(raw));
+  return raw == 0;
+}
 
 
 /**
@@ -60,8 +80,12 @@ static void test_construction_over_dirty_memory()
 
   ok(first->from_field == NULL, "first from_field starts absent");
   ok(first->to_field == NULL, "first to_field starts absent");
+  ok(starts_false(&first->to_needs_confirm),
+     "first to_needs_confirm starts false");
   ok(second->from_field == NULL, "second from_field starts absent");
   ok(second->to_field == NULL, "second to_field starts absent");
+  ok(starts_false(&second->to_needs_confirm),
+     "second to_needs_confirm starts false");
 
   second->~Copy_field();
   first->~Copy_field();
@@ -92,6 +116,8 @@ static void test_array_on_mem_root()
   {
     ok(copy[i].from_field == NULL, "copy[%u] from_field starts absent", i);
     ok(copy[i].to_field == NULL, "copy[%u] to_field starts absent", i);
+    ok(starts_false(&copy[i].to_needs_confirm),
+       "copy[%u] to_needs_confirm starts false", i);
   }
   free_root(&mem_root, MYF(0));
 }
@@ -100,7 +126,7 @@ static void test_array_on_mem_root()
 int main(int argc __attribute__((unused)), char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(10);
+  plan(15);
 
   test_construction_over_dirty_memory();
   test_array_on_mem_root();

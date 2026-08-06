@@ -250,15 +250,128 @@ Json_scans	10
 #
 # What is skipped there is a reading that would have measured how
 # deep the value goes, and how deep it ends up decides whether the
-# result can be read at all.  How long the value is answers that
-# for a short one - it cannot nest deeper than half its length -
-# and answers nothing for a long one, which is read as before.
+# result can be read at all.  Two things answer that without a
+# reading, and the smaller of them is taken.  How long the value
+# is answers it for a short one, which cannot nest deeper than half
+# its length, and says nothing about a long one.  What the function
+# that wrote the value counted as it wrote answers it whatever the
+# length - which is what the documents below are, at eighty-odd
+# characters and one structure deep.
 #
 FLUSH STATUS;
 SELECT JSON_ARRAY(JSON_EXTRACT(js, '$')) FROM t3;
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_OBJECT('k', JSON_EXTRACT(js, '$')) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# And it carries, which is what the length could never do: every
+# step out used to read the whole of the long value again.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_INSERT(JSON_EXTRACT(js, '$'), '$.c', 3)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
 Json_scans	4
+#
+# A name that only asks for a formatting hands the value straight
+# on, and passes on what was counted about it with it.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_COMPACT(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A value nobody counted is read, as it always was.  The column
+# here is a caller's own text: it is cut into by JSON_QUERY, which
+# can say the piece is a document but not how deep the document it
+# came out of went.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_QUERY(js, '$')) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# A group writes its pairs as they arrive and is as deep as the
+# deepest of them, so the object it makes is spliced without being
+# read.  Its sister gathers its elements through a table, and the
+# column of that table keeps the deepest of the rows put into it,
+# so they are not read on the way back out either.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_OBJECTAGG(id, JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A name given to a value in the select list and used again later
+# in the same statement reaches it through a reference, and a
+# reference reads what the item's RESULT side passes.  For
+# nearly every item that is the value the item made, so what was
+# said about the value is said about this - and the splice below
+# costs the reading it costs when the expression is written out
+# where it is used.
+#
+FLUSH STATUS;
+SELECT JSON_OBJECT('a', js) AS o FROM t1 HAVING JSON_ARRAY(o) IS NOT NULL;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# A grouped query moves the aggregate out of the expression around
+# it and puts a reference in its place, so the array below is
+# built over a reference rather than over the aggregate.  All
+# three answers travel together through it, the depth among them:
+# the array these gather is long enough that its length says more
+# levels than a document is allowed, so a depth that went missing
+# here would show up as the whole thing being read again.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3 GROUP BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A search returns one path as a string and several as an array
+# of strings, so what it makes nests one level at the most and it
+# knows which as it writes.  The paths here are long, so the
+# length says nothing useful and only that count keeps the answer
+# from being read again where it is spliced.
+#
+CREATE TABLE t4 (id INT, js TEXT);
+INSERT INTO t4 VALUES
+(1, '{"customer_record":{"order_lines":[{"sku_code":"xa"},{"sku_code":"xb"}]}}'),
+(2, '{"customer_record":{"order_lines":[{"sku_code":"xc"},{"sku_code":"xd"}]}}');
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'all', 'x%')) FROM t4;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# One path found, which is a string and nests nothing at all
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'one', 'x%')) FROM t4;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+DROP TABLE t4;
 #
 # Asking whether a value is a document reads it once.  There is
 # nothing here left to take away.
@@ -376,3 +489,25 @@ CONVERT(JSON_OBJECT('a', _utf8mb4 0xE4BDA0) USING latin1));
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
 Json_scans	3
+#
+# A conversion FROM the binary character set is not a conversion at
+# all: there is nothing to convert from, so the bytes go across
+# untouched and are read as whatever the other set makes of them.
+# That is a different string of characters and, for a document,
+# usually not one - so nothing carries and the value that comes out
+# is read wherever it is used.
+#
+SELECT HEX(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary;
+from_binary
+5B226162225D
+SELECT JSON_VALID(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary_valid;
+from_binary_valid
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+#
+# And the same going the other way, which was always refused
+#
+SELECT HEX(CONVERT(JSON_ARRAY('ab') USING binary)) AS to_binary;
+to_binary
+5B226162225D

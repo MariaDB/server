@@ -247,3 +247,51 @@ UPDATE t3 FOR PORTION OF apptime FROM '2000-01-01' TO '2018-01-01'
 SELECT id, j, JSON_TYPE(j) AS ty, s, e FROM t3;
 
 DROP TABLE t3, t2, t1;
+
+--echo #
+--echo # 7. A value that came out SQL NULL, put into a column that cannot
+--echo # hold one.
+--echo #
+--echo # A column of a temporary table is attested to once, when the
+--echo # table is built out of something that attests to every value it
+--echo # will make.  That answer is about the column and stands over
+--echo # every row of it, a row whose value came out NULL among them.
+--echo # What such a row puts in the destination is not the NULL but
+--echo # whatever the destination takes in place of one, and nothing has
+--echo # attested that.
+--echo #
+
+CREATE TABLE src (d LONGTEXT) CHARSET utf8mb4;
+INSERT INTO src VALUES ('{"a":1}'), ('{"b":2}');
+
+--echo # grouping builds the temporary table, and the path finds nothing
+CREATE TABLE t1 (j LONGTEXT NOT NULL CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+SET @save_sql_mode= @@sql_mode;
+SET SESSION sql_mode= '';
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 (j) SELECT JSON_EXTRACT(d, '$.nosuch') FROM src GROUP BY d;
+SET SESSION sql_mode= @save_sql_mode;
+SELECT COUNT(*) FROM t1;
+
+--echo # the same insert told to carry on past what it cannot store
+INSERT IGNORE INTO t1 (j) SELECT JSON_EXTRACT(d, '$.nosuch')
+       FROM src GROUP BY d;
+SELECT COUNT(*) FROM t1;
+
+--echo # a union builds one too, and the rows where the path does find a
+--echo # value go in while the ones where it does not are refused
+CREATE TABLE t2 (j LONGTEXT NOT NULL CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT IGNORE INTO t2 (j)
+       SELECT JSON_EXTRACT(d, '$.nosuch') FROM src UNION ALL
+       SELECT JSON_EXTRACT(d, '$.a') FROM src;
+--sorted_result
+SELECT j, JSON_TYPE(j) AS ty FROM t2;
+
+--echo # a column that CAN hold a NULL holds the NULL itself, which is
+--echo # not a document and is not asked to be one
+CREATE TABLE t3 (j LONGTEXT CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t3 (j) SELECT JSON_EXTRACT(d, '$.a') FROM src GROUP BY d;
+--sorted_result
+SELECT j, j IS NULL AS was_null FROM t3;
+
+DROP TABLE t3, t2, t1, src;
