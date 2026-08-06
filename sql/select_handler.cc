@@ -64,6 +64,9 @@ TABLE *select_handler::create_tmp_table(THD *thd, SELECT_LEX *select)
                             (ORDER *) 0, false, 0,
                             TMP_TABLE_ALL_COLUMNS, 1,
                             &empty_clex_str, true, false);
+  /* The engine the select was pushed down to writes the rows of this one. */
+  if (table)
+    table->set_filled_by_engine();
   DBUG_RETURN(table);
 }
 
@@ -75,8 +78,28 @@ bool select_handler::prepare()
     Some engines (e.g. XPand) initialize "table" on their own.
     So we need to create a temporary table only if "table" is NULL.
   */
-  if (!table && !(table= create_tmp_table(thd, select)))
-    DBUG_RETURN(true);
+  if (!table)
+  {
+    if (!(table= create_tmp_table(thd, select)))
+      DBUG_RETURN(true);
+  }
+  else
+  {
+    /*
+      A table the engine brought with it is a table the engine fills, so
+      it drops the attestations about its columns for the same reason
+      one built here does - see TABLE::set_filled_by_engine().  Done on
+      this arm too, and not only where the table is built, because what
+      has to hold is that EVERY way in has dropped them.
+
+      No engine in the tree takes this arm, every one of them leaving
+      the table to be built above, so nothing here is exercised by a
+      test.  It is written all the same: the arm exists for engines that
+      are not in the tree, and an answer that is only right because
+      nobody takes the arm is not an answer.
+    */
+    table->set_filled_by_engine();
+  }
   DBUG_RETURN(table->fill_item_list(&result_columns));
 }
 
@@ -127,6 +150,15 @@ int select_handler::execute()
   int err;
 
   DBUG_ENTER("select_handler::execute");
+
+  /*
+    Nothing attests to what an engine puts in a table it fills, so the
+    bitmaps are dropped where the table is given to the engine - see
+    TABLE::set_filled_by_engine().  Asserted here rather than there
+    because what has to hold is that EVERY way in has dropped them, and
+    the ways in all come through here.
+  */
+  DBUG_ASSERT(!table->is_valid_json_static_set);
 
   if ((err= init_scan()))
     goto error;

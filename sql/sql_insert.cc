@@ -3129,6 +3129,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                  (my_bitmap_map*) (bitmap +
                                    (bitmaps_used + 1)*share->column_bitmap_size),
                  share->fields);
+  /*
+    The table this was copied from is a base table and so has none, but
+    the copy is made by memcpy and would carry the pointers over rather
+    than have any storage of its own.  Said outright, so that a table
+    which is not the server's own can never come to attest to what is
+    written into it.
+  */
+  copy->set_filled_by_engine();
   copy->tmp_set.bitmap= 0;                      // To catch errors
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;

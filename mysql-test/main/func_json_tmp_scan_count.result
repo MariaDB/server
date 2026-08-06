@@ -1,0 +1,670 @@
+#
+# How many times a value out of the server's own temporary table is
+# read to find out whether it is a document.
+#
+# No query can see the difference - the reading could only have found
+# out what was already known - so nothing but Json_scans says whether
+# it happened.  The counts below are the record of it.  A count that
+# goes up is a reading that came back.
+#
+# A debug build reads values back to check what was claimed about
+# them, and none of those readings are counted: they are the debug
+# build's work and not the server's.  A count of 0 below therefore
+# means nothing read, not that a reading went uncounted.
+#
+SET NAMES utf8mb4;
+SET optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+#
+# 1. TWO rows out of a base column, spliced into a new document.
+# A column says nothing about itself, so each row is read once and
+# that reading is not work that can be taken away.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(j) AS r FROM t1 ORDER BY id;
+r
+[{"a":1}]
+[{"b":2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 2. The same two rows, put through a function that attests to what
+# it returns, and spliced without a temporary table in between.
+# JSON_EXTRACT reads its input once; the splice reads nothing.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_EXTRACT(j, '$')) AS r FROM t1 ORDER BY id;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 3. The same, with a temporary table in between.  What the function
+# answered is what the column was built to hold, so the count is the
+# function's own readings and nothing else.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 4. The same shape with a producer that answers per evaluation
+# rather than for every one of them.  Nothing can be said about the
+# column at the time it is made, so each row is read on the way out.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_OBJECT('a', id) AS x FROM t1) d ORDER BY id;
+r
+[{"a": 1}]
+[{"a": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 5. Through a GROUP BY, which writes a temporary table of its own.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1 GROUP BY id, j) d ORDER BY id;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 6. A UNION, whose column has one producer per branch.  The
+# branches are where those producers are all in reach, so what the
+# column answers is what every one of them answers, and the count
+# is their own readings and nothing else.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+UNION ALL
+SELECT JSON_EXTRACT(j, '$') FROM t1) d;
+r
+[{"a": 1}]
+[{"b": 2}]
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 7. A table the user asked for, which is not the server's own.
+#
+CREATE TEMPORARY TABLE tt (x VARCHAR(64) CHECK (JSON_VALID(x))) CHARSET utf8mb4;
+INSERT INTO tt SELECT JSON_EXTRACT(j, '$') FROM t1;
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM tt;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+DROP TEMPORARY TABLE tt;
+#
+# 8. A store that came up short takes back what was said about the
+# column, so its rows are read on the way out like anything else.
+#
+# No function asks for less room than it goes on to use, so nothing
+# arrives short of its own accord and the short store is arranged
+# for here.  The query is the one from 3, so the count below is what
+# 3 would have come to with nothing said about its column.
+#
+SET @old_debug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+SET SESSION debug_dbug= @old_debug;
+#
+# 9. Two temporary tables one after the other.  The second is built
+# before a row of the first exists, so what the first says then is
+# the most it will ever say.  Every row put across asks it again,
+# and what is left to count is the first table's own readings.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+(SELECT x AS y FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 10. Asking what a materialized value IS, rather than splicing it.
+# JSON_TYPE reads its argument whatever anyone says about it: what is
+# promised is that the value is a document, not which one.
+#
+FLUSH STATUS;
+SELECT JSON_TYPE(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+r
+OBJECT
+OBJECT
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 11. An aggregate gathers its elements in a table of its own and
+# reads them back out of a record rather than off the item that put
+# them there.  The column is what attests to them.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(j, '$')) AS r FROM t1;
+r
+[{"a": 1},{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 12. The same, with a producer that attests per evaluation rather
+# than to every value it makes.  Its column is read on the way out,
+# so the total matches 11 from the other side: 11's two readings are
+# the producer's own, these two are the readings back 11 was spared.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id)) AS r FROM t1;
+r
+[{"a": 1},{"a": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 13. An aggregate whose arguments are buffered before the group can
+# be built - a join with a grouping the rows do not arrive in.  The
+# argument is put into a table of its own on the way past, and read
+# back off that column.
+#
+# Each group gathers the same row more than once, so what is
+# gathered reads the same whichever order the rows arrive in - an
+# order a grouping does not fix and this file must not depend on.
+#
+CREATE TABLE t13 (id INT, g INT, j VARCHAR(64) CHECK (JSON_VALID(j)))
+CHARSET utf8mb4;
+INSERT INTO t13 VALUES (1, 1, '{"a":1}'), (2, 2, '{"b":2}');
+CREATE TABLE t13m (g INT);
+INSERT INTO t13m VALUES (1), (1), (2), (2);
+FLUSH STATUS;
+SELECT JSON_OBJECTAGG(a.id, JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+r
+{"2":{"b": 2}, "2":{"b": 2}}
+{"1":{"a": 1}, "1":{"a": 1}}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 14. The same shape gathered into an array instead.  The table the
+# aggregate gathers in is built out of the buffer's column rather
+# than out of the function that filled it, and asks that column
+# again for every element it is handed.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+r
+[{"b": 2},{"b": 2}]
+[{"a": 1},{"a": 1}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 15. The chain of 9, with a store into the FIRST table that comes
+# up short.  That column gives up its answer, and the second has to
+# hear about it although it was built long before.  The query is
+# the one from 9, so the count is what 9 would have come to with
+# neither column answering.
+#
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+(SELECT x AS y FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+SET SESSION debug_dbug= @old_debug;
+#
+# 16. The same chain, with the row that crosses BETWEEN the two
+# tables arriving short instead.  The first column still answers
+# for what it holds; it is the second that stops.
+#
+SET SESSION debug_dbug='+d,json_tmp_chain_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+(SELECT x AS y FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+SET SESSION debug_dbug= @old_debug;
+#
+# 17. The buffered aggregate of 14, with the store into the buffer
+# coming up short.  The aggregate's own table is filled from that
+# buffer field to field rather than off an item, so this is the
+# case that says the field-to-field route asks as well.
+#
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(a.j, '$')) AS r FROM t13 a, t13m b
+WHERE a.g = b.g GROUP BY a.g ORDER BY a.g DESC;
+r
+[{"b": 2},{"b": 2}]
+[{"a": 1},{"a": 1}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+SET SESSION debug_dbug= @old_debug;
+#
+# 18. A grouping that needs no temporary table of its own still has
+# to hold a value across the group it belongs to, and it holds it in
+# a buffer rather than in a column.  A HAVING or an ORDER BY reads
+# what it reads out of that buffer.
+#
+# A buffer holds one value at a time and is filled right beside the
+# item that made it, so what that item says about the value is put
+# away together with the value and is about it still when it is read
+# back.
+#
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+HAVING JSON_ARRAY(x) <> '[]';
+m	x
+2	{"a": 1}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	1
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+ORDER BY JSON_ARRAY(x);
+m	x
+2	{"a": 1}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	1
+#
+# 19. The same with a producer that attests to the value it has
+# just made rather than for every value it will ever make.  A column
+# cannot be told about one of those, being made before any of them
+# exists; a buffer is filled after, so what it holds is attested to
+# like anything else and nothing is read at all.
+#
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_OBJECT('a', id) AS x FROM t1
+HAVING JSON_ARRAY(x) <> '[]';
+m	x
+2	{"a": 1}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# 20. A buffer filled from a COLUMN rather than from an item, which
+# is the route a value takes when it is wide enough to be kept apart
+# from the row it belongs to.  What the column says is what the
+# buffer puts away.
+#
+CREATE TABLE t20 (id INT, j JSON) CHARSET utf8mb4;
+INSERT INTO t20 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+FLUSH STATUS;
+SELECT MAX(d.id) AS m, d.x AS y FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t20) d
+HAVING JSON_ARRAY(y) <> '[]';
+m	y
+2	{"a": 1}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+DROP TABLE t20;
+#
+# 21. A buffer that could not take what it was handed keeps what it
+# held before, which nothing here can attest to.  Nothing arrives
+# that way of its own accord - it takes a failure to find the room -
+# so it is arranged for.  The query is the one from 18, so the count
+# is what 18 would have come to with the buffer saying nothing.
+#
+SET SESSION debug_dbug='+d,json_copy_not_kept';
+FLUSH STATUS;
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t1
+HAVING JSON_ARRAY(x) <> '[]';
+m	x
+2	{"a": 1}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+SET SESSION debug_dbug= @old_debug;
+#
+# 22. The same UNION with one branch that attests per evaluation
+# rather than to every value it makes.  One branch not attesting is
+# the whole column not attesting, there being no telling which
+# branch a row came out of once it is in there.  So every row is
+# read on the way out - four - on top of the two the JSON_EXTRACT
+# branch read itself.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+UNION ALL
+SELECT JSON_OBJECT('a', id) FROM t1) d;
+r
+[{"a": 1}]
+[{"b": 2}]
+[{"a": 1}]
+[{"a": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# 23. The same again with a branch that is a column, which says
+# nothing about itself and so says nothing for the column it is
+# written into either.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+UNION ALL
+SELECT j FROM t1) d;
+r
+[{"a": 1}]
+[{"b": 2}]
+[{"a":1}]
+[{"b":2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# 24. Rows written one list at a time rather than one branch at a
+# time, which is the same column with the same one producer per
+# row and is asked the same way.
+#
+FLUSH STATUS;
+WITH d(x) AS
+(VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_QUERY('{"b":2}', '$')))
+SELECT JSON_ARRAY(x) AS r FROM d ORDER BY r;
+r
+[{"a": 1}]
+[{"b":2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# And one list that answers per evaluation is the same column not
+# answering, exactly as one branch is.
+#
+FLUSH STATUS;
+WITH d(x) AS
+(VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_OBJECT('b', 2)))
+SELECT JSON_ARRAY(x) AS r FROM d ORDER BY r;
+r
+[{"a": 1}]
+[{"b": 2}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	5
+#
+# 25. A recursive CTE, whose column is built once the parts that do
+# not go round have agreed on a type - the parts that DO go round
+# not being reached at all, so nothing there can be asked and the
+# ones that were reached do not answer in their place.
+#
+FLUSH STATUS;
+WITH RECURSIVE r AS (
+SELECT 1 AS n, JSON_EXTRACT(j, '$') AS x FROM t1
+UNION ALL
+SELECT n + 1, JSON_OBJECT('n', n) FROM r WHERE n < 2)
+SELECT JSON_ARRAY(x) AS y FROM r ORDER BY y;
+y
+[{"a": 1}]
+[{"b": 2}]
+[{"n": 1}]
+[{"n": 1}]
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	10
+#
+# 26. A function that EDITS a document rather than building one.
+# It composes its answer and then reads the whole of it back, that
+# reading being where the spacing gets settled - unless what it was
+# given was already spaced that way, which is a second thing such a
+# column can say and says here.
+#
+FLUSH STATUS;
+SELECT JSON_SET(x, '$.z', 9) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 27. The same over a column whose producer returns a document
+# formatted some other way - JSON_QUERY copying a sub-document out as
+# it stands rather than writing one.  Attested, and not written
+# for, so the reading back stays.
+#
+FLUSH STATUS;
+SELECT JSON_SET(x, '$.z', 9) AS r FROM
+(SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# 28. The formatting carried from one such table into the next, which
+# the second column asks the first about at every row it is given.
+#
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+(SELECT id, x AS y FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d1) d2 ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# And taken back where what the first holds is formatted otherwise.
+#
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+(SELECT id, x AS y FROM
+(SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d1) d2 ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# 29. The same across the copier that fills a grouping's table,
+# which is a different way of putting a row across and is asked the
+# same thing.
+#
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+(SELECT id, x AS y FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d1 GROUP BY id, x) d2
+ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 30. And that copier taking it back, for the same reason and by
+# asking the same source.
+#
+FLUSH STATUS;
+SELECT JSON_SET(y, '$.z', 9) AS r FROM
+(SELECT id, x AS y FROM
+(SELECT id, JSON_QUERY(j, '$') AS x FROM t1) d1 GROUP BY id, x) d2
+ORDER BY id;
+r
+{"a": 1, "z": 9}
+{"b": 2, "z": 9}
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# Everything above is short enough that half its length is inside
+# the limit, so nothing there was ever read to find out how deep it
+# goes.  These are not: at over a hundred characters the length says
+# nothing useful, and what the column can say about the depth is the
+# only thing left.
+#
+CREATE TABLE t31 (id INT, j VARCHAR(400) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t31 VALUES
+(1, CONCAT('{"a":[1,2],"pad":"', REPEAT('x', 100), '"}')),
+(2, CONCAT('{"b":[3,4],"pad":"', REPEAT('y', 100), '"}'));
+#
+# 31. Two long rows out of a base column.  A column of a table the
+# user asked for says nothing about how deep its values go any more
+# than about anything else, so each row is read.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(j) AS r FROM t31 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 32. The same through a temporary table.  The producer counted the
+# depth while it wrote and the column kept the figure, so the splice
+# has what it needs without the length being asked.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 33. The same carried from one such table into the next, which the
+# second column takes from the first at every row it is given.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(y) AS r FROM
+(SELECT id, x AS y FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d1) d2 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 34. An aggregate gathering its elements out of such a column,
+# which is the only thing left there to ask.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(x)) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31) d;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 35. A producer that returns a piece of a document it was given
+# rather than one it wrote counted nothing, so the column has no
+# figure to keep and the reading stays.  The count is what 32 would
+# have come to with nothing said.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_QUERY(j, '$') AS x FROM t31) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# 36. A column written by more than one producer keeps the deepest
+# of all its rows, so where every one of them counted, every row
+# gets the figure.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31
+UNION ALL
+SELECT id, JSON_EXTRACT(j, '$.a') FROM t31) d;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# And one row that nobody counted is the whole column saying
+# nothing, the deepest of the rows being unknown once one of them
+# is.  The same four rows, one pair of them uncounted.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT id, JSON_EXTRACT(j, '$') AS x FROM t31
+UNION ALL
+SELECT id, JSON_QUERY(j, '$') FROM t31) d;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+DROP TABLE t31;
+#
+# 37. Branches written in different character sets.  A column takes
+# one set for all of them, and a branch in another set is stored
+# into it converting - except into the binary set, which converts
+# nothing at all and keeps every byte under the other set's name.
+# Rows that arrived that way are not the documents that were
+# written, so the column takes its answer back and every row is
+# read on the way out.
+#
+CREATE TABLE t37 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET ucs2;
+INSERT INTO t37 VALUES ('{"a":1}'), ('[1,2]');
+CREATE TABLE t37b (b BLOB);
+INSERT INTO t37b VALUES ('{"b":2}'), ('[3,4]');
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT JSON_QUERY(j, '$') AS x FROM t37
+UNION ALL
+SELECT JSON_QUERY(b, '$') FROM t37b) d;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+#
+# 38. The same two branches with the wide one alone, so that the
+# column takes that same set and every character arrives as the one
+# written.  Nothing is taken back, and the count is the branches'
+# own readings and nothing else - which is what 37 would have come
+# to had the characters come across.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+(SELECT JSON_QUERY(j, '$') AS x FROM t37
+UNION ALL
+SELECT JSON_QUERY(j, '$') FROM t37) d;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+DROP TABLE t37, t37b;
+DROP TABLE t1;
+DROP TABLE t13, t13m;

@@ -7,13 +7,19 @@
 # goes on its own, and it is the total the limit is about.
 #
 # The value's own depth is found by reading it.  A value that something
-# else has already read and answered for is not read again, so the
-# reading that would have measured it is not done - except that it does
-# not have to be, a value only nesting as deeply as it is long.  The
-# cases below are the ones that tell those two apart: a value of
-# nothing but brackets is as deep as half its length and is where the
-# reckoning has to be exact, and a scalar is no deep at all however
-# long the document holding it.
+# else has already read and attested to is not read again, so the
+# reading that would have measured it is not done.  Two things stand in
+# for it, and the smaller is taken.  A value only nests as deeply as it
+# is long, which is exact for a value of nothing but brackets and
+# useless for a long shallow one.  And the function that wrote the value
+# may have counted the depth as it wrote, which is exact whatever the
+# length.
+#
+# The cases below are the ones that tell those apart, and each is set
+# where being wrong by one would show: a value of nothing but brackets
+# is as deep as half its length; a scalar is no deep at all however long
+# the document holding it; and a long padded chain is beyond anything
+# its length can say, so only a count admits it.
 #
 # The answers are the ones the server has always given.
 #
@@ -71,6 +77,64 @@ SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
 SET @d30a= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
 SELECT JSON_ARRAY(JSON_EXTRACT(@d31, '$')) AS built_deep;
 SELECT JSON_ARRAY(JSON_EXTRACT(@d30a, '$')) AS built_limit;
+
+--echo #
+--echo # 7. A chain padded until its length says nothing about it - each
+--echo #    level here is fourteen characters, so half the length is
+--echo #    seven times the limit and only a count can tell one of these
+--echo #    from the other
+--echo #
+SET @k31= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 31),
+                 '1', REPEAT('}', 31));
+SET @k30= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 30),
+                 '1', REPEAT('}', 30));
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(@k31, '$')) AS padded_deep;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k31, '$'))) AS padded_deep_depth;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(@k30, '$')) AS padded_limit;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))) AS padded_limit_depth;
+
+--echo #
+--echo # 8. The same carried one step further out, where the count is all
+--echo #    there is: the array of case 7 is longer again and is what the
+--echo #    outer one is asked to take
+--echo #
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))) AS padded_two;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))))
+       AS padded_two_depth;
+
+--echo #
+--echo # 9. A document that was EDITED is as deep as it was or as deep as
+--echo #    what went into it, whichever is more, and says so without
+--echo #    being read again
+--echo #
+SET @k29= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 29),
+                 '1', REPEAT('}', 29));
+SET @k28= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 28),
+                 '1', REPEAT('}', 28));
+SET @kp29= CONCAT('$', REPEAT(CONCAT('.', REPEAT('k', 10)), 29));
+SET @kp28= CONCAT('$', REPEAT(CONCAT('.', REPEAT('k', 10)), 28));
+--disable_result_log
+SELECT JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k28, '$'), @kp28,
+                               JSON_EXTRACT('{"b":{"c":1}}', '$')))
+       AS edited_limit;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k28, '$'), @kp28,
+                             JSON_EXTRACT('{"b":{"c":1}}', '$'))))
+       AS edited_limit_depth;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k29, '$'), @kp29,
+                               JSON_EXTRACT('{"b":{"c":1}}', '$')))
+       AS edited_deep;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k29, '$'), @kp29,
+                             JSON_EXTRACT('{"b":{"c":1}}', '$'))))
+       AS edited_deep_depth;
 
 --echo #
 --echo # 10. Wrapping, where the new array is a structure the document

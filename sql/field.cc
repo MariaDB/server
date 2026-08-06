@@ -36,6 +36,11 @@
 #include "tztime.h"                      // struct Time_zone
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
+#include "sql_type_json.h"               // Type_handler_json_common
+#ifndef DBUG_OFF
+#include "item_jsonfunc.h"               // json_value_reads_as_document,
+                                         // json_value_is_nice
+#endif
 #include <m_ctype.h>
 
 // Maximum allowed exponent value for converting string to decimal
@@ -2789,6 +2794,267 @@ void Field::set_is_valid_json(const Item *item, int store_rc)
     bitmap_set_bit(&table->is_valid_json_set, field_index);
   else
     bitmap_clear_bit(&table->is_valid_json_set, field_index);
+}
+
+
+/*
+  The three of these are here rather than beside their siblings in
+  field.h for one reason: JSON_DEPTH_UNKNOWN is declared in item.h,
+  which a field header does not see and should not have to.  The call
+  costs nothing beside the reading it exists to save.
+
+  Asked through the standing answer, so a column that has given that up
+  has given the depth up with it and cannot be asked to return a
+  figure about values it no longer attests to.
+*/
+
+uint Field::json_static_depth() const
+{
+  return is_valid_json_static() ? table->json_static_depth[field_index]
+                                : JSON_DEPTH_UNKNOWN;
+}
+
+
+/*
+  What a value that has just arrived makes of the running figure.  The
+  entry only ever rises, so this is asked in the same call as the store
+  and before anything reads the row - which is what makes a figure read
+  at row N no smaller than the depth of row N.
+
+  A value nobody counted arrives as JSON_DEPTH_UNKNOWN, which is the
+  largest there is, so it takes the column there and nothing brings it
+  back.
+*/
+
+void Field::raise_json_static_depth(uint depth)
+{
+  if (table->json_static_depth && depth > table->json_static_depth[field_index])
+    table->json_static_depth[field_index]= depth;
+}
+
+
+void Field::forget_json_static_depth()
+{
+  if (table->json_static_depth)
+    table->json_static_depth[field_index]= JSON_DEPTH_UNKNOWN;
+}
+
+
+/*
+  Said once, of a field of a temporary table the server is building for
+  itself, while the one item that will ever write it is in hand.
+
+  Three things are asked, and all three are properties of the pair rather
+  than of any value:
+
+  1. the item returns a document EVERY time it is evaluated, not just
+     the time somebody happens to look - which is the question this field
+     needs, there being no evaluation to have looked at yet;
+  2. the field puts down the characters it is given, by the same list
+     is_character_preserving() uses for the check skip;
+  3. it writes them in the character set they arrive in, so no character
+     is encoded again on the way down.  A document rewritten into another
+     character set is still a document, but only where every character of
+     it can be written there, and that is not a question about the pair.
+
+  The field being JSON-typed is asked too, and not because it makes the
+  value any more of a document: it is what decides whether anybody will
+  ever ask; an attestation about a column nothing reads as JSON is
+  never looked at.
+
+  The formatting is granted here too, as a yes, without anything being
+  asked.  Nothing could be asked: the item is in hand, but the question
+  is about values it has not made yet, and unlike being a document the
+  formatting is settled one value at a time.  So it is granted here and
+  spent afterwards - each value that arrives written another way takes
+  it back, and a field that is never written keeps it and is never read.
+
+  How deep the values go is settled the same way and for the same
+  reason, but it runs the other direction: it starts at nothing, being
+  the deepest of no rows, and each value that arrives raises it.  Where
+  no answer is given at all it starts at the largest figure there is,
+  so that a column nobody attested to cannot be read as a shallow one.
+*/
+
+void Field::set_is_valid_json_static(const Item *item)
+{
+  if (!table->is_valid_json_static_set)
+    return;
+  DBUG_ASSERT(table->is_nice_json_static_set && table->json_static_depth);
+  if (item->is_valid_json_static() && is_character_preserving() &&
+      Type_handler_json_common::is_json_type_handler(type_handler()) &&
+      my_charset_same(charset(), item->collation.collation))
+  {
+    bitmap_set_bit(table->is_valid_json_static_set, field_index);
+    bitmap_set_bit(table->is_nice_json_static_set, field_index);
+    table->json_static_depth[field_index]= 0;
+  }
+  else
+  {
+    bitmap_clear_bit(table->is_valid_json_static_set, field_index);
+    bitmap_clear_bit(table->is_nice_json_static_set, field_index);
+    table->json_static_depth[field_index]= JSON_DEPTH_UNKNOWN;
+  }
+}
+
+
+/*
+  Asked after every store into such a field, because the promise above is
+  about characters and a store is where characters go missing.
+
+  It is asked as "how much did you keep", not "did anything go wrong",
+  because going wrong is not reported here: Field_longstr::
+  report_if_important_data() answers 0 for a truncation unless
+  count_cuted_fields is raised above CHECK_FIELD_EXPRESSION, and writing
+  a temporary table does not raise it.  A store that dropped the tail of
+  a document would return success and warn nobody.
+
+  Losing the mark is for good.  The value that arrived short is not a
+  document, and one field of one row being wrong is enough - a reader
+  believes the field, not the row.
+
+  No function asks for less room than it goes on to use, so nothing gets
+  here having lost anything; what this catches is one of them ever
+  doing so.  A store that comes up short is arranged for rather than
+  waited for, so that the losing of the mark is exercised and not merely
+  reasoned about.
+
+  The formatting is asked of the item instead of the store, that being
+  where the answer is: a store puts characters down and knows nothing
+  about the order they are in, while the item has just written them and
+  says how.  The two are asked together because they are spent together
+  - a store that lost characters has lost the formatting with them, which
+  is why the length is settled first and the formatting only after.
+
+  The depth comes off the item for the same reason and is taken the
+  same way round: a value the item did not count arrives as the largest
+  figure there is and takes the column with it, so nothing has to
+  decide here what an absent answer means.
+*/
+
+void Field::confirm_is_valid_json_static(uint32 handed_length, bool is_nice,
+                                         uint depth, CHARSET_INFO *cs)
+{
+  DBUG_EXECUTE_IF("json_tmp_store_kept_short", handed_length++;);
+  /*
+    The length alone is not the question, and both the other two ask the
+    rest of it.  A store between a wide set and the binary one keeps
+    every byte and calls them by the other set's name, so the length
+    comes back unchanged over characters that are no longer the ones
+    that were written: a ucs2 document arrives as bytes beginning 00 7B,
+    which nothing reads as a document.
+
+    Asked here rather than left to the grant, because on the union route
+    the grant cannot ask it.  The field is made from a type holder, whose
+    own set is the aggregated one and so is always the field's - the
+    question answers itself there and decides nothing.  The branches that
+    do the storing are the ones with something to say, and this is where
+    each of them says it.
+  */
+  if (value_length() != handed_length ||
+      !String_copier::conversion_keeps_characters(charset(), cs))
+  {
+    clear_is_valid_json_static();
+    return;
+  }
+  confirm_json_static_value(is_nice, depth);
+}
+
+
+/*
+  What is left of a confirm once the answer itself has survived it: the
+  formatting and the depth, which are said about the values rather than
+  about the column and so are taken one value at a time.
+
+  Both confirms end here, and the debug reading is written once for the
+  same reason the rule above it is: two copies of a check are two chances
+  for one of them to stop matching what it is checking.
+*/
+
+void Field::confirm_json_static_value(bool is_nice, uint depth)
+{
+  if (!is_nice)
+    clear_is_nice_json_static();
+  raise_json_static_depth(depth);
+#ifndef DBUG_OFF
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    const String *v= val_str(&kept);
+    /*
+      Nothing else will ever read this back.  The mark appears in no
+      result and changes no output, so a field wrongly carrying one goes
+      unnoticed until something acts on it - and by then the store that
+      made the promise is a long way from the code that believed it.
+    */
+    DBUG_ASSERT(json_value_reads_as_document(v));
+    DBUG_ASSERT(!is_nice_json_static() || json_value_is_nice(v));
+    DBUG_ASSERT(json_static_depth() >= json_value_depth(v));
+  }
+#endif
+}
+
+
+/*
+  Asked after such a field is filled from another FIELD rather than from
+  an item, which is how a temporary table built out of an earlier one is
+  filled.
+
+  The answer that field was given was copied at build time, before a row
+  of either table existed, so it is not the answer the source holds now.
+  It is an upper bound on it: the bit is set in one place, reached only
+  while such a table is being built, and everything that touches it
+  afterwards only ever clears, so a source that has given its answer up
+  cannot get it back and a copy of it can only be too generous.  Asking
+  the source again at every fill is what turns the bound into the
+  answer, and it is asked where both tables are alive by construction
+  and the source's own store of this row is already done - so nothing
+  here rests on the order two tables are written in.
+
+  The source is asked the same two things the store is asked: whether it
+  attests to its values at all, and whether this field kept every
+  character of what it holds.  The character sets are asked about too,
+  the length being counted in bytes and two fields of different
+  character sets being able to agree on a length while disagreeing about
+  every character in it.  A grant is only ever made where they match, so
+  this decides nothing today; it is here so that the byte count does not
+  quietly become the wrong question if a fill site ever brings a source
+  the grant did not look at.
+
+  The formatting comes from the source as well, and here it has to: no
+  item was evaluated to fill this field, so the only thing that knows
+  how the characters are arranged is the field they were copied from.
+  It is a bound in the same way the answer above is, and turned into the
+  answer the same way, by asking again at every fill.
+
+  The depth comes from the source too, and it is the source's figure
+  over all its rows rather than the depth of the one value being
+  copied - the source having kept a running deepest and not a per-row
+  one.  That is too large rather than wrong, and too large is the
+  direction this figure is allowed to be wrong in.
+*/
+
+void Field::confirm_is_valid_json_static_from(Field *from)
+{
+  uint32 handed_length;
+
+  /*
+    A NULL is not read as a document and nothing attests to it as one,
+    so a row that puts one here leaves the column's answer where it was.
+  */
+  if (is_null())
+    return;
+
+  handed_length= from->value_length();
+  DBUG_EXECUTE_IF("json_tmp_chain_kept_short", handed_length++;);
+  if (from->is_null() || !from->is_valid_json_static() ||
+      !my_charset_same(charset(), from->charset()) ||
+      value_length() != handed_length)
+  {
+    clear_is_valid_json_static();
+    return;
+  }
+  confirm_json_static_value(from->is_nice_json_static(),
+                            from->json_static_depth());
 }
 
 

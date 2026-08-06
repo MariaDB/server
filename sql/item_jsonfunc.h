@@ -26,6 +26,38 @@
 #include "item_sum.h"
 #include "sql_type_json.h"
 
+/*
+  The three below are read by DBUG_ASSERT and by nothing else, so they
+  are here wherever a DBUG_ASSERT is compiled rather than wherever a
+  debug build is.  Those are not the same set: DBUG_ASSERT_AS_PRINTF
+  turns the assertion into a printed complaint and leaves its expression
+  standing, while setting DBUG_OFF, so a guard written the other way
+  round leaves those expressions with nothing to call and that build
+  stops compiling.
+*/
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  Reads a value the way whoever receives it will read it, and says
+  whether it got to the end.  For the debug checks that hold the marks to
+  what they say; the reading is not counted, being the debug build's work
+  and not the server's.
+*/
+bool json_value_reads_as_document(const String *str);
+/*
+  Writes the value out again in the loose form and says whether that
+  changed anything.  For the same debug checks, and uncounted for the
+  same reason.
+*/
+bool json_value_is_nice(const String *str);
+/*
+  Reads the value and says how deep it actually goes.  For the checks
+  that hold a claimed depth to the truth - a claim larger than this is
+  what saying nothing amounts to, and one smaller is the failure worth
+  catching.  Uncounted for the same reason as the two above.
+*/
+uint json_value_depth(const String *str);
+#endif
+
 #ifndef DBUG_OFF
 /*
   Holds the reading count still across a reading the released server does
@@ -120,6 +152,15 @@ class Json_path_extractor: public json_path_with_flags
 {
 protected:
   String tmp_js, tmp_path;
+  /*
+    What the document said about itself, taken while extract() had just
+    evaluated it and before it worked the path out.  A path is any
+    expression a caller cares to write, so the two readings would
+    otherwise be a stored function apart, and what the document answers
+    can change over that distance while the document in hand does not.
+  */
+  bool m_js_nice;
+  uint m_js_depth;
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
@@ -206,11 +247,11 @@ class Item_json_func: public Item_str_func
 protected:
   Json_result_marks m_marks;
   /*
-    Hand a document back as this function's answer rather than reading it
+    Return a document as this function's answer rather than reading it
     again to find out what it is - out of line, where the rule it stands
     on is written.
   */
-  String *hand_back_json(String *to, const String *from);
+  String *return_json(String *to, const String *from, uint depth);
 public:
   Item_json_func(THD *thd)
    :Item_str_func(thd) { }
@@ -226,6 +267,7 @@ public:
   }
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
 };
 
 
@@ -287,8 +329,16 @@ public:
       inside a document is written there the way it would be written on
       its own, and the two ends of the cut are the two ends of the value
       with no spacing of the document's left on either side.
+
+      And a piece of a document does not nest deeper than the document
+      it was cut out of, wherever inside it the cut was made - so what
+      the document could say about its own depth is said about the
+      piece as well.
+
+      Both of them as the document answered them when it was read, not
+      as it answers them now - see Json_path_extractor::m_js_nice.
     */
-    m_marks.set(to, true, args[0]->is_nice_json());
+    m_marks.set(to, true, m_js_nice, m_js_depth);
     return to;
   }
   bool check_and_get_value(Json_engine_scan *je,
@@ -911,6 +961,13 @@ protected:
     still not a document.
   */
   bool m_elements_valid;
+  /*
+    How deep the deepest element written so far reaches, counted from
+    outside the brackets that go round the group.  Accumulated over the
+    elements for the same reason as the mark above: the group is written
+    out a row at a time, and the answer is the deepest of them.
+  */
+  uint m_elements_depth;
   Json_result_marks m_marks;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
@@ -920,7 +977,8 @@ public:
                           bool limit_clause, Item *row_limit, Item *offset_limit):
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
                              is_separator, limit_clause, row_limit, offset_limit),
-      m_bad_element(false), m_closed(false), m_elements_valid(true)
+      m_bad_element(false), m_closed(false), m_elements_valid(true),
+      m_elements_depth(1)
   {
   }
   /*
@@ -932,7 +990,7 @@ public:
   */
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
     Item_func_group_concat(thd, item), m_bad_element(false),
-    m_closed(false), m_elements_valid(true)
+    m_closed(false), m_elements_valid(true), m_elements_depth(1)
   {
     m_tmp_json.set_charset(collation.collation);
   }
@@ -942,6 +1000,7 @@ public:
   }
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
 
   LEX_CSTRING func_name_cstring() const override
   {
@@ -989,6 +1048,12 @@ class Item_func_json_objectagg : public Item_sum
     a document.
   */
   bool m_pairs_valid;
+  /*
+    How deep the deepest value written so far reaches, counted from
+    outside the braces that go round the group - the sister aggregate's
+    m_elements_depth, for the same reason.
+  */
+  uint m_pairs_depth;
   Json_result_marks m_marks;
 public:
   /*
@@ -1000,7 +1065,7 @@ public:
   */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
     Item_sum(thd, key, value), m_bad_pair(false), m_closed(false),
-    m_pairs_valid(true)
+    m_pairs_valid(true), m_pairs_depth(1)
   {
     quick_group= FALSE;
   }
@@ -1020,6 +1085,7 @@ public:
   }
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
   void clear() override;
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }        // not used

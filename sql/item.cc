@@ -43,6 +43,7 @@
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
+#include "item_jsonfunc.h"             // json_value_reads_as_document
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -2283,13 +2284,20 @@ public:
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
 
   /*
-    What this stands in front of is an aggregate, which keeps no result
-    field of its own, so reading through it reaches the aggregate's own
-    val_str() and the value arrives unaltered.  Whatever the aggregate
-    can say about it therefore still holds here.
+    The standing question, and only that one.  split_sum_func2() puts
+    this in front of whatever it moves out of an expression - "or copy
+    it (in case of fields)", its own comment says - so an aggregate is
+    not the only thing under here and an aggregate's habits cannot be
+    assumed of it.  The three answers about a VALUE are therefore left
+    to Item_ref, which asks the item what its result side passes
+    rather than what it made.
+
+    This one is not about a value.  It is asked while a temporary table
+    is being built, before a row exists, and by then the item underneath
+    has had its result field pointed at the very column being asked
+    about - so there is no result side to put the question to yet, and
+    the producer is the only thing there is to ask.
   */
-  bool is_valid_json() const override { return (*ref)->is_valid_json(); }
-  bool is_nice_json() const override { return (*ref)->is_nice_json(); }
   bool is_valid_json_static() const override
   { return (*ref)->is_valid_json_static(); }
 protected:
@@ -5358,10 +5366,45 @@ int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 
 void Item_copy_string::copy()
 {
+  bool kept= true;
   String *res=item->val_str(&str_value);
   if (res && res != &str_value)
-    str_value.copy(*res);
+    kept= !str_value.copy(*res);
   null_value=item->null_value;
+  /*
+    The item was evaluated just above and nothing has evaluated it
+    since, so this is the one moment its answers are about the bytes
+    that are being kept.  String::copy() takes the character set along
+    with them, so the characters those answers are about are the
+    characters kept here - where it kept them at all.  A copy that could
+    not get the room leaves whatever was here before, which the value
+    side has always returned and which nothing here can attest to.
+
+    A value that carries an answer is one that gets spliced into a
+    document rather than quoted into one, and which of the two happens
+    is decided by the type rather than by the answer.  This item's type
+    is the one it was made over, so the two agree wherever that item is
+    the producer; where it is a character set conversion around the
+    producer they do not, the conversion carrying the answer through
+    while the type stops at it.  Asking the same question the splice
+    will ask is what keeps this item from attesting to a value that is
+    going to be quoted.
+
+    The splice asks is_json_type(), whose first question is this one and
+    whose second is whether the item is a conversion to look through.
+    A copy is not one and real_item() of a copy is the copy, so the
+    second question can only ever be answered no here - and answering it
+    is a dynamic_cast, on a path walked once a row for every copied
+    field in every grouped query, JSON or not.  So the first question is
+    asked directly, once, where the type is settled, and the two are the
+    same question.
+  */
+  DBUG_EXECUTE_IF("json_copy_not_kept", kept= false;);
+  if (null_value || !kept || !m_is_json)
+    m_marks.clear();
+  else
+    m_marks.set(&str_value, item->is_valid_json(), item->is_nice_json(),
+                item->last_depth());
 #ifdef DBUG_ASSERT_EXISTS
   copied_in= 1;
 #endif
@@ -7042,6 +7085,80 @@ void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 }
 
 
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  What a field is attesting to, read back off the bytes it is holding.
+  A field that answers nothing is nothing to disagree with, and a row
+  with nothing in it is a field that answers nothing.
+
+  Three bodies rather than one that settles all three at a stroke,
+  which is what a single walk over the value could do.  The three are
+  asked one at a time, so one body would be walked three times rather
+  than once - and answering the formatting means writing the whole value
+  out again and comparing it, which the other two would then be paying
+  for as well.  Reading each of them the cheapest way it can be read is
+  what keeps a debug build's checking proportional to what is checked.
+*/
+static bool field_reads_back_as_document(Field *f)
+{
+  if (!f->answers_is_valid_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_reads_as_document(f->val_str(&kept));
+  }
+}
+
+
+static bool field_reads_back_as_nice(Field *f)
+{
+  if (!f->attests_is_nice_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_is_nice(f->val_str(&kept));
+  }
+}
+
+
+static bool field_reads_back_no_deeper_than_claimed(Field *f)
+{
+  if (!f->attests_is_valid_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_depth(f->val_str(&kept)) <= f->attested_json_depth();
+  }
+}
+
+
+/*
+  Asked of each of the two fields an item has: the one it names, and -
+  wherever a temporary table has been built out of that one - the copy
+  in it, which is what the _result() answers are about.  A fill site
+  nobody taught to ask its source announces itself in whichever of the
+  two it got wrong.
+*/
+bool Item_field::reads_back_as_document() const
+{ return field_reads_back_as_document(field); }
+
+bool Item_field::reads_back_as_nice() const
+{ return field_reads_back_as_nice(field); }
+
+bool Item_field::reads_back_no_deeper_than_claimed() const
+{ return field_reads_back_no_deeper_than_claimed(field); }
+
+bool Item_field::reads_back_as_document_result() const
+{ return field_reads_back_as_document(result_field); }
+
+bool Item_field::reads_back_as_nice_result() const
+{ return field_reads_back_as_nice(result_field); }
+
+bool Item_field::reads_back_no_deeper_than_claimed_result() const
+{ return field_reads_back_no_deeper_than_claimed(result_field); }
+#endif
+
+
 /**
   Save a field value in another field
 
@@ -7085,6 +7202,12 @@ static int save_field_in_field(Field *from, bool *null_value,
   if (to == from)
     DBUG_RETURN(0);
 
+  /*
+    field_conv() confirms the destination against what the source
+    attests to - see there.  A value that arrives off an ITEM goes through
+    Item::save_str_in_field instead, which asks the store the same
+    question this asks the source.
+  */
   res= field_conv(to, from);
   DBUG_RETURN(res);
 }
@@ -7126,6 +7249,16 @@ void Item_field::save_org_in_field(Field *to,
       DBUG_VOID_RETURN;
     }
     (*fast_field_copier_func)(to, field);
+    /*
+      One of the two routes that go around field_conv(), reaching what it
+      dispatches to without passing through it.  It does write fields of
+      the server's own temporary tables, so the question belongs here; no
+      field carrying an answer is known to arrive, which is a fact about
+      the queries anybody has written rather than about the route, so it
+      is asked and not assumed.
+    */
+    if (unlikely(to->is_valid_json_static()))
+      to->confirm_is_valid_json_static_from(field);
   }
   else
     save_field_in_field(field, &null_value, to, TRUE);
@@ -7201,6 +7334,24 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 
   field->set_notnull();
   int error= field->store(result->ptr(),result->length(),cs);
+  /*
+    A value that reaches a field carrying the standing answer off a
+    string ITEM comes through here, that being the one way one is put
+    into a field.  A value that comes off another FIELD does not, and
+    is asked about at the three places save_field_in_field() names.
+    The answer is about characters, so it is kept only while the store
+    keeps them.
+
+    How they are formatted is asked of the item rather than of the store,
+    and it is asked HERE rather than said at build time because it is
+    about the value just written and not about the item that wrote it.
+    How deep the value goes is asked here for the same reason and taken
+    the same way, an item that counted nothing answering with the
+    largest figure there is.
+  */
+  if (unlikely(field->is_valid_json_static()))
+    field->confirm_is_valid_json_static(result->length(), is_nice_json(),
+                                        last_depth(), cs);
   str_value.set_buffer_if_not_allocated(0, 0, cs);
   return error;
 }
