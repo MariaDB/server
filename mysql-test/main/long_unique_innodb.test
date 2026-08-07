@@ -176,4 +176,14 @@ update ignore t1 set id = 2;
 select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-39846 UNIQUE BLOB contains duplicate records after ALTER IGNORE with READ COMMITTED
+--echo #
+create table t1 (pk int primary key, b blob) engine=innodb;
+insert into t1 values (1,'foo'),(2,'foo');
+set transaction isolation level read committed;
+alter ignore table t1 add unique (b);
+select * from t1;
+drop table t1;
+
 --echo # End of 10.6 tests
