@@ -229,7 +229,7 @@ static int duckdb_init_func(void *p)
   duckdb_hton= (handlerton *) p;
   duckdb_hton->db_type= DB_TYPE_AUTOASSIGN;
   duckdb_hton->create= duckdb_create_handler;
-  duckdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
+  duckdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
   duckdb_hton->prepare= duckdb_prepare;
   duckdb_hton->commit= duckdb_commit;
   duckdb_hton->rollback= duckdb_rollback;
@@ -1274,6 +1274,9 @@ ha_duckdb::check_if_supported_inplace_alter(TABLE *altered_table,
   if (ha_alter_info->alter_info->flags & ALTER_COLUMN_ORDER)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
+  if (ha_alter_info->error_if_not_empty)
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
   /* Reject ALTER on tables without PK when require_primary_key is ON */
   if (myduck::require_primary_key && table->s->primary_key == MAX_KEY)
   {
@@ -1353,27 +1356,51 @@ bool ha_duckdb::commit_inplace_alter_table(TABLE *altered_table,
   if (convertors.empty())
     DBUG_RETURN(false);
 
-  /* Execute each ALTER operation in its own auto-commit context.
-     DuckDB v1.5+ does not allow compound DDL that mixes structural
-     changes (ADD COLUMN) with constraint updates (SET DEFAULT)
-     within the same transaction. */
-  auto con= myduck::DuckdbManager::CreateConnection();
-
+  std::vector<std::string> statements;
   for (auto &conv : convertors)
   {
     if (!conv || conv->check())
       DBUG_RETURN(true);
 
     std::string sql= conv->translate();
-    if (sql.empty())
-      continue;
+    if (!sql.empty())
+      statements.push_back(std::move(sql));
+  }
 
-    auto query_result= myduck::duckdb_query(*con, sql);
+  if (statements.empty())
+    DBUG_RETURN(false);
+
+  /* A single MariaDB ALTER TABLE can produce multiple DuckDB statements.
+     Execute the generated operations atomically on a dedicated connection. */
+  auto con= myduck::DuckdbManager::CreateConnection();
+  auto query_result= myduck::duckdb_query(*con, "BEGIN");
+  if (query_result->HasError())
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC,
+             query_result->GetError().c_str(), "DuckDB");
+    DBUG_RETURN(true);
+  }
+
+  for (const auto &sql : statements)
+  {
+    query_result= myduck::duckdb_query(*con, sql);
     if (query_result->HasError())
     {
-      my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, query_result->GetError().c_str(), "DuckDB");
+      std::string error= query_result->GetError();
+      myduck::duckdb_query(*con, "ROLLBACK");
+      my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, error.c_str(), "DuckDB");
       DBUG_RETURN(true);
     }
+  }
+
+  query_result= myduck::duckdb_query(*con, "COMMIT");
+  if (query_result->HasError())
+  {
+    std::string error= query_result->GetError();
+    if (con->HasActiveTransaction())
+      myduck::duckdb_query(*con, "ROLLBACK");
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, error.c_str(), "DuckDB");
+    DBUG_RETURN(true);
   }
 
   DBUG_RETURN(false);
