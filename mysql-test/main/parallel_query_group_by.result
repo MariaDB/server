@@ -393,6 +393,29 @@ COUNT(*)
 286
 ran_in_the_workers
 1
+#
+# A GROUP BY over constants, which the optimizer empties into one implicit
+# group. What reaches execution is an ordinary aggregate over the whole
+# scan, and the workers run it as one.
+#
+# SELECT COUNT(*), SUM(b) FROM t1 GROUP BY 'x'
+SELECT COUNT(*), SUM(b) FROM t1 GROUP BY 'x';
+COUNT(*)	SUM(b)
+2000	6003000
+SELECT COUNT(*), SUM(b) FROM t1 GROUP BY 'x';
+COUNT(*)	SUM(b)
+2000	6003000
+ran_in_the_workers
+1
+# SELECT AVG(b) FROM t1 GROUP BY 1+1, 'x'
+SELECT AVG(b) FROM t1 GROUP BY 1+1, 'x';
+AVG(b)
+3001.5000
+SELECT AVG(b) FROM t1 GROUP BY 1+1, 'x';
+AVG(b)
+3001.5000
+ran_in_the_workers
+1
 DROP TABLE t1, t2, d1;
 SET SESSION optimizer_switch= @os;
 SET SESSION parallel_worker_threads= @s;

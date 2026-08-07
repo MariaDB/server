@@ -159,6 +159,16 @@ INSERT INTO t2 SELECT seq, seq % 7, seq * 3 FROM seq_1_to_2000;
 --let $pqa_query= SELECT DISTINCT COUNT(*) FROM t1 GROUP BY a ORDER BY 1
 --source include/parallel_query_aggregate_cmp.inc
 
+--echo #
+--echo # A GROUP BY over constants, which the optimizer empties into one implicit
+--echo # group. What reaches execution is an ordinary aggregate over the whole
+--echo # scan, and the workers run it as one.
+--echo #
+--let $pqa_query= SELECT COUNT(*), SUM(b) FROM t1 GROUP BY 'x'
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT AVG(b) FROM t1 GROUP BY 1+1, 'x'
+--source include/parallel_query_aggregate_cmp.inc
+
 DROP TABLE t1, t2, d1;
 SET SESSION optimizer_switch= @os;
 SET SESSION parallel_worker_threads= @s;

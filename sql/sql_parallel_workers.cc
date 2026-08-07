@@ -2876,9 +2876,13 @@ static void pwt_assert_join_inert(JOIN *join)
     aggregation temp table that the manager drives the plan into. What must not
     happen is a plan that expects its rows already grouped, and that is checked
     by pwt_plan_needs_group_order() once the terminals are known.
+
+    group_optimized_away is legitimate too, and says the opposite of what the
+    name suggests to a reader of this file: the GROUP BY was over constants, so
+    the optimizer emptied group_list and the query became an aggregate over one
+    implicit group. That is the plainest shape the manager runs.
   */
   DBUG_ASSERT(!join->procedure);
-  DBUG_ASSERT(!join->group_optimized_away);
   DBUG_ASSERT(!(join->select_options & OPTION_FOUND_ROWS));
 #else
   (void) join;
