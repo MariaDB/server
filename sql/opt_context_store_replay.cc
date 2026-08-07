@@ -844,6 +844,16 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
 
       continue;
     }
+    else if (tbl->table->s->db_type() &&
+             tbl->table->s->db_type()->discover_table)
+    {
+      /*
+        No need to collect stats, and record const rows for
+        sequence tables such as seq_1_to_10 or
+        other read only engines' (Archive, S3, PerfSchema) tables.
+      */
+      continue;
+    }
 
     /* No, it's a base table */
     Json_writer_object ctx_wrapper(&ctx_writer);
