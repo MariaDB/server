@@ -603,7 +603,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # === Tables
 # Tables in the context
 table_name	file_stat_records	index_name	rec_per_key
-test.seq_1_to_10	10	PRIMARY	["0"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+explain select * from seq_1_to_15_step_2 where seq = 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	const	PRIMARY	PRIMARY	8	const	1	Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
 # === Range accesses
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 # == End of optimizer context
