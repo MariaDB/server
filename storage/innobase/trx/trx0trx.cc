@@ -1809,7 +1809,7 @@ trx_print_low(
 	if (const trx_id_t id = trx->id) {
 		fprintf(f, "TRANSACTION " TRX_ID_FMT, id);
 	} else {
-		fprintf(f, "TRANSACTION (%p)", trx);
+		my_fprintf(f, "TRANSACTION (%p)", trx);
 	}
 
 	THD* thd = trx->mysql_thd;
