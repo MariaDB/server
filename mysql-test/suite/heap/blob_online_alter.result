@@ -1,0 +1,26 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1, REPEAT('x', 300)), (2, REPEAT('y', 300)),
+(3, REPEAT('w', 300)), (4, REPEAT('v', 300));
+connect  alterer,localhost,root,,test;
+SET DEBUG_SYNC= 'alter_table_online_downgraded SIGNAL downgraded EXECUTE 1';
+SET DEBUG_SYNC= 'alter_table_online_progress WAIT_FOR dml_done EXECUTE 1';
+ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=COPY, LOCK=NONE;
+connection default;
+SET SESSION lock_wait_timeout= 20;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+DELETE FROM t1 WHERE a = 1;
+UPDATE t1 SET b = REPEAT('z', 900) WHERE a = 2;
+DELETE FROM t1 WHERE a = 3;
+SET DEBUG_SYNC= 'now SIGNAL dml_done';
+connection alterer;
+connection default;
+disconnect alterer;
+SET DEBUG_SYNC= 'RESET';
+SELECT a, LENGTH(b), c FROM t1;
+a	LENGTH(b)	c
+2	900	NULL
+4	300	NULL
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

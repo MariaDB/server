@@ -1,0 +1,76 @@
+#
+# The record of a THR_LOCK grant survives an INSERT DELAYED lock cycle.
+#
+# thr_lock() does not call the grant callback once per external_lock(): a
+# delayed insert is granted TL_WRITE_DELAYED and then calls it again on the
+# same request when thr_upgrade_write_delay_lock() turns that into a real
+# write lock, with no external_lock() in between.  A handle that counted
+# grants would keep the surplus for its whole life and then report a lock it
+# does not hold on every later statement.
+#
+# The binary log must be off: with statement binlogging INSERT DELAYED is
+# downgraded to an ordinary write lock and the delayed thread never runs.
+#
+
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+
+INSERT DELAYED INTO t1 VALUES (1, REPEAT('x', 300)), (2, REPEAT('y', 300));
+
+--let $wait_condition= SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+# The delayed thread really did the writing, rather than the statement being
+# silently downgraded to a plain INSERT.
+SELECT VARIABLE_VALUE > 0 AS delayed_thread_ran
+  FROM information_schema.global_status
+  WHERE VARIABLE_NAME = 'DELAYED_WRITES';
+
+# Second cycle on the still-live delayed thread: it locks the same handle
+# again, which is where a leaked grant is noticed.
+INSERT DELAYED INTO t1 VALUES (3, REPEAT('z', 300)), (4, REPEAT('w', 300));
+
+--let $wait_condition= SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+
+# A third cycle with a concurrent reader, so the delayed thread has to give
+# the lock up and take it again mid-batch.
+connect (reader,localhost,root,,test);
+
+connection default;
+INSERT DELAYED INTO t1 VALUES (5, REPEAT('v', 300));
+
+connection reader;
+SELECT COUNT(*) >= 0 AS reader_ran FROM t1;
+
+connection default;
+INSERT DELAYED INTO t1 VALUES (6, REPEAT('u', 300));
+
+--let $wait_condition= SELECT COUNT(*) = 6 FROM t1
+--source include/wait_condition.inc
+
+disconnect reader;
+
+--sorted_result
+SELECT a, LENGTH(b) FROM t1;
+CHECK TABLE t1;
+
+# Ordinary lock cycles on the same table afterwards.  These write blobs, so
+# they park and redeem chains, which a handle wrongly believing it holds the
+# lock would do outside it.
+INSERT INTO t1 VALUES (7, REPEAT('t', 300));
+UPDATE t1 SET b = REPEAT('s', 400) WHERE a = 7;
+DELETE FROM t1 WHERE a = 7;
+CHECK TABLE t1;
+
+# And once more after the table is reopened, so the same share is reached
+# through a fresh handle.
+FLUSH TABLES;
+INSERT INTO t1 VALUES (8, REPEAT('r', 300));
+UPDATE t1 SET b = REPEAT('q', 400) WHERE a = 8;
+DELETE FROM t1 WHERE a = 8;
+CHECK TABLE t1;
+
+--sorted_result
+SELECT a, LENGTH(b) FROM t1;
+
+DROP TABLE t1;

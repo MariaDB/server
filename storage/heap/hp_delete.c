@@ -153,7 +153,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
 
   if (info->opt_flag & READ_CHECK_USED && hp_rectest(info,record))
     DBUG_RETURN(my_errno);			/* Record changed */
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   if ( --(share->records) < share->blength >> 1) share->blength>>=1;
   pos=info->current_ptr;

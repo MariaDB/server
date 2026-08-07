@@ -1,0 +1,47 @@
+#
+# Blob chains parked on an online-ALTER copy target.
+#
+# The copy target is locked with a direct handler::ha_external_lock() rather
+# than through the SQL layer's lock set, so thr_lock() never grants it
+# anything and the handle holds a write lock that no grant records.  Rows
+# deleted or updated on the source while the copy runs are replayed onto that
+# target, and a blob delete/update there parks a chain that has to be redeemed
+# when the copy is unlocked.
+#
+# The ALTER is not paused while it holds the source lock -- doing that blocks
+# the very statements this test needs to run.  It is released at the
+# post-downgrade point and only made to wait once it is replaying.
+#
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1, REPEAT('x', 300)), (2, REPEAT('y', 300)),
+                      (3, REPEAT('w', 300)), (4, REPEAT('v', 300));
+
+connect (alterer,localhost,root,,test);
+SET DEBUG_SYNC= 'alter_table_online_downgraded SIGNAL downgraded EXECUTE 1';
+SET DEBUG_SYNC= 'alter_table_online_progress WAIT_FOR dml_done EXECUTE 1';
+--send ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=COPY, LOCK=NONE
+
+connection default;
+SET SESSION lock_wait_timeout= 20;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+
+# Both shapes that park a chain: a delete, and an update that grows the blob
+DELETE FROM t1 WHERE a = 1;
+UPDATE t1 SET b = REPEAT('z', 900) WHERE a = 2;
+DELETE FROM t1 WHERE a = 3;
+
+SET DEBUG_SYNC= 'now SIGNAL dml_done';
+
+connection alterer;
+--reap
+
+connection default;
+disconnect alterer;
+SET DEBUG_SYNC= 'RESET';
+
+--sorted_result
+SELECT a, LENGTH(b), c FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;

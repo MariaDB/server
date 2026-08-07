@@ -31,6 +31,13 @@
 
 #include <my_list.h>
 
+/*
+  Use this lock type for temporary tables; it indicates that only this
+  session can reach the table, so it can be regarded as always locked.
+  Used together with the F_UNLCK / F_RDLCK / F_WRLCK values from <fcntl.h>.
+*/
+#define F_EXTRA_LCK	-1
+
 /* The following is bits in the flag parameter to ha_open() */
 
 #define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */

@@ -151,6 +151,18 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
     used.
     */
   key_stat_version= file->s->key_stat_version-1;
+
+  /*
+    A temporary table is private to its session, so no other connection can
+    reach the share and it can be regarded as always locked.  This has to
+    cover the user's CREATE TEMPORARY TABLE too, not just the optimizer's
+    internal one: `internal' is HA_OPEN_INTERNAL_TABLE, while it is the user
+    temporary table that parks blob chains (heap_delete()/heap_update() free
+    an internal table's chains outright) and that get_lock_data() drops from
+    the lock set, so it never reaches external_lock() at all.
+  */
+  if (internal_table || table->s->tmp_table != NO_TMP_TABLE)
+    file->lock_type= F_EXTRA_LCK;
   if (file->s->blob_count)
   {
     /* Mark that table may have zerocopy blobs and unlock is not safe */
@@ -505,6 +517,21 @@ int ha_heap::extra(enum ha_extra_function operation)
 
 int ha_heap::reset()
 {
+  /*
+    Prepares the handle for the next statement; see heap_reset().
+
+    heap_reset() redeems the blob chains parked by a deferred free, which puts
+    records back on the shared free list.
+
+    We can only have pending blobs if we have a write lock on the table or if
+    the table is temporary, in which case lock_type == F_EXTRA_LCK.  In both
+    cases it is ok to free the blobs.  Note that this has to cover the user's
+    CREATE TEMPORARY TABLE and not just the optimizer's internal one: an
+    internal table frees its chains outright and never parks any, while a user
+    temporary table parks them and is never passed to thr_multi_lock() at all.
+  */
+  DBUG_ASSERT(!file->has_pending_blob_free ||
+              table_is_locked_and_changed(file));
   return heap_reset(file);
 }
 
@@ -531,26 +558,48 @@ int ha_heap::reset_auto_increment(ulonglong value)
 }
 
 
+/*
+  Check table consistenty on unlock under EXTRA_HEAP_DEBUG
+
+  Note that heap tables does not have external locking.
+  Locking against other handlers to the same table handled through
+  thr_multi_lock()
+  This code is never called for internal MariaDB temporary tables
+*/
+
 int ha_heap::external_lock(THD *thd, int lock_type)
 {
+  /* Remember last lock; a temporary table stays "always locked" */
+  int new_lock_type= (table->s->tmp_table != NO_TMP_TABLE ? F_EXTRA_LCK :
+                      lock_type);
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
-  /*
-    A table already marked crashed is knowingly inconsistent; every data
-    access on it fails with HA_ERR_CRASHED, so re-detecting the damage
-    here would only raise a second error into a diagnostics area that
-    can already be OK (e.g. after UNLOCK TABLES) and fire the
-    Diagnostics_area assertion.
-  */
-  if (lock_type == F_UNLCK && file->s->changed &&
-      !heap_is_crashed(file->s) && heap_check_heap(file, 0))
+  /* See hp_may_check_heap_on_unlock() for when this is safe to run at all */
+  if (lock_type == F_UNLCK && hp_may_check_heap_on_unlock(file) &&
+      heap_check_heap(file, 0))
+  {
+    file->lock_type= new_lock_type;
+    file->changed= 0;                   // Marker if table changes under lock
     return HA_ERR_CRASHED;
+  }
 #endif
-  if (lock_type != F_UNLCK && heap_is_crashed(file->s))
-    return HA_ERR_CRASHED;
-
   if (lock_type == F_UNLCK)
+  {
+    DBUG_ASSERT(!file->has_pending_blob_free ||
+                table_is_locked_and_changed(file));
     hp_flush_pending_blob_free(file);
-  return 0;					// No external locking
+  }
+  else
+  {
+    if (heap_is_crashed(file->s))
+      return HA_ERR_CRASHED;             // We are not granting lock if crashed
+
+    /* Assure we are not locked from before */
+    DBUG_ASSERT(file->lock_type == F_UNLCK ||
+                file->lock_type == F_EXTRA_LCK);
+  }
+  file->lock_type= new_lock_type;
+  file->changed= 0;                     // Marker if table changes under lock
+  return 0;
 }
 
 
