@@ -443,6 +443,9 @@ explain select * from seq_1_to_10;
 
 --source include/opt_context_list_tables_and_ranges.inc
 
+explain select * from seq_1_to_15_step_2 where seq = 5;
+--source include/opt_context_list_tables_and_ranges.inc
+
 --echo #
 --echo # partitioned table test
 --echo # context result should have stats for this table
