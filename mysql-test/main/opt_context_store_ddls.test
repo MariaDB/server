@@ -321,8 +321,10 @@ explain select * from s1;
 --source include/opt_context_list_tables_ddls.inc
 drop table s1;
 
---echo # no ddl should be captured here
+--echo # ddls should be captured here
 explain select * from seq_1_to_10;
+--source include/opt_context_list_tables_ddls.inc
+explain select * from seq_1_to_15_step_2 where seq = 5;
 --source include/opt_context_list_tables_ddls.inc
 
 --echo # End of 13.1 tests
