@@ -44,6 +44,7 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
   info->lastkey= (uchar*) (info + 1);
   info->recbuf= (uchar*) (info->lastkey + share->max_key_length);
   info->mode= mode;
+  info->lock_type= F_UNLCK;
   info->current_record= (ulong) ~0L;		/* No current record */
   info->lastinx= info->errkey= -1;
   if (share->blob_count && !share->internal)

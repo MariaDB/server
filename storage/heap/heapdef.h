@@ -391,6 +391,45 @@ static inline void hp_flush_pending_blob_free(HP_INFO *info)
     hp_flush_pending_blob_free_impl(info);
 }
 
+
+/*
+  Check if table is locked and has changed
+  This is mainly used to see if we can do check of the table in
+  debug binaries.
+
+  Both terms are needed.  ha_heap::external_lock() records the lock type
+  before thr_multi_lock() runs, so it is set on both paths that unlock after
+  a failed lock attempt -- mysql_lock_tables() balancing the external locks
+  it took because thr_multi_lock() timed out, and lock_external() unwinding
+  the tables it had already locked because a later one refused.  Neither ever
+  ran a row operation, so it is `changed' that tells them from a real unlock.
+  It has to be per handle for the same reason: HP_SHARE::changed is true on
+  exactly those paths, since another connection is the one writing.
+*/
+
+static inline my_bool table_is_locked_and_changed(const HP_INFO *info)
+{
+  return info->lock_type != F_UNLCK && info->changed;
+}
+
+/*
+  May ha_heap::external_lock(F_UNLCK) verify the table with heap_check_heap()?
+
+  It is only safe to do a scan if the table is write locked against other
+  connections. We also only need to do check if we have done changes to the
+  table.
+
+  A table already marked crashed is knowingly inconsistent; every data access
+  on it fails with HA_ERR_CRASHED, so re-detecting the damage here would only
+  raise a second error into a diagnostics area that can already be OK (e.g.
+  after UNLOCK TABLES) and fire the Diagnostics_area assertion.
+*/
+
+static inline my_bool hp_may_check_heap_on_unlock(const HP_INFO *info)
+{
+  return (table_is_locked_and_changed(info) && !heap_is_crashed(info->s));
+}
+
 /*
   Does a record's blob data live in `chain`?
 

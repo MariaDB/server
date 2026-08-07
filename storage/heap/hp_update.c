@@ -36,7 +36,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   if (info->opt_flag & READ_CHECK_USED && hp_rectest(info,old))
     DBUG_RETURN(my_errno);				/* Record changed */
   if (--(share->records) < share->blength >> 1) share->blength>>= 1;
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   // Save the cursor position to recover if insert fails.
   recovery_ptr= info->current_ptr;

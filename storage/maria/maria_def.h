@@ -1071,7 +1071,6 @@ struct ha_table_option_struct
 /* Some defines used by maria-functions */
 
 #define USE_WHOLE_KEY	65535         /* Use whole key in _search() */
-#define F_EXTRA_LCK	-1
 
 /* bits in opt_flag */
 #define MEMMAP_USED	32U

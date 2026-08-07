@@ -317,7 +317,6 @@ struct st_myisam_info
 };
 
 #define USE_WHOLE_KEY   (HA_MAX_KEY_BUFF*2) /* Use whole key in _mi_search() */
-#define F_EXTRA_LCK     -1
 /* bits in opt_flag */
 #define MEMMAP_USED     32U
 #define REMEMBER_OLD_POS 64U

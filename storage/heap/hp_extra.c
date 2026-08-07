@@ -58,6 +58,20 @@ int heap_extra(register HP_INFO *info, enum ha_extra_function function)
 } /* heap_extra */
 
 
+/*
+  Prepare the handle for the next statement
+
+  Called at the end of a statement, once nothing reads the last row any
+  more: from ha_heap::reset(), and from heap_extra(HA_EXTRA_RESET_STATE).
+
+  Resets the row position, so that the next statement starts a fresh scan
+  instead of resuming the previous one, and clears up what the previous
+  statement left behind -- the blob chains that a deferred free parked, and
+  the buffers that blob values were reassembled into.
+
+  See ha_heap::reset() for why redeeming the parked chains is safe here.
+*/
+
 int heap_reset(HP_INFO *info)
 {
   hp_flush_pending_blob_free(info);

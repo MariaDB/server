@@ -1,0 +1,78 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Blob updates and deletes on a user TEMPORARY MEMORY table.
+--echo #
+--echo # A non-transactional TEMPORARY table is left out of the lock set
+--echo # altogether, so its handle never holds a THR_LOCK.  It is not an
+--echo # internal table, though, so it still defers its blob chain frees --
+--echo # a combination no other kind of table has, and one a debug build used
+--echo # to assert on at the end of every such statement.
+--echo #
+
+CREATE TEMPORARY TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1,'one'), (2,REPEAT('two',500)), (3,REPEAT('three',500));
+
+--echo # UPDATE parks one chain per changed blob
+UPDATE t1 SET b=REPEAT('x',4000) WHERE a=2;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+CHECK TABLE t1;
+
+--echo # DELETE parks the whole row's chain
+DELETE FROM t1 WHERE a=3;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+CHECK TABLE t1;
+
+--echo # Repeated cycles: every parked chain has to come back to the free list
+--disable_query_log
+let $i= 20;
+while ($i)
+{
+  UPDATE t1 SET b=REPEAT('y',4000) WHERE a=2;
+  UPDATE t1 SET b=REPEAT('z',8000) WHERE a=2;
+  DELETE FROM t1 WHERE a=1;
+  INSERT INTO t1 VALUES (1,REPEAT('one',500));
+  dec $i;
+}
+--enable_query_log
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+CHECK TABLE t1;
+
+--echo # Multi-table UPDATE and DELETE across two TEMPORARY tables
+CREATE TEMPORARY TABLE t2 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (1,REPEAT('u',4000)), (2,REPEAT('v',4000));
+UPDATE t1, t2 SET t1.b=REPEAT('p',4000), t2.b=REPEAT('q',4000)
+ WHERE t1.a=t2.a;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t2 ORDER BY a;
+CHECK TABLE t1, t2;
+
+DELETE t1, t2 FROM t1, t2 WHERE t1.a=t2.a AND t1.a=1;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t2 ORDER BY a;
+CHECK TABLE t1, t2;
+
+DROP TEMPORARY TABLE t1, t2;
+
+--echo #
+--echo # The same statements on a non-temporary MEMORY table, which does hold
+--echo # the lock while it parks and redeems at unlock time.
+--echo #
+
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1,'one'), (2,REPEAT('two',500)), (3,REPEAT('three',500));
+UPDATE t1 SET b=REPEAT('x',4000) WHERE a=2;
+DELETE FROM t1 WHERE a=3;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+CHECK TABLE t1;
+
+--echo # Under LOCK TABLES the redemption happens in ha_heap::reset() instead,
+--echo # with the lock still held
+LOCK TABLES t1 WRITE;
+UPDATE t1 SET b=REPEAT('w',4000) WHERE a=2;
+DELETE FROM t1 WHERE a=1;
+UNLOCK TABLES;
+SELECT a, LENGTH(b), LEFT(b,5) FROM t1 ORDER BY a;
+CHECK TABLE t1;
+
+DROP TABLE t1;
