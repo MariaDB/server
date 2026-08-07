@@ -810,18 +810,7 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        const bool must_pad{!UT_LIST_GET_LEN(buf_pool.flush_list)};
-        if (must_pad)
-        {
-          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
-          to ensure that the log resizing will complete. */
-          mtr_t mtr{nullptr};
-          mtr.start();
-          mtr.commit_files(last_checkpoint_lsn);
-          mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        }
-        buf_flush_wait(wait_lsn, must_pad);
+        buf_flush_wait(wait_lsn, false);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();
@@ -833,14 +822,15 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
 
     if (archive)
     {
-      wait_lsn-= (wait_lsn - first_lsn) % capacity();
+      const lsn_t limit{wait_lsn - (wait_lsn - first_lsn) % capacity()};
       /* We are in innodb_log_archive=OFF. If the file has wrapped
       around between the checkpoint and the current position, we must
       wait for a log checkpoint not before the desired first_lsn of
       our innodb_log_archive=ON log file, because that format does not
       allow any wrap-around. */
-      if (checkpoint < wait_lsn)
+      if (checkpoint < limit)
         goto retry_after_checkpoint;
+      wait_lsn= limit;
     }
     else if (circular_recovery_from_sequence_bit_0)
     {
