@@ -1,0 +1,69 @@
+#
+# A MEMORY table with a blob locked twice in the same lock set.
+#
+# Two aliased entries give one share two handles, and thr_lock() grants each
+# of them separately, so the grant a handle records is its own.  Every row
+# operation below runs with both grants live, and the blob update parks a
+# chain that has to be redeemed when the handles are unlocked.  MyISAM runs
+# the same shapes as a control.
+#
+# An aliased entry can only be referenced by its alias while LOCK TABLES is
+# in effect; the unaliased name is not in the lock set at all.  That is
+# asserted rather than avoided, because it is what keeps the two handles
+# distinct.
+#
+CREATE TABLE ht (a INT, b BLOB) ENGINE=MEMORY;
+CREATE TABLE mi (a INT, b BLOB) ENGINE=MyISAM;
+INSERT INTO ht VALUES (1,'foo'),(2,'bar');
+INSERT INTO mi VALUES (1,'foo'),(2,'bar');
+
+--echo # ===== single aliased entry, referenced as "table AS alias" =====
+--echo # -- MyISAM
+LOCK TABLE mi AS m1 WRITE;
+SELECT COUNT(*) FROM mi AS m1;
+UPDATE mi AS m1 SET b='x' WHERE a=1;
+--echo # the unaliased name is not locked
+--error ER_TABLE_NOT_LOCKED
+SELECT COUNT(*) FROM mi;
+UNLOCK TABLES;
+
+--echo # -- MEMORY
+LOCK TABLE ht AS h1 WRITE;
+SELECT COUNT(*) FROM ht AS h1;
+UPDATE ht AS h1 SET b='x' WHERE a=1;
+--echo # the unaliased name is not locked
+--error ER_TABLE_NOT_LOCKED
+SELECT COUNT(*) FROM ht;
+UNLOCK TABLES;
+
+--echo # ===== two aliased entries, one WRITE and one READ =====
+--echo # -- MyISAM
+LOCK TABLE mi AS m1 WRITE, mi AS m2 READ;
+SELECT COUNT(*) FROM mi AS m2;
+UPDATE mi AS m1 SET b='y' WHERE a=1;
+--echo # INSERT takes no alias, so it cannot reach an aliased lock at all
+--error ER_TABLE_NOT_LOCKED
+INSERT INTO mi SELECT a+10, b FROM mi AS m2;
+UNLOCK TABLES;
+
+--echo # -- MEMORY
+LOCK TABLE ht AS h1 WRITE, ht AS h2 READ;
+SELECT COUNT(*) FROM ht AS h2;
+UPDATE ht AS h1 SET b='y' WHERE a=1;
+--echo # INSERT takes no alias, so it cannot reach an aliased lock at all
+--error ER_TABLE_NOT_LOCKED
+INSERT INTO ht SELECT a+10, b FROM ht AS h2;
+UNLOCK TABLES;
+
+--echo # ===== blob update and delete under the double lock (MEMORY) =====
+LOCK TABLE ht AS h1 WRITE, ht AS h2 READ;
+UPDATE ht AS h1, ht AS h2 SET h1.b=REPEAT('z', 900)
+  WHERE h1.a=h2.a AND h1.a=1;
+DELETE FROM ht AS h1 WHERE a=2;
+UNLOCK TABLES;
+
+CHECK TABLE ht;
+--sorted_result
+SELECT a, LENGTH(b) FROM ht;
+
+DROP TABLE ht, mi;
