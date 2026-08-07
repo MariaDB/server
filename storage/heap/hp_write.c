@@ -54,7 +54,7 @@ int heap_write(HP_INFO *info, const uchar *record)
     hp_flush_unaliased_blob_free(info, record);
   if (!(pos=next_free_record_pos(share)))
     DBUG_RETURN(my_errno);
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   for (keydef = share->keydef, end = keydef + share->keys; keydef < end;
        keydef++)
