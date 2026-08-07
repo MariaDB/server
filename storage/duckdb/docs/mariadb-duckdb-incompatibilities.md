@@ -63,6 +63,12 @@ MariaDB function semantics differ from DuckDB in several areas. These are handle
 | `POWER()` | `pow()` | Supported natively |
 | `SUBSTRING()` | `substr()` | Supported natively |
 
+### Not translated by the pushdown layer
+
+| Function | Issue | Workaround |
+|---|---|---|
+| `TIMESTAMPDIFF(unit, dt1, dt2)` | The `unit` keyword is not bindable, so the call reaches DuckDB as an unknown `timestampdiff` function and the query fails. DuckDB's own `date_diff()` takes the unit as a string and is not a drop-in match | Use `UNIX_TIMESTAMP()` arithmetic, e.g. `FLOOR((UNIX_TIMESTAMP(dt2) - UNIX_TIMESTAMP(dt1)) / 600) * 10` for minute buckets |
+
 ### Potentially incompatible (not yet triggered)
 
 | User writes | MariaDB canonical | DuckDB status |

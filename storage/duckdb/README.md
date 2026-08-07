@@ -43,6 +43,13 @@ TPC-H Scale Factor 10 (~11 GB raw data, 86.6M rows total, ~60M in `lineitem`).
 
 Each query also pays a small fixed cost (~40 ms) for client connect and pushdown setup — noticeable on the cheapest queries, negligible on the heavy analytical ones. See [`docs/tpch_sf10_query_benchmark.md`](docs/tpch_sf10_query_benchmark.md) and [`docs/tpch_sf10_ingestion_benchmark.md`](docs/tpch_sf10_ingestion_benchmark.md) for full methodology.
 
+## Tutorials
+
+Step-by-step guides for loading and analyzing open datasets with the DuckDB storage engine:
+
+- [NYC Taxi Trips](docs/tutorials/nyc-taxi-trips.md) — loading Parquet via `run_in_duckdb()`, then cross-engine joins between `ENGINE=DuckDB` and `ENGINE=InnoDB` tables. Follows the ClickHouse taxi tutorial.
+- [OWID CO₂ Emissions](docs/tutorials/owid-co2-emissions.md) — loading a CSV dataset and running aggregations and window functions.
+
 ## How It Works
 
 DuckDB is an in-process analytical database. Its performance rests on three pillars:
