@@ -1,0 +1,248 @@
+#
+#   This test verifies that a replica rejects an event whose header
+# declares a length other than the number of bytes the packet holds.
+# Three shapes are covered: a header declaring fewer bytes than the
+# packet holds, a header declaring more, and a packet holding a second
+# complete event behind the first. Each must stop the IO thread with an
+# error, and replication must be able to resume after each.
+#
+#   A replica relay logs the packet as received, while every reader of
+# that relay log frames each event by the length the event's own header
+# declares. An accepted event of any of these shapes therefore leaves
+# the SQL thread beginning its next read at the wrong offset. Where the
+# bytes at that offset are themselves an event, the replica applies that
+# event, and the replica's data ends up holding what the master's binary
+# log does not. MDEV-40648 reported that a replica never compared the
+# two lengths.
+#
+#   Note rpl_queue_event_length_mismatch-master.opt sets
+# binlog_checksum=CRC32 on the master, so the event lengths Test Cases 1
+# and 2 pin include those four checksum bytes.
+#
+# References:
+#   * MDEV-40648: Replication Undefined Behavior on Malformed Rotate Log Event
+#   * Bug#39254914: Improve directly queued event validation
+#
+
+--source include/have_debug.inc
+# Test is format independent
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Event from master declares a length that does not match");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+
+--echo #
+--echo # Initialize test data
+--echo #
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+set @saved_dbug= @@global.debug_dbug;
+
+--echo #
+--echo # Test Case 1: a Rotate event declaring fewer bytes than its packet
+--echo #
+
+# The dump thread reads the injection when the replica reconnects below.
+# The injection reaches real Rotate events only, so FLUSH LOGS is what
+# produces the event. The fake Rotate that opens a connection is written
+# by fake_rotate_event(), which the injection never runs in.
+--connection master
+set @@global.debug_dbug= "+d,binlog_sender_short_event_len";
+
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+FLUSH LOGS;
+
+--echo # Waiting for the IO thread to reject the mismatched Rotate event
+--connection slave
+--let $slave_io_errno= 1593, 1595
+# A master that leaves the two lengths agreeing shows up here as a timeout.
+# Keep that timeout short rather than the default of five minutes.
+--let $slave_timeout= 30
+--source include/wait_for_slave_io_error.inc
+--let $slave_timeout=
+
+# The Rotate event names master-bin.000002, so the packet holds 48 bytes:
+# the two headers, the 17 byte file name, and the checksum.
+--echo # Ensure the event was rejected before the replica relay logged the event
+--let $assert_text= The IO thread reported a Rotate event declaring 8 bytes fewer than its packet
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Event from master declares a length that does not match the packet the event arrived in; the declared length: 40, the packet.s length: 48
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+# A relay logged mismatch stops the SQL thread, which frames the relay log
+# by the lengths the event headers declare. The sample below must wait for
+# the SQL thread to read up to the IO thread's stop position: an earlier
+# sample reads 0 whether or not a mismatch reached the relay log.
+--echo # Ensure the SQL thread read everything the IO thread relay logged
+--source include/sync_slave_sql_with_io.inc
+--let $sql_errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--let $assert_text= The SQL thread reported no relay log read failure
+--let $assert_cond= "$sql_errno" = "0"
+--source include/assert.inc
+
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Test Case 2: a Rotate event declaring more bytes than its packet
+--echo #
+
+--connection master
+set @@global.debug_dbug= "+d,binlog_sender_long_event_len";
+
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+FLUSH LOGS;
+
+--echo # Waiting for the IO thread to reject the mismatched Rotate event
+--connection slave
+--let $slave_io_errno= 1593, 1595
+# A master that leaves the two lengths agreeing shows up here as a timeout.
+# Keep that timeout short rather than the default of five minutes.
+--let $slave_timeout= 30
+--source include/wait_for_slave_io_error.inc
+--let $slave_timeout=
+
+--echo # Ensure the event was rejected before the replica relay logged the event
+--let $assert_text= The IO thread reported a Rotate event declaring 8 bytes more than its packet
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Event from master declares a length that does not match the packet the event arrived in; the declared length: 56, the packet.s length: 48
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+# A relay logged mismatch stops the SQL thread, which frames the relay log
+# by the lengths the event headers declare. The sample below must wait for
+# the SQL thread to read up to the IO thread's stop position: an earlier
+# sample reads 0 whether or not a mismatch reached the relay log.
+--echo # Ensure the SQL thread read everything the IO thread relay logged
+--source include/sync_slave_sql_with_io.inc
+--let $sql_errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--let $assert_text= The SQL thread reported no relay log read failure
+--let $assert_cond= "$sql_errno" = "0"
+--source include/assert.inc
+
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Test Case 3: a packet carrying a second event behind the first
+--echo #
+
+# Note that this case does not assert whether the appended event executes.
+# Execution state is not tracked the same way before and after the fix: the
+# fix rejects the packet before either copy is queued, so the assertions
+# below are never reached without the fix. Testing the regression before
+# the fix means observing the replica's t1 by hand, for example after a
+# sleep.
+
+# The master logs no checksum for this case. The packet ends in the checksum
+# bytes the trailing copy carries, and those bytes cover the copy rather
+# than the packet, so a replica checking the packet's own checksum would
+# reject the event as corrupt before reaching the length comparison.
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+set @saved_checksum= @@global.binlog_checksum;
+set @@global.binlog_checksum= NONE;
+set @@global.debug_dbug= "+d,binlog_sender_append_extra_event";
+
+--connection slave
+--source include/start_slave.inc
+
+# The statement's own Query event carries the injection, so the insert is
+# logged as a statement. Note that we switch to STATEMENT mode temporarily
+# because a row event cannot carry the injection: the trailing copy reaches
+# the applier after the leading copy's STMT_END_F has cleared the table map,
+# and the applier skips a row event whose table id is no longer mapped.
+--connection master
+set @saved_format= @@session.binlog_format;
+set @@session.binlog_format= STATEMENT;
+insert into t1 values (2);
+set @@session.binlog_format= @saved_format;
+
+--echo # Waiting for the IO thread to reject the doubled packet
+--connection slave
+--let $slave_io_errno= 1593, 1595
+# A master that leaves the two lengths agreeing shows up here as a timeout.
+# Keep that timeout short rather than the default of five minutes.
+--let $slave_timeout= 30
+--source include/wait_for_slave_io_error.inc
+--let $slave_timeout=
+
+# The packet held the insert twice. A replica reading its relay log by the
+# event headers applies the leading copy and then the trailing one, landing
+# the row twice. Rejecting the packet keeps both copies out, so the table
+# still holds only the row the initialization above inserted.
+--echo # Ensure the rejected packet delivered nothing to the replica
+--let $slave_row_count= query_get_value(SELECT COUNT(*) AS c FROM t1, c, 1)
+--let $assert_text= The replica has not applied the insert the packet carried
+--let $assert_cond= $slave_row_count = 1
+--source include/assert.inc
+
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+set @@global.binlog_checksum= @saved_checksum;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo # Ensure the replica holds the row once the master resends the insert
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Ensure replication works after the mismatched events
+--echo #
+--connection master
+insert into t1 values (3);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_queue_event_length_mismatch.test

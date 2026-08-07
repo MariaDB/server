@@ -6539,6 +6539,29 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   }
 
   /*
+    An event states its length twice: once as the length of the packet the
+    IO thread read the event from, and once in the EVENT_LEN_OFFSET field
+    of the event's own header. The relay log write below takes the packet's
+    length, and every reader of the relay log frames each event by the
+    length that header declares. An event whose two lengths disagree
+    therefore leaves the SQL thread beginning its next read at the wrong
+    offset.
+  */
+  if (unlikely(event_len != uint4korr(buf + EVENT_LEN_OFFSET)))
+  {
+    error= ER_SLAVE_FATAL_ERROR;
+    error_msg.append(STRING_WITH_LEN("Event from master declares a length "
+                                     "that does not match the packet the "
+                                     "event arrived in; the declared "
+                                     "length: "));
+    error_msg.append_ulonglong(uint4korr(buf + EVENT_LEN_OFFSET));
+    error_msg.append(STRING_WITH_LEN(", the packet's length: "));
+    error_msg.append_ulonglong(event_len);
+    unlock_data_lock= FALSE;
+    goto err;
+  }
+
+  /*
     FD_queue checksum alg description does not apply in a case of
     FD itself. The one carries both parts of the checksum data.
   */
