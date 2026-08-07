@@ -7405,13 +7405,14 @@ dbug_gtid_accept:
   */
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
-    if (query_event_uncompress(rli->relay_log.description_event_for_queue,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               buf, event_len, new_buf_arr, sizeof(new_buf_arr),
-                               &is_malloc, &new_buf, &event_len))
+    if ((error=
+         query_event_uncompress(rli->relay_log.description_event_for_queue,
+                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                                buf, event_len, new_buf_arr,
+                                sizeof(new_buf_arr),
+                                &is_malloc, &new_buf, &event_len)))
     {
       char  llbuf[22];
-      error = ER_BINLOG_UNCOMPRESS_ERROR;
       error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
       llstr(mi->master_log_pos, llbuf);
       error_msg.append(llbuf, strlen(llbuf));
@@ -7429,14 +7430,14 @@ dbug_gtid_accept:
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
     inc_pos = event_len;
     {
-      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue,
-                                   checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                                   buf, event_len, new_buf_arr,
-                                   sizeof(new_buf_arr),
-                                   &is_malloc, &new_buf, &event_len))
+      if ((error=
+           row_log_event_uncompress(rli->relay_log.description_event_for_queue,
+                                    checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                                    buf, event_len, new_buf_arr,
+                                    sizeof(new_buf_arr),
+                                    &is_malloc, &new_buf, &event_len)))
       {
         char  llbuf[22];
-        error = ER_BINLOG_UNCOMPRESS_ERROR;
         error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
         llstr(mi->master_log_pos, llbuf);
         error_msg.append(llbuf, strlen(llbuf));
@@ -7818,8 +7819,14 @@ err:
     handle_slave_io() prints it on return.
   */
   if (unlikely(error) && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
-    mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
-               error_msg.ptr());
+  {
+    if (error == ER_TOO_BIG_FOR_UNCOMPRESS)
+      mi->report(ERROR_LEVEL, error, error_msg.c_ptr(), ER_DEFAULT(error),
+                 MAX_MAX_ALLOWED_PACKET);
+    else
+      mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
+                 error_msg.ptr());
+  }
 
   if (unlikely(is_malloc))
     my_free((void *)new_buf);
