@@ -259,17 +259,19 @@ static std::string autoinc_nextval_expr(const std::string &schema_name,
   Read the literal default value of a field from the default record and
   return it as a string suitable for DuckDB SQL.
 
-  BIT fields are converted to DuckDB blob literal format: '\xHH...'::BLOB.
-  Other fields use standard quoted literal format: 'value'.
+  BIT fields are converted to DuckDB blob literal format, optionally with an
+  explicit BLOB cast. Other fields use standard quoted literal format.
 
   @param field    Field whose default value to read (must not be at offset)
   @param offset   Offset from record[0] to default_values (s->default_values -
                   record[0])
+  @param cast_bit Add an explicit BLOB cast for BIT fields
   @return         Default value string, or "NULL" if field is null at default
                   record
 */
 static std::string get_field_default_for_duckdb(Field *field,
-                                                my_ptrdiff_t offset)
+                                                my_ptrdiff_t offset,
+                                                bool cast_bit= true)
 {
   field->move_field_offset(offset);
 
@@ -295,7 +297,9 @@ static std::string get_field_default_for_duckdb(Field *field,
         ss << hx;
       }
     }
-    ss << "'::BLOB";
+    ss << "'";
+    if (cast_bit)
+      ss << "::BLOB";
     default_value= ss.str();
   }
   else
@@ -303,7 +307,7 @@ static std::string get_field_default_for_duckdb(Field *field,
     char buf[MAX_FIELD_WIDTH];
     String str(buf, sizeof(buf), system_charset_info);
     String *val= field->val_str(&str);
-    if (val && val->length() > 0)
+    if (val)
     {
       /*
         Escape the literal by doubling any embedded single quote so a crafted
@@ -312,11 +316,14 @@ static std::string get_field_default_for_duckdb(Field *field,
         charset aware and performs exactly this doubling.
       */
       std::string escaped(2 * val->length(), '\0');
-      my_bool overflow;
-      size_t escaped_len= escape_quotes_for_mysql(val->charset(), &escaped[0],
-                                                  0, val->ptr(), val->length(),
-                                                  &overflow);
-      escaped.resize(escaped_len);
+      if (val->length())
+      {
+        my_bool overflow;
+        size_t escaped_len= escape_quotes_for_mysql(
+            val->charset(), &escaped[0], 0, val->ptr(), val->length(),
+            &overflow);
+        escaped.resize(escaped_len);
+      }
       default_value= "'" + escaped + "'";
     }
     else
@@ -848,7 +855,11 @@ void AddColumnConvertor::prepare_columns()
     m_columns_to_add.emplace_back(new_field, field);
 
     if ((new_field->flags & NOT_NULL_FLAG) != 0)
+    {
       m_columns_to_set_not_null.emplace_back(new_field, field);
+      if ((field->flags & NO_DEFAULT_VALUE_FLAG) != 0)
+        m_columns_to_drop_default.emplace_back(new_field, field);
+    }
   }
 }
 
@@ -896,8 +907,15 @@ std::string AddColumnConvertor::translate()
         my_ptrdiff_t offset=
             field->table->s->default_values - field->table->record[0];
         has_default= true;
-        default_value= get_field_default_for_duckdb(field, offset);
+        default_value= get_field_default_for_duckdb(field, offset, false);
       }
+    }
+    else if (field->flags & NOT_NULL_FLAG)
+    {
+      my_ptrdiff_t offset=
+          field->table->s->default_values - field->table->record[0];
+      has_default= true;
+      default_value= get_field_default_for_duckdb(field, offset, false);
     }
 
     append_stmt_column_add(result, m_schema_name, m_table_name,
@@ -910,6 +928,13 @@ std::string AddColumnConvertor::translate()
     Create_field *new_field= pair.first;
     assert((new_field->flags & NOT_NULL_FLAG) != 0);
     append_stmt_column_set_not_null(result, m_schema_name, m_table_name,
+                                    new_field->field_name.str);
+  }
+
+  for (auto &pair : m_columns_to_drop_default)
+  {
+    Create_field *new_field= pair.first;
+    append_stmt_column_drop_default(result, m_schema_name, m_table_name,
                                     new_field->field_name.str);
   }
 

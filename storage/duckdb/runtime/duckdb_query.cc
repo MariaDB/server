@@ -135,7 +135,8 @@ bool mariadb_query_has_unsafe_quote_escape(THD *thd, const char *query,
 }
 
 /*
-  Convert MariaDB's printed SQL (backtick-quoted identifiers) into DuckDB SQL
+  Convert forwarded MariaDB SQL (the raw thd->query() text, plus any
+  Item::print() fragments) from backtick-quoted identifiers into DuckDB SQL
   (double-quoted identifiers).
 
   MariaDB delimits identifiers with backticks and doubles an embedded backtick;

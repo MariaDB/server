@@ -137,6 +137,7 @@ DuckDB handles the join, aggregation, and sorting; InnoDB rows are produced on d
 - **Some MariaDB functions are yet not pushdown-compatible** — `GROUP_CONCAT()`, `DATE_FORMAT()`, `JSON_CONTAINS()`, `FOUND_ROWS()`, `LAST_INSERT_ID()`, and a few others have no DuckDB equivalent or differ in syntax. Such queries fall back to MariaDB execution.
 - **Strict GROUP BY** — DuckDB rejects `SELECT` columns not in `GROUP BY` and not aggregated, even when MariaDB's `sql_mode` allows it.
 - **XA transactions** — `XA PREPARE` is not supported by the engine.
+- **Table partitioning** — `CREATE TABLE ... PARTITION BY` and converting a DuckDB table with `ALTER TABLE ... PARTITION BY` are not supported; the engine declares `HTON_NO_PARTITION`.
 - **Collations** — MariaDB UCA-based collation rules are approximated via DuckDB's built-in `NOCASE`/`NOACCENT` collations for UTF-8 charsets; non-UTF8 charsets fall back to binary comparison. See [`docs/collation-mapping.md`](docs/collation-mapping.md) for the full mapping and known gaps.
 - **Cross-engine scan is yet single-threaded** — each external (non-DuckDB) table is produced by a single fiber-driven MariaDB query (`_mdb_scan` reports `MaxThreads() == 1`); only the DuckDB side of the query is parallelized.
 - **ALTER COLUMN DROP DEFAULT** — not propagated to DuckDB catalog.
