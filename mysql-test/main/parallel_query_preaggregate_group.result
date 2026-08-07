@@ -232,6 +232,48 @@ ran_in_the_workers
 preaggregated_per_scan
 1.0000
 #
+# TPC-H Q1, which is what all of this was for: a filtered scan of one
+# large table into four SUMs, three AVGs and a COUNT over two group
+# columns. Every worker's whole chunk leaves it as six rows.
+#
+CREATE TABLE lineitem (
+l_orderkey INT NOT NULL, l_partkey INT, l_suppkey INT, l_linenumber INT,
+l_quantity DECIMAL(15,2), l_extendedprice DECIMAL(15,2),
+l_discount DECIMAL(15,2), l_tax DECIMAL(15,2),
+l_returnflag CHAR(1), l_linestatus CHAR(1), l_shipdate DATE,
+PRIMARY KEY (l_orderkey, l_linenumber)) ENGINE=InnoDB;
+INSERT INTO lineitem
+SELECT seq/7+1, seq, seq, seq%7+1, seq%50+1, (seq%2000)*100+1, (seq%8)/100,
+(seq%9)/100, ELT(seq%3+1,'A','N','R'), ELT(seq%2+1,'F','O'),
+DATE_ADD('1994-01-01', INTERVAL seq%2000 DAY)
+FROM seq_1_to_50000;
+ANALYZE TABLE lineitem PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.lineitem	analyze	status	Engine-independent statistics collected
+test.lineitem	analyze	status	OK
+# select l_returnflag, l_linestatus, sum(l_quantity) as sum_qty, sum(l_extendedprice) as sum_base_price, sum(l_extendedprice*(1-l_discount)) as sum_disc_price, sum(l_extendedprice*(1-l_discount)*(1+l_tax)) as sum_charge, avg(l_quantity) as avg_qty, avg(l_extendedprice) as avg_price, avg(l_discount) as avg_disc, count(*) as count_order from lineitem where l_shipdate <= date '1998-12-01' - interval '90' day group by l_returnflag, l_linestatus order by l_returnflag, l_linestatus
+select l_returnflag, l_linestatus, sum(l_quantity) as sum_qty, sum(l_extendedprice) as sum_base_price, sum(l_extendedprice*(1-l_discount)) as sum_disc_price, sum(l_extendedprice*(1-l_discount)*(1+l_tax)) as sum_charge, avg(l_quantity) as avg_qty, avg(l_extendedprice) as avg_price, avg(l_discount) as avg_disc, count(*) as count_order from lineitem where l_shipdate <= date '1998-12-01' - interval '90' day group by l_returnflag, l_linestatus order by l_returnflag, l_linestatus;
+l_returnflag	l_linestatus	sum_qty	sum_base_price	sum_disc_price	sum_charge	avg_qty	avg_price	avg_disc	count_order
+A	F	177176.00	605693908.00	587534167.0000	605156876.678800	24.926280	85212.986494	0.029966	7108
+A	O	184248.00	606291108.00	582043747.9200	599511419.513100	25.921216	85297.004502	0.039966	7108
+N	F	177158.00	605637108.00	587473959.0000	610974744.090600	24.923748	85204.995498	0.029966	7108
+N	O	184286.00	606404809.00	582159719.9100	605442827.425200	25.922915	85301.000000	0.039962	7109
+R	F	177141.00	605580309.00	587417160.0000	616784907.121200	24.917851	85185.020256	0.029962	7109
+R	O	184266.00	606347908.00	582099979.9200	611206785.516900	25.923748	85304.995498	0.039966	7108
+select l_returnflag, l_linestatus, sum(l_quantity) as sum_qty, sum(l_extendedprice) as sum_base_price, sum(l_extendedprice*(1-l_discount)) as sum_disc_price, sum(l_extendedprice*(1-l_discount)*(1+l_tax)) as sum_charge, avg(l_quantity) as avg_qty, avg(l_extendedprice) as avg_price, avg(l_discount) as avg_disc, count(*) as count_order from lineitem where l_shipdate <= date '1998-12-01' - interval '90' day group by l_returnflag, l_linestatus order by l_returnflag, l_linestatus;
+l_returnflag	l_linestatus	sum_qty	sum_base_price	sum_disc_price	sum_charge	avg_qty	avg_price	avg_disc	count_order
+A	F	177176.00	605693908.00	587534167.0000	605156876.678800	24.926280	85212.986494	0.029966	7108
+A	O	184248.00	606291108.00	582043747.9200	599511419.513100	25.921216	85297.004502	0.039966	7108
+N	F	177158.00	605637108.00	587473959.0000	610974744.090600	24.923748	85204.995498	0.029966	7108
+N	O	184286.00	606404809.00	582159719.9100	605442827.425200	25.922915	85301.000000	0.039962	7109
+R	F	177141.00	605580309.00	587417160.0000	616784907.121200	24.917851	85185.020256	0.029962	7109
+R	O	184266.00	606347908.00	582099979.9200	611206785.516900	25.923748	85304.995498	0.039966	7108
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+DROP TABLE lineitem;
+#
 # No qualifying row at all: no worker ships anything and the answer is no
 # groups, which is what a serial run sends.
 #

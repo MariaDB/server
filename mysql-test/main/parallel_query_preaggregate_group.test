@@ -133,6 +133,28 @@ SET SESSION tmp_table_size= @t;
 --source include/parallel_query_preagg_ratio.inc
 
 --echo #
+--echo # TPC-H Q1, which is what all of this was for: a filtered scan of one
+--echo # large table into four SUMs, three AVGs and a COUNT over two group
+--echo # columns. Every worker's whole chunk leaves it as six rows.
+--echo #
+CREATE TABLE lineitem (
+  l_orderkey INT NOT NULL, l_partkey INT, l_suppkey INT, l_linenumber INT,
+  l_quantity DECIMAL(15,2), l_extendedprice DECIMAL(15,2),
+  l_discount DECIMAL(15,2), l_tax DECIMAL(15,2),
+  l_returnflag CHAR(1), l_linestatus CHAR(1), l_shipdate DATE,
+  PRIMARY KEY (l_orderkey, l_linenumber)) ENGINE=InnoDB;
+INSERT INTO lineitem
+SELECT seq/7+1, seq, seq, seq%7+1, seq%50+1, (seq%2000)*100+1, (seq%8)/100,
+       (seq%9)/100, ELT(seq%3+1,'A','N','R'), ELT(seq%2+1,'F','O'),
+       DATE_ADD('1994-01-01', INTERVAL seq%2000 DAY)
+FROM seq_1_to_50000;
+ANALYZE TABLE lineitem PERSISTENT FOR ALL;
+--let $pqa_query= select l_returnflag, l_linestatus, sum(l_quantity) as sum_qty, sum(l_extendedprice) as sum_base_price, sum(l_extendedprice*(1-l_discount)) as sum_disc_price, sum(l_extendedprice*(1-l_discount)*(1+l_tax)) as sum_charge, avg(l_quantity) as avg_qty, avg(l_extendedprice) as avg_price, avg(l_discount) as avg_disc, count(*) as count_order from lineitem where l_shipdate <= date '1998-12-01' - interval '90' day group by l_returnflag, l_linestatus order by l_returnflag, l_linestatus
+--source include/parallel_query_aggregate_cmp.inc
+--source include/parallel_query_preagg_ratio.inc
+DROP TABLE lineitem;
+
+--echo #
 --echo # No qualifying row at all: no worker ships anything and the answer is no
 --echo # groups, which is what a serial run sends.
 --echo #
