@@ -16,7 +16,12 @@
      that memory allocators recycle without returning pages to the OS;
    - an explicit min_records pre-sizing hint (CREATE TABLE ... MIN_ROWS)
      still overrides the cap;
+   - an explicit min_records below the cap does not defeat the cap;
+   - an explicit min_records above max_records is unreachable and is
+     clamped to the ceiling instead of pre-sizing past it;
    - small tables are sized exactly as before;
+   - max_records=0 keeps meaning "no row limit" even though block
+     sizing needs a concrete row count;
    - a capped table remains fully functional past the first block.
 */
 
@@ -407,11 +412,182 @@ static void test_explicit_min_records_wide_row(void)
 }
 
 
+/*
+  Walk the whole min_records / cap interaction at one ceiling-derived
+  max_records, so the boundaries between the regimes are pinned down
+  together rather than one at a time.
+
+  max_records 1M with 104-byte rows puts max_records/heap_allocation_parts
+  (62500 records) above cap_records (40319), so the cap is live for every
+  case here and only min_records decides the outcome:
+
+    - no min_records          -> capped (the heuristic must not override)
+    - min_records below cap   -> capped (too small to raise the block)
+    - cap < min_records < max -> pre-sized to min_records, past the cap
+    - min_records >= max      -> unreachable, clamped to max_records
+*/
+
+#define BOUNDARY_MAX_RECORDS  1000000UL
+
+static void test_min_records_cap_boundary(void)
+{
+  static const struct
+  {
+    const char *name;
+    ulong       min_records;
+    size_t      expected_alloc;
+    const char *what;
+  } cases[]=
+  {
+    { "test_block_bnd_none",   0UL,
+      4194272,   "no min_records is capped" },
+    { "test_block_bnd_small",  10000UL,
+      4194272,   "min_records below the cap is capped" },
+    { "test_block_bnd_mid",    200000UL,
+      33554400,  "min_records above the cap pre-sizes past it" },
+    { "test_block_bnd_over",   100000000UL,
+      134217696, "min_records above max_records clamps to the ceiling" }
+  };
+  uint i;
+
+  for (i= 0; i < array_elements(cases); i++)
+  {
+    HP_SHARE *share;
+    HP_INFO *info;
+
+    if (create_table(cases[i].name, 0, REC_LENGTH, cases[i].min_records,
+                     BOUNDARY_MAX_RECORDS, NULL, &share))
+    {
+      ok(0, "setup failed for %s: %d", cases[i].what, my_errno);
+      continue;
+    }
+
+    ok(share->block.alloc_size == cases[i].expected_alloc,
+       "%s (got %zu, expected %zu)", cases[i].what,
+       share->block.alloc_size, cases[i].expected_alloc);
+
+    if ((info= heap_open(cases[i].name, 2)))
+    {
+      heap_drop_table(info);
+      heap_close(info);
+    }
+  }
+}
+
+
+/*
+  Test: the ceiling clamp applies to the hash key block too.  An
+  unreachable MIN_ROWS inflates DATA_LENGTH and INDEX_LENGTH alike,
+  because both blocks run through init_block().  sizeof(HASH_INFO) is
+  24 on LP64 and 12 on ILP32, so the key block has its own recbuffer,
+  its own cap_records and its own expected size -- assert both blocks,
+  not just the record one.
+*/
+
+static void test_min_records_above_max_records_keyed(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  HP_KEYDEF keydef;
+  HA_KEYSEG keyseg;
+
+  init_int_keydef(&keydef, &keyseg);
+
+  if (create_table("test_block_bnd_keyed", 1, REC_LENGTH, 100000000UL,
+                   BOUNDARY_MAX_RECORDS, &keydef, &share))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(2, "setup failed");
+    return;
+  }
+
+  ok(share->block.alloc_size == 134217696,
+     "record block clamped to the ceiling (got %zu)",
+     share->block.alloc_size);
+
+  /*
+    1M * sizeof(HASH_INFO) + extra, rounded up to the next power of two:
+    32MB on LP64, 16MB on ILP32.  The record block above rounds to the
+    same size on both, but halving the key record halves memory_needed,
+    which lands a whole power of two lower.
+  */
+  ok(share->keydef[0].block.alloc_size ==
+     (SIZEOF_CHARP == 8 ? 33554400 : 16777184),
+     "hash key block clamped to the ceiling (got %zu)",
+     share->keydef[0].block.alloc_size);
+
+  if ((info= heap_open("test_block_bnd_keyed", 2)))
+  {
+    heap_drop_table(info);
+    heap_close(info);
+  }
+}
+
+
+/*
+  Test: max_records=0 means "no row limit", not "1000 rows".
+
+  Block sizing needs a concrete row count, so heap_create() derives one
+  when the caller passes max_records=0.  That derived value must not
+  reach share->max_records: hp_alloc_from_tail() only skips the row
+  limit check while max_records is 0, so storing the derived default
+  would turn an unlimited table into one that reports
+  HA_ERR_RECORD_FILE_FULL a few blocks in.
+*/
+
+static void test_no_max_records_is_unlimited(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  uchar rec[REC_LENGTH];
+  ulong i;
+  ulong write_failures= 0;
+  const ulong rows= 5000;
+
+  if (create_table("test_block_nomax", 0, REC_LENGTH, 0, 0, NULL, &share))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(3, "setup failed");
+    return;
+  }
+  ok(1, "created keyless table with max_records=0");
+
+  ok(share->max_records == 0,
+     "max_records stays 0, meaning no row limit (got %lu)",
+     share->max_records);
+
+  ok(share->block.alloc_size == 16352,
+     "block sized from the derived default (got %zu, expected 16352)",
+     share->block.alloc_size);
+
+  if (!(info= heap_open("test_block_nomax", 2)))
+  {
+    ok(0, "heap_open failed: %d", my_errno);
+    skip(1, "open failed");
+    return;
+  }
+  heap_extra(info, HA_EXTRA_NO_READCHECK);
+
+  for (i= 0; i < rows; i++)
+  {
+    build_record(rec, (int32) i);
+    if (heap_write(info, rec))
+      write_failures++;
+  }
+  ok(write_failures == 0,
+     "wrote %lu rows, well past the derived default, without error "
+     "(%lu failures)", rows, write_failures);
+
+  heap_drop_table(info);
+  heap_close(info);
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_block_size");
-  plan(24);
+  plan(34);
 
   diag("Test 1: ceiling-derived max_records capped (keyed table)");
   test_huge_max_records_capped();
@@ -436,6 +612,15 @@ int main(int argc __attribute__((unused)),
 
   diag("Test 8: explicit min_records still overrides cap for wide rows");
   test_explicit_min_records_wide_row();
+
+  diag("Test 9: min_records / cap boundary walk");
+  test_min_records_cap_boundary();
+
+  diag("Test 10: unreachable min_records clamps record and key blocks");
+  test_min_records_above_max_records_keyed();
+
+  diag("Test 11: max_records=0 stays unlimited");
+  test_no_max_records_is_unlimited();
 
   my_end(0);
   return exit_status();
