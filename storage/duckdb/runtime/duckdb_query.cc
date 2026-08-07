@@ -26,6 +26,7 @@
 
 #include "duckdb_query.h"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/main/pending_query_result.hpp"
 #include "duckdb_context.h"
 #include "duckdb_manager.h"
 #include "duckdb_log.h"
@@ -244,8 +245,9 @@ duckdb_query(duckdb::Connection &connection, const std::string &query)
   }
 }
 
-duckdb::unique_ptr<duckdb::QueryResult>
-duckdb_stream_query(duckdb::Connection &connection, const std::string &query)
+static duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_pending_query(duckdb::Connection &connection, const std::string &query,
+                     duckdb::QueryResultOutputType output_type)
 {
   const std::string q= backticks_to_double_quotes(query);
 
@@ -254,7 +256,13 @@ duckdb_stream_query(duckdb::Connection &connection, const std::string &query)
 
   try
   {
-    auto res= connection.SendQuery(q, duckdb::QueryResultOutputType::ALLOW_STREAMING);
+    auto pending= connection.PendingQuery(q, output_type);
+    duckdb::unique_ptr<duckdb::QueryResult> res;
+    if (pending->HasError())
+      res= duckdb::make_uniq<duckdb::MaterializedQueryResult>(
+          pending->GetErrorObject());
+    else
+      res= pending->Execute();
 
     if ((myduck::duckdb_log_options & LOG_DUCKDB_QUERY_RESULT) &&
         res->HasError())
@@ -271,6 +279,24 @@ duckdb_stream_query(duckdb::Connection &connection, const std::string &query)
     return duckdb::make_uniq<duckdb::MaterializedQueryResult>(
         duckdb::ErrorData(e.what()));
   }
+}
+
+static duckdb::unique_ptr<duckdb::MaterializedQueryResult>
+duckdb_query_single(duckdb::Connection &connection, const std::string &query)
+{
+  auto res= duckdb_pending_query(
+      connection, query, duckdb::QueryResultOutputType::FORCE_MATERIALIZED);
+  DBUG_ASSERT(res->type == duckdb::QueryResultType::MATERIALIZED_RESULT);
+  return duckdb::unique_ptr_cast<duckdb::QueryResult,
+                                 duckdb::MaterializedQueryResult>(
+      std::move(res));
+}
+
+duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_stream_query(duckdb::Connection &connection, const std::string &query)
+{
+  return duckdb_pending_query(
+      connection, query, duckdb::QueryResultOutputType::ALLOW_STREAMING);
 }
 
 static std::string get_thd_schema(THD *thd)
@@ -301,7 +327,7 @@ duckdb_query(THD *thd, const std::string &query, bool need_config)
     ctx->config_duckdb_session(thd);
   }
 
-  return duckdb_query(ctx->get_connection(), query);
+  return duckdb_query_single(ctx->get_connection(), query);
 }
 
 duckdb::unique_ptr<duckdb::QueryResult>
