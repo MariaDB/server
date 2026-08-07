@@ -6836,6 +6836,17 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   case ROTATE_EVENT:
   {
     /*
+      This is normally done in Log_event::read_log_event(),
+      but we bypass it here because it's expensive and costs dynamic memory.
+    */
+    if (unlikely(ROTATE_EVENT >
+      mi->rli.relay_log.description_event_for_queue->number_of_event_types))
+    {
+      // The current FDE does not support `ROTATE_EVENT`.
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      goto err;
+    }
+    /*
       RSC_1 and RSC_2 below rewrite the fake Rotate (the one that opens a
       connection, naming the binary log file the dump starts in; the file
       switches later in the connection send more, but by then the first
