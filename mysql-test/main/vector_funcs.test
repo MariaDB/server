@@ -49,6 +49,7 @@ drop table t1;
 --echo #
 --echo # MDEV-35212 Server crashes in Item_func_vec_fromtext::val_str upon query from empty table
 --echo #
+--error ER_WRONG_ARGUMENTS
 select vec_fromtext(NULL);
 
 --echo #

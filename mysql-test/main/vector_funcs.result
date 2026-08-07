@@ -119,8 +119,7 @@ drop table t1;
 # MDEV-35212 Server crashes in Item_func_vec_fromtext::val_str upon query from empty table
 #
 select vec_fromtext(NULL);
-vec_fromtext(NULL)
-NULL
+ERROR HY000: Incorrect arguments to VEC_FromText
 #
 # MDEV-35210 Vector type cannot store values which VEC_FromText produces and VEC_ToText accepts
 #
