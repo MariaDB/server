@@ -811,14 +811,15 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
-      wait_lsn-= (wait_lsn - first_lsn) % capacity();
+      const lsn_t limit{wait_lsn - (wait_lsn - first_lsn) % capacity()};
       /* We are in innodb_log_archive=OFF. If the file has wrapped
       around between the checkpoint and the current position, we must
       wait for a log checkpoint not before the desired first_lsn of
       our innodb_log_archive=ON log file, because that format does not
       allow any wrap-around. */
-      if (checkpoint < wait_lsn)
+      if (checkpoint < limit)
         goto retry_after_checkpoint;
+      wait_lsn= limit;
     }
     else if (circular_recovery_from_sequence_bit_0)
     {
