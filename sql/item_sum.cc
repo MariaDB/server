@@ -3012,6 +3012,28 @@ void Item_sum_count::reset_field()
 }
 
 
+/*
+  Add a whole (sum, count) rather than one value: the state this aggregate's
+  temp-table field holds, which is what a partial average has to be shipped as.
+  The count reaching zero says the partial holds no value at all, and is told to
+  Item_sum_sum the way it tells that itself -- a null pointer for the decimal
+  overload, a flag for the real one.
+*/
+
+void Item_sum_avg::direct_add(my_decimal *add_sum, ulonglong add_count)
+{
+  Item_sum_sum::direct_add(add_count ? add_sum : (my_decimal *) NULL);
+  direct_avg_count= add_count;
+}
+
+
+void Item_sum_avg::direct_add(double add_sum, ulonglong add_count)
+{
+  Item_sum_sum::direct_add(add_sum, add_count == 0);
+  direct_avg_count= add_count;
+}
+
+
 void Item_sum_avg::reset_field()
 {
   uchar *res=result_field->ptr;
@@ -3019,11 +3041,32 @@ void Item_sum_avg::reset_field()
   if (result_type() == DECIMAL_RESULT)
   {
     longlong tmp;
-    VDec value(args[0]);
-    tmp= value.is_null() ? 0 : 1;
-    value.to_binary(res, f_precision, f_scale);
+    if (unlikely(direct_added))
+    {
+      tmp= (longlong) direct_avg_count;
+      if (direct_sum_is_null)
+        decimal_zero.to_binary(res, f_precision, f_scale);
+      else
+        direct_sum_decimal.to_binary(res, f_precision, f_scale);
+    }
+    else
+    {
+      VDec value(args[0]);
+      tmp= value.is_null() ? 0 : 1;
+      value.to_binary(res, f_precision, f_scale);
+    }
     res+= dec_bin_size;
     int8store(res, tmp);
+  }
+  else if (unlikely(direct_added))
+  {
+    if (direct_sum_is_null)
+      bzero(res, sizeof(double)+sizeof(longlong));
+    else
+    {
+      float8store(res, direct_sum_real);
+      int8store(res + sizeof(double), (longlong) direct_avg_count);
+    }
   }
   else
   {
@@ -3038,6 +3081,11 @@ void Item_sum_avg::reset_field()
       res+=sizeof(double);
       int8store(res,tmp);
     }
+  }
+  if (unlikely(direct_added))
+  {
+    direct_added= FALSE;
+    direct_reseted_field= TRUE;
   }
 }
 
@@ -3151,30 +3199,51 @@ void Item_sum_avg::update_field()
 {
   longlong field_count;
   uchar *res=result_field->ptr;
+  /*
+    A pending direct value is a whole (sum, count) to add rather than one value
+    to count. direct_reseted_field says reset_field() has already taken it into
+    the field, which end_unique_update() arranges by resetting before it knows
+    whether the group is new.
+  */
+  const bool use_direct= direct_added || direct_reseted_field;
 
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
 
   if (result_type() == DECIMAL_RESULT)
   {
-    VDec tmp(args[0]);
-    if (!tmp.is_null())
+    my_decimal buf;
+    const my_decimal *add;
+    longlong add_count;
+    if (unlikely(use_direct))
+    {
+      add= direct_sum_is_null ? NULL : &direct_sum_decimal;
+      add_count= (longlong) direct_avg_count;
+    }
+    else
+    {
+      add= args[0]->val_decimal(&buf);
+      if (args[0]->null_value)
+        add= NULL;
+      add_count= 1;
+    }
+    if (add)
     {
       binary2my_decimal(E_DEC_FATAL_ERROR, res,
                         dec_buffs + 1, f_precision, f_scale);
       field_count= sint8korr(res + dec_bin_size);
-      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, tmp.ptr(), dec_buffs + 1);
+      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, add, dec_buffs + 1);
       dec_buffs->to_binary(res, f_precision, f_scale);
       res+= dec_bin_size;
-      field_count++;
+      field_count+= add_count;
       int8store(res, field_count);
     }
   }
   else
   {
-    double nr;
-
-    nr= args[0]->val_real();
-    if (!args[0]->null_value)
+    double nr= unlikely(use_direct) ? direct_sum_real : args[0]->val_real();
+    const bool have_value= unlikely(use_direct) ? !direct_sum_is_null
+                                                : !args[0]->null_value;
+    if (have_value)
     {
       double old_nr;
       float8get(old_nr, res);
@@ -3182,10 +3251,12 @@ void Item_sum_avg::update_field()
       old_nr+= nr;
       float8store(res,old_nr);
       res+= sizeof(double);
-      field_count++;
+      field_count+= unlikely(use_direct) ? (longlong) direct_avg_count : 1;
       int8store(res, field_count);
     }
   }
+  if (unlikely(use_direct))
+    direct_added= direct_reseted_field= FALSE;
 }
 
 

@@ -1941,6 +1941,12 @@ public:
     to read only group columns. Being one of the group expressions is the common
     case but not the test: an expression over them, "CONCAT(a, b)" under
     "GROUP BY a, b", has one value per group just the same.
+
+    A column read inside an aggregate is not exempted, though it could be:
+    "ROUND(AVG(x), 2)" reads the whole group through the aggregate and so has one
+    value per group whatever x is. Telling the two apart means knowing which side
+    of an aggregate each field reference was found on, and Item::walk does not
+    say, so this asks the question it can ask and refuses the shape.
 */
 
 static bool pwt_group_preagg_supported(JOIN *join, ORDER *group)
@@ -2063,6 +2069,17 @@ static bool pwt_preagg_supported(JOIN *join, ORDER **group)
     case Item_sum::MIN_FUNC:
     case Item_sum::MAX_FUNC:
       break;
+    case Item_sum::AVG_FUNC:
+      /*
+        Only with a GROUP BY, and for the shape of the column rather than the
+        arithmetic: what has to travel for an average is the (sum, count) pair,
+        and create_tmp_table() lays that pair out only for a table it is asked
+        to key -- for any other it gives the aggregate a plain column holding
+        the average, which nothing can be merged into.
+      */
+      if (!*group)
+        return false;
+      /* fall through */
     case Item_sum::SUM_FUNC:
       /* the two overloads between them cover a decimal and a real result */
       if (a->result_type() != DECIMAL_RESULT && a->result_type() != REAL_RESULT)
@@ -2383,6 +2400,33 @@ bool pwt_manager::direct_add_partials()
     case Item_sum::MAX_FUNC:
       ((Item_sum_min_max *) a)->direct_add(partial_items[i]);
       break;
+    case Item_sum::AVG_FUNC:
+    {
+      /*
+        The column is the (sum, count) pair Item_sum_avg keeps in a temp-table
+        field, not a value, so it is read the way the aggregate itself reads its
+        own: the sum packed at the front and the count in the eight bytes after
+        it. The aggregate is asked for the sizes because they are what its field
+        was laid out with.
+      */
+      Item_sum_avg *avg= (Item_sum_avg *) a;
+      const uchar *p= f->ptr;
+      if (a->result_type() == DECIMAL_RESULT)
+      {
+        my_decimal partial;
+        binary2my_decimal(E_DEC_FATAL_ERROR, p, &partial,
+                          avg->f_precision, avg->f_scale);
+        avg->direct_add(&partial, (ulonglong) sint8korr(p + avg->dec_bin_size));
+      }
+      else
+      {
+        double partial;
+        float8get(partial, p);
+        avg->direct_add(partial,
+                        (ulonglong) sint8korr(p + sizeof(double)));
+      }
+      break;
+    }
     default:
       DBUG_ASSERT(0);                          // pwt_preagg_supported() lied
       return true;

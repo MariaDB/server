@@ -969,13 +969,22 @@ public:
   ulonglong count;
   uint prec_increment;
   uint f_precision, f_scale, dec_bin_size;
+  /*
+    How many values the pending direct value stands for. An average cannot be
+    merged from an average, so what direct_add() takes for this aggregate is the
+    pair its temp-table field already holds: the sum, which Item_sum_sum's own
+    direct_* members carry, and this count.
+  */
+  ulonglong direct_avg_count;
 
   Item_sum_avg(THD *thd, Item *item_par, bool distinct):
-    Item_sum_sum(thd, item_par, distinct), count(0)
+    Item_sum_sum(thd, item_par, distinct), count(0), direct_avg_count(0)
   {}
   Item_sum_avg(THD *thd, Item_sum_avg *item)
     :Item_sum_sum(thd, item), count(item->count),
-    prec_increment(item->prec_increment) {}
+    prec_increment(item->prec_increment), direct_avg_count(0) {}
+  void direct_add(my_decimal *add_sum, ulonglong add_count);
+  void direct_add(double add_sum, ulonglong add_count);
 
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
@@ -1007,6 +1016,7 @@ public:
   void cleanup() override
   {
     count= 0;
+    direct_avg_count= 0;
     Item_sum_sum::cleanup();
   }
   bool supports_removal() const override

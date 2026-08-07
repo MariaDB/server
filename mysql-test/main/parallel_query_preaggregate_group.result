@@ -1,10 +1,10 @@
 SET @s= @@session.parallel_worker_threads;
 SET @t= @@session.tmp_table_size;
 SET SESSION optimizer_switch='derived_merge=off';
-CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), c VARCHAR(20))
-ENGINE=InnoDB;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), r DOUBLE,
+c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq % 997, IF(seq % 100 = 0, NULL, seq % 13), seq,
-IF(seq % 250 = 0, NULL, CONCAT('g', seq % 7))
+seq, IF(seq % 250 = 0, NULL, CONCAT('g', seq % 7))
 FROM seq_1_to_40000;
 CREATE TABLE d1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
 INSERT INTO d1 SELECT seq, seq * 10 FROM seq_1_to_50;
@@ -72,6 +72,84 @@ FLUSH STATUS;
 SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i) d;
 n	crc_sum	crc_xor
 997	2126158579643	4159099203
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# AVG, whose partial is the (sum, count) pair its field already holds. A
+# decimal result and a real one are packed differently and are both here.
+# r holds whole numbers so that its average is the same however the
+# partials are ordered, which a float sum is not in general.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(i) a, AVG(d) b, COUNT(*) e FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	13926905026	4104430970
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(i) a, AVG(d) b, COUNT(*) e FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	13926905026	4104430970
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT i AS g, AVG(d) a, AVG(pk) b, SUM(d) e FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2135987547888	2387080588
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT i AS g, AVG(d) a, AVG(pk) b, SUM(d) e FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2135987547888	2387080588
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(r) a, AVG(pk) b, COUNT(*) e FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	16197118151	4069256097
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(r) a, AVG(pk) b, COUNT(*) e FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	16197118151	4069256097
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# and a group in which the averaged column is entirely NULL, whose partial
+# is a count of zero and has to leave the average NULL rather than 0
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(n) a, AVG(i) b, COUNT(n) e FROM t1 WHERE n IS NULL GROUP BY c) d;
+n	crc_sum	crc_xor
+8	14250252134	2529006922
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e))) AS crc_xor FROM (SELECT c AS g, AVG(n) a, AVG(i) b, COUNT(n) e FROM t1 WHERE n IS NULL GROUP BY c) d;
+n	crc_sum	crc_xor
+8	14250252134	2529006922
 # the workers ran the query above, and did not run the serial one (expect 1)
 ran_in_the_workers
 1
@@ -218,7 +296,9 @@ ran_in_the_workers
 # 1 a computed group expression: the key is over shipped columns only
 # 2 a constant group expression, which leaves no key to group by
 # 3 a select list item over a column the group does not determine
-# 4 an aggregate with no direct_add overload, here AVG
+# 4 a select list item over an aggregate, whose columns are not told
+#   apart from a bare one's
+# 5 an aggregate with no direct_add overload, here BIT_XOR
 #
 # WITH ROLLUP is not among them because it does not reach here at all: it
 # is one of the plans that wants its rows already grouped, and
@@ -249,15 +329,15 @@ ran_in_the_workers
 # serial fingerprint
 SET SESSION parallel_worker_threads= 0;
 FLUSH STATUS;
-SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, AVG(i) a FROM t1 GROUP BY c) d;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, BIT_XOR(i) a FROM t1 GROUP BY c) d;
 n	crc_sum	crc_xor
-8	22079657190	711055890
+8	20965279960	4081950370
 # parallel fingerprint, must be identical to the serial one above
 SET SESSION parallel_worker_threads= 4;
 FLUSH STATUS;
-SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, AVG(i) a FROM t1 GROUP BY c) d;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, BIT_XOR(i) a FROM t1 GROUP BY c) d;
 n	crc_sum	crc_xor
-8	22079657190	711055890
+8	20965279960	4081950370
 # the workers ran the query above, and did not run the serial one (expect 1)
 ran_in_the_workers
 1
