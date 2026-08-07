@@ -1289,6 +1289,34 @@ static void report_bad_chr_note(const char *fname, int n_arg)
 }
 
 
+/*
+  The document argument of a call that has no other argument to work
+  out after it.
+
+  Such a call reads the document and is finished with it before
+  anything else can run, so it can be answered with a view rather than
+  with bytes of its own - see Item::val_json_at_once().  A call that
+  does have another argument to work out cannot: working one out runs
+  whatever the caller wrote, and what the caller wrote can take the
+  document away.
+
+  Asked of the argument count rather than written into each function,
+  so that a function which gains an optional argument later goes back
+  to being answered the careful way without anyone having to remember
+  to say so.
+
+  Only for a function that returns nothing of the document: one
+  that passes it straight on, as JSON_UNQUOTE and JSON_COMPACT do when
+  there is nothing to unquote or to rewrite, gives its own caller a
+  view and has to read the document with val_json().
+*/
+
+static inline String *val_json_arg0(Item **args, uint arg_count, String *str)
+{
+  return arg_count == 1 ? args[0]->val_json_at_once(str)
+                        : args[0]->val_json(str);
+}
+
 
 #define NO_WILDCARD_ALLOWED 1
 #define SHOULD_END_WITH_ARRAY 2
@@ -1378,7 +1406,7 @@ CHARSET_INFO *def_path_charset(CHARSET_INFO *cs, CHARSET_INFO *alt)
 
 bool Item_func_json_valid::val_bool()
 {
-  String *js= args[0]->val_json(&tmp_value);
+  String *js= val_json_arg0(args, arg_count, &tmp_value);
   THD *thd;
   json_engine_t je;
 
@@ -5489,7 +5517,7 @@ bool Item_func_json_length::fix_length_and_dec(THD *thd)
 
 longlong Item_func_json_length::val_int()
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   Json_source_watch watch;
   uint length= 0;
@@ -5588,7 +5616,7 @@ null_return:
 
 longlong Item_func_json_depth::val_int()
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   uint depth= 0, c_depth= 0;
   bool inc_depth= TRUE;
@@ -5653,7 +5681,7 @@ bool Item_func_json_type::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_type::val_str(String *str)
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   const char *type;
   THD *thd;
@@ -6585,7 +6613,7 @@ String *Item_func_json_keys::val_str(String *str)
 {
   json_engine_t je;
   Json_source_watch watch;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   uint n_keys= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   THD *thd;
@@ -7013,7 +7041,7 @@ bool Item_func_json_format::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_format::val_str(String *str)
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   Json_source_watch watch;
   int tab_size= 4;
@@ -7076,15 +7104,33 @@ String *Item_func_json_format::val_str(String *str)
   straight on.  So whatever the argument was able to say about it is
   still true of it here, and this function says neither more nor less.
 */
-String *Item_func_json_format::val_json(String *str)
+String *Item_func_json_format::forward_json(String *js)
 {
-  String *js= args[0]->val_json(&tmp_js);
   m_marks.clear();
   if ((null_value= args[0]->null_value))
     return 0;
   m_marks.set(js, args[0]->is_valid_json(), args[0]->is_nice_json(),
               args[0]->last_depth());
   return js;
+}
+
+
+String *Item_func_json_format::val_json(String *str)
+{
+  return forward_json(args[0]->val_json(&tmp_js));
+}
+
+
+/*
+  What is returned IS the argument's value, so a caller that is
+  finished with it before anything else can run leaves the argument free
+  to answer with a view of what it already holds - see
+  Item::val_json_at_once().  The promise is passed along with the value
+  rather than stopping here.
+*/
+String *Item_func_json_format::val_json_at_once(String *str)
+{
+  return forward_json(args[0]->val_json_at_once(&tmp_js));
 }
 
 int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
@@ -7611,7 +7657,7 @@ String *Item_func_json_normalize::val_str(String *buf)
   String tmp;
   json_engine_t je;
   THD *thd;
-  String *raw_json= args[0]->val_str(&tmp);
+  String *raw_json= val_json_arg0(args, arg_count, &tmp);
 
   m_marks.clear();
 

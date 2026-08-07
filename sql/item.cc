@@ -1739,6 +1739,78 @@ String *Item_sp_variable::val_str(String *sp)
 }
 
 
+/*
+  A JSON function keeps its document for the whole of its work.  It
+  walks the document to find the place it was asked about, then works
+  out the rest of its arguments, and only then reads the pieces of the
+  document either side of that place.  Working out an argument runs
+  whatever the caller wrote, and what the caller wrote can assign to
+  this very variable - the variables of a package body being in reach
+  of every routine in that package.  Storing a longer value there
+  gives the variable a new buffer and lets go of the old one, which is
+  the buffer being read from.
+
+  val_str() above returns a pointer INTO the variable rather than
+  bytes of the caller's own, and does so on purpose: a function that
+  builds into the buffer it is offered must not get to build into the
+  variable.  What that leaves the caller holding is a view, good only
+  for as long as nothing writes where it points, so a caller that
+  means to keep it across working something else out cannot be given
+  one.  Give that caller a copy.
+
+  A user variable has always been read this way - user_var_entry::
+  val_str() copies - which is why the same shape written with one of
+  those holds together.
+*/
+
+String *Item_sp_variable::val_json(String *str)
+{
+  DBUG_ASSERT(fixed());
+  Item *it= this_item();
+  String *res= it->val_json(str);
+
+  null_value= it->null_value;
+
+  /*
+    Nothing to copy, or worked out into the buffer that was offered
+    instead of read off the variable, in which case the bytes are the
+    caller's own already.
+  */
+  if (!res || res == str)
+    return res;
+
+  if (str->copy(res->ptr(), res->length(), res->charset()) ||
+      DBUG_IF("json_variable_copy_out_of_memory"))
+  {
+    null_value= true;                             /* Out of memory. */
+    return NULL;
+  }
+
+  return str;
+}
+
+
+/*
+  A view into the variable is what val_str() above returns, and it
+  is enough for a caller that reads the bytes and is done with them
+  before anything else can run: nothing can write where they point
+  while nothing is running.  So this is the one JSON caller that need
+  not be given a copy.  See val_json() above for the caller that must
+  be.
+*/
+
+String *Item_sp_variable::val_json_at_once(String *str)
+{
+  DBUG_ASSERT(fixed());
+  Item *it= this_item();
+  String *res= it->val_json(str);
+
+  null_value= it->null_value;
+
+  return res;
+}
+
+
 bool Item_sp_variable::val_native(THD *thd, Native *to)
 {
   return val_native_from_item(thd, this_item(), to);
@@ -5558,6 +5630,24 @@ String* Item_ref_null_helper::val_str(String* s)
 }
 
 
+String* Item_ref_null_helper::val_json(String* s)
+{
+  DBUG_ASSERT(fixed());
+  String* tmp= (*ref)->val_json_result(s);
+  owner->was_null|= null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+String* Item_ref_null_helper::val_json_at_once(String* s)
+{
+  DBUG_ASSERT(fixed());
+  String* tmp= (*ref)->val_json_at_once_result(s);
+  owner->was_null|= null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 bool Item_ref_null_helper::val_native(THD *thd, Native *to)
 {
   return (owner->was_null|= val_native_from_item(thd, *ref, to));
@@ -9154,6 +9244,33 @@ String *Item_ref::val_str(String* tmp)
 }
 
 
+/*
+  The two below are written for a caller that wants a document, reaching
+  the same side of the referenced item that val_str() does.  Without
+  them Item::val_json() would send the request back through val_str(),
+  and an item that answers those two differently - a routine's variable
+  returns a view of itself from one and a copy from the other - would
+  have the difference thrown away by the reference in front of it.
+*/
+
+String *Item_ref::val_json(String* tmp)
+{
+  DBUG_ASSERT(fixed());
+  tmp=(*ref)->val_json_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_ref::val_json_at_once(String* tmp)
+{
+  DBUG_ASSERT(fixed());
+  tmp=(*ref)->val_json_at_once_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
 bool Item_ref::is_null()
 {
   DBUG_ASSERT(fixed());
@@ -9297,6 +9414,24 @@ longlong Item_direct_ref::val_int()
 String *Item_direct_ref::val_str(String* tmp)
 {
   tmp=(*ref)->val_str(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+/* The value side, val_str() above being of the value side here. */
+
+String *Item_direct_ref::val_json(String* tmp)
+{
+  tmp=(*ref)->val_json(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_ref::val_json_at_once(String* tmp)
+{
+  tmp=(*ref)->val_json_at_once(tmp);
   null_value=(*ref)->null_value;
   return tmp;
 }
@@ -10141,6 +10276,22 @@ longlong Item_direct_view_ref::val_int_result()
 String *Item_direct_view_ref::str_result(String* tmp)
 {
   tmp=(*ref)->str_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_view_ref::val_json_result(String* tmp)
+{
+  tmp=(*ref)->val_json_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_view_ref::val_json_at_once_result(String* tmp)
+{
+  tmp=(*ref)->val_json_at_once_result(tmp);
   null_value=(*ref)->null_value;
   return tmp;
 }

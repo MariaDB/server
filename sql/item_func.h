@@ -3603,6 +3603,17 @@ public:
   my_decimal *val_decimal_result(my_decimal *) override;
   bool is_null_result() override;
   /*
+    Reading the document out of str_result() is what happens today and
+    is what has to keep happening: the assignment it performs is this
+    item's whole point, and a document must not be fetched by any road
+    that performs it a second time or not at all.  A user variable is
+    read out by copying, so what comes back is the caller's own bytes
+    and val_json_at_once() has nothing to save.
+  */
+  String *val_json_result(String *str) override { return str_result(str); }
+  String *val_json_at_once_result(String *str) override
+  { return str_result(str); }
+  /*
     str_result() above is the one of the five that does not merely read
     somewhere else: it assigns the variable and then returns what is
     in it.  So these cannot be written the way the other four are, by

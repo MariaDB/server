@@ -1784,6 +1784,41 @@ public:
   virtual String *val_json(String *str) { return val_str(str); }
 
   /*
+    The same value, for a caller that is finished with it before
+    anything else can run.
+
+    val_json() may have to return bytes of the caller's own so that
+    they outlive whatever the caller does next.  A caller that does
+    nothing next has no use for them, and this variant lets the item
+    say so cheaply.
+
+    Only ask for it when BOTH hold: nothing else is worked out between
+    this call and the last read of what it returns, and no part of
+    what it returns reaches the caller's own caller.  If either
+    fails, val_json() is what is wanted.  Answering with val_json() is
+    always allowed, and is what an item that has no cheaper answer
+    does.
+  */
+  virtual String *val_json_at_once(String *str) { return val_json(str); }
+
+  /*
+    The same two of the result side, which is what a reference reads -
+    Item_ref::val_str() calls str_result(), so Item_ref::val_json()
+    calls these.  Where an item has no result side of its own the two
+    sides are the same object and the defaults here say so; the five
+    that override str_result() attest to whatever their own
+    str_result() reads, exactly as they do for the marks below.
+
+    Without them a reference would answer a request for a document by
+    falling back to Item::val_json(), which is val_str() - and an item
+    that hands out a view of somebody else's bytes from val_str() and a
+    copy from val_json() would be back to handing out the view.
+  */
+  virtual String *val_json_result(String *str) { return val_json(str); }
+  virtual String *val_json_at_once_result(String *str)
+  { return val_json_at_once(str); }
+
+  /*
     Whether the value returned by the LAST evaluation of this item is
     guaranteed to be a JSON document, written in the character set the
     value says it is written in.
@@ -3354,6 +3389,8 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *sp) override;
+  String *val_json(String *str) override;
+  String *val_json_at_once(String *str) override;
   my_decimal *val_decimal(my_decimal *decimal_value) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
@@ -4158,6 +4195,18 @@ public:
     DBUG_ASSERT(reads_back_no_deeper_than_claimed());
     return field->attested_json_depth();
   }
+  /*
+    A field has no document of its own to pass - val_json() here is
+    Item::val_json(), which is val_str() - so its result side is
+    str_result() and nothing more.  The bytes it reads are a row's, and
+    a row outlives the working out of an argument, so there is nothing
+    for val_json_at_once() to be careful about, and the two are one
+    call.  Item_default_value inherits both: str_result() is virtual,
+    so its own is the one reached and the value gets put in place first.
+  */
+  String *val_json_result(String *str) override { return str_result(str); }
+  String *val_json_at_once_result(String *str) override
+  { return str_result(str); }
   /*
     str_result() reads result_field rather than field, so these read
     result_field too.  Which of the two an Item_field is asked for is
@@ -6227,6 +6276,8 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   String *val_str(String* tmp) override;
+  String *val_json(String* tmp) override;
+  String *val_json_at_once(String* tmp) override;
   bool val_native(THD *thd, Native *to) override;
   bool is_null() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -6259,6 +6310,10 @@ public:
     rather than about the class, which is why the condition is written
     out here rather than answered once and for all somewhere.
   */
+  String *val_json_result(String* tmp) override
+  { return result_field ? str_result(tmp) : val_json(tmp); }
+  String *val_json_at_once_result(String* tmp) override
+  { return result_field ? str_result(tmp) : val_json_at_once(tmp); }
   bool is_valid_json_result() const override
   {
     return result_field ? result_field->attests_is_valid_json()
@@ -6489,6 +6544,8 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   String *val_str(String* tmp) override;
+  String *val_json(String* tmp) override;
+  String *val_json_at_once(String* tmp) override;
   bool val_native(THD *thd, Native *to) override;
   bool is_null() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -6805,8 +6862,10 @@ public:
   /*
     str_result() below passes on whatever the referenced item's result
     side gave, and does not look at the row the way the val_XXX above
-    it do, so neither does this.
+    it do, so neither do these.
   */
+  String *val_json_result(String* tmp) override;
+  String *val_json_at_once_result(String* tmp) override;
   bool is_valid_json_result() const override
   { return (*ref)->is_valid_json_result(); }
   bool is_nice_json_result() const override
@@ -6841,6 +6900,20 @@ public:
       return NULL;
     else
       return Item_direct_ref::val_str(tmp);
+  }
+  String *val_json(String* tmp) override
+  {
+    if (check_null_ref())
+      return NULL;
+    else
+      return Item_direct_ref::val_json(tmp);
+  }
+  String *val_json_at_once(String* tmp) override
+  {
+    if (check_null_ref())
+      return NULL;
+    else
+      return Item_direct_ref::val_json_at_once(tmp);
   }
   bool val_native(THD *thd, Native *to) override
   {
@@ -7044,6 +7117,13 @@ public:
   double val_real() override;
   longlong val_int() override;
   String* val_str(String* s) override;
+  /*
+    Every val_XXX here notes a NULL down for the owner, so these have to
+    as well: they are how val_str() used to be reached, and a NULL that
+    goes unnoted is a subquery answering the wrong way.
+  */
+  String* val_json(String* s) override;
+  String* val_json_at_once(String* s) override;
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
