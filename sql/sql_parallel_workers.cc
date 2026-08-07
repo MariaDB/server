@@ -996,6 +996,8 @@ int pwt_worker::pscan_next_row()
 
 int pwt_worker::accumulate_partial()
 {
+  if (manager->preagg_grouped)
+    return accumulate_group();
   for (uint i= 0; i < manager->n_sums; i++)
     if (worker_sums[i]->aggregator_add())
       return 1;
@@ -1005,18 +1007,182 @@ int pwt_worker::accumulate_partial()
 
 /*
   @brief
-    Ship this worker's partial aggregate values as a single row.
+    Add this joined row to the partial for its own group.
 
   @description
-    One column per aggregate, in the order pwt_manager::setup_preagg() defined
-    them, so the manager folds column i into aggregate i. A worker whose chunk
-    held no qualifying row still ships: its COUNT is 0 and its other partials are
-    NULL, and merging those changes nothing, which is the same answer as not
-    shipping at all and one fewer case to reason about.
+    The server's end_update(), done over this worker's own table: build the group
+    key from the row, look it up, and either extend the partial that is there or
+    start a new one. What differs is only where the values come from. end_update()
+    copies them in through the Copy_field pairs create_tmp_table() built, because
+    its table's columns are a projection of the query's; here the columns *are*
+    the shipped layout, so the worker's own clones write them directly, and the
+    row the table ends up holding is the row that gets shipped, byte for byte.
+
+    A group's base columns are those of the first row of the group to arrive at
+    this worker and are not touched again -- restoring the found record before
+    the aggregates are updated is what leaves them alone. Which is why only a
+    column the group determines may be read from them.
+
+  @return 0 keep going, 1 error, 2 the manager asked us to stop.
+*/
+
+int pwt_worker::accumulate_group()
+{
+  TABLE *t= result_table;
+  int error;
+
+  for (uint i= 0; i < proj_count; i++)
+    worker_proj[i]->save_in_field(t->field[i], false);
+  if (manager->fatal_error)                     // projection raised an error
+    return 1;
+
+  for (ORDER *g= t->group; g; g= g->next)
+  {
+    Item *item= *g->item;
+    if (g->fast_field_copier_setup != g->field)
+    {
+      g->fast_field_copier_setup= g->field;
+      g->fast_field_copier_func= item->setup_fast_field_copier(g->field);
+    }
+    item->save_org_in_field(g->field, g->fast_field_copier_func);
+    /* The key holds a null flag of its own just before the value. */
+    if (item->maybe_null())
+      g->buff[-1]= (char) g->field->is_null();
+  }
+
+  if (!t->file->ha_index_read_map(t->record[1], group_buff, HA_WHOLE_KEY,
+                                  HA_READ_KEY_EXACT))
+  {
+    restore_record(t, record[1]);               // the group's row so far
+    for (uint i= 0; i < manager->n_sums; i++)
+      worker_sums[i]->update_field();
+    if ((error= t->file->ha_update_tmp_row(t->record[1], t->record[0])))
+    {
+      t->file->print_error(error, MYF(0));
+      return 1;
+    }
+    return 0;
+  }
+
+  for (uint i= 0; i < manager->n_sums; i++)
+    worker_sums[i]->reset_field();
+  if (!(error= t->file->ha_write_tmp_row(t->record[0])))
+    return 0;
+
+  /*
+    Full. end_update() would move the table to disk here and carry on
+    accumulating; this ships what it has instead and starts the table again
+    empty. That is available because a partial is mergeable: the manager folds
+    however many partials arrive for a group, so a group split across two
+    flushes costs one extra row and nothing else. It is also what keeps the
+    conversion off a worker thread, which is not a thread the server's
+    heap-to-disk path is written to run on.
+
+    The row that did not fit has to survive the flush, which scans the table
+    through record[0]. record[1] is free -- the lookup above missed -- so it
+    holds the row across.
+  */
+  if (error != HA_ERR_RECORD_FILE_FULL)
+  {
+    t->file->print_error(error, MYF(0));
+    return 1;
+  }
+  memcpy(t->record[1], t->record[0], manager->reclength);
+  if ((error= flush_groups()))
+    return error;
+  if ((error= t->file->ha_delete_all_rows()) ||
+      (error= t->file->ha_index_init(0, 0)))
+  {
+    t->file->print_error(error, MYF(0));
+    return 1;
+  }
+  memcpy(t->record[0], t->record[1], manager->reclength);
+  if ((error= t->file->ha_write_tmp_row(t->record[0])))
+  {
+    t->file->print_error(error, MYF(0));
+    return 1;
+  }
+  return 0;
+}
+
+
+/*
+  @brief
+    Ship every group this worker has accumulated so far, and empty its table.
+
+  @description
+    The rows of the grouping table are the rows to ship: the layout is the shipped
+    layout, so this is a scan and a memcpy per row, with no projection. Called at
+    end of records, and again from accumulate_group() whenever the table fills.
+
+  @return 0 all shipped, 1 error, 2 the manager asked us to stop.
+*/
+
+int pwt_worker::flush_groups()
+{
+  TABLE *t= result_table;
+  int rc= 0, error;
+
+  t->file->ha_index_or_rnd_end();
+  if ((error= t->file->ha_rnd_init(1)))
+  {
+    t->file->print_error(error, MYF(0));
+    return 1;
+  }
+  while (!(error= t->file->ha_rnd_next(t->record[0])) ||
+         error == HA_ERR_RECORD_DELETED)
+  {
+    if (error)
+      continue;
+    if (manager->fatal_error)
+    {
+      rc= 1;
+      break;
+    }
+    memcpy(batch_rows + (size_t) batch_count * manager->reclength,
+           t->record[0], manager->reclength);
+    if (++batch_count == PWT_CHUNK_ROWS)
+    {
+      if (manager->handoff_batch(this))         // manager asked us to stop
+      {
+        rc= 2;
+        break;
+      }
+      batch_count= 0;                           // drained; refill
+    }
+  }
+  t->file->ha_rnd_end();
+  if (!rc && error != HA_ERR_END_OF_FILE)
+  {
+    t->file->print_error(error, MYF(0));
+    rc= 1;
+  }
+  return rc;
+}
+
+
+/*
+  @brief
+    Ship this worker's partial aggregate values.
+
+  @description
+    Without a GROUP BY that is a single row: one column per aggregate, in the
+    order pwt_manager::setup_preagg() defined them, so the manager folds column i
+    into aggregate i. A worker whose chunk held no qualifying row still ships: its
+    COUNT is 0 and its other partials are NULL, and merging those changes nothing,
+    which is the same answer as not shipping at all and one fewer case to reason
+    about.
+
+    With one it is whatever is left in the grouping table, one row per group. A
+    worker whose chunk held no qualifying row ships nothing at all, which is
+    right: it contributes no group.
 */
 
 int pwt_worker::emit_partial_row()
 {
+  if (manager->preagg_grouped)
+    return flush_groups();
+
   for (uint i= 0; i < manager->n_sums; i++)
     worker_sums[i]->save_in_field(result_table->field[i], false);
 
@@ -1120,22 +1286,26 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
 {
   DBUG_ENTER("pwt_end_send");
 
+  int rc;
   if (pwt_self->manager->preagg)
   {
     /*
-      Pre-aggregating: every row goes into this worker's own aggregates, and the
-      end-of-records call is where the partial row is shipped. Which is why the
-      worker runs the join twice, exactly as do_select() does.
+      Pre-aggregating: every row goes into this worker's own partials, and the
+      end-of-records call is where they are shipped -- one row, or with a GROUP BY
+      one row per group. Which is why the worker runs the join twice, exactly as
+      do_select() does.
     */
-    const int rc= end_of_records ? pwt_self->emit_partial_row()
-                                 : pwt_self->accumulate_partial();
-    DBUG_RETURN(rc ? NESTED_LOOP_ERROR : NESTED_LOOP_OK);
+    rc= end_of_records ? pwt_self->emit_partial_row()
+                       : pwt_self->accumulate_partial();
+  }
+  else
+  {
+    if (end_of_records)
+      DBUG_RETURN(NESTED_LOOP_OK);
+    rc= pwt_self->emit_joined_row();
   }
 
-  if (end_of_records)
-    DBUG_RETURN(NESTED_LOOP_OK);
-
-  switch (pwt_self->emit_joined_row()) {
+  switch (rc) {
   case 0:  DBUG_RETURN(NESTED_LOOP_OK);
   case 2:  DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
   default: DBUG_RETURN(NESTED_LOOP_ERROR);
@@ -1225,6 +1395,15 @@ int pwt_worker::worker_run_query()
       break;
   }
 
+  /*
+    And, when the partials are accumulated per group, the index on this worker's
+    own grouping table: every row looks its group up through it. (The manager's
+    grouping stage gets the same from AGGR_OP::prepare_tmp_table.)
+  */
+  if (!err && mgr->preagg_grouped &&
+      (err= result_table->file->ha_index_init(0, 0)))
+    result_table->file->print_error(err, MYF(0));
+
   if (!err && !(err= src->file->pscan_init_worker(engine_ctx)))
   {
     batch_count= 0;
@@ -1236,8 +1415,8 @@ int pwt_worker::worker_run_query()
       all hang off this worker's own JOIN_TABs, so the executor never touches
       the manager's. pwt_end_send() takes each finished row.
     */
-    /* Start this chunk's partials from empty. */
-    if (mgr->preagg)
+    /* Start this chunk's partials from empty (a grouping table already is). */
+    if (mgr->preagg && !mgr->preagg_grouped)
       for (uint k= 0; k < mgr->n_sums; k++)
         worker_sums[k]->aggregator_clear();
 
@@ -1268,6 +1447,8 @@ int pwt_worker::worker_run_query()
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
   for (i= 1; i < nt; i++)
     join_tabs[i].table->file->ha_index_or_rnd_end();
+  if (mgr->preagg_grouped)
+    result_table->file->ha_index_or_rnd_end();
   for (i= 0; i < nt; i++)
     worker_tables[i]->file->ha_external_lock(thd, F_UNLCK);
   DBUG_RETURN(err);
@@ -1670,6 +1851,138 @@ static void pwt_dbug_verify_direct_add(THD *thd, JOIN *join)
 
 /*
   @brief
+    The GROUP BY key the plan's own aggregation table is built on, if the
+    manager's terminal is the one that looks a group up by that key.
+
+  @description
+    end_update() is the terminal that reads a row, builds the group key from
+    table->group and folds the row into whichever group it finds -- the one whose
+    answer does not depend on the order the rows arrive in, which is why
+    pwt_plan_needs_group_order() lets a plan that uses it run in the workers at
+    all. It is also the one a partial can be merged through, because the
+    update_field() it calls per aggregate consumes a direct value.
+
+    The list is taken from the aggregation table rather than from
+    join->group_list, and not only because that is the one end_update() will
+    actually key on: make_aggr_tables_info() sets join->group_list to NULL once
+    the temp table has taken the grouping over, so by execution time it is gone.
+
+  @return the key, or nullptr if this plan's terminal is not that one.
+*/
+
+static ORDER *pwt_plan_group_key(JOIN *join)
+{
+  if (!join->aggr_tables)
+    return nullptr;
+  JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+  if (last->next_select != sub_select_postjoin_aggr)
+    return nullptr;
+  JOIN_TAB *aggr_tab= last + 1;
+  if (!aggr_tab->aggr || aggr_tab->aggr->get_write_func() != end_update ||
+      !aggr_tab->table)
+    return nullptr;
+  return aggr_tab->table->group;
+}
+
+
+/*
+  Whether every base-table column an expression reads is one of the GROUP BY
+  columns, and so has one value per group.
+*/
+class Pwt_group_checker : public Field_enumerator
+{
+  ORDER *group;
+public:
+  bool all_grouped;
+  Pwt_group_checker(ORDER *group_arg) : group(group_arg), all_grouped(true) {}
+  void visit_field(Item_field *item) override
+  {
+    if (!item->field)
+      return;
+    for (ORDER *g= group; g; g= g->next)
+    {
+      Item *gi= (*g->item)->real_item();
+      if (gi->type() == Item::FIELD_ITEM &&
+          ((Item_field *) gi)->field == item->field)
+        return;
+    }
+    all_grouped= false;
+  }
+};
+
+
+/*
+  @brief
+    Whether the workers can accumulate a partial per group and the manager merge
+    it, for the GROUP BY key 'group'.
+
+  @description
+    A worker's partial per group lives in a temp table of its own, keyed on the
+    group and holding the shipped columns, so what it can group by is what
+    create_tmp_table() can build a real key over from those columns:
+
+      - every group expression a plain base-table column, so the key is over
+        columns the worker already ships. A computed group expression would mean
+        carrying its value as a column of its own and copying field by field at
+        flush time instead of shipping the record image;
+      - not a constant one, which create_tmp_table() drops from the key --
+        leaving a key that does not distinguish the groups it was asked for, and
+        with a single constant group expression no key at all;
+      - and a key create_tmp_table() will not turn into a unique constraint, for
+        which it builds no index and the worker has nothing to look a group up
+        in. The two things that force that are checked here: an item too wide to
+        be a varchar, and a key longer than a blob.
+
+    What the manager does with the shipped row is run the plan's own terminal
+    over it, so the row has to mean to that terminal what a joined row would.
+    Each group's shipped base columns are those of the first row of that group in
+    that worker, which is right for a column the group determines and arbitrary
+    for one it does not -- so every non-aggregate item the terminal will read has
+    to read only group columns. Being one of the group expressions is the common
+    case but not the test: an expression over them, "CONCAT(a, b)" under
+    "GROUP BY a, b", has one value per group just the same.
+*/
+
+static bool pwt_group_preagg_supported(JOIN *join, ORDER *group)
+{
+  if (join->rollup.state != ROLLUP::STATE_NONE)
+    return false;
+
+  uint key_length= 0;
+  for (ORDER *g= group; g; g= g->next)
+  {
+    Item *item= (*g->item)->real_item();
+    if (item->type() != Item::FIELD_ITEM || item->const_item())
+      return false;
+    if ((*g->item)->too_big_for_varchar())
+      return false;
+    Field *f= ((Item_field *) item)->field;
+    key_length+= f->type() == MYSQL_TYPE_VARCHAR ||
+                 f->type() == MYSQL_TYPE_VAR_STRING
+                 ? f->field_length + HA_KEY_BLOB_LENGTH : f->pack_length();
+    if ((*g->item)->maybe_null())
+      key_length++;
+  }
+  if (!group || key_length >= MAX_BLOB_WIDTH)
+    return false;
+
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *it;
+  while ((it= li++))
+  {
+    if (it->type() == Item::SUM_FUNC_ITEM || it->const_item())
+      continue;
+    Pwt_group_checker check(group);
+    it->walk(&Item::enumerate_field_refs_processor, (void *) &check, 0);
+    if (!check.all_grouped)
+      return false;
+  }
+  return true;
+}
+
+
+/*
+  @brief
     Whether this query's aggregates can be computed by the workers and merged.
 
   @description
@@ -1677,13 +1990,12 @@ static void pwt_dbug_verify_direct_add(THD *thd, JOIN *join)
     increment, and MIN and MAX have to reach the Item_cache their add() reads
     rather than args[0]. Item_sum::direct_add() does exactly that, and exists on
     Item_sum_count, Item_sum_sum -- a decimal and a real overload -- and
-    Item_sum_min_max. Those four are the aggregates this accepts.
+    Item_sum_min_max. Those four are the aggregates this accepts, whether or not
+    there is a GROUP BY: the same four are also the ones whose reset_field() and
+    update_field() honour a direct value, which is what a merge per group needs.
 
     What is refused, and why:
 
-      - A GROUP BY. Each worker would need its own grouping structure keyed on
-        the group, and the manager a merge per group rather than one per query.
-        Nothing here is in the way of that; it is simply not built.
       - AVG, STD and VARIANCE. A partial average cannot be averaged. Their state
         would have to be shipped -- (sum, count), and (n, sum, sum-of-squares) --
         which their temp-table field already holds, so this is a shape question
@@ -1694,34 +2006,51 @@ static void pwt_dbug_verify_direct_add(THD *thd, JOIN *join)
       - The DISTINCT variants, whose set has to be complete before it can be
         counted. The server agrees: every merge path asserts the aggregator is
         not a DISTINCT one.
-      - A select list holding anything but those aggregates and constants. Only
-        the partials are shipped, so the manager has no base-table row to
-        evaluate anything else against.
+      - Without a GROUP BY, a select list holding anything but those aggregates
+        and constants. Only the partials are shipped, so the manager has no
+        base-table row to evaluate anything else against. With one the base
+        columns are shipped as well, and what the select list may hold is then
+        the wider question pwt_group_preagg_supported() asks.
 
     Asked at execution time, from run_worker_side_join(), because which terminal
     the optimizer chose is not known when the gate runs -- the same reason
     pwt_plan_needs_group_order() is asked there. A query that fails this still
     runs in the workers, shipping its rows the way it did before.
+
+  @param group  out: the GROUP BY key to accumulate per, nullptr for a query
+                that has one implicit group.
 */
 
-static bool pwt_preagg_supported(JOIN *join)
+static bool pwt_preagg_supported(JOIN *join, ORDER **group)
 {
-  if (join->group_list || join->group || !join->sum_funcs)
+  *group= nullptr;
+  if (!join->sum_funcs)
     return false;
   if (!join->select_lex->agg_func_used() && !join->select_lex->with_sum_func)
     return false;
 
-  /*
-    The terminal has to be the one that sends a group at end of records, reached
-    directly rather than through a temp-table aggregation stage: that is the one
-    whose end-of-records call sends the aggregate's single row from whatever the
-    aggregates hold, which is what merging partials into them relies on.
-  */
-  if (join->aggr_tables)
-    return false;
-  JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
-  if (last->next_select != end_send_group)
-    return false;
+  if (join->group_list || join->group)
+  {
+    ORDER *g= pwt_plan_group_key(join);
+    if (!g || !pwt_group_preagg_supported(join, g))
+      return false;
+    *group= g;
+  }
+  else
+  {
+    /*
+      The terminal has to be the one that sends a group at end of records,
+      reached directly rather than through a temp-table aggregation stage: that
+      is the one whose end-of-records call sends the aggregate's single row from
+      whatever the aggregates hold, which is what merging partials into them
+      relies on.
+    */
+    if (join->aggr_tables)
+      return false;
+    JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+    if (last->next_select != end_send_group)
+      return false;
+  }
 
   uint n= 0;
   for (Item_sum **s= join->sum_funcs; *s; s++, n++)
@@ -1757,21 +2086,27 @@ static bool pwt_preagg_supported(JOIN *join)
     return false;
 
   /*
-    Every item the terminal will send has to be one of those aggregates or a
-    constant, since a partial row carries nothing else.
+    With no GROUP BY, every item the terminal will send has to be one of those
+    aggregates or a constant, since a partial row carries nothing else. With one,
+    the base columns travel too and pwt_group_preagg_supported() has already said
+    what may read them.
   */
-  List_iterator_fast<Item> li(join->fields_list);
-  Item *it;
-  while ((it= li++))
-    if (it->type() != Item::SUM_FUNC_ITEM && !it->const_item())
-      return false;
+  if (!*group)
+  {
+    List_iterator_fast<Item> li(join->fields_list);
+    Item *it;
+    while ((it= li++))
+      if (it->type() != Item::SUM_FUNC_ITEM && !it->const_item())
+        return false;
+  }
   return true;
 }
 
 
 /*
   @brief
-    Collect the query's aggregates and define result_table from them.
+    Collect the query's aggregates and append their columns to result_table's
+    definition.
 
   @description
     One column per aggregate, of the aggregate's own result type, so a partial
@@ -1780,6 +2115,9 @@ static bool pwt_preagg_supported(JOIN *join)
     field. partial_items are Item_fields over the manager's result_table, which
     is what direct_add(Item *) needs for MIN and MAX; the other overloads read
     the field directly.
+
+    With a GROUP BY the definition already holds the shipped base columns and
+    these follow them, which is why n_ship_base is where the partials start.
 
   @return true on error.
 */
@@ -1813,6 +2151,134 @@ bool pwt_manager::setup_preagg(THD *thd, JOIN *join)
 
 /*
   @brief
+    Express the plan's GROUP BY key over the shipped layout.
+
+  @description
+    Each group expression is a base-table column (pwt_group_preagg_supported()
+    made sure of it) and every base-table column the query reads is shipped, so
+    the key is the same key over the result_defn item that stands for the same
+    field. The entries here are a template: each result table is built from a
+    private copy, because create_tmp_table() writes that table's key field and
+    key-buffer position into whichever entries it is given.
+
+    The key sizes are worked out here too, once, while no group item yet has a
+    temp-table field -- see the comment on group_length.
+
+  @return true on error.
+*/
+
+bool pwt_manager::make_group_defn(THD *thd, JOIN *join, ORDER *plan_group)
+{
+  n_group= 0;
+  for (ORDER *g= plan_group; g; g= g->next)
+    n_group++;
+  if (!(group_defn= thd->alloc<ORDER>(n_group)) ||
+      !(group_pos= thd->alloc<uint>(n_group)))
+    return true;
+
+  uint k= 0;
+  for (ORDER *g= plan_group; g; g= g->next, k++)
+  {
+    Field *want= ((Item_field *) (*g->item)->real_item())->field;
+
+    /* the position of that column among the shipped ones */
+    uint pos= 0;
+    Item *it;
+    List_iterator_fast<Item> si(ship_list);
+    while ((it= si++))
+    {
+      if (it->type() == Item::FIELD_ITEM && ((Item_field *) it)->field == want)
+        break;
+      pos++;
+    }
+    if (!it)
+    {
+      DBUG_ASSERT(0);           // every column the query reads is shipped
+      return true;
+    }
+
+    List_iterator_fast<Item> di(result_defn);
+    Item *defn_item= nullptr;
+    for (uint j= 0; j <= pos; j++)
+      defn_item= di++;
+
+    bzero((char *) &group_defn[k], sizeof(ORDER));
+    group_defn[k].item_ptr= defn_item;
+    group_defn[k].item= &group_defn[k].item_ptr;
+    group_defn[k].direction= ORDER::ORDER_ASC;
+    group_defn[k].next= k + 1 < n_group ? &group_defn[k + 1] : nullptr;
+    group_pos[k]= pos;
+  }
+
+  calc_group_buffer(result_tmp_param, group_defn);
+  group_parts=      result_tmp_param->group_parts;
+  group_length=     result_tmp_param->group_length;
+  group_null_parts= result_tmp_param->group_null_parts;
+  return false;
+}
+
+
+/*
+  @brief
+    One private copy of group_defn, for one result table.
+
+  @return the copy, or nullptr on error. Only called when there is a key.
+*/
+
+ORDER *pwt_manager::clone_group_defn(THD *thd)
+{
+  DBUG_ASSERT(group_defn && n_group);
+  ORDER *copy= thd->alloc<ORDER>(n_group);
+  if (!copy)
+    return nullptr;
+  for (uint k= 0; k < n_group; k++)
+  {
+    copy[k]= group_defn[k];
+    copy[k].item= &copy[k].item_ptr;              // at this copy's own storage
+    copy[k].next= k + 1 < n_group ? &copy[k + 1] : nullptr;
+  }
+  return copy;
+}
+
+
+/*
+  @brief
+    Point this worker's group key at the columns of its own grouping table.
+
+  @description
+    The entries had to name the result_defn items while create_tmp_table() ran,
+    because that is how it finds which column of the table it is building each
+    key part covers. What they have to name from now on is something that reads
+    the row the key is being built for -- and a result_defn item does not: it is a
+    clone of an Item_field over the *manager's* copy of the base table, which no
+    worker ever fills. Left that way, every row of every worker keys on NULL and
+    the whole chunk becomes one group.
+
+    The grouping table's own columns are what to read instead. The worker has
+    just projected the row into them, so they hold exactly the values the key is
+    to be built from, and the key field create_tmp_table() made shares its null
+    flag with the column it covers -- which is the same column, so the two agree
+    by construction rather than by both being copied from a third place.
+
+  @return true on error.
+*/
+
+bool pwt_manager::bind_worker_group(THD *thd, pwt_worker *worker)
+{
+  for (uint k= 0; k < n_group; k++)
+  {
+    Item *f= new (thd->mem_root)
+               Item_field(thd, worker->result_table->field[group_pos[k]]);
+    if (!f)
+      return true;
+    worker->group_list[k].item_ptr= f;
+  }
+  return false;
+}
+
+
+/*
+  @brief
     Give this worker its own aggregates to accumulate its chunk into.
 
   @description
@@ -1824,6 +2290,12 @@ bool pwt_manager::setup_preagg(THD *thd, JOIN *join)
     rebuilds whatever the shell derived from the old argument -- for MIN and MAX
     that is the Item_cache pair and the comparator bound to them, and for the
     others nothing.
+
+    With a GROUP BY the clone accumulates into a column of this worker's grouping
+    table rather than into itself, so it is also pointed at that column. That is
+    the same binding create_tmp_table() makes for the query's own aggregates when
+    it builds the plan's aggregation table, and it is what reset_field() and
+    update_field() read and write.
 
   @return true on error.
 */
@@ -1850,10 +2322,14 @@ bool pwt_manager::clone_worker_sums(THD *thd, pwt_worker *worker)
 
     /*
       Its own aggregator, so that add() has one to route through and it is not
-      the aggregator the query's own aggregate is using.
+      the aggregator the query's own aggregate is using. Needed for the grouped
+      case too, where nothing calls add(): reset_field() asserts on the kind of
+      aggregator the aggregate holds.
     */
     if (w->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR))
       return true;
+    if (preagg_grouped)
+      w->result_field= worker->result_table->field[n_ship_base + i];
     worker->worker_sums[i]= w;
   }
   return false;
@@ -1862,25 +2338,31 @@ bool pwt_manager::clone_worker_sums(THD *thd, pwt_worker *worker)
 
 /*
   @brief
-    Fold the partial row now in result_table into the query's own aggregates.
+    Hand each of the query's aggregates the partial value now in result_table.
 
   @description
     One direct_add() per aggregate, choosing the overload by what the aggregate
-    is. A NULL partial comes from a worker whose chunk held no qualifying row,
-    and has to be skipped rather than read as a zero or taken as the extreme --
-    which is what each overload does with it, given that it is told. The two SUM
-    overloads are told differently: the real one by a flag, the decimal one by a
-    null pointer, where a pointer to decimal zero would mean the value 0.
+    is. A NULL partial comes from a worker whose chunk held no qualifying row --
+    or, with a GROUP BY, no non-NULL value in this group -- and has to be skipped
+    rather than read as a zero or taken as the extreme, which is what each
+    overload does with it, given that it is told. The two SUM overloads are told
+    differently: the real one by a flag, the decimal one by a null pointer, where
+    a pointer to decimal zero would mean the value 0.
+
+    The value stays pending on the aggregate until something consumes it. Which
+    that is depends on the shape: without a GROUP BY the caller adds it here and
+    now, and with one it is the update_field() or reset_field() the plan's
+    terminal calls, once it knows which group the row belongs to.
 
   @return true on error.
 */
 
-bool pwt_manager::merge_partial_row()
+bool pwt_manager::direct_add_partials()
 {
   for (uint i= 0; i < n_sums; i++)
   {
     Item_sum *a= mgr_sums[i];
-    Field *f= result_table->field[i];
+    Field *f= result_table->field[n_ship_base + i];
 
     switch (a->sum_func()) {
     case Item_sum::COUNT_FUNC:
@@ -1905,10 +2387,214 @@ bool pwt_manager::merge_partial_row()
       DBUG_ASSERT(0);                          // pwt_preagg_supported() lied
       return true;
     }
-    if (a->aggregator_add())
-      return true;
   }
+  return false;
+}
+
+
+/*
+  @brief
+    Fold the partial row now in result_table into the query's own aggregates.
+
+  @description
+    For a query with one implicit group, where the manager does the merging
+    itself rather than through the plan's terminal. aggregator_add() is what
+    consumes the pending direct value.
+
+  @return true on error.
+*/
+
+bool pwt_manager::merge_partial_row()
+{
+  if (direct_add_partials())
+    return true;
+  for (uint i= 0; i < n_sums; i++)
+    if (mgr_sums[i]->aggregator_add())
+      return true;
   any_partial= true;
+  return false;
+}
+
+
+/*
+  @brief
+    Decide what a worker ships, and build the manager's result container from it.
+
+  @description
+    What a worker ships is every base-table column the query reads, in table
+    order. The manager copies each one back into the field it came from in its
+    own table instances, so that after a row is drained the manager's records
+    hold what a serial scan would have left there and the query's own items read
+    it directly. Shipping the projected select list instead would mean every
+    expression the manager evaluates had to be re-pointed at a shipped value,
+    and re-pointing Items does not reach everything that reads a record --
+    create_tmp_table() builds Copy_field pairs holding raw Field pointers into
+    the base tables, which no Item indirection can redirect.
+
+    Pre-aggregating changes what travels. For a query with one implicit group it
+    is nothing but the partials, one column per aggregate, because that is all
+    the manager needs. For a grouped one it is both: the base columns of the
+    group's first row, so that the plan's terminal can build the group key and
+    evaluate the select list against them, and the partial values after them.
+
+    result_defn holds clones of the shipped items, so the query's own items are
+    never bound to a tmp field; it defines the columns, and the manager plus
+    every worker create an identical-layout copy.
+
+  @return true on error, with the error raised.
+*/
+
+bool pwt_manager::build_result_layout(THD *thd, JOIN *join, ORDER *plan_group)
+{
+  for (;;)
+  {
+    if (preagg_grouped || !preagg)
+    {
+      for (uint t= 0; t < n_tables; t++)
+      {
+        TABLE *tbl= mgr_tables[t];
+        for (Field **f= tbl->field; *f; f++)
+        {
+          if (!bitmap_is_set(tbl->read_set, (*f)->field_index))
+            continue;
+          Item *itf= new (thd->mem_root) Item_field(thd, *f);
+          if (!itf || ship_list.push_back(itf, thd->mem_root))
+          {
+            my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+            return true;
+          }
+        }
+      }
+      /*
+        A query reading no column of any table still needs a row shape, because
+        the transport measures its batches in record images. "SELECT COUNT(*)" is
+        that query: it reads no column, and the count is the number of images
+        that arrive. (A grouped pre-aggregation always reads its group columns,
+        so this is only ever the row transport's filler.)
+      */
+      if (ship_list.is_empty())
+      {
+        Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+        if (!one || ship_list.push_back(one, thd->mem_root))
+        {
+          my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
+          return true;
+        }
+      }
+      if (!(copy_back= new (thd->mem_root) Copy_field[ship_list.elements]))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0),
+                 (int) (ship_list.elements * sizeof(Copy_field)));
+        return true;
+      }
+      List_iterator_fast<Item> li(ship_list);
+      Item *sel_item;
+      while ((sel_item= li++))
+      {
+        Item *c= sel_item->deep_copy_with_checks(thd);
+        if (!c || result_defn.push_back(c, thd->mem_root))
+        {
+          my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
+          return true;
+        }
+      }
+    }
+    n_ship_base= result_defn.elements;
+
+    if (preagg && setup_preagg(thd, join))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sums * sizeof(void*)));
+      return true;
+    }
+    if (preagg_grouped && make_group_defn(thd, join, plan_group))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+      return true;
+    }
+
+    ORDER *mgr_group= nullptr;
+    if (preagg_grouped && !(mgr_group= clone_group_defn(thd)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+      return true;
+    }
+    if (make_result_table(thd, result_defn, mgr_group, &result_table))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "init_parallel_workers: failed to build the result table");
+      return true;
+    }
+
+    /*
+      The manager's copy is never written to; it is built with the key only so
+      that its record layout is the one the workers' grouped tables have, since
+      asking for a key changes how the columns are laid out. But it is also the
+      answer to two questions that could not be asked earlier.
+
+      Was a key possible at all? create_tmp_table() falls back to a unique
+      constraint, which has no index to look a group up in, for reasons
+      pwt_group_preagg_supported() cannot all see from here -- the engine it
+      picked and that engine's own key limits among them.
+
+      And is the table an in-memory one? A worker that fills its grouping table
+      ships what it has and empties it, so it never needs an on-disk table; and
+      it must not have one, because the space an on-disk temp table accounts for
+      is charged to whichever thread writes it and released by whichever frees
+      it, and those are the worker and the manager. create_tmp_table() builds one
+      anyway when the session has turned in-memory temp tables off altogether.
+
+      Either way, take the answer and ship rows instead, which every query can
+      always do.
+    */
+    if (!preagg_grouped ||
+        (result_table->group && result_table->s->keys == 1 &&
+         !result_table->s->have_unique_constraint() &&
+         result_table->s->db_type() == heap_hton))
+      break;
+
+    DBUG_PRINT("info", ("no in-memory group table for the workers, "
+                        "shipping rows"));
+    free_tmp_table(thd, result_table);
+    result_table= nullptr;
+    ship_list.empty();
+    result_defn.empty();
+    copy_back= nullptr;
+    group_defn= nullptr;
+    n_group= 0;
+    preagg= preagg_grouped= false;
+  }
+
+  /*
+    Pair each column of result_table with the base-table field it was projected
+    from, so that draining a row is a copy per column back into the manager's own
+    records. Position i of ship_list is column i of result_table, which is how
+    make_result_table() built it. The one item that is not an Item_field is the
+    filler shipped for a query that reads no column, and it has nowhere to go
+    back to.
+
+    Then, when there are partials, a way to read each of them as an Item, for the
+    direct_add() overload MIN and MAX take. They start at n_ship_base, which is 0
+    unless base columns travel alongside.
+  */
+  n_copy_back= 0;
+  if (preagg_grouped || !preagg)
+  {
+    List_iterator_fast<Item> si(ship_list);
+    Item *it;
+    for (uint i= 0; (it= si++); i++)
+      if (it->type() == Item::FIELD_ITEM)
+        copy_back[n_copy_back++].set(((Item_field*) it)->field,
+                                     result_table->field[i], false);
+  }
+  if (preagg)
+    for (uint i= 0; i < n_sums; i++)
+      if (!(partial_items[i]=
+              new (thd->mem_root)
+                Item_field(thd, result_table->field[n_ship_base + i])))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+        return true;
+      }
   return false;
 }
 
@@ -1929,6 +2615,7 @@ bool pwt_manager::merge_partial_row()
 int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
 {
   uint i= 0;
+  ORDER *plan_group= nullptr;
 
   /*
     The count the optimizer chose for this scan, not the session ceiling: a
@@ -2046,127 +2733,17 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     mgr_tables[t]= mgr_tabs[t]->table;
   }
 
-  /*
-    Build the result containers.
-
-    What a worker ships is every base-table column the query reads, in table
-    order. The manager copies each one back into the field it came from in its
-    own table instances, so that after a row is drained the manager's records
-    hold what a serial scan would have left there and the query's own items read
-    it directly. Shipping the projected select list instead would mean every
-    expression the manager evaluates had to be re-pointed at a shipped value,
-    and re-pointing Items does not reach everything that reads a record --
-    create_tmp_table() builds Copy_field pairs holding raw Field pointers into
-    the base tables, which no Item indirection can redirect.
-
-    result_defn holds clones of the shipped items, so the query's own items are
-    never bound to a tmp field; it defines the columns, and the manager plus
-    every worker create an identical-layout copy.
-  */
-  preagg= pwt_preagg_supported(join);
-  if (preagg && setup_preagg(thd, join))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sums * sizeof(void*)));
-    goto cleanup_old_workers;
-  }
-  if (!preagg)
-  {
-    for (uint t= 0; t < n_tables; t++)
-    {
-      TABLE *tbl= mgr_tables[t];
-      for (Field **f= tbl->field; *f; f++)
-      {
-        if (!bitmap_is_set(tbl->read_set, (*f)->field_index))
-          continue;
-        Item *itf= new (thd->mem_root) Item_field(thd, *f);
-        if (!itf || ship_list.push_back(itf, thd->mem_root))
-        {
-          my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
-          goto cleanup_old_workers;
-        }
-      }
-    }
-    /*
-      A query reading no column of any table still needs a row shape, because the
-      transport measures its batches in record images. "SELECT COUNT(*)" is that
-      query: it reads no column, and the count is the number of images that
-      arrive.
-    */
-    if (ship_list.is_empty())
-    {
-      Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
-      if (!one || ship_list.push_back(one, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
-        goto cleanup_old_workers;
-      }
-    }
-    if (!(copy_back= new (thd->mem_root) Copy_field[ship_list.elements]))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0),
-               (int) (ship_list.elements * sizeof(Copy_field)));
-      goto cleanup_old_workers;
-    }
-    List_iterator_fast<Item> li(ship_list);
-    Item *sel_item;
-    while ((sel_item= li++))
-    {
-      Item *c= sel_item->deep_copy_with_checks(thd);
-      if (!c || result_defn.push_back(c, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
-        goto cleanup_old_workers;
-      }
-    }
-  }
   result_tmp_param= new (thd->mem_root) TMP_TABLE_PARAM;
   if (!result_tmp_param)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(TMP_TABLE_PARAM));
     goto cleanup_old_workers;
   }
-  if (make_result_table(thd, result_defn, &result_table))
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "init_parallel_workers: failed to build the result table");
-    goto cleanup_old_workers;
-  }
+  preagg= pwt_preagg_supported(join, &plan_group);
+  preagg_grouped= preagg && plan_group;
+  if (build_result_layout(thd, join, plan_group))
+    goto cleanup_old_workers;              // the error has been raised
   reclength= result_table->s->reclength;     // result-row image size
-
-  /*
-    Pair each column of result_table with the base-table field it was projected
-    from, so that draining a row is a copy per column back into the manager's own
-    records. Position i of ship_list is column i of result_table, which is how
-    make_result_table() built it. The one item that is not an Item_field is the
-    filler shipped for a query that reads no column, and it has nowhere to go
-    back to.
-  */
-  if (preagg)
-  {
-    /*
-      Nothing is copied back: the columns are partial aggregate values, not
-      base-table columns. What is needed instead is a way to read each of them
-      as an Item, for the direct_add() overload MIN and MAX take.
-    */
-    n_copy_back= 0;
-    for (uint i= 0; i < n_sums; i++)
-      if (!(partial_items[i]= new (thd->mem_root)
-                                Item_field(thd, result_table->field[i])))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
-        goto cleanup_old_workers;
-      }
-  }
-  else
-  {
-    List_iterator_fast<Item> si(ship_list);
-    Item *it;
-    n_copy_back= 0;
-    for (uint i= 0; (it= si++); i++)
-      if (it->type() == Item::FIELD_ITEM)
-        copy_back[n_copy_back++].set(((Item_field*) it)->field,
-                                     result_table->field[i], false);
-  }
 
   cur_cursor= 0;
   fatal_error= false;
@@ -2285,16 +2862,31 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
       to this worker's table copies. At run time the worker scans the driving
       chunk, joins the inner tables, projects worker_proj into result_table and
       ships that record image.
+
+      When the workers accumulate a partial per group the result container is
+      also this worker's grouping table, so it is built on a private copy of the
+      key: create_tmp_table() writes that table's own key fields into whichever
+      ORDER entries it is handed, and the key buffer it allocates alongside is
+      what the worker fills to look a group up.
     */
+    if (preagg_grouped && !(workers[i].group_list= clone_group_defn(thd)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+      goto cleanup_thread_create;
+    }
     if (setup_worker_join(thd, workers + i) ||
         setup_worker_tabs(thd, workers + i) ||
-        make_result_table(thd, result_defn, &workers[i].result_table) ||
-        clone_worker_exprs(thd, workers + i))
+        make_result_table(thd, result_defn, workers[i].group_list,
+                          &workers[i].result_table) ||
+        clone_worker_exprs(thd, workers + i) ||
+        (preagg_grouped && bind_worker_group(thd, workers + i)))
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to set up worker execution");
       goto cleanup_thread_create;
     }
+    if (preagg_grouped)
+      workers[i].group_buff= result_tmp_param->group_buff;
     /*
       This table belongs to the worker, like its table copies do. It is created
       here, on the manager's thread, so create_tmp_table() left the manager in
@@ -2560,7 +3152,7 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
       break;
     }
 
-    if (preagg)
+    if (preagg && !preagg_grouped)
     {
       /*
         A row of partial values, not a base-table row. Fold it into the query's
@@ -2580,6 +3172,19 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
     /* Put the shipped columns back where the plan expects to find them. */
     for (uint i= 0; i < n_copy_back; i++)
       (*copy_back[i].do_copy)(&copy_back[i]);
+
+    /*
+      A grouped partial *is* handed to the terminal, unlike the ungrouped one:
+      end_update() is what knows which group the row belongs to, and folding a
+      partial in is exactly what it then does, because the update_field() (or, for
+      a group it has not seen, reset_field()) it calls per aggregate takes the
+      direct value in place of the row.
+    */
+    if (preagg_grouped && direct_add_partials())
+    {
+      ret= 1;
+      break;
+    }
 
     enum_nested_loop_state nls= (*last_tab->next_select)(join, last_tab + 1,
                                                         FALSE);
@@ -2608,14 +3213,17 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
       End of records. This is the call that sends an aggregate's single row, and
       the one that makes a temp-table stage read back what it accumulated.
 
-      When the partials have been merged, the aggregates already hold the answer
-      and what is wanted from end_send_group() is only that it send them. It
-      decides that from join->first_record: false means no row was ever seen, and
-      it clears the aggregates and reports an empty result. So say a row was
-      seen -- one arrived, in partial form. If none did, leaving it false is
-      right, and the empty-result answer is the one a serial run gives.
+      When the partials have been merged here rather than through the terminal,
+      the aggregates already hold the answer and what is wanted from
+      end_send_group() is only that it send them. It decides that from
+      join->first_record: false means no row was ever seen, and it clears the
+      aggregates and reports an empty result. So say a row was seen -- one
+      arrived, in partial form. If none did, leaving it false is right, and the
+      empty-result answer is the one a serial run gives. A grouped query needs
+      none of this: end_update() has been called per row and reads nothing of the
+      kind, and a query with no rows has no groups to send.
     */
-    if (preagg && any_partial)
+    if (preagg && !preagg_grouped && any_partial)
       join->first_record= 1;
     enum_nested_loop_state nls= (*last_tab->next_select)(join, last_tab + 1,
                                                         TRUE);
@@ -2631,15 +3239,22 @@ int pwt_manager::manager_collect_and_send(JOIN *join)
 
 /*
   @brief
-    Create + instantiate one result container in result_defn's column layout.
+    Create + instantiate one result container in result_defn's column layout,
+    keyed on 'group' when the workers accumulate a partial per group.
 
-  Only the record buffer and the fields are ever used (the worker projects into
-  result_table->record[0] and ships its image; the manager receives images and
-  sends from it) -- no rows are written through the storage engine.
+  Without a key only the record buffer and the fields are ever used (the worker
+  projects into result_table->record[0] and ships its image; the manager receives
+  images and sends from it) -- no rows are written through the storage engine.
+  With one, a worker's copy is a real grouping table: it writes a row per group
+  and looks each group up by key, which is why the key is asked for. The
+  manager's copy is still only a record buffer, and is built with the key for no
+  other reason than that asking for one changes the layout, and both sides must
+  agree on the layout byte for byte.
 
   @return  true on error, false on success (*out set).
 */
-bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
+bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, ORDER *group,
+                                    TABLE **out)
 {
   /*
     Start from a freshly counted param every time. create_tmp_table() overwrites
@@ -2652,6 +3267,14 @@ bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
   result_tmp_param->init();
   count_field_types(join->select_lex, result_tmp_param, defn, false);
   result_tmp_param->skip_create_table= true;
+  /*
+    The key sizes are the ones measured once, before any of these tables existed
+    -- see the comment on pwt_manager::group_length for why they are not measured
+    again here.
+  */
+  result_tmp_param->group_parts=      group_parts;
+  result_tmp_param->group_length=     group_length;
+  result_tmp_param->group_null_parts= group_null_parts;
 
   /*
     TMP_TABLE_ALL_COLUMNS makes create_tmp_table() give every item of the list a
@@ -2671,7 +3294,7 @@ bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
     for that layout because for a list holding no aggregate it has nothing to do.
   */
   TABLE *t= create_tmp_table(thd, result_tmp_param, defn,
-                             nullptr, false, preagg,
+                             group, false, preagg,
                              opts, HA_POS_ERROR,
                              &empty_clex_str, true, false);
   if (!t)
@@ -3103,7 +3726,7 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
   TABLE **from= mgr_tables;
   TABLE **to= worker->worker_tables;
 
-  if (preagg)
+  if (preagg && !preagg_grouped)
   {
     worker->proj_count= 0;
     return clone_worker_sums(thd, worker);
@@ -3124,7 +3747,11 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
                                                      n_tables)))
       return true;
   }
-  return false;
+  /*
+    Accumulating a partial per group ships both: these base columns, projected
+    the same way, and the aggregates after them.
+  */
+  return preagg_grouped ? clone_worker_sums(thd, worker) : false;
 }
 
 

@@ -202,8 +202,7 @@ ROUND(SUM(r), 3)
 # 4 BIT_XOR: self-composing but has no direct_add overload
 # 5 COUNT(DISTINCT): the set has to be complete before it is counted
 # 6 an expression over an aggregate: nothing but partials is shipped
-# 7 GROUP BY: a partial per group is not built
-# 8 a bare column beside an aggregate
+# 7 a bare column beside an aggregate
 preaggregated_per_scan
 0.0000
 every_shape_still_ran_in_the_workers

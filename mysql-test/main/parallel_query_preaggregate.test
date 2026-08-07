@@ -19,6 +19,9 @@
 # the workers, shipping its rows as before, and the bottom of this file checks
 # each refusal so that the boundary is a stated one.
 #
+# A GROUP BY pre-aggregates too, a partial per group rather than one per chunk;
+# that is main/parallel_query_preaggregate_group.
+#
 # SUM over a floating-point column is not compared exactly here, and not because
 # of this feature: a parallel scan hands the manager its rows in whatever order
 # the chunks finish, so a float sum already varied between two runs of the same
@@ -138,14 +141,13 @@ SELECT ROUND(SUM(r), 3) FROM t1;
 --echo # shipping its rows: Parallel_partial_aggregations stays 0 while
 --echo # Parallel_queries_executed does not.
 --echo #
-let $pqp_shapes= 8;
+let $pqp_shapes= 7;
 --echo # 1 AVG: a partial average cannot be averaged
 --echo # 2 STD and 3 VARIANCE: the same, needing more state than a value
 --echo # 4 BIT_XOR: self-composing but has no direct_add overload
 --echo # 5 COUNT(DISTINCT): the set has to be complete before it is counted
 --echo # 6 an expression over an aggregate: nothing but partials is shipped
---echo # 7 GROUP BY: a partial per group is not built
---echo # 8 a bare column beside an aggregate
+--echo # 7 a bare column beside an aggregate
 --disable_query_log
 --disable_result_log
 SET SESSION parallel_worker_threads= 8;
@@ -156,7 +158,6 @@ SELECT VARIANCE(i) FROM t1;
 SELECT BIT_XOR(i) FROM t1;
 SELECT COUNT(DISTINCT i) FROM t1;
 SELECT SUM(i) + 1 FROM t1;
-SELECT i, COUNT(*) FROM t1 GROUP BY i ORDER BY i LIMIT 1;
 SET SESSION sql_mode='';
 SELECT pk, COUNT(*) FROM t1;
 SET SESSION sql_mode=DEFAULT;

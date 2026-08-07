@@ -1,0 +1,148 @@
+#
+# MDEV-39492 Parallel Query: the workers aggregate their own chunk per group.
+#
+# main/parallel_query_preaggregate turned an aggregate over a whole scan into one
+# partial row per worker. This does the same for a GROUP BY: each worker keeps a
+# grouping table of its own, keyed on the group, and ships one row per group it
+# saw instead of every qualifying row. The manager hands each of those to the
+# plan's own terminal, end_update(), which finds the group and folds the partial
+# in, because the update_field() it calls per aggregate consumes a direct value
+# in place of the row.
+#
+# Parallel_partial_aggregations counts the scans that took this path, so a query
+# that quietly fell back to shipping rows cannot look like one that did not.
+#
+# The aggregates accepted are the same four, and what the GROUP BY itself may be
+# is stated at the bottom of this file: the key is built over the columns the
+# worker already ships, so every group expression has to be one of them, and the
+# manager reads a group's base columns from whichever row of the group reached
+# that worker first, so nothing the select list evaluates may depend on a column
+# the group does not determine.
+#
+# Results are compared as an order-independent fingerprint of the whole result
+# set, because groups arrive in whatever order the chunks finish.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+SET @s= @@session.parallel_worker_threads;
+SET @t= @@session.tmp_table_size;
+SET SESSION optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), c VARCHAR(20))
+  ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, IF(seq % 100 = 0, NULL, seq % 13), seq,
+                      IF(seq % 250 = 0, NULL, CONCAT('g', seq % 7))
+               FROM seq_1_to_40000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, seq * 10 FROM seq_1_to_50;
+
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+
+--let $pq_cols= g, a, b, e, f, h, j
+
+--echo #
+--echo # Few groups, every accepted aggregate, and a group whose value is NULL:
+--echo # a NULL group is a group, and the key carries a null flag of its own to
+--echo # say so.
+--echo #
+--let $pq_query= SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+
+--echo #
+--echo # Two group columns, one of them nullable, and a select list item that is
+--echo # an expression over both -- determined by the group, so allowed.
+--echo #
+--let $pq_query= SELECT CONCAT(c,'/',n) AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c, n
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+
+--echo #
+--echo # Many groups, and MIN/MAX over a column the group does not determine.
+--echo #
+--let $pq_query= SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+
+--echo #
+--echo # A worker's grouping table holds only so many groups. When it fills it
+--echo # ships what it has and starts again empty, so a group can arrive from one
+--echo # worker more than once -- which merging a partial per group already
+--echo # allows for. Squeezed here to a few rows so that it happens constantly.
+--echo #
+SET SESSION tmp_table_size= 16384;
+--let $pq_query= SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+SET SESSION tmp_table_size= @t;
+
+--echo #
+--echo # Over a join: each worker groups the rows it assembled from both tables.
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN t1.c AS g, COUNT(*) a, SUM(d1.v) b, MIN(d1.v) e, MAX(d1.v) f, SUM(t1.d) h, COUNT(t1.n) j FROM t1, d1 WHERE d1.id = t1.i % 50 + 1 GROUP BY t1.c
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+
+--echo #
+--echo # No qualifying row at all: no worker ships anything and the answer is no
+--echo # groups, which is what a serial run sends.
+--echo #
+--let $pq_query= SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 WHERE i > 999999 GROUP BY c
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # HAVING and ORDER BY are applied by the plan above the grouping, to the
+--echo # merged groups, so they are compared as they stand.
+--echo #
+--let $pqa_query= SELECT c, COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 GROUP BY c HAVING COUNT(*) > 5000 ORDER BY c
+--source include/parallel_query_aggregate_cmp.inc
+--let $pqa_query= SELECT c, COUNT(*) FROM t1 GROUP BY c ORDER BY COUNT(*) DESC, c LIMIT 3
+--source include/parallel_query_aggregate_cmp.inc
+
+--echo #
+--echo # The shapes that are refused, each still running in the workers and
+--echo # shipping its rows: Parallel_partial_aggregations stays 0 while
+--echo # Parallel_queries_executed does not.
+--echo #
+let $pqg_shapes= 4;
+--echo # 1 a computed group expression: the key is over shipped columns only
+--echo # 2 a constant group expression, which leaves no key to group by
+--echo # 3 a select list item over a column the group does not determine
+--echo # 4 an aggregate with no direct_add overload, here AVG
+--echo #
+--echo # WITH ROLLUP is not among them because it does not reach here at all: it
+--echo # is one of the plans that wants its rows already grouped, and
+--echo # run_worker_side_join() declines those outright -- see
+--echo # main.parallel_query_group_by.
+--disable_query_log
+--disable_result_log
+SET SESSION parallel_worker_threads= 8;
+FLUSH STATUS;
+SELECT i % 10 AS g, COUNT(*) FROM t1 GROUP BY i % 10;
+SELECT 'x' AS g, COUNT(*) FROM t1 GROUP BY 'x';
+SET SESSION sql_mode='';
+SELECT c, pk, COUNT(*) FROM t1 GROUP BY c;
+SET SESSION sql_mode=DEFAULT;
+SELECT c, AVG(i) FROM t1 GROUP BY c;
+--enable_result_log
+--enable_query_log
+--source include/parallel_query_preagg_ratio.inc
+--let $pqg_ran= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pqg_ran >= $pqg_shapes AS every_shape_still_ran_in_the_workers
+--enable_query_log
+
+--echo #
+--echo # and the refused shapes answer as they do serially
+--echo #
+--let $pq_cols= g, a
+--let $pq_query= SELECT i % 10 AS g, COUNT(*) a FROM t1 GROUP BY i % 10
+--source include/parallel_query_fingerprint.inc
+--let $pq_query= SELECT c AS g, AVG(i) a FROM t1 GROUP BY c
+--source include/parallel_query_fingerprint.inc
+
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

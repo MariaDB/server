@@ -1,0 +1,234 @@
+SET @s= @@session.parallel_worker_threads;
+SET @t= @@session.tmp_table_size;
+SET SESSION optimizer_switch='derived_merge=off';
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, n INT, d DECIMAL(30,6), c VARCHAR(20))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 997, IF(seq % 100 = 0, NULL, seq % 13), seq,
+IF(seq % 250 = 0, NULL, CONCAT('g', seq % 7))
+FROM seq_1_to_40000;
+CREATE TABLE d1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, seq * 10 FROM seq_1_to_50;
+ANALYZE TABLE t1, d1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.d1	analyze	status	Engine-independent statistics collected
+test.d1	analyze	status	OK
+#
+# Few groups, every accepted aggregate, and a group whose value is NULL:
+# a NULL group is a group, and the key carries a null flag of its own to
+# say so.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	13086575833	2496208047
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	13086575833	2496208047
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# Two group columns, one of them nullable, and a select list item that is
+# an expression over both -- determined by the group, so allowed.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT CONCAT(c,'/',n) AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c, n) d;
+n	crc_sum	crc_xor
+112	260628855972	3881155544
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT CONCAT(c,'/',n) AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY c, n) d;
+n	crc_sum	crc_xor
+112	260628855972	3881155544
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# Many groups, and MIN/MAX over a column the group does not determine.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2126158579643	4159099203
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2126158579643	4159099203
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# A worker's grouping table holds only so many groups. When it fills it
+# ships what it has and starts again empty, so a group can arrive from one
+# worker more than once -- which merging a partial per group already
+# allows for. Squeezed here to a few rows so that it happens constantly.
+#
+SET SESSION tmp_table_size= 16384;
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2126158579643	4159099203
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i) d;
+n	crc_sum	crc_xor
+997	2126158579643	4159099203
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+SET SESSION tmp_table_size= @t;
+#
+# Over a join: each worker groups the rows it assembled from both tables.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT STRAIGHT_JOIN t1.c AS g, COUNT(*) a, SUM(d1.v) b, MIN(d1.v) e, MAX(d1.v) f, SUM(t1.d) h, COUNT(t1.n) j FROM t1, d1 WHERE d1.id = t1.i % 50 + 1 GROUP BY t1.c) d;
+n	crc_sum	crc_xor
+8	20214234415	2086035825
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT STRAIGHT_JOIN t1.c AS g, COUNT(*) a, SUM(d1.v) b, MIN(d1.v) e, MAX(d1.v) f, SUM(t1.d) h, COUNT(t1.n) j FROM t1, d1 WHERE d1.id = t1.i % 50 + 1 GROUP BY t1.c) d;
+n	crc_sum	crc_xor
+8	20214234415	2086035825
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+#
+# No qualifying row at all: no worker ships anything and the answer is no
+# groups, which is what a serial run sends.
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 WHERE i > 999999 GROUP BY c) d;
+n	crc_sum	crc_xor
+0	NULL	0
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a, b, e, f, h, j))) AS crc_xor FROM (SELECT c AS g, COUNT(*) a, SUM(i) b, MIN(i) e, MAX(i) f, SUM(d) h, COUNT(n) j FROM t1 WHERE i > 999999 GROUP BY c) d;
+n	crc_sum	crc_xor
+0	NULL	0
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+#
+# HAVING and ORDER BY are applied by the plan above the grouping, to the
+# merged groups, so they are compared as they stand.
+#
+# SELECT c, COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 GROUP BY c HAVING COUNT(*) > 5000 ORDER BY c
+SELECT c, COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 GROUP BY c HAVING COUNT(*) > 5000 ORDER BY c;
+c	COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+g0	5692	2828606	0	996
+g1	5692	2828038	0	996
+g2	5692	2828467	0	996
+g3	5691	2828148	0	996
+g4	5691	2828576	0	996
+g5	5691	2828377	0	996
+g6	5691	2827808	0	996
+SELECT c, COUNT(*), SUM(i), MIN(i), MAX(i) FROM t1 GROUP BY c HAVING COUNT(*) > 5000 ORDER BY c;
+c	COUNT(*)	SUM(i)	MIN(i)	MAX(i)
+g0	5692	2828606	0	996
+g1	5692	2828038	0	996
+g2	5692	2828467	0	996
+g3	5691	2828148	0	996
+g4	5691	2828576	0	996
+g5	5691	2828377	0	996
+g6	5691	2827808	0	996
+ran_in_the_workers
+1
+# SELECT c, COUNT(*) FROM t1 GROUP BY c ORDER BY COUNT(*) DESC, c LIMIT 3
+SELECT c, COUNT(*) FROM t1 GROUP BY c ORDER BY COUNT(*) DESC, c LIMIT 3;
+c	COUNT(*)
+g0	5692
+g1	5692
+g2	5692
+SELECT c, COUNT(*) FROM t1 GROUP BY c ORDER BY COUNT(*) DESC, c LIMIT 3;
+c	COUNT(*)
+g0	5692
+g1	5692
+g2	5692
+ran_in_the_workers
+1
+#
+# The shapes that are refused, each still running in the workers and
+# shipping its rows: Parallel_partial_aggregations stays 0 while
+# Parallel_queries_executed does not.
+#
+# 1 a computed group expression: the key is over shipped columns only
+# 2 a constant group expression, which leaves no key to group by
+# 3 a select list item over a column the group does not determine
+# 4 an aggregate with no direct_add overload, here AVG
+#
+# WITH ROLLUP is not among them because it does not reach here at all: it
+# is one of the plans that wants its rows already grouped, and
+# run_worker_side_join() declines those outright -- see
+# main.parallel_query_group_by.
+preaggregated_per_scan
+0.0000
+every_shape_still_ran_in_the_workers
+1
+#
+# and the refused shapes answer as they do serially
+#
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT i % 10 AS g, COUNT(*) a FROM t1 GROUP BY i % 10) d;
+n	crc_sum	crc_xor
+10	21611958165	251688725
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT i % 10 AS g, COUNT(*) a FROM t1 GROUP BY i % 10) d;
+n	crc_sum	crc_xor
+10	21611958165	251688725
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, AVG(i) a FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	22079657190	711055890
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, a))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, a))) AS crc_xor FROM (SELECT c AS g, AVG(i) a FROM t1 GROUP BY c) d;
+n	crc_sum	crc_xor
+8	22079657190	711055890
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+DROP TABLE t1, d1;
+SET SESSION parallel_worker_threads= @s;

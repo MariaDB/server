@@ -162,14 +162,18 @@ public:
   */
   JOIN_TAB      *join_tabs;
   /* Pre-aggregation: add a joined row to this worker's own aggregates, and ship
-     the chunk's partial values as one row at end of records. Called from
-     pwt_end_send(), like emit_joined_row(). */
+     the chunk's partial values at end of records -- one row, or with a GROUP BY
+     one row per group. Called from pwt_end_send(), like emit_joined_row(). */
   int accumulate_partial();
   int emit_partial_row();
 
 private:
   int worker_run_query();
 
+  /* Grouped pre-aggregation: accumulate one row into result_table, keyed on the
+     group, and ship every group accumulated so far. */
+  int accumulate_group();
+  int flush_groups();
 
   Parallel_scan::Worker_ctx *engine_ctx;
   /*
@@ -224,8 +228,27 @@ private:
     into these and ships one row of partial values, which the manager folds into
     the query's own aggregates. Null when this scan ships rows instead; see
     pwt_manager::preagg.
+
+    With a GROUP BY the chunk becomes one partial per group instead of one for
+    the whole chunk, and the accumulation happens in result_table rather than in
+    the aggregates themselves: each clone's result_field is a column of this
+    worker's result_table, and reset_field()/update_field() start and extend the
+    group's partial there. That is what the server's own end_update() does, and
+    the same four aggregate kinds are accepted either way.
   */
   Item_sum        **worker_sums;
+
+  /*
+    Grouped pre-aggregation: this worker's GROUP BY key over its result_table,
+    and the key buffer create_tmp_table() built alongside it.
+
+    Every worker needs its own ORDER list rather than sharing the manager's:
+    create_tmp_table() writes the key field and its position in the key buffer
+    into each entry, so the entries belong to one table, and the worker fills the
+    buffer through them from its own thread while the other workers fill theirs.
+  */
+  ORDER           *group_list;
+  uchar           *group_buff;
 
   /*
     Multi-table join: this worker's private copy of every non-const join table
@@ -350,11 +373,23 @@ public:
     columns, and nothing is copied back: mgr_sums are the query's own aggregates
     and partial_items read the shipped values out of result_table for the
     direct_add() overload that takes an Item.
+
+    With a GROUP BY the same thing happens once per group. A worker accumulates
+    its chunk into an indexed temp table keyed on the group and ships one row per
+    group, so result_table holds the base-table columns *and* the partials: the
+    first n_ship_base columns are the shipped base columns, copied back exactly
+    as they are for the row transport, and the rest are the partial values. The
+    manager primes each aggregate with direct_add() and then calls the plan's own
+    terminal per row, which is end_update(): it looks the group up in its own
+    aggregation table and folds the partial in, because update_field() consumes
+    the direct value instead of counting the row.
   */
   bool              preagg;
+  bool              preagg_grouped;
   Item_sum        **mgr_sums;
   Item            **partial_items;
   uint              n_sums;
+  uint              n_ship_base;    // shipped base columns before the partials
   bool              any_partial;    // a partial row arrived
 
   pwt_manager():
@@ -373,10 +408,18 @@ public:
     copy_back(nullptr),
     n_copy_back(0),
     preagg(false),
+    preagg_grouped(false),
     mgr_sums(nullptr),
     partial_items(nullptr),
     n_sums(0),
+    n_ship_base(0),
     any_partial(false),
+    group_defn(nullptr),
+    group_pos(nullptr),
+    n_group(0),
+    group_parts(0),
+    group_length(0),
+    group_null_parts(0),
     reaped(false)
     {}
   ~pwt_manager()
@@ -399,8 +442,8 @@ private:
      0 = row produced, -1 = end of data, 1 = error. */
   int drain_next_row(uchar *dst);
   /* Create + instantiate one result container from the column definition list
-     'defn'. Returns true on error. */
-  bool make_result_table(THD *thd, List<Item> &defn, TABLE **out);
+     'defn', keyed on 'group' when there is one. Returns true on error. */
+  bool make_result_table(THD *thd, List<Item> &defn, ORDER *group, TABLE **out);
   /* Deep-clone this query's WHERE + select list for 'worker', rebinding the
      Item_field leaves to the worker's table copies. Returns true on error. */
   bool clone_worker_exprs(THD *thd, pwt_worker *worker);
@@ -414,17 +457,46 @@ private:
   bool setup_worker_tabs(THD *thd, pwt_worker *worker);
   /* Free the manager and per-worker result containers. */
   void free_result_tables(THD *thd);
-  /* Decide whether this query pre-aggregates, and if so collect its aggregates
-     into mgr_sums / define result_table's columns from them. */
+  /* Decide what a worker ships and build the manager's result container. */
+  bool build_result_layout(THD *thd, JOIN *join, ORDER *plan_group);
+  /* Collect this query's aggregates into mgr_sums and give each of them a
+     result_table column. */
   bool setup_preagg(THD *thd, JOIN *join);
   /* Give 'worker' its own clones of the aggregates to accumulate into. */
   bool clone_worker_sums(THD *thd, pwt_worker *worker);
+  /* Hand each aggregate the partial value now in result_table, for whatever
+     consumes a direct value next -- an aggregator_add() here, or update_field()
+     inside the plan's terminal. */
+  bool direct_add_partials();
   /* Fold the partial row now in result_table into the query's aggregates. */
   bool merge_partial_row();
+  /* Build group_defn: the GROUP BY key expressed over the shipped layout. */
+  bool make_group_defn(THD *thd, JOIN *join, ORDER *plan_group);
+  /* One private copy of group_defn, for one result table. */
+  ORDER *clone_group_defn(THD *thd);
+  /* Point a worker's key at the columns of its own grouping table. */
+  bool bind_worker_group(THD *thd, pwt_worker *worker);
 
   /* Clones of the shipped columns that define the result_table columns (kept so
      the manager and every worker build the identical result layout). */
   List<Item>        result_defn;
+
+  /*
+    Grouped pre-aggregation: the GROUP BY key over result_defn's items, and the
+    key sizes create_tmp_table() needs for it. Every result table is built from a
+    private copy of this list (clone_group_defn), because create_tmp_table()
+    writes each table's own key fields into the entries it is given.
+
+    The sizes are computed once, before any table exists, and re-applied to the
+    param for every build. calc_group_buffer() sizes a group item that already
+    has a temp-table field from the field and one that does not from the item, so
+    asking it again after the first table was built -- which leaves a field on
+    each item -- would answer differently for the second.
+  */
+  ORDER            *group_defn;
+  uint             *group_pos;      // each key part's column in the layout
+  uint              n_group;
+  uint              group_parts, group_length, group_null_parts;
 
   JOIN              *join;            // the join these workers serve
   bool              stop;             // consumer wants producers to stop
