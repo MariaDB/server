@@ -37,7 +37,6 @@
 #include "duckdb_select.h"
 #include "ddl_convertor.h"
 #include "dml_convertor.h"
-#include "delta_appender.h"
 #include "row_helpers.h"
 #include "ha_duckdb_pushdown.h"
 #include "duckdb_log.h"
@@ -212,9 +211,7 @@ static void duckdb_drop_database(handlerton *hton, char *path)
 
   Databasename db(path);
 
-  std::string query= "DROP SCHEMA IF EXISTS \"";
-  query.append(db.name);
-  query.append("\"");
+  std::string query= "DROP SCHEMA IF EXISTS " + quote_duckdb_identifier(db.name);
 
   if (duckdb_register_trx(thd))
     DBUG_VOID_RETURN;
@@ -544,10 +541,27 @@ int ha_duckdb::write_row(const uchar *buf)
 static ulonglong reserve_autoinc_block(THD *thd, const char *db_name,
                                        const char *table_name, ulonglong want)
 {
+  /*
+    The qualified sequence name is a quoted identifier nested inside a
+    single-quoted string literal argument to nextval(). Escape the inner
+    identifiers (doubling ") and then escape the result for the enclosing
+    literal (doubling ') so a crafted schema/table name cannot inject SQL
+    (MDEV-40653).
+  */
+  std::string qualified=
+      quote_duckdb_identifier(std::string(db_name)) + "." +
+      quote_duckdb_identifier(autoinc_sequence_name(table_name));
+  std::string escaped;
+  escaped.reserve(qualified.size());
+  for (char c : qualified)
+  {
+    if (c == '\'')
+      escaped.push_back('\'');
+    escaped.push_back(c);
+  }
   std::string query=
-      "SELECT min(x), max(x) FROM (SELECT nextval('\"" +
-      std::string(db_name) + "\".\"" + autoinc_sequence_name(table_name) +
-      "\"') AS x FROM range(" + std::to_string(want) + ")) t";
+      "SELECT min(x), max(x) FROM (SELECT nextval('" + escaped +
+      "') AS x FROM range(" + std::to_string(want) + ")) t";
 
   auto *ctx= get_duckdb_context(thd);
   for (int attempt= 0; attempt < 3; attempt++)
@@ -775,8 +789,8 @@ int ha_duckdb::rnd_init(bool)
   else
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  std::string query=
-      "SELECT * FROM \"" + schema_name + "\".\"" + table_name + "\"";
+  std::string query= "SELECT * FROM " + quote_duckdb_identifier(schema_name) +
+                     "." + quote_duckdb_identifier(table_name);
 
   auto *ctx= get_duckdb_context(thd);
   query_result= myduck::duckdb_query(ctx->get_connection(), query);
@@ -938,8 +952,8 @@ int ha_duckdb::delete_all_rows()
   ctx->delete_appender(dt.db_name, dt.table_name);
 
   /* Execute DELETE FROM "schema"."table" */
-  std::string query=
-      "DELETE FROM \"" + dt.db_name + "\".\"" + dt.table_name + "\"";
+  std::string query= "DELETE FROM " + quote_duckdb_identifier(dt.db_name) +
+                     "." + quote_duckdb_identifier(dt.table_name);
 
   auto query_result= myduck::duckdb_query(ctx->get_connection(), query);
   if (query_result->HasError())
@@ -951,13 +965,9 @@ int ha_duckdb::delete_all_rows()
   DBUG_RETURN(0);
 }
 
-const COND *ha_duckdb::cond_push(const COND *cond)
+const COND *ha_duckdb::cond_push(const COND *)
 {
   DBUG_ENTER("ha_duckdb::cond_push");
-  /*
-    Accept all conditions — DuckDB will evaluate the WHERE clause
-    from the original SQL query in direct_delete_rows().
-  */
   DBUG_RETURN(NULL);
 }
 
@@ -972,6 +982,15 @@ int ha_duckdb::direct_delete_rows(ha_rows *delete_rows)
   DBUG_ENTER("ha_duckdb::direct_delete_rows");
   int ret= 0;
   THD *thd= ha_thd();
+  LEX_STRING *source_query= thd_query_string(thd);
+  if (myduck::mariadb_query_has_unsafe_quote_escape(
+          thd, source_query->str, source_query->length))
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_DML_ERROR,
+             "Unsafe MariaDB backslash quote escape in forwarded SQL",
+             "DuckDB");
+    DBUG_RETURN(HA_DUCKDB_DML_ERROR);
+  }
 
   ret= duckdb_register_trx(thd);
   if (ret)
@@ -1021,6 +1040,15 @@ int ha_duckdb::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   DBUG_ENTER("ha_duckdb::direct_update_rows");
   int ret= 0;
   THD *thd= ha_thd();
+  LEX_STRING *source_query= thd_query_string(thd);
+  if (myduck::mariadb_query_has_unsafe_quote_escape(
+          thd, source_query->str, source_query->length))
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_DML_ERROR,
+             "Unsafe MariaDB backslash quote escape in forwarded SQL",
+             "DuckDB");
+    DBUG_RETURN(HA_DUCKDB_DML_ERROR);
+  }
 
   ret= duckdb_register_trx(thd);
   if (ret)
@@ -1135,8 +1163,9 @@ int ha_duckdb::delete_table(const char *name)
 
   DatabaseTableNames dt(name);
 
-  std::string query=
-      "DROP TABLE IF EXISTS \"" + dt.db_name + "\".\"" + dt.table_name + "\"";
+  std::string query= "DROP TABLE IF EXISTS " +
+                     quote_duckdb_identifier(dt.db_name) + "." +
+                     quote_duckdb_identifier(dt.table_name);
 
   auto *ctx= get_duckdb_context(thd);
   auto query_result= myduck::duckdb_query(ctx->get_connection(), query);
@@ -1150,8 +1179,10 @@ int ha_duckdb::delete_table(const char *name)
     The name is derived from the table alone, so no lookup is needed and
     the statement is harmless for tables without AUTO_INCREMENT.
   */
-  std::string seq_query= "DROP SEQUENCE IF EXISTS \"" + dt.db_name + "\".\"" +
-                         autoinc_sequence_name(dt.table_name) + "\"";
+  std::string seq_query= "DROP SEQUENCE IF EXISTS " +
+                         quote_duckdb_identifier(dt.db_name) + "." +
+                         quote_duckdb_identifier(
+                             autoinc_sequence_name(dt.table_name));
   auto seq_result= myduck::duckdb_query(ctx->get_connection(), seq_query);
 
   if (seq_result == nullptr || seq_result->HasError())
@@ -1208,8 +1239,8 @@ int ha_duckdb::truncate()
                          table->s->table_name.length);
 
   std::ostringstream query;
-  query << "USE \"" << schema_name << "\";";
-  query << "TRUNCATE TABLE \"" << table_name << "\";";
+  query << "USE " << quote_duckdb_identifier(schema_name) << ";";
+  query << "TRUNCATE TABLE " << quote_duckdb_identifier(table_name) << ";";
 
   auto *ctx= get_duckdb_context(thd);
   auto query_result= myduck::duckdb_query(ctx->get_connection(), query.str());

@@ -235,8 +235,24 @@ Field *find_autoinc_field(const TABLE *table)
 static std::string autoinc_nextval_expr(const std::string &schema_name,
                                         const std::string &table_name)
 {
-  return "nextval('\"" + schema_name + "\".\"" +
-         autoinc_sequence_name(table_name) + "\"')";
+  /*
+    The qualified sequence name is a quoted identifier nested inside a
+    single-quoted string literal argument to nextval(). Escape the inner
+    identifiers (doubling ") and then escape the resulting string for the
+    enclosing literal (doubling ').
+  */
+  std::string qualified=
+      quote_duckdb_identifier(schema_name) + "." +
+      quote_duckdb_identifier(autoinc_sequence_name(table_name));
+  std::string escaped;
+  escaped.reserve(qualified.size());
+  for (char c : qualified)
+  {
+    if (c == '\'')
+      escaped.push_back('\'');
+    escaped.push_back(c);
+  }
+  return "nextval('" + escaped + "')";
 }
 
 /**
@@ -334,8 +350,8 @@ static void append_stmt_alter_table(std::ostringstream &output,
                                     const std::string &schema_name,
                                     const std::string &table_name)
 {
-  output << "USE \"" << schema_name << "\";";
-  output << ALTER_TABLE_OP_STR << '"' << table_name << '"';
+  output << "USE " << quote_duckdb_identifier(schema_name) << ";";
+  output << ALTER_TABLE_OP_STR << quote_duckdb_identifier(table_name);
 }
 
 static void append_stmt_column_add(std::ostringstream &output,
@@ -349,7 +365,7 @@ static void append_stmt_column_add(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !column_type.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ADD_COLUMN_OP_STR << '"' << column_name << '"' << " "
+  output << ADD_COLUMN_OP_STR << quote_duckdb_identifier(column_name) << " "
          << column_type;
   if (has_default)
     output << DEFINE_DEFAULT_STR << default_value;
@@ -363,7 +379,7 @@ static void append_stmt_column_drop(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << DROP_COLUMN_OP_STR << '"' << column_name << '"' << ";";
+  output << DROP_COLUMN_OP_STR << quote_duckdb_identifier(column_name) << ";";
 }
 
 static void append_stmt_column_change_type(std::ostringstream &output,
@@ -375,7 +391,7 @@ static void append_stmt_column_change_type(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !column_type.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << SET_DATA_TYPE_STR << column_type << ";";
 }
 
@@ -388,8 +404,8 @@ static void append_stmt_column_rename(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() &&
          !old_column_name.empty() && !new_column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << RENAME_COLUMN_OP_STR << '"' << old_column_name << '"' << " TO "
-         << '"' << new_column_name << '"' << ";";
+  output << RENAME_COLUMN_OP_STR << quote_duckdb_identifier(old_column_name)
+         << " TO " << quote_duckdb_identifier(new_column_name) << ";";
 }
 
 static void append_stmt_column_set_default(std::ostringstream &output,
@@ -401,8 +417,8 @@ static void append_stmt_column_set_default(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !default_value.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"' << SET_DEFAULT_STR
-         << default_value << ";";
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
+         << SET_DEFAULT_STR << default_value << ";";
 }
 
 static void append_stmt_column_drop_default(std::ostringstream &output,
@@ -412,7 +428,7 @@ static void append_stmt_column_drop_default(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << DROP_DEFAULT_STR << ";";
 }
 
@@ -423,7 +439,7 @@ static void append_stmt_column_set_not_null(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << SET_NOT_NULL_STR << ";";
 }
 
@@ -434,7 +450,7 @@ static void append_stmt_column_drop_not_null(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << DROP_NOT_NULL_STR << ";";
 }
 
@@ -449,7 +465,8 @@ static void append_stmt_table_rename(std::ostringstream &output,
          !new_schema_name.empty() && !new_table_name.empty());
   assert(old_schema_name == new_schema_name);
   append_stmt_alter_table(output, old_schema_name, old_table_name);
-  output << RENAME_TABLE_OP_STR << '"' << new_table_name << '"' << ";";
+  output << RENAME_TABLE_OP_STR << quote_duckdb_identifier(new_table_name)
+         << ";";
 }
 
 /* ----- FieldConvertor ----- */
@@ -508,7 +525,9 @@ std::string FieldConvertor::translate()
 
   std::ostringstream result;
 
-  result << '"' << field->field_name.str << '"' << " ";
+  result << quote_duckdb_identifier(field->field_name.str,
+                                    field->field_name.length)
+         << " ";
   result << convert_type(m_field);
 
   if (field->flags & NOT_NULL_FLAG)
@@ -733,10 +752,10 @@ std::string CreateTableConvertor::translate()
   std::ostringstream result;
   assert((m_create_info->options & HA_LEX_CREATE_TMP_TABLE) == 0);
 
-  result << "CREATE SCHEMA IF NOT EXISTS " << '"' << m_schema_name << '"'
-         << ";";
+  result << "CREATE SCHEMA IF NOT EXISTS "
+         << quote_duckdb_identifier(m_schema_name) << ";";
 
-  result << "USE " << '"' << m_schema_name << '"' << ";";
+  result << "USE " << quote_duckdb_identifier(m_schema_name) << ";";
 
   /*
     The sequence must exist before the table, because the AUTO_INCREMENT
@@ -751,8 +770,9 @@ std::string CreateTableConvertor::translate()
     if (start > (ulonglong) INT64_MAX)
       start= (ulonglong) INT64_MAX;
 
-    result << "CREATE SEQUENCE IF NOT EXISTS " << '"' << m_schema_name << '"'
-           << "." << '"' << autoinc_sequence_name(m_table_name) << '"'
+    result << "CREATE SEQUENCE IF NOT EXISTS "
+           << quote_duckdb_identifier(m_schema_name) << "."
+           << quote_duckdb_identifier(autoinc_sequence_name(m_table_name))
            << " START WITH " << start << ";";
   }
 
@@ -761,7 +781,7 @@ std::string CreateTableConvertor::translate()
      Always use IF NOT EXISTS for safety in DuckDB. */
   result << IF_NOT_EXISTS_STR;
 
-  result << '"' << m_table_name << '"';
+  result << quote_duckdb_identifier(m_table_name);
   result << " (";
 
   append_column_definition(result);
