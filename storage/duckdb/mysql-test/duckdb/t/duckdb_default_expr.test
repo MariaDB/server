@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 --disable_query_log
 CREATE DATABASE IF NOT EXISTS db_default_expr CHARACTER SET utf8mb4;

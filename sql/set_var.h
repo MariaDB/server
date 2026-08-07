@@ -138,8 +138,6 @@ public:
     return system_charset_info_for_i_s;
   }
   bool is_readonly() const { return flags & READONLY; }
-  void update_flags(int new_flags) { flags = new_flags; }
-  int get_flags() const { return flags; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name

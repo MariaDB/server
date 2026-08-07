@@ -84,7 +84,7 @@ static bool refresh_provider_options()
   {
     std::string opts= Wsrep_server_state::instance().provider().options();
     wsrep_provider_options_init(opts.c_str());
-    get_provider_option_value(wsrep_provider_options,
+    get_provider_option_value(opts.c_str(),
                               (char*)"repl.max_ws_size",
                               &wsrep_max_ws_size);
     return false;
@@ -534,7 +534,9 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
   }
   if (wsrep_provider_plugin_enabled())
   {
-    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->var->name.str, "read only");
+    my_message(ER_WRONG_ARGUMENTS,
+               "wsrep_provider_options cannot be changed while the "
+               "wsrep-provider plugin is loaded", MYF(0));
     return true;
   }
   return false;

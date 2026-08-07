@@ -9289,45 +9289,39 @@ fn_format_relative_to_data_home(char * to, const char *name,
 
 bool is_secure_file_path(char *path)
 {
-  char buff1[FN_REFLEN], buff2[FN_REFLEN];
-  size_t opt_secure_file_priv_len;
-  /*
-    All paths are secure if opt_secure_file_path is 0
-  */
-  if (!opt_secure_file_priv)
-    return TRUE;
+  char buf1[FN_REFLEN], buf2[FN_REFLEN];
+  const char *cmp;
 
-  opt_secure_file_priv_len= strlen(opt_secure_file_priv);
+  if (opt_secure_file_priv)
+    cmp= opt_secure_file_priv;
+  else
+#ifdef _WIN32
+    return TRUE;     // All paths are secure if opt_secure_file_priv is unset
+#else
+    cmp= "/proc/";   // Check that it doesn't start with this prefix
+#endif
 
   if (strlen(path) >= FN_REFLEN)
     return FALSE;
 
-  if (my_realpath(buff1, path, 0))
+  if (my_realpath(buf1, path, 0))
   {
-    /*
-      The supplied file path might have been a file and not a directory.
-    */
-    size_t length= dirname_length(path);        // Guaranteed to be < FN_REFLEN
-    memcpy(buff2, path, length);
-    buff2[length]= '\0';
-    if (length == 0 || my_realpath(buff1, buff2, 0))
+    /* The supplied file path might have been a file and not a directory. */
+    size_t length= dirname_length(path);      // Guaranteed to be < FN_REFLEN
+    memcpy(buf2, path, length);
+    buf2[length]= '\0';
+    if (length == 0 || my_realpath(buf1, buf2, 0))
       return FALSE;
   }
-  convert_dirname(buff2, buff1, NullS);
-  if (!lower_case_file_system)
-  {
-    if (strncmp(opt_secure_file_priv, buff2, opt_secure_file_priv_len))
-      return FALSE;
-  }
+  convert_dirname(buf2, buf1, NullS);
+
+  size_t cmp_len= strlen(cmp);
+  bool matched;
+  if (lower_case_file_system)
+    matched= !files_charset_info->strnncoll(buf2, strlen(buf2), cmp, cmp_len, 1);
   else
-  {
-    if (files_charset_info->strnncoll(buff2, strlen(buff2),
-                                      opt_secure_file_priv,
-                                      opt_secure_file_priv_len,
-                                      TRUE))
-      return FALSE;
-  }
-  return TRUE;
+    matched= !strncmp(cmp, buf2, cmp_len);
+  return opt_secure_file_priv ? matched : !matched;
 }
 
 

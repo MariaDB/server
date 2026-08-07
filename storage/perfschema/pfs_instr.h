@@ -91,8 +91,8 @@ struct PFS_instr
 /** Instrumented mutex implementation. @see PSI_mutex. */
 struct PFS_ALIGNED PFS_mutex : public PFS_instr
 {
-  /** Mutex identity, typically a pthread_mutex_t. */
-  const void *m_identity;
+  /** Mutex identity. */
+  pfs_identity m_identity;
   /** Mutex class. */
   PFS_mutex_class *m_class;
   /** Instrument statistics. */
@@ -109,8 +109,8 @@ struct PFS_ALIGNED PFS_mutex : public PFS_instr
 /** Instrumented rwlock implementation. @see PSI_rwlock. */
 struct PFS_ALIGNED PFS_rwlock : public PFS_instr
 {
-  /** RWLock identity, typically a pthread_rwlock_t. */
-  const void *m_identity;
+  /** RWLock identity. */
+  pfs_identity m_identity;
   /** RWLock class. */
   PFS_rwlock_class *m_class;
   /** Instrument statistics. */
@@ -134,8 +134,8 @@ struct PFS_ALIGNED PFS_rwlock : public PFS_instr
 /** Instrumented cond implementation. @see PSI_cond. */
 struct PFS_ALIGNED PFS_cond : public PFS_instr
 {
-  /** Condition identity, typically a pthread_cond_t. */
-  const void *m_identity;
+  /** Condition identity. */
+  pfs_identity m_identity;
   /** Condition class. */
   PFS_cond_class *m_class;
   /** Condition instance usage statistics. */
@@ -148,8 +148,8 @@ struct PFS_ALIGNED PFS_file : public PFS_instr
   uint32 get_version()
   { return m_lock.get_version(); }
 
-  /** File identity */
-  const void *m_identity;
+  /** File identity. */
+  pfs_identity m_identity;
   /** File name. */
   char m_filename[FN_REFLEN];
   /** File name length in bytes. */
@@ -241,8 +241,8 @@ public:
   ulonglong m_owner_event_id;
   /** Table share. */
   PFS_table_share *m_share;
-  /** Table identity, typically a handler. */
-  const void *m_identity;
+  /** Table identity. */
+  pfs_identity m_identity;
   /** Table statistics. */
   PFS_table_stat m_table_stat;
   /** Current internal lock. */
@@ -266,8 +266,8 @@ struct PFS_ALIGNED PFS_socket : public PFS_instr
   uint32 get_version()
   { return m_lock.get_version(); }
 
-  /** Socket identity, typically int */
-  const void *m_identity;
+  /** Socket identity. */
+  pfs_identity m_identity;
   /** Owning thread, if applicable */
   PFS_thread *m_thread_owner;
   /** Socket file descriptor */
@@ -291,7 +291,7 @@ struct PFS_ALIGNED PFS_metadata_lock : public PFS_instr
   { return m_lock.get_version(); }
 
   /** Lock identity. */
-  const void *m_identity;
+  pfs_identity m_identity;
   MDL_key m_mdl_key;
   opaque_mdl_type m_mdl_type;
   opaque_mdl_duration m_mdl_duration;
@@ -814,4 +814,3 @@ extern LF_HASH pfs_filename_hash;
 
 /** @} */
 #endif
-
