@@ -19,7 +19,7 @@
 
 static int keys_compare(void *heap_rb, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
-		       ulong max_records);
+		       const ulong max_records);
 
 
 /*
@@ -63,6 +63,15 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   ulong min_records= create_info->min_records;
   ulong max_records= create_info->max_records;
   uint visible_offset;
+  /*
+    max_records is the table's row limit and 0 means "no limit"; it is
+    stored as such in share->max_records, where hp_alloc_from_tail()
+    relies on 0 disabling the check.  Block sizing needs a concrete row
+    count instead, so derive that ceiling here and leave max_records
+    itself untouched.
+  */
+  ulong block_max_records= (max_records ? max_records :
+                            MY_MAX(min_records, 1000));
   DBUG_ENTER("heap_create");
 
   if (!create_info->internal_table)
@@ -243,7 +252,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       share->blob_count= create_info->blob_count;
     }
     init_block(&share->block, hp_memory_needed_per_row(reclength),
-               min_records, max_records);
+               min_records, block_max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
     for (i= 0, keyinfo= share->keydef; i < keys; i++, keyinfo++)
@@ -272,7 +281,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       else
       {
 	init_block(&keyinfo->block, sizeof(HASH_INFO), min_records,
-		   max_records);
+		   block_max_records);
 	keyinfo->delete_key= hp_delete_key;
 	keyinfo->write_key= hp_write_key;
         keyinfo->hash_buckets= 0;
@@ -375,7 +384,7 @@ ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
 
 
 static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
-		       ulong max_records)
+		       const ulong max_records)
 {
   ulong i,records_in_block,cap_records;
   ulong recbuffer= (ulong) MY_ALIGN(reclength, sizeof(uchar*));
@@ -385,13 +394,22 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   size_t alloc_size;
 
   /*
-    If not min_records and max_records are given, optimize for 1000 rows
+    If no min_records is given, optimize for 1000 rows.  max_records is
+    the caller's sizing ceiling and is never changed here.
   */
   if (!min_records)
     min_records= MY_MIN(1000, max_records / heap_allocation_parts);
-  if (!max_records)
-    max_records= MY_MAX(min_records, 1000);
   min_records= MY_MIN(min_records, max_records);
+  /*
+    An explicit min_records may override the cap below, but only as far
+    as the ceiling reaches: max_records is the most rows the table's
+    memory ceiling (max_heap_table_size / tmp_memory_table_size) can
+    ever hold, so a larger MIN_ROWS is unreachable and pre-sizing for it
+    would reserve memory the table can never use.  MY_MIN keeps 0 at 0,
+    so "no min_records requested" stays distinguishable from an explicit
+    one.
+  */
+  requested_min_records= MY_MIN(requested_min_records, max_records);
 
  /*
     We don't want too few records_in_block as otherwise the overhead of
@@ -417,7 +435,10 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
     heap_max_allocation_block.  Only an explicit min_records from the
     caller (CREATE TABLE ... MIN_ROWS) is a real row count expectation
     and may pre-size beyond the cap; the 1000-row default min_records
-    is a heuristic and must not override the cap.
+    is a heuristic and must not override the cap.  That override is
+    bounded by max_records (clamped above), so an unreachable MIN_ROWS
+    degrades to plain ceiling-derived sizing instead of reserving a
+    block the ceiling can never fill.
   */
   cap_records= (heap_max_allocation_block - extra) / recbuffer;
   if (records_in_block > cap_records)
