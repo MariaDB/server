@@ -1,0 +1,51 @@
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
+INSERT DELAYED INTO t1 VALUES (1, REPEAT('x', 300)), (2, REPEAT('y', 300));
+SELECT VARIABLE_VALUE > 0 AS delayed_thread_ran
+FROM information_schema.global_status
+WHERE VARIABLE_NAME = 'DELAYED_WRITES';
+delayed_thread_ran
+1
+INSERT DELAYED INTO t1 VALUES (3, REPEAT('z', 300)), (4, REPEAT('w', 300));
+connect  reader,localhost,root,,test;
+connection default;
+INSERT DELAYED INTO t1 VALUES (5, REPEAT('v', 300));
+connection reader;
+SELECT COUNT(*) >= 0 AS reader_ran FROM t1;
+reader_ran
+1
+connection default;
+INSERT DELAYED INTO t1 VALUES (6, REPEAT('u', 300));
+disconnect reader;
+SELECT a, LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	300
+2	300
+3	300
+4	300
+5	300
+6	300
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+INSERT INTO t1 VALUES (7, REPEAT('t', 300));
+UPDATE t1 SET b = REPEAT('s', 400) WHERE a = 7;
+DELETE FROM t1 WHERE a = 7;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+FLUSH TABLES;
+INSERT INTO t1 VALUES (8, REPEAT('r', 300));
+UPDATE t1 SET b = REPEAT('q', 400) WHERE a = 8;
+DELETE FROM t1 WHERE a = 8;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT a, LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	300
+2	300
+3	300
+4	300
+5	300
+6	300
+DROP TABLE t1;

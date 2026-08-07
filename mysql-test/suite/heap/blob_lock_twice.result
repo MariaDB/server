@@ -1,0 +1,59 @@
+CREATE TABLE ht (a INT, b BLOB) ENGINE=MEMORY;
+CREATE TABLE mi (a INT, b BLOB) ENGINE=MyISAM;
+INSERT INTO ht VALUES (1,'foo'),(2,'bar');
+INSERT INTO mi VALUES (1,'foo'),(2,'bar');
+# ===== single aliased entry, referenced as "table AS alias" =====
+# -- MyISAM
+LOCK TABLE mi AS m1 WRITE;
+SELECT COUNT(*) FROM mi AS m1;
+COUNT(*)
+2
+UPDATE mi AS m1 SET b='x' WHERE a=1;
+# the unaliased name is not locked
+SELECT COUNT(*) FROM mi;
+ERROR HY000: Table 'mi' was not locked with LOCK TABLES
+UNLOCK TABLES;
+# -- MEMORY
+LOCK TABLE ht AS h1 WRITE;
+SELECT COUNT(*) FROM ht AS h1;
+COUNT(*)
+2
+UPDATE ht AS h1 SET b='x' WHERE a=1;
+# the unaliased name is not locked
+SELECT COUNT(*) FROM ht;
+ERROR HY000: Table 'ht' was not locked with LOCK TABLES
+UNLOCK TABLES;
+# ===== two aliased entries, one WRITE and one READ =====
+# -- MyISAM
+LOCK TABLE mi AS m1 WRITE, mi AS m2 READ;
+SELECT COUNT(*) FROM mi AS m2;
+COUNT(*)
+2
+UPDATE mi AS m1 SET b='y' WHERE a=1;
+# INSERT takes no alias, so it cannot reach an aliased lock at all
+INSERT INTO mi SELECT a+10, b FROM mi AS m2;
+ERROR HY000: Table 'mi' was not locked with LOCK TABLES
+UNLOCK TABLES;
+# -- MEMORY
+LOCK TABLE ht AS h1 WRITE, ht AS h2 READ;
+SELECT COUNT(*) FROM ht AS h2;
+COUNT(*)
+2
+UPDATE ht AS h1 SET b='y' WHERE a=1;
+# INSERT takes no alias, so it cannot reach an aliased lock at all
+INSERT INTO ht SELECT a+10, b FROM ht AS h2;
+ERROR HY000: Table 'ht' was not locked with LOCK TABLES
+UNLOCK TABLES;
+# ===== blob update and delete under the double lock (MEMORY) =====
+LOCK TABLE ht AS h1 WRITE, ht AS h2 READ;
+UPDATE ht AS h1, ht AS h2 SET h1.b=REPEAT('z', 900)
+WHERE h1.a=h2.a AND h1.a=1;
+DELETE FROM ht AS h1 WHERE a=2;
+UNLOCK TABLES;
+CHECK TABLE ht;
+Table	Op	Msg_type	Msg_text
+test.ht	check	status	OK
+SELECT a, LENGTH(b) FROM ht;
+a	LENGTH(b)
+1	900
+DROP TABLE ht, mi;
