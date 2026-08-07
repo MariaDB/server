@@ -286,7 +286,13 @@ install_deps() {
         ncurses-devel readline-devel openssl-devel zlib-devel bzip2-devel \
         libzstd-devel libcurl-devel libaio-devel libxml2-devel pcre2-devel \
         libxcrypt-devel xz-devel pam-devel perl-DBI python3 python3-devel \
-        ccache rpm-build"
+        libatomic ccache"
+
+    # rpm-build is only needed to build RPM packages; on some bases (e.g. UBI 9)
+    # installing it forces an rpm upgrade that conflicts with pinned @System rpm.
+    if [[ $BUILD_PACKAGES = true ]]; then
+        RPM_DEPS="$RPM_DEPS rpm-build"
+    fi
 
     local DEB_DEPS="build-essential git cmake ninja-build bison flex \
         libncurses-dev libreadline-dev libssl-dev zlib1g-dev libbz2-dev \
@@ -313,9 +319,16 @@ install_deps() {
                 warn "Rocky 8 default gcc 8 lacks C++20 -- consider re-running with -R"
             fi
             ;;
-        rockylinux:9|rocky:9|rocky:10)
+        rockylinux:9|rocky:9|rocky:10|rhel:9*|redhat:9*|red:9*)
+            # Enable EPEL and the CodeReady Builder / PowerTools-equivalent repo.
+            # Rocky/Alma expose it as the 'crb' alias; genuine RHEL enables it via
+            # subscription-manager. Enabling is best-effort: if neither mechanism
+            # is available we warn and continue so the dnf install below still runs.
             command="$SUDO dnf install -y 'dnf-command(config-manager)' epel-release && \
-                     $SUDO dnf config-manager --set-enabled crb && \
+                     { $SUDO dnf config-manager --set-enabled crb 2>/dev/null || \
+                       $SUDO dnf config-manager --set-enabled ubi-9-codeready-builder-rpms 2>/dev/null || \
+                       $SUDO subscription-manager repos --enable codeready-builder-for-rhel-9-\$(uname -m)-rpms 2>/dev/null || \
+                       warn 'Could not enable CRB/CodeReady Builder repo; continuing without it'; } && \
                      $SUDO dnf install -y gcc gcc-c++ ${RPM_DEPS}"
             ;;
         ubuntu:*|debian:*)
