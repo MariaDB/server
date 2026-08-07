@@ -338,6 +338,25 @@ int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len, uint32 *comlen
     dst[1]= uchar(len);
     lenlen= 1;
   }
+
+  /*
+    Write the length of an event no replica can uncompress, so that a
+    replica's handling of one can be tested. Reaching a value this large
+    takes four length bytes, and the encoding above spends four only on
+    content of 16MB or more, so the injection sets the encoding as well
+    as the value. The compressed content still goes where those four
+    bytes place it, leaving the event well formed apart from the length
+    it claims.
+  */
+  DBUG_EXECUTE_IF("binlog_compress_corrupt_len",
+                  {
+                    dst[1]= 0xFF;
+                    dst[2]= 0xFF;
+                    dst[3]= 0xFF;
+                    dst[4]= 0xFC;
+                    lenlen= 4;
+                  });
+
   dst[0]= 0x80 | (lenlen & 0x07);
 
   uLongf tmplen= (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
