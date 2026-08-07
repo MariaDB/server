@@ -205,7 +205,7 @@ struct xb_filter_entry_t{
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
 /** the log parsing function for --backup */
-static recv_sys_t::parser backup_log_parse;
+static recv_sys_t::parser backup_log_parse_low;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
 lsn_t metadata_to_lsn;
 
@@ -251,6 +251,7 @@ const char *defaults_group = "mysqld";
 #define HA_INNOBASE_ROWS_IN_TABLE 10000 /* to get optimization right */
 #define HA_INNOBASE_RANGE_COUNT	  100
 
+#define METADATA_LSN_ERROR 1
 /* The default values for the following, type long or longlong, start-up
 parameters are declared in mysqld.cc: */
 
@@ -3499,6 +3500,41 @@ skip:
 	return(FALSE);
 }
 
+/* Maximum LSN the copier may parse up to.
+Usually derived from the server's durably-flushed redo LSN.
+When a final target LSN is set, this limit is raised to that
+target so the last partial block can be copied in full.
+The copier refuses to accept a mini-transaction whose end
+exceeds this, so it never parses the volatile tail block
+the server is still rewriting
+(which mmap can read torn, leading to a mis-computed mtr
+length and permanent mid-mtr drift). A pread() of the same
+still-being-written tail block can likewise return a torn read
+which can be observed on ext4, though not on XFS).
+Read/written only under recv_sys.mutex. */
+static lsn_t max_parse_lsn;
+
+/* Set by backup_log_parse() when the last parse was
+rejected because the mtr crossed max_parse_lsn. It means
+"caught up, wait" condition, not a stall. */
+static bool reached_parse_limit;
+
+static recv_sys_t::parse_mtr_result backup_log_parse()
+{
+  const lsn_t prev_lsn= recv_sys.lsn;
+  const size_t prev_offset= recv_sys.offset;
+  reached_parse_limit= false;
+  recv_sys_t::parse_mtr_result r= backup_log_parse_low(false);
+  if (r == recv_sys_t::OK && max_parse_lsn && recv_sys.lsn > max_parse_lsn)
+  {
+    recv_sys.lsn= prev_lsn;
+    recv_sys.offset= prev_offset;
+    reached_parse_limit= true;
+    return recv_sys_t::GOT_EOF;
+  }
+  return r;
+}
+
 static int
 xtrabackup_copy_mmap_snippet(ds_file_t *ds, const byte *start, const byte *end)
 {
@@ -3524,7 +3560,7 @@ static bool xtrabackup_copy_mmap_logfile()
   const byte *start= &log_sys.buf[recv_sys.offset];
   ut_d(recv_sys_t::parse_mtr_result r);
 
-  if ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK)
+  if ((ut_d(r=) backup_log_parse()) == recv_sys_t::OK)
   {
     do
     {
@@ -3542,7 +3578,7 @@ static bool xtrabackup_copy_mmap_logfile()
         start = seq + 1;
       }
     }
-    while ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK);
+    while ((ut_d(r=) backup_log_parse()) == recv_sys_t::OK);
 
     if (xtrabackup_copy_mmap_snippet(dst_log_file, start,
                                      &log_sys.buf[recv_sys.offset]))
@@ -3615,7 +3651,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (backup_log_parse(false) == recv_sys_t::OK)
+      if (backup_log_parse() == recv_sys_t::OK)
       {
         do
         {
@@ -3625,7 +3661,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= backup_log_parse(false)) == recv_sys_t::OK);
+        while ((r= backup_log_parse()) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -3655,6 +3691,9 @@ static bool xtrabackup_copy_logfile(bool early_exit)
         if (retry_count == 100)
           break;
 
+	if (reached_parse_limit)
+          break;
+
         mysql_mutex_unlock(&recv_sys.mutex);
         if (!retry_count++)
           msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
@@ -3669,13 +3708,32 @@ static bool xtrabackup_copy_logfile(bool early_exit)
   return false;
 }
 
+/** Handles backup log copy timeout or incomplete LSN copy.
+Checks if the target LSN was reached. If not,
+logs diagnostic messages advising whether to increase
+innodb_log_file_size (log wrapped around)  or to check
+server/backup configuration mismatches.
+@param lsn       Target LSN expected by the backup.
+@param last_lsn  Actual maximum LSN copied so far.
+@return true if target LSN was reached, false otherwise. */
 static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
 {
   if (last_lsn >= lsn)
     return true;
+
+  const lsn_t checkpoint_lsn= log_sys.last_checkpoint_lsn.load();
+  const lsn_t capacity= log_sys.file_size - log_sys.START_OFFSET;
+  const lsn_t needed= lsn - checkpoint_lsn;
+
   msg("Was only able to copy log from " LSN_PF " to " LSN_PF
-      ", not " LSN_PF "; try increasing innodb_log_file_size",
-      log_sys.last_checkpoint_lsn.load(), last_lsn, lsn);
+      ", not " LSN_PF, checkpoint_lsn, last_lsn, lsn);
+
+  if (needed <= capacity)
+    msg("mariabackup: The required redo still fits within the log "
+        "capacity, so it has not been overwritten; check whether the "
+        "server and backup configuration are the same.");
+  else
+    msg("mariabackup: Try increasing the innodb_log_file_size.");
   return false;
 }
 
@@ -3730,16 +3788,80 @@ static bool backup_wait_for_lsn(lsn_t lsn)
 static void log_copying_thread()
 {
   my_thread_init();
-  mysql_mutex_lock(&recv_sys.mutex);
-  while (!xtrabackup_copy_logfile(false) &&
-         (!metadata_last_lsn || metadata_last_lsn > recv_sys.lsn))
+  MYSQL *limit_con= xb_mysql_connect();
+  if (!limit_con)
   {
+    /* Without this connection we cannot poll the durably-flushed
+    LSN, so max_parse_lsn could never advance and the copier
+    would either stall or parse the volatile tail block.
+    Fail the copy gracefully and let the main thread report
+    it via backup_wait_timeout(). */
+    msg("mariabackup: Error: cannot open a server connection for "
+        "the log copying thread; the backup will fail.");
+    mysql_mutex_lock(&recv_sys.mutex);
+    log_copying_running= false;
+    pthread_cond_broadcast(&scanned_lsn_cond);
+    mysql_mutex_unlock(&recv_sys.mutex);
+    my_thread_end();
+    return;
+  }
+
+  mysql_mutex_lock(&recv_sys.mutex);
+  for (;;)
+  {
+    /* metadata_last_lsn is set to 1 when error was encountered.
+    Abort the log copier if an error was signaled */
+    if (metadata_last_lsn == METADATA_LSN_ERROR)
+      break;
+    /* Refresh the max_parse_lsn before each copy pass */
+    const lsn_t final_target= metadata_last_lsn > metadata_to_lsn
+      ? metadata_last_lsn : metadata_to_lsn;
+    if (final_target)
+      /* Final phase (BLOCK_DDL/BLOCK_COMMIT): fence at the exact target
+      instead of the polled flushed LSN. This is only safe because the
+      target was derived from get_current_lsn(), which runs
+      FLUSH ENGINE LOGS and thus makes the redo durable up to at least
+      final_target; so final_target <= Innodb_lsn_flushed holds here and
+      the bytes up to it are stable. Do not feed this branch an LSN that
+      has not been flushed by the server, or the copier will parse the
+      volatile tail block again (MDEV-39468). */
+      max_parse_lsn= final_target;
+    else
+    {
+      mysql_mutex_unlock(&recv_sys.mutex);
+      lsn_t flushed= get_log_flushed_lsn(limit_con);
+      mysql_mutex_lock(&recv_sys.mutex);
+      if (flushed > log_sys.get_first_lsn())
+        max_parse_lsn= flushed;
+      else if (!max_parse_lsn)
+      {
+        /* We could not obtain a flushed LSN and none was seeded before,
+        so the parse limit is unset and the copier would fall back to
+        parsing the volatile tail block (the MDEV-39468 failure). Warn
+        once so this is diagnosable rather than a silent stall. */
+        static bool warned;
+        if (!warned)
+        {
+          warned= true;
+          msg("mariabackup: Warning: could not read Innodb_lsn_flushed; "
+              "the redo log copier has no parse limit.");
+        }
+      }
+    }
+
+    if (xtrabackup_copy_logfile(false))
+      break;
+    if (final_target && final_target <= recv_sys.lsn)
+      break;
+
     timespec abstime;
     set_timespec_nsec(abstime, 1000000ULL * xtrabackup_log_copy_interval);
     mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex, &abstime);
   }
   log_copying_running= false;
   mysql_mutex_unlock(&recv_sys.mutex);
+  if (limit_con)
+    mysql_close(limit_con);
   my_thread_end();
 }
 
@@ -4944,7 +5066,7 @@ static bool backup_wait_for_commit_lsn()
   else
   {
     msg("Error: recv_sys.find_checkpoint() failed.");
-    metadata_last_lsn= 1;
+    metadata_last_lsn= METADATA_LSN_ERROR;
     stop_backup_threads();
     mysql_mutex_unlock(&recv_sys.mutex);
     return false;
@@ -5571,7 +5693,7 @@ static bool xtrabackup_backup_func()
 fail:
 		if (log_copying_running) {
 			mysql_mutex_lock(&recv_sys.mutex);
-			metadata_last_lsn = 1;
+			metadata_last_lsn = METADATA_LSN_ERROR;
 			stop_backup_threads();
 			mysql_mutex_unlock(&recv_sys.mutex);
 		}
@@ -5699,8 +5821,14 @@ fail:
 	/* copy log file by current position */
 
 	mysql_mutex_lock(&recv_sys.mutex);
-	backup_log_parse = recv_sys.get_backup_parser();
+	backup_log_parse_low = recv_sys.get_backup_parser();
 	recv_sys.lsn = log_sys.last_checkpoint_lsn;
+
+	if (lsn_t flushed= get_log_flushed_lsn(mysql_connection))
+	{
+          if (flushed > log_sys.get_first_lsn())
+            max_parse_lsn= flushed;
+	}
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);
 

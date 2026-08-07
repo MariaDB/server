@@ -17,7 +17,7 @@ CREATE TABLE t ENGINE=INNODB SELECT seq%10 i FROM seq_0_to_204796;
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events > $backuplog
 --enable_result_log
 
---let SEARCH_PATTERN=Was only able to copy log from \\d+ to \\d+, not \\d+; try increasing innodb_log_file_size\\b
+--let SEARCH_PATTERN=mariabackup: Try increasing the innodb_log_file_size.
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
 --remove_file $backuplog

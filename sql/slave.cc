@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,14 +81,14 @@ uint *slave_transaction_retry_errors;
 uint slave_transaction_retry_error_length= 0;
 char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
-char* slave_load_tmpdir = 0;
+READ_ONLY_SYSVAR char* slave_load_tmpdir;
 Master_info *active_mi= 0;
-my_bool replicate_same_server_id;
-ulonglong relay_log_space_limit = 0;
+READ_ONLY_SYSVAR my_bool replicate_same_server_id;
+READ_ONLY_SYSVAR ulonglong relay_log_space_limit;
 ulonglong opt_read_binlog_speed_limit = 0;
 
-const char *relay_log_index= 0;
-const char *relay_log_basename= 0;
+READ_ONLY_SYSVAR const char *relay_log_index;
+READ_ONLY_SYSVAR const char *relay_log_basename;
 
 LEX_CSTRING default_master_connection_name= { (char*) "", 0 };
 
@@ -2936,10 +2936,15 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   (*field++)->store(mi->connection_name.str, mi->connection_name.length,
                     &my_charset_bin);
 
-  mysql_mutex_lock(&mi->run_lock);
+  /* The SQL thread's THD is protected by rli.run_lock, the IO thread's by
+     run_lock. Take each separately to avoid reading a freed THD. */
+  mysql_mutex_lock(&mi->rli.run_lock);
   THD *sql_thd= mi->rli.sql_driver_thd;
+  DEBUG_SYNC(thd, "hold_sss_with_run_lock");
   const char *const slave_sql_running_state=
     sql_thd ? sql_thd->get_proc_info() : "";
+  mysql_mutex_unlock(&mi->rli.run_lock);
+  mysql_mutex_lock(&mi->run_lock);
   THD *io_thd= mi->io_thd;
   const char *const slave_io_running_state=
     io_thd ? io_thd->get_proc_info() : "";
