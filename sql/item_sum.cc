@@ -2461,6 +2461,7 @@ void Item_sum_min_max::direct_add(Item *item)
   DBUG_ENTER("Item_sum_min_max::direct_add");
   DBUG_PRINT("info", ("item: %p", item));
   direct_added= TRUE;
+  direct_reseted_field= FALSE;
   direct_item= item;
   DBUG_VOID_RETURN;
 }
@@ -2530,6 +2531,7 @@ bool Item_sum_min_max::val_native(THD *thd, Native *to)
 void Item_sum_min_max::cleanup()
 {
   DBUG_ENTER("Item_sum_min_max::cleanup");
+  direct_added= direct_reseted_field= FALSE;
   Item_sum::cleanup();
   if (cmp)
     delete cmp;
@@ -2568,7 +2570,7 @@ Item* Item_sum_min_max::deep_copy(THD *thd) const
     static_cast<Item_sum_min_max *>(Item_sum::deep_copy(thd));
   if (unlikely(!clone))
     return NULL;
-  clone->direct_added= FALSE;
+  clone->direct_added= clone->direct_reseted_field= FALSE;
   clone->direct_item= NULL;
   clone->value= clone->arg_cache= NULL;
   clone->cmp= NULL;
@@ -2629,6 +2631,8 @@ bool Item_sum_min::add()
     tmp_item= arg_cache->get_item();
     arg_cache->store(direct_item);
   }
+  else
+    direct_reseted_field= FALSE;
   DBUG_PRINT("info", ("null_value: %s", null_value ? "TRUE" : "FALSE"));
   /* args[0] < value */
   arg_cache->cache_value();
@@ -2669,6 +2673,8 @@ bool Item_sum_max::add()
     tmp_item= arg_cache->get_item();
     arg_cache->store(direct_item);
   }
+  else
+    direct_reseted_field= FALSE;
   /* args[0] > value */
   arg_cache->cache_value();
   DBUG_PRINT("info", ("null_value: %s", null_value ? "TRUE" : "FALSE"));
@@ -2937,6 +2943,14 @@ void Item_sum_min_max::reset_field()
   if (unlikely(direct_added))
   {
     direct_added= FALSE;
+    /*
+      Say that the value went into result_field rather than being added, so
+      that an update_field() on the same row -- which is how end_unique_update()
+      folds a row it turns out to have seen the group of before -- merges the
+      direct value in rather than args[0]. Item_sum_sum and Item_sum_count
+      record the same thing for the same reason.
+    */
+    direct_reseted_field= TRUE;
     value->store(tmp_item);
   }
   DBUG_VOID_RETURN;
@@ -3188,7 +3202,8 @@ void Item_sum_min_max::update_field()
 {
   DBUG_ENTER("Item_sum_min_max::update_field");
   Item *UNINIT_VAR(tmp_item);
-  if (unlikely(direct_added))
+  const bool use_direct= direct_added || direct_reseted_field;
+  if (unlikely(use_direct))
   {
     tmp_item= args[0];
     args[0]= direct_item;
@@ -3220,9 +3235,9 @@ void Item_sum_min_max::update_field()
       min_max_update_real_field();
     }
   }
-  if (unlikely(direct_added))
+  if (unlikely(use_direct))
   {
-    direct_added= FALSE;
+    direct_added= direct_reseted_field= FALSE;
     args[0]= tmp_item;
   }
   DBUG_VOID_RETURN;

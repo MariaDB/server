@@ -77,6 +77,23 @@ SET SESSION tmp_table_size= 16384;
 --let $pq_query= SELECT i AS g, COUNT(*) a, SUM(pk) b, MIN(c) e, MAX(c) f, SUM(d) h, COUNT(n) j FROM t1 GROUP BY i
 --source include/parallel_query_fingerprint.inc
 --source include/parallel_query_preagg_ratio.inc
+
+--echo #
+--echo # The manager's own grouping table fills too, and the server answers that
+--echo # by moving it to disk and switching to end_unique_update(), which folds a
+--echo # partial in a second way. MAX() here is over a column whose value in the
+--echo # row the worker shipped is the group's smallest, so a merge that took the
+--echo # row in place of the partial would show.
+--echo #
+CREATE TABLE t2 (pk INT PRIMARY KEY, i INT) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq % 300 FROM seq_1_to_40000;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--let $pq_cols= g, mx, mn
+--let $pq_query= SELECT RPAD(i,200,'x') g, MAX(pk) mx, MIN(pk) mn FROM t2 GROUP BY i
+--source include/parallel_query_fingerprint.inc
+--source include/parallel_query_preagg_ratio.inc
+DROP TABLE t2;
+--let $pq_cols= g, a, b, e, f, h, j
 SET SESSION tmp_table_size= @t;
 
 --echo #

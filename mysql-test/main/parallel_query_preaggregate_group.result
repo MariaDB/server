@@ -101,6 +101,37 @@ ran_in_the_workers
 1
 preaggregated_per_scan
 1.0000
+#
+# The manager's own grouping table fills too, and the server answers that
+# by moving it to disk and switching to end_unique_update(), which folds a
+# partial in a second way. MAX() here is over a column whose value in the
+# row the worker shipped is the group's smallest, so a merge that took the
+# row in place of the partial would show.
+#
+CREATE TABLE t2 (pk INT PRIMARY KEY, i INT) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq % 300 FROM seq_1_to_40000;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, mx, mn))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, mx, mn))) AS crc_xor FROM (SELECT RPAD(i,200,'x') g, MAX(pk) mx, MIN(pk) mn FROM t2 GROUP BY i) d;
+n	crc_sum	crc_xor
+300	635101422216	1543146004
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',g, mx, mn))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',g, mx, mn))) AS crc_xor FROM (SELECT RPAD(i,200,'x') g, MAX(pk) mx, MIN(pk) mn FROM t2 GROUP BY i) d;
+n	crc_sum	crc_xor
+300	635101422216	1543146004
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+preaggregated_per_scan
+1.0000
+DROP TABLE t2;
 SET SESSION tmp_table_size= @t;
 #
 # Over a join: each worker groups the rows it assembled from both tables.
