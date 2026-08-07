@@ -11,7 +11,8 @@ SET @saved_dbug= @@GLOBAL.debug_dbug;
 
 # MDEV-40366: `used_checksum_alg`
 
-SET @@GLOBAL.debug_dbug= '+d,truncate_fde_at_post_header_len';
+SET @@GLOBAL.debug_dbug=
+  '+d,truncate_fde_post_header_len,truncate_fde_used_checksum_alg';
 FLUSH BINARY LOGS;
 
 --let $binlog_file= query_get_value(SHOW BINLOG STATUS, File, 1)
