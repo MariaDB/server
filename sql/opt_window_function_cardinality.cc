@@ -37,81 +37,15 @@
     with 1 for zero elements.
 */
 
-static ha_rows handle_single_part_rownumber(JOIN *join, Item_window_func *item_row_number)
+static ha_rows handle_single_part_rownumber(JOIN *join,
+                                            Item_window_func *item_row_number)
 {
   if (item_row_number->window_spec->partition_list &&
       item_row_number->window_spec->partition_list->elements)
   {
     ORDER *part_list=  item_row_number->window_spec->partition_list->first;
-    double card= 
-        estimate_post_group_cardinality(join, join->join_record_count,
-                                        part_list);
-    return join->join_record_count / card;
-#if 0
-    double records= 1;
-    const uint max_tables= 16;
-    TABLE *tables[max_tables];
-    double table_distinct[max_tables];
-    uint table_count= 0;
-    for (; part_list; part_list= part_list->next)
-    {
-      if ((*part_list->item)->type() == Item::FIELD_ITEM)
-      {
-        Item_field *item_field= ((Item_field*)(*part_list->item));
-        DBUG_ASSERT(item_field);
-        Field *field= item_field->field;
-        DBUG_ASSERT(field);
-        TABLE *table= field->table;
-        ha_rows table_records= table->used_stat_records;
-
-        /*
-          use EITS records per key if we have them,
-          otherwise
-          use number of records in the table (as a worst case scenario)
-        */
-        if (table_records == HA_POS_ERROR)
-        {
-          table_records= table->file->stats.records;
-          if (table_records == HA_POS_ERROR)
-            table_records= 1000; // Fallback default DOES THIS EVER HAPPEN?
-        }
-
-        double diff_values= 1.0;
-        if (field->read_stats)
-        {
-          double freq= field->read_stats->get_avg_frequency();
-          diff_values= freq > 0 ? (double)table_records / freq
-                                : (double)table_records;
-        }
-        else
-          diff_values= (double)table_records;
-
-        uint idx= 0;
-        for (; idx < table_count; idx++)
-        {
-          if (tables[idx] == table)
-            break;
-        }
-        if (idx < max_tables)
-        {
-          if (idx == table_count)
-          {
-            tables[idx]= table;
-            table_distinct[idx]= diff_values;
-            table_count++;
-          }
-          else
-            table_distinct[idx]*= diff_values;
-          if (table_distinct[idx] > (double)table_records)
-            table_distinct[idx]= (double)table_records;
-        }
-      }
-    }
-
-    for (uint i= 0; i < table_count; i++)
-      records*= table_distinct[i];
-    return records < 1.0 ? (ha_rows)1 : (ha_rows)records;
-#endif
+    return estimate_post_group_cardinality(join, join->join_record_count,
+                                           part_list);
   }
   else
   { 
@@ -159,8 +93,7 @@ bool est_derived_window_fn_cardinality(st_select_lex* derived,
 {
   for (uint fc=0 ; fc < key_parts; fc++)
   {
-    if (!reg_fields[fc]) // TODO: what is that?
-      continue;
+    DBUG_ASSERT(reg_fields[fc]);
 
     uint field_index= reg_fields[fc]->field_index;
     List_iterator_fast<Item> li(*derived->get_item_list());
@@ -177,7 +110,8 @@ bool est_derived_window_fn_cardinality(st_select_lex* derived,
 
         if (item_row_num->window_func()->sum_func() == Item_sum::ROW_NUMBER_FUNC)
         {
-          *out_records= (ulong)handle_single_part_rownumber(derived->join, item_row_num);
+          *out_records= (ulong)handle_single_part_rownumber(derived->join,
+                                                            item_row_num);
           return true;
         }
       }
