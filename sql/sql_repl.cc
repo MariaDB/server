@@ -2071,6 +2071,75 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return "run 'before_send_event' hook failed";
   }
 
+#ifndef DBUG_OFF
+  /*
+    Declare a length in the event's header that differs from the number of
+    bytes the packet carries, to test that a replica reconciles the two
+    lengths before relay logging the event. Real Rotate events carry this
+    injection, which keeps the injection on one event of a known length
+    instead of on every event of the connection. Eight bytes moves the
+    declared end of the event off the packet's own end in either
+    direction: short of that end, into the file name the event closes
+    with, or past that end entirely.
+
+    fix_checksum() cannot serve here. That helper checksums the range
+    EVENT_LEN_OFFSET declares, the field this injection falsifies, and a
+    replica checksums the event over the length of the packet the event
+    arrived in. Recomputing over the packet is what carries the
+    event past the replica's checksum test and on to the length
+    comparison.
+  */
+  if (event_type == ROTATE_EVENT)
+  {
+    long len_delta= 0;
+    DBUG_EXECUTE_IF("binlog_sender_short_event_len", len_delta= -8;);
+    DBUG_EXECUTE_IF("binlog_sender_long_event_len", len_delta= 8;);
+    if (len_delta)
+    {
+      uchar *ev= (uchar*) packet->ptr() + ev_offset;
+      ulong ev_len= (ulong) (len - ev_offset);
+
+      int4store(ev + EVENT_LEN_OFFSET, (ulong) ((long) ev_len + len_delta));
+      if (current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+          current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+        int4store(ev + ev_len - BINLOG_CHECKSUM_LEN,
+                  my_checksum(0, ev, ev_len - BINLOG_CHECKSUM_LEN));
+    }
+  }
+
+  /*
+    Put a second copy of the event in the packet behind the first, the
+    other shape the same disagreement takes on the wire. This injection
+    leaves the header alone and grows the packet, so the bytes behind the
+    length the header declares form a complete event of their own, and a
+    replica that frames its relay log by those headers goes on to apply
+    that second event.
+
+    Query events carry this injection, because a statement that runs a
+    second time inserts a row the master never sent, which the replica's
+    own data then shows. A row event cannot carry the injection. The
+    trailing copy reaches the applier after the leading copy's STMT_END_F
+    has closed the statement's tables and cleared the table map, so
+    Rows_log_event::do_apply_event() finds no table for the copy's table
+    id and returns without applying or reporting anything.
+
+    The master must be logging no checksum for the trailing copy to
+    survive: the packet ends in the checksum bytes the trailing copy
+    carries, and those bytes cover that copy alone, not the packet.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_append_extra_event",
+  {
+    if (event_type == QUERY_EVENT)
+    {
+      String extra;
+      if (!extra.copy(packet->ptr() + ev_offset, len - ev_offset,
+                      &my_charset_bin) &&
+          !packet->append(extra))
+        len= packet->length();
+    }
+  });
+#endif
+
   if (my_net_write(info->net, (uchar*) packet->ptr(), len))
   {
     info->error= ER_UNKNOWN_ERROR;
