@@ -1,0 +1,95 @@
+# MIN_ROWS pre-sizes a MEMORY table's blocks, but it must never pre-size
+# them past max_heap_table_size: max_records is derived from that ceiling
+# and is the most rows the table can ever hold, so a larger MIN_ROWS is
+# unreachable.  Block allocations are also capped (see
+# main.tmp_table_heap_alloc) when they come from the ceiling rather than
+# from a caller row-count expectation.  The two interact, so walk all of
+# the regimes: no MIN_ROWS, MIN_ROWS below the cap, MIN_ROWS above the
+# cap but reachable, and MIN_ROWS beyond the ceiling.
+#
+# Sizes are exact byte counts and depend on pointer width.
+
+--source include/have_64bit.inc
+
+--echo #
+--echo # A ceiling large enough for the block cap to be live.
+--echo # (a INT, b INT, KEY(a)) rows are 16 bytes, hash entries 24.
+--echo #
+SET SESSION max_heap_table_size= 256*1024*1024;
+
+--echo #
+--echo # No MIN_ROWS: sizing comes from the ceiling alone and is capped.
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # MIN_ROWS below the cap does not raise the block above the cap.
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=1000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # MIN_ROWS above the cap but within the ceiling still pre-sizes
+--echo # past the cap: it is a real row count expectation.
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=1000000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # MIN_ROWS beyond the ceiling is unreachable and must clamp to it
+--echo # instead of reserving memory the table can never use.  Both of
+--echo # these hold more rows than 256M can fit, so both must produce the
+--echo # same, ceiling-derived, sizing.
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=20000000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=40000000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # A smaller ceiling clamps harder, and MIN_ROWS at the .frm
+--echo # maximum stays bounded even at the shipped default ceiling.
+--echo #
+SET SESSION max_heap_table_size= 64*1024*1024;
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=20000000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+SET SESSION max_heap_table_size= 16*1024*1024;
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=4294967295;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # The clamp is a ceiling clamp, not a MIN_ROWS ban: raising the
+--echo # ceiling lets the same MIN_ROWS pre-size further.
+--echo #
+SET SESSION max_heap_table_size= 1024*1024*1024;
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=MEMORY MIN_ROWS=8000000;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+SET SESSION max_heap_table_size= DEFAULT;
