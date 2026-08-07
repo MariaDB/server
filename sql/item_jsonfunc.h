@@ -903,6 +903,7 @@ public:
 protected:
   formats fmt;
   String tmp_js;
+  String *forward_json(String *js);
 public:
   Item_func_json_format(THD *thd, Item *js, formats format):
     Item_json_func(thd, js), fmt(format) {}
@@ -913,6 +914,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *str) override;
   String *val_json(String *str) override;
+  String *val_json_at_once(String *str) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
