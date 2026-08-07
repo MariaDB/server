@@ -113,6 +113,7 @@ class rpl_io_thread_info;
 class rpl_sql_thread_info;
 #ifdef HAVE_REPLICATION
 struct Slave_info;
+struct TABLE_SHARE_VERSION;
 #endif
 
 enum enum_ha_read_modes { RFIRST, RNEXT, RPREV, RLAST, RKEY, RNEXT_SAME };
@@ -3569,6 +3570,20 @@ public:
     chapter 'Miscellaneous functions', for functions GET_LOCK, RELEASE_LOCK.
   */
   HASH ull_hash;
+  /*
+    Per-transaction bindings of (db, table_name) to the TABLE_SHARE_VERSION
+    the transaction first opened. Populated by tdc_acquire_share() on first
+    open of a name within the transaction; released at end of transaction
+    by release_transaction_schema_bindings().
+
+    Each binding holds a +1 on its version's ref_count for the lifetime of
+    the transaction. This pin keeps the version alive (and thus visible to
+    bound-path lookups in tdc_acquire_share) even after a concurrent DDL
+    has installed a newer version as the chain tail.
+
+    Initialized lazily on first use.
+  */
+  HASH transaction_schema_bindings;
   /* Hash of used sequences (for PREVIOUS value) */
   HASH sequences;
 #ifdef DBUG_ASSERT_EXISTS
@@ -5887,6 +5902,25 @@ public:
     if (!in_active_multi_stmt_transaction())
       mdl_context.release_transactional_locks(this);
   }
+
+  /*
+    Per-transaction schema binding API:
+    - lookup_schema_binding() returns the TABLE_SHARE_VERSION the txn is bound
+      to for this name, or NULL if not bound yet.
+    - add_schema_binding() records a binding and bumps version->ref_count;
+      returns true on OOM.
+    - remove_schema_binding() drops a single binding (and its ref) — used
+      when the share is being torn down out-of-band.
+    - release_transaction_schema_bindings() clears all bindings; called at
+      end of transaction from MDL_context::release_transactional_locks().
+  */
+  TABLE_SHARE_VERSION *lookup_schema_binding(const uchar *key,
+                                             uint key_length);
+  bool add_schema_binding(const uchar *key, uint key_length,
+                          TABLE_SHARE_VERSION *version);
+  void remove_schema_binding(const uchar *key, uint key_length);
+  void release_transaction_schema_bindings();
+
   int decide_logging_format(TABLE_LIST *tables);
 
   /*

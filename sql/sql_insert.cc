@@ -3895,7 +3895,7 @@ bool Delayed_insert::handle_inserts(void)
 
   THD_STAGE_INFO(&thd, stage_insert);
   max_rows= delayed_insert_limit;
-  if (thd.killed || table->s->tdc->flushed)
+  if (thd.killed || table->s->version->flushed)
   {
     thd.set_killed(KILL_SYSTEM_THREAD);
     max_rows= ULONG_MAX;                     // Do as much as possible

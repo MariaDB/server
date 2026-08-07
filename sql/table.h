@@ -72,6 +72,7 @@ class Copy_field;
 class Table_statistics;
 class With_element;
 struct TDC_element;
+struct TABLE_SHARE_VERSION;
 class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
@@ -759,6 +760,13 @@ struct TABLE_SHARE
   void unlock_share() { if (!tmp_table) mysql_mutex_unlock(&LOCK_share); }
 
   TDC_element *tdc;
+  /**
+    Back-pointer to the TABLE_SHARE_VERSION that owns this share. Set by
+    tdc_install_version() and stable for the share's lifetime. Used by
+    tc_release_table/tc_add_table to navigate to the per-version
+    all_tables/free_tables lists in O(1).
+  */
+  TABLE_SHARE_VERSION *version;
 
   LEX_CUSTRING tabledef_version;
 

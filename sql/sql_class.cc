@@ -871,6 +871,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   is_slave_error= FALSE;
   my_hash_clear(&handler_tables_hash);
   my_hash_clear(&ull_hash);
+  my_hash_clear(&transaction_schema_bindings);
   tmp_table=0;
   cuted_fields= 0L;
   limit_found_rows= 0;
@@ -1761,6 +1762,8 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
+  if (my_hash_inited(&transaction_schema_bindings))
+    my_hash_free(&transaction_schema_bindings);
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -6656,6 +6659,125 @@ void THD::leave_locked_tables_mode()
       mysql_ull_set_explicit_lock_duration(this);
   }
   locked_tables_mode= LTM_NONE;
+}
+
+
+/*
+  Per-transaction schema bindings.
+
+  See declarations in sql_class.h. Bindings are populated by
+  tdc_acquire_share() on first open of a name within a transaction and
+  cleared by MDL_context::release_transactional_locks() at end of
+  transaction. Each binding pins its TABLE_SHARE_VERSION (ref_count +1)
+  so that the version stays alive across statement boundaries — letting
+  the transaction continue using its snapshot even after a concurrent
+  DDL has installed a newer version.
+*/
+
+namespace {
+struct Schema_binding
+{
+  uchar key[NAME_LEN + 1 + NAME_LEN + 1];
+  uint key_length;
+  TABLE_SHARE_VERSION *version;
+};
+
+extern "C" const uchar *schema_binding_key(const void *binding, size_t *length,
+                                           my_bool)
+{
+  const Schema_binding *b= static_cast<const Schema_binding*>(binding);
+  *length= b->key_length;
+  return b->key;
+}
+} // anonymous namespace
+
+
+TABLE_SHARE_VERSION *THD::lookup_schema_binding(const uchar *key,
+                                                uint key_length)
+{
+  if (!my_hash_inited(&transaction_schema_bindings))
+    return NULL;
+  Schema_binding *b= reinterpret_cast<Schema_binding*>(
+    my_hash_search(&transaction_schema_bindings, key, key_length));
+  return b ? b->version : NULL;
+}
+
+
+bool THD::add_schema_binding(const uchar *key, uint key_length,
+                             TABLE_SHARE_VERSION *version)
+{
+  if (!my_hash_inited(&transaction_schema_bindings))
+  {
+    if (my_hash_init(PSI_INSTRUMENT_ME, &transaction_schema_bindings,
+                     &my_charset_bin, 0, 0, 0, schema_binding_key,
+                     my_free, 0))
+      return true;
+  }
+  Schema_binding *b= static_cast<Schema_binding*>(
+    my_malloc(PSI_INSTRUMENT_ME, sizeof(*b), MYF(MY_WME)));
+  if (!b)
+    return true;
+  DBUG_ASSERT(key_length <= sizeof(b->key));
+  memcpy(b->key, key, key_length);
+  b->key_length= key_length;
+  b->version= version;
+
+  /*
+    The binding pins its version by holding a +1 on ref_count. The pin is
+    dropped by release_transaction_schema_bindings() at end of transaction,
+    or earlier by remove_schema_binding() when the share is being torn
+    down.
+  */
+  mysql_mutex_lock(&version->share->tdc->LOCK_table_share);
+  version->ref_count++;
+  mysql_mutex_unlock(&version->share->tdc->LOCK_table_share);
+
+  if (my_hash_insert(&transaction_schema_bindings, reinterpret_cast<uchar*>(b)))
+  {
+    /* OOM after the ref bump — undo the pin and free. */
+    mysql_mutex_lock(&version->share->tdc->LOCK_table_share);
+    --version->ref_count;
+    mysql_mutex_unlock(&version->share->tdc->LOCK_table_share);
+    my_free(b);
+    return true;
+  }
+  return false;
+}
+
+
+void THD::remove_schema_binding(const uchar *key, uint key_length)
+{
+  if (!my_hash_inited(&transaction_schema_bindings))
+    return;
+  Schema_binding *b= reinterpret_cast<Schema_binding*>(
+    my_hash_search(&transaction_schema_bindings, key, key_length));
+  if (!b)
+    return;
+  TABLE_SHARE *share= b->version->share;
+  /* my_hash_delete frees the Schema_binding (via the registered my_free). */
+  my_hash_delete(&transaction_schema_bindings, reinterpret_cast<uchar*>(b));
+  /* Drop the binding's ref. tdc_release_share dispatches CURRENT vs OLDER. */
+  tdc_release_share(share);
+}
+
+
+void THD::release_transaction_schema_bindings()
+{
+  if (!my_hash_inited(&transaction_schema_bindings) ||
+      transaction_schema_bindings.records == 0)
+    return;
+  /*
+    Walk every binding by index and release its version's ref. Calling
+    tdc_release_share may GC the version (if OLDER and ref reaches 0) but
+    does not touch our Schema_binding entry; my_hash_reset below frees those.
+  */
+  for (ulong i= 0; i < transaction_schema_bindings.records; i++)
+  {
+    Schema_binding *b= reinterpret_cast<Schema_binding*>(
+      my_hash_element(&transaction_schema_bindings, i));
+    tdc_release_share(b->version->share);
+  }
+  my_hash_reset(&transaction_schema_bindings);
 }
 
 void THD::get_definer(LEX_USER *definer, bool role)

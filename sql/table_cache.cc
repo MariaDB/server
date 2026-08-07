@@ -257,30 +257,31 @@ uint tc_records(void)
 static void tc_remove_table(TABLE *table)
 {
   TDC_element *element= table->s->tdc;
+  TABLE_SHARE_VERSION *version= table->s->version;
 
   mysql_mutex_lock(&element->LOCK_table_share);
-  /* Wait for MDL deadlock detector to complete traversing tdc.all_tables. */
-  while (element->all_tables_refs)
+  /* Wait for MDL deadlock detector to complete traversing all_tables. */
+  while (version->all_tables_refs)
     mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
-  element->all_tables.remove(table);
+  version->all_tables.remove(table);
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   intern_close_table(table);
 }
 
 
-static void tc_remove_all_unused_tables(TDC_element *element,
+static void tc_remove_all_unused_tables(TABLE_SHARE_VERSION *version,
                                         Share_free_tables::List *purge_tables)
 {
   for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
-    while (auto table= element->free_tables[i].list.pop_front())
+    while (auto table= version->free_tables[i].list.pop_front())
     {
       tc[i].records--;
       tc[i].free_tables.remove(table);
-      DBUG_ASSERT(element->all_tables_refs == 0);
-      element->all_tables.remove(table);
+      DBUG_ASSERT(version->all_tables_refs == 0);
+      version->all_tables.remove(table);
       purge_tables->push_front(table);
     }
     mysql_mutex_unlock(&tc[i].LOCK_table_cache);
@@ -309,7 +310,15 @@ static my_bool tc_purge_callback(void *_element, void *_purge_tables)
   Share_free_tables::List *purge_tables=
       static_cast<Share_free_tables::List *>(_purge_tables);
   mysql_mutex_lock(&element->LOCK_table_share);
-  tc_remove_all_unused_tables(element, purge_tables);
+  /*
+    Walk every version's free_tables. After a lock-free DDL the chain may
+    briefly hold multiple versions (one CURRENT plus OLDER versions still
+    pinned by in-flight transactions). OLDER versions have their
+    free_tables drained at install time by tdc_install_version, so they
+    are usually empty here; CURRENT may have idle cached TABLEs to purge.
+  */
+  for (TABLE_SHARE_VERSION *v= element->versions_head; v; v= v->next)
+    tc_remove_all_unused_tables(v, purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
   return FALSE;
 }
@@ -347,14 +356,15 @@ void tc_add_table(THD *thd, TABLE *table)
     thd->thread_id % tc_active_instances.load(std::memory_order_relaxed);
   TABLE *LRU_table= 0;
   TDC_element *element= table->s->tdc;
+  TABLE_SHARE_VERSION *version= table->s->version;
 
   DBUG_ASSERT(table->in_use == thd);
   table->instance= i;
   mysql_mutex_lock(&element->LOCK_table_share);
-  /* Wait for MDL deadlock detector to complete traversing tdc.all_tables. */
-  while (element->all_tables_refs)
+  /* Wait for MDL deadlock detector to complete traversing all_tables. */
+  while (version->all_tables_refs)
     mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
-  element->all_tables.push_front(table);
+  version->all_tables.push_front(table);
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
@@ -362,7 +372,7 @@ void tc_add_table(THD *thd, TABLE *table)
   {
     if ((LRU_table= tc[i].free_tables.pop_front()))
     {
-      LRU_table->s->tdc->free_tables[i].list.remove(LRU_table);
+      LRU_table->s->version->free_tables[i].list.remove(LRU_table);
       /* Needed if MDL deadlock detector chimes in before tc_remove_table() */
       LRU_table->in_use= thd;
       mysql_mutex_unlock(&tc[i].LOCK_table_cache);
@@ -395,14 +405,15 @@ void tc_add_table(THD *thd, TABLE *table)
   @return TABLE object, or NULL if no unused objects.
 */
 
-TABLE *tc_acquire_table(THD *thd, TDC_element *element)
+TABLE *tc_acquire_table(THD *thd, TABLE_SHARE_VERSION *version)
 {
+  DBUG_ASSERT(version);
   uint32_t n_instances= tc_active_instances.load(std::memory_order_relaxed);
   uint32_t i= thd->thread_id % n_instances;
   TABLE *table;
 
   tc[i].lock_and_check_contention(n_instances, i);
-  table= element->free_tables[i].list.pop_front();
+  table= version->free_tables[i].list.pop_front();
   if (table)
   {
     DBUG_ASSERT(!table->in_use);
@@ -453,7 +464,7 @@ void tc_release_table(TABLE *table)
   DBUG_ASSERT(!table->pos_in_locked_tables);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
-  if (table->needs_reopen() || table->s->tdc->flushed ||
+  if (table->needs_reopen() || table->s->version->flushed ||
       tc[i].records > tc_size)
   {
     tc[i].records--;
@@ -463,7 +474,7 @@ void tc_release_table(TABLE *table)
   else
   {
     table->in_use= 0;
-    table->s->tdc->free_tables[i].list.push_front(table);
+    table->s->version->free_tables[i].list.push_front(table);
     tc[i].free_tables.push_back(table);
     mysql_mutex_unlock(&tc[i].LOCK_table_cache);
   }
@@ -471,17 +482,18 @@ void tc_release_table(TABLE *table)
 }
 
 
+/*
+  Assert that the element is "clean": no version chain, no flush tickets,
+  not on the unused_shares LRU. Per-version state (all_tables, free_tables,
+  ref_count, etc.) is asserted by tdc_free_version on each version freed.
+  Called before the LF_HASH slot is reused or destroyed.
+*/
+
 static void tdc_assert_clean_share(TDC_element *element)
 {
-  DBUG_ASSERT(element->share == 0);
-  DBUG_ASSERT(element->ref_count == 0);
+  DBUG_ASSERT(element->versions_head == 0);
+  DBUG_ASSERT(element->versions_tail == 0);
   DBUG_ASSERT(element->m_flush_tickets.is_empty());
-  DBUG_ASSERT(element->all_tables.is_empty());
-#ifndef DBUG_OFF
-  for (uint32 i= 0; i < tc_instances; i++)
-    DBUG_ASSERT(element->free_tables[i].list.is_empty());
-#endif
-  DBUG_ASSERT(element->all_tables_refs == 0);
   DBUG_ASSERT(element->next == 0);
   DBUG_ASSERT(element->prev == 0);
 }
@@ -489,6 +501,20 @@ static void tdc_assert_clean_share(TDC_element *element)
 
 /**
   Delete share from hash and free share object.
+
+  Precondition: the version chain holds exactly one version (the CURRENT
+  one we're about to free). Callers must ensure all OLDER versions have
+  been GC'd before reaching here. The DBUG_ASSERTs below enforce this.
+
+  Reasons this holds for current callers:
+    - tdc_release_share's CURRENT path checks versions_head == versions_tail
+      before invoking this (or pushing to unused_shares).
+    - tdc_remove_referenced_share is called under X MDL after a drain; any
+      OLDER versions would have been GC'd when conflicting transactions
+      released their bindings.
+    - tdc_remove_table goes through the same X-MDL flow.
+    - tdc_purge picks elements off unused_shares, which were placed there
+      by tdc_release_share under the same chain-length check.
 */
 
 static void tdc_delete_share_from_hash(TDC_element *element)
@@ -496,12 +522,21 @@ static void tdc_delete_share_from_hash(TDC_element *element)
   THD *thd= current_thd;
   LF_PINS *pins;
   TABLE_SHARE *share;
+  TABLE_SHARE_VERSION *version;
   DBUG_ENTER("tdc_delete_share_from_hash");
 
   mysql_mutex_assert_owner(&element->LOCK_table_share);
-  share= element->share;
+  version= element->current();
+  DBUG_ASSERT(version);
+  /* Precondition: chain length 1. */
+  DBUG_ASSERT(version == element->versions_head);
+  DBUG_ASSERT(version->next == 0);
+  DBUG_ASSERT(version->prev == 0);
+  share= version->share;
   DBUG_ASSERT(share);
-  element->share= 0;
+  version->share= 0;
+  element->versions_head= 0;
+  element->versions_tail= 0;
   PSI_CALL_release_table_share(share->m_psi);
   share->m_psi= 0;
 
@@ -534,6 +569,7 @@ static void tdc_delete_share_from_hash(TDC_element *element)
   if (!thd)
     lf_hash_put_pins(pins);
   free_table_share(share);
+  tdc_free_version(version);
   DBUG_VOID_RETURN;
 }
 
@@ -550,12 +586,9 @@ static void lf_alloc_constructor(uchar *arg)
                    &element->LOCK_table_share, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_TABLE_SHARE_COND_release, &element->COND_release, 0);
   element->m_flush_tickets.empty();
-  element->all_tables.empty();
-  for (uint32 i= 0; i < tc_instances; i++)
-    element->free_tables[i].list.empty();
-  element->all_tables_refs= 0;
-  element->share= 0;
-  element->ref_count= 0;
+  element->versions_head= 0;
+  element->versions_tail= 0;
+  element->next_schema_version= 0;
   element->next= 0;
   element->prev= 0;
   DBUG_VOID_RETURN;
@@ -574,6 +607,139 @@ static void lf_alloc_destructor(uchar *arg)
   mysql_cond_destroy(&element->COND_release);
   mysql_mutex_destroy(&element->LOCK_table_share);
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Allocate and initialize a TABLE_SHARE_VERSION with a trailing free_tables[]
+  array sized to tc_instances. Caller is responsible for installing the
+  version into a TDC_element via tdc_install_version() under LOCK_table_share.
+*/
+
+TABLE_SHARE_VERSION *tdc_alloc_version()
+{
+  size_t size= sizeof(TABLE_SHARE_VERSION) +
+               sizeof(Share_free_tables) * (tc_instances - 1);
+  TABLE_SHARE_VERSION *v= (TABLE_SHARE_VERSION*)
+    my_malloc(PSI_INSTRUMENT_ME, size, MYF(MY_WME | MY_ZEROFILL));
+  if (!v)
+    return NULL;
+  v->all_tables.empty();
+  for (uint32 i= 0; i < tc_instances; i++)
+    v->free_tables[i].list.empty();
+  return v;
+}
+
+
+/**
+  Append a TABLE_SHARE_VERSION to a TDC_element's chain as the new tail
+  (i.e. the new "current" version served to new opens). Assigns
+  schema_version from the element's per-element monotonic counter.
+
+  If the chain already had a tail, that tail is demoted to OLDER: marked
+  flushed (so future tc_release_table calls destroy its TABLEs rather
+  than cache them) and its existing cached free_tables[] are drained
+  eagerly. In-use TABLEs of the demoted version are untouched and continue
+  serving their statements; they get destroyed on their next release.
+
+  Takes e->LOCK_table_share internally; caller should not hold it.
+*/
+
+void tdc_install_version(TDC_element *e, TABLE_SHARE_VERSION *v)
+{
+  DBUG_ASSERT(v->next == 0 && v->prev == 0);
+  DBUG_ASSERT(v->share);
+
+  /*
+    Cached TABLEs in the previous tail's free_tables[] become unreachable
+    once we demote that tail to OLDER (no new transaction will bind to an
+    OLDER version, and existing v1-bound transactions will allocate fresh
+    TABLEs on their next open if free_tables is empty). We mark the
+    previous tail flushed so future tc_release_table calls destroy v1's
+    TABLEs instead of caching them, and we eagerly drain whatever idle
+    TABLEs are already in free_tables[] here. In-use TABLEs (table->in_use
+    != 0) are not in free_tables[] by invariant; they continue serving
+    their statement and get destroyed later when that statement ends.
+    Once both routes drop v1's ref_count to 0, tdc_release_share's OLDER
+    branch GCs the version.
+  */
+  Share_free_tables::List purge_tables;
+
+  mysql_mutex_lock(&e->LOCK_table_share);
+  v->schema_version= ++e->next_schema_version;
+  v->prev= e->versions_tail;
+  v->next= 0;
+  if (e->versions_tail)
+  {
+    e->versions_tail->next= v;
+    e->versions_tail->flushed= true;
+    tc_remove_all_unused_tables(e->versions_tail, &purge_tables);
+  }
+  e->versions_tail= v;
+  if (!e->versions_head)
+    e->versions_head= v;
+  v->share->version= v;
+  mysql_mutex_unlock(&e->LOCK_table_share);
+
+  while (auto table= purge_tables.pop_front())
+    intern_close_table(table);
+}
+
+
+/**
+  Remove an OLDER (i.e. non-tail) TABLE_SHARE_VERSION from a TDC_element's
+  chain and free its TABLE_SHARE and the version itself.
+
+  Called from tdc_release_share's OLDER branch when an OLDER version's
+  ref_count drops to 0 (the last in-use TABLE was destroyed or the last
+  binding to it was released).
+
+  Caller must own e->LOCK_table_share. v must satisfy:
+    - v != e->versions_tail (the current version is never GC'd here;
+      it's freed by tdc_delete_share_from_hash when the element is removed)
+    - v->ref_count == 0
+*/
+
+void tdc_gc_version(TDC_element *e, TABLE_SHARE_VERSION *v)
+{
+  mysql_mutex_assert_owner(&e->LOCK_table_share);
+  DBUG_ASSERT(v != e->versions_tail);
+  DBUG_ASSERT(v->ref_count == 0);
+
+  if (v->prev)
+    v->prev->next= v->next;
+  if (v->next)
+    v->next->prev= v->prev;
+  if (v == e->versions_head)
+    e->versions_head= v->next;
+
+  TABLE_SHARE *share= v->share;
+  v->share= 0;
+  v->next= v->prev= 0;
+  free_table_share(share);
+  tdc_free_version(v);
+}
+
+
+/**
+  Free a TABLE_SHARE_VERSION. The caller must have already detached it from
+  any TDC_element's chain and freed the underlying TABLE_SHARE (so
+  v->share is 0). DBUG_ASSERTs below enforce the expected clean state:
+  no share, no refs, empty all_tables, no MDL deadlock-detector refs on
+  all_tables, and empty per-instance free_tables[].
+*/
+
+void tdc_free_version(TABLE_SHARE_VERSION *v)
+{
+  DBUG_ASSERT(v->share == 0);
+  DBUG_ASSERT(v->ref_count == 0);
+  DBUG_ASSERT(v->all_tables.is_empty());
+  DBUG_ASSERT(v->all_tables_refs == 0);
+#ifndef DBUG_OFF
+  for (uint32 i= 0; i < tc_instances; i++)
+    DBUG_ASSERT(v->free_tables[i].list.is_empty());
+#endif
+  my_free(v);
 }
 
 
@@ -615,9 +781,7 @@ bool tdc_init(void)
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
-  lf_hash_init(&tdc_hash,
-               sizeof(TDC_element) +
-                   sizeof(Share_free_tables) * (tc_instances - 1),
+  lf_hash_init(&tdc_hash, sizeof(TDC_element),
                LF_HASH_UNIQUE, 0, 0, tdc_hash_key, &my_charset_bin);
   tdc_hash.alloc.constructor= lf_alloc_constructor;
   tdc_hash.alloc.destructor= lf_alloc_destructor;
@@ -747,7 +911,7 @@ void tdc_purge(bool all)
     element->prev= 0;
     element->next= 0;
     mysql_mutex_lock(&element->LOCK_table_share);
-    if (element->ref_count)
+    if (element->current() && element->current()->ref_count)
     {
       mysql_mutex_unlock(&element->LOCK_table_share);
       mysql_mutex_unlock(&LOCK_unused_shares);
@@ -793,7 +957,8 @@ TDC_element *tdc_lock_share(THD *thd, const char *db, const char *table_name)
   if (element)
   {
     mysql_mutex_lock(&element->LOCK_table_share);
-    if (unlikely(!element->share || element->share->error))
+    if (unlikely(!element->current() ||
+                 !element->current()->share || element->current()->share->error))
     {
       mysql_mutex_unlock(&element->LOCK_table_share);
       element= 0;
@@ -857,6 +1022,8 @@ TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
 {
   TABLE_SHARE *share;
   TDC_element *element;
+  TABLE_SHARE_VERSION *bound= NULL;
+  TABLE_SHARE_VERSION *cur;
   const char *key;
   uint key_length= get_table_def_key(tl, &key);
   my_hash_value_type hash_value= tl->mdl_request.key.tc_hash_value();
@@ -865,6 +1032,62 @@ TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
 
   if (fix_thd_pins(thd))
     DBUG_RETURN(0);
+
+  /*
+    If this transaction is already bound to a version of this name, use
+    that version (which may be OLDER than versions_tail when DDL has
+    installed newer versions). The binding pins the version via
+    ref_count, so it stays alive for the rest of this transaction.
+
+    GTS_FORCE_DISCOVERY and GTS_NOLOCK callers don't want a binding-based
+    fast path — they explicitly want to re-read from disk or merely probe
+    existence — so they go through the lf_hash lookup path.
+  */
+  if (!(flags & (GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
+    bound= thd->lookup_schema_binding((const uchar*) key, key_length);
+
+  if (bound)
+  {
+    element= bound->share->tdc;
+    share= bound->share;
+    DBUG_ASSERT(share->tdc == element);
+
+    if (out_table && (flags & GTS_TABLE))
+    {
+      if ((*out_table= tc_acquire_table(thd, bound)))
+      {
+        DBUG_ASSERT(!share->error);
+        DBUG_ASSERT(!share->is_view);
+        status_var_increment(thd->status_var.table_open_cache_hits);
+        goto end;
+      }
+      status_var_increment(thd->status_var.table_open_cache_misses);
+    }
+
+    mysql_mutex_lock(&element->LOCK_table_share);
+    if (unlikely(share->error))
+    {
+      open_table_error(share, share->error, share->open_errno);
+      goto err;
+    }
+    if (share->is_view && !(flags & GTS_VIEW))
+    {
+      open_table_error(share, OPEN_FRM_NOT_A_TABLE, ENOENT);
+      goto err;
+    }
+    if (!share->is_view && !(flags & GTS_TABLE))
+    {
+      open_table_error(share, OPEN_FRM_NOT_A_VIEW, ENOENT);
+      goto err;
+    }
+    /*
+      Bound version has ref_count >= 1 (the binding pin), so was_unused is
+      always false here — no unused_shares LRU dance needed.
+    */
+    bound->ref_count++;
+    mysql_mutex_unlock(&element->LOCK_table_share);
+    goto end;
+  }
 
 retry:
   while (!(element= (TDC_element*) lf_hash_search_using_hash_value(&tdc_hash,
@@ -881,14 +1104,22 @@ retry:
     element= (TDC_element*) lf_hash_search_using_hash_value(&tdc_hash,
              thd->tdc_hash_pins, hash_value, (uchar*) key, key_length);
     /* It's safe to unpin the pins here, because an empty element was inserted
-    above, "empty" means at least element->share = 0. Some other thread can't
-    delete it while element->share == 0. And element->share is also protected
-    with element->LOCK_table_share mutex. */
+    above, "empty" means at least element->versions_tail = 0. Some other
+    thread can't delete it while versions_tail == 0. And the chain is
+    protected with element->LOCK_table_share mutex. */
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 
+    TABLE_SHARE_VERSION *version= tdc_alloc_version();
+    if (!version)
+    {
+      lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
+      DBUG_RETURN(0);
+    }
+
     if (!(share= alloc_table_share(tl->db.str, tl->table_name.str, key, key_length)))
     {
+      tdc_free_version(version);
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);
     }
@@ -899,16 +1130,21 @@ retry:
     if (checked_unlikely(share->error))
     {
       free_table_share(share);
+      tdc_free_version(version);
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);
     }
 
-    mysql_mutex_lock(&element->LOCK_table_share);
-    element->share= share;
+    /*
+      version is freshly allocated and not yet visible to other threads;
+      the field sets below don't need LOCK_table_share. tdc_install_version
+      takes the lock internally to chain the version into element->versions_*.
+    */
+    version->share= share;
+    version->ref_count= 1;
+    version->flushed= false;
     share->tdc= element;
-    element->ref_count++;
-    element->flushed= false;
-    mysql_mutex_unlock(&element->LOCK_table_share);
+    tdc_install_version(element, version);
 
     tdc_purge(false);
     if (out_table)
@@ -923,23 +1159,44 @@ retry:
   /* cannot force discovery of a cached share */
   DBUG_ASSERT(!(flags & GTS_FORCE_DISCOVERY));
 
+  /*
+    The LF_HASH pin protects the TDC_element memory but NOT the heap-allocated
+    TABLE_SHARE_VERSION it points to: a concurrent tdc_purge can drop the
+    element off unused_shares LRU and free its versions while we still hold
+    the pin. Take LOCK_table_share before reading element->current() so the
+    version stays pinned while we use it. The lock is held continuously
+    through both the cache-hit fast path and the slow path; tc_acquire_table
+    nests fine because LOCK_table_share → tc[i].LOCK_table_cache is the same
+    ordering tc_remove_all_unused_tables already uses.
+  */
+  mysql_mutex_lock(&element->LOCK_table_share);
+  cur= element->current();
+  if (!cur)
+  {
+    mysql_mutex_unlock(&element->LOCK_table_share);
+    lf_hash_search_unpin(thd->tdc_hash_pins);
+    std::this_thread::yield();
+    goto retry;
+  }
+
   if (out_table && (flags & GTS_TABLE))
   {
-    if ((*out_table= tc_acquire_table(thd, element)))
+    if ((*out_table= tc_acquire_table(thd, cur)))
     {
-      lf_hash_search_unpin(thd->tdc_hash_pins);
       DBUG_ASSERT(!(flags & GTS_NOLOCK));
-      DBUG_ASSERT(element->share);
-      DBUG_ASSERT(!element->share->error);
-      DBUG_ASSERT(!element->share->is_view);
+      DBUG_ASSERT(cur->share);
+      DBUG_ASSERT(!cur->share->error);
+      DBUG_ASSERT(!cur->share->is_view);
       status_var_increment(thd->status_var.table_open_cache_hits);
-      DBUG_RETURN(element->share);
+      share= cur->share;
+      mysql_mutex_unlock(&element->LOCK_table_share);
+      lf_hash_search_unpin(thd->tdc_hash_pins);
+      goto end;
     }
     status_var_increment(thd->status_var.table_open_cache_misses);
   }
 
-  mysql_mutex_lock(&element->LOCK_table_share);
-  if (!(share= element->share))
+  if (!(share= cur->share))
   {
     mysql_mutex_unlock(&element->LOCK_table_share);
     lf_hash_search_unpin(thd->tdc_hash_pins);
@@ -969,8 +1226,8 @@ retry:
     goto err;
   }
 
-  was_unused= !element->ref_count;
-  element->ref_count++;
+  was_unused= !cur->ref_count;
+  cur->ref_count++;
   mysql_mutex_unlock(&element->LOCK_table_share);
   if (was_unused)
   {
@@ -991,7 +1248,23 @@ retry:
 
 end:
   DBUG_PRINT("exit", ("share: %p  ref_count: %u",
-                      share, share->tdc->ref_count));
+                      share, share->version->ref_count));
+  /*
+    Record that this transaction is using the current version of this
+    name. The binding pins the version via ref_count and is released at
+    end of transaction by MDL_context::release_transactional_locks().
+
+    If we took the bound branch above, `bound` is non-NULL and we already
+    have a binding to that version — skip. Otherwise install a binding to
+    the version we just acquired (which is current() since the unbound
+    path always uses current()). Skip for GTS_NOLOCK callers (they're
+    just probing existence).
+  */
+  if (!(flags & GTS_NOLOCK) && !bound)
+  {
+    (void) thd->add_schema_binding((const uchar*) key, key_length,
+                                   share->version);
+  }
   if (flags & GTS_NOLOCK)
   {
     tdc_release_share(share);
@@ -1018,46 +1291,82 @@ err:
 
 void tdc_release_share(TABLE_SHARE *share)
 {
+  TABLE_SHARE_VERSION *v= share->version;
+  TDC_element *e= share->tdc;
   DBUG_ENTER("tdc_release_share");
+  DBUG_ASSERT(v);
 
-  mysql_mutex_lock(&share->tdc->LOCK_table_share);
+  mysql_mutex_lock(&e->LOCK_table_share);
   DBUG_PRINT("enter",
              ("share: %p  table: %s.%s  ref_count: %u",
-              share, share->db.str, share->table_name.str,
-              share->tdc->ref_count));
-  DBUG_ASSERT(share->tdc->ref_count);
+              share, share->db.str, share->table_name.str, v->ref_count));
+  DBUG_ASSERT(v->ref_count);
 
-  if (share->tdc->ref_count > 1)
+  /*
+    OLDER version: not visible to new opens. Decrement and, if no refs
+    remain, GC the version. No LRU/eviction logic — OLDER versions are
+    transient; they only exist while in-flight transactions still pin them.
+  */
+  if (v != e->versions_tail)
   {
-    share->tdc->ref_count--;
+    --v->ref_count;
     if (!share->is_view)
-      mysql_cond_broadcast(&share->tdc->COND_release);
-    mysql_mutex_unlock(&share->tdc->LOCK_table_share);
+      mysql_cond_broadcast(&e->COND_release);
+    if (v->ref_count == 0)
+      tdc_gc_version(e, v);
+    mysql_mutex_unlock(&e->LOCK_table_share);
     DBUG_VOID_RETURN;
   }
-  mysql_mutex_unlock(&share->tdc->LOCK_table_share);
+
+  /* CURRENT (versions_tail) — existing LRU/eviction behavior. */
+  if (v->ref_count > 1)
+  {
+    v->ref_count--;
+    if (!share->is_view)
+      mysql_cond_broadcast(&e->COND_release);
+    mysql_mutex_unlock(&e->LOCK_table_share);
+    DBUG_VOID_RETURN;
+  }
+  mysql_mutex_unlock(&e->LOCK_table_share);
 
   mysql_mutex_lock(&LOCK_unused_shares);
-  mysql_mutex_lock(&share->tdc->LOCK_table_share);
-  if (--share->tdc->ref_count)
+  mysql_mutex_lock(&e->LOCK_table_share);
+  if (--v->ref_count)
   {
     if (!share->is_view)
-      mysql_cond_broadcast(&share->tdc->COND_release);
-    mysql_mutex_unlock(&share->tdc->LOCK_table_share);
+      mysql_cond_broadcast(&e->COND_release);
+    mysql_mutex_unlock(&e->LOCK_table_share);
     mysql_mutex_unlock(&LOCK_unused_shares);
     DBUG_VOID_RETURN;
   }
-  if (share->tdc->flushed || tdc_records() > tdc_size)
+  /*
+    CURRENT's ref_count just hit 0. We may only put the element on the
+    unused_shares LRU or delete it from the hash when the chain holds
+    exactly one version (this one). If OLDER versions are still pinned
+    (in-use TABLEs from DMLs bound to earlier versions), the element is
+    not truly idle and must stay out of the LRU. Some future event — the
+    last OLDER version's GC, or a fresh open re-bumping ref_count — will
+    bring this element back into a normal state.
+  */
+  if (e->versions_head != e->versions_tail)
+  {
+    if (!share->is_view)
+      mysql_cond_broadcast(&e->COND_release);
+    mysql_mutex_unlock(&e->LOCK_table_share);
+    mysql_mutex_unlock(&LOCK_unused_shares);
+    DBUG_VOID_RETURN;
+  }
+  if (v->flushed || tdc_records() > tdc_size)
   {
     mysql_mutex_unlock(&LOCK_unused_shares);
-    tdc_delete_share_from_hash(share->tdc);
+    tdc_delete_share_from_hash(e);
     DBUG_VOID_RETURN;
   }
   /* Link share last in used_table_share list */
   DBUG_PRINT("info", ("moving share to unused list"));
-  DBUG_ASSERT(share->tdc->next == 0);
-  unused_shares.push_back(share->tdc);
-  mysql_mutex_unlock(&share->tdc->LOCK_table_share);
+  DBUG_ASSERT(e->next == 0);
+  unused_shares.push_back(e);
+  mysql_mutex_unlock(&e->LOCK_table_share);
   mysql_mutex_unlock(&LOCK_unused_shares);
   DBUG_VOID_RETURN;
 }
@@ -1068,12 +1377,21 @@ void tdc_remove_referenced_share(THD *thd, TABLE_SHARE *share)
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
                                              share->table_name.str,
                                              MDL_EXCLUSIVE));
+  /*
+    The share is about to be deleted from the TDC. Drop our own schema
+    binding (if any) so it doesn't dangle past share deletion and so the
+    wait/decrement below sees the expected ref_count.
+  */
+  thd->remove_schema_binding(
+    reinterpret_cast<const uchar*>(share->table_cache_key.str),
+    share->table_cache_key.length);
+
   share->tdc->flush_unused(true);
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
   DEBUG_SYNC(thd, "before_wait_for_refs");
   share->tdc->wait_for_refs(1);
-  DBUG_ASSERT(share->tdc->all_tables.is_empty());
-  share->tdc->ref_count--;
+  DBUG_ASSERT(share->version->all_tables.is_empty());
+  share->version->ref_count--;
   tdc_delete_share_from_hash(share->tdc);
 }
 
@@ -1107,7 +1425,7 @@ void tdc_remove_table(THD *thd, const char *db, const char *table_name)
 
   DBUG_ASSERT(element != MY_ERRPTR); // What can we do about it?
 
-  if (!element->ref_count)
+  if (!element->current()->ref_count)
   {
     if (element->prev)
     {
@@ -1122,11 +1440,11 @@ void tdc_remove_table(THD *thd, const char *db, const char *table_name)
   }
   mysql_mutex_unlock(&LOCK_unused_shares);
 
-  element->ref_count++;
+  element->current()->ref_count++;
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   /* We have to relock the mutex to avoid code duplication. Sigh. */
-  tdc_remove_referenced_share(thd, element->share);
+  tdc_remove_referenced_share(thd, element->current()->share);
   DBUG_VOID_RETURN;
 }
 
@@ -1154,11 +1472,12 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
     return FALSE;
   else if (element == MY_ERRPTR)
     return TRUE;
-  else if (element->flushed)
+  else if (element->current()->flushed)
   {
     struct timespec abstime;
     set_timespec(abstime, wait_timeout);
-    return element->share->wait_for_old_version(thd, &abstime, deadlock_weight);
+    return element->current()->share->wait_for_old_version(thd, &abstime,
+                                                           deadlock_weight);
   }
   tdc_unlock_share(element);
   return FALSE;
@@ -1301,7 +1620,7 @@ int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
 
 void TDC_element::wait_for_refs(uint my_refs)
 {
-  while (ref_count > my_refs)
+  while (current()->ref_count > my_refs)
     mysql_cond_wait(&COND_release, &LOCK_table_share);
 }
 
@@ -1319,20 +1638,51 @@ void TDC_element::wait_for_refs(uint my_refs)
 
 void TDC_element::flush(THD *thd, bool mark_flushed)
 {
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
-                                             share->table_name.str,
+  DBUG_ASSERT(current());
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                             current()->share->db.str,
+                                             current()->share->table_name.str,
                                              MDL_EXCLUSIVE));
+  const uchar *key=
+    reinterpret_cast<const uchar*>(current()->share->table_cache_key.str);
+  uint key_len= current()->share->table_cache_key.length;
+
+  /*
+    If mark_flushed, the share is going away — drop our binding before
+    the drain so the wait doesn't include our binding's pin and so the
+    binding doesn't dangle past share deletion.
+  */
+  if (mark_flushed)
+    thd->remove_schema_binding(key, key_len);
 
   flush_unused(mark_flushed);
 
   mysql_mutex_lock(&LOCK_table_share);
-  All_share_tables_list::Iterator it(all_tables);
+  /*
+    Between the unlock in flush_unused and the re-lock here, a concurrent
+    tdc_purge may have picked our element off the unused_shares LRU and
+    deleted it (the element's memory persists via LF_HASH hazard pointer
+    so the mutex above is still valid, but current() is NULL now). With
+    the share already gone there's nothing left to drain or wait for.
+  */
+  if (!current())
+  {
+    mysql_mutex_unlock(&LOCK_table_share);
+    return;
+  }
+  All_share_tables_list::Iterator it(current()->all_tables);
   uint my_refs= 0;
   while (auto table= it++)
   {
     if (table->in_use == thd)
       my_refs++;
   }
+  /*
+    If we didn't drop our binding above, it still pins +1 to ref_count.
+    Count it so the wait doesn't hang.
+  */
+  if (thd->lookup_schema_binding(key, key_len) == current())
+    my_refs++;
   wait_for_refs(my_refs);
 #ifndef DBUG_OFF
   it.rewind();
@@ -1352,9 +1702,10 @@ void TDC_element::flush_unused(bool mark_flushed)
   Share_free_tables::List purge_tables;
 
   mysql_mutex_lock(&LOCK_table_share);
-  if (mark_flushed)
-    flushed= true;
-  tc_remove_all_unused_tables(this, &purge_tables);
+  if (mark_flushed && current())
+    current()->flushed= true;
+  if (current())
+    tc_remove_all_unused_tables(current(), &purge_tables);
   mysql_mutex_unlock(&LOCK_table_share);
 
   while (auto table= purge_tables.pop_front())

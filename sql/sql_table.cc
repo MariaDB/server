@@ -10728,6 +10728,82 @@ const char *online_alter_check_supported(THD *thd,
 
 
 /**
+  Install a new table-definition version for a DDL that changed only the
+  .frm (no storage-engine change), without the SU->X upgrade that ordinary
+  ALTER performs at commit.
+
+  Precondition: the new .frm is already on disk under the table's real name
+  (the caller has built and swapped it in). This reads that .frm into a
+  fresh TABLE_SHARE and appends it as the new tail of the share's version
+  chain via tdc_install_version, demoting the previous tail.
+
+  Transactions already bound to the previous version keep using it (and the
+  old .frm contents) until they end; new opens get the new version. There is
+  no drain of in-use TABLEs and no close_all_tables_for_name, so the SU MDL
+  we still hold stays compatible with concurrent SR/SW and DMLs are not
+  blocked.
+
+  @return false on success, true on error.
+*/
+
+static bool install_lockfree_frm_version(THD *thd, TABLE_SHARE *old_share)
+{
+  DBUG_ENTER("install_lockfree_frm_version");
+
+  TDC_element *element= old_share->tdc;
+
+  /*
+    Allocate a fresh TABLE_SHARE for the new version. alloc_table_share
+    sets the .frm path based on (db, table_name), so open_table_def will
+    read the new on-disk .frm the caller just installed.
+  */
+  TABLE_SHARE *new_share= alloc_table_share(old_share->db.str,
+                                            old_share->table_name.str,
+                                            old_share->table_cache_key.str,
+                                            old_share->table_cache_key.length);
+  if (!new_share)
+    DBUG_RETURN(true);
+
+  open_table_def(thd, new_share, GTS_TABLE | GTS_USE_DISCOVERY);
+  if (new_share->error != OPEN_FRM_OK)
+  {
+    free_table_share(new_share);
+    DBUG_RETURN(true);
+  }
+
+  /* Allocate the new version. */
+  TABLE_SHARE_VERSION *v2= tdc_alloc_version();
+  if (!v2)
+  {
+    free_table_share(new_share);
+    DBUG_RETURN(true);
+  }
+
+  /*
+    Install v2 as the new tail of the version chain. tdc_install_version
+    internally marks the previous tail as flushed and drains its cached
+    (idle) TABLEs in free_tables[]. In-use TABLEs (DMLs mid-statement) are
+    not touched; they get destroyed when their statement ends via
+    tc_release_table's flushed check.
+
+    The previous version stays alive while bound transactions reference it.
+    When the last such binding releases (at txn commit/rollback) and the
+    last cached TABLE in its free_tables[] is destroyed, its ref_count hits
+    0 and tdc_release_share GCs it via the OLDER branch (tdc_gc_version).
+  */
+  v2->share= new_share;
+  v2->ref_count= 0;
+  v2->flushed= false;
+  new_share->tdc= element;
+  tdc_install_version(element, v2);
+
+  new_share->m_psi= PSI_CALL_get_table_share(false, new_share);
+
+  DBUG_RETURN(false);
+}
+
+
+/**
   Alter table
 
   @param thd              Thread handle
@@ -10778,6 +10854,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
+  bool lockfree_frm_alter= false; /* Gated lock-free .frm-only DDL (COMMENT) */
   TABLE *table, *new_table= nullptr;
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
@@ -11027,7 +11104,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       Table is a shared table. Remove the .frm file. Discovery will create
       a new one if needed.
     */
-    table->s->tdc->flushed= 1;         // Force close of all instances
+    table->s->version->flushed= 1; // Force close of all instances
     if (thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_EXCLUSIVE,
                                              thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
@@ -11047,6 +11124,42 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   table_creation_was_logged= table->s->table_creation_was_logged;
 
   table->use_all_columns();
+
+  /*
+    Detect the lock-free subset: DDLs that change only SQL-layer metadata
+    in the .frm and need no storage-engine change. Currently scoped to
+    "ALTER TABLE t COMMENT='...'". Everything else falls through to the
+    regular drain-and-replace path.
+
+    Conditions:
+      - Pure SQL ALTER (not partition admin or similar).
+      - The only operation is a change of table options (ALTER_OPTIONS),
+        and the only option touched is COMMENT. Together these identify
+        "ALTER TABLE t COMMENT='...'" and nothing else.
+      - Not a rename.
+      - Base table, not a system or log table.
+      - No explicit ALGORITHM= or LOCK= clause: those express an intent
+        (e.g. ALGORITHM=COPY, LOCK=EXCLUSIVE) that the lock-free path would
+        silently override, so we leave them to the regular path.
+      - Not under LOCK TABLES (the regular path has subtle locked-tables
+        bookkeeping we don't replicate here).
+
+    The flag is captured here, before alter_info->flags can be modified
+    further below, but the lock-free finalize runs after create_table_impl()
+    has built the new .frm (see the divert near no_ha_table=true): we reuse
+    that .frm rather than rebuilding the create machinery here.
+  */
+  lockfree_frm_alter=
+      (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+       alter_info->flags == ALTER_OPTIONS &&
+       create_info->used_fields == HA_CREATE_USED_COMMENT &&
+       alter_info->algorithm_not_specified() &&
+       alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT &&
+       !alter_ctx.is_table_renamed() &&
+       table->s->tmp_table == NO_TMP_TABLE &&
+       table->s->table_category == TABLE_CATEGORY_USER &&
+       thd->locked_tables_mode != LTM_LOCK_TABLES &&
+       thd->locked_tables_mode != LTM_PRELOCKED_UNDER_LOCK_TABLES);
 
   /*
     Prohibit changing of the UNION list of a non-temporary MERGE table
@@ -11655,6 +11768,89 @@ do_continue:;
 
   /* Remember that we have not created table in storage engine yet. */
   no_ha_table= true;
+
+  /*
+    The !require_copy_algorithm guard preserves the engine's verdict on
+    whether the on-disk data must be rewritten. ha_check_for_upgrade() above
+    sets it when the engine reports HA_ADMIN_NEEDS_DATA_CONVERSION (e.g. an
+    old-format table whose row layout doesn't match what Create_field::
+    upgrade_data_types() just promoted create_list to). Schema versioning
+    relaxes the "only one share at a time" invariant; it does NOT relax the
+    "frm and data must stay coherent" invariant. If the engine says the data
+    needs work, we fall through to the regular drain-and-copy path.
+  */
+  if (lockfree_frm_alter && !require_copy_algorithm)
+  {
+    /*
+      Lock-free finalize for an .frm-only DDL (ALTER ... COMMENT).
+
+      create_table_impl() above built the new .frm image (with the new
+      comment and a fresh tabledef_version) in memory only (FRM_ONLY does not
+      touch disk). Install it without the SU->X upgrade ordinary ALTER does
+      at commit:
+
+        * write the image to the temporary .frm, then atomically rename it
+          over the old .frm. The engine and its data are untouched by a
+          comment change, so this is a pure .frm (+.par) swap, exactly as the
+          inplace path does at commit.
+        * build the new version from that .frm and append it to the share's
+          version chain (install_lockfree_frm_version), demoting the old one.
+
+      No close_all_tables_for_name and no MDL upgrade: transactions bound to
+      the old version keep running and seeing the old comment; new opens see
+      the new one. Concurrent SR/SW are never drained.
+    */
+    {
+      char tmp_frm_name[FN_REFLEN+1];
+      strxmov(tmp_frm_name, alter_ctx.get_tmp_path(), reg_ext, NullS);
+      if (writefile(tmp_frm_name, alter_ctx.db.str, alter_ctx.table_name.str,
+                    false, frm.str, frm.length))
+        goto err_new_table_cleanup;
+    }
+    if (mysql_rename_table(old_db_type,
+                           &alter_ctx.new_db, &alter_ctx.tmp_name,
+                           &alter_ctx.db, &alter_ctx.alias,
+                           &alter_ctx.tmp_id,
+                           QRMT_FRM | QRMT_PAR | FN_FROM_IS_TMP))
+      goto err_new_table_cleanup;
+
+    /*
+      The new .frm is now committed on disk. install_lockfree_frm_version
+      reads it back into the new version. If that fails we cannot roll the
+      .frm back, but the next open will pick up the on-disk definition.
+    */
+    if (install_lockfree_frm_version(thd, table->s))
+      goto err_cleanup;
+
+    /*
+      Replicate the DDL: write the original statement text to the binlog.
+      DDL is always statement-logged regardless of binlog_format; the replica
+      re-executes the same ALTER and its own gate produces a matching version
+      chain. Pattern mirrors simple_rename_or_index_change (sql_table.cc):
+      bind binlog_xid so the DDL-log entry knows which binlog transaction it
+      correlates with, write the event, then complete the DDL log.
+    */
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+    {
+      thd->binlog_xid= 0;
+      goto err_cleanup;
+    }
+    thd->binlog_xid= 0;
+
+    ddl_log_complete(&ddl_log_state);
+    my_free(const_cast<uchar*>(frm.str));
+    frm.str= 0;
+
+    /* Report success the same way the regular ALTER no-op path does. */
+    char tmp_buff[80];
+    my_snprintf(tmp_buff, sizeof(tmp_buff),
+                ER_THD(thd, ER_INSERT_INFO), 0L, 0L,
+                thd->get_stmt_da()->current_statement_warn_count());
+    my_ok(thd, 0L, 0L, tmp_buff);
+    DBUG_RETURN(false);
+  }
 
   if (alter_info->algorithm(thd) != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
   {

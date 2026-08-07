@@ -27,33 +27,81 @@ struct Share_free_tables
 };
 
 
+/**
+  One schema version of a table.
+
+  TDC_element holds a doubly-linked list of TABLE_SHARE_VERSIONs ordered
+  oldest → newest, with versions_tail being the version served to new opens.
+  In-flight transactions keep using an older TABLE_SHARE_VERSION while DDL
+  appends a newer one as the new tail.
+
+  All per-share TABLE-cache state lives here: every TABLE points to one share,
+  and a TABLE_SHARE_VERSION owns the set of TABLEs for its version (both the
+  in-use list `all_tables` and the per-cache-instance idle list `free_tables`).
+*/
+
+struct TABLE_SHARE_VERSION
+{
+  /**
+    Monotonic version number, allocated from TDC_element::next_schema_version
+    at install time. Unique within the lifetime of one TDC_element entry;
+    used for ordering and diagnostics. Not persisted, not propagated via
+    replication. For cross-server schema fingerprinting see
+    TABLE_SHARE::tabledef_version (UUID for tables, timestamp for views).
+  */
+  uint64_t schema_version;
+  TABLE_SHARE *share;
+  uint ref_count;                       /* How many TABLE objects use this */
+  uint all_tables_refs;                 /* Number of refs to all_tables */
+  bool flushed;
+  /** Chain links in TDC_element. NULL on a version that hasn't been
+      installed yet, or after it's been GC'd. */
+  TABLE_SHARE_VERSION *next, *prev;
+  /*
+    Doubly-linked (back-linked) lists of used and unused TABLE objects
+    for this version. Protected by TDC_element::LOCK_table_share and
+    (for free_tables[i]) tc[i].LOCK_table_cache.
+  */
+  All_share_tables_list all_tables;
+  /** Avoid false sharing between header fields and free_tables */
+  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
+  /** Idle TABLE objects per cache instance. Sized to tc_instances at alloc. */
+  Share_free_tables free_tables[1];
+};
+
+
 struct TDC_element
 {
   uchar m_key[NAME_LEN + 1 + NAME_LEN + 1];
   uint m_key_length;
-  bool flushed;
-  TABLE_SHARE *share;
 
   /**
-    Protects ref_count, m_flush_tickets, all_tables, flushed, all_tables_refs.
+    Protects m_flush_tickets, the version chain
+    (versions_head/versions_tail/next_schema_version), and the mutable fields
+    inside each TABLE_SHARE_VERSION (ref_count, share, flushed, next/prev,
+    all_tables, all_tables_refs).
   */
   mysql_mutex_t LOCK_table_share;
   mysql_cond_t COND_release;
   TDC_element *next, **prev;            /* Link to unused shares */
-  uint ref_count;                       /* How many TABLE objects uses this */
-  uint all_tables_refs;                 /* Number of refs to all_tables */
   /**
     List of tickets representing threads waiting for the share to be flushed.
+    Per-name, not per-version: a flush wakes up everyone waiting on this name.
   */
   Wait_for_flush_list m_flush_tickets;
-  /*
-    Doubly-linked (back-linked) lists of used and unused TABLE objects
-    for this share.
+
+  /**
+    Version chain. Ordered oldest → newest. versions_tail is the version
+    served to new opens (== "current"). NULL when the element is being
+    initialized (between lf_hash_insert and the first tdc_install_version).
   */
-  All_share_tables_list all_tables;
-  /** Avoid false sharing between TDC_element and free_tables */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
-  Share_free_tables free_tables[1];
+  TABLE_SHARE_VERSION *versions_head;
+  TABLE_SHARE_VERSION *versions_tail;
+  /** Per-element monotonic counter for TABLE_SHARE_VERSION::schema_version. */
+  uint64_t next_schema_version;
+
+  /** The version served to new opens; NULL if none installed yet. */
+  TABLE_SHARE_VERSION *current() const { return versions_tail; }
 
   inline void wait_for_refs(uint my_refs);
   void flush(THD *thd, bool mark_flushed);
@@ -92,7 +140,18 @@ int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
 extern void tc_purge();
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
-extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
+extern TABLE *tc_acquire_table(THD *thd, TABLE_SHARE_VERSION *version);
+
+/*
+  Multi-version TDC helpers (used by lock-free DDL paths).
+  Callers must hold LOCK_table_share for tdc_install_version and
+  tdc_gc_version. tdc_alloc_version/tdc_free_version do their own
+  allocation without locks.
+*/
+extern TABLE_SHARE_VERSION *tdc_alloc_version();
+extern void tdc_free_version(TABLE_SHARE_VERSION *v);
+extern void tdc_install_version(TDC_element *e, TABLE_SHARE_VERSION *v);
+extern void tdc_gc_version(TDC_element *e, TABLE_SHARE_VERSION *v);
 
 /**
   Create a table cache key for non-temporary table.

@@ -94,7 +94,12 @@ static my_bool print_cached_tables_callback(void *el, void*)
   TABLE *entry;
 
   mysql_mutex_lock(&element->LOCK_table_share);
-  All_share_tables_list::Iterator it(element->all_tables);
+  if (!element->current())
+  {
+    mysql_mutex_unlock(&element->LOCK_table_share);
+    return FALSE;
+  }
+  All_share_tables_list::Iterator it(element->current()->all_tables);
   while ((entry= it++))
   {
     THD *in_use= entry->in_use;

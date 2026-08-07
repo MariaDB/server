@@ -1,0 +1,228 @@
+#
+# Setup
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB COMMENT='v1';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v1
+#
+# 1. Cross-session visibility: a new session sees the new comment at once.
+#
+connect  con_reader,localhost,root,,;
+connection default;
+ALTER TABLE t1 COMMENT='v2';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v2
+connection con_reader;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v2
+disconnect con_reader;
+#
+# 2. Non-blocking: the ALTER does not wait for a concurrent open
+#    transaction that has already read the table. With a short
+#    lock_wait_timeout the old (drain-to-X) path would time out here;
+#    the lock-free path succeeds immediately.
+#
+connect  con_holder,localhost,root,,;
+BEGIN;
+SELECT * FROM t1;
+a
+connection default;
+SET SESSION lock_wait_timeout=2;
+ALTER TABLE t1 COMMENT='v3';
+SET SESSION lock_wait_timeout=DEFAULT;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v3
+#
+# 3. Versioning: the holder transaction still sees its bound version,
+#    while a brand-new transaction sees the installed version.
+#
+connection con_holder;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v2
+connect  con_fresh,localhost,root,,;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v3
+disconnect con_fresh;
+connection con_holder;
+COMMIT;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+v3
+disconnect con_holder;
+connection default;
+#
+# 4. Gate fall-through: explicit ALGORITHM=/LOCK= or any extra operation
+#    must NOT be hijacked into the lock-free path. With a holder
+#    transaction open and lock_wait_timeout=2, the regular path blocks
+#    at the X upgrade and returns ER_LOCK_WAIT_TIMEOUT. The timeout is
+#    the assertion that the gate fell through.
+#
+connect  con_holder,localhost,root,,;
+BEGIN;
+SELECT * FROM t1;
+a
+connection default;
+SET SESSION lock_wait_timeout=2;
+ALTER TABLE t1 COMMENT='copy', ALGORITHM=COPY;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t1 COMMENT='ex', LOCK=EXCLUSIVE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t1 COMMENT='add', ADD COLUMN c INT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET SESSION lock_wait_timeout=DEFAULT;
+connection con_holder;
+COMMIT;
+disconnect con_holder;
+connection default;
+#
+# 5. Persistence: the comment survives a server restart.
+#
+ALTER TABLE t1 COMMENT='persisted';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+persisted
+# restart
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+persisted
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='persisted'
+#
+# 6. Engine-agnostic: COMMENT lives only in the .frm; no engine inspects
+#    or stores it. Verify the lock-free path also works on MyISAM and
+#    Aria (InnoDB is covered by sections 1-5 above).
+#
+# MyISAM
+CREATE TABLE t2 (a INT) ENGINE=MyISAM COMMENT='v1';
+ALTER TABLE t2 COMMENT='v2';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t2';
+table_comment
+v2
+connect  con_eng,localhost,root,,;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t2';
+table_comment
+v2
+disconnect con_eng;
+connection default;
+DROP TABLE t2;
+# Aria
+CREATE TABLE t2 (a INT) ENGINE=Aria COMMENT='v1';
+ALTER TABLE t2 COMMENT='v2';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t2';
+table_comment
+v2
+connect  con_eng,localhost,root,,;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t2';
+table_comment
+v2
+disconnect con_eng;
+connection default;
+DROP TABLE t2;
+#
+# 7. Edge-value comments: the .frm rewrite path must handle empty,
+#    multi-byte (UTF-8) and embedded-quote payloads.
+#
+ALTER TABLE t1 COMMENT='';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+
+ALTER TABLE t1 COMMENT='αβγ';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+αβγ
+ALTER TABLE t1 COMMENT='it''s ok';
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+it's ok
+#
+# 8. Excluded contexts: ALTER COMMENT under LOCK TABLES and on a
+#    temporary table must fall through to the regular path (the gate
+#    excludes both). We just verify the ALTER completes and the
+#    comment changes — the regular path has handled these forever.
+#
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 COMMENT='under_lock_tables';
+UNLOCK TABLES;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+under_lock_tables
+CREATE TEMPORARY TABLE tt (a INT) ENGINE=InnoDB COMMENT='tv1';
+ALTER TABLE tt COMMENT='tv2';
+DROP TEMPORARY TABLE tt;
+#
+# 9. Lifecycle smoke: a sequence of ALTERs under a long-lived holder
+#    exercises repeated install + demote-and-GC. The holder keeps
+#    seeing its bound version throughout; a fresh session sees the
+#    latest; after the holder commits, the original session also
+#    re-binds to the latest. No errors == lifecycle works.
+#
+ALTER TABLE t1 COMMENT='start';
+connect  con_holder,localhost,root,,;
+BEGIN;
+SELECT * FROM t1;
+a
+connection default;
+ALTER TABLE t1 COMMENT='c1';
+ALTER TABLE t1 COMMENT='c2';
+ALTER TABLE t1 COMMENT='c3';
+ALTER TABLE t1 COMMENT='c4';
+ALTER TABLE t1 COMMENT='c5';
+connection con_holder;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+start
+connect  con_fresh,localhost,root,,;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+c5
+disconnect con_fresh;
+connection con_holder;
+COMMIT;
+disconnect con_holder;
+connection default;
+SELECT table_comment FROM information_schema.tables
+WHERE table_schema=DATABASE() AND table_name='t1';
+table_comment
+c5
+#
+# 10. Binlog: ALTER TABLE ... COMMENT is statement-logged so replicas
+#     re-execute the same statement and converge.
+#
+RESET MASTER;
+ALTER TABLE t1 COMMENT='binlog_event';
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT='binlog_event'
+#
+# Cleanup
+#
+DROP TABLE t1;

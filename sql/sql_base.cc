@@ -290,11 +290,14 @@ static my_bool list_open_tables_callback(void *el, void *a)
   (*arg->start_list)->in_use= 0;
 
   mysql_mutex_lock(&element->LOCK_table_share);
-  All_share_tables_list::Iterator it(element->all_tables);
   TABLE *table;
-  while ((table= it++))
-    if (table->in_use)
-      ++(*arg->start_list)->in_use;
+  for (TABLE_SHARE_VERSION *v= element->versions_head; v; v= v->next)
+  {
+    All_share_tables_list::Iterator it(v->all_tables);
+    while ((table= it++))
+      if (table->in_use)
+        ++(*arg->start_list)->in_use;
+  }
   mysql_mutex_unlock(&element->LOCK_table_share);
   (*arg->start_list)->locked= 0;                   /* Obsolete. */
   arg->start_list= &(*arg->start_list)->next;
@@ -473,28 +476,51 @@ static my_bool tc_collect_used_shares(void *el, void *a)
 
   DYNAMIC_ARRAY *shares= &arg->shares;
   mysql_mutex_lock(&element->LOCK_table_share);
-  if (element->ref_count > 0 && !element->share->is_view)
+  /*
+    "Table is in use" per FLUSH TABLES semantics = any version of this
+    name has ref_count > 0. After a lock-free DDL the chain may briefly
+    hold an OLDER version pinned by an in-flight transaction together
+    with a CURRENT version that no one has touched yet — we still need
+    to treat the table as in use.
+
+    The do_flush properties (online_backup, table_category) and the
+    share we push for downstream processing are taken from current(),
+    which is what FLUSH TABLES will ultimately drain.
+  */
+  bool any_in_use= false;
+  if (element->current())
   {
-    DBUG_ASSERT(element->share);
+    for (TABLE_SHARE_VERSION *v= element->versions_head; v; v= v->next)
+    {
+      if (v->ref_count > 0)
+      {
+        any_in_use= true;
+        break;
+      }
+    }
+  }
+  if (any_in_use && !element->current()->share->is_view)
+  {
+    DBUG_ASSERT(element->current()->share);
     bool do_flush= 0;
     switch (arg->flush_type) {
     case FLUSH_ALL:
       do_flush= 1;
       break;
     case FLUSH_NON_TRANS_TABLES:
-      if (!element->share->online_backup &&
-          element->share->table_category == TABLE_CATEGORY_USER)
+      if (!element->current()->share->online_backup &&
+          element->current()->share->table_category == TABLE_CATEGORY_USER)
         do_flush= 1;
       break;
     case FLUSH_SYS_TABLES:
-      if (!element->share->online_backup &&
-          element->share->table_category != TABLE_CATEGORY_USER)
+      if (!element->current()->share->online_backup &&
+          element->current()->share->table_category != TABLE_CATEGORY_USER)
         do_flush= 1;
     }
     if (do_flush)
     {
-      element->ref_count++;                       // Protect against delete
-      if (push_dynamic(shares, (uchar*) &element->share))
+      element->current()->ref_count++;            // Protect against delete
+      if (push_dynamic(shares, (uchar*) &element->current()->share))
         result= TRUE;
     }
   }
@@ -597,7 +623,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   {
     TABLE_SHARE *share= *dynamic_element(&collect_arg.shares, i,
                                          TABLE_SHARE**);
-    TABLE *table= tc_acquire_table(thd, share->tdc);
+    TABLE *table= tc_acquire_table(thd, share->tdc->current());
     if (table)
     {
       (void) table->file->extra(HA_EXTRA_FLUSH);
@@ -738,7 +764,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                           TABLE *skip_table)
 {
   DBUG_ASSERT(!share->tmp_table);
-  DBUG_ASSERT(share->tdc->flushed);
+  DBUG_ASSERT(share->version->flushed);
 
   char key[MAX_DBKEY_LENGTH];
   size_t key_length= share->table_cache_key.length;
@@ -2240,7 +2266,7 @@ retry_share:
   if (!(flags & MYSQL_OPEN_IGNORE_FLUSH))
 #endif
   {
-    if (share->tdc->flushed)
+    if (share->version->flushed)
     {
       /*
         We already have an MDL lock. But we have encountered an old
@@ -2272,7 +2298,7 @@ retry_share:
       goto retry_share;
     }
 
-    if (thd->open_tables && thd->open_tables->s->tdc->flushed)
+    if (thd->open_tables && thd->open_tables->s->version->flushed)
     {
       /*
         If the version changes while we're opening the tables,

@@ -3766,6 +3766,14 @@ void MDL_context::release_transactional_locks(THD *thd)
   DBUG_ASSERT(!(thd->server_status &
                 (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)));
   release_locks_stored_before(MDL_STATEMENT, NULL);
+  /*
+    Release schema bindings before MDL_TRANSACTION tickets. Each binding
+    holds a ref_count pin on its TABLE_SHARE_VERSION; dropping the pin
+    here may trigger GC of OLDER versions. Keeping the MDL_TRANSACTION
+    ticket held during this step prevents concurrent X-locking DDL from
+    racing with the share's tdc->LOCK_table_share manipulations.
+  */
+  thd->release_transaction_schema_bindings();
   release_locks_stored_before(MDL_TRANSACTION, NULL);
   DBUG_VOID_RETURN;
 }

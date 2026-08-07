@@ -7119,12 +7119,14 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   {
     if (!hton)
       hton= &dummy;
-    *hton= element->share->db_type();
-    *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
-    if (*hton != view_pseudo_hton && element->share->tabledef_version.length &&
+    *hton= element->current()->share->db_type();
+    *is_sequence= element->current()->share->table_type == TABLE_TYPE_SEQUENCE;
+    if (*hton != view_pseudo_hton &&
+        element->current()->share->tabledef_version.length &&
         table_id &&
         (table_id->str= (uchar*)
-         thd->memdup(element->share->tabledef_version.str, MY_UUID_SIZE)))
+         thd->memdup(element->current()->share->tabledef_version.str,
+                     MY_UUID_SIZE)))
       table_id->length= MY_UUID_SIZE;
     tdc_unlock_share(element);
     DBUG_RETURN(TRUE);

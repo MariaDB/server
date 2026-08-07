@@ -1,0 +1,213 @@
+#
+# Lock-free ALTER TABLE ... COMMENT (per-transaction schema versioning).
+#
+# A bare ALTER TABLE t COMMENT='...' installs a new table-definition version
+# alongside the old one instead of taking the usual X metadata lock at commit.
+# Observable consequences:
+#   * the new comment is immediately visible to new transactions/sessions;
+#   * a transaction that already opened the table keeps seeing the old comment;
+#   * the ALTER does not wait for concurrent open transactions on the table;
+#   * the change persists across a server restart.
+#
+--source include/have_innodb.inc
+
+--echo #
+--echo # Setup
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB COMMENT='v1';
+
+# Helper: print the comment as the *current* connection sees it.
+let $get_comment=
+  SELECT table_comment FROM information_schema.tables
+   WHERE table_schema=DATABASE() AND table_name='t1';
+
+eval $get_comment;
+
+--echo #
+--echo # 1. Cross-session visibility: a new session sees the new comment at once.
+--echo #
+connect (con_reader,localhost,root,,);
+connection default;
+ALTER TABLE t1 COMMENT='v2';
+eval $get_comment;
+
+connection con_reader;
+eval $get_comment;
+disconnect con_reader;
+
+--echo #
+--echo # 2. Non-blocking: the ALTER does not wait for a concurrent open
+--echo #    transaction that has already read the table. With a short
+--echo #    lock_wait_timeout the old (drain-to-X) path would time out here;
+--echo #    the lock-free path succeeds immediately.
+--echo #
+connect (con_holder,localhost,root,,);
+BEGIN;
+SELECT * FROM t1;                 # binds con_holder to the current version
+
+connection default;
+SET SESSION lock_wait_timeout=2;
+ALTER TABLE t1 COMMENT='v3';      # must NOT block on con_holder
+SET SESSION lock_wait_timeout=DEFAULT;
+eval $get_comment;                # default session: sees v3
+
+--echo #
+--echo # 3. Versioning: the holder transaction still sees its bound version,
+--echo #    while a brand-new transaction sees the installed version.
+--echo #
+connection con_holder;
+eval $get_comment;                # still v2 (bound at first touch, before v3)
+
+connect (con_fresh,localhost,root,,);
+eval $get_comment;                # v3
+disconnect con_fresh;
+
+connection con_holder;
+COMMIT;
+eval $get_comment;                # next txn re-binds: now v3
+disconnect con_holder;
+
+connection default;
+
+--echo #
+--echo # 4. Gate fall-through: explicit ALGORITHM=/LOCK= or any extra operation
+--echo #    must NOT be hijacked into the lock-free path. With a holder
+--echo #    transaction open and lock_wait_timeout=2, the regular path blocks
+--echo #    at the X upgrade and returns ER_LOCK_WAIT_TIMEOUT. The timeout is
+--echo #    the assertion that the gate fell through.
+--echo #
+connect (con_holder,localhost,root,,);
+BEGIN;
+SELECT * FROM t1;
+
+connection default;
+SET SESSION lock_wait_timeout=2;
+
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 COMMENT='copy', ALGORITHM=COPY;
+
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 COMMENT='ex', LOCK=EXCLUSIVE;
+
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 COMMENT='add', ADD COLUMN c INT;
+
+SET SESSION lock_wait_timeout=DEFAULT;
+
+connection con_holder;
+COMMIT;
+disconnect con_holder;
+connection default;
+
+--echo #
+--echo # 5. Persistence: the comment survives a server restart.
+--echo #
+ALTER TABLE t1 COMMENT='persisted';
+eval $get_comment;
+
+--source include/restart_mysqld.inc
+
+eval $get_comment;                # must still be 'persisted' after restart
+SHOW CREATE TABLE t1;
+
+--echo #
+--echo # 6. Engine-agnostic: COMMENT lives only in the .frm; no engine inspects
+--echo #    or stores it. Verify the lock-free path also works on MyISAM and
+--echo #    Aria (InnoDB is covered by sections 1-5 above).
+--echo #
+let $get2=
+  SELECT table_comment FROM information_schema.tables
+   WHERE table_schema=DATABASE() AND table_name='t2';
+
+--echo # MyISAM
+CREATE TABLE t2 (a INT) ENGINE=MyISAM COMMENT='v1';
+ALTER TABLE t2 COMMENT='v2';
+eval $get2;
+connect (con_eng,localhost,root,,);
+eval $get2;
+disconnect con_eng;
+connection default;
+DROP TABLE t2;
+
+--echo # Aria
+CREATE TABLE t2 (a INT) ENGINE=Aria COMMENT='v1';
+ALTER TABLE t2 COMMENT='v2';
+eval $get2;
+connect (con_eng,localhost,root,,);
+eval $get2;
+disconnect con_eng;
+connection default;
+DROP TABLE t2;
+
+--echo #
+--echo # 7. Edge-value comments: the .frm rewrite path must handle empty,
+--echo #    multi-byte (UTF-8) and embedded-quote payloads.
+--echo #
+ALTER TABLE t1 COMMENT='';
+eval $get_comment;
+ALTER TABLE t1 COMMENT='αβγ';
+eval $get_comment;
+ALTER TABLE t1 COMMENT='it''s ok';
+eval $get_comment;
+
+--echo #
+--echo # 8. Excluded contexts: ALTER COMMENT under LOCK TABLES and on a
+--echo #    temporary table must fall through to the regular path (the gate
+--echo #    excludes both). We just verify the ALTER completes and the
+--echo #    comment changes — the regular path has handled these forever.
+--echo #
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 COMMENT='under_lock_tables';
+UNLOCK TABLES;
+eval $get_comment;
+
+CREATE TEMPORARY TABLE tt (a INT) ENGINE=InnoDB COMMENT='tv1';
+ALTER TABLE tt COMMENT='tv2';
+DROP TEMPORARY TABLE tt;
+
+--echo #
+--echo # 9. Lifecycle smoke: a sequence of ALTERs under a long-lived holder
+--echo #    exercises repeated install + demote-and-GC. The holder keeps
+--echo #    seeing its bound version throughout; a fresh session sees the
+--echo #    latest; after the holder commits, the original session also
+--echo #    re-binds to the latest. No errors == lifecycle works.
+--echo #
+ALTER TABLE t1 COMMENT='start';
+
+connect (con_holder,localhost,root,,);
+BEGIN;
+SELECT * FROM t1;                 # binds holder to 'start'
+
+connection default;
+ALTER TABLE t1 COMMENT='c1';
+ALTER TABLE t1 COMMENT='c2';
+ALTER TABLE t1 COMMENT='c3';
+ALTER TABLE t1 COMMENT='c4';
+ALTER TABLE t1 COMMENT='c5';
+
+connection con_holder;
+eval $get_comment;                # still 'start'
+
+connect (con_fresh,localhost,root,,);
+eval $get_comment;                # c5
+disconnect con_fresh;
+
+connection con_holder;
+COMMIT;
+disconnect con_holder;
+
+connection default;
+eval $get_comment;                # c5
+
+--echo #
+--echo # 10. Binlog: ALTER TABLE ... COMMENT is statement-logged so replicas
+--echo #     re-execute the same statement and converge.
+--echo #
+RESET MASTER;
+ALTER TABLE t1 COMMENT='binlog_event';
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE t1;

@@ -5831,16 +5831,17 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   /*
     To protect all_tables list from being concurrently modified
-    while we are iterating through it we increment tdc.all_tables_refs.
+    while we are iterating through it we increment version->all_tables_refs.
     This does not introduce deadlocks in the deadlock detector
     because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
+  TABLE_SHARE_VERSION *v= version;
   mysql_mutex_lock(&tdc->LOCK_table_share);
-  tdc->all_tables_refs++;
+  v->all_tables_refs++;
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
-  All_share_tables_list::Iterator tables_it(tdc->all_tables);
+  All_share_tables_list::Iterator tables_it(v->all_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -5858,7 +5859,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc->flushed);
+    DBUG_ASSERT(table->in_use && version->flushed);
     if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
@@ -5868,7 +5869,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc->flushed);
+    DBUG_ASSERT(table->in_use && version->flushed);
     if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
@@ -5882,7 +5883,7 @@ end_leave_node:
 
 end:
   mysql_mutex_lock(&tdc->LOCK_table_share);
-  if (!--tdc->all_tables_refs)
+  if (!--v->all_tables_refs)
     mysql_cond_broadcast(&tdc->COND_release);
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
@@ -5920,7 +5921,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   MDL_wait::enum_wait_status wait_status;
 
   mysql_mutex_assert_owner(&tdc->LOCK_table_share);
-  DBUG_ASSERT(tdc->flushed);
+  DBUG_ASSERT(version->flushed);
   DBUG_ASSERT(mdl_context->m_wait.get_status() == MDL_wait::EMPTY);
 
   tdc->m_flush_tickets.push_front(&ticket);
@@ -5986,7 +5987,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
 void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
-  DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
+  DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->version->ref_count > 0);
 
   if (thd->lex->need_correct_ident())
     alias_name_used= !s->table_name.streq(tl->alias);
