@@ -4157,7 +4157,7 @@ set_start_lsn:
 		/* There have been no operations that modify the page.
 		Any buffered changes will be merged in ibuf_upgrade(). */
 		ut_ad(!mtr.has_modifications());
-		block->page.set_freed(block->page.state());
+		block->page.set_freed();
 	}
 
 	/* Make sure that committing mtr does not change the modification

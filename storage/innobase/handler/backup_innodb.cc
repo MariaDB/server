@@ -33,17 +33,34 @@
 trx_t *check_trx_exists(THD *thd) noexcept;
 
 /** Try to write-fix a block.
-@return previous state; a write-fix was acquired if
-!is_freed(state) && !is_io_fixed(state) holds */
-inline uint32_t buf_page_t::write_fix_try() noexcept
+@param s  expected state()
+@return new s (right before potentially setting the write-fix);
+a write-fix was acquired if !is_freed(s) && !is_io_fixed(s) holds */
+inline uint32_t buf_page_t::write_fix_try(uint32_t s) noexcept
 {
-  uint32_t s{state()};
-  ut_ad(s >= FREED);
+  /* The calling thread must hold a fix() */
+  ut_ad(s > FREED);
+  /*
+    set_freed() or flush() may run concurrently.
+    compare_exchange_strong() ensures that the write-fix was set by us.
+  */
   while (!is_freed(s) && !is_io_fixed(s) &&
          !zip.fix.compare_exchange_strong(s, s + (WRITE_FIX - UNFIXED),
                                           std::memory_order_acquire,
                                           std::memory_order_relaxed));
   return s;
+}
+
+/** Try to undo a successful write_fix_try(). */
+inline void buf_page_t::write_unfix_try() noexcept
+{
+  uint32_t s{state()};
+  /* set_freed() may clear the write-fix before or during this loop.
+  We must use a compare-and-exchange loop. */
+  while (is_write_fixed(s) &&
+         !zip.fix.compare_exchange_weak(s, s - (WRITE_FIX - UNFIXED),
+                                        std::memory_order_relaxed,
+                                        std::memory_order_relaxed));
 }
 
 /**
@@ -66,30 +83,75 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
     auto &chain= buf_pool.page_hash.cell_get(id.fold());
     page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
     hash_lock.lock_shared();
-    *end= buf_pool.page_hash.get(id, chain);
-    if (buf_page_t *b= *end)
+    buf_page_t *const b= *end= buf_pool.page_hash.get(id, chain);
+    if (b && b->oldest_modification_acquire() > 2)
     {
-      uint32_t state= b->write_fix_try();
-      if (b->is_freed(state));
-      else if (!b->is_io_fixed(state))
-        end++;
-      else if (b->is_write_fixed(state))
+      uint32_t state{b->fix()};
+      /* The above buffer-fix froze b in buf_pool.page_hash */
+      hash_lock.unlock_shared();
+      /*
+        We found out that this page was dirty, and eventually such pages
+        must be either freed or written back to the file system.
+
+        The lock-free buf_page_t::write_fix_try() aims to block
+        concurrent asynchronous buf_page_t::flush(). It will not
+        block any access to the page in the buffer pool; we are
+        not holding any page latch.
+      */
+      state= b->write_fix_try(state + 1);
+      if (UNIV_LIKELY(!b->is_io_fixed(state)))
       {
-        b->fix();
-        hash_lock.unlock_shared();
-        /* Wait for any pending buf_page_t::flush() to complete. */
-        b->lock.u_lock();
-        b->unfix();
-        state= b->write_fix_try();
-        ut_ad(!b->is_io_fixed(state));
-        b->lock.u_unlock();
-        if (!b->is_freed(state))
+        if (b->is_freed(state))
+          /*
+            Freed blocks will not be written back to the file system.
+            As noted in fil_space_t::flush_freed(), we do allow
+            concurrent FALLOC_FL_PUNCH_HOLE of PAGE_COMPRESSED pages
+            and NUL writes by immediate_scrub_data_uncompressed=ON
+            while the data is being backed up. This should be fine,
+            because those operations are only overwriting freed
+            (garbage) data.
+          */
+        safe:
+          b->unfix();
+        else
+          /* Schedule a call of b->write_unfix_try() and b->unfix(). */
           end++;
-        goto next;
+      }
+      else if (!b->is_write_fixed(state))
+        /*
+          The block is read-fixed. It is fine to have two concurrent
+          reads from the data file: one to the buffer pool and another
+          by the backup.
+
+          Any subsequent write will be gated by acquiring
+          buf_pool.mutex and checking fil_space_t::backup_page_end(),
+          which will hold up any further writes until
+          fil_space_t::backup_stop() is invoked by
+          InnoDB_backup::backup_batch_stop().
+        */
+        goto safe;
+      else
+      {
+        /*
+          Wait for buf_page_t::flush() to be concluded by
+          buf_page_t::write_complete().
+        */
+        b->lock.u_lock();
+        ut_ad(!b->is_io_fixed());
+        b->lock.u_unlock();
+        /*
+          The pending write was completed. Any subsequent write will
+          be gated by acquiring buf_pool.mutex and checking
+          fil_space_t::backup_page_end(), which will hold up any
+          further writes until fil_space_t::backup_stop() is invoked
+          by InnoDB_backup::backup_batch_stop().
+        */
+        goto safe;
       }
     }
-    hash_lock.unlock_shared();
-  next:
+    else
+      hash_lock.unlock_shared();
+
     if (id == start)
       break;
   }
@@ -633,7 +695,11 @@ private:
   {
     space->backup_stop();
     while (begin != end)
-      (*begin++)->write_unfix();
+    {
+      buf_page_t *b= *begin++;
+      b->write_unfix_try();
+      b->unfix();
+    }
   }
 
   /**

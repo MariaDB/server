@@ -787,7 +787,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   ut_ad((space->is_temporary()) == (space == fil_system.temp_space));
   ut_ad(space->referenced());
 
-  const auto s= state();
+  uint32_t s{state()};
 
   const lsn_t lsn=
     mach_read_from_8(my_assume_aligned<8>
@@ -820,22 +820,33 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
     goto freed;
   }
 
-  if (UNIV_UNLIKELY(is_io_fixed(s)))
+  do
   {
-    /*
-      A thread must be executing between
-      InnoDB_backup::backup_batch_start() and
-      InnoDB_backup::backup_batch_stop(),
-      backing up this page.
-    */
-    ut_ad(is_write_fixed(s));
-    lock.u_unlock(true);
-    return false;
+    ut_ad(s >= UNFIXED);
+    if (UNIV_UNLIKELY(s >= READ_FIX))
+    {
+      /*
+        A thread must have successfully executed write_fix_try() after
+        fix(), executing between InnoDB_backup::backup_batch_start()
+        and InnoDB_backup::backup_batch_stop().
+      */
+      ut_ad(s > WRITE_FIX);
+      /* Backup skips the temporary tablespace */
+      ut_ad(oldest_modification() > 2);
+      lock.u_unlock(true);
+      return false;
+    }
   }
+  /*
+    compare_exchange_strong() ensures that the write-fix was set by us
+    and not a concurrent write_fix_try().
+  */
+  while (!zip.fix.compare_exchange_strong(s, s + (WRITE_FIX - UNFIXED),
+                                          std::memory_order_acquire,
+                                          std::memory_order_relaxed));
 
-  ut_d(const auto f=) zip.fix.fetch_add(WRITE_FIX - UNFIXED);
-  ut_ad(f >= UNFIXED);
-  ut_ad(f < READ_FIX);
+  ut_ad(s >= UNFIXED);
+  ut_ad(s < READ_FIX);
   ut_ad((space == fil_system.temp_space)
         ? oldest_modification() == 2
         : oldest_modification() > 2);
@@ -1374,9 +1385,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 
     if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
     {
-      /* A fake "write fix" of InnoDB_backup may have been set
-      meanwhile. We will recheck it at evict: */
-      ut_ad(!bpage->is_read_fixed());
+      ut_ad(!bpage->is_read_fixed()); /* tolerate write_fix_try() */
       switch (bpage->oldest_modification()) {
       case 2:
         /* LRU flushing will always evict pages of the temporary tablespace,
@@ -1395,8 +1404,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         /* fall through */
       case 0:
         bpage->lock.u_unlock(true);
-        /* Reload the state in case InnoDB_backup::backup_batch_stop()
-        had cleared its fake "write fix". */
+        /* Reload in case write_fix_try() had been undone meanwhile. */
         state= bpage->state();
         goto evict;
       }

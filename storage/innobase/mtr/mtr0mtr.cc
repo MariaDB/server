@@ -603,6 +603,36 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
+/** Mark an X-latched block as freed in the tablespace. */
+void buf_page_t::set_freed() noexcept
+{
+  /*
+    Ensure that lock.x_lock() is being held (hopefully, by us).
+    This blocks a concurrent flush(), protected by lock.u_lock().
+  */
+  ut_ad(lock.is_write_locked());
+  uint32_t s{state()};
+  do
+  {
+    ut_ad(s >= UNFIXED);
+    /*
+      InnoDB_backup::backup_batch_start() may set fix() and
+      write_fix_try() on any dirty block to prevent flush() from
+      writing changes back to the file system. We may safely mark such
+      blocks as FREED; write_unfix_try() will account for that.
+    */
+    ut_ad(s > WRITE_FIX || s < READ_FIX);
+  }
+  /*
+    fetch_sub() is not safe here, because this may run concurrently
+    with write_fix_try() or write_unfix_try().
+  */
+  while (!zip.fix.compare_exchange_weak(s, FREED + (s & ~LRU_MASK),
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed) &&
+         !is_freed(s));
+}
+
 /** Commit a mini-transaction that is shrinking a tablespace.
 @param space   tablespace that is being shrunk
 @param size    new size in pages */
@@ -696,7 +726,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
       {
         ut_ad(id.space() == high.space());
         if (s >= buf_page_t::UNFIXED)
-          b->page.set_freed(s);
+          b->page.set_freed();
         if (b->page.oldest_modification() > 1)
           b->page.reset_oldest_modification();
         slot.type= mtr_memo_type_t(slot.type & ~MTR_MEMO_MODIFY);
@@ -1854,7 +1884,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       if (block->index)
         btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
-      block->page.set_freed(block->page.state());
+      block->page.set_freed();
     }
   }
 

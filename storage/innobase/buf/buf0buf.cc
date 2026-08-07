@@ -2298,7 +2298,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   if (block->index)
     btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
-  block->page.set_freed(block->page.state());
+  block->page.set_freed();
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
@@ -2367,7 +2367,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     exclusive latch on this block and either in progress or invoking
     buf_pool_t::corrupted_evict().
 
-    Let us aqcuire and release buf_pool.mutex to ensure that any
+    Let us acquire and release buf_pool.mutex to ensure that any
     buf_pool_t::corrupted_evict() will proceed before we reacquire
     the hash_lock that it could be waiting for.
 
