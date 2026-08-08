@@ -3566,10 +3566,17 @@ static int append_json_value(String *str, Item *item, String *tmp_val,
 
     /*
       Being a document is what gets a value spliced rather than quoted,
-      so an item attesting to one it is not going to be asked about has
-      lost track of which of the two it returns.
+      and an item can attest to a value that is still quoted.  A stored
+      program's variable is the case: it is never typed as a document,
+      however it was declared, and it attests to its value all the same
+      - see Item_sp_variable::is_valid_json(), which is answered so that
+      a function handed the value as its DOCUMENT can stop reading what
+      it already knows, and not so that this one splices it.
+
+      Nothing here reads the answer, and quoting a value that is a
+      document is what quoting any other value is: the characters are
+      written out escaped and the quotes go round them.
     */
-    DBUG_ASSERT(!item->is_valid_json());
 
     rc= append_escaped_value(str, sv, item->result_type() == STRING_RESULT,
                              fname, n_param);

@@ -21954,6 +21954,37 @@ bool Virtual_tmp_table::init(uint field_count)
 };
 
 
+/*
+  Where a stored program's variables keep what was said about the values
+  in them, and the only place one is left - see TABLE::json_held_marks.
+
+  Given to the tables that hold such variables and to no others.  Three
+  callers build a table through the init() above, and only one of them
+  builds one out of a stored program's variable definitions - the other
+  two are the table SUM(DISTINCT) counts in and the one row-based
+  replication converts through, neither of which holds anything anybody
+  assigns to.  Both ways a stored program gets one come through that
+  caller, the row a cursor is read into among them, so there is no table
+  of this kind that has to be given room later.
+
+  Said to be nothing before any of it is read, this being room off a
+  memory root and not a fresh page.
+*/
+
+bool Virtual_tmp_table::init_json_held_marks(uint field_count)
+{
+  DBUG_ENTER("Virtual_tmp_table::init_json_held_marks");
+  if (!(json_held_marks= (Json_result_marks *)
+                         alloc_root(in_use->mem_root,
+                                    field_count *
+                                    sizeof(Json_result_marks))))
+    DBUG_RETURN(true);
+  for (uint i= 0; i < field_count; i++)
+    json_held_marks[i].clear();
+  DBUG_RETURN(false);
+}
+
+
 bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
 {
   /* Create all fields and calculate the total length of record */
@@ -22076,7 +22107,19 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item_list(THD *thd,
   for (uint i= 0 ; (item= it++) ; i++)
   {
     if (field[i]->sp_prepare_and_store_item(thd, &item))
+    {
+      /*
+        The members after the one that failed were never reached, so what
+        they hold is what the assignment before this one left and what
+        was said about it then - an answer about to be read beside
+        members this assignment did write.  Those go with the assignment
+        that did not finish.  The ones already written keep theirs: each
+        of them went through the funnel and was attested to there, a
+        member being attested to one at a time.
+      */
+      clear_json_held_marks_from(i);
       return true;
+    }
   }
   return false;
 }
@@ -22089,7 +22132,11 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
   for (uint i= 0; i < value->cols(); i++)
   {
     if (field[i]->sp_prepare_and_store_item(thd, value->addr(i)))
+    {
+      /* A half-written row, as above. */
+      clear_json_held_marks_from(i);
       return true;
+    }
   }
   return false;
 }
