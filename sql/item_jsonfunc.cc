@@ -6594,6 +6594,8 @@ String *Item_func_json_keys::val_str(String *str)
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   THD *thd;
 
+  m_marks.clear();
+
   if ((args[0]->null_value))
     goto null_return;
 
@@ -6669,7 +6671,7 @@ skip_search:
 
       if (!check_key_in_list(str, key_start, key_len))
       { 
-        if ((n_keys > 0 && str->append(", ", 2)) ||
+        if ((n_keys > 0 && str->append(STRING_WITH_LEN(json_loose_comma))) ||
           str->append('"') ||
           append_simple(str, key_start, key_len) ||
           str->append('"'))
@@ -6690,6 +6692,39 @@ skip_search:
   if (unlikely(je.s.error || str->append(']')))
     goto err_return;
 
+  /*
+    What was just written is an array of the object's key names, and
+    all three things there are to say about it are settled by how it
+    was written rather than by anything that would have to be measured.
+
+    It READS AS A DOCUMENT.  A key goes in between quotes with its bytes
+    copied across as they stood, and they stood inside a document that
+    parsed - so whatever needed escaping in them is already escaped, and
+    a key that would not go into an array would not have come out of an
+    object.  Nothing else can get in: every key written was copied out
+    of an object this walk read to its end, and a break the walk reaches
+    refuses the answer whole at the test just above.  What it does not
+    reach it does not read - text standing after the object, or a second
+    document behind it - so the argument need not be a document all the
+    way through for this to hold, and it is not asked to be.
+
+    It is FORMATTED THE PLAIN WAY.  The one thing that stands between two
+    of anything here is the pair of characters the plain formatting puts
+    there, and nothing goes after the opening bracket or before the
+    closing one.
+
+    It is ONE LEVEL DEEP.  An array of strings, and a key name is a
+    string whatever it holds.
+
+    All of it in the character set the argument was read in - the copy
+    is same-set, so the bytes mean here what they meant there - which
+    leaves only whether a document can be written in that set at all.
+  */
+  {
+    bool is_json_compatible= is_json_compatible_charset(str->charset());
+
+    m_marks.set(str, is_json_compatible, is_json_compatible, 1);
+  }
   null_value= 0;
   return str;
 

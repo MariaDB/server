@@ -1,0 +1,327 @@
+#
+# JSON_KEYS returns a JSON array, so a function given it in value
+# position puts an array in rather than a string that reads as one.
+#
+SET NAMES utf8mb4;
+#
+# 1. Value position, in the functions that build a document.
+#
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+[["a", "b"]]
+SELECT JSON_OBJECT('k', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+{"k": ["a", "b"]}
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1}'), JSON_KEYS('{"b":2,"c":3}')) AS v;
+v
+[["a"], ["b", "c"]]
+SELECT JSON_OBJECT('one', JSON_KEYS('{"a":1}'),
+'two', JSON_KEYS('{"b":2,"c":3}')) AS v;
+v
+{"one": ["a"], "two": ["b", "c"]}
+#
+# 2. Value position, in the functions that edit one.
+#
+SELECT JSON_SET('{"x":1}', '$.y', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+{"x": 1, "y": ["a", "b"]}
+SELECT JSON_INSERT('{"x":1}', '$.y', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+{"x": 1, "y": ["a", "b"]}
+SELECT JSON_REPLACE('{"x":1}', '$.x', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+{"x": ["a", "b"]}
+SELECT JSON_ARRAY_APPEND('[1]', '$', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+[1, ["a", "b"]]
+SELECT JSON_ARRAY_INSERT('[1]', '$[0]', JSON_KEYS('{"a":1,"b":2}')) AS v;
+v
+[["a", "b"], 1]
+#
+# 3. The same shape from the functions that were already typed as
+#    returning a document, for comparison.
+#
+SELECT JSON_ARRAY(JSON_EXTRACT('{"a":[1,2]}','$.a')) AS v;
+v
+[[1, 2]]
+SELECT JSON_ARRAY(JSON_QUERY('{"a":[1,2]}','$.a')) AS v;
+v
+[[1,2]]
+SELECT JSON_SET('{"x":1}', '$.y', JSON_EXTRACT('{"a":[1,2]}','$.a')) AS v;
+v
+{"x": 1, "y": [1, 2]}
+#
+# 4. Document position is unchanged: the value was always a document
+#    when it was read as one.
+#
+SELECT JSON_VALID(JSON_KEYS('{"a":1,"b":2}'))  AS valid,
+JSON_LENGTH(JSON_KEYS('{"a":1,"b":2}')) AS len,
+JSON_TYPE(JSON_KEYS('{"a":1,"b":2}'))   AS type;
+valid	len	type
+1	2	ARRAY
+SELECT JSON_EXTRACT(JSON_KEYS('{"a":1,"b":2}'), '$[0]') AS v;
+v
+"a"
+SELECT JSON_DEPTH(JSON_KEYS('{"a":{"b":1},"c":2}')) AS v;
+v
+2
+# the workaround that used to be needed still gives the same document
+SELECT JSON_ARRAY(JSON_EXTRACT(JSON_KEYS('{"a":1,"b":2}'), '$')) AS v;
+v
+[["a", "b"]]
+#
+# 5. Keys that have to be written with an escape.  The key goes in as
+#    it was written in the document it came from, so the array is
+#    still one however the key is written.
+#
+SELECT JSON_KEYS('{"a\\"b":1,"c\\\\d":2}') AS v;
+v
+["a\"b", "c\\d"]
+SELECT JSON_VALID(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}')) AS ok;
+ok
+1
+SELECT JSON_ARRAY(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}')) AS v;
+v
+[["a\"b", "c\\d"]]
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}'))) AS ok;
+ok
+1
+# an escaped control character and an escaped code point
+SELECT JSON_ARRAY(JSON_KEYS('{"a\\nb":1,"c\\u00e4d":2}')) AS v;
+v
+[["a\nb", "c\u00e4d"]]
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"a\\nb":1,"c\\u00e4d":2}'))) AS ok;
+ok
+1
+# a key written in characters of its own rather than in escapes
+SELECT HEX(JSON_ARRAY(JSON_KEYS(_utf8mb4 X'7B22C3A4223A312C22C3B6223A327D')))
+AS h;
+h
+5B5B22C3A4222C2022C3B6225D5D
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS(
+_utf8mb4 X'7B22C3A4223A312C22C3B6223A327D'))) AS ok;
+ok
+1
+# an empty key
+SELECT JSON_ARRAY(JSON_KEYS('{"":1,"b":2}')) AS v;
+v
+[["", "b"]]
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"":1,"b":2}'))) AS ok;
+ok
+1
+#
+# 6. The answers that are not arrays.  An object with no keys is an
+#    empty array; anything that is not an object is NULL, and a NULL
+#    goes in as a null.
+#
+SELECT JSON_ARRAY(JSON_KEYS('{}')) AS v;
+v
+[[]]
+SELECT JSON_ARRAY(JSON_KEYS('[1,2]')) AS v;
+v
+[null]
+SELECT JSON_ARRAY(JSON_KEYS('7')) AS v;
+v
+[null]
+SELECT JSON_ARRAY(JSON_KEYS(NULL)) AS v;
+v
+[null]
+SELECT JSON_OBJECT('k', JSON_KEYS('[1,2]')) AS v;
+v
+{"k": null}
+# input that does not read as a document at all
+SELECT JSON_ARRAY(JSON_KEYS('{"a":')) AS v;
+v
+[null]
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+#
+# 7. The two-argument form, which reaches an object further in.
+#
+SELECT JSON_ARRAY(JSON_KEYS('{"a":{"b":1,"c":2}}', '$.a')) AS v;
+v
+[["b", "c"]]
+SELECT JSON_OBJECT('k', JSON_KEYS('{"a":{"b":1,"c":2}}', '$.a')) AS v;
+v
+{"k": ["b", "c"]}
+# a path that reaches nothing
+SELECT JSON_ARRAY(JSON_KEYS('{"a":{"b":1}}', '$.zz')) AS v;
+v
+[null]
+#
+# 8. Nested one inside the other.
+#
+SELECT JSON_ARRAY(JSON_KEYS(JSON_OBJECT('a', 1, 'b', 2))) AS v;
+v
+[["a", "b"]]
+SELECT JSON_KEYS(JSON_OBJECT('k', JSON_KEYS('{"a":1,"b":2}'))) AS v;
+v
+["k"]
+#
+# 9. Over rows, including through an aggregate and through a
+#    temporary table.
+#
+CREATE TABLE t1 (id INT, j VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '{"b":2,"c":3}');
+SELECT id, JSON_ARRAY(JSON_KEYS(j)) AS v FROM t1 ORDER BY id;
+id	v
+1	[["a"]]
+2	[["b", "c"]]
+SELECT JSON_ARRAYAGG(JSON_KEYS(j)) AS v FROM t1;
+v
+[["a"],["b", "c"]]
+SELECT JSON_OBJECTAGG(id, JSON_KEYS(j)) AS v FROM t1;
+v
+{"1":["a"], "2":["b", "c"]}
+# materialised into a temporary table on the way out
+SELECT JSON_ARRAY(k) AS v FROM (SELECT JSON_KEYS(j) AS k FROM t1) d ORDER BY v;
+v
+[["a"]]
+[["b", "c"]]
+# MAX() is not typed by what it is taken over, so its result is
+# quoted here as it is for any other document producing function
+SELECT JSON_ARRAY(MAX(JSON_KEYS(j))) AS v FROM t1 GROUP BY id ORDER BY v;
+v
+["[\"a\"]"]
+["[\"b\", \"c\"]"]
+SELECT JSON_ARRAY(MAX(JSON_EXTRACT(j, '$'))) AS v FROM t1 GROUP BY id ORDER BY v;
+v
+["{\"a\": 1}"]
+["{\"b\": 2, \"c\": 3}"]
+SELECT DISTINCT JSON_ARRAY(JSON_KEYS(j)) AS v FROM t1 ORDER BY v;
+v
+[["a"]]
+[["b", "c"]]
+# the column a result set of it makes, and the column the already
+# typed function makes beside it
+CREATE TABLE t2 AS SELECT JSON_KEYS(j) AS k FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `k` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT JSON_ARRAY(k) AS v FROM t2 ORDER BY v;
+v
+["[\"a\"]"]
+["[\"b\", \"c\"]"]
+DROP TABLE t2;
+CREATE TABLE t3 AS SELECT JSON_EXTRACT(j, '$') AS k FROM t1;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `k` varchar(128) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t3;
+DROP TABLE t1;
+#
+# 10. The result metadata, which is what decides all of the above.
+#
+SELECT JSON_KEYS('{"a":1,"b":2}') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	52	10	Y	0	39	45
+v
+["a", "b"]
+SELECT JSON_EXTRACT('{"a":[1,2]}','$.a') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	88	6	Y	0	39	45
+v
+[1, 2]
+SELECT JSON_QUOTE('a') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253	48	3	Y	128	39	45
+v
+"a"
+#
+# 11. JSON_QUOTE is documented to return a string and still does.
+#
+SELECT JSON_ARRAY(JSON_QUOTE('a')) AS v;
+v
+["\"a\""]
+SELECT JSON_OBJECT('k', JSON_QUOTE('a')) AS v;
+v
+{"k": "\"a\""}
+#
+# 12. The array is attested as well as typed, so a splice of it
+#     goes in without being read again - which no result here can
+#     show and Json_scans can, and does in func_json_scan_count.
+#
+#     What stands in the way of that is a character set this
+#     cannot attest to, and there are two kinds of those.
+#
+#     A set that cannot encode a bracket cannot encode a brace
+#     either, so no array is ever answered in it and the question
+#     never comes up - swe7, below.
+#
+#     But the question actually asked is whether the set is
+#     ASCII-compatible, and a set can decode every ASCII byte to
+#     itself and still be flagged as not.  sjis is one: it parses
+#     a document, answers a real array, and has the mark withheld
+#     from it all the same, so a splice reads that array again.
+#     The array is a perfectly good document either way; what is
+#     lost is the reading it was meant to save.
+#
+#     The counts that say which of the two happened are in
+#     func_json_keys_typed_scans, which a debug build runs.
+#
+SELECT JSON_KEYS(CONVERT('{"a":1}' USING swe7)) AS no_answer;
+no_answer
+NULL
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x7B to 'swe7'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
+SELECT JSON_VALID(CONVERT('{"a":1}' USING swe7)) AS nor_a_document;
+nor_a_document
+0
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x7B to 'swe7'
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+# sjis: a real answer, and one the mark is withheld from
+CREATE TABLE ts (j TEXT) CHARACTER SET sjis;
+INSERT INTO ts VALUES ('{"a":1,"b":2}');
+SELECT JSON_KEYS(j) AS answered, JSON_VALID(JSON_KEYS(j)) AS ok FROM ts;
+answered	ok
+["a", "b"]	1
+DROP TABLE ts;
+#
+# 13. What the answer is attested does not say the argument was
+#     a document all the way through.  This reads an object and
+#     stops at its end, so a break past that end is never met - and
+#     one it does meet refuses the answer whole.
+#
+# never met: the break is past the object, or past the sub-object
+# the path chose
+SELECT JSON_KEYS('{"a":1} rubbish') AS trailing_text;
+trailing_text
+["a"]
+SELECT JSON_KEYS('{"a":1}{"b":2}') AS second_document;
+second_document
+["a"]
+SELECT JSON_KEYS('{"a":1}}') AS trailing_brace;
+trailing_brace
+["a"]
+SELECT JSON_KEYS('{"a":{"z":1} "b":2}', '$.a') AS break_after_the_step;
+break_after_the_step
+["z"]
+# and the answers are documents, which is what the mark says
+SELECT JSON_VALID(JSON_KEYS('{"a":1} rubbish')) AS ok;
+ok
+1
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1} rubbish')) AS spliced;
+spliced
+[["a"]]
+# met: refused whole, and reported where it happened
+SELECT JSON_KEYS('{"a":1 "b":2}') AS break_inside;
+break_inside
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 8
+SELECT JSON_KEYS('{"a":') AS ends_early;
+ends_early
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+SELECT JSON_KEYS('{"a":{"z":1 "y":2}}', '$.a') AS break_inside_the_step;
+break_inside_the_step
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 13

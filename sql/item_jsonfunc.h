@@ -827,7 +827,17 @@ protected:
 };
 
 
-class Item_func_json_keys: public Item_str_func
+/*
+  Typed as returning a document like the rest of the family: the keys
+  are returned as an array, and a function given that array in value
+  position is meant to embed an array.
+
+  The array is attested as well.  It is written one key at a time out of
+  a document that parsed, and being an array of strings fixes its
+  validity, its formatting and its depth without measuring any of the
+  three - see where the result is returned.
+*/
+class Item_func_json_keys: public Item_json_func
 {
 protected:
   json_path_with_flags path;
@@ -835,7 +845,7 @@ protected:
 
 public:
   Item_func_json_keys(THD *thd, List<Item> &list):
-    Item_str_func(thd, list) {}
+    Item_json_func(thd, list) {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_keys") };
@@ -843,6 +853,12 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
+  /*
+    A document or nothing, whichever row it is asked about: an object
+    gives back an array of its key names and anything else gives back
+    NULL, so a column of these can be built saying so.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
