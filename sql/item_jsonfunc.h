@@ -1072,6 +1072,33 @@ class Item_func_json_objectagg : public Item_sum
     m_elements_depth, for the same reason.
   */
   uint m_pairs_depth;
+  /*
+    The group has been cut back to fit group_concat_max_len and nothing
+    further goes into it.  A later pair small enough to fit in what is
+    left would go in behind the pair that did not fit, putting the
+    object out of the order the group was read in.  Reset for each group
+    by clear().
+  */
+  bool m_cut;
+  /*
+    Which row of this group is being added, counted over the rows that
+    have a key to make a pair of - a row whose key is NULL is not one of
+    them and is not counted.  Only the cut warning reads it, to say
+    where the group stopped.
+
+    Counted per group, where the sister aggregate's row_count runs on
+    across the groups of a statement.  Nothing here needs it to run on,
+    and a number naming a row of the group is what the warning reads as.
+  */
+  uint m_row_count;
+  /*
+    The session this group is being built for, taken once by clear()
+    rather than looked up again for every row of it.  A group runs on
+    one connection, so the lookup answers the same thing every time it
+    is made; what is read THROUGH it is read per row still, the length
+    limit being the session's setting as it stands.
+  */
+  THD *m_thd;
   Json_result_marks m_marks;
 public:
   /*
@@ -1083,7 +1110,8 @@ public:
   */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
     Item_sum(thd, key, value), m_bad_pair(false), m_closed(false),
-    m_pairs_valid(true), m_pairs_depth(1)
+    m_pairs_valid(true), m_pairs_depth(1), m_cut(false), m_row_count(0),
+    m_thd(NULL)
   {
     quick_group= FALSE;
   }
