@@ -1986,6 +1986,19 @@ int dump_leaf_key(void* key_arg,
                   void* item_arg);
 C_MODE_END
 
+/*
+  Says that a group was cut to fit group_concat_max_len, naming the row
+  the cut fell on.  'fname' is written into the message ahead of a ')'
+  the message supplies itself, so it is the function's name with its
+  opening bracket already on it.
+
+  Shared with the JSON object aggregate, which cuts its own group and
+  has to say so the same way, having no GROUP_CONCAT machinery under it
+  to say it.
+*/
+void report_cut_value_error(THD *thd, uint row_count, const char *fname);
+
+
 class Item_func_group_concat : public Item_sum
 {
 protected:

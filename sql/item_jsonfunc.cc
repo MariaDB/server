@@ -7394,20 +7394,24 @@ String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
 }
 
 
+/*
+  Cut back to where the element that overran began, rather than to the
+  byte the limit falls on.  What GROUP_CONCAT passes as old_length
+  is the length the result had before the separator and this element
+  were written, so it is the end of the last whole element - the one
+  place a cut leaves something the brackets can go round.
+
+  A cut anywhere else leaves half an element behind, and the three ways
+  it can land are each their own kind of wrong.  On a quote it leaves a
+  string opened twice; on a separator it leaves one with nothing after
+  it; and just past an opening quote it leaves an empty string that no
+  row of the group ever held - which reads back as an element and is
+  not one, so nothing downstream has any way to know it is not data.
+*/
 void Item_func_json_arrayagg::cut_max_length(String *result,
-       uint old_length, uint max_length) const
+       uint old_length, uint max_length __attribute__((unused))) const
 {
-  if (result->length() == 0)
-    return;
-
-  if (result->end()[-1] != '"' || old_length == max_length)
-  {
-    Item_func_group_concat::cut_max_length(result, old_length, max_length);
-    return;
-  }
-
-  Item_func_group_concat::cut_max_length(result, old_length, max_length-1);
-  result->append('"');
+  result->length(old_length);
 }
 
 
@@ -7475,14 +7479,12 @@ String* Item_func_json_arrayagg::val_str(String *str)
     }
 
     /*
-      A group that was cut to fit the length limit is cut at the byte
-      the limit falls on, so what stands between the brackets can be
-      half an element - or, where the cut lands just past an opening
-      quote and that quote is written back to close the string, an
-      element no row of the group ever held.  One that carried
-      something not readable as JSON is a group with that in it still.
-      Either way the brackets are around something this cannot answer
-      for.
+      A group that was cut to fit the length limit is cut back to the
+      last whole element, so what stands between the brackets reads -
+      and it is a shorter answer than the group has, with the row it
+      stopped at reported.  One that carried something not readable as
+      JSON is a group with that in it still.  Either way the brackets
+      are around something this cannot attest to.
 
       Never said to be nicely written: what goes between the elements is
       the separator this function inherits from GROUP_CONCAT, a comma
@@ -7505,7 +7507,8 @@ bad_result:
 Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
   :Item_sum(thd, item), m_bad_pair(false), m_closed(false),
-   m_pairs_valid(true), m_pairs_depth(1)
+   m_pairs_valid(true), m_pairs_depth(1), m_cut(false), m_row_count(0),
+   m_thd(NULL)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
@@ -7591,9 +7594,22 @@ void Item_func_json_objectagg::clear()
   m_closed= false;
   m_pairs_valid= true;
   m_pairs_depth= 1;
+  m_cut= false;
+  m_row_count= 0;
+  m_thd= current_thd;
   if (result.append('{'))
     m_bad_pair= true;
 }
+
+
+/*
+  The mirror of json_arrayagg_name above, and the other way round: the
+  message the cut warning goes into supplies its own ')', so the name
+  written into it is the one with the opening bracket already on it.
+  func_name() is the bare name here, being written into notes about the
+  data as well.
+*/
+static const char json_objectagg_cut_name[]= "json_objectagg(";
 
 
 bool Item_func_json_objectagg::add()
@@ -7606,10 +7622,37 @@ bool Item_func_json_objectagg::add()
   Json_splice_marks marks(1);
   String *key;
   int rc;
+  /*
+    Where this pair begins, so that a pair taking the object past the
+    length limit can be taken back off whole - see the cut at the end
+    of this function.
+  */
+  uint32 old_length= result.length();
 
   key= args[0]->val_str(&buf);
   if (args[0]->is_null())
     return 0;
+
+  m_row_count++;
+
+  /*
+    Nothing more goes into a group that has been cut, but the rows of it
+    are still read to the end.  An argument is an expression, and working
+    one out once for every row of the group is what the object has always
+    done - a row that stops being read stops whatever the expression does,
+    which is not the caller's answer to give away.  So only the writing
+    stops here; see the cut at the end of this function.
+
+    The value is worked out and dropped rather than written, and it is
+    asked for the way append_json_value() would ask a value of its type.
+    The key was worked out above, where every row needs it: whether a row
+    makes a pair of it is what its being NULL decides, cut or not.
+  */
+  if (m_cut)
+  {
+    args[1]->update_null_value();
+    return 0;
+  }
 
   /*
     Whether this pair needs a separator in front of it is whether a pair
@@ -7617,11 +7660,12 @@ bool Item_func_json_objectagg::add()
     row changes it.  Comparing the buffer against the opening brace would
     be comparing it against a width that is not always one byte.
   */
-  if (!null_value && result.append(STRING_WITH_LEN(", ")))
+  if ((!null_value && result.append(STRING_WITH_LEN(", "))) ||
+      (!null_value && DBUG_IF("json_objectagg_separator_out_of_memory")))
     goto bad_pair;
   null_value= 0;
 
-  if (result.append('"'))
+  if (result.append('"') || DBUG_IF("json_objectagg_key_out_of_memory"))
     goto bad_pair;
 
   /*
@@ -7642,7 +7686,8 @@ bool Item_func_json_objectagg::add()
     m_pairs_valid= false;
   }
 
-  if (result.append(STRING_WITH_LEN("\":")))
+  if (result.append(STRING_WITH_LEN("\":")) ||
+      DBUG_IF("json_objectagg_colon_out_of_memory"))
     goto bad_pair;
 
   buf.length(0);
@@ -7653,6 +7698,37 @@ bool Item_func_json_objectagg::add()
   m_pairs_depth= MY_MAX(m_pairs_depth, marks.deepest);
   if (rc == JSON_APPEND_OOM)
     goto bad_pair;
+
+  /*
+    The same length limit the sister aggregate is held to, read where it
+    is read there - the session's setting as it stands while the group is
+    being built, rather than the width this item was fixed for.
+
+    Cut back to where this pair began rather than to the byte the limit
+    falls on, for the reason given at
+    Item_func_json_arrayagg::cut_max_length(): pairs are what the braces
+    can go round, and half of one is not.
+
+    The limit is on the bytes returned, and the brace that closes the
+    object is one of them; it is written when the group is asked for,
+    which is after every pair has been through here.  So the room for it
+    is kept back from the limit rather than left to be discovered once
+    there is nothing to be done about it.  The opening brace is in the
+    buffer already and is counted where it stands.  Neither of them is
+    one byte wide in a set that writes no character in one byte, which
+    is why the width is asked for rather than assumed.
+  */
+  {
+    uint32 close_len= collation.collation->mbminlen;
+
+    DBUG_ASSERT(m_thd);
+    if (result.length() + close_len > m_thd->gconcat_max_len())
+    {
+      result.length(old_length);
+      m_cut= true;
+      report_cut_value_error(m_thd, m_row_count, json_objectagg_cut_name);
+    }
+  }
 
   return 0;
 

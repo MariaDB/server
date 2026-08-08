@@ -101,12 +101,12 @@ SELECT JSON_ARRAY(JSON_ARRAYAGG(v)) AS agg_then_built FROM tg;
 SELECT g, JSON_ARRAYAGG(v) AS arr FROM tg GROUP BY g WITH ROLLUP;
 
 --echo #
---echo #    A group cut to fit group_concat_max_len is cut at the byte
---echo #    the limit falls on.  Here that lands just past an opening
---echo #    quote, and the quote written back to close the string leaves
---echo #    an element no row of the group held - a whole document, and
---echo #    one row of it invented.  A group built out of a broken column
---echo #    is complete too, and is not a document at all.
+--echo #    A group cut to fit group_concat_max_len is cut back to the
+--echo #    last whole element, so every element in it is one a row of
+--echo #    the group held and the row it stopped at is reported.  What
+--echo #    comes out is a document, but not the value the group has.
+--echo #    A group built out of a broken column is complete too, and is
+--echo #    not a document at all.
 --echo #
 SET @save_len = @@group_concat_max_len;
 SET SESSION group_concat_max_len = 10;

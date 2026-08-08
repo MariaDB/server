@@ -150,18 +150,18 @@ g	arr
 2	[3,4]
 NULL	[1,2,3,4]
 #
-#    A group cut to fit group_concat_max_len is cut at the byte
-#    the limit falls on.  Here that lands just past an opening
-#    quote, and the quote written back to close the string leaves
-#    an element no row of the group held - a whole document, and
-#    one row of it invented.  A group built out of a broken column
-#    is complete too, and is not a document at all.
+#    A group cut to fit group_concat_max_len is cut back to the
+#    last whole element, so every element in it is one a row of
+#    the group held and the row it stopped at is reported.  What
+#    comes out is a document, but not the value the group has.
+#    A group built out of a broken column is complete too, and is
+#    not a document at all.
 #
 SET @save_len = @@group_concat_max_len;
 SET SESSION group_concat_max_len = 10;
 SELECT JSON_ARRAYAGG(s) AS cut FROM tg;
 cut
-["a","b",""]
+["a","b"]
 Warnings:
 Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = @save_len;
