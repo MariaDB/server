@@ -2291,6 +2291,17 @@ public:
   bool init(uint field_count);
 
   /**
+    Give the table room to keep what was said about the value in each
+    of its members - see TABLE::json_held_marks.  Only for a table that
+    holds a stored program's variables; the others init() builds hold
+    nothing anybody assigns to.
+    @param field_count - The number of fields we plan to add to the table.
+    @returns false     - on success.
+    @returns true      - on error.
+  */
+  bool init_json_held_marks(uint field_count);
+
+  /**
     Add one Field to the end of the field array, update members:
     s->reclength, s->fields, s->blob_fields, s->null_fuelds.
   */
@@ -2333,10 +2344,25 @@ public:
   */
   bool open();
 
+  /*
+    What was said about the value in each member, given up together.
+    Whatever writes a whole row at once writes it outside the funnel a
+    member is otherwise written through, and a member nobody wrote this
+    time is still holding what the last assignment left - so an answer
+    that was about that is taken back here rather than left standing
+    over bytes a later reader will pair it with.
+  */
+  void clear_json_held_marks_from(uint first)
+  {
+    for (uint i= first; i < s->fields; i++)
+      field[i]->clear_json_held_marks();
+  }
+  void clear_all_json_held_marks() { clear_json_held_marks_from(0); }
   void set_all_fields_to_null()
   {
     for (uint i= 0; i < s->fields; i++)
       field[i]->set_null();
+    clear_all_json_held_marks();
   }
   /**
     Set all fields from a compatible item list.
@@ -2415,6 +2441,7 @@ create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
                   DBUG_SET("+d,simulate_out_of_memory"););
 
   if (table->init(field_list.elements) ||
+      table->init_json_held_marks(field_list.elements) ||
       table->add(field_list) ||
       table->open())
   {

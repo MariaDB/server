@@ -1510,6 +1510,7 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
   DBUG_ASSERT(value);
 
   Item *expr_item;
+  int store_rc;
 
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
@@ -1519,10 +1520,18 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   /* Save the value in the field. Convert the value if needed. */
 
-  expr_item->save_in_field(this, 0);
+  store_rc= expr_item->save_in_field(this, 0);
 
   if (likely(!thd->is_error()))
+  {
+    /*
+      The one place a stored program's variable is written, and so the
+      one place there is anything to say about what is in it - see
+      Field::set_json_held_marks().
+    */
+    set_json_held_marks(expr_item, store_rc);
     DBUG_RETURN(false);
+  }
 
 error:
   /*
@@ -1532,6 +1541,13 @@ error:
     set x = x + 1;
   */
   set_null();
+  /*
+    The assignment failed, so nothing attests to what this field holds:
+    the bytes are whatever the store put down before the error, under a
+    NULL that was set without clearing them.  The marks the previous
+    assignment left go with them.
+  */
+  clear_json_held_marks();
   DBUG_ASSERT(thd->is_error());
   DBUG_RETURN(true);
 }
@@ -3055,6 +3071,106 @@ void Field::confirm_is_valid_json_static_from(Field *from)
   }
   confirm_json_static_value(from->is_nice_json_static(),
                             from->json_static_depth());
+}
+
+
+/*
+  What this field is holding, where it is a stored program's variable and
+  something was said about the value put here - see TABLE::json_held_marks.
+
+  A field with nowhere to keep an answer answers the same as one that was
+  never granted anything, which is the answer everything but a stored
+  program's variable gives and the answer those give until an assignment
+  says otherwise.
+*/
+
+bool Field::is_valid_json_held() const
+{
+  return table->json_held_marks &&
+         table->json_held_marks[field_index].valid();
+}
+
+
+bool Field::is_nice_json_held() const
+{
+  return table->json_held_marks &&
+         table->json_held_marks[field_index].nice();
+}
+
+
+uint Field::json_held_depth() const
+{
+  return table->json_held_marks ? table->json_held_marks[field_index].depth()
+                                : JSON_DEPTH_UNKNOWN;
+}
+
+
+void Field::clear_json_held_marks()
+{
+  if (table->json_held_marks)
+    table->json_held_marks[field_index].clear();
+}
+
+
+/*
+  Said once per assignment, with the item that was assigned in hand and
+  the store it just did already done.
+
+  The rule is the one every store site applies - the item said it was a
+  document, the store kept every character of it, and nothing went wrong
+  while it happened - and it is applied here for the same reason it is
+  applied there.  What is different is what the answer is about: a
+  column is attested once and read over many rows, while a variable
+  is attested as often as it is written and read only until it is
+  written again.  So the formatting and the depth are taken from the item
+  as well, exactly rather than as a bound: there is one value here, the
+  item that made it is right here, and it is the only value the answer
+  has to cover.
+
+  The store having returned 0 is asked about and not merely whether
+  anything went wrong, because in this direction the two are not the
+  same: a store that had to drop characters or write them another way
+  answers 2, and answers it while succeeding.  Assigning a variable does
+  raise an error where a column store would not, but that is a property
+  of this path rather than of the rule, and the rule is the conservative
+  one either way.
+
+  Nothing is cleared on the way in.  Every way out of the funnel this is
+  called from ends either here or at the clear beside it, so a value
+  that never arrived leaves no answer standing over the bytes of the one
+  before it.  Not clearing first is also what lets SET x = x keep an
+  answer: the item is this same field, and what it says is read after
+  the store rather than wiped before it.
+*/
+
+void Field::set_json_held_marks(const Item *item, int store_rc)
+{
+  if (!table->json_held_marks)
+    return;
+  Json_result_marks &marks= table->json_held_marks[field_index];
+  /*
+    The same rule a column's store is attested by - see
+    Field::is_attestation_preserved() - and a NULL besides, which is
+    not read as a document and is not attested as one.
+  */
+  if (!is_attestation_preserved(item, store_rc) || is_null())
+  {
+    marks.clear();
+    return;
+  }
+  {
+    /*
+      The value is read back out of the field rather than taken from the
+      item, so that what the answer is checked against is what a reader
+      of this field will find.  Only the check reads it - see
+      Json_result_marks::set(), which uses the value for nothing else -
+      so the reading is the debug build's work, the same as at the
+      confirm above.
+    */
+    IF_DBUG(StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;,)
+    marks.set(IF_DBUG(val_str(&kept), NULL), true, item->is_nice_json(),
+              item->last_depth());
+  }
 }
 
 
