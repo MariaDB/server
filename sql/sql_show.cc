@@ -4580,7 +4580,9 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 */
 
 static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
-                        LOOKUP_FIELD_VALUES *lookup_field_vals)
+                        LOOKUP_FIELD_VALUES *lookup_field_vals,
+                        bool allow_acl_fast_path,
+                        IS_table_read_plan *plan= NULL)
 {
   if (lookup_field_vals->wild_db_value)
   {
@@ -4636,9 +4638,45 @@ static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
   */
   if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    Fast path for SHOW DATABASES / I_S.SCHEMATA: users without global
+    DB_ACLS or SHOW_DB_ACL still need database names from their grants.
+    Embedded builds without privilege control skip this and use find_files().
+  */
+  if (allow_acl_fast_path &&
+      !(thd->security_ctx->master_access & (DB_ACLS | SHOW_DB_ACL)))
+  {
+    Discovered_table_list tl(thd, files, &null_clex_str);
+    if (!get_acl_databases_for_user(thd, files))
+    {
+      if (plan)
+        plan->db_list_method= SCHEMA_DB_LIST_ACL;
+      if (is_show_command(thd))
+        tl.sort();
+#ifndef DBUG_OFF
+      else
+      {
+        /*
+          sort_desc() matches find_files(): in debug builds, non-SHOW I_S
+          queries get reverse-sorted names to expose unstable tests that
+          omit ORDER BY on SCHEMATA/TABLES result ordering.
+        */
+        tl.sort_desc();
+      }
+#endif
+      return 0;
+    }
+    if (plan)
+      plan->db_list_method= SCHEMA_DB_LIST_DIRECTORY_SCAN;
+  }
+  else if (plan && allow_acl_fast_path)
+    plan->db_list_method= SCHEMA_DB_LIST_DIRECTORY_SCAN;
+#endif
+
   return find_files(thd, files, 0, mysql_data_home, &null_clex_str);
 }
-
 
 struct st_add_schema_table
 {
@@ -5630,7 +5668,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     }
   }
 
-  if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
+  if (make_db_list(thd, &db_names, &plan->lookup_field_vals, false, plan))
     goto err;
 
   for (size_t i=0; i < db_names.elements(); i++)
@@ -5818,7 +5856,8 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_PRINT("INDEX VALUES",("db_name: %s  table_name: %s",
                              lookup_field_vals.db_value.str,
                              lookup_field_vals.table_value.str));
-  if (make_db_list(thd, &db_names, &lookup_field_vals))
+  if (make_db_list(thd, &db_names, &lookup_field_vals, true,
+                   tables->is_table_read_plan))
     DBUG_RETURN(1);
 
   /*
@@ -9775,6 +9814,47 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
 
 
 /*
+  Prepare a read plan for INFORMATION_SCHEMA.SCHEMATA.
+
+  When possible, record whether execution can use the ACL-based database list
+  (exact db grants only) or must fall back to a full directory scan. This
+  is surfaced in EXPLAIN FORMAT=JSON for restricted users.
+*/
+
+static bool optimize_for_fill_schema_schemata(THD *thd, TABLE_LIST *tables,
+                                              COND *cond)
+{
+  IS_table_read_plan *plan;
+  DBUG_ENTER("optimize_for_fill_schema_schemata");
+
+  if (!(plan= new IS_table_read_plan()))
+    DBUG_RETURN(1);
+
+  tables->is_table_read_plan= plan;
+
+  if (get_lookup_field_values(thd, cond, true, tables,
+                              &plan->lookup_field_vals))
+    plan->no_rows= true;
+  else if (plan->lookup_field_vals.wild_db_value ||
+           plan->lookup_field_vals.db_value.str)
+    plan->db_list_method= SCHEMA_DB_LIST_DIRECTORY_SCAN;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  else if (!(thd->security_ctx->master_access & (DB_ACLS | SHOW_DB_ACL)))
+  {
+    Dynamic_array<LEX_CSTRING*> probe(PSI_INSTRUMENT_MEM);
+    plan->db_list_method=
+      get_acl_databases_for_user(thd, &probe) ?
+      SCHEMA_DB_LIST_DIRECTORY_SCAN : SCHEMA_DB_LIST_ACL;
+  }
+#endif
+  else
+    plan->db_list_method= SCHEMA_DB_LIST_DIRECTORY_SCAN;
+
+  DBUG_RETURN(0);
+}
+
+
+/*
   This is the optimizer part of get_schema_tables_result().
 */
 
@@ -9801,6 +9881,16 @@ bool optimize_schema_tables_reads(JOIN *join)
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)
         continue;
+
+      if (table_list->schema_table->fill_table == fill_schema_schemata)
+      {
+        Item *cond= tab->select_cond;
+        if (tab->cache_select && tab->cache_select->cond)
+          cond= tab->cache_select->cond;
+        if (optimize_for_fill_schema_schemata(thd, table_list, cond))
+          DBUG_RETURN(1);
+        continue;
+      }
 
       /* skip I_S optimizations specific to get_all_tables */
       if (table_list->schema_table->fill_table != get_all_tables)

@@ -1815,6 +1815,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer,
     case ET_SCANNED_ALL_DATABASES:
       writer->add_member("scanned_databases").add_str("all");
       break;
+    case ET_ACL_DATABASE_LIST:
+      writer->add_member("acl_database_list").add_bool(true);
+      break;
     case ET_SKIP_OPEN_TABLE:
       writer->add_member("skip_open_table").add_bool(true);
       break;
@@ -2416,6 +2419,7 @@ const LEX_CSTRING extra_tag_text[]=
   { STRING_WITH_LEN("Scanned 0 databases") },
   { STRING_WITH_LEN("Scanned 1 database") },
   { STRING_WITH_LEN("Scanned all databases") },
+  { STRING_WITH_LEN("Acl database list") },
 
   { STRING_WITH_LEN("Using index for group-by") }, // special handling
   { STRING_WITH_LEN("USING MRR: DONT PRINT ME") }, // special handling

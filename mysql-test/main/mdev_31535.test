@@ -1,0 +1,152 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-31535: Optimize directory listing for SHOW DATABASES /
+--echo # INFORMATION_SCHEMA.SCHEMATA by using a privilege-based lookup
+--echo # (get_acl_databases_for_user) instead of a full filesystem scan,
+--echo # for users without global database-listing privileges.
+--echo #
+
+--disable_warnings
+drop database if exists mdev31535a;
+drop database if exists mdev31535b;
+drop database if exists mdev31535pub;
+drop database if exists mdev31535roledb;
+drop database if exists mdev31535_wild_a;
+drop database if exists mdev31535_wild_b;
+--enable_warnings
+
+create database mdev31535a;
+create database mdev31535b;
+create table mdev31535b.t1 (a int);
+create database mdev31535_wild_a;
+create database mdev31535_wild_b;
+
+--echo #
+--echo # Case 1: user with an explicit mysql.db grant on exactly one database
+--echo # (no wildcard metacharacter in the name) is resolved by the fast path
+--echo # and sees only that database plus information_schema.
+--echo #
+create user mdev31535_u1@localhost;
+grant select on mdev31535a.* to mdev31535_u1@localhost;
+
+connect (con1,localhost,mdev31535_u1,,);
+connection con1;
+--sorted_result
+show databases;
+--sorted_result
+select schema_name from information_schema.schemata order by schema_name;
+--echo # EXPLAIN FORMAT=JSON should report acl_database_list for the fast path
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+--echo # Re-run the query and EXPLAIN: I_S is not query-cached; fast path again
+select schema_name from information_schema.schemata order by schema_name;
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+connection default;
+disconnect con1;
+
+--echo #
+--echo # Case 2: user with only a table-level grant (no mysql.db row) still
+--echo # sees that database, via the column_priv_hash pass of the fast path.
+--echo #
+create user mdev31535_u2@localhost;
+grant select on mdev31535b.t1 to mdev31535_u2@localhost;
+
+connect (con2,localhost,mdev31535_u2,,);
+connection con2;
+--sorted_result
+show databases;
+--sorted_result
+select schema_name from information_schema.schemata order by schema_name;
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+connection default;
+disconnect con2;
+
+--echo #
+--echo # Case 3: user whose db grant contains an SQL wildcard ('_' or '%') can
+--echo # match an unknown set of on-disk databases, so the fast path declines
+--echo # and falls back to the legacy find_files() scan.
+--echo #
+create user mdev31535_u3@localhost;
+grant select on `mdev31535\_wild_%`.* to mdev31535_u3@localhost;
+
+connect (con3,localhost,mdev31535_u3,,);
+connection con3;
+--sorted_result
+show databases;
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+connection default;
+disconnect con3;
+
+--echo #
+--echo # Case 4: a database granted to a role that is the user's default role
+--echo # must be visible, alongside the user's own database. This mirrors
+--echo # acl_get_all3()/check_grant_db(), which also consider the active role.
+--echo #
+create role mdev31535role;
+create database mdev31535roledb;
+grant select on mdev31535roledb.* to mdev31535role;
+create user mdev31535_u4@localhost;
+grant select on mdev31535a.* to mdev31535_u4@localhost;
+grant mdev31535role to mdev31535_u4@localhost;
+set default role mdev31535role for mdev31535_u4@localhost;
+
+connect (con4,localhost,mdev31535_u4,,);
+connection con4;
+select current_role;
+--sorted_result
+show databases;
+--sorted_result
+select schema_name from information_schema.schemata order by schema_name;
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+connection default;
+disconnect con4;
+
+--echo #
+--echo # Case 5: a database granted via the PUBLIC role must be visible to any
+--echo # user through the fast path, exactly as the legacy per-database ACL
+--echo # filter (acl_get_all3) would admit it. Before this fix the fast path
+--echo # ignored PUBLIC grants and hid such databases.
+--echo #
+create user mdev31535_u5@localhost;
+create database mdev31535pub;
+grant select on mdev31535a.* to mdev31535_u5@localhost;
+grant select on mdev31535pub.* to public;
+
+connect (con5,localhost,mdev31535_u5,,);
+connection con5;
+--sorted_result
+show databases;
+--sorted_result
+select schema_name from information_schema.schemata order by schema_name;
+--replace_regex /"SCHEMATA"/"schemata"/
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+connection default;
+disconnect con5;
+
+revoke select on mdev31535pub.* from public;
+
+drop role mdev31535role;
+drop user mdev31535_u1@localhost;
+drop user mdev31535_u2@localhost;
+drop user mdev31535_u3@localhost;
+drop user mdev31535_u4@localhost;
+drop user mdev31535_u5@localhost;
+drop database mdev31535a;
+drop database mdev31535b;
+drop database mdev31535pub;
+drop database mdev31535roledb;
+drop database mdev31535_wild_a;
+drop database mdev31535_wild_b;
+
+--echo # Granting to PUBLIC auto-creates the PUBLIC role row in mysql.global_priv
+--echo # on the minimal test datadir; DROP ROLE PUBLIC is not permitted, so
+--echo # remove the leftover role directly to keep server state unchanged.
+delete from mysql.global_priv where User='PUBLIC' and Host='';
+flush privileges;
+
+--echo # End of MDEV-31535 tests

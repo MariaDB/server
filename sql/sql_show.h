@@ -78,6 +78,14 @@ typedef struct system_status_var STATUS_VAR;
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
 
 int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
+int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond);
+
+enum enum_schema_db_list_method
+{
+  SCHEMA_DB_LIST_UNSET= 0,
+  SCHEMA_DB_LIST_ACL,
+  SCHEMA_DB_LIST_DIRECTORY_SCAN
+};
 
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
@@ -234,7 +242,10 @@ typedef struct st_lookup_field_values
 class IS_table_read_plan : public Sql_alloc
 {
 public:
-  IS_table_read_plan() : no_rows(false), trivial_show_command(FALSE) {}
+  IS_table_read_plan()
+   :no_rows(false), trivial_show_command(FALSE),
+    db_list_method(SCHEMA_DB_LIST_UNSET)
+  {}
 
   bool no_rows;
   /*
@@ -245,6 +256,11 @@ public:
     data, we set trivial_show_command=true.
   */
   bool trivial_show_command;
+  /*
+    For EXPLAIN: how make_db_list() built the database name list for
+    fill_schema_schemata() (SHOW DATABASES / I_S.SCHEMATA).
+  */
+  enum_schema_db_list_method db_list_method;
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Item *partial_cond;

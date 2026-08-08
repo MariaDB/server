@@ -31442,6 +31442,19 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     }
     if (table_list /* SJM bushes don't have table_list */ &&
         table_list->schema_table &&
+        table_list->is_table_read_plan &&
+        table_list->schema_table->fill_table == fill_schema_schemata &&
+        !(thd->security_ctx->master_access & (DB_ACLS | SHOW_DB_ACL)))
+    {
+      if (table_list->is_table_read_plan->db_list_method ==
+          SCHEMA_DB_LIST_ACL)
+        eta->push_extra(ET_ACL_DATABASE_LIST);
+      else if (table_list->is_table_read_plan->db_list_method ==
+               SCHEMA_DB_LIST_DIRECTORY_SCAN)
+        eta->push_extra(ET_SCANNED_ALL_DATABASES);
+    }
+    else if (table_list /* SJM bushes don't have table_list */ &&
+        table_list->schema_table &&
         table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
     {
       if (!table_list->table_open_method)
