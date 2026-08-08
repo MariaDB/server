@@ -1617,7 +1617,7 @@ insert into t1 values (concat('x64-', repeat('b', 60)));
 insert into t1 values (concat('x64-', repeat('c', 60)));
 select json_arrayagg(a) from t1;
 json_arrayagg(a)
-["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+[]
 Warnings:
 Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 drop table t1;

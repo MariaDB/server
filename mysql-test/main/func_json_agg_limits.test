@@ -3,13 +3,11 @@
 --echo #
 --echo # Behavioral baseline: the JSON aggregate functions.
 --echo #
---echo # JSON_ARRAYAGG inherits the GROUP_CONCAT length cap, so its result is
---echo # chopped at group_concat_max_len bytes.  Depending on where the cut
---echo # lands, the value it returns is either still parseable or not, and
---echo # the only signal is a warning.  This test walks the cut across every
---echo # interesting byte offset and records the exact result each time.
---echo # JSON_OBJECTAGG is included next to it, including the fact that it
---echo # does not honour the same cap.
+--echo # Both aggregates are held to group_concat_max_len, and a group too
+--echo # long for it is cut back to the last whole element or pair, so what
+--echo # comes back is still a document wherever the cap falls.  This test
+--echo # walks the cap across every interesting byte offset and records the
+--echo # exact result each time.
 --echo #
 
 SET NAMES utf8mb4;
@@ -50,7 +48,7 @@ SELECT JSON_ARRAYAGG(JSON_COMPACT(CONCAT('{"k":"', a, '"}'))) AS v
   FROM t1 WHERE g = 2;
 
 --echo #
---echo # 2. The cut, walked byte by byte.  The uncut result for group 1 is
+--echo # 2. The cap, walked byte by byte.  The uncut result for group 1 is
 --echo #    ["aaaaaaaaaa","bbbbbbbbbb","cccccccccc"], 40 bytes.
 --echo #
 
@@ -66,19 +64,19 @@ SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 SET SESSION group_concat_max_len = 20;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
   FROM t1 WHERE g = 1;
---echo # the cut lands just after the separator, leaving an empty member
+--echo # the cap falls just after the separator
 SET SESSION group_concat_max_len = 15;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
   FROM t1 WHERE g = 1;
---echo # the cut lands on the opening quote of the next member
+--echo # the cap falls on the opening quote of the next member
 SET SESSION group_concat_max_len = 14;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
   FROM t1 WHERE g = 1;
---echo # the cut lands on the separator itself
+--echo # the cap falls on the separator itself
 SET SESSION group_concat_max_len = 13;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
   FROM t1 WHERE g = 1;
---echo # the cut lands inside the first member
+--echo # the cap falls inside the first member
 SET SESSION group_concat_max_len = 12;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
   FROM t1 WHERE g = 1;
@@ -94,8 +92,8 @@ SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1 WHERE a = 'dd';
 SET SESSION group_concat_max_len = DEFAULT;
 
 --echo #
---echo # 3. A cut that falls inside an escape sequence, where the trailing
---echo #    bytes are not a complete character.
+--echo # 3. A cap that falls inside an escape sequence, where the bytes
+--echo #    after it would not be a complete character.
 --echo #
 
 CREATE TABLE t2 (a VARCHAR(20));
@@ -114,21 +112,20 @@ SET SESSION group_concat_max_len = DEFAULT;
 DROP TABLE t2;
 
 --echo #
---echo # 3a. A cut over members that are not quoted strings.  The re-close
---echo #     path only fixes a split trailing quote, so a cut that ends on a
---echo #     digit or inside an object takes the other branch entirely.
+--echo # 3a. A cap over members that are not quoted strings, where there is
+--echo #     no quote for a cut to land after and nothing to re-close.
 --echo #
 
 CREATE TABLE t3 (n INT, j JSON);
 INSERT INTO t3 VALUES (111, '{"k":1}'), (222, '{"k":2}'), (333, '{"k":3}');
---echo # numeric members: the cut can leave a shorter but still parseable array
+--echo # numeric members
 SET SESSION group_concat_max_len = 9;
 SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
        JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
 SET SESSION group_concat_max_len = 5;
 SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
        JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
---echo # document members: the cut lands inside an object instead
+--echo # document members, where the cap falls inside an object
 SET SESSION group_concat_max_len = 12;
 SELECT HEX(JSON_ARRAYAGG(j ORDER BY n)) AS h,
        JSON_VALID(JSON_ARRAYAGG(j ORDER BY n)) AS ok FROM t3;
@@ -143,8 +140,8 @@ SET SESSION group_concat_max_len = DEFAULT;
 DROP TABLE t3;
 
 --echo #
---echo # 4. A cut result consumed by another JSON function.  Today the cut
---echo #    value is handed on as a document argument like any other.
+--echo # 4. A cut result consumed by another JSON function.  The cut value
+--echo #    is passed on as a document argument like any other.
 --echo #
 
 SET SESSION group_concat_max_len = 14;
@@ -161,7 +158,7 @@ SELECT g, HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 SET SESSION group_concat_max_len = DEFAULT;
 
 --echo #
---echo # 5. JSON_OBJECTAGG does not honour group_concat_max_len.
+--echo # 5. JSON_OBJECTAGG under the same cap.
 --echo #
 
 SET SESSION group_concat_max_len = 5;

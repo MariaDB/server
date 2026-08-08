@@ -3786,7 +3786,7 @@ int group_concat_key_cmp_with_order_with_nulls(void *arg,
 }
 
 
-static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
+void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 {
   size_t fn_len= strlen(fname);
   char *fname_upper= (char *) my_alloca(fn_len + 1);

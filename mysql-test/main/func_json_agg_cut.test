@@ -1,0 +1,279 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # A group too long for group_concat_max_len is cut back to the last
+--echo # whole element or pair, so what is returned is still a document.
+--echo # Both aggregates honour the setting and both say so with a warning.
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20));
+INSERT INTO t1 VALUES
+  (1, 'aaaa'), (1, 'bbbb'), (1, 'cccc'), (1, 'dddd'),
+  (2, 'ee'), (2, 'ff');
+
+--echo #
+--echo # 1. The cut walked across every offset within an element.  The uncut
+--echo #    group 1 is ["aaaa","bbbb","cccc","dddd"], 29 bytes.
+--echo #
+
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 WHERE g = 1;
+
+--let $cap= 3
+while ($cap < 20)
+{
+  eval SET SESSION group_concat_max_len = $cap;
+  eval SELECT $cap AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+              JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+  --inc $cap
+}
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 2. The same walk for the object, which used to ignore the setting
+--echo #    altogether.  The uncut group 1 is
+--echo #    {"aaaa":"aaaa", "bbbb":"bbbb", "cccc":"cccc", "dddd":"dddd"}.
+--echo #
+
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 1;
+
+--let $cap= 3
+while ($cap < 20)
+{
+  eval SET SESSION group_concat_max_len = $cap;
+  eval SELECT $cap AS cap, JSON_OBJECTAGG(a, a) AS v,
+              JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+  --inc $cap
+}
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 3. A cap smaller than the first element leaves an empty container
+--echo #    rather than half of one.
+--echo #
+
+SET SESSION group_concat_max_len = 4;
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v,
+       JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+SELECT JSON_OBJECTAGG(a, a) AS v,
+       JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 4. Elements that are not quoted strings.
+--echo #
+
+CREATE TABLE t2 (n INT, j VARCHAR(20));
+INSERT INTO t2 VALUES (1111, '{"k":1}'), (2222, '{"k":2}'), (3333, '{"k":3}');
+
+--echo # numbers, where the old cut left a trailing separator
+--let $cap= 4
+while ($cap < 17)
+{
+  eval SET SESSION group_concat_max_len = $cap;
+  eval SELECT $cap AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+              JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+  --inc $cap
+}
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo # documents, where the old cut landed inside an object
+SET SESSION group_concat_max_len = 12;
+SELECT JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n) AS v,
+       JSON_VALID(JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 17;
+SELECT JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n) AS v,
+       JSON_VALID(JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 20;
+SELECT JSON_OBJECTAGG(n, JSON_COMPACT(j)) AS v,
+       JSON_VALID(JSON_OBJECTAGG(n, JSON_COMPACT(j))) AS ok FROM t2;
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t2;
+
+--echo #
+--echo # 5. A cut group and an uncut group in the same statement, and the
+--echo #    row the warning names.
+--echo #
+
+SET SESSION group_concat_max_len = 14;
+SELECT g, JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 GROUP BY g ORDER BY g;
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g ORDER BY g;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 6. DISTINCT and ORDER BY inside the array, which reach the cut by
+--echo #    a different route.
+--echo #
+
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_ARRAYAGG(DISTINCT a ORDER BY a) AS v FROM t1 WHERE g = 1;
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 7. A cut result read back by another JSON function.
+--echo #
+
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_EXTRACT(JSON_ARRAYAGG(a ORDER BY a), '$[0]') AS v FROM t1 WHERE g = 1;
+SELECT JSON_LENGTH(JSON_ARRAYAGG(a ORDER BY a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a ORDER BY a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_LENGTH(JSON_OBJECTAGG(a, a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_ARRAY(JSON_OBJECTAGG(a, a)) AS v FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 8. Characters wider than a byte.  The cap counts bytes, and an
+--echo #    element boundary is a boundary whatever the characters cost.
+--echo #
+
+CREATE TABLE t3 (a VARCHAR(20)) CHARACTER SET utf8mb4;
+INSERT INTO t3 VALUES (_utf8mb4 X'C3A4C3A4'), (_utf8mb4 X'C3B6C3B6');
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_ARRAYAGG(a ORDER BY a)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t3;
+SET SESSION group_concat_max_len = 7;
+SELECT HEX(JSON_ARRAYAGG(a ORDER BY a)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t3;
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_OBJECTAGG(a, 1)) AS h,
+       JSON_VALID(JSON_OBJECTAGG(a, 1)) AS ok FROM t3;
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t3;
+
+--echo #
+--echo # 9. Nothing to cut: a group that fits raises no warning, and an
+--echo #    empty group is unaffected.
+--echo #
+
+SET SESSION group_concat_max_len = 1024;
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 WHERE g = 2;
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 2;
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 99;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 10. A NULL key is not a pair of the object, so it is not the row
+--echo #     the warning names either.
+--echo #
+
+CREATE TABLE t4 (k VARCHAR(20), v INT);
+INSERT INTO t4 VALUES (NULL, 1), ('kkkk', 2), ('llll', 3), ('mmmm', 4);
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, v) AS v FROM t4;
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t4;
+
+DROP TABLE t1;
+
+--echo #
+--echo # 11. A cut group is still read to the end.  An argument is an
+--echo #     expression, and the rows past the cut work it out exactly as
+--echo #     the rows before it do - only the writing stops.  Each shape
+--echo #     below is run twice over the same rows, once under a cap that
+--echo #     cuts and once under one that does not, and counts what the
+--echo #     argument did.  The two counts are the same because the
+--echo #     reading is.
+--echo #
+
+CREATE TABLE t5 (k VARCHAR(20), v VARCHAR(20));
+INSERT INTO t5 VALUES
+  ('kkkk', 'aaaa'), ('llll', 'bbbb'), ('mmmm', 'cccc'), ('nnnn', 'dddd');
+
+DELIMITER //;
+CREATE FUNCTION seen_once(x VARCHAR(20)) RETURNS VARCHAR(20) NO SQL
+BEGIN
+  SET @calls= @calls + 1;
+  RETURN x;
+END//
+DELIMITER ;//
+
+--echo # the array, which reads every row of the group already
+SET @calls= 0;
+SELECT JSON_ARRAYAGG(seen_once(v) ORDER BY v) AS v FROM t5;
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_ARRAYAGG(seen_once(v) ORDER BY v) AS v FROM t5;
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+
+--echo # the object, on the value of the pair
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t5;
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t5;
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+
+--echo # the object, on the key.  The object also asks the key whether it
+--echo # is NULL, and asking that of a function is running it again, so
+--echo # the count here is two a row - under either cap.
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(seen_once(k), v) AS v FROM t5;
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(seen_once(k), v) AS v FROM t5;
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+
+--echo # a row whose key is NULL makes no pair, so its value is not read
+--echo # for it - past the cut no differently from before it
+CREATE TABLE t6 (k VARCHAR(20), v VARCHAR(20));
+INSERT INTO t6 VALUES
+  ('kkkk', 'aaaa'), ('llll', 'bbbb'), (NULL, 'cccc'), ('nnnn', 'dddd');
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t6;
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t6;
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+DROP TABLE t6;
+
+DROP FUNCTION seen_once;
+DROP TABLE t5;
+
+--echo #
+--echo # 12. The limit is on the bytes handed back, and the brace that
+--echo #     closes the object is one of them.  It goes on after the
+--echo #     length has been tested, so the room for it has to be kept
+--echo #     back when the test is made.
+--echo #
+
+CREATE TABLE t7 (a VARCHAR(20));
+INSERT INTO t7 VALUES ('aaaa'), ('bbbb'), ('cccc');
+
+--let $cap= 4
+while ($cap < 24)
+{
+  eval SET SESSION group_concat_max_len = $cap;
+  eval SELECT $cap AS cap, JSON_OBJECTAGG(a, a) AS v,
+              LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+              LENGTH(JSON_OBJECTAGG(a, a)) <= $cap AS within FROM t7;
+  --inc $cap
+}
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t7;
+
+--echo # A set that writes no character in one byte: the brace costs two
+--echo # bytes there, so two is what has to be kept back.
+CREATE TABLE t8 (a VARCHAR(20)) CHARACTER SET ucs2;
+INSERT INTO t8 VALUES ('aa'), ('bb');
+
+--let $cap= 12
+while ($cap < 22)
+{
+  eval SET SESSION group_concat_max_len = $cap;
+  eval SELECT $cap AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+              LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+              LENGTH(JSON_OBJECTAGG(a, a)) <= $cap AS within FROM t8;
+  --inc $cap
+}
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t8;
