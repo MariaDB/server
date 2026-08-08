@@ -3397,6 +3397,37 @@ public:
   bool is_null() override;
 
 public:
+  /*
+    What the variable this stands for is holding, asked of the field the
+    value is in - see TABLE::json_held_marks.
+
+    Asked through this_item(), which finds the running frame the way
+    every other read of the variable does and never remembers what it
+    found.  The same item is called upon twice over, from both sides:
+    reading the variable comes through here, and assigning it to another
+    one arrives at the store as that same field, dereferenced on the way
+    by THD::sp_fix_func_item().  So one answer serves both, and a value
+    moved from variable to variable carries what was said about it
+    without anything having to move it.
+
+    A variable of a stored program is not typed as a document however it
+    was declared, so a value out of one is quoted into a document rather
+    than spliced into it, and these three answers change nothing about
+    that.  What they are read for is the other thing attestation saves:
+    a function given this value as the document to work on need not
+    parse it again.
+
+    The standing question is not answered here and cannot be.  A
+    variable holds what the last assignment put in it and the next one
+    will put something else there, so nothing about the value in it now
+    holds for every evaluation of it.
+  */
+  bool is_valid_json() const override
+  { return this_item()->is_valid_json(); }
+  bool is_nice_json() const override
+  { return this_item()->is_nice_json(); }
+  uint last_depth() const override
+  { return this_item()->last_depth(); }
   void make_send_field(THD *thd, Send_field *field) override;
   bool const_item() const override { return true; }
   Field *create_tmp_field_ex(MEM_ROOT *root,
@@ -4155,12 +4186,31 @@ public:
     is an upper bound on what it says by the time the row arrives, and
     the later column asks it again at every fill.  See
     Field::confirm_is_valid_json_static_from().
+
+    The other exception is a field a stored program keeps a variable in,
+    which was told what was put there by the assignment that put it -
+    see TABLE::json_held_marks.  That is a different promise about a
+    different thing and it is asked here for one reason: an assignment
+    of one variable to another arrives at the store as a read of the
+    field behind the source, this item and no other, so a variable
+    attesting to its value at all means this item attesting to it.
+
+    Only one of the two is ever there to be asked.  A table cannot both
+    be built by the server for a query and be where a stored program
+    keeps its variables, so the two never disagree and nothing has to
+    decide which of them wins.
   */
   bool is_valid_json() const override
   {
     DBUG_ASSERT(reads_back_as_document());
-    return field->answers_is_valid_json();
+    return field->attests_is_valid_json();
   }
+  /*
+    The standing question, which only the first of the two answers.  A
+    variable is written as many times as somebody assigns it, so what is
+    in it now says nothing about what will be in it when a column built
+    out of it comes to be filled.
+  */
   bool is_valid_json_static() const override
   { return field->is_valid_json_static(); }
   /*
@@ -4193,14 +4243,19 @@ public:
   uint last_depth() const override
   {
     DBUG_ASSERT(reads_back_no_deeper_than_claimed());
-    return field->answers_json_depth();
+    /*
+      Where a variable is what is being read the figure is the depth of
+      the one value in it rather than the deepest of a column's rows,
+      and so is exact.
+    */
+    return field->attested_json_depth();
   }
   /*
-    A field has no document of its own to hand over - val_json() here is
+    A field has no document of its own to pass - val_json() here is
     Item::val_json(), which is val_str() - so its result side is
     str_result() and nothing more.  The bytes it reads are a row's, and
     a row outlives the working out of an argument, so there is nothing
-    for the careful spelling to be careful about and the two are one
+    for val_json_at_once() to be careful about, and the two are one
     call.  Item_default_value inherits both: str_result() is virtual,
     so its own is the one reached and the value gets put in place first.
   */

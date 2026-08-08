@@ -1309,34 +1309,63 @@ public:
   void confirm_is_valid_json_static_from(Field *from);
   void confirm_json_static_value(bool is_nice, uint depth);
 
+  /*
+    Attest to the one value this field is holding, where the field is a
+    stored program's variable - see TABLE::json_held_marks.  Out of line
+    for the same reason the depth above is: what the answers are kept in
+    is declared where a field header cannot see it.
+
+    Read without asking first whether there is anything here to read: a
+    field with nowhere to keep an answer gives the same answer as a
+    field that has one and was not granted it, and no caller has ever
+    had a reason to tell those two apart.
+  */
+  bool is_valid_json_held() const;
+  bool is_nice_json_held() const;
+  uint json_held_depth() const;
+  void set_json_held_marks(const Item *item, int store_rc);
+  void clear_json_held_marks();
 
   /*
-    What this field can say about the bytes it is holding.  The long
-    form of why it can be believed is at Item_field::is_valid_json().
+    What this field can say about the bytes it is holding, which is
+    whichever of the two channels above has anything to say.  Only one
+    of them is ever there to be asked: a table cannot both be one the
+    server built for a query and be where a stored program keeps its
+    variables, so the two never disagree.  The long form of why either
+    of them can be believed is at Item_field::is_valid_json().
 
     Asked by everything that reads a value through a field rather than
     through the item that made it - Item_field for the field it names,
     and the Item_ref family for the result field it reads a copy out
     of.
 
-    A row holding no value at all is not answered for, and that is asked
-    here rather than left to the reader.  The grant is about the column:
-    it is given once, where the table is built, and what it says is that
-    every value the column comes to hold arrived from something that
-    answers for the values it makes.  That is as true of a row that came
-    out SQL NULL as of any other, there being no value in it to be wrong
-    about - so the grant goes on standing over such a row while there
-    are no characters under it to have been answered for.  A caller that
-    reads it there puts the answer down somewhere the NULL itself cannot
-    go, the column taking whatever it takes in place of one, and the
-    answer is then about bytes nothing ever saw.
+    A row holding no value at all is attested by neither, and that
+    is asked here rather than left to the reader.  The standing grant is
+    about the column: it is given once, where the table is built, and
+    what it says is that every value the column comes to hold arrived
+    from something that attests to the values it makes.  That is as
+    true of a row that came out SQL NULL as of any other, there being no
+    value in it to be wrong about - so the grant goes on standing over
+    such a row while there are no characters under it to have been
+    attested.  A caller that reads it there puts the answer down
+    somewhere the NULL itself cannot go, the column taking whatever it
+    takes in place of one, and the answer is then about bytes nothing
+    ever saw.  The held answers are put down one value at a time and are
+    already cleared for a NULL where they are set - see
+    Field::set_json_held_marks() - so the question is asked of both only
+    so that a reader never has to know which of the two it is reading.
   */
-  bool answers_is_valid_json() const
-  { return !is_null() && is_valid_json_static(); }
-  bool answers_is_nice_json() const
-  { return !is_null() && is_nice_json_static(); }
-  uint answers_json_depth() const
-  { return json_static_depth(); }
+  bool attests_is_valid_json() const
+  { return !is_null() && (is_valid_json_static() || is_valid_json_held()); }
+  bool attests_is_nice_json() const
+  { return !is_null() && (is_nice_json_static() || is_nice_json_held()); }
+  /*
+    The smaller of the two, which is the one that was answered: the
+    other is JSON_DEPTH_UNKNOWN, that being the largest there is and
+    what a field with nothing to say about a depth says.
+  */
+  uint attested_json_depth() const
+  { return MY_MIN(json_static_depth(), json_held_depth()); }
 
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
   { DBUG_ASSERT(0); return 0; }

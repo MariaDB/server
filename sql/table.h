@@ -76,6 +76,7 @@ class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
 class Range_rowid_filter_cost_info;
+class Json_result_marks;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
@@ -1455,6 +1456,35 @@ public:
     documents at all.
   */
   uint		*json_static_depth;
+  /*
+    What was said about the value each field of this table is holding
+    right now, where the table is one a stored program keeps its
+    variables in.
+
+    A variable is not a column and cannot be attested to the way the
+    three above attest to one.  A column of a table the server built
+    for itself has one producer, settled while the column is being made,
+    so what will be written there is known before a row exists.  A
+    variable has as many producers as there are assignments to it, each
+    one arriving at a different moment and saying something different,
+    so there is nothing to say in advance and everything to say each
+    time one lands.
+
+    So these are written where a value is written, by the one funnel
+    every assignment goes through, and each of them is about the bytes
+    the field holds until the next assignment replaces both together.
+    That is a narrower promise than the standing one and a stronger one:
+    it is about a value that exists, and it can carry the formatting and
+    the depth exactly rather than as a bound over rows.
+
+    Only Virtual_tmp_table leaves an array here, and it is the whole of
+    the discriminator, exactly as the pointer above it is: a base table
+    and a table the user asked for have nowhere to keep an answer and so
+    give none.  A table a stored program keeps its variables in cannot
+    be named from SQL and is written by nothing but that one funnel,
+    which is what makes an answer about it worth keeping at all.
+  */
+  Json_result_marks *json_held_marks;
 
   /*
    The ID of the query that opened and is using this table. Has different

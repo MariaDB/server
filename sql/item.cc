@@ -7191,7 +7191,11 @@ void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 */
 static bool field_reads_back_as_document(Field *f)
 {
-  if (!f->answers_is_valid_json())
+  /*
+    The two channels read the way is_valid_json() reads them, and not by
+    calling it: what it does before answering is ask for this.
+  */
+  if (!f->attests_is_valid_json())
     return true;
   {
     StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
