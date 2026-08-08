@@ -508,7 +508,45 @@ SHOW STATUS LIKE 'Json_scans';
 DROP TABLE t31;
 
 --echo #
---echo # 37. Branches written in different character sets.  A column takes
+--echo # 37. A column filled with the names of a document's keys.  Every
+--echo # row of one of those is an array of strings whatever the document
+--echo # held, and that is so before a row of it exists - so the column is
+--echo # built saying it, and the splice on the way out reads nothing.
+--echo #
+--echo # The names are long here for the same reason as above: the length
+--echo # says more levels than a document is allowed, so the depth the
+--echo # column keeps is what the splice has to go on.
+--echo #
+CREATE TABLE t37 (id INT, j TEXT) CHARSET utf8mb4;
+INSERT INTO t37 VALUES
+  (1, CONCAT('{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}')),
+  (2, CONCAT('{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}'));
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_KEYS(j) AS x FROM t37) d ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 38. The same query with the store into that column coming up
+--echo # short, which is how 8 takes 3's column away.  The count is what
+--echo # 37 would have come to with nothing said, so the difference
+--echo # between the two is the column and nothing else.
+--echo #
+SET SESSION debug_dbug='+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, JSON_KEYS(j) AS x FROM t37) d ORDER BY id;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug= @old_debug;
+
+DROP TABLE t37;
+
+--echo #
+--echo # 39. Branches written in different character sets.  A column takes
 --echo # one set for all of them, and a branch in another set is stored
 --echo # into it converting - except into the binary set, which converts
 --echo # nothing at all and keeps every byte under the other set's name.
@@ -516,36 +554,36 @@ DROP TABLE t31;
 --echo # written, so the column takes its answer back and every row is
 --echo # read on the way out.
 --echo #
-CREATE TABLE t37 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET ucs2;
-INSERT INTO t37 VALUES ('{"a":1}'), ('[1,2]');
-CREATE TABLE t37b (b BLOB);
-INSERT INTO t37b VALUES ('{"b":2}'), ('[3,4]');
+CREATE TABLE t39 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET ucs2;
+INSERT INTO t39 VALUES ('{"a":1}'), ('[1,2]');
+CREATE TABLE t39b (b BLOB);
+INSERT INTO t39b VALUES ('{"b":2}'), ('[3,4]');
 FLUSH STATUS;
 --disable_result_log
 SELECT JSON_ARRAY(x) AS r FROM
-  (SELECT JSON_QUERY(j, '$') AS x FROM t37
+  (SELECT JSON_QUERY(j, '$') AS x FROM t39
    UNION ALL
-   SELECT JSON_QUERY(b, '$') FROM t37b) d;
+   SELECT JSON_QUERY(b, '$') FROM t39b) d;
 --enable_result_log
 SHOW STATUS LIKE 'Json_scans';
 
 --echo #
---echo # 38. The same two branches with the wide one alone, so that the
+--echo # 40. The same two branches with the wide one alone, so that the
 --echo # column takes that same set and every character arrives as the one
 --echo # written.  Nothing is taken back, and the count is the branches'
---echo # own readings and nothing else - which is what 37 would have come
+--echo # own readings and nothing else - which is what 39 would have come
 --echo # to had the characters come across.
 --echo #
 FLUSH STATUS;
 --disable_result_log
 SELECT JSON_ARRAY(x) AS r FROM
-  (SELECT JSON_QUERY(j, '$') AS x FROM t37
+  (SELECT JSON_QUERY(j, '$') AS x FROM t39
    UNION ALL
-   SELECT JSON_QUERY(j, '$') FROM t37) d;
+   SELECT JSON_QUERY(j, '$') FROM t39) d;
 --enable_result_log
 SHOW STATUS LIKE 'Json_scans';
 
-DROP TABLE t37, t37b;
+DROP TABLE t39, t39b;
 
 DROP TABLE t1;
 DROP TABLE t13, t13m;

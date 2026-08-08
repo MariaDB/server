@@ -373,6 +373,42 @@ Variable_name	Value
 Json_scans	2
 DROP TABLE t4;
 #
+# Keys are returned as an array of the names, written a name at
+# a time out of the document they were read from.  What that makes,
+# how it is formatted and how deep it goes are all settled by the
+# writing rather than measured afterwards, so a splice of the
+# answer reads nothing.  The names here are long, so the length
+# says more levels than a document is allowed and the depth is the
+# only thing keeping the answer from being read again.
+#
+# Four rows, the last two being the answers that are not arrays of
+# names: an object with no keys at all, and a document that is not
+# an object and returns nothing.
+#
+CREATE TABLE t5 (id INT, js TEXT, jn TEXT);
+INSERT INTO t5 VALUES
+(1, CONCAT('{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}'),
+CONCAT('{"o":{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}}')),
+(2, CONCAT('{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}'),
+CONCAT('{"o":{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}}')),
+(3, '{}', '{"o":{}}'),
+(4, '[1,2]', '[3,4]');
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_KEYS(js)) FROM t5;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# The two argument form, which finds the object further in and then
+# writes the same answer in the same way.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_KEYS(jn, '$.o')) FROM t5;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+DROP TABLE t5;
+#
 # Asking whether a value is a document reads it once.  There is
 # nothing here left to take away.
 #
