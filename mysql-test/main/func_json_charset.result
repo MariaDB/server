@@ -500,7 +500,7 @@ v
 "a"
 SELECT JSON_KEYS('{"a":1}') AS v;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	253	28	5	Y	0	39	45
+def					v	253 (format=json)	28	5	Y	0	39	45
 v
 ["a"]
 SELECT JSON_COMPACT('{}') AS v;

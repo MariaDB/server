@@ -441,6 +441,45 @@ SHOW STATUS LIKE 'Json_scans';
 DROP TABLE t4;
 
 --echo #
+--echo # Keys are returned as an array of the names, written a name at
+--echo # a time out of the document they were read from.  What that makes,
+--echo # how it is formatted and how deep it goes are all settled by the
+--echo # writing rather than measured afterwards, so a splice of the
+--echo # answer reads nothing.  The names here are long, so the length
+--echo # says more levels than a document is allowed and the depth is the
+--echo # only thing keeping the answer from being read again.
+--echo #
+--echo # Four rows, the last two being the answers that are not arrays of
+--echo # names: an object with no keys at all, and a document that is not
+--echo # an object and returns nothing.
+--echo #
+CREATE TABLE t5 (id INT, js TEXT, jn TEXT);
+INSERT INTO t5 VALUES
+  (1, CONCAT('{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}'),
+      CONCAT('{"o":{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}}')),
+  (2, CONCAT('{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}'),
+      CONCAT('{"o":{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}}')),
+  (3, '{}', '{"o":{}}'),
+  (4, '[1,2]', '[3,4]');
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_KEYS(js)) FROM t5;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The two argument form, which finds the object further in and then
+--echo # writes the same answer in the same way.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_KEYS(jn, '$.o')) FROM t5;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t5;
+
+--echo #
 --echo # Asking whether a value is a document reads it once.  There is
 --echo # nothing here left to take away.
 --echo #
