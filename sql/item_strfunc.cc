@@ -642,9 +642,6 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
   if (str->alloced_length() >= length)
     return false; // Alloced space is big enough, nothing to do.
 
-  if (str->alloced_length() == 0)
-    return str->alloc(length);
-
   /*
     Item_func_concat::val_str() makes sure the result length does not grow
     higher than max_allowed_packet. So "length" is limited to 1G here.
@@ -653,6 +650,9 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
     "str" will be reallocated exactly to "length" bytes in case of overflow.
+    It can even be zero, with "str" pointing to bytes that args[0] does not
+    own. realloc() moves those bytes into a buffer of our own, while alloc()
+    would throw them away: it empties the string it allocates for.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
