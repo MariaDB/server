@@ -26221,7 +26221,8 @@ enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
   // add() functions read from the TABLE::record[0] directly, as we did
   // NOT call split_sum_func(), so we still point to base table
   DBUG_ENTER("end_compute_win_func");
-  if ((join_tab - 1)->window_funcs_streaming_step->process_row())
+  if (!end_of_records &&
+      (join_tab - 1)->window_funcs_streaming_step->process_row())
     DBUG_RETURN(NESTED_LOOP_ERROR);
   DBUG_RETURN(end_send(join, join_tab, end_of_records));
 }
