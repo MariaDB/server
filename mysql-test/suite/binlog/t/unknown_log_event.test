@@ -1,0 +1,29 @@
+# MDEV-40674: Test `mariadb-binlog --force`'s Unknown event output
+#
+# Also: MDEV-40542
+# MSAN use-of-uninitialized-value on Unknown_log_event::read_checksum_alg
+
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc # Testing with Table Map event
+
+# Setup
+CREATE TABLE t (a INT);
+--let $binlog_file= query_get_value(SHOW BINLOG STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW BINLOG STATUS, Position, 1)
+
+# Generate an invalid Table Map event followed by an otherwise-valid Rows Event
+INSERT INTO t VALUES (0);
+
+--let $binlog_stop= query_get_value(SHOW BINLOG STATUS, Position, 1)
+DROP TABLE t;
+FLUSH BINARY LOGS;
+
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/unknown_log_event.sql
+--let SEARCH_PATTERN= CRC32 0x[[:xdigit:]]{8}.*\\n# [Uu]nknown [Ee]vent
+--let $mariadb_binlog= $MYSQL_BINLOG --result-file=$SEARCH_FILE --verify-binlog-checksum --force-read
+--let $binlog_file= `SELECT CONCAT(@@datadir, '/$binlog_file')`
+
+--echo #mariadb_binlog --debug=d,corrupt_table_map_colcnt_read --start-position=#binlog_start --stop-position=#binlog_stop #binlog_file 2>&1
+--exec $mariadb_binlog --debug=d,corrupt_table_map_colcnt_read --start-position=$binlog_start --stop-position=$binlog_stop $binlog_file 2>&1
+--source include/search_pattern_in_file.inc

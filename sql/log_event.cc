@@ -1113,8 +1113,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     *error= "Event crc check failed! Most likely there is event corruption.";
     if (force_opt)
     {
+      event_len-= BINLOG_CHECKSUM_LEN;
       ev= new Unknown_log_event(buf, fdle);
-      DBUG_RETURN(ev);
+      goto exit;
     }
     else
       DBUG_RETURN(NULL);
@@ -1330,16 +1331,6 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   }
 exit:
 
-  if (ev)
-  {
-    ev->checksum_alg= alg;
-#ifdef MYSQL_CLIENT
-    if (ev->checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-        ev->checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->crc= uint4korr(buf + (event_len));
-#endif
-  }
-
   DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
@@ -1372,6 +1363,16 @@ exit:
     if (!*error)
       *error= "Found invalid event in binary log";
     DBUG_RETURN(0);
+#endif
+  }
+
+  if (ev)
+  {
+    ev->checksum_alg= alg;
+#ifdef MYSQL_CLIENT
+    if (ev->checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+        ev->checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->crc= uint4korr(buf + (event_len));
 #endif
   }
   DBUG_RETURN(ev);  
