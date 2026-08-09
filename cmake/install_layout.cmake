@@ -64,6 +64,9 @@
 #
 # - INSTALL_UNIX_ADDRDIR    (path to mysql.sock)
 #
+# - INSTALL_RUNDIR          (runtime state files that mariadbd must not write,
+#                            e.g. what systemd reads as EnvironmentFile)
+#
 
 IF(NOT INSTALL_LAYOUT)
   IF(DEB)
@@ -163,7 +166,7 @@ SET(INSTALL_UNIX_ADDRDIR_RPM            "${INSTALL_MYSQLDATADIR_RPM}/mysql.sock"
 SET(INSTALL_SYSTEMD_UNITDIR_RPM         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_RPM     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
-SET(INSTALL_RUNDATADIR_RPM              "/run/mariadb")
+SET(INSTALL_RUNDIR_RPM                  "/run")
 SET(INSTALL_PAMDIR_RPM                  "/${INSTALL_LIBDIR_RPM}/security")
 SET(INSTALL_PAMDATADIR_RPM              "/etc/security")
 
@@ -194,8 +197,8 @@ SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mariadb")
 #
 SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 
-SET(INSTALL_RUNDATADIR_DEB              "/run/mysqld")
-SET(INSTALL_UNIX_ADDRDIR_DEB            "${INSTALL_RUNDATADIR_DEB}/mysqld.sock")
+SET(INSTALL_RUNDIR_DEB                  "/run")
+SET(INSTALL_UNIX_ADDRDIR_DEB            "${INSTALL_RUNDIR_DEB}/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
@@ -259,7 +262,10 @@ IF(NOT MYSQL_UNIX_ADDR)
   SET(MYSQL_UNIX_ADDR ${INSTALL_UNIX_ADDRDIR})
 ENDIF()
 
-IF(NOT INSTALL_RUNDATADIR)
+IF(NOT INSTALL_RUNDIR)
+  # No /run in a tarball installation - fall back to the socket directory.
+  # Note that mariadbd can write there, so the isolation that /run gives to
+  # packages (see EnvironmentFile= in mariadb.service) is not achieved.
   get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-  SET(INSTALL_RUNDATADIR "${MYSQL_UNIX_DIR}" CACHE FILEPATH "Rundata installation directory" ${FORCE})
+  SET(INSTALL_RUNDIR "${MYSQL_UNIX_DIR}" CACHE FILEPATH "Runtime state directory" ${FORCE})
 ENDIF()
