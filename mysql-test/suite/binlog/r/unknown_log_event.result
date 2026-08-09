@@ -4,3 +4,5 @@ DROP TABLE t;
 FLUSH BINARY LOGS;
 #mariadb_binlog --debug=d,corrupt_table_map_colcnt_read --start-position=#binlog_start --stop-position=#binlog_stop #binlog_file 2>&1
 FOUND 1 /CRC32 0x[[:xdigit:]]{8}.*\n# [Uu]nknown [Ee]vent/ in unknown_log_event.sql
+#mariadb_binlog --debug=d,simulate_checksum_test_failure --stop-position=5 #binlog_file 2>&1
+FOUND 1 /CRC32 0x[[:xdigit:]]{8}.*\n# [Uu]nknown [Ee]vent/ in unknown_log_event.sql

@@ -1110,21 +1110,19 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   if (crc_check && event_checksum_test(const_cast<uchar*>(buf), event_len, alg))
   {
 #ifdef MYSQL_CLIENT
-    *error= "Event crc check failed! Most likely there is event corruption.";
     if (force_opt)
     {
       event_len-= BINLOG_CHECKSUM_LEN;
       ev= new Unknown_log_event(buf, fdle);
       goto exit;
     }
-    else
-      DBUG_RETURN(NULL);
+    *error= "Event crc check failed! Most likely there is event corruption.";
 #else
     *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
     if (print_errors)
       sql_print_error("%s", *error);
-    DBUG_RETURN(NULL);
 #endif
+    DBUG_RETURN(NULL);
   }
 
   if (event_type > fdle->number_of_event_types &&
