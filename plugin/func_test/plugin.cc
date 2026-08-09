@@ -18,6 +18,7 @@
 
 #include <my_global.h>
 #include <sql_class.h>
+#include <item_sum.h>
 #include <mysql/plugin_function.h>
 
 class Item_func_sysconst_test :public Item_func_sysconst
@@ -275,6 +276,295 @@ public:
   }
 };
 
+
+class Item_sum_test_plugin_first: public Item_sum_plugin,
+                                  public Type_handler_hybrid_field_type
+{
+  using Self= Item_sum_test_plugin_first;
+  Item_cache *value;
+
+  void endup()
+  {
+    if (aggr)
+      aggr->endup();
+  }
+
+  bool setup_cache(THD *thd, Item *source)
+  {
+    if (!(value= args[0]->get_cache(thd)) || value->setup(thd, args[0]))
+      return true;
+    if (source)
+    {
+      value->store(source);
+      value->cache_value();
+      null_value= value->null_value;
+    }
+    return false;
+  }
+
+public:
+  Item_sum_test_plugin_first(THD *thd, Item *item):
+    Item_sum_plugin(thd, item),
+    Type_handler_hybrid_field_type(&type_handler_string), value(nullptr)
+  {}
+  Item_sum_test_plugin_first(THD *thd, Self *item):
+    Item_sum_plugin(thd, item), Type_handler_hybrid_field_type(item),
+    value(nullptr)
+  {}
+  Item_sum_test_plugin_first(const Self &item):
+    Item_sum_plugin(item), Type_handler_hybrid_field_type(item), value(nullptr)
+  {}
+  void clear() override
+  {
+    value->clear();
+    value->set_null();
+    null_value= true;
+  }
+  bool add() override
+  {
+    if (!null_value)
+      return false;
+    value->store(aggregation_arg(0));
+    value->cache_value();
+    null_value= value->null_value;
+    return false;
+  }
+  double val_real() override
+  {
+    endup();
+    if (null_value)
+      return 0.0;
+    double result= value->val_real();
+    null_value= value->null_value;
+    return result;
+  }
+  longlong val_int() override
+  {
+    endup();
+    if (null_value)
+      return 0;
+    longlong result= value->val_int();
+    null_value= value->null_value;
+    return result;
+  }
+  String *val_str(String *str) override
+  {
+    endup();
+    if (null_value)
+      return nullptr;
+    String *result= value->val_str(str);
+    null_value= value->null_value;
+    return result;
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    endup();
+    if (null_value)
+      return nullptr;
+    my_decimal *result= value->val_decimal(to);
+    null_value= value->null_value;
+    return result;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime,
+                date_mode_t fuzzydate) override
+  {
+    endup();
+    if (null_value)
+      return true;
+    bool result= value->get_date(thd, ltime, fuzzydate);
+    null_value= value->null_value;
+    return result;
+  }
+  bool val_native(THD *thd, Native *to) override
+  {
+    endup();
+    if (null_value)
+      return true;
+    return val_native_from_item(thd, value, to);
+  }
+  bool is_null() override
+  {
+    endup();
+    return null_value;
+  }
+  const Type_handler *type_handler() const override
+  {
+    return Type_handler_hybrid_field_type::type_handler();
+  }
+  const Type_handler *real_type_handler() const override
+  {
+    return args[0]->real_type_handler();
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return args[0]->type_extra_attributes();
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    Type_std_attributes::set(args[0]);
+    set_handler(args[0]->type_handler());
+    set_maybe_null();
+    null_value= true;
+    return setup_cache(thd, nullptr);
+  }
+  void cleanup() override
+  {
+    value= nullptr;
+    null_value= true;
+    Item_sum_plugin::cleanup();
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return "test_plugin_first("_LEX_CSTRING;
+  }
+  Item *copy_or_same(THD *thd) override
+  {
+    Self *item= new (thd->mem_root) Self(thd, this);
+    if (!item || item->setup_cache(thd, value))
+      return nullptr;
+    return item;
+  }
+
+  class Create_func: public Create_aggregate_func
+  {
+  public:
+    Item *create_native(THD *thd, const LEX_CSTRING *name,
+                        List<Item> *item_list) override
+    {
+      uint arg_count= item_list ? item_list->elements : 0;
+      if (arg_count != 1)
+      {
+        my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+        return nullptr;
+      }
+      return new (thd->mem_root) Self(thd, item_list->head());
+    }
+  };
+
+  static Plugin_function *plugin_descriptor()
+  {
+    static Create_func creator;
+    static Plugin_function descriptor(&creator);
+    return &descriptor;
+  }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  {
+    Self *item= new (thd->mem_root) Self(thd, const_cast<Self *>(this));
+    if (!item || item->setup_cache(thd, value))
+      return nullptr;
+    return item;
+  }
+};
+
+
+class Item_sum_test_plugin_count: public Item_sum_plugin
+{
+  using Self= Item_sum_test_plugin_count;
+  longlong count;
+public:
+  Item_sum_test_plugin_count(THD *thd, Item *item):
+    Item_sum_plugin(thd, item), count(0)
+  {}
+  Item_sum_test_plugin_count(THD *thd, Self *item):
+    Item_sum_plugin(thd, item), count(0)
+  {}
+  Item_sum_test_plugin_count(const Self &item):
+    Item_sum_plugin(item), count(0)
+  {}
+  void clear() override
+  {
+    count= 0;
+    null_value= false;
+  }
+  bool add() override
+  {
+    if (!aggr->arg_is_null(false))
+      count++;
+    return false;
+  }
+  bool supports_removal() const override { return true; }
+  void remove() override
+  {
+    if (aggr->arg_is_null(false))
+      return;
+    if (count > 0)
+      count--;
+  }
+  longlong val_int() override
+  {
+    DBUG_ASSERT(fixed());
+    if (aggr)
+      aggr->endup();
+    null_value= false;
+    return count;
+  }
+  double val_real() override { return static_cast<double>(val_int()); }
+  String *val_str(String *str) override { return val_string_from_int(str); }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    return val_decimal_from_int(to);
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime,
+                date_mode_t fuzzydate) override
+  {
+    return get_date_from_int(thd, ltime, fuzzydate);
+  }
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_slonglong;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    decimals= 0;
+    max_length= 21;
+    base_flags&= ~item_base_t::MAYBE_NULL;
+    null_value= false;
+    return false;
+  }
+  void cleanup() override
+  {
+    count= 0;
+    Item_sum_plugin::cleanup();
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return "test_plugin_count("_LEX_CSTRING;
+  }
+  Item *copy_or_same(THD *thd) override
+  {
+    return new (thd->mem_root) Self(thd, this);
+  }
+
+  class Create_func: public Create_aggregate_func
+  {
+  public:
+    Item *create_native(THD *thd, const LEX_CSTRING *name,
+                        List<Item> *item_list) override
+    {
+      uint arg_count= item_list ? item_list->elements : 0;
+      if (arg_count != 1)
+      {
+        my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+        return nullptr;
+      }
+      return new (thd->mem_root) Self(thd, item_list->head());
+    }
+  };
+
+  static Plugin_function *plugin_descriptor()
+  {
+    static Create_func creator;
+    static Plugin_function descriptor(&creator);
+    return &descriptor;
+  }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Self>(thd, this);
+  }
+};
+
 /*************************************************************************/
 
 maria_declare_plugin(type_test)
@@ -335,6 +625,36 @@ maria_declare_plugin(type_test)
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
+},
+{
+  MariaDB_FUNCTION_PLUGIN,       // the plugin type
+  Item_sum_test_plugin_first::plugin_descriptor(),
+  "test_plugin_first",          // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function TEST_PLUGIN_FIRST()", // the plugin description
+  PLUGIN_LICENSE_GPL,            // the plugin license
+  0,                             // Pointer to plugin initialization function
+  0,                             // Pointer to plugin deinitialization function
+  0x0100,                        // Numeric version 0xAABB means AA.BB version
+  NULL,                          // Status variables
+  NULL,                          // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
+},
+{
+  MariaDB_FUNCTION_PLUGIN,       // the plugin type
+  Item_sum_test_plugin_count::plugin_descriptor(),
+  "test_plugin_count",          // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function TEST_PLUGIN_COUNT()", // the plugin description
+  PLUGIN_LICENSE_GPL,            // the plugin license
+  0,                             // Pointer to plugin initialization function
+  0,                             // Pointer to plugin deinitialization function
+  0x0100,                        // Numeric version 0xAABB means AA.BB version
+  NULL,                          // Status variables
+  NULL,                          // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
 }

@@ -6651,15 +6651,21 @@ void Native_functions_hash::cleanup()
 
 
 static Create_func *
-function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
+function_plugin_find_native_function_builder(
+  THD *thd, const LEX_CSTRING &name, plugin_ref *plugin_out)
 {
   plugin_ref plugin;
   if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_FUNCTION_PLUGIN)))
   {
-    Create_func *builder=
-      reinterpret_cast<Plugin_function*>(plugin_decl(plugin)->info)->
-        create_func();
-    // TODO: MDEV-20846 Add proper unlocking for MariaDB_FUNCTION_PLUGIN
+    Plugin_function *descriptor=
+      reinterpret_cast<Plugin_function*>(plugin_decl(plugin)->info);
+    Create_func *builder= descriptor->create_func();
+    if (plugin_out && !(*plugin_out= plugin_lock(NULL, plugin)))
+    {
+      plugin_unlock(thd, plugin);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return NULL;
+    }
     plugin_unlock(thd, plugin);
     return builder;
   }
@@ -6668,10 +6674,14 @@ function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
 
 
 Create_func *
-Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
+Native_functions_hash::find(THD *thd, const LEX_CSTRING &name,
+                            plugin_ref *plugin) const
 {
   Native_func_registry *func;
   Create_func *builder= NULL;
+
+  if (plugin)
+    *plugin= NULL;
 
   /* Thread safe */
   func= (Native_func_registry*) my_hash_search(this,
@@ -6681,7 +6691,8 @@ Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
   if (func && (builder= func->builder))
     return builder;
 
-  if ((builder= function_plugin_find_native_function_builder(thd, name)))
+  if ((builder= function_plugin_find_native_function_builder(thd, name,
+                                                              plugin)))
     return builder;
 
   return NULL;

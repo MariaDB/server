@@ -714,6 +714,7 @@ void thd_set_ha_data(THD* thd, const struct transaction_participant *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 }
+class Create_func;
 class Plugin_function
 {
   int m_interface_version;

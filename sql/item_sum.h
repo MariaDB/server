@@ -103,6 +103,7 @@ public:
     (updated by arg_val*()).
   */
   virtual bool arg_is_null(bool use_null_value) = 0;
+  virtual Item *arg_item(uint i) = 0;
 };
 
 
@@ -349,7 +350,8 @@ public:
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
-    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
+    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, PLUGIN_SUM_FUNC,
+    GROUP_CONCAT_FUNC,
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
@@ -433,6 +435,7 @@ public:
     case VARIANCE_FUNC:
     case SUM_BIT_FUNC:
     case UDF_SUM_FUNC:
+    case PLUGIN_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
     case JSON_ARRAYAGG_FUNC:
     case GEOMETRY_COLLECT_FUNC:
@@ -611,6 +614,36 @@ public:
 };
 
 
+/**
+  Base class for native aggregate function plugins.
+
+  Derived classes implement clear(), add(), result accessors and copy methods.
+  aggregation_arg() must be used instead of args[] while consuming rows, so
+  DISTINCT replay can substitute values from its internal temporary storage.
+  Implement supports_removal() and remove() when the state is invertible.
+  Plugin references are retained until the original Item and all copies are
+  destroyed; cleanup() does not release them because prepared Items are reused.
+*/
+class Item_sum_plugin : public Item_sum
+{
+  void *m_plugin_lifetime;
+
+  bool lock_type_plugins(THD *thd);
+  void retain_plugin_lifetime(const Item_sum_plugin *item);
+public:
+  Item_sum_plugin(THD *thd, Item *item);
+  Item_sum_plugin(THD *thd, Item_sum_plugin *item);
+  Item_sum_plugin(const Item_sum_plugin &item);
+  ~Item_sum_plugin() override;
+  enum Sumfunctype sum_func() const override { return PLUGIN_SUM_FUNC; }
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool set_function_plugin(void *plugin);
+  Item *aggregation_arg(uint i) { return aggr->arg_item(i); }
+  void reset_field() override { DBUG_ASSERT(0); }
+  void update_field() override { DBUG_ASSERT(0); }
+};
+
+
 class Unique;
 
 
@@ -696,11 +729,12 @@ class Aggregator_distinct : public Aggregator
     instead of calling the relevant val_..() method.
   */
   bool use_distinct_values;
+  Item **distinct_args;
 
 public:
   Aggregator_distinct (Item_sum *sum) :
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
-    always_null(false), use_distinct_values(false) {}
+    always_null(false), use_distinct_values(false), distinct_args(NULL) {}
   virtual ~Aggregator_distinct ();
   Aggregator_type Aggrtype() override { return DISTINCT_AGGREGATOR; }
 
@@ -711,6 +745,7 @@ public:
   my_decimal *arg_val_decimal(my_decimal * value) override;
   double arg_val_real() override;
   bool arg_is_null(bool use_null_value) override;
+  Item *arg_item(uint i) override;
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
@@ -738,6 +773,7 @@ public:
   my_decimal *arg_val_decimal(my_decimal * value) override;
   double arg_val_real() override;
   bool arg_is_null(bool use_null_value) override;
+  Item *arg_item(uint i) override { return item_sum->get_arg(i); }
 };
 
 

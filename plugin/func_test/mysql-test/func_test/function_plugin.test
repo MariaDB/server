@@ -1,0 +1,151 @@
+--source include/have_udf.inc
+
+--disable_query_log
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
+    WHERE PLUGIN_NAME='test_plugin_count'`)
+{
+  UNINSTALL SONAME 'func_test';
+}
+INSTALL SONAME 'func_test';
+--enable_query_log
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1), (2, 1), (NULL, 1), (3, 2);
+
+SELECT test_plugin_count(a) FROM t1;
+SELECT b, test_plugin_count(a) FROM t1 GROUP BY b ORDER BY b;
+SELECT test_plugin_count(DISTINCT a) FROM
+  (SELECT 1 AS a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT NULL) dt;
+SELECT test_plugin_count(a) FROM t1 WHERE FALSE;
+SELECT test_plugin_count(a) FROM t1 WHERE a IS NULL;
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT b, test_plugin_count(a)
+FROM (SELECT a, b FROM t1) AS dt
+GROUP BY b ORDER BY b;
+SET optimizer_switch= @save_optimizer_switch;
+
+PREPARE stmt FROM
+  'SELECT test_plugin_count(a) FROM t1 WHERE b = ?';
+SET @b= 1;
+EXECUTE stmt USING @b;
+SET @b= 2;
+EXECUTE stmt USING @b;
+SET @b= 3;
+EXECUTE stmt USING @b;
+DEALLOCATE PREPARE stmt;
+
+SELECT a, test_plugin_count(a) OVER (ORDER BY a) FROM t1 ORDER BY a;
+
+CREATE TABLE t_window (id INT, part INT, value INT);
+INSERT INTO t_window VALUES
+  (1, 1, 10), (2, 1, NULL), (3, 1, 30), (4, 1, 40),
+  (5, 2, NULL), (6, 2, 60);
+SELECT id, part, value,
+       test_plugin_count(value) OVER (
+         PARTITION BY part ORDER BY id
+         ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS cnt
+FROM t_window ORDER BY id;
+
+--error ER_NOT_SUPPORTED_YET
+SELECT test_plugin_count(DISTINCT a) OVER () FROM t1;
+
+--error ER_PARSE_ERROR
+SELECT sysconst_test() OVER ();
+--error ER_PARSE_ERROR
+SELECT strnxfrm(DISTINCT 'a', 1, 1, 0);
+
+CREATE TABLE t_uuid (id INT, grp INT, value UUID);
+INSERT INTO t_uuid VALUES
+  (1, 1, NULL),
+  (2, 1, '00000000-0000-0000-0000-000000000001'),
+  (3, 2, '00000000-0000-0000-0000-000000000002'),
+  (4, 2, NULL),
+  (5, 3, NULL);
+
+SELECT test_plugin_first(value) FROM t_uuid WHERE grp = 1;
+SELECT grp, test_plugin_first(value) FROM t_uuid GROUP BY grp ORDER BY grp;
+SELECT id, grp, test_plugin_first(value) OVER (
+         PARTITION BY grp ORDER BY id
+         ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS value
+FROM t_uuid ORDER BY id;
+SELECT test_plugin_count(DISTINCT value) FROM t_uuid;
+SELECT test_plugin_first(DISTINCT value) FROM
+  (SELECT value FROM t_uuid WHERE id = 2
+   UNION ALL
+   SELECT value FROM t_uuid WHERE id = 2) AS dt;
+SELECT test_plugin_first(DISTINCT value) =
+       (SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid WHERE grp = 1;
+SELECT test_plugin_first(value) IS NULL FROM t_uuid WHERE FALSE;
+SELECT test_plugin_first(value) IS NULL FROM t_uuid WHERE grp = 3;
+SELECT test_plugin_first(value) =
+       (SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid WHERE grp = 1;
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT value, value = (SELECT value FROM t_uuid WHERE id = 3)
+FROM
+  (SELECT test_plugin_first(value) AS value
+   FROM t_uuid WHERE grp = 2) AS dt;
+SET optimizer_switch= @save_optimizer_switch;
+
+CREATE TABLE t_uuid_aggregate AS
+  SELECT grp, test_plugin_first(value) AS value
+  FROM t_uuid GROUP BY grp;
+SHOW CREATE TABLE t_uuid_aggregate;
+SELECT * FROM t_uuid_aggregate ORDER BY grp;
+
+CREATE TABLE t_uuid_result (value UUID);
+INSERT INTO t_uuid_result
+  SELECT test_plugin_first(value) FROM t_uuid WHERE grp = 1;
+SELECT value, value = (SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid_result;
+
+CREATE TABLE t_blob (value TEXT);
+INSERT INTO t_blob VALUES ('a'), ('a'), ('b'), (NULL);
+SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
+
+INSTALL SONAME 'type_test';
+PREPARE type_stmt FROM
+  'SELECT test_plugin_first(CAST(1 AS test_int8))';
+UNINSTALL PLUGIN test_double;
+UNINSTALL PLUGIN test_int8;
+EXECUTE type_stmt;
+DEALLOCATE PREPARE type_stmt;
+INSTALL SONAME 'type_test';
+UNINSTALL SONAME 'type_test';
+
+DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
+SELECT GET_LOCK('function_plugin_lock', 10);
+--connect (con1,localhost,root,,)
+--connection con1
+--send SELECT test_plugin_count(IF(GET_LOCK('function_plugin_lock', 10), a, a)) FROM t1
+--connection default
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE = 'User lock' AND INFO LIKE 'SELECT test_plugin_count%';
+--source include/wait_condition.inc
+UNINSTALL SONAME 'func_test';
+SELECT RELEASE_LOCK('function_plugin_lock');
+--connection con1
+--reap
+--disconnect con1
+--connection default
+INSTALL SONAME 'func_test';
+
+PREPARE function_stmt FROM
+  'SELECT test_plugin_count(a) FROM t1';
+UNINSTALL SONAME 'func_test';
+EXECUTE function_stmt;
+DEALLOCATE PREPARE function_stmt;
+INSTALL SONAME 'func_test';
+DROP TABLE t1;
+--disable_query_log
+UNINSTALL SONAME 'func_test';
+INSTALL SONAME 'func_test';
+DELETE FROM mysql.plugin WHERE dl='func_test.so';
+--enable_query_log

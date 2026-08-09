@@ -1,0 +1,204 @@
+--source include/have_udf.inc
+
+--disable_query_log
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
+    WHERE PLUGIN_NAME='test_plugin_count'`)
+{
+  UNINSTALL SONAME 'func_test';
+}
+INSTALL SONAME 'func_test';
+--enable_query_log
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT test_plugin_count();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT test_plugin_count(1, 2);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT test_plugin_first();
+
+CREATE TABLE t_group (g INT, v INT);
+INSERT INTO t_group VALUES
+  (1, NULL), (1, NULL),
+  (2, 10), (2, NULL),
+  (3, 20), (3, 30);
+
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT * FROM t_group WHERE test_plugin_count(v) > 0;
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT test_plugin_count(test_plugin_count(v)) FROM t_group;
+
+SELECT test_plugin_count(v) FROM t_group;
+SELECT test_plugin_count(v) FROM t_group
+HAVING test_plugin_count(v) > 0;
+SELECT g, test_plugin_count(v) AS c
+FROM t_group GROUP BY g HAVING c > 0 ORDER BY c, g;
+SELECT test_plugin_count(v), test_plugin_count(v),
+       test_plugin_count(v + 1), test_plugin_first(v)
+FROM t_group;
+SELECT g, test_plugin_count(v), test_plugin_first(v)
+FROM t_group GROUP BY g ORDER BY g;
+SELECT g, test_plugin_count(v)
+FROM t_group GROUP BY g WITH ROLLUP;
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT * FROM
+  (SELECT g, test_plugin_count(v) AS c
+   FROM t_group GROUP BY g) AS dt
+ORDER BY g;
+WITH cte AS
+  (SELECT g, test_plugin_count(v) AS c
+   FROM t_group GROUP BY g)
+SELECT * FROM cte ORDER BY g;
+SET optimizer_switch= @save_optimizer_switch;
+
+SELECT g, test_plugin_count(DISTINCT v)
+FROM t_group GROUP BY g ORDER BY g;
+SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
+SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE v IS NULL;
+SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE FALSE;
+SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE FALSE;
+
+CREATE TABLE t_blob (value LONGTEXT);
+INSERT INTO t_blob VALUES
+  (REPEAT('a', 10000)), (REPEAT('a', 10000)),
+  (REPEAT('b', 10000)), (NULL);
+SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+SELECT LENGTH(test_plugin_first(DISTINCT value)) FROM t_blob;
+
+SET @save_tmp_table_size= @@tmp_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET tmp_table_size= 16384;
+SET max_heap_table_size= 16384;
+CREATE TABLE t_spill AS
+  WITH RECURSIVE seq AS
+    (SELECT 1 AS value UNION ALL
+     SELECT value + 1 FROM seq WHERE value < 1000)
+  SELECT value FROM seq;
+INSERT INTO t_spill SELECT value FROM t_spill;
+SELECT test_plugin_count(DISTINCT value) FROM t_spill;
+DROP TABLE t_spill;
+SET tmp_table_size= @save_tmp_table_size;
+SET max_heap_table_size= @save_max_heap_table_size;
+
+INSTALL SONAME 'type_test';
+CREATE TABLE t_type (g INT, i test_int8, d test_double);
+INSERT INTO t_type VALUES
+  (1, 10, 1.5), (1, 20, 2.5), (2, NULL, NULL);
+SELECT g, test_plugin_first(i), test_plugin_first(d)
+FROM t_type GROUP BY g ORDER BY g;
+CREATE TABLE type_int_result AS
+  SELECT test_plugin_first(i) AS value FROM t_type;
+SHOW CREATE TABLE type_int_result;
+CREATE VIEW type_view AS
+  SELECT test_plugin_first(i) AS value FROM t_type;
+SHOW CREATE VIEW type_view;
+SELECT * FROM type_view;
+CREATE TEMPORARY TABLE type_tmp AS
+  SELECT g, test_plugin_first(i) AS value
+  FROM t_type GROUP BY g;
+SHOW CREATE TABLE type_tmp;
+SELECT * FROM type_tmp ORDER BY g;
+CREATE TABLE type_dst (value test_int8);
+INSERT INTO type_dst SELECT test_plugin_first(i) FROM t_type;
+SELECT * FROM type_dst;
+DROP VIEW type_view;
+DROP TEMPORARY TABLE type_tmp;
+DROP TABLE type_dst, type_int_result, t_type;
+UNINSTALL SONAME 'type_test';
+
+CREATE TABLE t_uuid (id INT, g INT, value UUID);
+INSERT INTO t_uuid VALUES
+  (1, 1, '00000000-0000-0000-0000-000000000001'),
+  (2, 1, '00000000-0000-0000-0000-000000000001'),
+  (3, 1, '00000000-0000-0000-0000-000000000002'),
+  (4, 2, NULL),
+  (5, 2, '00000000-0000-0000-0000-000000000003');
+SELECT test_plugin_count(DISTINCT value) FROM t_uuid;
+SELECT test_plugin_first(value) =
+       (SELECT value FROM t_uuid WHERE id = 1)
+FROM t_uuid WHERE g = 1;
+CREATE TABLE uuid_union AS
+  SELECT test_plugin_first(value) AS value FROM t_uuid
+  UNION ALL
+  SELECT value FROM t_uuid WHERE id = 1;
+SHOW CREATE TABLE uuid_union;
+SELECT CASE WHEN 1 THEN test_plugin_first(value)
+            ELSE CAST(NULL AS UUID) END AS value
+FROM t_uuid;
+
+CREATE TABLE t_window (id INT, g INT, v INT, u UUID);
+INSERT INTO t_window VALUES
+  (1, 1, 10, '00000000-0000-0000-0000-000000000001'),
+  (2, 1, NULL, NULL),
+  (3, 1, 30, '00000000-0000-0000-0000-000000000003'),
+  (4, 1, 40, '00000000-0000-0000-0000-000000000004'),
+  (5, 2, NULL, NULL),
+  (6, 2, 60, '00000000-0000-0000-0000-000000000006');
+SELECT id,
+  test_plugin_count(v) OVER (
+    PARTITION BY g ORDER BY id
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS preceding_count,
+  test_plugin_count(v) OVER (
+    PARTITION BY g ORDER BY id
+    ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS following_count,
+  test_plugin_count(v) OVER (
+    PARTITION BY g ORDER BY id
+    ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING) AS empty_count
+FROM t_window ORDER BY id;
+SELECT id,
+  test_plugin_count(v) OVER w AS c1,
+  test_plugin_count(v) OVER w AS c2,
+  test_plugin_first(u) OVER w AS first_uuid
+FROM t_window
+WINDOW w AS (
+  PARTITION BY g ORDER BY id
+  ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+ORDER BY id;
+CREATE TABLE window_uuid_result AS
+SELECT test_plugin_first(u) OVER (
+  PARTITION BY g ORDER BY id
+  ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS value
+FROM t_window;
+SHOW CREATE TABLE window_uuid_result;
+--error ER_NOT_SUPPORTED_YET
+SELECT test_plugin_first(DISTINCT u) OVER () FROM t_window;
+
+PREPARE reprepare_stmt FROM
+  'SELECT test_plugin_count(v) FROM t_group';
+EXECUTE reprepare_stmt;
+ALTER TABLE t_group ADD COLUMN extra INT;
+EXECUTE reprepare_stmt;
+DEALLOCATE PREPARE reprepare_stmt;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+PREPARE bad_stmt FROM 'SELECT test_plugin_count()';
+UNINSTALL SONAME 'func_test';
+INSTALL SONAME 'func_test';
+
+PREPARE s1 FROM 'SELECT test_plugin_count(v) FROM t_group';
+PREPARE s2 FROM 'SELECT test_plugin_first(v) FROM t_group';
+UNINSTALL SONAME 'func_test';
+EXECUTE s1;
+EXECUTE s2;
+DEALLOCATE PREPARE s1;
+EXECUTE s2;
+DEALLOCATE PREPARE s2;
+INSTALL SONAME 'func_test';
+
+--connect (con1,localhost,root,,)
+--connection con1
+PREPARE close_stmt FROM
+  'SELECT test_plugin_count(v) FROM t_group';
+--connection default
+UNINSTALL SONAME 'func_test';
+--disconnect con1
+--connection default
+INSTALL SONAME 'func_test';
+
+DROP TABLE window_uuid_result, t_window, uuid_union, t_uuid, t_blob, t_group;
+--disable_query_log
+UNINSTALL SONAME 'func_test';
+INSTALL SONAME 'func_test';
+DELETE FROM mysql.plugin WHERE dl='func_test.so';
+--enable_query_log
