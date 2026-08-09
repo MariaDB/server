@@ -434,7 +434,9 @@ enum join_type
 
     Shown as "hash_index_merge" in EXPLAIN.
   */
-  JT_HASH_INDEX_MERGE
+  JT_HASH_INDEX_MERGE,
+  JT_SAMPLE,
+  JT_HASH_SAMPLE
 };
 
 class JOIN;

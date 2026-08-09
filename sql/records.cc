@@ -30,9 +30,12 @@
 #include "sql_class.h"                          // THD
 #include "sql_base.h"
 #include "sql_sort.h"                           // SORT_ADDON_FIELD
+#include "sql_tablesample.h"
 
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
+int rr_sampling_bernoulli(READ_RECORD *info);
+int rr_sampling_system(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 template<bool> static int rr_unpack_from_tempfile(READ_RECORD *info);
 template<bool,bool> static int rr_unpack_from_buffer(READ_RECORD *info);
@@ -187,6 +190,8 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 
   const bool using_addon_fields= filesort && filesort->using_addon_fields();
   bool using_packed_sortkeys= filesort && filesort->using_packed_sortkeys();
+  const bool has_tablesample= table->pos_in_table_list
+    && table->pos_in_table_list->tablesample_clause;
 
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
@@ -315,6 +320,21 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
         table->file->print_error(error, MYF(0));
       DBUG_RETURN(1);
     }
+  }
+  else if (has_tablesample)
+  {
+    DBUG_PRINT("info",("using rr_sampling"));
+    Lex_tablesample *tablesample_clause= 
+      table->pos_in_table_list->tablesample_clause;
+    enum tablesample_method_enum sampling_method=
+      tablesample_clause->get_sampling_method();
+    if (sampling_method == tablesample_method_enum::TABLESAMPLE_BERNOULLI)
+      info->read_record_func= rr_sampling_bernoulli;
+    else
+      info->read_record_func= rr_sampling_system;
+    if (unlikely(table->file->ha_rnd_init_with_error(1)))
+      DBUG_RETURN(1);
+    tablesample_clause->seed_sample_rand(&info->sample_rand);
   }
   else
   {
@@ -514,6 +534,47 @@ int rr_sequential(READ_RECORD *info)
   return tmp;
 }
 
+
+int rr_sampling_bernoulli(READ_RECORD *info)
+{
+  int tmp;
+  const double p= info->table->pos_in_table_list->tablesample_clause->
+                    get_sampling_percentage_fraction();
+
+  for (;;)
+  {
+    tmp= info->table->file->ha_rnd_next(info->record());
+    if (tmp)
+    {
+      tmp= rr_handle_error(info, tmp);
+      break;
+    }
+    if (my_rnd(&info->sample_rand) < p)
+      break;
+  }
+  return tmp;
+}
+
+
+int rr_sampling_system(READ_RECORD *info)
+{
+  int tmp;
+  const double p= info->table->pos_in_table_list->tablesample_clause->
+                    get_sampling_percentage_fraction();
+
+  for (;;)
+  {
+    tmp= info->table->file->ha_rnd_next(info->record());
+    if (tmp)
+    {
+      tmp= rr_handle_error(info, tmp);
+      break;
+    }
+    if (my_rnd(&info->sample_rand) < p)
+      break;
+  }
+  return tmp;
+}
 
 static int rr_from_tempfile(READ_RECORD *info)
 {

@@ -67,6 +67,9 @@ struct READ_RECORD
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
 
+  // initialised only if dealing with tablesample clause
+  struct my_rnd_struct sample_rand;
+
   /*
     Structure storing information about sorting
   */

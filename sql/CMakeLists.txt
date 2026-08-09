@@ -185,6 +185,7 @@ SET (SQL_SOURCE
                sql_type_string.cc
                sql_type_geom.cc sql_type_vector.cc
                item_windowfunc.cc sql_window.cc
+               sql_tablesample.cc
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h

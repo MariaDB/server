@@ -3459,6 +3459,7 @@ int JOIN::optimize_stage2()
         tab->type != JT_NEXT &&
         tab->type != JT_FT &&
         tab->type != JT_REF_OR_NULL &&
+        tab->type != JT_SAMPLE &&
         ((order && simple_order) || (group_list && simple_group)))
     {
       if (add_ref_to_table_cond(thd,tab)) {
@@ -8815,6 +8816,8 @@ best_access_path(JOIN      *join,
   table_map spl_pd_boundary= 0;
   Loose_scan_opt loose_scan_opt;
   struct best_plan best;
+  bool is_tablesample= table->pos_in_table_list &&
+                  table->pos_in_table_list->tablesample_clause;
   Json_writer_object trace_wrapper(thd, "best_access_path");
   DBUG_ENTER("best_access_path");
 
@@ -9948,14 +9951,14 @@ best_access_path(JOIN      *join,
             {
               /* No usable key, use table scan */
               cost= s->cached_scan_and_compare_cost;
-              type= JT_ALL;
+              type= is_tablesample ? JT_SAMPLE : JT_ALL;
             }
           }
         }
         else // table scan
         {
           cost= s->cached_scan_and_compare_cost;
-          type= JT_ALL;
+          type= is_tablesample ? JT_SAMPLE : JT_ALL;
         }
         /* Cache result for other calls */
         s->cached_forced_index_type= type;
@@ -10035,7 +10038,8 @@ best_access_path(JOIN      *join,
     {
       trace_access_scan.
         add("access_type",
-            type == JT_ALL ? scan_type : join_type_str[type]);
+            (type == JT_ALL || type == JT_SAMPLE) ? 
+              scan_type : join_type_str[type]);
       if (type == JT_RANGE)
         trace_access_scan.
           add("range_index", table->key_info[s->quick->index].name);
@@ -13465,6 +13469,8 @@ bool JOIN::get_best_combination()
     j->bush_root_tab= sjm_nest_root;
 
     form= table[tablenr]= j->table;
+    bool is_tablesample= form->pos_in_table_list && 
+      form->pos_in_table_list->tablesample_clause;
     form->reginfo.join_tab=j;
     DBUG_PRINT("info",("type: %d", j->type));
     if (j->type == JT_CONST)
@@ -13486,7 +13492,7 @@ bool JOIN::get_best_combination()
         j->index= cur_pos->forced_index;
       }
       else
-        j->type= JT_ALL;
+        j->type= is_tablesample ? JT_SAMPLE : JT_ALL;
       if (cur_pos->use_join_buffer &&
           tablenr != const_tables)
 	full_join= 1;
@@ -16079,6 +16085,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_NEXT:
   case JT_ALL:
   case JT_RANGE:
+  case JT_SAMPLE:
     if (hint_disables_bnl)
       goto no_join_cache;
     if (cache_level == 1)
@@ -16170,7 +16177,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   }
 
 no_join_cache:
-  if (tab->type != JT_ALL && tab->type != JT_RANGE && tab->is_ref_for_hash_join())
+  if (tab->type != JT_ALL && tab->type != JT_RANGE &&
+    tab->type != JT_SAMPLE && tab->is_ref_for_hash_join())
   {
     tab->type= JT_ALL;
     tab->ref.key_parts= 0;
@@ -16253,6 +16261,7 @@ restart:
     case JT_NEXT:
     case JT_ALL:
     case JT_RANGE:
+    case JT_SAMPLE:
       tab->used_join_cache_level= check_join_cache_usage(tab, options,
                                                          no_jbuf_after,
                                                          idx,
@@ -16539,6 +16548,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     case JT_ALL:
     case JT_RANGE:
     case JT_HASH:
+    case JT_SAMPLE:
     {
       bool have_quick_select= tab->select && tab->select->quick;
       /*
@@ -17052,7 +17062,7 @@ double JOIN_TAB::get_examined_rows()
     DBUG_ASSERT(examined_rows == sel->quick->records);
   }
   else if (type == JT_NEXT || type == JT_ALL || type == JT_RANGE ||
-           type == JT_HASH || type == JT_HASH_NEXT)
+           type == JT_HASH || type == JT_HASH_NEXT || type == JT_SAMPLE)
   {
     if (limit)
     {
