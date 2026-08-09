@@ -748,7 +748,7 @@ bool TYPVAL<double>::SetValue_char(const char *p, int n)
     for (; n > 0 && *p == ' '; p++)
       n--;
 
-    memcpy(buf, p, MY_MIN(n, 31));
+    memcpy(buf, p, n= MY_MIN(n, 31));
     buf[n] = '\0';
     Tval = atof(buf);
 
