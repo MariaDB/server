@@ -198,6 +198,8 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 # Bounds check in Field_new_decimal::unpack (heap out-of-bounds read)
 #
 connection master;
+call mtr.add_suppression("BINLOG_BASE64_EVENT.*Could not read field '' of table 'test.t1'");
+call mtr.add_suppression("BINLOG_BASE64_EVENT.*Could not execute Write_rows_v1 event on table test.t1");
 SET @sav_stc= @@global.slave_type_conversions;
 SET GLOBAL slave_type_conversions= 'ALL_NON_LOSSY';
 SET sql_log_bin= 0;
