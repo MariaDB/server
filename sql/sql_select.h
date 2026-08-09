@@ -1924,10 +1924,16 @@ public:
     - We are using an ORDER BY or GROUP BY on fields not in the first table
     - We are using different ORDER BY and GROUP BY orders
     - The user wants us to buffer the result.
-    - We are using WINDOW functions that do not align with the streaming
-      criteria (see have_streaming_window_funcs()).
-    When the WITH ROLLUP modifier is present, we cannot skip temporary table
-    creation for the DISTINCT clause just because there are only const tables.
+     - We are using WINDOW functions that cannot be computed by streaming.
+        The streaming step attaches to end_send, so it is only viable when the
+        last next_select is end_send. We must fall back to a temp table when:
+          * the window functions fail the streaming criteria
+            (see have_streaming_window_funcs()), or
+          * there are no real tables to stream from (only_const_tables()), or
+          * the plan would run an executor-side grouping step (end_send_group)
+            rather than end_send: i.e. grouping was optimized away to a single
+            implicit group (group_optimized_away), or there is a GROUP BY not
+            satisfied by a loose index scan.
   */
   bool test_if_need_tmp_table()
   {
@@ -1938,7 +1944,9 @@ public:
             (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
             (select_lex->have_window_funcs() &&
              (!streamable_window_funcs || only_const_tables() ||
-              group_optimized_away)));
+              group_optimized_away ||
+              (group_list &&
+               !join_tab[const_tables].is_using_loose_index_scan()))));
   }
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,

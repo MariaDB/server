@@ -3349,18 +3349,14 @@ int JOIN::optimize_stage2()
   need_tmp= test_if_need_tmp_table();
 
   /*
-    If window functions are present then we can't have simple_order set to
-    TRUE as the window function needs a temp table for computation.
-    ORDER BY is computed after the window function computation is done, so
-    the sort will be done on the temp table.
+    If window functions are present and not streamable, then we can't have
+    simple_order set to TRUE as the window function needs a temp table for
+    computation. In this case, ORDER BY is computed after the window function
+    computation is done, so the sort will be done on the temp table.
   */
   if (select_lex->have_window_funcs() && !streamable_window_funcs)
     simple_order= FALSE;
-  // this means the order by should be done in a temp table (it's real purpose
-  // is checking if order by references only the first non-const table in JOIN)
 
-  // i'm not very sure of this, simple_order might change later??
-  // Should we skip this if the window function is longer than the main query?
   if (!need_tmp && simple_order && streaming_wf_order_is_longer)
     order= win_func_longest_order;
 
@@ -3601,19 +3597,17 @@ int JOIN::optimize_stage2()
 
   if (streamable_window_funcs && !need_tmp)
   {
-    JOIN_TAB *last_real_tab= &join_tab[exec_join_tab_cnt() - 1];
-    // here i would attach the new streamable class (same interface ?)
+    JOIN_TAB *last_real_tab= join_tab + exec_join_tab_cnt() - 1;
+    DBUG_ASSERT(last_real_tab->next_select == end_send);
+
     if (!(last_real_tab->window_funcs_streaming_step=
               new Window_funcs_sort_streaming(thd)))
       DBUG_RETURN(true);
-    // this sets up the list, and the partition and group tracking
     if (last_real_tab->window_funcs_streaming_step->setup(
             select_lex->window_funcs))
       DBUG_RETURN(true);
-    // i need to make SURE THAT END_SEND is not assigned to last table after
-    // this, this is very important
-    last_real_tab->next_select=
-        end_compute_win_func; // calls process_row and end_send
+
+    last_real_tab->next_select= end_compute_win_func;
     /* Count that we're using window functions. */
     status_var_increment(thd->status_var.feature_window_functions);
   }

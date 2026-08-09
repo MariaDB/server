@@ -934,10 +934,11 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
 
   // Ordering keys after the complete GROUP BY key does not affect the ordering
   // of the grouped result: there is exactly one row per group key, so a
-  // trailing key is never reached as a tie-breaker. Hence it's safe even for
-  // non-grouped columns, whose values are plan-dependent but never participate
-  // in tie breaking. (Assumes the whole group key is matched as a prefix, and
-  // no WITH ROLLUP.)
+  // trailing key can never be reached as a tie-breaker. Hence it is safe to
+  // drop the trailing keys even if the window function references non-grouped
+  // columns, whose values are plan-dependent but cannot affect the ordering
+  // between grouped rows. (Assumes the whole GROUP BY key is matched as a
+  // prefix, and no WITH ROLLUP.)
   if (main_query_group_list)
   {
     cmp= compare_order_lists(
@@ -2865,8 +2866,6 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
    If the window functions share the same frame specification,
    those window functions will be registered to the same cursor.
 */
-// i can reuse this for streaming, it just creates a Cursor Manager for each
-// window function
 bool get_window_functions_required_cursors(
     THD *thd,
     List<Item_window_func>& window_functions,
@@ -3441,11 +3440,13 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
   Group_bound_tracker *tracker;
   while ((win_func= it++))
   {
-    if (!(tracker= new Group_bound_tracker(
-              thd, win_func->window_spec->partition_list)))
-      return true;
+    tracker=
+        new Group_bound_tracker(thd, win_func->window_spec->partition_list);
     tracker->init();
     partition_trackers.push_back(tracker);
+
+    // So that end_send gets the live value of the window function on calling
+    // val_*(), and not the value from result_field.
     win_func->set_phase_to_computation();
 
     // sets peer tracker inside rank()
@@ -3461,8 +3462,6 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
   return false;
 }
 
-// called as a callback for each row in the join loop last table, directly
-// before end_send()
 bool Window_funcs_sort_streaming::process_row()
 {
   List_iterator_fast<Item_window_func> iter_win_funcs(win_funcs);

@@ -269,16 +269,19 @@ class Window_funcs_sort_streaming : public Sql_alloc
 public:
   Window_funcs_sort_streaming(THD *thd) : thd(thd) {}
   bool setup(List<Item_window_func> &win_funcs);
-  bool process_row(); // this object is attached to the JOIN_TAB, and
-                      // process_row() is called for a method attached on
-                      // takes the window funcs and the current row by
-                      // end_compute_win_funcs() and calls the appropriate
-                      // cursors to update the aggregate functions
+  /*
+    The object is attached to the last real JOIN_TAB in the query. This
+    function is called by end_compute_win_func() to run the window functions
+    computation over the current row in the JOIN output, assuming the row sits
+    in TABLE::record[0]. Then end_send calls val_*() methods of the window
+    functions to retrieve the live computed values and sends the row to output.
+  */
+  bool process_row();
   void cleanup();
 
 private:
-  int rownum= 0; // internal state for process row
-  THD *thd= NULL;
+  int rownum= 0; // Internal state for process row
+  THD *thd= nullptr;
   List<Item_window_func> win_funcs;
   List<Cursor_manager> cursor_managers;
   List<Group_bound_tracker> partition_trackers;

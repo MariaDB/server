@@ -423,6 +423,25 @@ a	rnk	drnk
 1	1	1
 2	2	2
 3	3	3
+EXPLAIN EXTENDED SELECT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tg	range	NULL	a	10	NULL	6	100.00	Using index for group-by
+SELECT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+a	b	rn	rnk	drnk
+1	1	1	1	1
+1	2	2	2	2
+2	1	1	1	1
+2	2	2	2	2
+2	3	3	3	3
+3	1	1	1	1
+SELECT SQL_BUFFER_RESULT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+a	b	rn	rnk	drnk
+1	1	1	1	1
+1	2	2	2	2
+2	1	1	1	1
+2	2	2	2	2
+2	3	3	3	3
+3	1	1	1	1
 EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a), rank() OVER (ORDER BY b) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
@@ -435,12 +454,34 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+CREATE TABLE t2 (a INT, x INT, KEY(a));
+INSERT INTO t2 VALUES (1,10);
+INSERT INTO t2 VALUES (1,20);
+INSERT INTO t2 VALUES (2,20);
+INSERT INTO t2 VALUES (2,30);
+EXPLAIN SELECT tg.a, rank() OVER (ORDER BY tg.a) FROM tg JOIN t2 ON tg.a=t2.a GROUP BY tg.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	a	a	5	NULL	4	Using where; Using index; Using temporary
+1	SIMPLE	tg	ref	a	a	5	test.t2.a	1	Using index
+EXPLAIN SELECT a, x  FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	a	5	NULL	4	
+EXPLAIN SELECT a, x, rank() OVER (ORDER BY a) FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	a	5	NULL	4	Using temporary
 EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM tg GROUP BY 1+2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	tg	index	NULL	a	10	NULL	6	100.00	Using index; Using temporary
+EXPLAIN EXTENDED SELECT pk, a, b FROM t1 GROUP BY pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+EXPLAIN EXTENDED SELECT pk, a, rank() OVER (ORDER BY pk) AS rnk FROM t1 GROUP BY pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
 EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+DROP TABLE tg, t2;
 EXPLAIN EXTENDED SELECT count(*) OVER w, sum(b) OVER w, avg(b) OVER w, min(b) OVER w, max(b) OVER w FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
@@ -459,5 +500,4 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
-DROP TABLE tg;
 DROP TABLE t1;

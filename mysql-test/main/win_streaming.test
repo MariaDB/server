@@ -146,9 +146,10 @@ SELECT d.a, d.rnk FROM (SELECT a, rank() OVER (ORDER BY a) AS rnk FROM t1) AS d;
 --source include/analyze-format.inc
 ANALYZE FORMAT=JSON SELECT pk, rank() OVER (ORDER BY pk) AS rnk FROM t1 LIMIT 2;
 
-# GROUP BY can stream: when an index supplies the group list in order there is
-# no temp table, and if the window order is compatible with the group list the
-# window functions are computed on the streamed grouped rows.
+# GROUP BY can stream: when the rows come out of the join already 
+# grouped (in the case of a single table loose index scan), and 
+# if the window order is compatible with the group list the window
+# functions are computed on the streamed grouped rows.
 # Note that this applies even if the window function order list is longer than the group list.
 # As long as the group list is a prefix of the longest window order list.
 CREATE TABLE tg (a INT, b INT, KEY(a, b));
@@ -175,6 +176,14 @@ eval SELECT $q;
 --sorted_result
 eval SELECT SQL_BUFFER_RESULT $q;
 
+# Loose index scan with partition
+--let $q= a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
 #
 # Cases that fall back to materialization
 #
@@ -188,15 +197,39 @@ EXPLAIN EXTENDED SELECT rank() OVER (PARTITION BY max(a) ORDER BY b) FROM t1;
 # A non-window aggregate anywhere in the select list
 EXPLAIN EXTENDED SELECT max(a), rank() OVER (ORDER BY b) FROM t1;
 
-# GROUP BY with no usable index needs a temp table for the grouping -> materialize
+# GROUP BY with no usable index needs a temp table for the grouping, materialize
 EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM t1 GROUP BY a;
+
+CREATE TABLE t2 (a INT, x INT, KEY(a));
+INSERT INTO t2 VALUES (1,10);
+INSERT INTO t2 VALUES (1,20);
+INSERT INTO t2 VALUES (2,20);
+INSERT INTO t2 VALUES (2,30);
+
+# GROUP BY across a multi-table join
+EXPLAIN SELECT tg.a, rank() OVER (ORDER BY tg.a) FROM tg JOIN t2 ON tg.a=t2.a GROUP BY tg.a;
+
+# GROUP BY that uses a tight index scan (select list is not satisfied by the index)
+EXPLAIN SELECT a, x  FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
+EXPLAIN SELECT a, x, rank() OVER (ORDER BY a) FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
 
 # Implicit/constant grouping (GROUP BY a constant expression) collapses to a
 # single group (grouping optimized away) and does not stream
 EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM tg GROUP BY 1+2;
 
+# GROUP BY on a unique NOT NULL index (here the PRIMARY KEY) is optimized away:
+# every group is exactly one row, so no grouping operation is performed and the
+# rows go straight through end_send() with no temp table (the GROUP BY is just
+# rewritten to an ORDER BY). Shown here without a window function:
+EXPLAIN EXTENDED SELECT pk, a, b FROM t1 GROUP BY pk;
+# Adding a window function disables that unique-index optimization for not 
+# so the GROUP BY is kept. (This is not yet fixed for streaming)
+EXPLAIN EXTENDED SELECT pk, a, rank() OVER (ORDER BY pk) AS rnk FROM t1 GROUP BY pk;
+
 # Ordering the outer query by the window function value, it needs to save the value first.
 EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
+
+DROP TABLE tg, t2;
 
 #
 # Aggregate window functions: not streamable yet.
@@ -228,7 +261,6 @@ EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 
 EXPLAIN EXTENDED SELECT sum(b) OVER () FROM t1;
 EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
 
-DROP TABLE tg;
 DROP TABLE t1;
 
 --enable_warnings
