@@ -20,6 +20,7 @@
 #define ITEM_CREATE_H
 
 #include "item_func.h" // Cast_target
+#include "sql_plugin.h"
 
 typedef struct st_udf_func udf_func;
 
@@ -209,6 +210,14 @@ protected:
 };
 
 
+class Create_aggregate_func : public Create_native_func
+{
+protected:
+  Create_aggregate_func() = default;
+  virtual ~Create_aggregate_func() = default;
+};
+
+
 /**
   Function builder for qualified functions.
   This builder is used with functions call using a qualified function name
@@ -337,7 +346,8 @@ public:
     @param name The native function name
     @return The native function builder associated with the name, or NULL
   */
-  Create_func *find(THD *thd, const LEX_CSTRING &name) const;
+  Create_func *find(THD *thd, const LEX_CSTRING &name,
+                    plugin_ref *plugin= NULL) const;
 };
 
 extern MYSQL_PLUGIN_IMPORT Native_functions_hash native_functions_hash;

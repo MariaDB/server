@@ -329,6 +329,11 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class Window_frame *window_frame;
   class Window_frame_bound *window_frame_bound;
   udf_func *udf;
+  struct
+  {
+    udf_func *udf;
+    bool aggregate;
+  } generic_function;
   st_trg_execution_order trg_execution_order;
 
   /* enums */
@@ -11399,31 +11404,35 @@ function_call_conflict:
 function_call_generic:
           ident_cli_func '('
           {
+            const Lex_ident_sys sysname(thd, &$1);
+            udf_func *udf= NULL;
+            bool aggregate= false;
+            if (sysname.is_null())
+              MYSQL_YYABORT; // EOM
+            Create_func *native_builder= Schema::find_implied(thd)->
+              find_native_function_builder(thd, sysname);
+            aggregate= dynamic_cast<Create_aggregate_func *>(native_builder) != NULL;
 #ifdef HAVE_DLOPEN
-            udf_func *udf= 0;
-            LEX *lex= Lex;
-            if (using_udf_functions)
+            if (!native_builder && using_udf_functions)
             {
               // find_udf expectes a 0-terminated string
-              const Lex_ident_sys sysname(thd, &$1);
-              if (sysname.is_null())
-                MYSQL_YYABORT; // EOM
-              if ((udf= find_udf(sysname.str, sysname.length)) &&
-                  udf->type == UDFTYPE_AGGREGATE)
-              {
-                if (unlikely(lex->current_select->inc_in_sum_expr()))
-                {
-                  thd->parse_error();
-                  MYSQL_YYABORT;
-                }
-              }
+              udf= find_udf(sysname.str, sysname.length);
+              if (udf && udf->type == UDFTYPE_AGGREGATE)
+                aggregate= true;
             }
-            /* Temporary placing the result of find_udf in $3 */
-            $<udf>$= udf;
 #endif
+            if (aggregate &&
+                unlikely(Lex->current_select->inc_in_sum_expr()))
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            $<generic_function>$.udf= udf;
+            $<generic_function>$.aggregate= aggregate;
           }
 
-          opt_udf_expr_list_or_join_operator ')' opt_object_member_access
+          opt_distinct opt_udf_expr_list_or_join_operator ')'
+          opt_object_member_access
           {
             const Type_handler *h;
             Create_func *builder;
@@ -11433,6 +11442,11 @@ function_call_generic:
             const Sp_rcontext_handler *rh;
             sp_variable *spv= NULL;
             bool allow_field_accessor= false;
+            bool native_item= false;
+            plugin_ref function_plugin= NULL;
+
+            if ($<generic_function>3.aggregate)
+              Select->in_sum_expr--;
 
             if (unlikely(ident.is_null() ||
                          Lex_ident_routine::check_name_with_error(ident)))
@@ -11448,10 +11462,10 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            if ($4 && $4->elements == 1 &&
-                dynamic_cast<Item_join_operator_plus*>($4->head()))
+            if ($5 && $5->elements == 1 &&
+                dynamic_cast<Item_join_operator_plus*>($5->head()))
             {
-              if ($6.str)
+              if ($7.str)
               {
                 thd->parse_error();
                 MYSQL_YYABORT;
@@ -11460,28 +11474,30 @@ function_call_generic:
               if (!item || Lex->mark_item_ident_for_ora_join(thd, item))
                 MYSQL_YYABORT;
             } else if ((builder= Schema::find_implied(thd)->
-                        find_native_function_builder(thd, ident)))
+                        find_native_function_builder(thd, ident,
+                                                     &function_plugin)))
             {
-              item= builder->create_func(thd, &ident, $4);
+              item= builder->create_func(thd, &ident, $5);
+              native_item= true;
             }
             else if ((h= Type_handler::handler_by_name(thd, ident)) &&
-                     (item= h->make_constructor_item(thd, $4)))
+                     (item= h->make_constructor_item(thd, $5)))
             {
               // Found a constructor with a proper argument count
             }
             else if (Lex->spcont && (tdef= Lex->find_type_def(ident)))
             {
-              item= tdef->make_constructor_item(thd, $4);
+              item= tdef->make_constructor_item(thd, $5);
             }
             else if (Lex->spcont &&
                     (spv= Lex->find_variable(&ident, &rh)) &&
                     spv->type_handler()->has_functors())
             {
-              const char *end= $6.str ? $6.end() : $5.end();
+              const char *end= $7.str ? $7.end() : $6.end();
               const Lex_ident_cli name_cli($1.pos(), end - $1.pos());
-              auto ident2= $6.str ? Lex_ident_sys(thd, &$6) : Lex_ident_sys();
-              if (($6.str && ident2.is_null()) ||
-                  !(item= Lex->create_item_functor(thd, ident, $4,
+              auto ident2= $7.str ? Lex_ident_sys(thd, &$7) : Lex_ident_sys();
+              if (($7.str && ident2.is_null()) ||
+                  !(item= Lex->create_item_functor(thd, ident, $5,
                                                    ident2, name_cli)))
                 MYSQL_YYABORT;
               item->set_name(thd, $1.pos(), end - $1.pos(), thd->charset());
@@ -11493,29 +11509,54 @@ function_call_generic:
             {
 #ifdef HAVE_DLOPEN
               /* Retrieving the result of find_udf */
-              udf_func *udf= $<udf>3;
+              udf_func *udf= $<generic_function>3.udf;
 
               if (udf)
-              {
-                if (udf->type == UDFTYPE_AGGREGATE)
-                {
-                  Select->in_sum_expr--;
-                }
-
-                item= Create_udf_func::s_singleton.create(thd, udf, $4);
-              }
+                item= Create_udf_func::s_singleton.create(thd, udf, $5);
               else
 #endif
               {
                 builder= find_qualified_function_builder(thd);
                 DBUG_ASSERT(builder);
-                item= builder->create_func(thd, &ident, $4);
+                item= builder->create_func(thd, &ident, $5);
               }
             }
 
-            if ($6.str && !allow_field_accessor)
+            Item_sum *sum_item= item ? dynamic_cast<Item_sum *>(item) : NULL;
+            if (function_plugin && sum_item)
             {
-              Lex_ident_sys field_sys(thd, &$6);
+              Item_sum_plugin *plugin_item=
+                dynamic_cast<Item_sum_plugin *>(sum_item);
+              if (!plugin_item)
+              {
+                plugin_unlock(NULL, function_plugin);
+                my_error(ER_INTERNAL_ERROR, MYF(0),
+                         "Aggregate function plugin did not return Item_sum_plugin");
+                MYSQL_YYABORT;
+              }
+              if (plugin_item->set_function_plugin(function_plugin))
+              {
+                plugin_unlock(NULL, function_plugin);
+                my_error(ER_OUT_OF_RESOURCES, MYF(0));
+                MYSQL_YYABORT;
+              }
+              function_plugin= NULL;
+            }
+            if (function_plugin)
+              plugin_unlock(NULL, function_plugin);
+            if ($4)
+            {
+              if (!native_item || !sum_item)
+              {
+                thd->parse_error();
+                MYSQL_YYABORT;
+              }
+              sum_item->set_distinct(true);
+            }
+
+            if ($7.str && !allow_field_accessor)
+            {
+              Lex_ident_sys field_sys(thd, &$7);
               my_error(ER_BAD_FIELD_ERROR, MYF(0), field_sys.str, ident.str);
               MYSQL_YYABORT;
             }
@@ -11916,11 +11957,10 @@ window_func:
         |
           function_call_generic
           {
-            Item* item = (Item*)$1;
-            /* Only UDF aggregate here possible */
-            if ((item == NULL) ||
-                (item->type() != Item::SUM_FUNC_ITEM)
-                || (((Item_sum *)item)->sum_func() != Item_sum::UDF_SUM_FUNC))
+            Item *item= (Item *) $1;
+            if (!item || item->type() != Item::SUM_FUNC_ITEM ||
+                (((Item_sum *) item)->sum_func() != Item_sum::UDF_SUM_FUNC &&
+                 ((Item_sum *) item)->sum_func() != Item_sum::PLUGIN_SUM_FUNC))
             {
               thd->parse_error();
               MYSQL_YYABORT;

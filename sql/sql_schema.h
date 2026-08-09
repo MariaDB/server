@@ -18,6 +18,7 @@
 
 #include "mysqld.h"
 #include "lex_string.h"
+#include "sql_plugin.h"
 
 class Lex_ident_sys;
 class Create_func;
@@ -51,9 +52,8 @@ public:
     @param name The native function name
     @return The native function builder associated with the name, or NULL
   */
-  virtual Create_func *find_native_function_builder(THD *thd,
-                                                    const LEX_CSTRING &name)
-                                                    const;
+  virtual Create_func *find_native_function_builder(
+    THD *thd, const LEX_CSTRING &name, plugin_ref *plugin= NULL) const;
 
   // Builders for native SQL function with a special syntax in sql_yacc.yy
   virtual Item *make_item_func_replace(THD *thd,

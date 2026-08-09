@@ -1,0 +1,282 @@
+SELECT test_plugin_count();
+ERROR 42000: Incorrect parameter count in the call to native function 'test_plugin_count'
+SELECT test_plugin_count(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'test_plugin_count'
+SELECT test_plugin_first();
+ERROR 42000: Incorrect parameter count in the call to native function 'test_plugin_first'
+CREATE TABLE t_group (g INT, v INT);
+INSERT INTO t_group VALUES
+(1, NULL), (1, NULL),
+(2, 10), (2, NULL),
+(3, 20), (3, 30);
+SELECT * FROM t_group WHERE test_plugin_count(v) > 0;
+ERROR HY000: Invalid use of group function
+SELECT test_plugin_count(test_plugin_count(v)) FROM t_group;
+ERROR HY000: Invalid use of group function
+SELECT test_plugin_count(v) FROM t_group;
+test_plugin_count(v)
+3
+SELECT test_plugin_count(v) FROM t_group
+HAVING test_plugin_count(v) > 0;
+test_plugin_count(v)
+3
+SELECT g, test_plugin_count(v) AS c
+FROM t_group GROUP BY g HAVING c > 0 ORDER BY c, g;
+g	c
+2	1
+3	2
+SELECT test_plugin_count(v), test_plugin_count(v),
+test_plugin_count(v + 1), test_plugin_first(v)
+FROM t_group;
+test_plugin_count(v)	test_plugin_count(v)	test_plugin_count(v + 1)	test_plugin_first(v)
+3	3	3	10
+SELECT g, test_plugin_count(v), test_plugin_first(v)
+FROM t_group GROUP BY g ORDER BY g;
+g	test_plugin_count(v)	test_plugin_first(v)
+1	0	NULL
+2	1	10
+3	2	20
+SELECT g, test_plugin_count(v)
+FROM t_group GROUP BY g WITH ROLLUP;
+g	test_plugin_count(v)
+1	0
+2	1
+3	2
+NULL	3
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT * FROM
+(SELECT g, test_plugin_count(v) AS c
+FROM t_group GROUP BY g) AS dt
+ORDER BY g;
+g	c
+1	0
+2	1
+3	2
+WITH cte AS
+(SELECT g, test_plugin_count(v) AS c
+FROM t_group GROUP BY g)
+SELECT * FROM cte ORDER BY g;
+g	c
+1	0
+2	1
+3	2
+SET optimizer_switch= @save_optimizer_switch;
+SELECT g, test_plugin_count(DISTINCT v)
+FROM t_group GROUP BY g ORDER BY g;
+g	test_plugin_count(DISTINCT v)
+1	0
+2	1
+3	2
+SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
+test_plugin_count(DISTINCT v)
+0
+SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE v IS NULL;
+test_plugin_first(DISTINCT v) IS NULL
+1
+SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE FALSE;
+test_plugin_count(DISTINCT v)
+0
+SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE FALSE;
+test_plugin_first(DISTINCT v) IS NULL
+1
+CREATE TABLE t_blob (value LONGTEXT);
+INSERT INTO t_blob VALUES
+(REPEAT('a', 10000)), (REPEAT('a', 10000)),
+(REPEAT('b', 10000)), (NULL);
+SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+test_plugin_count(DISTINCT value)
+2
+SELECT LENGTH(test_plugin_first(DISTINCT value)) FROM t_blob;
+LENGTH(test_plugin_first(DISTINCT value))
+10000
+SET @save_tmp_table_size= @@tmp_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET tmp_table_size= 16384;
+SET max_heap_table_size= 16384;
+CREATE TABLE t_spill AS
+WITH RECURSIVE seq AS
+(SELECT 1 AS value UNION ALL
+SELECT value + 1 FROM seq WHERE value < 1000)
+SELECT value FROM seq;
+INSERT INTO t_spill SELECT value FROM t_spill;
+SELECT test_plugin_count(DISTINCT value) FROM t_spill;
+test_plugin_count(DISTINCT value)
+1000
+DROP TABLE t_spill;
+SET tmp_table_size= @save_tmp_table_size;
+SET max_heap_table_size= @save_max_heap_table_size;
+INSTALL SONAME 'type_test';
+CREATE TABLE t_type (g INT, i test_int8, d test_double);
+INSERT INTO t_type VALUES
+(1, 10, 1.5), (1, 20, 2.5), (2, NULL, NULL);
+SELECT g, test_plugin_first(i), test_plugin_first(d)
+FROM t_type GROUP BY g ORDER BY g;
+g	test_plugin_first(i)	test_plugin_first(d)
+1	10	1.5
+2	NULL	NULL
+CREATE TABLE type_int_result AS
+SELECT test_plugin_first(i) AS value FROM t_type;
+SHOW CREATE TABLE type_int_result;
+Table	Create Table
+type_int_result	CREATE TABLE `type_int_result` (
+  `value` test_int8(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE VIEW type_view AS
+SELECT test_plugin_first(i) AS value FROM t_type;
+SHOW CREATE VIEW type_view;
+View	Create View	character_set_client	collation_connection
+type_view	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `type_view` AS select test_plugin_first(`t_type`.`i`) AS `value` from `t_type`	latin1	latin1_swedish_ci
+SELECT * FROM type_view;
+value
+10
+CREATE TEMPORARY TABLE type_tmp AS
+SELECT g, test_plugin_first(i) AS value
+FROM t_type GROUP BY g;
+SHOW CREATE TABLE type_tmp;
+Table	Create Table
+type_tmp	CREATE TEMPORARY TABLE `type_tmp` (
+  `g` int(11) DEFAULT NULL,
+  `value` test_int8(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM type_tmp ORDER BY g;
+g	value
+1	10
+2	NULL
+CREATE TABLE type_dst (value test_int8);
+INSERT INTO type_dst SELECT test_plugin_first(i) FROM t_type;
+SELECT * FROM type_dst;
+value
+10
+DROP VIEW type_view;
+DROP TEMPORARY TABLE type_tmp;
+DROP TABLE type_dst, type_int_result, t_type;
+UNINSTALL SONAME 'type_test';
+CREATE TABLE t_uuid (id INT, g INT, value UUID);
+INSERT INTO t_uuid VALUES
+(1, 1, '00000000-0000-0000-0000-000000000001'),
+(2, 1, '00000000-0000-0000-0000-000000000001'),
+(3, 1, '00000000-0000-0000-0000-000000000002'),
+(4, 2, NULL),
+(5, 2, '00000000-0000-0000-0000-000000000003');
+SELECT test_plugin_count(DISTINCT value) FROM t_uuid;
+test_plugin_count(DISTINCT value)
+3
+SELECT test_plugin_first(value) =
+(SELECT value FROM t_uuid WHERE id = 1)
+FROM t_uuid WHERE g = 1;
+test_plugin_first(value) =
+(SELECT value FROM t_uuid WHERE id = 1)
+1
+CREATE TABLE uuid_union AS
+SELECT test_plugin_first(value) AS value FROM t_uuid
+UNION ALL
+SELECT value FROM t_uuid WHERE id = 1;
+SHOW CREATE TABLE uuid_union;
+Table	Create Table
+uuid_union	CREATE TABLE `uuid_union` (
+  `value` uuid DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT CASE WHEN 1 THEN test_plugin_first(value)
+ELSE CAST(NULL AS UUID) END AS value
+FROM t_uuid;
+value
+00000000-0000-0000-0000-000000000001
+CREATE TABLE t_window (id INT, g INT, v INT, u UUID);
+INSERT INTO t_window VALUES
+(1, 1, 10, '00000000-0000-0000-0000-000000000001'),
+(2, 1, NULL, NULL),
+(3, 1, 30, '00000000-0000-0000-0000-000000000003'),
+(4, 1, 40, '00000000-0000-0000-0000-000000000004'),
+(5, 2, NULL, NULL),
+(6, 2, 60, '00000000-0000-0000-0000-000000000006');
+SELECT id,
+test_plugin_count(v) OVER (
+PARTITION BY g ORDER BY id
+ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS preceding_count,
+test_plugin_count(v) OVER (
+PARTITION BY g ORDER BY id
+ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS following_count,
+test_plugin_count(v) OVER (
+PARTITION BY g ORDER BY id
+ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING) AS empty_count
+FROM t_window ORDER BY id;
+id	preceding_count	following_count	empty_count
+1	1	2	2
+2	1	2	1
+3	2	2	0
+4	2	1	0
+5	0	1	0
+6	1	1	0
+SELECT id,
+test_plugin_count(v) OVER w AS c1,
+test_plugin_count(v) OVER w AS c2,
+test_plugin_first(u) OVER w AS first_uuid
+FROM t_window
+WINDOW w AS (
+PARTITION BY g ORDER BY id
+ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+ORDER BY id;
+id	c1	c2	first_uuid
+1	1	1	00000000-0000-0000-0000-000000000001
+2	2	2	00000000-0000-0000-0000-000000000001
+3	2	2	00000000-0000-0000-0000-000000000003
+4	2	2	00000000-0000-0000-0000-000000000003
+5	1	1	00000000-0000-0000-0000-000000000006
+6	1	1	00000000-0000-0000-0000-000000000006
+CREATE TABLE window_uuid_result AS
+SELECT test_plugin_first(u) OVER (
+PARTITION BY g ORDER BY id
+ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS value
+FROM t_window;
+SHOW CREATE TABLE window_uuid_result;
+Table	Create Table
+window_uuid_result	CREATE TABLE `window_uuid_result` (
+  `value` uuid DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT test_plugin_first(DISTINCT u) OVER () FROM t_window;
+ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with DISTINCT as window function'
+PREPARE reprepare_stmt FROM
+'SELECT test_plugin_count(v) FROM t_group';
+EXECUTE reprepare_stmt;
+test_plugin_count(v)
+3
+ALTER TABLE t_group ADD COLUMN extra INT;
+EXECUTE reprepare_stmt;
+test_plugin_count(v)
+3
+DEALLOCATE PREPARE reprepare_stmt;
+PREPARE bad_stmt FROM 'SELECT test_plugin_count()';
+ERROR 42000: Incorrect parameter count in the call to native function 'test_plugin_count'
+UNINSTALL SONAME 'func_test';
+INSTALL SONAME 'func_test';
+PREPARE s1 FROM 'SELECT test_plugin_count(v) FROM t_group';
+PREPARE s2 FROM 'SELECT test_plugin_first(v) FROM t_group';
+UNINSTALL SONAME 'func_test';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+EXECUTE s1;
+test_plugin_count(v)
+3
+EXECUTE s2;
+test_plugin_first(v)
+10
+DEALLOCATE PREPARE s1;
+EXECUTE s2;
+test_plugin_first(v)
+10
+DEALLOCATE PREPARE s2;
+INSTALL SONAME 'func_test';
+connect  con1,localhost,root,,;
+connection con1;
+PREPARE close_stmt FROM
+'SELECT test_plugin_count(v) FROM t_group';
+connection default;
+UNINSTALL SONAME 'func_test';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+disconnect con1;
+connection default;
+INSTALL SONAME 'func_test';
+DROP TABLE window_uuid_result, t_window, uuid_union, t_uuid, t_blob, t_group;
