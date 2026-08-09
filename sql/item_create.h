@@ -61,6 +61,12 @@ public:
   virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
                             List<Item> *item_list) = 0;
 
+  /**
+    Whether the builder creates an aggregate (set) function.
+    Aggregate builders must create an Item_sum descendant.
+  */
+  virtual bool is_aggregate() const { return false; }
+
 protected:
   /** Constructor */
   Create_func() = default;

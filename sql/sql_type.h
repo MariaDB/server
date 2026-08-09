@@ -8047,7 +8047,7 @@ extern Named_type_handler<Type_handler_bit>         type_handler_bit;
 extern Named_type_handler<Type_handler_enum>        type_handler_enum;
 extern Named_type_handler<Type_handler_set>         type_handler_set;
 
-extern Named_type_handler<Type_handler_string>      type_handler_string;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_string>      type_handler_string;
 extern Named_type_handler<Type_handler_var_string>  type_handler_var_string;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_varchar>     type_handler_varchar;
 extern Named_type_handler<Type_handler_varchar_compressed> type_handler_varchar_compressed;
