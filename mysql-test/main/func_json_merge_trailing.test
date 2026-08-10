@@ -9,8 +9,14 @@
 # not a warning, because a warning becomes an error under a strict mode
 # and would take away an answer that has always been given.
 #
-# So every case below has to keep the value it has always had.  The note
-# is the only thing that is new.
+# So a case whose value the merging read to its end has to keep the value
+# it has always had, and the note is the only thing that is new about it.
+#
+# A document that breaks before its first value is complete is a
+# different thing, having no whole value for any of the above to be true
+# of, and it is refused rather than noted.  func_json_merge_broken
+# carries those; the section below reaches far enough into them to show
+# that both say where the trouble is in the same place.
 #
 
 --echo # ---------------------------------------------------------------
@@ -122,8 +128,9 @@ DROP TABLE t;
 --echo # other JSON function reading the same bytes says it is
 --echo # ---------------------------------------------------------------
 
---echo # broken inside the value rather than after it, so the merging
---echo # stops in the middle and composes out of what it had
+--echo # broken inside the value rather than after it, so there is no
+--echo # whole value to compose from and the merging refuses it - what is
+--echo # being compared here is where each of them says the trouble is
 SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS extract_says;
 SELECT JSON_MERGE('{}', '{"a":1 "b":2}') AS merge_says;
 SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}') AS patch_says;
