@@ -16,10 +16,7 @@
 #include "maria_def.h"
 #include "ma_backup_server.h"
 #include "mysqld_error.h"
-#if 1 // tc_purge(), tdc_purge()
-# include "sql_class.h"
-# include "table_cache.h"
-#endif
+#include "table.h"
 #include <aria_backup.h>
 #include <mysqld_error.h>
 #include <atomic>
@@ -418,12 +415,6 @@ void *aria_backup_start(THD *thd, const backup_target *target,
   assert(aria_backup);
   switch(phase)
   {
-#if 1 // FIXME: invoke these only for Aria, MyISAM, CSV but not others
-  case BACKUP_PHASE_NO_DML_NON_TRANS:
-    tc_purge();
-    tdc_purge(true);
-    break;
-#endif
   case BACKUP_PHASE_NO_DDL:
     if (aria_backup->start_copy_dml_safe(target, sink))
       goto error;

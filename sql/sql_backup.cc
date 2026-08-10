@@ -17,6 +17,7 @@
 #include "mdl.h"
 #include "mysys_err.h"
 #include "sql_class.h"
+#include "sql_base.h"                           // flush_tables()
 #include "sql_backup.h"
 #include "sql_backup_interface.h"
 #include "sql_parse.h"
@@ -895,8 +896,30 @@ bool Sql_cmd_backup::execute(THD *thd)
     target_phase->phase= backup_phase(phase);
 
     if (phase == BACKUP_PHASE_NO_DDL)
-      if ((fail= copy_misc_files(&target_phase->target, &target_phase->sink)))
+    {
+      /*
+        flush_tables() applies handler::extra(HA_EXTRA_FLUSH) selectively to
+        the tables that are copied in this phase: non-ACID engine tables
+        excluding the subset of tables that are written to in
+        BACKUP_PHASE_NO_DDL, like transactional Aria tables and system tables.
+
+        Flushing rather than closing ensures correct behavior in scenarios
+        where the tables, although writes to them are blocked, may still be
+        opened for reading during that phase. HA_EXTRA_FLUSH leaves the files
+        marked closed on disk so they are not flagged as crashed or improperly
+        closed on restore.
+
+        Note that DDL running concurrently with backup has the potential to
+        open these files for write and mark them as dirty again. The current
+        design does not allow for DDL to be run concurrently with copying of
+        non-ACID engine table data, but should it be changed in the future to
+        allow that (and copy files in phases earlier than BACKUP_PHASE_NO_DDL),
+        the flushing strategy needs to be adjusted as well.
+      */
+      if ((fail= flush_tables(thd, FLUSH_NON_TRANS_TABLES) ||
+           copy_misc_files(&target_phase->target, &target_phase->sink)))
         break;
+    }
 
     fail= plugin_foreach_with_mask(thd, backup_start,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
