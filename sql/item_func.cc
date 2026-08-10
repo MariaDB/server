@@ -6814,7 +6814,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   {
     Security_context *save_security_ctx= thd->security_ctx;
     if (context && context->security_ctx)
-      thd->security_ctx= context->security_ctx;
+      thd->set_security_context(context->security_ctx);
 
     /*
       If the routine is not found, let's still check EXECUTE_ACL to decide
@@ -6824,7 +6824,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
               check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
                                    &m_name->m_name,
                                    &sp_handler_function, false);
-    thd->security_ctx= save_security_ctx;
+    thd->set_security_context(save_security_ctx);
 
     if (res)
     {

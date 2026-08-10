@@ -317,6 +317,10 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 
   res= job_data.execute(thd, event->dropped);
 
+  /* Test hook: execute()'s stack frame, incl. any DEFINER-switch
+     Security_context it held, is gone once we're back here (MDEV-39146). */
+  DEBUG_SYNC(thd, "event_worker_thread_after_execute_returned");
+
   print_warnings(thd, &job_data);
 
   if (res && global_system_variables.log_warnings > 2)

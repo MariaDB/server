@@ -1469,6 +1469,17 @@ Event_job_data::execute(THD *thd, bool drop)
     */
   }
 
+  /* Test hook (MDEV-39146 follow-up): still under the real DEFINER identity
+     here, before restore_security_context() below. Lets a test force this
+     worker's PROCESSLIST row into the contended fallback and compare it
+     against an uncontended scan of the same row. */
+  DBUG_EXECUTE_IF("event_worker_thread_hold_lock_before_restore",
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    DEBUG_SYNC(thd, "event_worker_thread_holding_lock_before_restore");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  });
+
 end:
   if (drop && likely(!thd->is_fatal_error))
   {

@@ -1807,9 +1807,20 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     mysql_audit_notify_connection_change_user(thd, &save_security_ctx);
     if (auth_rc)
     {
-      /* Free user if allocated by acl_authenticate */
+      /*
+        Free user if allocated by acl_authenticate(), then restore the old
+        identity. Lock needed: PROCESSLIST reads thd->security_ctx->user
+        under LOCK_thd_data (MDEV-39146), and without it here there's a
+        window where that pointer is already freed but not yet overwritten.
+      */
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       my_free(const_cast<char*>(thd->security_ctx->user));
+      /* Test hook (MDEV-39146 follow-up): still holding the lock, with
+         ->user just freed but not yet overwritten -- the exact window
+         this lock exists to close. */
+      DEBUG_SYNC(thd, "com_change_user_after_free_before_restore");
       *thd->security_ctx= save_security_ctx;
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       if (thd->user_connect)
 	decrease_user_connections(thd->user_connect);
       thd->user_connect= save_user_connect;
@@ -9447,6 +9458,16 @@ struct kill_threads_callback_arg
 
 static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
 {
+  my_bool res= 0;
+  /*
+    thd->security_ctx can change concurrently (MDEV-39146); the match test
+    below dereferences ->user/->host_or_ip, so it needs LOCK_thd_data too.
+    Unlike PROCESSLIST's read-only display, KILL USER acting on a stale
+    identity is a correctness bug (wrong session killed/spared), so this
+    blocks for the lock instead of falling back.
+  */
+  mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->security_ctx->user)
   {
     /*
@@ -9462,17 +9483,18 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
             PRIV_KILL_OTHER_USER_PROCESS) &&
           !thd->security_ctx->priv_user_matches(arg->thd->security_ctx))
       {
-        return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
+        res= MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
       }
-      arg->counter++;
-      mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->awake_no_mutex(arg->kill_signal);
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+      else
+      {
+        arg->counter++;
+        thd->awake_no_mutex(arg->kill_signal);
+      }
     }
   }
-  return 0;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  return res;
 }
 
 

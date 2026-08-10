@@ -2812,9 +2812,90 @@ static bool thd_visible_in_processlist(const Security_context *caller, THD *thd)
     return true; // privileged user can see all threads
   bool user_or_event_worker_thread=
        !thd->system_thread || thd->system_thread & SYSTEM_THREAD_EVENT_WORKER;
+  if (!user_or_event_worker_thread)
+    return false;
 
-  return user_or_event_worker_thread &&
-         thd->security_ctx->priv_user_matches(caller);
+  /*
+    thd->security_ctx can change concurrently (MDEV-39146); read under
+    lock, but don't block for it -- LOCK_thd_data can be held for up to
+    ~2s by the thread's own KILL/shutdown handling (longer under Galera/
+    InnoDB), and two of our three callers hold server_threads' rwlock for
+    their whole scan, so blocking here would stall every new connection
+    and teardown server-wide.
+
+    On contention, fall back to main_security_ctx: a THD-owned member
+    that outlives any caller-owned context security_ctx may be switched
+    to (MDEV-39146's root cause). priv_user_matches() only compares the
+    fixed priv_user/priv_host arrays and null-checks ->user itself (never
+    its contents) -- unlocked, these can't dangle, only read torn -- unlike
+    main_security_ctx.user/host_or_ip's contents, which the fallbacks below
+    must not read unlocked (see processlist_user_fallback()).
+
+    This answers "is the connecting identity visible", not the momentary
+    DEFINER identity, so it can be wrong under contention for a thread
+    running as a different definer -- and for event workers specifically,
+    priv_user is never set at all, so contention always answers "not
+    visible" for one, even to its own definer. A visibility gap, not a
+    memory-safety issue.
+  */
+  bool visible;
+  if (!trylock_short(&thd->LOCK_thd_data))
+  {
+    visible= thd->security_ctx->priv_user_matches(caller);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+  else
+    visible= thd->main_security_ctx.priv_user_matches(caller);
+  return visible;
+}
+
+
+/*
+  USER/HOST for the locked read path (MDEV-39146). 'sctx' must be
+  tmp->security_ctx read under tmp->LOCK_thd_data -- never main_security_ctx:
+  ->user is a heap pointer COM_CHANGE_USER can my_free() from under an
+  unlocked read. Use processlist_user_fallback() + priv_user instead when
+  the lock isn't held.
+*/
+static const char *processlist_user(const Security_context *sctx, THD *tmp)
+{
+  return sctx->user && (sctx->user != slave_user && sctx->user != wsrep_user)
+         ? sctx->user
+         : (tmp->system_thread ? "system user" : "unauthenticated user");
+}
+
+/*
+  HOST string to display; writes into 'host_buf' (>= LIST_PROCESS_HOST_LEN
+  + 1 bytes) for the "host:port" form, '*len' gets its length. Same 'sctx'
+  caveat as processlist_user().
+*/
+static const char *processlist_host(THD *tmp, const Security_context *sctx,
+                                    const Security_context *caller_sctx,
+                                    char *host_buf, size_t *len)
+{
+  if (tmp->peer_port && (sctx->host || sctx->ip) && caller_sctx->host_or_ip[0])
+  {
+    *len= my_snprintf(host_buf, LIST_PROCESS_HOST_LEN, "%s:%u",
+                      sctx->host_or_ip, tmp->peer_port);
+    return host_buf;
+  }
+  *len= strlen(sctx->host_or_ip);
+  return sctx->host_or_ip;
+}
+
+/*
+  Lock-contended USER fallback (MDEV-39146 follow-up): reads
+  main_security_ctx.priv_user -- a fixed array, never freed or realloc'd
+  -- instead of ->user, a heap pointer COM_CHANGE_USER may be my_free()-ing
+  under LOCK_thd_data at the exact moment we failed to get that lock. A
+  concurrent strmake_buf() can still make this a torn read, but never a
+  dangling one.
+*/
+static const char *processlist_user_fallback(THD *tmp)
+{
+  return tmp->main_security_ctx.priv_user[0]
+         ? tmp->main_security_ctx.priv_user
+         : (tmp->system_thread ? "system user" : "unauthenticated user");
 }
 
 
@@ -2829,8 +2910,6 @@ struct list_callback_arg
 
 static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 {
-
-  Security_context *tmp_sctx= tmp->security_ctx;
   bool got_thd_data;
   if (thd_visible_in_processlist(arg->thd->security_ctx, tmp))
   {
@@ -2838,27 +2917,25 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user &&
-                                     (tmp_sctx->user != slave_user &&
-                                      tmp_sctx->user != wsrep_user) ?
-                                       tmp_sctx->user :
-                                       (tmp->system_thread ?
-                                         "system user" : "unauthenticated user"));
-    if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
-        arg->thd->security_ctx->host_or_ip[0])
-    {
-      if ((thd_info->host= (char*) arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
-        my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
-                    "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
-    }
-    else
-      thd_info->host= arg->thd->strdup(tmp_sctx->host_or_ip[0] ?
-                                       tmp_sctx->host_or_ip :
-                                       tmp_sctx->host ? tmp_sctx->host : "");
     thd_info->command=(int) tmp->get_command();
 
+    /* tmp->security_ctx can change concurrently (MDEV-39146); read under lock. */
     if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
     {
+      Security_context *tmp_sctx= tmp->security_ctx;
+      thd_info->user= arg->thd->strdup(processlist_user(tmp_sctx, tmp));
+      if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
+          arg->thd->security_ctx->host_or_ip[0])
+      {
+        if ((thd_info->host= (char*) arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
+          my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
+                      "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
+      }
+      else
+        thd_info->host= arg->thd->strdup(tmp_sctx->host_or_ip[0] ?
+                                         tmp_sctx->host_or_ip :
+                                         tmp_sctx->host ? tmp_sctx->host : "");
+
       /* This is an approximation */
       thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
                                     "Killed" : 0);
@@ -2896,6 +2973,12 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
     }
     else
     {
+      /* Lock contended: USER from priv_user, not a placeholder -- this may
+         well be an authenticated thread (MDEV-39146). HOST left blank like
+         DB below: priv_host is an ACL grant pattern (e.g. "%"), not a real
+         peer host, and would mislead if shown as one. */
+      thd_info->user= arg->thd->strdup(processlist_user_fallback(tmp));
+      thd_info->host= "";
       thd_info->proc_info= "Busy";
       thd_info->progress= 0.0;
       thd_info->db= "";
@@ -3328,7 +3411,6 @@ struct processlist_callback_arg
 
 static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
 {
-  Security_context *tmp_sctx= tmp->security_ctx;
   CHARSET_INFO *cs= system_charset_info;
   const char *val;
   ulonglong max_counter;
@@ -3340,32 +3422,57 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   restore_record(arg->table, s->default_values);
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
-  /* USER */
-  val= tmp_sctx->user && (tmp_sctx->user != slave_user &&
-       tmp_sctx->user != wsrep_user) ? tmp_sctx->user :
-       (tmp->system_thread ? "system user" : "unauthenticated user");
-  arg->table->field[1]->store(val, strlen(val), cs);
-  /* HOST */
-  if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
-      arg->thd->security_ctx->host_or_ip[0])
-  {
-    char host[LIST_PROCESS_HOST_LEN + 1];
-    my_snprintf(host, LIST_PROCESS_HOST_LEN, "%s:%u",
-                tmp_sctx->host_or_ip, tmp->peer_port);
-    arg->table->field[2]->store(host, strlen(host), cs);
-  }
-  else
-    arg->table->field[2]->store(tmp_sctx->host_or_ip,
-                                strlen(tmp_sctx->host_or_ip), cs);
+
+  /* Test hook (MDEV-39146 follow-up): let a test force the trylock below
+     to see contention, for a specific test-named user, so the fallback
+     path a few lines down is deterministically exercised. priv_user is
+     a fixed array, safe to compare unlocked. */
+  DBUG_EXECUTE_IF("processlist_callback_pause_before_trylock_named_user",
+                  if (tmp->main_security_ctx.priv_user[0] &&
+                      !strcmp(tmp->main_security_ctx.priv_user,
+                              "mdev39146_victim"))
+                    DEBUG_SYNC(arg->thd,
+                        "processlist_callback_before_trylock_named_user"););
 
   if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
   {
+    /* tmp->security_ctx can change concurrently (MDEV-39146); read under lock. */
+    Security_context *tmp_sctx= tmp->security_ctx;
+
+    /* Test hook: pause here, between capture and dereference -- the
+       window this lock exists to close. */
+    DBUG_EXECUTE_IF("processlist_callback_pause_after_sctx_capture",
+                    if (tmp_sctx != &tmp->main_security_ctx)
+                      DEBUG_SYNC(arg->thd,
+                                 "processlist_callback_captured_sctx"););
+
+    /* USER */
+    val= processlist_user(tmp_sctx, tmp);
+    arg->table->field[1]->store(val, strlen(val), cs);
+    /* HOST */
+    {
+      char host[LIST_PROCESS_HOST_LEN + 1];
+      size_t host_len;
+      const char *host_val= processlist_host(tmp, tmp_sctx, arg->thd->security_ctx,
+                                             host, &host_len);
+      arg->table->field[2]->store(host_val, host_len, cs);
+    }
+
     /* DB */
     if (tmp->db.str)
     {
       arg->table->field[3]->store(tmp->db.str, tmp->db.length, cs);
       arg->table->field[3]->set_notnull();
     }
+  }
+  else
+  {
+    /* Lock contended: USER from priv_user, same as list_callback()'s
+       fallback (MDEV-39146). HOST left blank: priv_host is an ACL grant
+       pattern, not a real peer host. */
+    val= processlist_user_fallback(tmp);
+    arg->table->field[1]->store(val, strlen(val), cs);
+    arg->table->field[2]->store("", 0, cs);
   }
 
   /* COMMAND */

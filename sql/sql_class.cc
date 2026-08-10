@@ -4712,7 +4712,7 @@ change_security_context(THD *thd,
       DBUG_RETURN(TRUE);
     }
     *backup= thd->security_ctx;
-    thd->security_ctx= this;
+    thd->set_security_context(this);
   }
 
   DBUG_RETURN(FALSE);
@@ -4724,7 +4724,7 @@ Security_context::restore_security_context(THD *thd,
                                            Security_context *backup)
 {
   if (backup)
-    thd->security_ctx= backup;
+    thd->set_security_context(backup);
 }
 #endif
 

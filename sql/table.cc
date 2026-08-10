@@ -3718,7 +3718,7 @@ bool Vcol_expr_context::init()
   DBUG_ASSERT(table->pos_in_table_list);
 
   if (table->pos_in_table_list->security_ctx)
-    thd->security_ctx= tl->security_ctx;
+    thd->set_security_context(tl->security_ctx);
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
   thd->stmt_arena= thd;
@@ -3733,7 +3733,7 @@ Vcol_expr_context::~Vcol_expr_context()
   if (!inited)
     return;
   table->map= old_map;
-  thd->security_ctx= save_security_ctx;
+  thd->set_security_context(save_security_ctx);
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
   thd->stmt_arena= stmt_arena;
@@ -6974,7 +6974,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
     }
     DBUG_RETURN(TRUE);                          // Fatal
   }
-  thd->security_ctx= find_view_security_context(thd);
+  thd->set_security_context(find_view_security_context(thd));
   opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
   {
@@ -6995,7 +6995,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
     if (tbl->table)
       tbl->table->grant= grant;
   }
-  thd->security_ctx= save_security_ctx;
+  thd->set_security_context(save_security_ctx);
 #else
   while ((tbl= tb++))
     tbl->grant.privilege= ALL_KNOWN_ACL;

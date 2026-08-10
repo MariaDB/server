@@ -1,0 +1,247 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-39146, MDEV-38932
+--echo # Crash: processlist_callback() dereferences a stale Security_context,
+--echo # racing a SQL SECURITY DEFINER switch -- for events, one that is
+--echo # stack-allocated in Event_job_data::execute().
+--echo #
+--echo # DEBUG_SYNC forces the race deterministically: an event pauses while
+--echo # its THD's security_ctx points at the (stack) definer context; a
+--echo # concurrent processlist scan pauses right after capturing that same
+--echo # pointer, before dereferencing it; the event is let finish (freeing
+--echo # its stack frame); only then is the scanner let dereference the
+--echo # pointer it captured -- pre-fix, a stack-use-after-return. Verified
+--echo # with ASan's detect_stack_use_after_return during development (not
+--echo # in this tree's default ASAN config, so pass/fail doesn't depend on
+--echo # it).
+--echo #
+--echo # Post-fix, the switch and the capture+dereference are serialized on
+--echo # the same THD's LOCK_thd_data, so the event can't finish until the
+--echo # scanner is done -- hence the WAIT_FOR below is expected to time out.
+
+--disable_warnings
+DROP DATABASE IF EXISTS mdev39146;
+--enable_warnings
+
+--echo # Baseline count, so we can wait for 'waiter's teardown below instead
+--echo # of racing it (SHOW PROCESSLIST later expects an exact row count).
+--source include/count_sessions.inc
+
+CREATE DATABASE mdev39146;
+
+CREATE USER mdev39146_definer@localhost;
+GRANT EVENT ON mdev39146.* TO mdev39146_definer@localhost;
+GRANT SUPER ON *.* TO mdev39146_definer@localhost;
+
+SET DEBUG_SYNC= 'RESET';
+
+--echo # DEBUG_SYNC arming is per-session: the point fires on the event
+--echo # worker's own thd, so arm it from *inside* the event body, not from
+--echo # another connection.
+--delimiter |
+CREATE DEFINER=mdev39146_definer@localhost EVENT mdev39146.ev
+ON SCHEDULE AT CURRENT_TIMESTAMP
+DO
+BEGIN
+  SET DEBUG_SYNC= 'event_worker_thread_after_execute_returned SIGNAL event_execute_returned';
+  SET DEBUG_SYNC= 'now SIGNAL definer_ctx_active WAIT_FOR event_may_finish';
+END|
+--delimiter ;
+
+SET GLOBAL event_scheduler= ON;
+
+--echo # Connect 'waiter' before pausing the scanner: iterate() holds
+--echo # server_threads' rwlock for the whole scan, and a new connection
+--echo # needs that lock's write side -- connecting later would deadlock.
+connect (waiter, localhost, root,,);
+connection default;
+
+--echo # Wait for the event worker to be inside the DEFINER-switched context.
+SET DEBUG_SYNC= 'now WAIT_FOR definer_ctx_active';
+
+--echo # Arm the injected sync point: pause right after processlist_callback()
+--echo # captures the DEFINER-switched thread's security_ctx, before USER/HOST
+--echo # are read from it.
+SET @saved_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,processlist_callback_pause_after_sctx_capture';
+SET DEBUG_SYNC= 'processlist_callback_captured_sctx SIGNAL scanner_captured WAIT_FOR let_scanner_continue';
+
+--echo # Filter on the definer's name, not a bare row count: asserts the
+--echo # value the bug corrupts comes back correct, not just that a row
+--echo # exists.
+--send SELECT user, host FROM information_schema.processlist WHERE user = 'mdev39146_definer'
+
+connection waiter;
+--echo # Wait for the scanner to have captured the pointer.
+SET DEBUG_SYNC= 'now WAIT_FOR scanner_captured';
+
+--echo # Let the event finish, then wait (short timeout) for
+--echo # Event_worker_thread::run() to actually return from execute() --
+--echo # the point where its stack frame, and any DEFINER Security_context
+--echo # allocated on it, is gone for good.
+--echo #
+--echo # Pre-fix this always returns quickly. Post-fix it times out: the
+--echo # event thread needs LOCK_thd_data (already held by the paused
+--echo # scanner) both inside execute() and in restore_security_context(),
+--echo # so it's stuck behind that mutex until the scanner releases it
+--echo # below. This timeout warning is expected -- fails without the fix
+--echo # on any build, not just ASAN.
+SET DEBUG_SYNC= 'now SIGNAL event_may_finish WAIT_FOR event_execute_returned TIMEOUT 1';
+
+--echo # Release the scanner to dereference the pointer it captured. Pre-fix
+--echo # the event was never blocked, so execute() has already returned and
+--echo # its Security_context is gone -- a stack-use-after-return. Post-fix
+--echo # the event thread is still blocked on LOCK_thd_data here, so the
+--echo # pointer is still valid.
+SET DEBUG_SYNC= 'now SIGNAL let_scanner_continue';
+
+--disconnect waiter
+--connection default
+--reap
+
+--echo # Wait for 'waiter's teardown rather than race it: SHOW PROCESSLIST
+--echo # below expects an exact row count.
+--source include/wait_until_count_sessions.inc
+
+SET SESSION debug_dbug= @saved_dbug;
+SET DEBUG_SYNC= 'RESET';
+
+--echo # One-shot event (ON COMPLETION NOT PRESERVE, the default); already
+--echo # dropped itself after running.
+SET GLOBAL event_scheduler= OFF;
+
+--echo #
+--echo # Basic coverage for the identically-restructured list_callback()
+--echo # (legacy SHOW PROCESSLIST) -- not a repeat of the race above, just
+--echo # confirming correct output for a DEFINER-switched thread via this
+--echo # second code path.
+--echo #
+let $wait_condition= select count(*) = 0 from information_schema.processlist
+  where db = 'mdev39146';
+--source include/wait_condition.inc
+CREATE DEFINER=mdev39146_definer@localhost EVENT mdev39146.ev2
+ON SCHEDULE AT CURRENT_TIMESTAMP
+DO
+  SET DEBUG_SYNC= 'now SIGNAL ev2_active WAIT_FOR ev2_may_finish';
+SET GLOBAL event_scheduler= ON;
+SET DEBUG_SYNC= 'now WAIT_FOR ev2_active';
+--echo # --disable_ps_protocol: under --ps-protocol, SHOW PROCESSLIST itself
+--echo # runs as a prepared statement, so the caller's own COMMAND column
+--echo # reads "Execute" instead of "Query" -- a protocol artifact, not
+--echo # something this test cares about.
+--disable_ps_protocol
+--replace_column 1 <ID> 6 <TIME> 7 <STATE> 8 <INFO> 9 <PROGRESS>
+--replace_regex /:[0-9]+//
+SHOW PROCESSLIST;
+--enable_ps_protocol
+SET DEBUG_SYNC= 'now SIGNAL ev2_may_finish';
+
+--echo # Wait for ev2 to finish before teardown -- event_scheduler=OFF isn't
+--echo # documented to wait for in-flight workers.
+let $wait_condition= select count(*) = 0 from information_schema.processlist
+  where db = 'mdev39146';
+--source include/wait_condition.inc
+
+SET GLOBAL event_scheduler= OFF;
+SET DEBUG_SYNC= 'RESET';
+
+--echo #
+--echo # MDEV-39146 follow-up: COM_CHANGE_USER's failed-auth free()+restore
+--echo # runs under LOCK_thd_data; a concurrent PROCESSLIST read that loses
+--echo # the trylock must fall back to priv_user/priv_host, not crash on
+--echo # the freed pointer.
+--echo #
+CREATE USER mdev39146_victim@localhost;
+GRANT SUPER ON *.* TO mdev39146_victim@localhost;
+connect (victim, localhost, mdev39146_victim,,);
+connect (reader, localhost, root,,);
+
+connection victim;
+let $victim_id= `SELECT CONNECTION_ID()`;
+
+connection reader;
+SET SESSION debug_dbug= '+d,processlist_callback_pause_before_trylock_named_user';
+SET DEBUG_SYNC= 'processlist_callback_before_trylock_named_user WAIT_FOR victim_locked';
+--echo # Async: parks inside the scan, at victim's row, until victim holds
+--echo # its own LOCK_thd_data below.
+--replace_result $victim_id VICTIM_ID
+--send_eval SELECT user, host FROM information_schema.processlist WHERE id = $victim_id
+
+connection victim;
+--echo # Force acl_authenticate() to fail, so the free()+restore path runs.
+--echo # This connection's own LOCK_thd_data is held for the whole pause;
+--echo # the wait auto-releases on a timeout -- nothing else needs to run
+--echo # while this line blocks, so no external signal is needed to end it.
+SET DEBUG_SYNC= 'com_change_user_after_free_before_restore SIGNAL victim_locked WAIT_FOR com_change_user_test_never_signaled TIMEOUT 2';
+--error 1045
+change_user bogus,bogus;
+
+connection reader;
+--echo # Reaps the contended read armed above: fallback to priv_user/
+--echo # priv_host. acl_authenticate() copies the *attempted* username
+--echo # ("bogus") into priv_user before validating it, so that -- not the
+--echo # pre-attempt identity -- is what the fallback shows here; the point
+--echo # is that it's a safe, non-dangling snapshot, not the freed pointer.
+--reap
+
+disconnect victim;
+disconnect reader;
+connection default;
+DROP USER mdev39146_victim@localhost;
+SET DEBUG_SYNC= 'RESET';
+
+--echo #
+--echo # MDEV-39146 follow-up: an event worker's main_security_ctx.priv_user
+--echo # is never set, so the contended fallback can't see its own row --
+--echo # even to its own definer -- while an uncontended scan of the SAME
+--echo # row (still the real DEFINER identity) sees it fine.
+--echo #
+CREATE USER mdev39146_definer4@localhost;
+GRANT EVENT ON mdev39146.* TO mdev39146_definer4@localhost;
+GRANT SUPER ON *.* TO mdev39146_definer4@localhost;
+connect (definer4, localhost, mdev39146_definer4,,);
+connection default;
+
+--delimiter |
+CREATE DEFINER=mdev39146_definer4@localhost EVENT mdev39146.ev4
+ON SCHEDULE AT CURRENT_TIMESTAMP
+DO
+BEGIN
+  SET DEBUG_SYNC= 'now SIGNAL ev4_definer_active WAIT_FOR ev4_uncontended_done';
+  SET SESSION debug_dbug= '+d,event_worker_thread_hold_lock_before_restore';
+  SET DEBUG_SYNC= 'event_worker_thread_holding_lock_before_restore SIGNAL ev4_holding_lock WAIT_FOR let_ev4_go TIMEOUT 2';
+END|
+--delimiter ;
+SET GLOBAL event_scheduler= ON;
+
+connection definer4;
+SET DEBUG_SYNC= 'now WAIT_FOR ev4_definer_active';
+--echo # Uncontended: real DEFINER identity, so visible. (excludes own id --
+--echo # that row is always self-visible.)
+SELECT user, host FROM information_schema.processlist
+  WHERE user = 'mdev39146_definer4' AND id <> connection_id();
+SET DEBUG_SYNC= 'now SIGNAL ev4_uncontended_done WAIT_FOR ev4_holding_lock';
+--echo # Contended: worker now holds its own LOCK_thd_data, so the scan
+--echo # falls back to main_security_ctx -- priv_user unset, not visible.
+SELECT user, host FROM information_schema.processlist
+  WHERE user = 'mdev39146_definer4' AND id <> connection_id();
+SET DEBUG_SYNC= 'now SIGNAL let_ev4_go';
+
+connection default;
+let $wait_condition= select count(*) = 0 from information_schema.processlist
+  where db = 'mdev39146';
+--source include/wait_condition.inc
+SET GLOBAL event_scheduler= OFF;
+SET DEBUG_SYNC= 'RESET';
+
+disconnect definer4;
+connection default;
+DROP USER mdev39146_definer4@localhost;
+
+DROP DATABASE mdev39146;
+DROP USER mdev39146_definer@localhost;
+
+--echo # End of 10.11 tests

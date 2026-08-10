@@ -2864,6 +2864,8 @@ public:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
     - thd->db (used in SHOW PROCESSLIST)
+    - thd->security_ctx pointer itself, not the fields it points to
+      (see set_security_context() -- MDEV-39146)
     Is locked when THD is deleted.
   */
   mutable mysql_mutex_t LOCK_thd_data;
@@ -2913,7 +2915,24 @@ public:
   Security_context main_security_ctx;
   Security_context *security_ctx;
   Security_context *security_context() const { return security_ctx; }
-  void set_security_context(Security_context *sctx) { security_ctx = sctx; }
+  /*
+    Chokepoint for repointing security_ctx. PROCESSLIST readers on other
+    threads dereference it under LOCK_thd_data, so writers must swap it
+    under the same mutex, or a reader can catch a Security_context whose
+    backing storage (e.g. a stack-allocated DEFINER switch) already went
+    away (MDEV-39146).
+  */
+  void set_security_context(Security_context *sctx)
+  {
+    /* Fast path: no actual change (e.g. Switch_to_definer_security_ctx
+       destructors that never switched). Only this thread writes its own
+       security_ctx, so the compare itself can't race. */
+    if (sctx == security_ctx)
+      return;
+    mysql_mutex_lock(&LOCK_thd_data);
+    security_ctx= sctx;
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
 
   /*
     Points to info-string that we show in SHOW PROCESSLIST
@@ -7987,9 +8006,9 @@ class Switch_to_definer_security_ctx
     m_thd(thd), m_sctx(thd->security_ctx)
   {
     if (table->security_ctx)
-      thd->security_ctx= table->security_ctx;
+      thd->set_security_context(table->security_ctx);
   }
-  ~Switch_to_definer_security_ctx() { m_thd->security_ctx = m_sctx; }
+  ~Switch_to_definer_security_ctx() { m_thd->set_security_context(m_sctx); }
 
  private:
   THD *m_thd;

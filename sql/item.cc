@@ -2953,12 +2953,12 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   if (context && context->security_ctx)
   {
     /* Set view definer security context */
-    thd->security_ctx= context->security_ctx;
+    thd->set_security_context(context->security_ctx);
   }
 
   if (unlikely(sp_check_access(thd)))
   {
-    thd->security_ctx= save_security_ctx;
+    thd->set_security_context(save_security_ctx);
     DBUG_RETURN(TRUE);
   }
 
@@ -2973,7 +2973,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
                 thd->variables.binlog_format == BINLOG_FORMAT_STMT)))
   {
     my_error(ER_BINLOG_UNSAFE_ROUTINE, MYF(0));
-    thd->security_ctx= save_security_ctx;
+    thd->set_security_context(save_security_ctx);
     DBUG_RETURN(TRUE);
   }
 
@@ -3018,7 +3018,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   }
   thd->restore_sub_statement_state(&statement_state);
 
-  thd->security_ctx= save_security_ctx;
+  thd->set_security_context(save_security_ctx);
   DBUG_RETURN(err_status);
 }
 
