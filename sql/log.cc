@@ -8071,14 +8071,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
       if (thd->binlog_fk_cascade_events &&
           (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
            WSREP_EMULATE_BINLOG(thd)))
-      {
-        TABLE *table;
-        for (table= thd->open_tables; table; table= table->next)
-        {
-          if (table->file)
-            table->file->flush_pending_cascade_binlog();
-        }
-      }
+        thd->flush_pending_cascade_binlog();
 
       /*
         Flushing cascaded row events may have created a new pending event or

@@ -62,33 +62,6 @@ Created 4/20/1996 Heikki Tuuri
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 
-static bool row_ins_fk_cascade_delete_binlog_row(THD *thd, TABLE *table,
-						 Event_log *bin_log,
-						 binlog_cache_data *cache_data,
-						 bool is_transactional,
-						 ulong row_image,
-						 const uchar *before_record,
-						 const uchar *after_record
-						 __attribute__((unused)))
-{
-	return thd_binlog_delete_row(thd, table, bin_log, cache_data,
-				     (int) is_transactional, row_image,
-				     before_record);
-}
-
-static bool row_ins_fk_cascade_update_binlog_row(THD *thd, TABLE *table,
-						 Event_log *bin_log,
-						 binlog_cache_data *cache_data,
-						 bool is_transactional,
-						 ulong row_image,
-						 const uchar *before_record,
-						 const uchar *after_record)
-{
-	return thd_binlog_update_row(thd, table, bin_log, cache_data,
-				     (int) is_transactional, row_image,
-				     before_record, after_record);
-}
-
 static TABLE*
 row_ins_find_open_table_for_cascade_binlog(
 	trx_t*			trx,
@@ -1599,48 +1572,24 @@ row_ins_foreign_check_on_constraint(
 	if (can_cascade_binlog
 	    && (cascade->is_delete == PLAIN_DELETE || have_after_image)) {
 		/*
-		  Queue the cascade row event (both the DELETE and the UPDATE case)
-		  and flush it later from ha_innobase::flush_pending_cascade_binlog().
-		  Both kinds go through the same queue so that events are written to
-		  the binary log in the same order the cascade operations were
-		  executed. Logging deletes immediately here would place every cascade
-		  delete ahead of every deferred update within a statement, which
-		  reorders events that touch the same row and can make the replica
-		  apply an update to an already-deleted row.
+		  Report the cascade row change to the server (both the DELETE and
+		  the UPDATE case). The server queues the reported rows and writes
+		  them to the binary log in the same order the cascade operations
+		  were executed, after the originating statement's own events.
+		  Logging deletes immediately here would place every cascade delete
+		  ahead of every deferred update within a statement, which reorders
+		  events that touch the same row and can make the replica apply an
+		  update to an already-deleted row. The server copies the record
+		  images, so the temp-heap buffers can be reused/freed afterwards.
 		*/
-		const bool is_delete = (cascade->is_delete == PLAIN_DELETE);
-		const ulint len = child_mysql_table->s->reclength;
-		unsigned char* before_copy = static_cast<unsigned char*>(
-			my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME)));
-		unsigned char* after_copy = NULL;
-		if (!is_delete) {
-			after_copy = static_cast<unsigned char*>(
-				my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME)));
-		}
-
-		if (before_copy != NULL && (is_delete || after_copy != NULL)) {
-			thd_binlog_mark_fk_cascade_events(trx->mysql_thd);
-			memcpy(before_copy, before_mysql_rec, len);
-			if (!is_delete) {
-				memcpy(after_copy, after_mysql_rec, len);
-			}
-
-			trx_cascade_binlog_row_event ev;
-			ev.table = child_mysql_table;
-			ev.before_record = before_copy;
-			ev.after_record = after_copy;
-			ev.log_func = reinterpret_cast<void*>(
-				is_delete
-				? row_ins_fk_cascade_delete_binlog_row
-				: row_ins_fk_cascade_update_binlog_row);
-			trx->pending_cascade_binlog_row_events.push_back(ev);
+		if (cascade->is_delete == PLAIN_DELETE) {
+			thd_binlog_cascade_delete_row(
+				trx->mysql_thd, child_mysql_table,
+				before_mysql_rec);
 		} else {
-			if (before_copy != NULL) {
-				my_free(before_copy);
-			}
-			if (after_copy != NULL) {
-				my_free(after_copy);
-			}
+			thd_binlog_cascade_update_row(
+				trx->mysql_thd, child_mysql_table,
+				before_mysql_rec, after_mysql_rec);
 		}
 	}
 

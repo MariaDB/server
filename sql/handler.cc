@@ -120,14 +120,8 @@ KEY_CREATE_INFO default_key_create_info=
 
 static void flush_pending_cascade_binlog_for_thd(THD *thd)
 {
-  if (!thd) return;
-
-  TABLE *table;
-  for (table = thd->open_tables; table; table = table->next) {
-    if (table->file) {
-      table->file->flush_pending_cascade_binlog();
-    }
-  }
+  if (thd)
+    thd->flush_pending_cascade_binlog();
 }
 
 static void discard_pending_cascade_binlog_for_thd(THD *thd)
@@ -137,14 +131,8 @@ static void discard_pending_cascade_binlog_for_thd(THD *thd)
     cascade row events, it never writes to the binary log. So it must run for
     slave/applier threads too. Hence no thd->rgi_slave check here.
   */
-  if (!thd) return;
-
-  TABLE *table;
-  for (table = thd->open_tables; table; table = table->next) {
-    if (table->file) {
-      table->file->discard_pending_cascade_binlog();
-    }
-  }
+  if (thd)
+    thd->discard_pending_cascade_binlog();
 }
 
 /* number of entries in handlertons[] */
@@ -2462,10 +2450,10 @@ int ha_rollback_trans(THD *thd, bool all)
     The engines have rolled back (the whole transaction when all==true, or the
     current statement to its implicit savepoint when all==false). Any queued
     FK-cascade row events describe row changes that were just undone, so
-    discard and free them rather than letting them be flushed into the binary
-    log by a later statement or at commit. For a full rollback the queue would
-    also be freed when the trx is released, but discarding here keeps the
-    statement-rollback case correct and the behaviour consistent.
+    discard and free them. 
+    The queue is owned by the THD, so it is not reclaimed by the engine
+    releasing its transaction; discarding here is what keeps both the
+    full-rollback and the statement-rollback case correct. 
   */
   if (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
       WSREP_EMULATE_BINLOG(thd))
