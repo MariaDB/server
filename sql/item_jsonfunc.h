@@ -952,6 +952,14 @@ protected:
   void cut_max_length(String *result,
                       uint old_length, uint max_length) const override;
   /*
+    The two brackets, which val_str() writes round the group once it is
+    asked for.  They go in through String::append(), which writes them
+    in the set of the result, so each of them is as wide as the
+    narrowest character that set has.
+  */
+  uint32 reserved_result_length() const override
+  { return 2 * collation.collation->mbminlen; }
+  /*
     A row of this group could not be written out at all, the buffer
     having failed to grow.  Neither a row whose value does not parse as
     JSON nor one holding a character no document can carry is this:
@@ -1100,6 +1108,13 @@ class Item_func_json_objectagg : public Item_sum
   */
   THD *m_thd;
   Json_result_marks m_marks;
+  /*
+    How wide a brace is.  Both of them go in through String::append(),
+    which writes them in the set of the result, so each is as wide as
+    the narrowest character that set has.
+  */
+  uint32 brace_length() const
+  { return collation.collation->mbminlen; }
 public:
   /*
     The opening brace is not written here.  This runs while the

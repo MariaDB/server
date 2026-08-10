@@ -515,7 +515,7 @@ v
 [1,2]
 SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	252 (format=json)	16777216	14	Y	0	0	45
+def					v	252 (format=json)	16777224	14	Y	0	0	45
 v
 {"1":1, "2":2}
 #

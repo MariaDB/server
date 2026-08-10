@@ -148,8 +148,8 @@ JSON_ARRAYAGG(1)	JSON_ARRAYAGG(a)
 [1]	[{"a":"b"}]
 SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437184	9	Y	0	0	33
-def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582912	15	Y	128	0	33
+def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437190	9	Y	0	0	33
+def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582918	15	Y	128	0	33
 JSON_OBJECTAGG('a','b')	JSON_OBJECTAGG('a',a)
 {"a":"b"}	{"a":{"a":"b"}}
 DROP TABLE t1;
