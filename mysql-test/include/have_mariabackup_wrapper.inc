@@ -21,6 +21,11 @@
 # no leading $ is exported to the environment of later --exec commands.
 --let PATH=$MYSQL_BINDIR/client:$MYSQL_BINDIR/client_release:$MYSQL_BINDIR/client_debug:$MYSQL_BINDIR/bin:$PATH
 
+# --prepare needs the server binary, and @@basedir is the
+# source tree in an out-of-source build. mtr already found it,
+# so just hand it over.
+--let MARIADBD=$MYSQLD
+
 --error 0,1
 perl;
 my $w = $ENV{MARIABACKUP_WRAPPER};
