@@ -41,7 +41,7 @@ inline uint32_t buf_page_t::write_fix_try(uint32_t s) noexcept
   /* The calling thread must hold a fix() */
   ut_ad(s > FREED);
   /*
-    set_freed() or flush() may run concurrently.
+    set_freed(), set_reinit() or flush() may run concurrently.
     compare_exchange_strong() ensures that the write-fix was set by us.
   */
   while (!is_freed(s) && !is_io_fixed(s) &&
@@ -55,8 +55,8 @@ inline uint32_t buf_page_t::write_fix_try(uint32_t s) noexcept
 inline void buf_page_t::write_unfix_try() noexcept
 {
   uint32_t s{state()};
-  /* set_freed() may clear the write-fix before or during this loop.
-  We must use a compare-and-exchange loop. */
+  /* set_freed() or set_reinit() may clear the write-fix before or
+  during this loop. We must use a compare-and-exchange loop. */
   while (is_write_fixed(s) &&
          !zip.fix.compare_exchange_weak(s, s - (WRITE_FIX - UNFIXED),
                                         std::memory_order_relaxed,

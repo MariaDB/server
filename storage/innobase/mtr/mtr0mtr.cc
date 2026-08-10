@@ -603,7 +603,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
-/** Mark an X-latched block as freed in the tablespace. */
+/** Mark an X-latched block as freed in the tablespace. @see set_reinit() */
 void buf_page_t::set_freed() noexcept
 {
   /*
@@ -1819,7 +1819,7 @@ void mtr_t::init(buf_block_t *b)
     m_freed_space= nullptr;
   }
 
-  b->page.set_reinit(b->page.state() & buf_page_t::LRU_MASK);
+  b->page.set_reinit();
 
   if (!is_logged())
     return;

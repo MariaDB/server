@@ -3167,6 +3167,37 @@ buf_pool_t::page_hash_table::replace(buf_pool_t::hash_chain &chain,
   *prev= bpage;
 }
 
+/** Mark the block as reinitialized in the file. @see set_freed() */
+void buf_page_t::set_reinit() noexcept
+{
+  /*
+    Ensure that lock.x_lock() is being held (hopefully, by us).
+    This blocks a concurrent flush(), protected by lock.u_lock().
+  */
+  ut_ad(lock.is_write_locked());
+  uint32_t s{state()};
+  do
+  {
+    /*
+      InnoDB_backup::backup_batch_start() may set fix() and
+      write_fix_try() on any dirty block to prevent flush() from
+      writing changes back to the file system. As long as buf_relocate()
+      will not be invoked, we may safely mark such blocks as REINIT;
+      write_unfix_try() will account for that.
+    */
+    ut_ad(s < READ_FIX || (s > WRITE_FIX && frame));
+    if (!((REINIT ^ s) & LRU_MASK))
+      break;
+  }
+  /*
+    fetch_add() or fetch_sub() are not safe here, because this may run
+    concurrently with write_fix_try() or write_unfix_try().
+  */
+  while (!zip.fix.compare_exchange_weak(s, REINIT + buf_fix_count(s),
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed));
+}
+
 static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
                                         mtr_t *mtr, buf_block_t *free_block)
   noexcept
@@ -3227,20 +3258,8 @@ retry:
         ut_ad(bpage->buf_fix_count(state));
       }
       else
-      reload:
         state= bpage->state();
 
-      if (UNIV_UNLIKELY(buf_page_t::is_write_fixed(state)))
-      {
-        /* A thread should be executing between
-        InnoDB_backup::backup_batch_start() and
-        InnoDB_backup::backup_batch_stop() on this page.
-        Let us clear the fake "write fix". */
-        bpage->set_freed();
-        goto reload;
-      }
-
-      ut_ad(state < buf_page_t::READ_FIX);
       /* In addition to our buffer-fix, there may be another that is
       held by a concurrent IORequest::read_complete() that had
       released the bpage->lock in bpage->read_complete(...) but not
@@ -3252,11 +3271,7 @@ retry:
       InnoDB_backup::backup_batch_start() and
       InnoDB_backup::backup_batch_stop() on this page. */
       ut_ad(bpage->buf_fix_count(state) <= 2);
-
-      if (state < buf_page_t::UNFIXED)
-        bpage->set_reinit(buf_page_t::FREED);
-      else
-        bpage->set_reinit(state & buf_page_t::LRU_MASK);
+      ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
 
       if (UNIV_LIKELY(bpage->frame != nullptr))
       {
@@ -3279,20 +3294,31 @@ retry:
         {
           hash_lock.lock();
           state= bpage->state();
-          if ((state & ~buf_page_t::LRU_MASK) == 1)
+          if (state == buf_page_t::FREED + 1 ||
+              state == buf_page_t::UNFIXED + 1 ||
+              state == buf_page_t::REINIT + 1)
             break;
-          /* Wait for the concurrent thread to invoke bpage->unfix(). */
-          ut_ad((state & ~buf_page_t::LRU_MASK) == 2);
+          ut_ad(state > buf_page_t::FREED);
+          /*
+            Wait for the competing thread to invoke buf_page_t::unfix()
+            and possibly buf_page_t::write_unfix_try() before that.
+          */
+          ut_ad(bpage->buf_fix_count(state) == 2);
           hash_lock.unlock();
-          /* InnoDB_backup::step() may take a long time. */
-          mysql_mutex_unlock(&buf_pool.mutex);
-          std::this_thread::yield();
-          mysql_mutex_lock(&buf_pool.mutex);
+          if (state >= buf_page_t::READ_FIX)
+          {
+            ut_ad(state > buf_page_t::WRITE_FIX);
+            /* InnoDB_backup::step() may take a long time. */
+            mysql_mutex_unlock(&buf_pool.mutex);
+            std::this_thread::yield();
+            mysql_mutex_lock(&buf_pool.mutex);
+          }
         }
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
         free_block->page.lock.x_lock();
+        free_block->page.set_state(buf_page_t::REINIT + 1);
         buf_flush_relocate_on_flush_list(bpage, &free_block->page);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -3306,7 +3332,7 @@ retry:
 #endif
         ut_free(bpage);
         mtr->memo_push(free_block, MTR_MEMO_PAGE_X_FIX);
-        bpage= &free_block->page;
+        return free_block;
       }
     }
     else
@@ -3317,12 +3343,9 @@ retry:
 #ifdef BTR_CUR_HASH_ADAPT
       ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
 #endif
-      const auto state= bpage->state();
-      ut_ad(state >= buf_page_t::FREED);
-      bpage->set_reinit(state < buf_page_t::UNFIXED ? buf_page_t::FREED
-                        : state & buf_page_t::LRU_MASK);
     }
 
+    bpage->set_reinit();
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),

@@ -661,13 +661,8 @@ public:
   bool is_freed() const noexcept { return is_freed(state()); }
   bool is_reinit() const { return !(~state() & REINIT); }
 
-  void set_reinit(uint32_t prev_state) noexcept
-  {
-    ut_ad(prev_state < READ_FIX);
-    ut_d(const auto s=) zip.fix.fetch_add(REINIT - prev_state);
-    ut_ad(s > prev_state);
-    ut_ad(s < prev_state + UNFIXED);
-  }
+  /** Mark the block as reinitialized in the file. @see set_freed() */
+  void set_reinit() noexcept;
 
   uint32_t read_unfix(uint32_t s) noexcept
   {
@@ -679,7 +674,7 @@ public:
     return old_state + (s - READ_FIX);
   }
 
-  /** Mark an X-latched block as freed in the tablespace. */
+  /** Mark an X-latched block as freed in the tablespace. @see set_reinit() */
   void set_freed() noexcept;
 
   inline void set_state(uint32_t s) noexcept;
