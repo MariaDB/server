@@ -216,8 +216,9 @@ DROP TABLE t;
 # where the trouble is said to be, which has to be where every
 # other JSON function reading the same bytes says it is
 # ---------------------------------------------------------------
-# broken inside the value rather than after it, so the merging
-# stops in the middle and composes out of what it had
+# broken inside the value rather than after it, so there is no
+# whole value to compose from and the merging refuses it - what is
+# being compared here is where each of them says the trouble is
 SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS extract_says;
 extract_says
 NULL
@@ -225,14 +226,14 @@ Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 8
 SELECT JSON_MERGE('{}', '{"a":1 "b":2}') AS merge_says;
 merge_says
-{"a": 1}
+NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
 SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}') AS patch_says;
 patch_says
-{"a": 1}
+NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
 # deeper in, so the position is further along
 SELECT JSON_EXTRACT('{"a":{"x":1 "y":2}}', '$') AS extract_deep;
 extract_deep
@@ -252,14 +253,14 @@ Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
 SELECT JSON_MERGE('{"a":1,', '{}') AS merge_stops_lhs;
 merge_stops_lhs
-{"a": 1}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
 SELECT JSON_MERGE('{}', '{"a":1,') AS merge_stops_rhs;
 merge_stops_rhs
-{"a": 1}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
 # ---------------------------------------------------------------
 # a note does not become an error where a warning would
 # ---------------------------------------------------------------
