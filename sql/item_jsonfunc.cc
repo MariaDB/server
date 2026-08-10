@@ -7337,8 +7337,19 @@ bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func_group_concat::fix_fields(thd, ref);
   m_tmp_json.set_charset(collation.collation);
-  /* account for opening and closing brackets */
-  max_length= MY_MIN(max_length + 2*collation.collation->mbminlen, UINT_MAX32);
+  /*
+    Account for the opening and closing brackets, asking for the room
+    they take rather than working it out again: the width the item
+    declares and the room the limit keeps back for them are the same
+    figure, and two formats of it are two chances for one to move.
+
+    Added in a type wide enough to hold the sum.  A cap of a gigabyte in
+    a set of four bytes to the character fills the width on its own, and
+    an addition made in that width would carry the brackets round to
+    nothing.
+  */
+  max_length= (uint32) MY_MIN((ulonglong) max_length
+                              + reserved_result_length(), UINT_MAX32);
   return res;
 }
 
@@ -7592,9 +7603,19 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
+  /*
+    The cap, and on top of it the room the two braces take, for the
+    reason the sister aggregate carries the same allowance: the shortest
+    answer this function gives is the braces with nothing between them,
+    and a cap smaller than that is answered over the cap with nothing
+    left to cut.  A width worked out from the cap alone would then be a
+    column too narrow to hold the answer, which is cut into it without a
+    word said.
+  */
   max_length= (uint32) MY_MIN((ulonglong) thd->gconcat_max_len()
                                / collation.collation->mbminlen
-                               * collation.collation->mbmaxlen, UINT_MAX32);
+                               * collation.collation->mbmaxlen
+                              + 2 * brace_length(), UINT_MAX32);
 
 
   if (check_sum_func(thd, ref))
@@ -7765,7 +7786,7 @@ bool Item_func_json_objectagg::add()
     is why the width is asked for rather than assumed.
   */
   {
-    uint32 close_len= collation.collation->mbminlen;
+    uint32 close_len= brace_length();
 
     DBUG_ASSERT(m_thd);
     if (result.length() + close_len > m_thd->gconcat_max_len())
