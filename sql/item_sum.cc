@@ -4498,6 +4498,16 @@ String* Item_func_group_concat::val_str(String* str)
       return &result;
     else
       DBUG_ASSERT(false); // Can't happen
+
+    /*
+      The walk is what produces the result, and it has now happened.
+      dump_leaf_key() raises this itself for the first row it writes,
+      but a walk in which every row fell inside OFFSET writes none and
+      raises nothing, so the next caller would walk again - with the
+      offset already spent, and the rows it skipped the first time
+      appended to a result that has already been handed out once.
+    */
+    result_finalized= true;
   }
 
   if (table && table->blob_storage && 
