@@ -3773,6 +3773,19 @@ static void log_copying_thread()
     return;
   }
 
+  /*
+    This thread polls Innodb_lsn_flushed via SHOW STATUS on its own connection.
+    On a Galera donor wsrep_sync_wait may include SHOW, which would make that
+    poll wait until the node has applied the latest cluster transactions. During
+    a backup the donor's commit position can legitimately lag (e.g. a transaction
+    sitting between its binary log write and engine commit), so the poll could
+    block indefinitely and stall the redo log copier - failing the backup with a
+    misleading "Was only able to copy log ..." error. The main backup connection
+    already disables wsrep_sync_wait for the same reason, so do the same here.
+  */
+  if (have_galera_enabled)
+    xb_mysql_query(limit_con, "SET SESSION wsrep_sync_wait=0", false);
+
   mysql_mutex_lock(&recv_sys.mutex);
   for (;;)
   {

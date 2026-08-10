@@ -758,6 +758,7 @@ Suggests: mariadb-test,
 Recommends: libhtml-template-perl,
             mariadb-server-compat,
             pv
+            stunnel
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
