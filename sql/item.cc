@@ -10592,6 +10592,40 @@ void Item_cache::store(Item *item)
   value_cached= FALSE;
 }
 
+
+/**
+  @brief
+    Build a clone of an Item_cache.
+
+  @details
+    'example' is an ordinary pointer, so the copy constructor alone would give a
+    new cache still reading the expression the original caches, and every node
+    below the cache would then belong to both trees. Clone the expression as
+    well, the way Item_func_or_sum::deep_copy() clones its arguments, and keep
+    the invariant setup() establishes between 'example' and 'cached_field'.
+
+    An expression that cannot be cloned -- a subquery, for one -- makes the
+    cache unclonable too, rather than half copied.
+
+  @return clone of the item
+  @retval 0 on a failure, or if 'example' cannot be cloned
+*/
+
+Item* Item_cache::deep_copy(THD *thd) const
+{
+  Item *example_clone= NULL;
+  if (example && !(example_clone= example->deep_copy_with_checks(thd)))
+    return NULL;
+  Item_cache *copy= static_cast<Item_cache *>(shallow_copy_with_checks(thd));
+  if (unlikely(!copy))
+    return NULL;
+  copy->example= example_clone;
+  if (cached_field && example_clone &&
+      example_clone->type() == Item::FIELD_ITEM)
+    copy->cached_field= ((Item_field *) example_clone)->field;
+  return copy;
+}
+
 void Item_cache::print(String *str, enum_query_type query_type)
 {
   if (example &&                                 // There is a cached item
@@ -11246,6 +11280,45 @@ void Item_cache_row::set_null()
 };
 
 
+/**
+  @brief
+    Build a clone of an Item_cache_row.
+
+  @details
+    A row cache holds a cache per column in values[], and those are not reached
+    through 'example', so Item_cache::deep_copy() leaves them shared. Clone the
+    array too, on a fresh allocation: the copy must not write through the
+    original's.
+
+  @return clone of the item
+  @retval 0 on a failure, or if any element cannot be cloned
+*/
+
+Item* Item_cache_row::deep_copy(THD *thd) const
+{
+  Item_cache_row *copy=
+    static_cast<Item_cache_row *>(Item_cache::deep_copy(thd));
+  if (unlikely(!copy) || !values)
+    return copy;
+
+  Item_cache **values_clone= (Item_cache**)thd->calloc(
+                                                item_count*sizeof(Item_cache*));
+  if (unlikely(!values_clone))
+    return NULL;
+  for (uint i= 0; i < item_count; i++)
+  {
+    if (!values[i])
+      continue;
+    Item *el_clone= values[i]->deep_copy_with_checks(thd);
+    if (unlikely(!el_clone))
+      return NULL;
+    values_clone[i]= static_cast<Item_cache *>(el_clone);
+  }
+  copy->values= values_clone;
+  return copy;
+}
+
+
 double Item_type_holder::val_real()
 {
   DBUG_ASSERT(0); // should never be called
@@ -11534,4 +11607,61 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
       return true;
   }
   return false;
+}
+
+
+bool Item::collect_all_items_processor(void *arg)
+{
+  List<Item> *items= (List<Item> *) arg;
+  return items->push_back(this);           // stops the walk if it cannot record
+}
+
+
+/*
+  @brief
+    Whether 'clone' reaches any item object that 'src' reaches too.
+
+  @description
+    A copy is only a deep copy iff it shares no nodes at all with the item
+    it came from. Some classes implement deep_copy() as a shallow copy while
+    still holding child items -- Item_outer_ref and Item_copy_string -- so their
+    copy keeps pointing at the original's children.
+
+    Walking with find_item_processor asks whether a tree reaches one given
+    object, so collecting the copy's nodes and asking that of the original
+    covers both, and covers the classes not yet met rather than the two above.
+*/
+static bool item_clone_shares_nodes(Item *src, Item *clone)
+{
+  List<Item> clone_nodes;
+  if (clone->walk(&Item::collect_all_items_processor, true, &clone_nodes))
+    return true;                                       // could not collect them
+
+  List_iterator_fast<Item> it(clone_nodes);
+  Item *node;
+  while ((node= it++))
+    if (src->walk(&Item::find_item_processor, (void*) node, 0))
+      return true;
+  return false;
+}
+
+
+/*
+  Creates a clone of the item by deep copying.
+
+  Return value:
+  - pointer to a clone of the Item
+  - nullptr if the item is not clonable
+*/
+Item* Item::deep_copy_with_checks(THD *thd) const
+{
+  Item *clone= deep_copy(thd);
+  if (clone)
+  {
+    // Make sure the clone is of same type as this item
+    DBUG_ASSERT(typeid(*clone) == typeid(*this));
+    // and shares no nodes
+    DBUG_ASSERT(!item_clone_shares_nodes(const_cast<Item*>(this), clone));
+  }
+  return clone;
 }

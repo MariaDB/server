@@ -1065,8 +1065,6 @@ public:
   protected:
     Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
-    Item *deep_copy(THD *thd) const override
-    { return shallow_copy_with_checks(thd); }
   };
 
   /* =[ methods ]=============================================== */

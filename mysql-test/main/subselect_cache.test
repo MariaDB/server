@@ -1,6 +1,7 @@
 # Tests will be skipped for the view protocol because the view protocol creates 
 # an additional util connection and other statistics data
 -- source include/no_view_protocol.inc
+-- source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3,t4,t5,t6,t7,t8,t9;
@@ -1741,3 +1742,35 @@ SET optimizer_switch=@save_optimizer_switch;
 
 --echo # restore default
 set @@optimizer_switch= default;
+
+
+--echo #
+--echo # MDEV-38801 Item_sum & Item_cache implement only shallow copy
+--echo #
+
+
+CREATE TABLE t1 (c YEAR KEY);
+INSERT INTO t1 VALUES (2000),(2001);
+INSERT INTO t1 VALUES ((c IN (SELECT * FROM (SELECT * FROM t1 GROUP BY c) AS d
+  NATURAL JOIN (SELECT * FROM t1) AS e)));
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, d DATE, q INT, c CHAR(8));
+INSERT INTO t1 SELECT seq, DATE'1998-01-01' + INTERVAL (seq%700) DAY, seq%50,
+  CONCAT('n', seq%9) FROM seq_1_to_40000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--echo # Item_cache_date
+EXPLAIN SELECT q FROM t1 WHERE d <= DATE'1998-12-01' - INTERVAL '63' DAY;
+--echo # Item_cache_int
+EXPLAIN SELECT q FROM t1 WHERE q <= 3 + 4;
+--echo # Item_cache_decimal
+EXPLAIN SELECT q FROM t1 WHERE q <= 7.5 * 2;
+--echo # Item_cache_double
+EXPLAIN SELECT q FROM t1 WHERE q <= SQRT(2) * 10;
+--echo # Item_cache_str
+EXPLAIN SELECT q FROM t1 WHERE c <= CONCAT('n', '4');
+
+DROP TABLE t1;
+
+--echo # end of 10.11 tests
