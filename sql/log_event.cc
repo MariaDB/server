@@ -3848,6 +3848,22 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     m_field_metadata_size= net_field_length(&ptr_after_colcnt);
     DBUG_EXECUTE_IF("corrupt_table_map_field_metadata_size_read",
                     m_field_metadata_size= (1 << 20););
+
+    /*
+      Ensure the field metadata block covers the metadata the declared
+      column types consume.
+    */
+    size_t metadata_needed= 0;
+    for (ulong i= 0; i < m_colcnt; i++)
+      metadata_needed+= table_def::field_metadata_length(m_coltype[i]);
+    if (unlikely(m_field_metadata_size < metadata_needed))
+    {
+      m_coltype= NULL;
+      my_free(m_memory);
+      m_memory= NULL;
+      DBUG_VOID_RETURN;
+    }
+
     if (m_field_metadata_size <= (m_colcnt * 2))
     {
       uint num_null_bytes= (m_colcnt + 7) / 8;

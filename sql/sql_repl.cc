@@ -2176,6 +2176,54 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         len= packet->length();
     }
   });
+  /*
+    Rewrite the body of a Table_map event so it declares columns whose types
+    need more field metadata than the event carries, to test that a replica
+    bounds the metadata before decoding it. Every column becomes
+    MYSQL_TYPE_STRING, which reads two metadata bytes, and the event is left
+    with a single metadata byte, so a replica missing the bound reads past the
+    metadata while decoding the columns. The rewrite keeps the column count the
+    master already wrote, which the test fixes at 24 columns, enough to carry
+    the metadata reads well past the end of the replica's allocation.
+
+    The event is rewritten here, on the wire, rather than in the master's own
+    binary log, so the injection lands on the copy the dump thread sends and
+    the master's binary log stays well formed.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_undersized_table_map_metadata",
+  {
+    if (event_type == TABLE_MAP_EVENT)
+    {
+      /* The rewritten event can be one byte longer than the original.  */
+      packet->realloc(len + 1);
+      uchar *ev= (uchar*) packet->ptr() + ev_offset;
+      uchar *p= ev + LOG_EVENT_HEADER_LEN + TABLE_MAP_HEADER_LEN;
+      uint db_len= *p;
+      p+= 1 + db_len + 1;                     // db name length byte, name, null
+      uint tbl_len= *p;
+      p+= 1 + tbl_len + 1;                    // table name length byte, name, null
+      uint colcnt= *p++;                      // column count (one packed byte)
+      uchar *coltype= p;
+
+      memset(coltype, MYSQL_TYPE_STRING, colcnt);
+      uchar *w= coltype + colcnt;
+      *w++= 1;                                // field metadata size (one byte)
+      *w++= 0;                                // the single metadata byte
+      uint null_bytes= (colcnt + 7) / 8;
+      memset(w, 0, null_bytes);
+      w+= null_bytes;
+
+      ulong new_ev_len= (ulong) (w - ev);
+      if (current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+        new_ev_len+= BINLOG_CHECKSUM_LEN;
+      int4store(ev + EVENT_LEN_OFFSET, new_ev_len);
+      if (current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+        int4store(ev + new_ev_len - BINLOG_CHECKSUM_LEN,
+                  my_checksum(0, ev, new_ev_len - BINLOG_CHECKSUM_LEN));
+      len= ev_offset + new_ev_len;
+      packet->length(len);
+    }
+  });
 #endif
 
   if (my_net_write(info->net, (uchar*) packet->ptr(), len))
