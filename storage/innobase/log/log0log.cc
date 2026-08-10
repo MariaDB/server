@@ -799,7 +799,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_wait(wait_lsn, false);
+        buf_flush_wait(wait_lsn, circular_recovery_from_sequence_bit_0);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();
@@ -819,6 +819,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       allow any wrap-around. */
       if (checkpoint < limit)
         goto retry_after_checkpoint;
+      circular_recovery_from_sequence_bit_0= limit != wait_lsn;
       wait_lsn= limit;
     }
     else if (circular_recovery_from_sequence_bit_0)
@@ -830,7 +831,6 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       the completion of set_archive(false) and the next
       write_checkpoint(), recovery will only encounter
       get_sequence_bit() == 1, consistent with our first_lsn. */
-      circular_recovery_from_sequence_bit_0= false;
       goto retry_after_checkpoint;
     }
     else if (checkpoint < first_lsn)
@@ -879,8 +879,17 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     if (!archive)
     {
       std::swap(old_name, new_name);
-      header_rewrite(archive);
       std::string spare{get_archive_path(first_lsn + capacity())};
+      if (!get_sequence_bit(last_checkpoint_lsn))
+        /*
+          In the innodb_log_archive=ON format, mtr_t::finish_writer()
+          always writes the sequence bit as 1. Ensure that the
+          innodb_log_archive=OFF recovery will expect this value.
+        */
+        first_lsn-= capacity();
+      ut_ad(get_sequence_bit(last_checkpoint_lsn));
+      ut_ad(get_sequence_bit(get_lsn()));
+      header_rewrite(false);
       IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
     }
 #if defined HAVE_PMEM && !defined _WIN32
@@ -925,7 +934,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
-      header_rewrite(archive);
+      header_rewrite(true);
       archive_set_size();
       wait_lsn= 0;
     }
