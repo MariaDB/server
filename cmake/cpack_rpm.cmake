@@ -273,7 +273,7 @@ IF(WITH_WSREP)
     "MariaDB-server >= ${SERVER_VERSION}"
     "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server-galera_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
+  SETA(CPACK_RPM_server-galera_PACKAGE_RECOMMENDS "lsof" "socat" "pv" "stunnel")
   SETA(CPACK_RPM_server-galera_PACKAGE_CONFLICTS
     "MariaDB-server <= 12.3.2")
 ENDIF()
