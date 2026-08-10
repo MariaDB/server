@@ -1204,7 +1204,6 @@ btr_search_guess_on_hash(
   }
 
   ut_ad(!block->page.is_read_fixed(state));
-  ut_ad(!block->page.is_write_fixed(state) || latch_mode == BTR_SEARCH_LEAF);
 
   const dict_index_t *block_index= block->index;
   if (index != block_index && index_id == block_index->id)

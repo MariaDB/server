@@ -3218,7 +3218,6 @@ retry:
         {
           ut_ad(bpage->id().is_corrupted());
           ut_ad(bpage->is_freed());
-        backtrack:
           bpage->unfix();
           bpage->lock.x_unlock();
           goto retry;
@@ -3228,26 +3227,30 @@ retry:
         ut_ad(bpage->buf_fix_count(state));
       }
       else
+      reload:
         state= bpage->state();
 
-      ut_ad(state > buf_page_t::FREED);
-
       if (UNIV_UNLIKELY(buf_page_t::is_write_fixed(state)))
+      {
         /* A thread should be executing between
         InnoDB_backup::backup_batch_start() and
         InnoDB_backup::backup_batch_stop() on this page.
-
-        We play it safe and will wait until the fake "write fix"
-        has been cleared. */
-        goto backtrack;
+        Let us clear the fake "write fix". */
+        bpage->set_freed();
+        goto reload;
+      }
 
       ut_ad(state < buf_page_t::READ_FIX);
       /* In addition to our buffer-fix, there may be another that is
       held by a concurrent IORequest::read_complete() that had
-      released the bpage->lock in bpage->read_complete(...)  but not
+      released the bpage->lock in bpage->read_complete(...) but not
       yet invoked bpage->unfix(). This should only be due to an
-      asynchronous read-ahead for a page that was actually marked as
-      freed in the underlying data file. */
+      unnecessary asynchronous read-ahead for a page that was actually
+      marked as freed in the underlying data file.
+
+      Alternatively, another thread may be executing between
+      InnoDB_backup::backup_batch_start() and
+      InnoDB_backup::backup_batch_stop() on this page. */
       ut_ad(bpage->buf_fix_count(state) <= 2);
 
       if (state < buf_page_t::UNFIXED)
@@ -3267,6 +3270,10 @@ retry:
       }
       else
       {
+        /*
+          Augment the compressed-only ROW_FORMAT=COMPRESSED page with
+          an uncompressed page frame.
+        */
         page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
         for (;;)
         {
@@ -3274,11 +3281,13 @@ retry:
           state= bpage->state();
           if ((state & ~buf_page_t::LRU_MASK) == 1)
             break;
-          /* Wait for a concurrent IORequest::read_complete() to
-          invoke bpage->unfix(), for an unnecessary read-ahead of
-          a freed page. */
+          /* Wait for the concurrent thread to invoke bpage->unfix(). */
           ut_ad((state & ~buf_page_t::LRU_MASK) == 2);
           hash_lock.unlock();
+          /* InnoDB_backup::step() may take a long time. */
+          mysql_mutex_unlock(&buf_pool.mutex);
+          std::this_thread::yield();
+          mysql_mutex_lock(&buf_pool.mutex);
         }
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
