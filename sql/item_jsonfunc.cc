@@ -4626,6 +4626,26 @@ merged_j1:
       continue;
     }
 
+    /*
+      The loop above ends on a refusal exactly as it ends on the object's
+      end, its condition asking only whether the scanner moved.  An
+      argument that broke before its first value was complete would
+      otherwise be merged from as far as it got, and what came out would
+      be an object no argument held: composed, well formed, and missing
+      whatever stood past the break.  Nothing downstream has any reason
+      to reject such a value, which is what makes it the quiet kind of
+      wrong.
+
+      Refusing it is what these functions already do for the same
+      breakage met one loop further in, and what every other JSON
+      function does with the same characters.  Every loop of this shape
+      was letting it through, here and in the two functions' other
+      argument, and once more where an argument is copied whole instead
+      of being merged with anything.
+    */
+    if (unlikely(je1->s.error))
+      return 1;
+
     *je2= sav_je2;
     /*
       Now loop through the Json_2 keys.
@@ -4680,6 +4700,10 @@ merged_j1:
 continue_j2:
       continue;
     }
+
+    /* The other loop, ending the same way - see above. */
+    if (unlikely(je2->s.error))
+      return 1;
 
     if (str->append('}'))
       return 3;
@@ -5063,6 +5087,17 @@ static int copy_value_patch(String *str, json_engine_t *je)
         copy_value_patch(str, je))
       return 1;
   }
+
+  /*
+    The same loop end again, in the arm taken when there is nothing to
+    merge with and the argument is copied whole.  Everything said over
+    the walk that merges two objects together holds here word for word,
+    and this loop is reached for every object nested inside the value as
+    well as for the value itself.
+  */
+  if (unlikely(je->s.error))
+    return 1;
+
   if (str->append('}'))
     return 1;
 
@@ -5176,6 +5211,13 @@ merged_j1:
       continue;
     }
 
+    /*
+      Ends on a refusal as well as on the object's end, exactly as the
+      loops in do_merge() do, and refused here for the same reason.
+    */
+    if (unlikely(je1->s.error))
+      return 1;
+
     *je2= sav_je2;
     /*
       Now loop through the Json_2 keys.
@@ -5242,6 +5284,10 @@ merged_j1:
 continue_j2:
       continue;
     }
+
+    /* The other loop, ending the same way - see above. */
+    if (unlikely(je2->s.error))
+      return 1;
 
     if (str->append('}'))
       return 3;
