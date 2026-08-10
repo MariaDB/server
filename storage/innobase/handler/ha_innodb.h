@@ -121,10 +121,6 @@ public:
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
 
-	void flush_pending_cascade_binlog() override;
-
-	void discard_pending_cascade_binlog() override;
-
 	int delete_row(const uchar * buf) override;
 
 	bool was_semi_consistent_read() override;
