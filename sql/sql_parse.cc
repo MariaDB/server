@@ -6008,6 +6008,23 @@ finish:
   /* Free tables. Set stage 'closing tables' */
   close_thread_tables_for_query(thd);
 
+  /*
+    The FK-cascade row queue holds raw TABLE pointers into the tables that
+    were just closed. It must already have been drained, either by the
+    statement-end row-event flush (binlog_flush_pending_rows_event() ->
+    THD::flush_pending_cascade_binlog()) or by the commit/rollback above.
+    A leftover entry would be flushed by some later statement against a freed
+    TABLE, and the "!table || !table->file" guard in
+    THD::flush_pending_cascade_binlog() cannot detect a TABLE that has been
+    freed and its memory reused.
+
+    Restricted to the top level: the commit/rollback that drains the queue is
+    itself under "! thd->in_sub_stmt", so a substatement legitimately leaves
+    its rows queued for the enclosing statement to flush.
+  */
+  DBUG_ASSERT(thd->in_sub_stmt ||
+              thd->pending_cascade_binlog_row_events.elements() == 0);
+
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
     DEBUG_SYNC(thd, "execute_command_after_close_tables");

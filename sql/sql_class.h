@@ -3868,6 +3868,30 @@ public:
   void binlog_begin_fk_cascade_derived() { binlog_fk_cascade_derived= true; }
   void binlog_end_fk_cascade_derived()   { binlog_fk_cascade_derived= false; }
 
+  /*
+    Queue of FK-cascade row changes reported by a storage engine during the
+    current statement, awaiting binlogging. The server owns this queue and its
+    lifecycle: the engine only reports rows via binlog_report_cascade_row();
+    flush_pending_cascade_binlog() writes them to the binlog cache at statement
+    end / commit, and discard_pending_cascade_binlog() drops them on rollback.
+    Buffers are server-allocated copies of the engine-supplied record images.
+  */
+  struct Cascade_binlog_row_event
+  {
+    TABLE *table;
+    uchar *before_record;
+    uchar *after_record;                /* NULL for a cascade delete */
+    bool   is_delete;
+  };
+  Dynamic_array<Cascade_binlog_row_event>
+    pending_cascade_binlog_row_events{PSI_INSTRUMENT_MEM};
+
+  void binlog_report_cascade_row(TABLE *table, bool is_delete,
+                                 const uchar *before_record,
+                                 const uchar *after_record);
+  void flush_pending_cascade_binlog();
+  void discard_pending_cascade_binlog();
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
