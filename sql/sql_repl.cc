@@ -2108,6 +2108,44 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   }
 
   /*
+    For a Table_map event, rewrite the copy sent to the replica so its table
+    name is 255 bytes, the largest a one-byte length can express, with no
+    terminating null. Growing the name shifts the column count and metadata
+    after it to the right and lengthens the event, so the event's declared
+    length is rewritten to match. Note that, for simplicity, the test that
+    invokes this is configured without checksumming.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_oversized_table_name",
+  {
+    if (event_type == TABLE_MAP_EVENT)
+    {
+      uchar *base= (uchar*) packet->ptr();
+      uchar *ev= base + ev_offset;
+      uchar *dbnam_len_ptr= ev + LOG_EVENT_HEADER_LEN + TABLE_MAP_HEADER_LEN;
+      uint dblen= *dbnam_len_ptr;
+      uchar *tblnam_len_ptr= dbnam_len_ptr + dblen + 2;
+      uint tbllen= *tblnam_len_ptr;
+      size_t tblnam_len_off= (size_t) (tblnam_len_ptr - base);
+      size_t tblnam_off= tblnam_len_off + 1;
+      size_t tail_off= tblnam_off + tbllen + 1;
+      size_t tail_len= len - tail_off;
+      long delta= 256 - (long) (tbllen + 1);
+
+      if (!packet->realloc((size_t) ((long) len + delta)))
+      {
+        base= (uchar*) packet->ptr();
+        memmove(base + tail_off + delta, base + tail_off, tail_len);
+        base[tblnam_len_off]= 255;
+        memset(base + tblnam_off, 'a', 256);
+        len= (size_t) ((long) len + delta);
+        packet->length(len);
+        int4store(base + ev_offset + EVENT_LEN_OFFSET,
+                  (uint32) (len - ev_offset));
+      }
+    }
+  });
+
+  /*
     Put a second copy of the event in the packet behind the first, the
     other shape the same disagreement takes on the wire. This injection
     leaves the header alone and grows the packet, so the bytes behind the
