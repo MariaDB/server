@@ -6383,11 +6383,11 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     DBUG_ASSERT(current_thd == p->thd);
     sql_text.str= (char *) arg;
     sql_text.length= arg_length;
-    p->thd->security_ctx= &p->empty_ctx;
+    p->thd->set_security_context(&p->empty_ctx);
     p->thd->client_capabilities= p->client_capabilities;
     result= con.execute_direct(p, sql_text);
     p->thd->client_capabilities= cap_orig;
-    p->thd->security_ctx= ctx_orig;
+    p->thd->set_security_context(ctx_orig);
     p->restore_binlog_vars(log_bin_orig);
   }
   if (skip_check)

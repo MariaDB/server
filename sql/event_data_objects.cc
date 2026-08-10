@@ -1469,6 +1469,17 @@ Event_job_data::execute(THD *thd, bool drop)
     */
   }
 
+  /* Test hook: still under the real DEFINER identity here. DEBUG_SYNC
+     alone doesn't contend LOCK_thd_data, so take it explicitly -- forces
+     a concurrent PROCESSLIST trylock on this thread to fail, exercising
+     its fallback path. */
+  DBUG_EXECUTE_IF("event_worker_thread_hold_lock_before_restore",
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    DEBUG_SYNC(thd, "event_worker_thread_holding_lock_before_restore");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  });
+
 end:
   if (drop && likely(!thd->is_fatal_error))
   {

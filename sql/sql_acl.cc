@@ -13918,13 +13918,22 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
                              system_charset_info, user, user_len,
                              thd->charset(), &dummy_errors);
 
-  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user_buff,
-                               user_len, MYF(MY_WME))))
-    DBUG_RETURN(1);
-
   /* Clear variables that are allocated */
   thd->user_connect= 0;
-  strmake_buf(sctx->priv_user, sctx->user);
+
+  /*
+    Lock needed: sctx->user/->priv_user are read remotely by PROCESSLIST/
+    KILL under LOCK_thd_data (see set_security_context()). Caller already
+    nulled the old sctx->user (dispatch_command()), so no my_free() here.
+  */
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user_buff,
+                         user_len, MYF(MY_WME));
+  if (sctx->user)
+    strmake_buf(sctx->priv_user, sctx->user);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  if (!sctx->user)
+    DBUG_RETURN(1);
 
   if (thd->make_lex_string(&mpvio->db, db_buff, db_len) == 0)
     DBUG_RETURN(1); /* The error is set by make_lex_string(). */
@@ -14186,8 +14195,16 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
+  /*
+    Lock needed: PROCESSLIST/KILL read sctx->user under LOCK_thd_data
+    (see set_security_context()), and this THD -- already-registered,
+    mid COM_CHANGE_USER -- can already be visible to them.
+  */
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   my_free(const_cast<char*>(sctx->user));
-  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user, user_len, MYF(MY_WME))))
+  sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user, user_len, MYF(MY_WME));
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  if (!sctx->user)
     return packet_error; /* The error is set by my_strdup(). */
 
 

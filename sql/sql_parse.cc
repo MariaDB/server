@@ -1787,8 +1787,14 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     CHARSET_INFO *save_character_set_results=
       thd->variables.character_set_results;
 
-    /* Ensure we don't free security_ctx->user in case we have to revert */
+    /*
+      Ensure we don't free security_ctx->user in case we have to revert.
+      Lock needed, see set_security_context(): this is read remotely by
+      PROCESSLIST/KILL under LOCK_thd_data.
+    */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->security_ctx->user= 0;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     thd->user_connect= 0;
 
     /*
@@ -1807,9 +1813,15 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     mysql_audit_notify_connection_change_user(thd, &save_security_ctx);
     if (auth_rc)
     {
-      /* Free user if allocated by acl_authenticate */
+      /*
+        Free user if allocated by acl_authenticate(), then restore the old
+        identity. Lock needed, see set_security_context().
+      */
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       my_free(const_cast<char*>(thd->security_ctx->user));
+      DEBUG_SYNC(thd, "com_change_user_after_free_before_restore");
       *thd->security_ctx= save_security_ctx;
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       if (thd->user_connect)
 	decrease_user_connections(thd->user_connect);
       thd->user_connect= save_user_connect;
@@ -9443,42 +9455,62 @@ struct kill_threads_callback_arg
 {
   kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg,
                             killed_state kill_signal_arg):
-    thd(thd_arg), user(user_arg), kill_signal(kill_signal_arg), counter(0) {}
+    thd(thd_arg), user(user_arg), kill_signal(kill_signal_arg), counter(0),
+    skipped(0) {}
   THD *thd;
   LEX_USER *user;
   killed_state kill_signal;
   uint counter;
+  /* Candidates we couldn't check (lost the LOCK_thd_data trylock below) --
+     a possible match may have gone un-killed and un-counted. */
+  uint skipped;
 };
 
 
 static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
 {
-  if (thd->security_ctx->user)
+  my_bool res= 0;
+  mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+  /*
+    Need LOCK_thd_data to read another thread's security_ctx (see
+    set_security_context()). Trylock, not lock: under Galera, wsrep-lib
+    can adopt LOCK_thd_data as a BF-abort/replay condvar mutex, and
+    iterate() holds server_threads' rwlock for the whole scan -- a plain
+    lock could stall every new connection server-wide. On contention,
+    skip this thread; arg->skipped counts it for the caller to warn on.
+  */
+  if (trylock_short(&thd->LOCK_thd_data))
+    arg->skipped++;
+  else
   {
-    /*
-      Check that hostname (if given) and user name matches.
-
-      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
-    */
-    if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
-         !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
-        !strcmp(thd->security_ctx->user, arg->user->user.str))
+    if (thd->security_ctx->user)
     {
-      if (!(arg->thd->security_ctx->master_access &
-            PRIV_KILL_OTHER_USER_PROCESS) &&
-          !thd->security_ctx->priv_user_matches(arg->thd->security_ctx))
+      /*
+        Check that hostname (if given) and user name matches.
+
+        host.str[0] == '%' means that host name was not given. See sql_yacc.yy
+      */
+      if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
+           !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
+          !strcmp(thd->security_ctx->user, arg->user->user.str))
       {
-        return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
+        if (!(arg->thd->security_ctx->master_access &
+              PRIV_KILL_OTHER_USER_PROCESS) &&
+            !thd->security_ctx->priv_user_matches(arg->thd->security_ctx))
+        {
+          res= MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
+        }
+        else
+        {
+          arg->counter++;
+          thd->awake_no_mutex(arg->kill_signal);
+        }
       }
-      arg->counter++;
-      mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->awake_no_mutex(arg->kill_signal);
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
     }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-  return 0;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  return res;
 }
 
 
@@ -9494,6 +9526,13 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 
   if (server_threads.iterate(kill_threads_callback, &arg))
     DBUG_RETURN(ER_KILL_DENIED_ERROR);
+
+  if (arg.skipped)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "KILL: could not check %u connection(s) due to lock "
+                        "contention; a matching connection may not have "
+                        "been killed and is not counted in the affected-rows "
+                        "total -- retry if the count looks short", arg.skipped);
 
   *rows= arg.counter;
   DBUG_RETURN(0);

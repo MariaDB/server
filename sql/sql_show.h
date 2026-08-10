@@ -91,6 +91,15 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
+/*
+  Try to lock a mutex, but give up after a short while to not cause deadlocks.
+  Shared with sql_parse.cc's KILL USER handling -- see the definition in
+  sql_show.cc for details.
+  @return 0 ok
+  @return 1 error
+*/
+bool trylock_short(mysql_mutex_t *mutex);
+
 bool append_identifier(THD *thd, String *packet, const char *name, size_t length);
 static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING *name)
 {
