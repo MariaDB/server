@@ -3795,6 +3795,14 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   VALIDATE_BYTES_READ(ptr_tbllen, buf, event_len);
   m_tbllen= *(uchar*) ptr_tbllen;
 
+  /*
+    If either the database or table name is too long, return before allocating
+    memory for the event, so future validity checks on this event (i.e.
+    is_valid()) return false.
+  */
+  if (unlikely(m_dblen > NAME_LEN || m_tbllen > NAME_LEN))
+    DBUG_VOID_RETURN;
+
   /* Length of table name + counter + terminating null */
   uchar const *const ptr_colcnt= ptr_tbllen + m_tbllen + 2;
   uchar *ptr_after_colcnt= (uchar*) ptr_colcnt;
@@ -3820,6 +3828,13 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     /* Copy the different parts into their memory */
     strncpy(const_cast<char*>(m_dbnam), (const char*)ptr_dblen  + 1, m_dblen + 1);
     strncpy(const_cast<char*>(m_tblnam), (const char*)ptr_tbllen + 1, m_tbllen + 1);
+    /*
+      Future uses of the database and table name require a null-terminating
+      string, but the source string from the above copy may not have one, and
+      strncpy will not add one. So always add it to ensure it exists.
+    */
+    const_cast<char*>(m_dbnam)[m_dblen]= '\0';
+    const_cast<char*>(m_tblnam)[m_tbllen]= '\0';
     if (unlikely(ptr_after_colcnt + m_colcnt > buf + event_len))
     {
       my_free(m_memory);
