@@ -129,8 +129,13 @@ ADD_FEATURE_INFO(MARIABACKUP_WRAPPER WITH_MARIABACKUP_WRAPPER
   "BACKUP SERVER-compatible mariadb-backup shell wrapper")
 
 IF(WITH_MARIABACKUP_WRAPPER AND NOT WIN32)
+  # --prepare runs an offline mariadbd bootstrap, so the wrapper
+  # has to be able to find the server binary without a running
+  # server to ask.
+  SET(bindir ${INSTALL_BINDIRABS})
+  SET(sbindir ${INSTALL_SBINDIRABS})
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/scripts/mariadb-backup-server.sh
-    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-backup-server COPYONLY)
+    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-backup-server ESCAPE_QUOTES @ONLY)
   INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/mariadb-backup-server
     DESTINATION ${INSTALL_BINDIR} COMPONENT Backup)
 

@@ -106,6 +106,22 @@ done
 # Run the client with the connection options we collected.
 ask() { $MARIADB $MARIADB_OPTS -BN -e "$1" 2>/dev/null; }
 
+# Print the first mariadbd or mysqld found, or return 1 if there
+# is none. $1 is the server basedir, empty when --prepare has
+# no server to ask. CMake substitutes the last two entries
+# at build time; they stay literal in the source tree, and
+# the case then skips them as not absolute.
+find_mariadbd() {
+    for _d in "${1-}/libexec" "${1-}/sbin" "${1-}/bin" '@sbindir@' '@bindir@'
+    do
+        case $_d in /*) ;; *) continue ;; esac
+        for _n in mariadbd mysqld; do
+            [ -x "$_d/$_n" ] && { printf '%s\n' "$_d/$_n"; return 0; }
+        done
+    done
+    return 1
+}
+
 # Print the backup-prepare.cnf contents to stdout.
 # It captures everything --prepare's offline bootstrap needs:
 # where mariadbd lives, the InnoDB parameters, and how to
@@ -119,15 +135,15 @@ write_prepare_cnf() {
     _pidfile=$(ask "SELECT @@global.pid_file")
     if [ -n "$_pidfile" ] && [ -r "$_pidfile" ]; then
         _pid=$(cat "$_pidfile" 2>/dev/null)
+	# Linux fast path: the exact binary of the running server.
+	# FreeBSD does not mount procfs by default and
+	# macOS has none at all.
         [ -n "$_pid" ] && _mariadbd=$(readlink -f "/proc/$_pid/exe" 2>/dev/null)
     fi
-    if [ -z "$_mariadbd" ]; then
-        _basedir=$(ask "SELECT @@global.basedir")
-        for _c in "$_basedir/sbin/mariadbd" "$_basedir/bin/mariadbd" \
-                  "$_basedir/sbin/mysqld"   "$_basedir/bin/mysqld"; do
-            [ -x "$_c" ] && { _mariadbd=$_c; break; }
-        done
-    fi
+    [ -n "$_mariadbd" ] && [ -x "$_mariadbd" ] || _mariadbd=
+    [ -n "$_mariadbd" ] ||
+        _mariadbd=$(find_mariadbd "$(ask "SELECT @@global.basedir")") ||
+        _mariadbd=
 
     _page_size=$(ask      "SELECT @@global.innodb_page_size")
     _data_file_path=$(ask "SELECT @@global.innodb_data_file_path")
@@ -174,15 +190,18 @@ if [ "$MODE" = prepare ]; then
     [ -f "$cnf" ] || die "$cnf missing - was this backup made by the wrapper?"
     [ -z "$EXPORT" ] || echo "$me: --export not implemented, doing a plain recovery" >&2
 
-    # Prefer the binary recorded at backup time
-    # else, fall back to mariadbd on PATH only if the
-    # recorded one is missing.
-    # MARIADBD overrides the recorded/PATH binary
+    # MARIADBD overrides. Otherwise prefer the binary recorded at
+    # backup time, and search this host if it is gone 
     if [ -n "${MARIADBD-}" ]; then
         mariadbd=$MARIADBD
     else
         mariadbd=$(sed -n 's/^# *mariadbd=//p' "$cnf" | tail -n1)
-        [ -n "$mariadbd" ] && [ -x "$mariadbd" ] || mariadbd=mariadbd
+        if [ -z "$mariadbd" ] || [ ! -x "$mariadbd" ]; then
+            # No server running here, so no basedir to ask for.
+            mariadbd=$(find_mariadbd "") ||
+                die "cannot locate the server binary for recovery;\
+		     set MARIADBD=/path/to/mariadbd"
+        fi
     fi
 
     # backup.cnf tells us the LSN window recovery should replay.
