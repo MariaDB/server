@@ -94,7 +94,10 @@ SET SESSION group_concat_max_len = 39;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 FROM t1 WHERE g = 1;
 h	ok
-5B2261616161616161616161222C2262626262626262626262222C2263636363636363636363225D	1
+5B2261616161616161616161222C2262626262626262626262225D	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 30;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 FROM t1 WHERE g = 1;
@@ -134,19 +137,19 @@ SET SESSION group_concat_max_len = 13;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 FROM t1 WHERE g = 1;
 h	ok
-5B2261616161616161616161225D	1
+5B5D	1
 Warnings:
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 # the cap falls inside the first member
 SET SESSION group_concat_max_len = 12;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 FROM t1 WHERE g = 1;
 h	ok
-5B2261616161616161616161225D	1
+5B5D	1
 Warnings:
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 5;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
 FROM t1 WHERE g = 1;
@@ -167,7 +170,9 @@ Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 4;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1 WHERE a = 'dd';
 h
-5B226464225D
+5B5D
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = DEFAULT;
 #
 # 3. A cap that falls inside an escape sequence, where the bytes
@@ -185,17 +190,17 @@ Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 9;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
 h	ok
-5B2278785C227979225D	1
+5B5D	1
 Warnings:
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 8;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
 h	ok
-5B2278785C227979225D	1
+5B5D	1
 Warnings:
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
-Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = 7;
 SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
 h	ok
@@ -353,7 +358,7 @@ v
 ["dd","ee"]
 SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 2;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					v	252 (format=json)	4194304	22	Y	0	0	45
+def					v	252 (format=json)	4194312	22	Y	0	0	45
 v
 {"dd":"dd", "ee":"ee"}
 SELECT JSON_ARRAY(1) AS v;

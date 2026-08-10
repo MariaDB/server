@@ -1832,9 +1832,9 @@ create temporary table t (c varchar(20) character set latin1);
 insert into t values ('ab'), ('cd'), ('ef');
 select json_arrayagg(c order by c) from t;
 json_arrayagg(c order by c)
-["ab","cd"]
+["ab"]
 Warnings:
-Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
 drop temporary table t;
 # End of 10.6 tests
 SELECT json_extract(t.j, '$')

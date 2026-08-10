@@ -3830,7 +3830,20 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
-  uint max_length= table->in_use->gconcat_max_len();
+  /*
+    Room is kept back for whatever the caller still has to write round
+    this, so that the limit is reached where the answer reaches it
+    rather than two bytes further on.  GROUP_CONCAT keeps back nothing
+    and is not moved by any of this.
+
+    A limit too small to hold what the caller writes leaves nothing for
+    the rows, and the answer is then that wrapper by itself - as short
+    as the function goes, and still over the limit.  Nothing can be done
+    about that here; the width the item declares carries room for it.
+  */
+  uint reserved= item->reserved_result_length();
+  uint gconcat_max_len= table->in_use->gconcat_max_len();
+  uint max_length= gconcat_max_len > reserved ? gconcat_max_len - reserved : 0;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
