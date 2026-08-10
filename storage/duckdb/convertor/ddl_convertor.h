@@ -245,6 +245,9 @@ private:
   /** Columns to set not null */
   Columns m_columns_to_set_not_null;
 
+  /** Columns whose temporary default must be dropped */
+  Columns m_columns_to_drop_default;
+
   /** Prepare columns to add and set not null. */
   void prepare_columns();
 };

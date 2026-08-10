@@ -16561,6 +16561,17 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
         else
           update_min_result();
       }
+      else
+      {
+        /*
+          If next_min_max returns an unexpected handler error (HA_ERR_...),
+          then that error will be propagated to the caller of this
+          method by returning immediately here.
+        */
+        if (first_res != HA_ERR_END_OF_FILE &&
+            first_res != HA_ERR_KEY_NOT_FOUND)
+          DBUG_RETURN(first_res); // Unrecoverable error.
+      }
     }
     /* If there is no FIRST in the group, there is no LAST either. */
     if ((have_last && !have_first) ||
@@ -16574,7 +16585,26 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
         else
           update_max_result();
       }
-      /* If a LAST was found, a FIRST must have been found as well. */
+      else
+      {
+        /*
+          If next_min_max returns an unexpected handler error (HA_ERR_...),
+          then that error will be propagated to the caller of this
+          method by returning immediately here.
+        */
+        if (last_res != HA_ERR_END_OF_FILE && last_res != HA_ERR_KEY_NOT_FOUND)
+          DBUG_RETURN(last_res); // Unrecoverable error.
+      }
+
+      /*
+        If we're computing both FIRST and LAST (have_first && have_last) then:
+         - Since execution has reached here, we have a record with a value for
+           FIRST (first_res==0).
+         - This means we must also have a record for LAST (last_res==0). It can
+           be the same record that we've found for FIRST, or a different one.
+        We could also have encountered an unrecoverable error while reading
+        the LAST record but that has been handled above.
+      */
       DBUG_ASSERT((have_last && !have_first) ||
                   (have_last && have_first && (last_res == 0)));
     }
@@ -16588,6 +16618,15 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
                                       make_prev_keypart_map(real_key_parts),
                                       HA_READ_KEY_EXACT);
 
+    /*
+      Set the result of checking this GROUP BY group.
+      1. If we're computing a FIRST, take first_res. LAST was either not
+         computed at all or it has been computed successfully. Fatal errors
+         have already been checked.
+      2. Otherwise, if we're computing a LAST only, take last_res.
+      3. Otherwise, we're just enumerating GROUP BY groups and the 'result'
+         variable already has the outcome of the check.
+    */
     result= have_first ? first_res : have_last ? last_res : result;
   } while (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE);
 

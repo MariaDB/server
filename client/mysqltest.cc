@@ -207,7 +207,7 @@ static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
-static char *read_command_buf= NULL;
+static char *read_command_buf= NULL, *read_command_buf_end;
 static MEM_ROOT require_file_root;
 static const my_bool my_true= 1;
 static const my_bool my_false= 0;
@@ -9825,7 +9825,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found delimiter '%s' at line %d",
                             delimiter, cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if ((c == '{' &&
                 (!my_strnncoll_simple(charset_info, (const uchar*) "while", 5,
@@ -9838,7 +9838,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found '{' indicating start of block at line %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '\'' || c == '"' || c == '`')
       {
@@ -9885,7 +9885,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found newline in comment at line: %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       break;
 
@@ -9905,7 +9905,7 @@ int read_line()
             DBUG_PRINT("info", ("Found two new lines in a row"));
             *p++= c;
             *p= 0;
-            DBUG_RETURN(0);
+            goto ret;
           }
 
           /* Query hasn't started yet */
@@ -9922,7 +9922,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found delimiter '%s' at line: %d",
                             delimiter, cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '}')
       {
@@ -9931,7 +9931,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found '}' in beginning of a line at line: %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '\'' || c == '"' || c == '`')
       {
@@ -9998,6 +9998,8 @@ int read_line()
       }
     }
   }
+ret:
+  read_command_buf_end= p;
   DBUG_RETURN(0);
 }
 
@@ -10013,14 +10015,13 @@ int read_line()
 
 */
 
-void convert_to_format_v1(char* query)
+void convert_to_format_v1(char* query, char **end)
 {
   int last_c_was_quote= 0;
   char *p= query, *to= query;
-  char *end= strend(query);
   char last_c;
 
-  while (p <= end)
+  while (p <= *end)
   {
     if (*p == '\n' && !last_c_was_quote)
     {
@@ -10051,6 +10052,7 @@ void convert_to_format_v1(char* query)
       last_c_was_quote= 0;
     }
   }
+  *end= to;
 }
 
 
@@ -10167,9 +10169,9 @@ int read_command(struct st_command** command_ptr)
   }
 
   if (opt_result_format_version == 1)
-    convert_to_format_v1(read_command_buf);
+    convert_to_format_v1(read_command_buf, &read_command_buf_end);
 
-  char *p= read_command_buf;
+  char *p= read_command_buf, *end= read_command_buf_end;
   DBUG_PRINT("info", ("query: '%s'", read_command_buf));
   if (*p == '#')
   {
@@ -10186,29 +10188,32 @@ int read_command(struct st_command** command_ptr)
   }
 
   /* Skip leading spaces */
-  while (*p && my_isspace(charset_info, *p))
+  while (p < end && my_isspace(charset_info, *p))
     p++;
 
-  if (!(command->query_buf= command->query= my_strdup(PSI_NOT_INSTRUMENTED, p, MYF(MY_WME))))
+  if (!(command->query_buf= command->query=
+        (char*)my_memdup(PSI_NOT_INSTRUMENTED, p, end - p, MYF(MY_WME))))
     die("Out of memory");
 
+  command->query_len= (int)(end - p - 1);
+  command->end= command->query + command->query_len;
+  p= command->query;
+  end= command->end;
   /*
     Calculate first word length(the command), terminated
-    by 'space' , '(' or 'delimiter' */
-  p= command->query;
-  while (*p && !my_isspace(charset_info, *p) && *p != '(' && !is_delimiter(p))
+    by 'space' , '(' or 'delimiter'
+   */
+  while (p < end && !my_isspace(charset_info, *p) && *p != '(' && !is_delimiter(p))
     p++;
   command->first_word_len= (uint) (p - command->query);
   DBUG_PRINT("info", ("first_word: %.*s",
                       command->first_word_len, command->query));
 
   /* Skip spaces between command and first argument */
-  while (*p && my_isspace(charset_info, *p))
+  while (p < end && my_isspace(charset_info, *p))
     p++;
   command->first_argument= p;
 
-  command->end= strend(command->query);
-  command->query_len= (int)(command->end - command->query);
   parser.read_lines++;
   DBUG_RETURN(0);
 }
@@ -12505,7 +12510,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   else
   {
     query = command->query;
-    query_len = strlen(query);
+    query_len = command->query_len;
   }
 
   /*
@@ -12895,6 +12900,7 @@ void get_command_type(struct st_command* command)
     if (type == Q_QUERY)
     {
       /* Skip the "query" part */
+      command->query_len-= (int)(command->first_argument - command->query);
       command->query= command->first_argument;
     }
   }
@@ -13455,7 +13461,8 @@ int main(int argc, char **argv)
 	if (command->query == command->query_buf)
         {
           /* Skip the first part of command, i.e query_xxx */
-	  command->query= command->first_argument;
+          command->query_len-= (int)(command->first_argument - command->query);
+          command->query= command->first_argument;
           command->first_word_len= 0;
         }
 	/* fall through */
@@ -13517,7 +13524,10 @@ int main(int argc, char **argv)
 
         /* Remove "send" if this is first iteration */
 	if (command->query == command->query_buf)
+        {
+          command->query_len-= (int)(command->first_argument - command->query);
 	  command->query= command->first_argument;
+        }
 
 	/*
 	  run_query() can execute a query partially, depending on the flags.
