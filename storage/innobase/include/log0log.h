@@ -616,6 +616,11 @@ public:
   lsn_t checkpoint_age_max() const noexcept
   { return max_checkpoint_age + archive * file_size; }
 
+  /** @return whether !archive log records may have been written with
+  get_sequence_bit()==0 */
+  bool circular_recovery_from_0() const noexcept
+  { ut_ad(latch_have_wr()); return circular_recovery_from_sequence_bit_0; }
+
   /** Make previous write_buf() durable and update flushed_to_disk_lsn. */
   bool flush(lsn_t lsn) noexcept;
 
