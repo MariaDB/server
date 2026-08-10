@@ -19,7 +19,7 @@ select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
 plugin_status
 install soname 'file_key_management';
-ERROR HY000: Cannot read bad.key, the filekey is too long, max secret size is 256B 
+ERROR HY000: Cannot read bad.key, the filekey is too long, max secret size is 256 bytes
 call mtr.add_suppression("the filekey is too long");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
