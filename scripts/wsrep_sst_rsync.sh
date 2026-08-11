@@ -171,11 +171,91 @@ check_pid_and_port()
     check_pid "$pid_file" && [ "$CHECK_PID" -eq "$pid" ]
 }
 
+# Resolves a directory to its physical path, with symlinks expanded.
+# A relative path is interpreted against the data directory, which is
+# how the server itself resolves these options. Prints nothing when the
+# directory cannot be reached.
+resolve_dir()
+{
+    case "$1" in
+    /*) (cd -P "$1" 2>/dev/null && pwd -P) || : ;;
+    *)  (cd -P "$DATA_DIR" 2>/dev/null && \
+         cd -P "$1" 2>/dev/null && pwd -P) || : ;;
+    esac
+}
+
+# Flushes the filesystems that hold the files to be transferred.
+# A bare 'sync' flushes every mounted filesystem on the host and can
+# block for minutes on I/O unrelated to the SST, while the donor holds
+# the global read lock. 'sync -f' is limited to a single filesystem,
+# but it is not available on every platform.
+sync_filesystems()
+{
+    local NL=$'\n'
+    local data_fs candidates synced dir path
+
+    # 'sync -f' (syncfs) is a GNU coreutils extension. The Darwin and
+    # FreeBSD 'sync' ignores its operands, flushes everything and still
+    # exits with zero status, so a functional probe alone cannot detect
+    # it and every call below would become a whole-host sync - worse
+    # than the single sync being replaced. Gate on the platform first.
+    if [ "$OS" != 'Linux' ]; then
+        sync
+        return
+    fi
+
+    # The data directory itself may be a symlink. Resolve it to the
+    # physical path.
+    data_fs=$(resolve_dir "$DATA_DIR")
+    [ -n "$data_fs" ] || data_fs="$DATA_DIR"
+
+    if ! sync -f "$data_fs" 2>/dev/null; then
+        sync
+        return
+    fi
+
+    # The InnoDB and Aria directories are resolved by create_dirs() and
+    # default to the data directory, but each of them may be placed on
+    # a filesystem of its own, and the transfer reads from all of them.
+    # Binlogs may likewise reside elsewhere: a relative binlog path is
+    # taken relative to the data directory, but it can still escape it
+    # or be a mount point of its own.
+    candidates="$ib_home_dir$NL$ib_log_dir$NL$ib_undo_dir$NL$ar_log_dir"
+    candidates="$candidates$NL$binlog_dir$NL"
+
+    # Database directories may be symlinks to other filesystems.
+    # The transfer follows them, so flush them as well.
+    candidates="$candidates$(find "$data_fs" -maxdepth 1 -mindepth 1 \
+                                  -type l 2>/dev/null || :)"
+
+    # Paths already flushed, newline delimited on both sides so that a
+    # membership test cannot match a partial path component.
+    synced="$NL$data_fs$NL"
+
+    while IFS= read -r dir; do
+        [ -n "$dir" ] || continue
+        # resolve_dir() prints nothing unless the path is a reachable
+        # directory, so it doubles as the existence check. Testing $dir
+        # directly would resolve a relative path against the current
+        # directory rather than against the data directory.
+        path=$(resolve_dir "$dir")
+        [ -n "$path" ] || continue
+        case "$synced" in
+        *"$NL$path$NL"*) continue ;;
+        esac
+        sync -f "$path" || :
+        synced="$synced$path$NL"
+    done <<< "$candidates"
+}
+
 get_binlog
 
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
     binlog_base=$(basename "$WSREP_SST_OPT_BINLOG")
+else
+    binlog_dir=""
+    binlog_base=""
 fi
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
@@ -383,7 +463,7 @@ EOF
         STATE=$(cat "$FLUSHED")
         rm "$FLUSHED"
 
-        sync
+        sync_filesystems
 
         wsrep_log_info "Tables flushed"
 
