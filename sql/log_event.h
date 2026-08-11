@@ -205,7 +205,7 @@ class String;
 #define STOP_HEADER_LEN      0
 #define LOAD_HEADER_LEN      (4 + 4 + 4 + 1 +1 + 4)
 #define SLAVE_HEADER_LEN     0
-#define START_V3_HEADER_LEN     (2 + ST_SERVER_VER_LEN + 4)
+#define START_V3_HEADER_LEN  ST_COMMON_HEADER_LEN_OFFSET
 #define ROTATE_HEADER_LEN    8 // this is FROZEN (the Rotate post-header is frozen)
 #define INTVAR_HEADER_LEN      0
 #define CREATE_FILE_HEADER_LEN 4
@@ -282,6 +282,7 @@ class String;
 #define ST_SERVER_VER_OFFSET  2
 #define ST_CREATED_OFFSET     (ST_SERVER_VER_OFFSET + ST_SERVER_VER_LEN)
 #define ST_COMMON_HEADER_LEN_OFFSET (ST_CREATED_OFFSET + 4)
+#define ST_POST_HEADER_LEN_OFFSET (ST_COMMON_HEADER_LEN_OFFSET + 1)
 
 /* slave event post-header (this event is never written) */
 
