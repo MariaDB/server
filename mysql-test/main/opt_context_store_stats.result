@@ -646,4 +646,215 @@ index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 a	["(10) <= (a) <= (10)"]	49	1	11
 # == End of optimizer context
 drop table t1;
+#
+# MDEV-40553: unprintable gis ranges in trace and context
+#
+create table t1 (
+id int,
+g1 geometry not null,
+g2 geometry,
+key k_prefix (g1(5)),
+key k_full (g1(200)),
+key k_null (g2(200))
+) engine=myisam;
+insert into t1 select seq, point(seq, seq), point(seq, seq) from seq_1_to_5;
+insert into t1 values (6, point(6,6), NULL);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+# The index holds the whole value.
+It is printed as a binary string, like any other BLOB prefix.
+explain
+select id from t1 force index (k_full) where g1=point(2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	k_full	k_full	202	const	1	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	6	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+k_full	["(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@) <= (g1) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@)"]	1	1	1
+# == End of optimizer context
+# multiple ranges
+explain 
+select id from t1 force index (k_full)
+where g1=point(3,3) or g1=linestring(point(1,1), point(2,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_full	k_full	202	NULL	2	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	6	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+k_full	[
+                "(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@) <= (g1) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@)",
+                "(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x02\\\\x00\\\\x00\\\\x00\\\\x02\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@) <= (g1) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x02\\\\x00\\\\x00\\\\x00\\\\x02\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@)"
+            ]	2	2	1
+# == End of optimizer context
+# NULL values and multiple ranges
+explain 
+select id from t1 force index (k_null)
+where g2=point(3,3) or g2 is null or g2=linestring(point(1,1), point(2,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_null	k_null	203	NULL	3	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	6	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+k_null	[
+                "(NULL) <= (g2) <= (NULL)",
+                "(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@) <= (g2) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x01\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x08@)",
+                "(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x02\\\\x00\\\\x00\\\\x00\\\\x02\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@) <= (g2) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01\\\\x02\\\\x00\\\\x00\\\\x00\\\\x02\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\xF0?\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00\\\\x00@)"
+            ]	3	3	1
+# == End of optimizer context
+# The index holds only a prefix of the value.
+# It is printed as a binary string, like any other BLOB prefix.
+explain
+select id from t1 force index (k_prefix) where g1=point(2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	k_prefix	k_prefix	7	const	6	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	6	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+k_prefix	["(\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01) <= (g1) <= (\\\\x00\\\\x00\\\\x00\\\\x00\\\\x01)"]	6	1	1
+# == End of optimizer context
+drop table t1;
+#
+# A SPATIAL index stores the MBR of the value. It is printed as the
+# WKT of the MBR together with the spatial relation the range uses.
+#
+create table t2 (
+id int,
+g geometry not null,
+spatial key (g)
+) engine=myisam;
+insert into t2 select seq, point(seq, seq) from seq_1_to_20;
+insert into t2 values
+(21, geomfromtext('LINESTRING(0 0, 5 8)')),
+(22, geomfromtext('POLYGON((0 0, 0 3, 3 3, 3 0, 0 0))'));
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+# mbrcontains(value, column)
+explain
+select id from t2 where mbrcontains(geomfromtext('POLYGON((0 0,0 3,3 3,3 0,0 0))'), g);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRWITHIN (POLYGON((0 0,3 0,3 3,0 3,0 0)))"]	4	1	1
+# == End of optimizer context
+# mbrwithin(column, value)
+explain
+select id from t2 where mbrwithin(g, geomfromtext('LINESTRING(1 1, 9 12)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	9	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRWITHIN (POLYGON((1 1,9 1,9 12,1 12,1 1)))"]	9	1	1
+# == End of optimizer context
+# The other spatial relations
+explain
+select id from t2 where mbrcontains(g, geomfromtext('POINT(2 2)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	3	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRCONTAINS (POLYGON((2 2,2 2,2 2,2 2,2 2)))"]	3	1	1
+# == End of optimizer context
+explain
+select id from t2 where mbrequals(g, geomfromtext('POINT(7 7)'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	1	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBREQUALS (POLYGON((7 7,7 7,7 7,7 7,7 7)))"]	1	1	1
+# == End of optimizer context
+explain
+select id from t2 where mbrintersects(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"]	4	1	1
+# == End of optimizer context
+# mbrtouches/mbroverlaps all use the mbrintersects relation
+explain
+select id from t2 where mbrtouches(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"]	4	1	1
+# == End of optimizer context
+explain
+select id from t2 where mbroverlaps(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	g	g	34	NULL	4	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRINTERSECTS (POLYGON((0 0,2 0,2 2,0 2,0 0)))"]	4	1	1
+# == End of optimizer context
+explain
+select id from t2 where mbrdisjoint(g, geomfromtext('POLYGON((0 0,0 2,2 2,2 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	g	NULL	NULL	NULL	22	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t2	22	g	["22"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+g	["(g) MBRDISJOINT (POLYGON((0 0,2 0,2 2,0 2,0 0)))"]	2147483647	0	0
+Warnings:
+Warning	1264	Out of range value for column 'num_rows' at row 1
+# == End of optimizer context
+drop table t2;
 # End of 13.1 tests

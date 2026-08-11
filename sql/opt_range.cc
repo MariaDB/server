@@ -17595,6 +17595,43 @@ static void print_max_range_operator(String *out, const ha_rkey_function flag)
     out->append(STRING_WITH_LEN(" ? "));
 }
 
+/*
+  @brief Print the spatial relation used by a range over a SPATIAL index
+
+  @detail
+    The relation is printed the way it reads with the indexed column on the
+    left side, that is, the range
+      (g) mbrwithin (POLYGON(...))
+    reads rows whose MBR is within the MBR of the printed value.
+    Note that mbrtouches/mbrcrosses/mbroverlaps all use the same
+    HA_READ_MBR_INTERSECT relation, so they are all printed as mbrintersects.
+*/
+
+static void print_mbr_range_operator(String *out, const ha_rkey_function flag)
+{
+  switch (flag)
+  {
+  case HA_READ_MBR_CONTAIN:
+    out->append(STRING_WITH_LEN(" MBRWITHIN "));
+    break;
+  case HA_READ_MBR_WITHIN:
+    out->append(STRING_WITH_LEN(" MBRCONTAINS "));
+    break;
+  case HA_READ_MBR_INTERSECT:
+    out->append(STRING_WITH_LEN(" MBRINTERSECTS "));
+    break;
+  case HA_READ_MBR_DISJOINT:
+    out->append(STRING_WITH_LEN(" MBRDISJOINT "));
+    break;
+  case HA_READ_MBR_EQUAL:
+    out->append(STRING_WITH_LEN(" MBREQUALS "));
+    break;
+  default:
+    out->append(STRING_WITH_LEN(" ? "));
+    break;
+  }
+}
+
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
@@ -17602,27 +17639,33 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);
-  key_part_map keypart_map= range->start_key.keypart_map |
-                            range->end_key.keypart_map;
 
   if (flag & GEOM_FLAG)
   {
     /*
-      The flags of GEOM ranges do not work the same way as for other
-      range types, so printing "col < some_geom" doesn't make sense.
-      Just print the column name, not operator.
+      The flags of GEOM ranges do not work the same way as for other range
+      types: there is no min/max bound, the range is the set of rows whose
+      MBR has the given spatial relation with the MBR of the value.
+      Print it as "col mbr_relation value".
+
+      Only start_key is filled in for a GEOM range, see
+      sel_arg_range_seq_next(), so end_key must not be looked at here.
     */
-    print_keyparts_name(out, key_part, n_key_parts, keypart_map);
-    out->append(STRING_WITH_LEN(" "));
+    print_keyparts_name(out, key_part, n_key_parts,
+                        range->start_key.keypart_map);
+    print_mbr_range_operator(out, range->start_key.flag);
     print_key_value(out, key_part, range->start_key.key,
-                    range->start_key.length);
+                    range->start_key.length, Field::itMBR);
     return;
   }
+
+  key_part_map keypart_map= range->start_key.keypart_map |
+                            range->end_key.keypart_map;
 
   if (range->start_key.length)
   {
     print_key_value(out, key_part, range->start_key.key,
-                    range->start_key.length);
+                    range->start_key.length, Field::itRAW);
     print_min_range_operator(out, range->start_key.flag);
   }
 
@@ -17631,8 +17674,8 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   if (range->end_key.length)
   {
     print_max_range_operator(out, range->end_key.flag);
-    print_key_value(out, key_part, range->end_key.key,
-                    range->end_key.length);
+    print_key_value(out, key_part, range->end_key.key, range->end_key.length,
+                    Field::itRAW);
   }
 }
 
@@ -17656,7 +17699,8 @@ void print_range_for_non_indexed_field(String *out, Field *field,
 
   if (range->start_key.length)
   {
-    field->print_key_part_value(out, range->start_key.key, field->key_length());
+    field->print_key_part_value(out, range->start_key.key, field->key_length(),
+                                Field::itRAW);
     print_min_range_operator(out, range->start_key.flag);
   }
 
@@ -17665,7 +17709,8 @@ void print_range_for_non_indexed_field(String *out, Field *field,
   if (range->end_key.length)
   {
     print_max_range_operator(out, range->end_key.flag);
-    field->print_key_part_value(out, range->end_key.key, field->key_length());
+    field->print_key_part_value(out, range->end_key.key, field->key_length(),
+                                Field::itRAW);
   }
   dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
@@ -17703,10 +17748,13 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   @param[in]  key_part     Index components description
   @param[in]  key          Key tuple
   @param[in]  used_length  length of the key tuple
+  @param[in]  image_type   Form in which the key stores the column values:
+                           itRAW for regular indexes, itMBR for SPATIAL ones
 */
 
 void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                     const uchar *key, uint used_length)
+                     const uchar *key, uint used_length,
+                     Field::imagetype image_type)
 {
   out->append(STRING_WITH_LEN("("));
   Field *field= key_part->field;
@@ -17722,7 +17770,7 @@ void print_key_value(String *out, const KEY_PART_INFO *key_part,
     field= key_part->field;
     store_length= key_part->store_length;
 
-    field->print_key_part_value(out, key, key_part->length);
+    field->print_key_part_value(out, key, key_part->length, image_type);
 
     if (key + store_length < key_end)
       out->append(STRING_WITH_LEN(","));

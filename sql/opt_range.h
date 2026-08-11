@@ -2044,7 +2044,8 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts);
 
 void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                     const uchar *key, uint used_length);
+                     const uchar *key, uint used_length,
+                     Field::imagetype image_type);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);
