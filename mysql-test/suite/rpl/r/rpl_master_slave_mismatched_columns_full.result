@@ -38,6 +38,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -55,6 +58,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -80,6 +86,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -97,6 +106,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -122,6 +134,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -139,6 +154,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -165,6 +183,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -183,6 +204,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -208,6 +232,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -226,6 +253,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -251,6 +281,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -269,6 +302,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -294,6 +330,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -312,6 +351,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -338,6 +380,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -357,6 +402,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -384,6 +432,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -401,6 +452,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -426,6 +480,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -443,6 +500,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -468,6 +528,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -485,6 +548,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -511,6 +577,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -529,6 +598,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -554,6 +626,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -572,6 +647,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -597,6 +675,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -615,6 +696,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -640,6 +724,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -658,6 +745,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -684,6 +774,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -703,6 +796,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -742,6 +838,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -759,6 +858,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -784,6 +886,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -801,6 +906,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -826,6 +934,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -843,6 +954,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -869,6 +983,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -887,6 +1004,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -912,6 +1032,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -930,6 +1053,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -955,6 +1081,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -973,6 +1102,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -998,6 +1130,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1016,6 +1151,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1042,6 +1180,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1061,6 +1202,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1088,6 +1232,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1105,6 +1252,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1130,6 +1280,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1147,6 +1300,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1172,6 +1328,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1189,6 +1348,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1215,6 +1377,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1233,6 +1398,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1258,6 +1426,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1276,6 +1447,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1301,6 +1475,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1319,6 +1496,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1344,6 +1524,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1362,6 +1545,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1388,6 +1574,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1407,6 +1596,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1446,6 +1638,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1463,6 +1658,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1488,6 +1686,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1505,6 +1706,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1530,6 +1734,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1547,6 +1754,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1573,6 +1783,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1591,6 +1804,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1616,6 +1832,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1634,6 +1853,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1659,6 +1881,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1677,6 +1902,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1702,6 +1930,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1720,6 +1951,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1746,6 +1980,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1765,6 +2002,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1792,6 +2032,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1809,6 +2052,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1834,6 +2080,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1851,6 +2100,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1876,6 +2128,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1893,6 +2148,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1919,6 +2177,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1937,6 +2198,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1962,6 +2226,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -1980,6 +2247,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2005,6 +2275,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2023,6 +2296,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2048,6 +2324,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2066,6 +2345,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2092,6 +2374,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2111,6 +2396,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2150,6 +2438,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2167,6 +2458,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2192,6 +2486,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2209,6 +2506,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2234,6 +2534,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2251,6 +2554,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2277,6 +2583,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2295,6 +2604,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2320,6 +2632,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2338,6 +2653,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2363,6 +2681,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2381,6 +2702,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2406,6 +2730,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2424,6 +2751,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2450,6 +2780,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2469,6 +2802,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2496,6 +2832,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2513,6 +2852,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2538,6 +2880,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2555,6 +2900,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2580,6 +2928,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2597,6 +2948,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2623,6 +2977,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2641,6 +2998,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2666,6 +3026,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2684,6 +3047,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2709,6 +3075,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2727,6 +3096,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2752,6 +3124,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2770,6 +3145,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2796,6 +3174,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2815,6 +3196,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2859,6 +3243,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2876,6 +3263,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2901,6 +3291,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2918,6 +3311,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2943,6 +3339,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -2960,6 +3359,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2986,6 +3388,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3004,6 +3409,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3029,6 +3437,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3047,6 +3458,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3072,6 +3486,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3090,6 +3507,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3115,6 +3535,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3133,6 +3556,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3159,6 +3585,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3178,6 +3607,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3205,6 +3637,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3222,6 +3657,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3247,6 +3685,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3264,6 +3705,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3289,6 +3733,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3306,6 +3753,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3332,6 +3782,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3350,6 +3803,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3375,6 +3831,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3393,6 +3852,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3418,6 +3880,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3436,6 +3901,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3461,6 +3929,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3479,6 +3950,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3505,6 +3979,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3524,6 +4001,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3563,6 +4043,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3580,6 +4063,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3605,6 +4091,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3622,6 +4111,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3647,6 +4139,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3664,6 +4159,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3690,6 +4188,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3708,6 +4209,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3733,6 +4237,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3751,6 +4258,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3776,6 +4286,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3794,6 +4307,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3819,6 +4335,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3837,6 +4356,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3863,6 +4385,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3882,6 +4407,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3909,6 +4437,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3926,6 +4457,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3951,6 +4485,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -3968,6 +4505,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3993,6 +4533,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4010,6 +4553,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4036,6 +4582,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4054,6 +4603,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4079,6 +4631,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4097,6 +4652,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4122,6 +4680,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4140,6 +4701,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4165,6 +4729,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4183,6 +4750,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4209,6 +4779,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4228,6 +4801,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4267,6 +4843,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4284,6 +4863,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4309,6 +4891,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4326,6 +4911,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4351,6 +4939,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4368,6 +4959,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4394,6 +4988,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4412,6 +5009,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4437,6 +5037,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4455,6 +5058,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4480,6 +5086,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4498,6 +5107,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4523,6 +5135,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4541,6 +5156,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4567,6 +5185,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4586,6 +5207,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4613,6 +5237,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4630,6 +5257,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4655,6 +5285,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4672,6 +5305,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4697,6 +5333,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4714,6 +5353,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4740,6 +5382,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4758,6 +5403,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4783,6 +5431,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4801,6 +5452,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4826,6 +5480,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4844,6 +5501,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4869,6 +5529,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4887,6 +5550,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4913,6 +5579,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4932,6 +5601,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4971,6 +5643,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -4988,6 +5663,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5013,6 +5691,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5030,6 +5711,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5055,6 +5739,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5072,6 +5759,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5098,6 +5788,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5116,6 +5809,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5141,6 +5837,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5159,6 +5858,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5184,6 +5886,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5202,6 +5907,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5227,6 +5935,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5245,6 +5956,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5271,6 +5985,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5290,6 +6007,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5317,6 +6037,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5334,6 +6057,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5359,6 +6085,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5376,6 +6105,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5401,6 +6133,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5418,6 +6153,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5444,6 +6182,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5462,6 +6203,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5487,6 +6231,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5505,6 +6252,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5530,6 +6280,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5548,6 +6301,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5573,6 +6329,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5591,6 +6350,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5617,6 +6379,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5636,6 +6401,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5680,6 +6448,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5697,6 +6468,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5722,6 +6496,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5739,6 +6516,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5764,6 +6544,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5781,6 +6564,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5807,6 +6593,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5825,6 +6614,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5850,6 +6642,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5868,6 +6663,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5893,6 +6691,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5911,6 +6712,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5936,6 +6740,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5954,6 +6761,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5980,6 +6790,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -5999,6 +6812,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6026,6 +6842,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6043,6 +6862,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6068,6 +6890,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6085,6 +6910,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6110,6 +6938,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6127,6 +6958,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6153,6 +6987,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6171,6 +7008,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6196,6 +7036,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6214,6 +7057,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6239,6 +7085,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6257,6 +7106,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6282,6 +7134,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6300,6 +7155,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6326,6 +7184,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6345,6 +7206,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6384,6 +7248,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6401,6 +7268,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6426,6 +7296,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6443,6 +7316,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6468,6 +7344,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6485,6 +7364,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6511,6 +7393,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6529,6 +7414,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6554,6 +7442,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6572,6 +7463,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6597,6 +7491,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6615,6 +7512,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6640,6 +7540,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6658,6 +7561,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6684,6 +7590,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6703,6 +7612,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6730,6 +7642,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6747,6 +7662,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6772,6 +7690,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6789,6 +7710,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6814,6 +7738,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6831,6 +7758,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6857,6 +7787,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6875,6 +7808,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6900,6 +7836,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6918,6 +7857,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6943,6 +7885,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -6961,6 +7906,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6986,6 +7934,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7004,6 +7955,9 @@ NULL	aaa	2000
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7030,6 +7984,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7049,6 +8006,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7088,6 +8048,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7105,6 +8068,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7130,6 +8096,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7147,6 +8116,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7172,6 +8144,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7189,6 +8164,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7215,6 +8193,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7233,6 +8214,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7258,6 +8242,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7276,6 +8263,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7301,6 +8291,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7319,6 +8312,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7344,6 +8340,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7362,6 +8361,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7388,6 +8390,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7407,6 +8412,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7434,6 +8442,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7451,6 +8462,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7476,6 +8490,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7493,6 +8510,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7518,6 +8538,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7535,6 +8558,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7561,6 +8587,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7579,6 +8608,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7604,6 +8636,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7622,6 +8657,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7647,6 +8685,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7665,6 +8706,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7690,6 +8734,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7708,6 +8755,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7734,6 +8784,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7753,6 +8806,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7792,6 +8848,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7809,6 +8868,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7834,6 +8896,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7851,6 +8916,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7876,6 +8944,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7893,6 +8964,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7919,6 +8993,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7937,6 +9014,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7962,6 +9042,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -7980,6 +9063,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8005,6 +9091,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8023,6 +9112,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8048,6 +9140,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8066,6 +9161,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8092,6 +9190,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8111,6 +9212,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8138,6 +9242,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8155,6 +9262,9 @@ new_col	pk	a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8180,6 +9290,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8197,6 +9310,9 @@ pk	a	new_col	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8222,6 +9338,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8239,6 +9358,9 @@ pk	a	b	c	new_col
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8265,6 +9387,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8283,6 +9408,9 @@ pk	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8308,6 +9436,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8326,6 +9457,9 @@ pk	a	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8351,6 +9485,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8369,6 +9506,9 @@ pk	a	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8394,6 +9534,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8412,6 +9555,9 @@ a	b	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8438,6 +9584,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8457,6 +9606,9 @@ pk	b
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8489,6 +9641,9 @@ connection server_1;
 INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
 UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Ensure server_2 and server_3 are consistent with one another..
@@ -8507,6 +9662,9 @@ pk	a	new_col	c
 # ..done
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc

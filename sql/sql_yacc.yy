@@ -2420,14 +2420,14 @@ master_def:
             { mi->master_ssl_crlpath= path; };
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' opt_plus num_or_default
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' num_or_default
           {
-            if ($4)
+            if ($3)
             {
               uint32_t milliseconds;
               bool overprecise;
               auto decimal_buf= my_decimal(),
-                  *decimal= $4->val_decimal(&decimal_buf);
+                  *decimal= $3->val_decimal(&decimal_buf);
               DBUG_ASSERT(decimal);
               if (Master_info_file::Heartbeat_period_value::from_decimal(
                 milliseconds, *decimal, overprecise
@@ -2487,7 +2487,7 @@ master_use_gtid_enum:
         | DEFAULT         { $$= enum_master_use_gtid::DEFAULT; }
         ;
 num_or_default:
-          NUM_literal { DBUG_ASSERT($$); }
+          opt_plus NUM_literal { DBUG_ASSERT($2); $$= $2; }
         | DEFAULT { $$= nullptr; }
         ;
 
