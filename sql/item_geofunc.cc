@@ -1510,7 +1510,9 @@ bool Item_func_spatial_precise_rel::val_bool()
         null_value= true;
         goto exit;
       }
-      /* fall through */
+      handle_sp_crosses_func_case(func, trn, g1, g2,
+                                  shape_a, shape_b, null_value);
+      break;
     case SP_OVERLAPS_FUNC:
     {
       // Both geometries must have the same number of dimensions.
