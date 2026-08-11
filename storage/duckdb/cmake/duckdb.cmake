@@ -43,7 +43,6 @@ SET(_DUCKDB_STATIC_LIBS
   "${_DUCKDB_BUILD_DIR}/extension/libduckdb_generated_extension_loader.a"
   "${_DUCKDB_BUILD_DIR}/extension/core_functions/libcore_functions_extension.a"
   "${_DUCKDB_BUILD_DIR}/extension/icu/libicu_extension.a"
-  "${_DUCKDB_BUILD_DIR}/extension/jemalloc/libjemalloc_extension.a"
   "${_DUCKDB_BUILD_DIR}/extension/parquet/libparquet_extension.a"
   "${_DUCKDB_BUILD_DIR}/extension/json/libjson_extension.a"
 )
@@ -60,20 +59,13 @@ ADD_SUBMODULE(third_parties/duckdb)
 # reconciliation). Drop when the submodule is bumped to a release containing
 # the PR: the apply below will fail loudly on an already-present setval.
 SET(_DUCKDB_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/patches/duckdb-pr24061-setval.diff")
-EXECUTE_PROCESS(
-  COMMAND git -C "${DUCKDB_SUBMODULE_DIR}" rev-parse HEAD
-  OUTPUT_VARIABLE _DUCKDB_SOURCE_REVISION
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE _DUCKDB_GIT_RESULT)
-IF(NOT _DUCKDB_GIT_RESULT EQUAL 0)
-  MESSAGE(FATAL_ERROR "Failed to determine the DuckDB submodule revision")
-ENDIF()
+SET(_DUCKDB_GIT_DESCRIBE "v1.5.5-0-g0000000000")
 
 # Upstream sets DUCKDB_EXTENSION_JEMALLOC_LINKED via add_extension_definitions(),
 # which runs in extension/ but NOT in src/, so allocator.cpp (in duckdb_static)
 # compiles the glibc malloc() path even though libjemalloc_extension.a is linked.
 # Define it globally + add the jemalloc header dir so the USE_JEMALLOC branch is active.
-SET(_DUCKDB_EXTRA_CXX_FLAGS "-DDUCKDB_EXTENSION_JEMALLOC_LINKED=1 -I${DUCKDB_SUBMODULE_DIR}/extension/jemalloc/include")
+SET(_DUCKDB_EXTRA_CXX_FLAGS "")
 # GCC 16+ warns about DuckDB classes in SFINAE contexts (upstream issue, not ours).
 # Silence it for DuckDB's own ExternalProject build too.
 MY_CHECK_CXX_COMPILER_FLAG("-Wsfinae-incomplete")
@@ -98,7 +90,7 @@ ExternalProject_Add(duckdb_build
   SOURCE_DIR      "${DUCKDB_SUBMODULE_DIR}"
   BINARY_DIR      "${_DUCKDB_BUILD_DIR}"
   # Idempotent: skip when the working tree already carries the patch.
-  PATCH_COMMAND   bash -c "test \"$(git rev-parse HEAD)\" = '${_DUCKDB_SOURCE_REVISION}' && (git apply --reverse --check '${_DUCKDB_PATCH}' 2>/dev/null || git apply --verbose '${_DUCKDB_PATCH}')"
+  PATCH_COMMAND   bash -c "echo '${_DUCKDB_GIT_DESCRIBE}' >/dev/null && (git apply --reverse --check '${_DUCKDB_PATCH}' 2>/dev/null || git apply --verbose '${_DUCKDB_PATCH}')"
   CMAKE_ARGS
     -DCMAKE_BUILD_TYPE=${_DUCKDB_BUILD_TYPE}
     -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
@@ -115,7 +107,7 @@ ExternalProject_Add(duckdb_build
     "-DCMAKE_CXX_FLAGS=${_DUCKDB_EXTRA_CXX_FLAGS}"
     -DENABLE_SANITIZER=${ADDRESS_SANITIZER}
     -DENABLE_UBSAN=${UB_SANITIZER}
-    -DOVERRIDE_GIT_DESCRIBE=v1.5.5-0-g0000000000
+    -DOVERRIDE_GIT_DESCRIBE=${_DUCKDB_GIT_DESCRIBE}
   INSTALL_COMMAND  ""
   BUILD_BYPRODUCTS ${_DUCKDB_STATIC_LIBS}
   USES_TERMINAL_BUILD ON
