@@ -292,11 +292,14 @@ eval ALTER TABLE t ADD COLUMN d INT INVISIBLE, ALGORITHM = $algorithm;
 --error ER_PARSE_ERROR
 eval ALTER TABLE t ALTER COLUMN b SET INVISIBLE, ALGORITHM = $algorithm;
 
-# AUTO_INCREMENT
+# AUTO_INCREMENT is supported by CREATE TABLE only.
+# 'c INT AUTO_INCREMENT KEY' would be rejected by the parser instead (bare KEY
+# means PRIMARY KEY and t already has one), and AUTO_INCREMENT without any key
+# is rejected by the server, so neither would reach the engine.
 --error ER_TABLE_CANT_HANDLE_AUTO_INCREMENT
-eval ALTER TABLE t MODIFY COLUMN c INT AUTO_INCREMENT KEY, ALGORITHM = $algorithm;
+eval ALTER TABLE t MODIFY COLUMN id INT AUTO_INCREMENT, ALGORITHM = $algorithm;
 --error ER_TABLE_CANT_HANDLE_AUTO_INCREMENT
-eval ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT, ALGORITHM = $algorithm;
+eval ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT UNIQUE, ALGORITHM = $algorithm;
 
 # ENGINE_ATTRIBUTE
 --error ER_UNKNOWN_OPTION

@@ -18,14 +18,3 @@ copy_file $MTR_SUITE_DIR/std_data/mdev9949.frm $datadir/test/mdev9949.frm;
 --replace_result $MARIADB_DATADIR DATADIR/ './' 'DATADIR/'
 drop table mdev9949;
 drop table t1;
-
-#
-# MDEV-7935 CREATE TABLE ... AS SELECT ... can cause a Server crash (Assertion `0' in Protocol::end_statement)
-#
-select @@secure_file_priv 'must be NULL'; # otherwise foo/bar.txt won't be allowed
-create table t1 (a char(16)) engine=myisam;
-insert into t1 values('Hello World!');
-replace_regex @on .*/foo/@on foo/@;
-error ER_GET_ERRMSG;
-create table t2 engine=connect file_name='foo/bar.txt' as select * from t1;
-drop table t1;

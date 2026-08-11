@@ -127,7 +127,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   }
   close(f);
 
-  while (secret[len - 1] == '\r' || secret[len - 1] == '\n') len--;
+  while (len && (secret[len - 1] == '\r' || secret[len - 1] == '\n')) len--;
   if (len > MAX_SECRET_SIZE)
   {
     my_printf_error(EE_READ,

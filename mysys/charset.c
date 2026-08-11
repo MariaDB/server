@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -518,7 +518,7 @@ my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader)
 #define MY_MAX_ALLOWED_BUF 1024*1024
 #define MY_CHARSET_INDEX "Index.xml"
 
-const char *charsets_dir= NULL;
+READ_ONLY_SYSVAR const char *charsets_dir= NULL;
 
 
 static my_bool

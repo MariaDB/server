@@ -34,7 +34,7 @@ SELECT * FROM t_b WHERE id = 1 FOR UPDATE;
 
 # Victim: holds a granted lock on t_a (makes it a BF target), then locks t_b
 --connect node_1_victim, 127.0.0.1, root, , test, $NODE_MYPORT_1
-SET SESSION tx_isolation = 'READ-COMMITTED';
+SET SESSION transaction_isolation = 'READ-COMMITTED';
 BEGIN;
 UPDATE t_a SET c = c + 1 WHERE id > 0;
 

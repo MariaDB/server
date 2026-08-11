@@ -2980,6 +2980,69 @@ NULL
 SELECT JSON_OVERLAPS(JSON_ARRAY_INSERT(NULL,'$[0]',1), '[]') AS x;
 x
 NULL
+#
+# MDEV-32331 JSON path functions with no charset on path crash server
+#
+SELECT 1 FROM
+(SELECT CASE WHEN x * x THEN x END as a
+FROM ( SELECT json_array_append ( 'x' , ( 'x' % 'x' ) , 1 , 'x' , 1 ) as x ) dt2
+) dt
+WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_array_append ( 'x' , ( 'x' % 'x' ) , 1 , 'x' , 1 ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_array_insert ( '[1]' , ( 'x' % 'x' ) , 1 , '$[0]' , 9 ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_insert ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_remove ( '[1,2]' , ( 'x' % 'x' ) , '$[0]' ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_replace ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_set ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT x FROM (SELECT 1 AS x UNION SELECT 2) AS t WHERE x IN (  SELECT JSON_REPLACE('1', UPPER(CAST(NULL AS CHAR)), 100));
+x
+SELECT ( WITH RECURSIVE x ( x ) AS (WITH RECURSIVE x ( x ) AS ( SELECT 1 UNION SELECT x + 1 FROM x ) SELECT json_array_append ( '[[], [], []]' , NOT ( NULL LIKE 'ABC%' ) , 315 ))  SELECT x FROM x WHERE  x > 10 AND  x < 1) AS x;
+x
+NULL
+SELECT 1 FROM (SELECT JSON_REMOVE(46, DATE(NULL)) AS x EXCEPT SELECT 1) AS d WHERE NOT(NOT(x > 10)) AND (x < 1 OR x > 1);
+1
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)

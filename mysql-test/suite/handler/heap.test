@@ -103,3 +103,29 @@ HANDLER m READ `ba`= (30);
 HANDLER m CLOSE;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-39821 heap-use-after-free in heap_rnext with tree indexes
+--echo #
+CREATE TABLE t1 (
+    k INT,
+    pad VARCHAR(200),
+    INDEX idx USING BTREE (k)
+) ENGINE=MEMORY;
+
+INSERT t1 VALUES (10,'a'),(20,'b'),(30,'c'),(40,'d'),(50,'e'),
+                 (60,'f'),(70,'g'),(80,'h'),(90,'i'),(100,'j'),
+                 (110,'k'),(120,'l'),(130,'m'),(140,'n'),(150,'o'),
+                 (160,'p'),(170,'q'),(180,'r'),(190,'s'),(200,'t');
+
+HANDLER t1 OPEN;
+HANDLER t1 READ idx FIRST;
+HANDLER t1 READ idx NEXT;
+HANDLER t1 READ idx NEXT;
+HANDLER t1 READ idx NEXT;
+HANDLER t1 READ idx NEXT;
+UPDATE t1 SET k = k + 5000 WHERE k BETWEEN 20 AND 180;
+--error ER_CHECKREAD
+HANDLER t1 READ idx NEXT;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
