@@ -1047,7 +1047,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      my_bool crc_check,
                                      my_bool print_errors)
 {
-  Log_event* ev;
+  Log_event* ev= nullptr;
   enum enum_binlog_checksum_alg alg;
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
   DBUG_ASSERT(fdle != 0);
@@ -1066,14 +1066,21 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   }
 
   uint event_type= buf[EVENT_TYPE_OFFSET];
+  switch (event_type) {
+  case FORMAT_DESCRIPTION_EVENT:
+    // If event is FD the descriptor is in it.
+    if (unlikely(get_checksum_alg(buf, event_len, &alg)))
+      goto exit;
+    break;
+  case START_EVENT_V3:
   // all following START events in the current file are without checksum
-  if (event_type == START_EVENT_V3)
     (const_cast< Format_description_log_event *>(fdle))->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+    // fall-through
+  default:
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
     The caller has to provide @fdle->checksum_alg to
     be the last seen FD's (A) descriptor.
-    If event is FD the descriptor is in it.
     Notice, FD of the binlog can be only in one instance and therefore
     Show-Binlog-Events executing master side thread needs just to know
     the only FD's (A) value -  whereas RL can contain more.
@@ -1088,11 +1095,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
 
     Notice, a pre-checksum FD version forces alg := BINLOG_CHECKSUM_ALG_UNDEF.
   */
-  alg= (event_type != FORMAT_DESCRIPTION_EVENT) ?
-    fdle->checksum_alg : get_checksum_alg(buf, event_len);
+    alg= fdle->checksum_alg;
   // Emulate the corruption during reading an event
   DBUG_EXECUTE_IF("corrupt_read_log_event_char",
-    if (event_type != FORMAT_DESCRIPTION_EVENT)
     {
       uchar *debug_event_buf_c= const_cast<uchar*>(buf);
       int debug_cor_pos= rand() % (event_len - BINLOG_CHECKSUM_LEN);
@@ -1101,6 +1106,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       DBUG_SET("-d,corrupt_read_log_event_char");
     }
   );                                                 
+  }
   if (crc_check && event_checksum_test(const_cast<uchar*>(buf), event_len, alg))
   {
 #ifdef MYSQL_CLIENT
@@ -2323,22 +2329,25 @@ Format_description_log_event(const uchar *buf, uint event_len,
                       common_header_len, number_of_event_types));
   /* If alloc fails, we'll detect it in is_valid() */
 
-  post_header_len= (uint8*) my_memdup(PSI_INSTRUMENT_ME,
-                                      buf + ST_POST_HEADER_LEN_OFFSET,
-                                      number_of_event_types*
-                                      sizeof(*post_header_len),
-                                      MYF(0));
   calc_server_version_split();
+  buf+= ST_POST_HEADER_LEN_OFFSET;
   if (!is_version_before_checksum(&server_version_split))
   {
-    /* the last bytes are the checksum alg desc and value (or value's room) */
+    /* the last bytes are the checksum alg desc */
+    if (unlikely(number_of_event_types < BINLOG_CHECKSUM_ALG_DESC_LEN))
+      DBUG_VOID_RETURN; /* sanity check: But there are no last bytes. */
     number_of_event_types -= BINLOG_CHECKSUM_ALG_DESC_LEN;
-    checksum_alg= (enum_binlog_checksum_alg)post_header_len[number_of_event_types];
+    checksum_alg= (enum_binlog_checksum_alg)buf[number_of_event_types];
   }
   else
   {
     checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   }
+  post_header_len= (uint8*) my_memdup(PSI_INSTRUMENT_ME,
+                                      buf,
+                                      number_of_event_types*
+                                      sizeof(*post_header_len),
+                                      MYF(0));
   deduct_options_written_to_bin_log();
   reset_crypto();
 
@@ -2452,35 +2461,50 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
 }
 
 /**
-   @param buf buffer holding serialized FD event
-   @param len netto (possible checksum is stripped off) length of the event buf
-   
-   @return  the version-safe checksum alg descriptor where zero
+   @param buf buffer holding serialized FD event including the 4-byte checksum
+   @param len length of the event buf
+   @param alg output the version-safe checksum alg descriptor where zero
             designates no checksum, 255 - the orginator is
             checksum-unaware (effectively no checksum) and the actuall
             [1-254] range alg descriptor.
+   @return whether this is an invalid FD event
 */
-enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+bool get_checksum_alg(const uchar *buf, ulong len,
+                      enum enum_binlog_checksum_alg *alg)
 {
-  enum enum_binlog_checksum_alg ret;
+  constexpr ptrdiff_t POST_HEADER_LEN_OFFSET=
+    LOG_EVENT_MINIMAL_HEADER_LEN + ST_POST_HEADER_LEN_OFFSET;
   char version[ST_SERVER_VER_LEN];
 
   DBUG_ENTER("get_checksum_alg");
   DBUG_ASSERT(buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
 
+  if (unlikely(len < POST_HEADER_LEN_OFFSET))
+    DBUG_RETURN(true);
   memcpy(version,
          buf + LOG_EVENT_MINIMAL_HEADER_LEN + ST_SERVER_VER_OFFSET,
          ST_SERVER_VER_LEN);
   version[ST_SERVER_VER_LEN - 1]= 0;
   
   Format_description_log_event::master_version_split version_split(version);
-  ret= Format_description_log_event::is_version_before_checksum(&version_split)
-    ? BINLOG_CHECKSUM_ALG_UNDEF
-    : (enum_binlog_checksum_alg)buf[len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN];
-  DBUG_ASSERT(ret == BINLOG_CHECKSUM_ALG_OFF ||
-              ret == BINLOG_CHECKSUM_ALG_UNDEF ||
-              ret == BINLOG_CHECKSUM_ALG_CRC32);
-  DBUG_RETURN(ret);
+  if (Format_description_log_event::is_version_before_checksum(&version_split))
+    *alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  else
+  {
+    /*
+      len >= POST_HEADER_LEN_OFFSET >
+      BINLOG_CHECKSUM_LEN + BINLOG_CHECKSUM_ALG_DESC_LEN
+    */
+    ulong checksum_alg_offset=
+      len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN;
+    if (unlikely(checksum_alg_offset < POST_HEADER_LEN_OFFSET))
+      DBUG_RETURN(true);
+    *alg= static_cast<enum_binlog_checksum_alg>(buf[checksum_alg_offset]);
+  }
+  DBUG_ASSERT(*alg == BINLOG_CHECKSUM_ALG_OFF ||
+              *alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+              *alg == BINLOG_CHECKSUM_ALG_CRC32);
+  DBUG_RETURN(false);
 }
 
 Start_encryption_log_event::

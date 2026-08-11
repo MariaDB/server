@@ -5948,7 +5948,8 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, ulong event_len,
                          enum_binlog_checksum_alg alg);
-enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+bool get_checksum_alg(const uchar *buf, ulong len,
+                      enum enum_binlog_checksum_alg *alg);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);
