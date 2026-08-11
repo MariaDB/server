@@ -371,7 +371,7 @@ public:
 
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
-    if (!fail)
+    if (!fail) try
     {
       lsn_t start_end;
       const lsn_t start=
@@ -400,7 +400,7 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
-            !space.is_being_imported() && !space.is_stopping())
+            !space.is_being_imported() && !space.is_stopping()) try
         {
           /* FIXME: how to initialize create_lsn for old files, to
           have efficient incremental backup?
@@ -419,9 +419,18 @@ public:
 #endif
             s|= uint64_t{std::min(space.size, space.free_limit)} << 32;
           queue.emplace_back(s);
-        }
+        } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
       mysql_mutex_unlock(&fil_system.mutex);
     }
+    catch (std::bad_alloc&) {
+      queue.clear();
+      delete ctx;
+      ctx= nullptr;
+      log_sys.backup_stop(old_size, thd);
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      return reinterpret_cast<void*>(-1);
+    }
+
     log_sys.latch.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
     return fail ? reinterpret_cast<void*>(-1) : ctx;
