@@ -6744,7 +6744,12 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   */
   if (buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT)
   {
-    checksum_alg= get_checksum_alg(buf, event_len);
+    if (unlikely(get_checksum_alg(buf, event_len, &checksum_alg)))
+    {
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      unlock_data_lock= FALSE;
+      goto err;
+    }
   }
   else if (buf[EVENT_TYPE_OFFSET] == START_EVENT_V3)
   {

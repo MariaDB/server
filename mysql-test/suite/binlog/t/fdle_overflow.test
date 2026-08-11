@@ -1,7 +1,7 @@
 --source include/have_debug.inc
 --source include/have_binlog_format_mixed.inc # format-agnostic
 
-# MDEV-40365 OOB read on malformed `Format_description_log_event`
+# OOB read on malformed `Format_description_log_event`
 #
 # Verify that Format Description Events with truncated contents fails gracefully
 # rather than underflow the post-header count and lead to buffer over-read.
@@ -9,7 +9,9 @@
 SET @saved_dbug= @@GLOBAL.debug_dbug;
 
 
-SET @@GLOBAL.debug_dbug= '+d,truncate_fde_at_common_header_len';
+# MDEV-40366: `used_checksum_alg`
+
+SET @@GLOBAL.debug_dbug= '+d,truncate_fde_at_post_header_len';
 FLUSH BINARY LOGS;
 
 --let $binlog_file= query_get_value(SHOW BINLOG STATUS, File, 1)
@@ -18,6 +20,17 @@ FLUSH BINARY LOGS;
   --eval SHOW BINLOG EVENTS IN '$binlog_file'
 --enable_query_log
 
+
+# MDEV-40365: `common_header_len` & `post_header_len`
+
+SET @@GLOBAL.debug_dbug= '+d,truncate_fde_common_header_len';
+FLUSH BINARY LOGS;
+
+--let $binlog_file= query_get_value(SHOW BINLOG STATUS, File, 1)
+--disable_query_log
+  --error ER_ERROR_WHEN_EXECUTING_COMMAND
+  --eval SHOW BINLOG EVENTS IN '$binlog_file'
+--enable_query_log
 
 # Clean-up
 SET @@GLOBAL.debug_dbug= @saved_dbug;
