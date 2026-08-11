@@ -122,6 +122,8 @@ static plugin_ref get_auth_plugin(THD *thd, const LEX_CSTRING &name, bool *locke
   return my_plugin_lock_by_name(thd, &name, MYSQL_AUTHENTICATION_PLUGIN);
 }
 
+#define mask_of(h)  ((h).ip_mask ? (h).ip_mask : 0xFFFFFFFFL)    /* unmasked literal == /32 */
+
 /* Classes */
 
 struct acl_host_and_ip
@@ -3891,6 +3893,14 @@ static int acl_user_compare(const void *a_, const void *b_)
     return res;
 
   /*
+    For masked IP entries, prefer the more specific subnet. Valid subnet
+    masks with more leading 1-bits have larger numeric values, so sorting
+    by the mask value orders /32 before /24 before /16, etc.
+  */
+  if (mask_of(a->host) != mask_of(b->host))
+    return mask_of(a->host) > mask_of(b->host) ? -1 : 1;
+
+  /*
     For more deterministic results, resolve ambiguity between
     "localhost" and "127.0.0.1"/"::1" by sorting "localhost" before
     loopback addresses.
@@ -5380,8 +5390,10 @@ static ACL_USER_BASE *find_acl_user_base(const LEX_CSTRING &user,
   hostname   (May include wildcards);   monty.pp.sci.fi
   ip	   (May include wildcards);   192.168.0.0
   ip/netmask			      192.168.0.0/255.255.255.0
+  ip/prefix (CIDR)                    192.168.0.0/24
 
   A net mask of 0.0.0.0 is not allowed.
+  /0 being rejected for the same reason.
 */
 
 static const char *calc_ip(const char *ip, long *val, char end)
@@ -5402,19 +5414,80 @@ static const char *calc_ip(const char *ip, long *val, char end)
   return ip;
 }
 
+static const char *calc_cidr(const char *ip, long *val)
+{
+  long prefix;
+  /*
+    CIDR prefix length must be between 1 and 32.
+    Example - /8  -> 255.0.0.0
+  */
+  if (!(ip=str2int(ip, 10, 0, 32, &prefix)) || *ip != '\0' || !prefix)
+    return 0;
+
+  *val= (long) (uint32) (0xFFFFFFFFU << (32 - prefix));
+  return ip;
+}
+
+/*
+  Check that a host given in masked form is well formed:
+
+    a.b.c.d/255.255.255.0   (netmask notation)
+    a.b.c.d/24              (CIDR notation, RFC 4632)
+
+  Both spellings must yield a contiguous, non-zero mask, and the address
+  must be the network address (no host bits set), since compare_hostname()
+  tests (client_ip & ip_mask) == ip and would otherwise never match.
+
+  Only called for hosts containing '/' - plain hostnames, IPs and wildcard
+  patterns are not masked hosts and are not checked here.
+*/
+static bool valid_masked_host(const char *str)
+{
+  long ip, mask;
+  const char *p= calc_ip(str, &ip, '/');
+  if (!p)
+    return false;
+
+  if (!calc_ip(p + 1, &mask, '\0') && !calc_cidr(p + 1, &mask))
+    return false;
+
+  ulong m= (ulong) (uint32) mask;
+  if (!m)
+    return false;
+
+  ulong inv= (~m) & 0xFFFFFFFFUL;
+  if (inv & (inv + 1))
+    return false;
+
+  if (((ulong) (uint32) ip) & inv)
+    return false;
+
+  return true;
+}
 
 static void update_hostname(acl_host_and_ip *host, const char *hostname)
 {
   // fix historical undocumented convention that empty host is the same as '%'
   hostname=const_cast<char*>(hostname ? hostname : host_not_specified.str);
   host->hostname=(char*) hostname;             // This will not be modified!
-  if (!(hostname= calc_ip(hostname,&host->ip,'/')) ||
-      !(hostname= calc_ip(hostname+1,&host->ip_mask,'\0')))
+  if (!(hostname=calc_ip(hostname, &host->ip, '/')))
   {
     host->ip= host->ip_mask=0;			// Not a masked ip
+    return;
+  }
+
+  /*
+    hostname currently points to '/'
+    Try old style: 10.20.0.0/255.255.0.0
+    If that fails: 10.20.0.0/16
+  */
+  const char *mask_start= hostname + 1;
+  if (!calc_ip(mask_start, &host->ip_mask, '\0') &&
+      !calc_cidr(mask_start, &host->ip_mask))
+  {
+    host->ip= host->ip_mask= 0;
   }
 }
-
 
 static bool compare_hostname(const acl_host_and_ip *host, const char *hostname,
 			     const char *ip)
@@ -5661,6 +5734,11 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     if (!combo->auth)
       combo->auth= &auth_no_password;
 
+    if (combo->host.str && strchr(combo->host.str, '/') && !valid_masked_host(combo->host.str))
+    {
+      my_error(ER_INVALID_HOST_NETMASK, MYF(0), combo->host.str, combo->user.str);
+      goto end;
+    }
     old_row_exists = 0;
     restore_record(table, s->default_values);
     user_table.set_host(combo->host.str, combo->host.length);
@@ -13325,6 +13403,13 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     DBUG_ASSERT(!user_from->is_role());
     DBUG_ASSERT(!user_to->is_role());
 
+    if (user_to->host.str && strchr(user_to->host.str, '/') &&
+        !valid_masked_host(user_to->host.str))
+    {
+      append_user(thd, &wrong_users, user_to);
+      result= TRUE;
+      continue;
+    }
     /*
       Search all in-memory structures and grant tables
       for a mention of the new user name.

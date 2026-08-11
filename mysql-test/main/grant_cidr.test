@@ -1,0 +1,242 @@
+#
+# MDEV-25515 User Account Host Names using CIDR notation
+#
+
+--source include/not_embedded.inc
+
+--echo # Valid CIDR prefixes
+CREATE USER c01@'127.0.0.0/8'  IDENTIFIED BY 'p';
+CREATE USER c02@'127.0.0.0/24' IDENTIFIED BY 'p';
+CREATE USER c03@'127.0.0.1/32' IDENTIFIED BY 'p';
+CREATE USER c18@'127.0.0.0/31' IDENTIFIED BY 'p';
+CREATE USER c19@'127.0.0.0/30' IDENTIFIED BY 'p';
+CREATE USER c06@'0.0.0.0/1'    IDENTIFIED BY 'p';
+
+connect (con1,127.0.0.1,c01,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,c02,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,c03,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,c18,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,c19,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,c06,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+--echo # Malformed masks are rejected at CREATE USER.
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c08@'127.0.0.0/0'   IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c09@'127.0.0.1/0'   IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c10@'127.0.0.0/33'  IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c11@'127.0.0.0/-1'  IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c12@'127.0.0.0/abc' IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c13@'127.0.0.0/'    IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c14@'127.0.0.0/24x' IDENTIFIED BY 'p';
+
+--echo # CIDR == netmask parity
+CREATE USER n01@'127.0.0.0/255.0.0.0'       IDENTIFIED BY 'p';
+CREATE USER n02@'127.0.0.0/255.255.255.0'   IDENTIFIED BY 'p';
+CREATE USER n03@'127.0.0.1/255.255.255.255' IDENTIFIED BY 'p';
+CREATE USER n04@'127.0.0.0/255.255.255.255' IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER n05@'127.0.0.0/0.0.0.0'         IDENTIFIED BY 'p';
+CREATE USER c04@'127.0.0.0/32'              IDENTIFIED BY 'p';
+
+connect (con1,127.0.0.1,n01,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,n02,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,n03,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,127.0.0.1,n04,p,,$MASTER_MYPORT,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,127.0.0.1,c04,p,,$MASTER_MYPORT,);
+
+--echo # The address must be the network address (no host bits set).
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c05@'127.0.0.0/1'            IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER c07@'127.0.0.1/24'           IDENTIFIED BY 'p';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER n07@'127.0.0.1/255.255.255.0' IDENTIFIED BY 'p';
+
+
+--echo # host specificity ordering
+CREATE USER ord1@'127.0.0.0/8'  IDENTIFIED BY 'p';
+CREATE USER ord1@'127.0.0.0/24' IDENTIFIED BY 'p';
+
+CREATE USER ord2@'127.0.0.0/8'  IDENTIFIED BY 'p';
+CREATE USER ord2@'127.0.0.0/16' IDENTIFIED BY 'p';
+
+CREATE USER ord3@'127.0.0.0/9'  IDENTIFIED BY 'p';
+CREATE USER ord3@'127.0.0.1/32' IDENTIFIED BY 'p';
+
+CREATE USER ord4@'127.0.0.0/255.255.255.0' IDENTIFIED BY 'p';
+CREATE USER ord4@'127.0.0.0/8'             IDENTIFIED BY 'p';
+
+CREATE USER ord5@'127.0.0.0/255.0.0.0' IDENTIFIED BY 'p';
+CREATE USER ord5@'127.0.0.0/24'        IDENTIFIED BY 'p';
+
+connect (con1,127.0.0.1,ord1,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,ord2,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,ord3,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,ord4,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,ord5,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+--echo # Non-contiguous masks, IPv6 prefixes and wildcards with '/' are rejected
+--error ER_INVALID_HOST_NETMASK
+CREATE USER x@'10.0.0.0/255.0.255.0';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER x@'2001:db8::/32';
+--error ER_INVALID_HOST_NETMASK
+CREATE USER x@'10.0.0.%/24';
+
+--echo # GRANT must not auto-create an account with an invalid mask
+--error ER_INVALID_HOST_NETMASK
+GRANT SELECT ON test.* TO g1@'10.0.0.0/33' IDENTIFIED BY 'p';
+GRANT SELECT ON test.* TO g1@'10.0.0.0/24' IDENTIFIED BY 'p';
+DROP USER g1@'10.0.0.0/24';
+
+--echo # Hosts without '/' are never validated
+CREATE USER w1@'%', w2@'10.0.0.%', w3@'127.0.0._', w4@'localhost', w5@'127.0.0.1', w6@'::1';
+DROP USER   w1@'%', w2@'10.0.0.%', w3@'127.0.0._', w4@'localhost', w5@'127.0.0.1', w6@'::1';
+
+--echo # The mask check is only reached when a row is about to be created,
+--echo # so ALTER USER and REVOKE keep their own errors
+--error ER_CANNOT_USER
+ALTER USER a1@'10.0.0.0/33' IDENTIFIED BY 'p';
+--error ER_NONEXISTING_GRANT
+REVOKE SELECT ON test.* FROM a1@'10.0.0.0/33';
+
+--echo # RENAME USER validates the target host only
+CREATE USER r1@'127.0.0.0/8' IDENTIFIED BY 'p';
+--error ER_CANNOT_USER
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.1.2.3/24';
+RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/16';
+DROP USER r1@'10.0.0.0/16';
+
+--echo # A pre-existing malformed row still loads, and stays usable for
+--echo # REVOKE, RENAME and DROP - acl_load() is deliberately lenient
+CREATE USER leg@'10.0.0.0/24' IDENTIFIED BY 'p';
+UPDATE mysql.global_priv SET Host='10.0.0.0/33' WHERE User='leg';
+FLUSH PRIVILEGES;
+RENAME USER leg@'10.0.0.0/33' TO leg@'10.0.0.0/16';
+DROP USER leg@'10.0.0.0/16';
+
+--echo # Host strings are stored verbatim - neither spelling is normalised
+SHOW GRANTS FOR c02@'127.0.0.0/24';
+SHOW CREATE USER n02@'127.0.0.0/255.255.255.0';
+
+--echo # Matching and ordering survive a reload through acl_load()
+FLUSH PRIVILEGES;
+connect (con1,127.0.0.1,c02,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+connect (con1,127.0.0.1,ord1,p,,$MASTER_MYPORT,);
+connection con1;
+SELECT CURRENT_USER();
+disconnect con1;
+connection default;
+
+--echo # Cleanup
+
+DROP USER
+    c01@'127.0.0.0/8',
+    c02@'127.0.0.0/24',
+    c03@'127.0.0.1/32',
+    c04@'127.0.0.0/32',
+    c06@'0.0.0.0/1',
+    c18@'127.0.0.0/31',
+    c19@'127.0.0.0/30',
+    n01@'127.0.0.0/255.0.0.0',
+    n02@'127.0.0.0/255.255.255.0',
+    n03@'127.0.0.1/255.255.255.255',
+    n04@'127.0.0.0/255.255.255.255',
+    ord1@'127.0.0.0/8',
+    ord1@'127.0.0.0/24',
+    ord2@'127.0.0.0/8',
+    ord2@'127.0.0.0/16',
+    ord3@'127.0.0.0/9',
+    ord3@'127.0.0.1/32',
+    ord4@'127.0.0.0/255.255.255.0',
+    ord4@'127.0.0.0/8',
+    ord5@'127.0.0.0/255.0.0.0',
+    ord5@'127.0.0.0/24';
+
+
+#
+# End of MDEV-25515 tests
+#
