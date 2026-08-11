@@ -25,9 +25,14 @@
 # materialized path. The two must agree, which is what proves the streamed
 # values are correct.
 # We wrap both in --sorted_result because the streaming path emits rows in the
-# window's sort order while the buffered path emits them from the temp table,
+# window's sort order (or query's, if it's longer) while the buffered path emits them from the temp table,
 # so the row order can differ even when every value matches. Sorting both and
 # selecting the key columns (pk,a,b) lets us compare them as multisets.
+
+# Since adding --sorted_result prohibits us from testing the the actual query sorting, EXPLAIN FORMAT=JSON is used
+# to show what sort key is used for the streaming path. This is used in cases where the window order is
+# longer than the main query order, and when partition + order by are used in a window, to show that the sort key
+# uses that of the window function and that one sort is done for the whole query.
 
 # I add this because EXPLAIN EXTENDED emits a Note 1003 with the reconstructed query for every
 # statement, which I think is not necessary and clutters result.
@@ -45,6 +50,10 @@ INSERT INTO t1 VALUES (8, 3, 30);
 INSERT INTO t1 VALUES (9, 3, 30);
 
 --let $q= pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk)
+# FORMAT=JSON to lock the sort-key shape: the partition columns are prepended to
+# the window's ORDER BY, so the single streaming sort is (a, b, pk).
+--source include/explain-no-costs.inc
+eval EXPLAIN FORMAT=JSON SELECT $q;
 eval EXPLAIN EXTENDED SELECT $q;
 eval EXPLAIN EXTENDED SELECT SQL_BUFFER_RESULT $q;
 --sorted_result
@@ -76,21 +85,27 @@ eval SELECT SQL_BUFFER_RESULT $q;
 --source include/explain-no-costs.inc
 --let $q= pk, a, b, rank() OVER (ORDER BY a, b) AS rnk FROM t1 ORDER BY a
 eval EXPLAIN FORMAT=JSON SELECT $q;
+--sorted_result
 eval SELECT $q;
+--sorted_result
 eval SELECT SQL_BUFFER_RESULT $q;
 
 # main ORDER BY longer than window order
 --source include/explain-no-costs.inc
 --let $q= pk, a, b, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a, b
 eval EXPLAIN FORMAT=JSON SELECT $q;
+--sorted_result
 eval SELECT $q;
+--sorted_result
 eval SELECT SQL_BUFFER_RESULT $q;
 
 # window order equals main ORDER BY
 --source include/explain-no-costs.inc
 --let $q= pk, a, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a
 eval EXPLAIN FORMAT=JSON SELECT $q;
+--sorted_result
 eval SELECT $q;
+--sorted_result
 eval SELECT SQL_BUFFER_RESULT $q;
 
 # Window functions inside expressions still stream as long as they're not

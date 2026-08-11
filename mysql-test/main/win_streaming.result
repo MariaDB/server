@@ -8,6 +8,31 @@ INSERT INTO t1 VALUES (6, 2, 30);
 INSERT INTO t1 VALUES (7, 3, 10);
 INSERT INTO t1 VALUES (8, 3, 30);
 INSERT INTO t1 VALUES (9, 3, 30);
+EXPLAIN FORMAT=JSON SELECT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a, t1.b, t1.pk",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 9,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
 EXPLAIN EXTENDED SELECT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
