@@ -5821,7 +5821,8 @@ void st_select_lex::set_explain_type(bool on_the_fly)
 
   if (pushdown_select)
   {
-    type= pushed_select_text;
+    /* The engine has taken over the whole statement, it says what it is */
+    type= pushdown_select->explain_type();
     return;
   }
 

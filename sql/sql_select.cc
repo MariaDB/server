@@ -5201,112 +5201,6 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 
 
 /**
-  @brief
-    Look for provision of the select_handler interface by a foreign engine.
-    Must not be called directly, use find_single_select_handler() or
-    find_partial_select_handler() instead.
-
-  @param
-    thd             The thread handler
-    select_lex      SELECT_LEX object, must be passed in the cases of:
-                    - single select pushdown
-                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
-                    Must be NULL in case of entire unit pushdown
-    select_lex_unit SELECT_LEX_UNIT object, must be passed in the cases of:
-                    - entire unit pushdown
-                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
-                    Must be NULL in case of single select pushdown
-
-  @details
-    The function checks that this is an upper level select and if so looks
-    through its tables searching for one whose handlerton owns a
-    create_select call-back function. If the call of this function returns
-    a select_handler interface object then the server will push the select
-    query into this engine.
-    This function does not check if the select has tables from
-    different engines. Such a check must be done inside each engine's
-    create_select function.
-    Also the engine's create_select function must perform other checks
-    to make sure the engine can execute the query.
-
-  @retval the found select_handler if the search is successful
-          0  otherwise
-*/
-
-static
-select_handler *find_select_handler_inner(THD *thd,
-                                    SELECT_LEX *select_lex,
-                                    SELECT_LEX_UNIT *select_lex_unit)
-{
-  // Pushdown is not supported for non-top-level SELECTs
-  if (select_lex->master_unit()->outer_select())
-    return 0;
-
-  TABLE_LIST *tbl= nullptr;
-  // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
-  // from thd->lex->query_tables and skips its first table
-  // b/c it is the target table for the INSERT..SELECT.
-  if (thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-  {
-    tbl= select_lex->join->tables_list;
-  }
-  else if (thd->lex->query_tables &&
-           thd->lex->query_tables->next_global)
-  {
-    tbl= thd->lex->query_tables->next_global;
-  }
-  else
-    return 0;
-
-  for (;tbl; tbl= tbl->next_global)
-  {
-    if (!tbl->table)
-      continue;
-    handlerton *ht= tbl->table->file->partition_ht();
-    if (!ht->create_select)
-      continue;
-    select_handler *sh= ht->create_select(thd, select_lex, select_lex_unit);
-    if (sh)
-      return sh;
-  }
-  return 0;
-}
-
-
-/**
-  Wrapper for find_select_handler_inner() for the case of single select
-  pushdown. See more comments at the description of
-  find_select_handler_inner()
-
-*/
-select_handler *find_single_select_handler(THD *thd, SELECT_LEX *select_lex)
-{
-  return find_select_handler_inner(thd, select_lex, nullptr);
-}
-
-
-/**
-  Wrapper for find_select_handler_inner() for the case of partial select
-  pushdown. Partial pushdown means that a unit (i.e. multiple selects combined
-  with UNION/EXCEPT/INTERSECT operators) cannot be pushed down to
-  the storage engine as a whole but some particular selects of this unit can.
-  For example,
-    SELECT a FROM federated.t1  -- can be pushed down to Federated
-    UNION
-    SELECT b FROM local.t2      -- cannot be pushed down, executed locally
-
-  See more comments at the description of find_select_handler_inner()
-
-*/
-select_handler *
-find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
-                            SELECT_LEX_UNIT *select_lex_unit)
-{
-  return find_select_handler_inner(thd, select_lex, select_lex_unit);
-}
-
-
-/**
   An entry point to single-unit select (a select without UNION).
 
   @param thd                  thread handler
@@ -32387,6 +32281,16 @@ enum explainable_cmd_type get_explainable_cmd_type(THD *thd)
 }
 
 
+/*
+  Print a table of the target list of a multi-table DELETE, i.e. of the list
+  of the tables the rows are deleted from.
+
+  The grammar accepts only a (possibly qualified) table name or an alias
+  there, and not a table reference with an alias like the USING clause does.
+  So a table that is given an alias in the USING clause has to be referred to
+  by this alias alone, otherwise the printed statement cannot be parsed back.
+*/
+
 void TABLE_LIST::print_leaf_tables(THD *thd, String *str,
                               enum_query_type query_type)
 {
@@ -32394,9 +32298,17 @@ void TABLE_LIST::print_leaf_tables(THD *thd, String *str,
   {
     for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
       tbl->print_leaf_tables(thd, str, query_type);
+    return;
   }
-  else
-    print(thd, 0, str, query_type);
+
+  const Lex_ident_table name= view_name.str ? Lex_ident_table(view_name)
+                                            : table_name;
+  if (!name.streq(alias))
+  {
+    append_identifier_opt_casedn(thd, str, alias, lower_case_table_names == 1);
+    return;
+  }
+  print(thd, 0, str, query_type);
 }
 
 
@@ -35118,8 +35030,21 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   SELECT_LEX *select_lex= unit->first_select();
   JOIN *join= select_lex->join;
 
-  // look for select_handler provided by engines
-  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
+  /*
+    Look for a handler provided by engines. This is the execution path of a
+    multi-table UPDATE/DELETE, for which an engine may take over the whole
+    statement through the multi_upddel_handler interface.
+  */
+  switch (thd->lex->sql_command) {
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+    select_lex->pushdown_select= find_multi_upddel_handler(thd, select_lex);
+    break;
+  default:
+    select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
+  }
 
   if (join->optimize())
     goto err;

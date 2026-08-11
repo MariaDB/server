@@ -55,6 +55,20 @@ public:
 
 
 /*
+  The query type a statement is printed back with before it is sent to the
+  remote server. QT_SELECT_ONLY makes SELECT_LEX::print() print only the
+  SELECT part of a statement, so it is set for a select and cleared for a
+  whole UPDATE/DELETE.
+*/
+static constexpr auto FEDERATEDX_PRINT_QUERY_TYPE=
+    enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
+                    QT_ITEM_ORIGINAL_FUNC_NULLIF | QT_PARSABLE);
+
+static constexpr auto FEDERATEDX_PRINT_UPD_DEL_QUERY_TYPE=
+    enum_query_type(FEDERATEDX_PRINT_QUERY_TYPE & ~QT_SELECT_ONLY);
+
+
+/*
   Implementation class of the select_handler interface for FEDERATEDX:
   class declaration
 */
@@ -72,7 +86,26 @@ public:
   int end_scan() override;
 
 private:
-  static constexpr auto PRINT_QUERY_TYPE=
-      enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
-                      QT_ITEM_ORIGINAL_FUNC_NULLIF | QT_PARSABLE);
+  static constexpr auto PRINT_QUERY_TYPE= FEDERATEDX_PRINT_QUERY_TYPE;
 };
+
+
+/*
+  Implementation class of the multi_upddel_handler interface for FEDERATEDX:
+  class declaration
+
+  The whole multi-table UPDATE/DELETE is printed back and executed by the
+  remote server with a single query, see batch_update_delete()
+*/
+
+class ha_federatedx_multi_upddel_handler: public multi_upddel_handler,
+                                          public federatedx_handler_base
+{
+public:
+  ha_federatedx_multi_upddel_handler(THD *thd_arg, SELECT_LEX *sel_lex,
+                                     TABLE *tbl);
+
+  int batch_update_delete(ha_rows *found_rows,
+                          ha_rows *affected_rows) override;
+};
+

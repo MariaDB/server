@@ -106,6 +106,22 @@ public:
     @retval TRUE      error, an error message is set
   */
   virtual bool check_simple_select() const;
+  /*
+    A multi-table UPDATE/DELETE was performed by the storage engine itself,
+    see select_handler_type::UPDATE_DELETE. Tell the result object how many
+    rows matched the WHERE clause and how many rows were really changed, so
+    that the following send_eof() reports them instead of running the
+    SQL-layer update/delete loop.
+    Only multi_update and multi_delete can receive this call; any other result
+    object returns true so that the caller reports an error instead of
+    silently losing the row counts.
+
+    @retval false    the counts were accepted
+    @retval true     this result object cannot perform a pushed down DML
+  */
+  virtual bool direct_update_delete_done(ha_rows found_rows,
+                                         ha_rows affected_rows)
+  { DBUG_ASSERT(0); return true; }
   virtual void abort_result_set() {}
   virtual void reset_for_next_ps_execution();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
