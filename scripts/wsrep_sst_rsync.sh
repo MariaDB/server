@@ -171,11 +171,51 @@ check_pid_and_port()
     check_pid "$pid_file" && [ "$CHECK_PID" -eq "$pid" ]
 }
 
+# Flushes the filesystems that hold the files to be transferred.
+# A bare 'sync' flushes every mounted filesystem on the host and can
+# block for minutes on I/O unrelated to the SST, while the donor holds
+# the global read lock. 'sync -f' is limited to a single filesystem,
+# but it is not available on every platform.
+sync_filesystems()
+{
+    local data_fs binlog_fs dir
+
+    # The data directory itself may be a symlink. Resolve it to the
+    # physical path.
+    data_fs=$(cd -P "$DATA" 2>/dev/null && pwd) || data_fs="$DATA_DIR"
+
+    if ! sync -f "$data_fs" 2>/dev/null; then
+        sync
+        return
+    fi
+
+    # Binlogs may reside on another filesystem. A relative binlog path
+    # is under the data directory, so it is already covered.
+    case "$binlog_dir" in
+    /*)
+        binlog_fs=$(cd -P "$binlog_dir" 2>/dev/null && pwd) || binlog_fs=""
+        if [ -n "$binlog_fs" ] && [ "$binlog_fs" != "$data_fs" ]; then
+            sync -f "$binlog_fs" || :
+        fi
+        ;;
+    esac
+
+    # Database directories may be symlinks to other filesystems.
+    # The transfer follows them, so flush them as well.
+    find "$data_fs" -maxdepth 1 -mindepth 1 -type l | \
+    while read -r dir; do
+        [ -d "$dir" ] && sync -f "$dir" || :
+    done
+}
+
 get_binlog
 
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
     binlog_base=$(basename "$WSREP_SST_OPT_BINLOG")
+else
+    binlog_dir=""
+    binlog_base=""
 fi
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
@@ -372,7 +412,7 @@ EOF
         STATE=$(cat "$FLUSHED")
         rm "$FLUSHED"
 
-        sync
+        sync_filesystems
 
         wsrep_log_info "Tables flushed"
 
