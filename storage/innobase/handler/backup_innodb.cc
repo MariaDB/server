@@ -343,11 +343,10 @@ class InnoDB_backup
   /** the original innodb_log_file_size, or 0 */
   uint64_t old_size;
 
-  /** collection of files and sizes to be copied */
+  /** collection of files and sizes, followed by any log files to be copied */
   std::vector<uint64_t> queue;
-  /** collection of completed log archive files to be
-  hard-linked, copied, or moved */
-  std::vector<lsn_t> logs;
+  /** number of non-log files at the start of the queue */
+  size_t non_log;
 
 public:
   /**
@@ -360,14 +359,11 @@ public:
   {
     log_sys.latch.wr_lock();
     ut_ad(!ctx);
-    ut_ad(queue.empty());
-    if (!logs.empty())
-    {
+    ut_ad(!non_log);
+    if (!queue.empty())
       /* A new BACKUP SERVER is being invoked before a previous one
       had been fully finalized. Clean up any log files. */
       delete_logs();
-      logs.clear();
-    }
 
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
@@ -421,6 +417,7 @@ public:
           queue.emplace_back(s);
         } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
       mysql_mutex_unlock(&fil_system.mutex);
+      non_log= queue.size();
     }
     catch (std::bad_alloc&) {
       queue.clear();
@@ -449,7 +446,6 @@ public:
            const backup_sink &sink) noexcept
   {
     uint64_t id_limit{0};
-    lsn_t lsn{0};
     log_sys.latch.wr_lock();
     const lsn_t first{log_sys.get_first_lsn()};
     ut_ad(sink.ha_data);
@@ -457,35 +453,32 @@ public:
           : phase == BACKUP_PHASE_FINISH || phase == BACKUP_PHASE_NO_COMMIT);
     ut_ad(static_cast<context*>(sink.ha_data)->last_lsn == LSN_MAX
           ? phase == BACKUP_PHASE_START : !ctx);
-    size_t size{queue.size()};
-    ut_ad(!size || phase == BACKUP_PHASE_START);
-    if (!logs.empty())
+    const size_t size{queue.size()};
+    ut_ad(size >= non_log);
+
+    if (UNIV_UNLIKELY(!size))
     {
-      lsn= logs.back();
-      logs.pop_back();
-      if (!size)
-        size= logs.size();
+      log_sys.latch.wr_unlock();
+      return 0;
     }
-    else if (size)
-    {
-      ut_ad(phase == BACKUP_PHASE_START);
-      size--;
-      id_limit= queue.back();
-      queue.pop_back();
-    }
+
+    const size_t non_log_files{non_log};
+    non_log-= size == non_log_files;
+    id_limit= queue.back();
+    queue.pop_back();
     log_sys.latch.wr_unlock();
 
-    if (lsn)
+    if (size > non_log_files)
     {
-      if (UNIV_UNLIKELY(lsn > first))
+      if (UNIV_UNLIKELY(id_limit > first))
         /* Wait for checkpoint_complete(). */
-        buf_flush_sync_batch(lsn, true);
-      if (replicate(lsn, target, sink, lsn < first))
+        buf_flush_sync_batch(id_limit, true);
+      if (replicate(id_limit, target, sink, id_limit < first))
         return -1;
     }
-    else if (!id_limit);
     else if (fil_space_t *space= fil_space_t::get(uint32_t(id_limit)))
     {
+      ut_ad(phase == BACKUP_PHASE_START);
       int res= -1;
       uint32_t start{0}, limit{uint32_t(id_limit >> 32)};
 #ifdef _WIN32
@@ -573,8 +566,7 @@ public:
         return res;
     }
 
-    size= std::min(size_t{std::numeric_limits<int>::max()}, size);
-    return int(size);
+    return int(std::min(size_t{std::numeric_limits<int>::max()}, size - 1));
   }
 
   /**
@@ -583,18 +575,18 @@ public:
   void commit() noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(queue.empty());
+    ut_ad(!non_log);
     ut_ad(ctx);
     ut_ad(ctx->last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
     lsn_t lsn{log_sys.get_first_lsn()};
-    if (logs.empty() || logs.back() != lsn)
+    if (queue.empty() || queue.back() != lsn)
     {
       /* Schedule the remaining log for copying */
-      logs.emplace_back(lsn);
+      queue.emplace_back(lsn);
       const lsn_t next_lsn{lsn + log_sys.capacity()};
       if (next_lsn < last_lsn)
-        logs.emplace_back(lsn= next_lsn);
+        queue.emplace_back(lsn= next_lsn);
     }
     ctx->max_first_lsn= lsn;
     ctx->last_lsn= last_lsn;
@@ -624,17 +616,18 @@ public:
     this->ctx= nullptr; /* fini() will delete the object */
     ut_ad(!log_sys.resize_in_progress());
     ut_ad(log_sys.archive);
-    queue.clear();
     int fail{0};
     if (!old_size)
-      logs.clear();
+    {
+      queue.clear();
+      non_log= 0;
+    }
     else
     {
       log_sys.latch.wr_unlock();
       fail= log_sys.backup_stop_archiving(thd);
       log_sys.latch.wr_lock();
       delete_logs();
-      logs.clear();
     }
 
     log_sys.backup_stop(old_size, thd);
@@ -667,7 +660,7 @@ public:
   {
     ut_ad(log_sys.latch_have_wr());
     if (ctx)
-      logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
+      queue.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
   }
 
 private:
@@ -718,10 +711,18 @@ private:
   {
     ut_ad(log_sys.latch_have_wr());
     ut_ad(old_size);
+    ut_ad(non_log <= queue.size());
+
     const lsn_t first_lsn{log_sys.get_first_lsn()};
-    for (const lsn_t lsn : logs)
+    size_t i{non_log};
+    non_log= 0;
+    while (i < queue.size())
+    {
+      const lsn_t lsn{queue[i++]};
       if (lsn != first_lsn)
         IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+    }
+    queue.clear();
   }
 
   /**
