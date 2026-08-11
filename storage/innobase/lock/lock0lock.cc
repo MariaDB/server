@@ -6628,6 +6628,7 @@ lock_clust_rec_read_check_and_lock(
 
 	trx_t *trx = thr_get_trx(thr);
 	if (lock_table_has(trx, index->table, LOCK_X)
+      || lock_table_has(trx, index->table, LOCK_S)
 	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
 	} else if (lock_rec_convert_impl_to_expl<true>(trx, *block, rec, index,
 						       offsets) == trx
