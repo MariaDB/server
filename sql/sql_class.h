@@ -7926,6 +7926,8 @@ class multi_delete :public select_result_interceptor
      so that afterward abort_result_set() needs to find out that.
   */
   bool error_handled;
+  /* True if the engine has performed the whole DELETE, see select_handler */
+  bool direct_dml_done;
 
 public:
   // Methods used by ColumnStore
@@ -7943,6 +7945,8 @@ public:
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof() override;
   inline ha_rows num_deleted() const { return deleted; }
+  void direct_update_delete_done(ha_rows found_rows,
+                                 ha_rows affected_rows) override;
   void abort_result_set() override;
   void prepare_to_read_rows() override;
 };
@@ -7977,7 +7981,9 @@ class multi_update :public select_result_interceptor
      so that afterward  abort_result_set() needs to find out that.
   */
   bool error_handled;
-  
+  /* True if the engine has performed the whole UPDATE, see select_handler */
+  bool direct_dml_done;
+
   /* Need this to protect against multiple prepare() calls */
   bool prepared;
 
@@ -8004,6 +8010,8 @@ public:
   inline ha_rows num_updated() const { return updated; }
   inline void set_found (ha_rows n) { found= n; }
   inline void set_updated (ha_rows n) { updated= n; }
+  void direct_update_delete_done(ha_rows found_rows,
+                                 ha_rows affected_rows) override;
   virtual void abort_result_set() override;
   void update_used_tables() override;
   void prepare_to_read_rows() override;

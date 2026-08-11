@@ -1,0 +1,662 @@
+#
+# Pushdown of multi-table UPDATE/DELETE into the FederatedX engine.
+#
+# There is no "primary" handler object for a multi-table UPDATE/DELETE, so
+# handler::direct_update_rows_init()/direct_delete_rows_init() cannot be used
+# for them. Instead the whole statement is pushed down through the
+# select_handler interface: create_federatedx_select_handler() builds a
+# handler of type select_handler_type::UPDATE_DELETE, which prints the whole
+# statement back and executes it on the remote server in
+# ha_federatedx_select_handler::batch_update_delete().
+#
+# The remote server's general log is used throughout to tell a pushed down
+# statement (a single statement, printed by SELECT_LEX::print(), so lowercase)
+# from the ordinary row-by-row execution (several "UPDATE ... LIMIT 1"
+# statements sent by the ha_federatedx handler methods).
+#
+--source have_federatedx.inc
+--source include/federated.inc
+--source include/no_valgrind_without_big.inc
+
+connection default;
+ALTER DATABASE federated CHARACTER SET latin1;
+set global federated_pushdown=1;
+
+connection slave;
+DROP TABLE IF EXISTS federated.t1, federated.t2, federated.t3;
+CREATE TABLE federated.t1 (a int, b varchar(16)) DEFAULT CHARSET=latin1;
+CREATE TABLE federated.t2 (a int, c varchar(16)) DEFAULT CHARSET=latin1;
+CREATE TABLE federated.t3 (a int, b int, UNIQUE KEY(b));
+SET @old_log_output= @@global.log_output;
+SET @old_general_log= @@global.general_log;
+SET global log_output='TABLE';
+
+connection master;
+DROP TABLE IF EXISTS federated.t1, federated.t2, federated.t3;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (a int, b varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (a int, c varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t3 (a int, b int, UNIQUE KEY(b))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3';
+
+USE federated;
+
+delimiter |;
+CREATE PROCEDURE fill_tables()
+BEGIN
+  DELETE FROM t1;
+  DELETE FROM t2;
+  DELETE FROM t3;
+  INSERT INTO t1 VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four');
+  INSERT INTO t2 VALUES (1,'I'),(2,'II'),(3,'III');
+  INSERT INTO t3 VALUES (1,10),(2,20),(3,30);
+END|
+delimiter ;|
+
+--echo #
+--echo # ==================================================================
+--echo # The statement the remote server receives
+--echo # ==================================================================
+--echo #
+--echo # A pushed down statement is printed back by SELECT_LEX::print() with
+--echo # QT_SELECT_ONLY cleared, which produces
+--echo #   update <join> set <assignments> where <cond>
+--echo # for an UPDATE and
+--echo #   delete from <targets> using <join> where <cond>
+--echo # for a DELETE. Both are understood by the remote server.
+--echo #
+
+connection master;
+CALL fill_tables();
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+UPDATE t1 JOIN t2 ON t1.a= t2.a SET t1.b= CONCAT(t2.c,'!') WHERE t2.a > 2;
+UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+UPDATE t1, t2 SET t1.b= 'both', t2.c= 'both' WHERE t1.a= t2.a;
+UPDATE t1, t2 SET t1.b= 'sub' WHERE t1.a= t2.a AND
+                                    t1.a IN (SELECT a FROM t2 WHERE c= 'both');
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 3;
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a;
+
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log
+  WHERE argument LIKE 'update %' OR argument LIKE 'delete %';
+
+--echo #
+--echo # ==================================================================
+--echo # Row counts reported by batch_update_delete()
+--echo # ==================================================================
+--echo #
+
+connection master;
+--echo # All matched rows are changed
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+EXPLAIN UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+ANALYZE UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+
+EXPLAIN
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE t1, cte1 SET t1.b= 'updated' WHERE t1.a= cte1.a AND t1.a < 3;
+
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE t1, cte1 SET t1.b= 'updated' WHERE t1.a= cte1.a AND t1.a < 3;
+
+SELECT * FROM t1 ORDER BY a;
+--disable_info
+
+--echo # explain plans for single table
+CALL fill_tables();
+--enable_info
+EXPLAIN SELECT * FROM t1 WHERE t1.a < 3;
+
+EXPLAIN UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+ANALYZE UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+
+SELECT * FROM t1;
+
+# A CTE is not an updatable target, this has nothing to do with the pushdown
+--error ER_NON_UPDATABLE_TABLE
+EXPLAIN
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE cte1 SET cte1.a = cte1.a * 2 ;
+
+--error ER_NON_UPDATABLE_TABLE
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE cte1 SET cte1.a = cte1.a * 2 ;
+
+SELECT * FROM t2;
+--disable_info
+
+--echo # A matched row that keeps its value is counted as matched but not as
+--echo # changed. The count comes from federatedx_io_mysql::matched_rows(),
+--echo # which parses it out of the remote server's info string
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'two' WHERE t1.a= t2.a AND t1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo # Two tables updated at once
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'upd1', t2.c= 'upd2' WHERE t1.a= t2.a;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo # No row matches
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'nope' WHERE t1.a= t2.a AND t1.a > 100;
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a > 100;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo # For a DELETE the remote server reports no matched count, so
+--echo # matched_rows() falls back to the number of deleted rows
+CALL fill_tables();
+--enable_info
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t2.c <> 'II';
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo # Two tables deleted from at once
+CALL fill_tables();
+--enable_info
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 2;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo # Aliased delete target
+CALL fill_tables();
+--enable_info
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # ==================================================================
+--echo # An error on the remote server is reported to the client
+--echo # ==================================================================
+--echo #
+--echo # The remote server executed the whole statement, so the error it
+--echo # reports is the error of this statement. Its error code and SQLSTATE
+--echo # are passed through rather than hidden behind the generic
+--echo # ER_QUERY_ON_FOREIGN_DATA_SOURCE, so the client sees the same error it
+--echo # would have seen had the statement been executed locally
+--echo #
+CALL fill_tables();
+
+--echo # A division by zero in the WHERE clause. Compare with the same error
+--echo # raised locally by a single-table UPDATE, which is never pushed down
+--echo # through the select handler
+--error ER_DIVISION_BY_ZERO
+UPDATE t1 SET t1.b= 'x' WHERE t1.a < 3/0;
+--error ER_DIVISION_BY_ZERO
+UPDATE t1, t2 SET t1.b= 'x' WHERE t1.a= t2.a AND t1.a < 3/0;
+
+--echo # A division by zero in the SET clause
+--error ER_DIVISION_BY_ZERO
+UPDATE t1, t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+
+--echo # A duplicate key
+--error ER_DUP_ENTRY
+UPDATE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+
+--echo # An error raised by a trigger of the remote server, reported for a
+--echo # DELETE the same way
+connection slave;
+CREATE TRIGGER federated.t1_bd BEFORE DELETE ON federated.t1
+  FOR EACH ROW SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT= 'deleting is not allowed here';
+
+connection master;
+--error ER_SIGNAL_EXCEPTION
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 1;
+
+connection slave;
+DROP TRIGGER federated.t1_bd;
+
+connection master;
+--echo # Nothing was modified by any of the failed statements
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+--echo #
+--echo # ==================================================================
+--echo # A warning on the remote server does not reach the client
+--echo # ==================================================================
+--echo #
+--echo # Unlike an error, a warning raised by the remote server is lost.
+--echo # batch_update_delete() reports only the two row counts to the SQL layer
+--echo # and FederatedX does not read the remote warnings, so nothing carries a
+--echo # condition of the remote statement back to the client: the statement
+--echo # succeeds, the row counts and the data are the ones the remote server
+--echo # produced, but SHOW WARNINGS is empty and the "Warnings:" of the OK
+--echo # packet stays 0 (it is thd->cuted_fields, i.e. the local count).
+--echo #
+--echo # This is not specific to the pushdown: FederatedX has no code that
+--echo # reads the diagnostics of the remote statement, so the row-by-row
+--echo # execution loses a warning of the remote server just the same, see the
+--echo # end of this section.
+--echo #
+--echo # To get warnings where the previous section got errors, the strict mode
+--echo # is turned off on the remote server, keeping ERROR_FOR_DIVISION_BY_ZERO
+--echo # (which on its own raises a warning, not an error). FederatedX caches
+--echo # its connections in FEDERATEDX_SERVER, and an open connection keeps
+--echo # the sql_mode it inherited from the remote global one when it was
+--echo # opened, so the tables have to be closed (which closes the connections
+--echo # with them) for the next statement to open a connection that runs in
+--echo # the new mode
+--echo #
+connection slave;
+SET @old_slave_sql_mode= @@global.sql_mode;
+SET global sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+
+connection master;
+SET @old_local_sql_mode= @@session.sql_mode;
+FLUSH TABLES;
+
+--echo # A division by zero in the WHERE clause: the remote server warns and
+--echo # evaluates the condition to NULL, so no row matches
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.b= 'x' WHERE t1.a= t2.a AND t1.a < 3/0;
+--enable_info
+UPDATE t1, t2 SET t1.b= 'x' WHERE t1.a= t2.a AND t1.a < 3/0;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+--echo # A division by zero in the SET clause: the remote server warns and
+--echo # stores NULL
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+--enable_info
+UPDATE t1, t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+--echo # The warnings the remote server raised are visible only there: the same
+--echo # statement executed on the remote server directly reports them. The
+--echo # session of this connection was opened before the mode was changed, so
+--echo # it is set explicitly here, the way a new connection would inherit it
+CALL fill_tables();
+
+connection slave;
+SET @old_slave_session_sql_mode= @@session.sql_mode;
+SET session sql_mode= @@global.sql_mode;
+--enable_info
+UPDATE federated.t1, federated.t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SET session sql_mode= @old_slave_session_sql_mode;
+
+connection master;
+--echo # A value too long for the column: the remote server warns and truncates
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.b= 'much too long a value' WHERE t1.a= t2.a;
+--enable_info
+UPDATE t1, t2 SET t1.b= 'much too long a value' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+--echo # A value of a wrong type: the remote server warns and stores 0
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.a= 'not a number' WHERE t1.a= t2.a;
+--enable_info
+UPDATE t1, t2 SET t1.a= 'not a number' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+--echo # A warning raised by a trigger of the remote server, for an UPDATE and
+--echo # for a DELETE. Compare with the trigger of the previous section, which
+--echo # signals SQLSTATE 45000 and whose error does reach the client
+connection slave;
+CREATE TRIGGER federated.t1_bu BEFORE UPDATE ON federated.t1
+  FOR EACH ROW SIGNAL SQLSTATE '01000'
+    SET MESSAGE_TEXT= 'updating here is deprecated';
+CREATE TRIGGER federated.t1_bd BEFORE DELETE ON federated.t1
+  FOR EACH ROW SIGNAL SQLSTATE '01000'
+    SET MESSAGE_TEXT= 'deleting here is deprecated';
+
+connection master;
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.b= 'trigger' WHERE t1.a= t2.a;
+--enable_info
+UPDATE t1, t2 SET t1.b= 'trigger' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+EXPLAIN DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a < 3;
+--enable_info
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a < 3;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+connection slave;
+DROP TRIGGER federated.t1_bu;
+DROP TRIGGER federated.t1_bd;
+
+connection master;
+--echo # A duplicate key stays an error even in a non-strict mode, it is not
+--echo # one of the errors sql_mode downgrades to a warning. Only IGNORE would
+--echo # make the remote server skip the row, and an IGNORE statement is not
+--echo # pushed down at all, see the section on the statements that stay local
+CALL fill_tables();
+--error ER_DUP_ENTRY
+UPDATE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+SELECT * FROM t3 ORDER BY a;
+
+--echo # Without the pushdown the SET expressions are evaluated by the local
+--echo # server, so the same statements are decided by the local sql_mode and
+--echo # their warnings are the local ones and are reported. A warning of the
+--echo # remote server is still not reported: the trigger below raises three of
+--echo # them and none is seen, exactly as in the pushed down case above
+connection default;
+set global federated_pushdown=0;
+
+connection master;
+SET session sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'x' WHERE t1.a= t2.a AND t1.a < 3/0;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'much too long a value' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.a= 'not a number' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+connection slave;
+CREATE TRIGGER federated.t1_bu BEFORE UPDATE ON federated.t1
+  FOR EACH ROW SIGNAL SQLSTATE '01000'
+    SET MESSAGE_TEXT= 'updating here is deprecated';
+
+connection master;
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'trigger' WHERE t1.a= t2.a;
+--disable_info
+SHOW WARNINGS;
+SELECT * FROM t1 ORDER BY a;
+
+connection slave;
+DROP TRIGGER federated.t1_bu;
+
+--echo # Restore the strict mode on both servers and reopen the connections
+SET global sql_mode= @old_slave_sql_mode;
+
+connection default;
+set global federated_pushdown=1;
+
+connection master;
+SET session sql_mode= @old_local_sql_mode;
+FLUSH TABLES;
+
+--echo #
+--echo # ==================================================================
+--echo # Inside a transaction the statement is not auto-committed by itself
+--echo # ==================================================================
+--echo #
+CALL fill_tables();
+BEGIN;
+--enable_info
+UPDATE t1, t2 SET t1.b= 'in trx' WHERE t1.a= t2.a;
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 3;
+--disable_info
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # ==================================================================
+--echo # EXPLAIN and ANALYZE report the pushdown
+--echo # ==================================================================
+--echo #
+--echo # A statement taken over by the select handler has no local query plan,
+--echo # it is reported as PUSHED UPDATE / PUSHED DELETE, the way a
+--echo # pushed down SELECT is reported as PUSHED SELECT
+--echo #
+--echo # EXPLAIN does not execute the statement
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.b= 'explained' WHERE t1.a= t2.a;
+EXPLAIN FORMAT=JSON UPDATE t1, t2 SET t1.b= 'explained' WHERE t1.a= t2.a;
+EXPLAIN DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a;
+SELECT * FROM t1 ORDER BY a;
+
+--echo # ANALYZE does execute it, and the whole statement still goes to the
+--echo # remote server in one piece
+CALL fill_tables();
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+ANALYZE UPDATE t1, t2 SET t1.b= 'analyzed' WHERE t1.a= t2.a AND t1.a= 1;
+
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+
+connection master;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # ==================================================================
+--echo # Statements that are not pushed down
+--echo # ==================================================================
+--echo #
+--echo # EXPLAIN shows the local query plan for them, so it tells a pushed
+--echo # down statement from one that is executed locally
+--echo #
+
+--echo # IGNORE is not printed by SELECT_LEX::print(), so an IGNORE statement
+--echo # is executed locally and keeps ignoring the duplicate key errors
+CALL fill_tables();
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+EXPLAIN UPDATE IGNORE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+UPDATE IGNORE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+SELECT * FROM t3 ORDER BY a;
+
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+
+--echo # A statement that mixes engines has no FederatedX-only table list
+connection master;
+CREATE TABLE t4 (a int, d varchar(16)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'x'),(2,'y');
+CALL fill_tables();
+EXPLAIN UPDATE t1, t4 SET t1.b= t4.d WHERE t1.a= t4.a;
+--enable_info
+UPDATE t1, t4 SET t1.b= t4.d WHERE t1.a= t4.a;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t4;
+
+--echo # A merged VIEW is not pushed down. get_fed_table_for_pushdown() walks
+--echo # SELECT_LEX::join->tables_list, where a merged VIEW is still present as
+--echo # its own TABLE_LIST carrying the view's internal temporary table. That
+--echo # table's handler is not FederatedX, so the check that every table
+--echo # belongs to the same FederatedX server fails and the whole statement is
+--echo # executed locally, row by row.
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM v1;
+CALL fill_tables();
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+--echo # VIEW as the UPDATE/DELETE target
+EXPLAIN UPDATE v1, t2 SET v1.b= 'view' WHERE v1.a= t2.a AND v1.a < 3;
+--enable_info
+UPDATE v1, t2 SET v1.b= 'view' WHERE v1.a= t2.a AND v1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo # VIEW only as a source, base table as the target
+EXPLAIN UPDATE t1, v1 SET t1.b= 'src' WHERE t1.a= v1.a AND v1.a= 4;
+--enable_info
+UPDATE t1, v1 SET t1.b= 'src' WHERE t1.a= v1.a AND v1.a= 4;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo # Nested VIEW as the DELETE target
+EXPLAIN DELETE v2 FROM v2, t2 WHERE v2.a= t2.a AND v2.a= 1;
+--enable_info
+DELETE v2 FROM v2, t2 WHERE v2.a= t2.a AND v2.a= 1;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+connection slave;
+SET global general_log=0;
+--echo # Row-by-row execution: several statements, not one pushed down join
+SELECT argument FROM mysql.general_log
+  WHERE argument LIKE 'UPDATE %' OR argument LIKE 'DELETE %';
+
+connection master;
+DROP VIEW v1, v2;
+
+--echo # A single-table UPDATE/DELETE does not go through the select handler
+--echo # at all, it is pushed down by direct_update_rows()/direct_delete_rows(),
+--echo # a decision taken at execution time. So its plan is the ordinary one
+CALL fill_tables();
+EXPLAIN UPDATE t1 SET b= 'single' WHERE a= 1;
+EXPLAIN DELETE FROM t1 WHERE a= 4;
+--enable_info
+UPDATE t1 SET b= 'single' WHERE a= 1;
+DELETE FROM t1 WHERE a= 4;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # ==================================================================
+--echo # Without pushdown the same statements give the same results
+--echo # ==================================================================
+--echo #
+connection default;
+set global federated_pushdown=0;
+
+connection master;
+CALL fill_tables();
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+--enable_info
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+
+connection master;
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'two' WHERE t1.a= t2.a AND t1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'upd1', t2.c= 'upd2' WHERE t1.a= t2.a;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+UPDATE t1, t2 SET t1.b= 'nope' WHERE t1.a= t2.a AND t1.a > 100;
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a > 100;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t2.c <> 'II';
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 2;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+CALL fill_tables();
+--enable_info
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+
+DROP PROCEDURE fill_tables;
+DROP TABLE federated.t1, federated.t2, federated.t3;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log= @old_general_log;
+SET global log_output= @old_log_output;
+DROP TABLE federated.t1, federated.t2, federated.t3;
+
+connection default;
+source include/federated_cleanup.inc;
+
+--echo # End of 13.2 tests
