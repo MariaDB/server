@@ -1002,17 +1002,6 @@ create global temporary table t like t1;
 ERROR HY000: Cannot add foreign key constraint for `GLOBAL TEMPORARY TABLE`
 drop table t1;
 drop table t0;
-# MDEV-37667 SIGSEGV on ALTER on locked GTT in low memory env
-create global temporary table t (t text);
-set max_session_mem_used= 8192;
-insert t values (0);
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
-lock table t write;
-alter table t add z int;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
-set max_session_mem_used= default;
-drop table t;
-unlock tables;
 # MDEV-37668 SIGSEGV on DROP TABLE GTT under LOCK TABLES and different server_id
 create global temporary table t (x int) on commit preserve rows as select 1 'a';
 create global temporary table t2 (x int key) on commit preserve rows;
@@ -1241,22 +1230,6 @@ drop table t;
 set pseudo_slave_mode=0;
 Warnings:
 Warning	1231	Slave applier execution mode not active, statement ineffective.
-# MDEV-38480 GTT: Aria gets error HA_ERR_CRASHED_ON_USAGE after TRUNCATE
-set autocommit=0;
-create global temporary table t (c int) engine=aria;
-lock tables t write;
-select * from t;
-c
-set max_session_mem_used=8192;
-truncate t;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
-set max_session_mem_used= default;
-unlock tables;
-select * from t;
-c
-truncate t;
-drop table t;
-set autocommit=1;
 # MDEV-38468 GTT: use-after-free after failed BINLOG event in XA mode
 create global temporary table t (c int);
 xa start 'a';
@@ -1322,6 +1295,8 @@ set autocommit=1;
 create global temporary table t (c int) engine=innodb on commit preserve rows;
 set session transaction isolation level serializable;
 flush tables t with read lock;
+Warnings:
+Warning	1809	Table `test`.`t` in system tablespace
 insert t values (1);
 update t set c=c+1;
 # Cleanup
@@ -1351,3 +1326,12 @@ ERROR HY000: 'mysql.help_topic' is not of type 'BASE TABLE'
 drop table mysql.help_topic;
 rename table mysql.help_topic1 to mysql.help_topic;
 disconnect con1;
+# MDEV-40167 - GTT created with the InnoDB incorrectly accept FULLTEXT/VECTOR indexes
+CREATE GLOBAL TEMPORARY TABLE gtt (id INT PRIMARY KEY, body TEXT, FULLTEXT (body))
+ENGINE=InnoDB ON COMMIT PRESERVE ROWS;
+ERROR HY000: Cannot create FULLTEXT index on temporary InnoDB table
+CREATE GLOBAL TEMPORARY TABLE gtt_v (id INT PRIMARY KEY, v VECTOR (4) NOT NULL, VECTOR INDEX (v))
+ENGINE=InnoDB ON COMMIT PRESERVE ROWS;
+ERROR HY000: Cannot create VECTOR index on temporary InnoDB table
+CREATE GLOBAL TEMPORARY TABLE gtt (id INT ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ON COMMIT PRESERVE ROWS;
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.

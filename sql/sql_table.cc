@@ -3778,7 +3778,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "VECTOR");
           DBUG_RETURN(TRUE);
         }
-        if (create_info->tmp_table())
+        if (create_info->tmp_table() || create_info->global_tmp_table())
         {
           my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0), "VECTOR",
                    file->table_type());
