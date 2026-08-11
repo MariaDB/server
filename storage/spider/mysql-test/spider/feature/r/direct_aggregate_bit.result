@@ -40,6 +40,13 @@ FFFFFFFF	00000000	FFF0F0F0
 SELECT BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int) FROM t1_s;
 BIT_OR(val_int)	BIT_AND(val_int)	BIT_XOR(val_int)
 18446744069414584575	0	18446744069414584575
+# Note: the ER_TRUNCATED_WRONG_VALUE warning path in
+# spd_db_conn.cc fires when a remote Spider node returns
+# non-numeric data for an integer aggregate. This is a
+# defensive path that cannot be triggered via normal SQL
+# since Spider always returns valid numeric strings for
+# BIT_AND/OR/XOR results. It is covered by the no_direct_agg
+# combination which exercises the local non-pushdown path.
 # GROUP BY - triggers reset_field/update_field direct paths
 CREATE TABLE t2 (
 id INT PRIMARY KEY,
