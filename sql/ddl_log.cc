@@ -630,6 +630,7 @@ static LEX_CSTRING get_string(uchar **pos, const uchar *end)
 static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
 {
   uchar *file_entry_buf= global_ddl_log.file_entry_buf, *pos, *end;
+  rpl_group_info *rgi;
 
   mysql_mutex_assert_owner(&LOCK_gdl);
 
@@ -639,8 +640,18 @@ static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
   int4store(file_entry_buf+DDL_LOG_NEXT_ENTRY_POS, ddl_log_entry->next_entry);
   int2store(file_entry_buf+DDL_LOG_FLAG_POS, ddl_log_entry->flags);
   int8store(file_entry_buf+DDL_LOG_XID_POS,  ddl_log_entry->xid);
-  /* Slave pos is not yet known */
-  bzero(file_entry_buf+DDL_LOG_SLAVE_POS,  24);
+  if ((rgi= current_thd->rgi_slave) != nullptr)
+  {
+    int4store(file_entry_buf+DDL_LOG_SLAVE_POS, rgi->current_gtid.domain_id);
+    int4store(file_entry_buf+DDL_LOG_SLAVE_POS+4, rgi->current_gtid.server_id);
+    int8store(file_entry_buf+DDL_LOG_SLAVE_POS+8, rgi->current_gtid.seq_no);
+    int8store(file_entry_buf+DDL_LOG_SLAVE_POS+16, rgi->gtid_sub_id);
+  }
+  else
+  {
+    /* Slave pos is not yet known */
+    bzero(file_entry_buf+DDL_LOG_SLAVE_POS,  24);
+  }
   memcpy(file_entry_buf+DDL_LOG_UUID_POS,   ddl_log_entry->uuid, MY_UUID_SIZE);
   int8store(file_entry_buf+DDL_LOG_ID_POS,  ddl_log_entry->unique_id);
   bzero(file_entry_buf+DDL_LOG_END_POS,
@@ -2703,6 +2714,7 @@ bool ddl_log_write_execute_entry(uint first_entry,
 {
   uchar *file_entry_buf= global_ddl_log.file_entry_buf;
   bool got_free_entry= 0;
+  rpl_group_info *rgi;
   DBUG_ENTER("ddl_log_write_execute_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
@@ -2716,6 +2728,14 @@ bool ddl_log_write_execute_entry(uint first_entry,
   file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (uchar)DDL_LOG_EXECUTE_CODE;
   int4store(file_entry_buf + DDL_LOG_NEXT_ENTRY_POS, first_entry);
   int8store(file_entry_buf + DDL_LOG_ID_POS, ((ulonglong)cond_entry << DDL_LOG_RETRY_BITS));
+
+  if ((rgi= current_thd->rgi_slave) != nullptr)
+  {
+    int4store(file_entry_buf+DDL_LOG_SLAVE_POS, rgi->current_gtid.domain_id);
+    int4store(file_entry_buf+DDL_LOG_SLAVE_POS+4, rgi->current_gtid.server_id);
+    int8store(file_entry_buf+DDL_LOG_SLAVE_POS+8, rgi->current_gtid.seq_no);
+    int8store(file_entry_buf+DDL_LOG_SLAVE_POS+16, rgi->gtid_sub_id);
+  }
 
   if (!(*active_entry))
   {
