@@ -1,0 +1,649 @@
+#enable optimizer_record_context
+set optimizer_record_context=ON;
+create database db1;
+use db1;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+);
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+create table t2 (
+a int,
+index t2_idx_a (a)
+);
+insert into t2 select seq%6 from seq_1_to_30;
+create view view1 as (
+select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a and t1.a = 5
+);
+# analyze all the tables
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t2	analyze	status	Engine-independent statistics collected
+db1.t2	analyze	status	Table is already up to date
+#
+# simple query using one table
+#
+select count(*) from t1;
+count(*)
+20
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	20	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+#
+# simple query using join of two tables
+#
+select count(*) from t1, t2 where t1.a = t2.a;
+count(*)
+100
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+#
+# negative test
+# simple query using join of two tables
+# there should be no result
+#
+set optimizer_record_context=OFF;
+select count(*) from t1, t2 where t1.a = t2.a;
+count(*)
+100
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+set optimizer_record_context=ON;
+#
+# there should be no duplicate information
+#
+select * from view1 union select * from view1;
+a	b	c
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
+t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
+t1_idx_a	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_ab	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_a	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_ab	["(5) <= (a) <= (5)"]	1	1	1
+# == End of optimizer context
+#
+# test for update
+#
+update t1 set t1.b = t1.a;
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	20	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+#
+# test for insert as select
+#
+insert into t1 (select t2.a as a, t2.a as b from t2);
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+#
+# range analysis tests
+#
+#
+# simple query with or condition on 2 columns
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_b	["(6) <= (b) <= (10)"]	1	1	1
+# == End of optimizer context
+#
+# simple query with or condition on the same column
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	t1_idx_a,t1_idx_ab	t1_idx_ab	5	NULL	36	35.00	100.00	100.00	Using where; Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	[
+                "(1) <= (a) <= (5)",
+                "(6) <= (a) <= (10)"
+            ]	36	2	1
+t1_idx_ab	[
+                "(1) <= (a) <= (5)",
+                "(6) <= (a) <= (10)"
+            ]	36	2	1
+# == End of optimizer context
+#
+# negative test on the simple query with or condition on 2 columns
+#
+set optimizer_record_context=OFF;
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+set optimizer_record_context=ON;
+#
+# simple query with or condition on 2 columns
+# testing all the stats information
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_b	["(6) <= (b) <= (10)"]	1	1	1
+# == End of optimizer context
+drop view view1;
+drop table t1;
+drop table t2;
+#
+# union query with const tables
+# testing the INSERT statements
+#
+set optimizer_record_context=OFF;
+create table t1 (a int not null auto_increment,
+b int,
+primary key (a)
+);
+insert into t1 select seq, seq%5 from seq_1_to_20;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1.a=4 and t1.b=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+2	UNION	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+set @const_table_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
+        )
+from information_schema.optimizer_context
+);
+select @const_table_inserts;
+@const_table_inserts
+REPLACE INTO db1.t1(a, b) VALUES (5, 0);
+
+SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
+REPLACE INTO db1.t1(a, b) VALUES (4, 4);
+
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '1', '20', 0.0000, 4.0000, 1.0000, NULL, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '4', 0.0000, 4.0000, 4.0000, 5, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.2,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.2,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "size": 0.2,\n      "ndv": 1\n    },\n    {\n      "start": "3",\n      "size": 0.2,\n      "ndv": 1\n    },\n    {\n      "start": "4",\n      "end": "4",\n      "size": 0.2,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'PRIMARY', 1, 1.0000);
+
+
+drop table t1;
+#
+# Single table with a unique index containing few columns.
+# query with const tables and
+# testing the INSERT statements
+#
+set optimizer_record_context=OFF;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+analyze select * from t1 where t1.a=1 and t1.b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	const	idx_ab	idx_ab	10	const,const	1	NULL	100.00	NULL	
+set @const_table_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+select @const_table_inserts;
+@const_table_inserts
+REPLACE INTO db1.t1(a, b, c) VALUES (1, 1, 1);
+
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "3",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "4",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "5",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "6",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "7",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "8",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "9",\n      "end": "9",\n      "size": 0.1,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.3,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.35,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "end": "2",\n      "size": 0.35,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.5,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "end": "1",\n      "size": 0.5,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+drop table t1;
+#
+# test whether eits stats are stored in the context
+# use_stat_tables is changed several times
+#
+set optimizer_record_context=OFF;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+set session use_stat_tables='COMPLEMENTARY_FOR_QUERIES';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# shouldn't have insert statements
+select @stats_inserts;
+@stats_inserts
+
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# Now, should have insert statements
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "3",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "4",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "5",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "6",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "7",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "8",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "9",\n      "end": "9",\n      "size": 0.1,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.3,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.35,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "end": "2",\n      "size": 0.35,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.5,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "end": "1",\n      "size": 0.5,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+truncate table t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+0
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 0);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, NULL);
+
+
+set optimizer_record_context=OFF;
+drop table t1;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+set session use_stat_tables='PREFERABLY_FOR_QUERIES';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# shouldn't have insert statements
+select @stats_inserts;
+@stats_inserts
+
+set session use_stat_tables='PREFERABLY';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# Now, should have insert statements
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "3",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "4",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "5",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "6",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "7",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "8",\n      "size": 0.1,\n      "ndv": 1\n    },\n    {\n      "start": "9",\n      "end": "9",\n      "size": 0.1,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.3,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "size": 0.35,\n      "ndv": 1\n    },\n    {\n      "start": "2",\n      "end": "2",\n      "size": 0.35,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{\n  "target_histogram_size": 254,\n  "collected_at": "REPLACED",\n  "collected_by": "REPLACED",\n  "histogram_hb": [\n    {\n      "start": "0",\n      "size": 0.5,\n      "ndv": 1\n    },\n    {\n      "start": "1",\n      "end": "1",\n      "size": 0.5,\n      "ndv": 1\n    }\n  ]\n}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+truncate table t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+0
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+# Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 0);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, NULL);
+
+
+drop table t1;
+#
+# join query with const tables and
+# testing the INSERT statements
+#
+set session use_stat_tables='COMPLEMENTARY_FOR_QUERIES';
+set optimizer_record_context=OFF;
+create table t0 (a int primary key, b varchar(100));
+create table t1 (a int);
+insert into t0 values (1, 'aaa\'bbb');
+insert into t1 values (1),(2);
+analyze table t0;
+Table	Op	Msg_type	Msg_text
+db1.t0	analyze	status	OK
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+explain select * from t0, t1 where t0.a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+set @const_table_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+from information_schema.optimizer_context
+);
+select @const_table_inserts;
+@const_table_inserts
+REPLACE INTO db1.t0(a, b) VALUES (1, 'aaa\'bbb');
+
+
+drop table t1;
+drop table t0;
+drop database db1;
+use test;
+#
+#  Check that Optimizer Context recording in sub-statements doesnt assert
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b int);
+insert into t2 values (3,3),(4,4),(5,5);
+create function func(i int) returns int
+begin
+select max(a) into @tmp from t1 where a <=i;
+return @tmp;
+end ||
+set optimizer_record_context=1;
+select * from t2 where b >= func(a);
+a	b
+3	3
+4	4
+5	5
+drop function func;
+drop table t1,t2;
+#
+# Another testcase with sub-statements inside a PROCEDURE
+#
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t2 LIKE t1;
+CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t1 WHERE f1 IN (SELECT f1 FROM t2); END|
+SET optimizer_record_context=1;
+CALL p1;
+f1
+ALTER TABLE t2 CHANGE COLUMN f1 my_column INT;
+CALL p1;
+f1
+DROP PROCEDURE p1;
+DROP TABLE t1,t2;
+#
+# MDEV-39438: Empty optimizer_context with use_stat_tables=PREFERABLY
+# and a stored procedure in the query
+#
+set @saved_use_stat_tables=@@use_stat_tables;
+SET use_stat_tables = 'PREFERABLY';
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create function add1(i int) returns int deterministic
+return i+1;
+set optimizer_record_context=1;
+explain select * from t1 where b < add1(3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	3	a	["1"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+drop function add1;
+DROP TABLE t1;
+set session use_stat_tables=@saved_use_stat_tables;
+#
+# MDEV-39433: Crash when selecting from a sequence with optimizer_record_context enabled
+#
+set optimizer_record_context=ON;
+create sequence s1;
+EXPLAIN select * from s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s1	system	NULL	NULL	NULL	NULL	1	
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+drop table s1;
+#
+# MDEV-40388: sequence.simple fails on replay
+# Table context should *not* be recorded for seq
+#
+set optimizer_record_context=ON;
+explain select * from seq_1_to_10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10	index	NULL	PRIMARY	8	NULL	10	Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+explain select * from seq_1_to_15_step_2 where seq = 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	const	PRIMARY	PRIMARY	8	const	1	Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+#
+# partitioned table test
+# context result should have stats for this table
+#
+create table t1 (
+pk int primary key,
+a int,
+key (a)
+)
+engine=myisam
+partition by range(pk) (
+partition p0 values less than (10),
+partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+explain
+select * from t1 partition (p1) where a=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	49	
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	4991	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+a	["(10) <= (a) <= (10)"]	49	1	11
+# == End of optimizer context
+drop table t1;
+# End of 13.1 tests

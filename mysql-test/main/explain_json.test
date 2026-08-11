@@ -141,6 +141,8 @@ select * from t1 where a in (select max(a) from t1 group by b);
 create table t2 like t1;
 insert into t2 select * from t1;
 --source include/explain-no-costs.inc
+
+--disable_replay next_query Will try to create table for sequence engine
 explain format=json
 select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 

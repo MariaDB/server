@@ -3504,6 +3504,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (c1)
 );
 
+--disable_replay next_query Need to preserve warnings
 EXPLAIN EXTENDED 
 SELECT  join_2.c1  
 FROM 
@@ -4144,6 +4145,7 @@ SET @cnt := 0;
 SELECT * FROM t1 WHERE a = f1();
 --enable_ps2_protocol
 SELECT @cnt;
+--disable_replay next_query Don't support SPs
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = f1();
 DROP TABLE t1, t2;
 DROP FUNCTION f1;

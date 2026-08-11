@@ -1,0 +1,473 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_partition.inc
+--echo #enable optimizer_record_context
+
+--disable_replay testfile Don't replay a replay test
+
+set optimizer_record_context=ON;
+
+create database db1;
+use db1;
+
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+);
+
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+
+create table t2 (
+    a int,
+    index t2_idx_a (a)
+);
+insert into t2 select seq%6 from seq_1_to_30;
+
+create view view1 as (
+    select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a and t1.a = 5
+);
+
+--echo # analyze all the tables
+
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+
+--echo #
+--echo # simple query using one table
+--echo #
+select count(*) from t1;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # simple query using join of two tables
+--echo #
+select count(*) from t1, t2 where t1.a = t2.a;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # negative test
+--echo # simple query using join of two tables
+--echo # there should be no result
+--echo #
+set optimizer_record_context=OFF;
+select count(*) from t1, t2 where t1.a = t2.a;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+set optimizer_record_context=ON;
+
+--echo #
+--echo # there should be no duplicate information
+--echo #
+select * from view1 union select * from view1;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # test for update
+--echo #
+update t1 set t1.b = t1.a;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # test for insert as select
+--echo #
+insert into t1 (select t2.a as a, t2.a as b from t2);
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+analyze table t1 persistent for all;
+
+--echo #
+--echo # range analysis tests
+--echo #
+
+--echo #
+--echo # simple query with or condition on 2 columns
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # simple query with or condition on the same column
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # negative test on the simple query with or condition on 2 columns
+--echo #
+set optimizer_record_context=OFF;
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+set optimizer_record_context=ON;
+
+--echo #
+--echo # simple query with or condition on 2 columns
+--echo # testing all the stats information
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+drop view view1;
+drop table t1;
+drop table t2;
+
+--echo #
+--echo # union query with const tables
+--echo # testing the INSERT statements
+--echo #
+set optimizer_record_context=OFF;
+
+create table t1 (a int not null auto_increment,
+                 b int,
+                 primary key (a)
+);
+
+insert into t1 select seq, seq%5 from seq_1_to_20;
+
+analyze table t1 persistent for all;
+
+set optimizer_record_context=ON;
+
+analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1.a=4 and t1.b=4;
+
+set @const_table_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
+        )
+        from information_schema.optimizer_context
+    );
+
+--source include/histogram_replaces.inc
+select @const_table_inserts;
+
+drop table t1;
+
+--echo #
+--echo # Single table with a unique index containing few columns.
+--echo # query with const tables and
+--echo # testing the INSERT statements
+--echo #
+set optimizer_record_context=OFF;
+
+create table t1 (
+    a int,
+    b int,
+    c int,
+    unique index idx_ab(a, b)
+);
+
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+
+analyze table t1 persistent for all;
+
+set optimizer_record_context=ON;
+
+analyze select * from t1 where t1.a=1 and t1.b=1;
+
+set @const_table_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--source include/histogram_replaces.inc
+select @const_table_inserts;
+
+drop table t1;
+
+--echo #
+--echo # test whether eits stats are stored in the context
+--echo # use_stat_tables is changed several times
+--echo #
+set optimizer_record_context=OFF;
+
+create table t1 (
+    a int,
+    b int,
+    c int,
+    unique index idx_ab(a, b)
+);
+
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+
+set session use_stat_tables='COMPLEMENTARY_FOR_QUERIES';
+
+analyze table t1;
+
+set optimizer_record_context=ON;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # shouldn't have insert statements
+select @stats_inserts;
+
+set session use_stat_tables='COMPLEMENTARY';
+
+analyze table t1;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # Now, should have insert statements
+--source include/histogram_replaces.inc
+select @stats_inserts;
+
+truncate table t1;
+analyze table t1;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+
+set optimizer_record_context=OFF;
+
+drop table t1;
+
+create table t1 (
+    a int,
+    b int,
+    c int,
+    unique index idx_ab(a, b)
+);
+
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+
+set session use_stat_tables='PREFERABLY_FOR_QUERIES';
+
+analyze table t1;
+
+set optimizer_record_context=ON;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # shouldn't have insert statements
+select @stats_inserts;
+
+set session use_stat_tables='PREFERABLY';
+
+analyze table t1;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # Now, should have insert statements
+--source include/histogram_replaces.inc
+select @stats_inserts;
+
+truncate table t1;
+analyze table t1;
+
+select count(*) from t1;
+
+set @stats_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+--echo # Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+
+drop table t1;
+
+--echo #
+--echo # join query with const tables and
+--echo # testing the INSERT statements
+--echo #
+set session use_stat_tables='COMPLEMENTARY_FOR_QUERIES';
+set optimizer_record_context=OFF;
+
+create table t0 (a int primary key, b varchar(100));
+create table t1 (a int);
+
+insert into t0 values (1, 'aaa\'bbb');
+insert into t1 values (1),(2);
+
+analyze table t0;
+analyze table t1;
+
+set optimizer_record_context=ON;
+explain select * from t0, t1 where t0.a=1;
+
+set @const_table_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+        )
+        from information_schema.optimizer_context
+    );
+
+select @const_table_inserts;
+
+drop table t1;
+drop table t0;
+
+drop database db1;
+use test;
+
+--echo #
+--echo #  Check that Optimizer Context recording in sub-statements doesnt assert
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+create table t2 (a int, b int);
+insert into t2 values (3,3),(4,4),(5,5);
+
+delimiter ||;
+create function func(i int) returns int
+begin
+  select max(a) into @tmp from t1 where a <=i;
+  return @tmp;
+end ||
+
+delimiter ;||
+set optimizer_record_context=1;
+select * from t2 where b >= func(a);
+
+drop function func;
+drop table t1,t2;
+
+--echo #
+--echo # Another testcase with sub-statements inside a PROCEDURE
+--echo #
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t2 LIKE t1;
+delimiter |;
+CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t1 WHERE f1 IN (SELECT f1 FROM t2); END|
+delimiter ;|
+SET optimizer_record_context=1;
+CALL p1;
+ALTER TABLE t2 CHANGE COLUMN f1 my_column INT;
+CALL p1; ###CRASH
+DROP PROCEDURE p1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-39438: Empty optimizer_context with use_stat_tables=PREFERABLY
+--echo # and a stored procedure in the query
+--echo #
+set @saved_use_stat_tables=@@use_stat_tables;
+SET use_stat_tables = 'PREFERABLY';
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+analyze table t1;
+
+create function add1(i int) returns int deterministic
+  return i+1;
+
+set optimizer_record_context=1;
+explain select * from t1 where b < add1(3);
+--source include/opt_context_list_tables_and_ranges.inc
+
+drop function add1;
+DROP TABLE t1;
+set session use_stat_tables=@saved_use_stat_tables;
+
+--echo #
+--echo # MDEV-39433: Crash when selecting from a sequence with optimizer_record_context enabled
+--echo #
+set optimizer_record_context=ON;
+
+create sequence s1;
+EXPLAIN select * from s1;
+
+--source include/opt_context_list_tables_and_ranges.inc
+drop table s1;
+
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo # Table context should *not* be recorded for seq
+--echo #
+set optimizer_record_context=ON;
+explain select * from seq_1_to_10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+explain select * from seq_1_to_15_step_2 where seq = 5;
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # partitioned table test
+--echo # context result should have stats for this table
+--echo #
+create table t1 (
+    pk int primary key,
+    a int,
+    key (a)
+)
+engine=myisam
+partition by range(pk) (
+    partition p0 values less than (10),
+    partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+
+explain
+select * from t1 partition (p1) where a=10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+drop table t1;
+
+--echo # End of 13.1 tests

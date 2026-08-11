@@ -1,7 +1,7 @@
 # Initialise
 source include/have_sequence.inc;
 
-
+--disable_replay testfile Dont support user variables
 --error 1054
 set @a := foo;
 set @a := connection_id() + 3;
@@ -519,6 +519,7 @@ eval select $tmp < $tmp2;
 #
 # MDEV-13897 SELECT @a := MAX(col) FROM t requires full index scan
 #
+--disable_replay next_query Will try to create table for sequence engine
 explain select @a:=max(seq) from seq_1_to_1000000;
 
 # End of 10.1 tests

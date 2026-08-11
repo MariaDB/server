@@ -1,0 +1,673 @@
+#enable optimizer_record_context
+set optimizer_trace=0;
+set optimizer_record_context=ON;
+show create table information_schema.optimizer_context;
+Table	Create Table
+OPTIMIZER_CONTEXT	CREATE TEMPORARY TABLE `OPTIMIZER_CONTEXT` (
+  `QUERY` longtext NOT NULL,
+  `CONTEXT` longblob NOT NULL
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=0
+create database db1;
+use db1;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+);
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+select count(*) from t1;
+count(*)
+20
+set @set_stmts=
+(select REGEXP_SUBSTR(context, '(SET .*)([\n\r].*)*(?=(CREATE DATABASE))')
+AS set_stmt from information_schema.optimizer_context);
+select @set_stmts;
+@set_stmts
+SET NAMES utf8mb4;
+
+SET GLOBAL MyISAM.OPTIMIZER_DISK_READ_COST=10.24;
+SET GLOBAL MyISAM.OPTIMIZER_INDEX_BLOCK_COPY_COST=0.0356;
+SET GLOBAL MyISAM.OPTIMIZER_KEY_COMPARE_COST=0.011361;
+SET GLOBAL MyISAM.OPTIMIZER_KEY_COPY_COST=0.015685;
+SET GLOBAL MyISAM.OPTIMIZER_KEY_LOOKUP_COST=0.550142;
+SET GLOBAL MyISAM.OPTIMIZER_KEY_NEXT_FIND_COST=0.090585;
+SET GLOBAL MyISAM.OPTIMIZER_DISK_READ_RATIO=0.02;
+SET GLOBAL MyISAM.OPTIMIZER_ROW_COPY_COST=0.060866;
+SET GLOBAL MyISAM.OPTIMIZER_ROW_LOOKUP_COST=1.014818;
+SET GLOBAL MyISAM.OPTIMIZER_ROW_NEXT_FIND_COST=0.063539;
+SET GLOBAL MyISAM.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
+SET GLOBAL MyISAM.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET GLOBAL heap.OPTIMIZER_DISK_READ_COST=0;
+SET GLOBAL heap.OPTIMIZER_INDEX_BLOCK_COPY_COST=0;
+SET GLOBAL heap.OPTIMIZER_KEY_COMPARE_COST=0.011361;
+SET GLOBAL heap.OPTIMIZER_KEY_COPY_COST=0;
+SET GLOBAL heap.OPTIMIZER_KEY_LOOKUP_COST=0;
+SET GLOBAL heap.OPTIMIZER_KEY_NEXT_FIND_COST=0;
+SET GLOBAL heap.OPTIMIZER_DISK_READ_RATIO=0;
+SET GLOBAL heap.OPTIMIZER_ROW_COPY_COST=0.002334;
+SET GLOBAL heap.OPTIMIZER_ROW_LOOKUP_COST=0;
+SET GLOBAL heap.OPTIMIZER_ROW_NEXT_FIND_COST=0.0080166;
+SET GLOBAL heap.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
+SET GLOBAL heap.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET GLOBAL temp_table.OPTIMIZER_DISK_READ_COST=10.24;
+SET GLOBAL temp_table.OPTIMIZER_INDEX_BLOCK_COPY_COST=0.0356;
+SET GLOBAL temp_table.OPTIMIZER_KEY_COMPARE_COST=0.011361;
+SET GLOBAL temp_table.OPTIMIZER_KEY_COPY_COST=0.015685;
+SET GLOBAL temp_table.OPTIMIZER_KEY_LOOKUP_COST=0.435777;
+SET GLOBAL temp_table.OPTIMIZER_KEY_NEXT_FIND_COST=0.082347;
+SET GLOBAL temp_table.OPTIMIZER_DISK_READ_RATIO=0.02;
+SET GLOBAL temp_table.OPTIMIZER_ROW_COPY_COST=0.060866;
+SET GLOBAL temp_table.OPTIMIZER_ROW_LOOKUP_COST=0.130839;
+SET GLOBAL temp_table.OPTIMIZER_ROW_NEXT_FIND_COST=0.045916;
+SET GLOBAL temp_table.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
+SET GLOBAL temp_table.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET group_concat_max_len=1048576;
+SET in_predicate_conversion_threshold=1000;
+SET join_buffer_size=262144;
+SET join_cache_level=2;
+SET max_heap_table_size=1048576;
+SET note_verbosity='basic,explain';
+SET old_mode='UTF8_IS_UTF8MB3';
+SET optimizer_adjust_secondary_key_costs=0;
+SET GLOBAL optimizer_disk_read_cost=10.240000;
+SET GLOBAL optimizer_disk_read_ratio=0.020000;
+SET optimizer_extra_pruning_depth=8;
+SET GLOBAL optimizer_index_block_copy_cost=0.035600;
+SET optimizer_join_limit_pref_ratio=0;
+SET GLOBAL optimizer_key_compare_cost=0.011361;
+SET GLOBAL optimizer_key_copy_cost=0.015685;
+SET GLOBAL optimizer_key_lookup_cost=0.435777;
+SET GLOBAL optimizer_key_next_find_cost=0.082347;
+SET optimizer_max_sel_arg_weight=32000;
+SET optimizer_max_sel_args=16000;
+SET optimizer_prune_level=2;
+SET GLOBAL optimizer_row_copy_cost=0.060866;
+SET GLOBAL optimizer_row_lookup_cost=0.130839;
+SET GLOBAL optimizer_row_next_find_cost=0.045916;
+SET GLOBAL optimizer_rowid_compare_cost=0.002653;
+SET GLOBAL optimizer_rowid_copy_cost=0.002653;
+SET optimizer_scan_setup_cost=10.000000;
+SET optimizer_search_depth=62;
+SET optimizer_selectivity_sampling_limit=100;
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
+SET optimizer_trace='enabled=off';
+SET optimizer_trace_max_mem_size=1048576;
+SET optimizer_use_condition_selectivity=4;
+SET optimizer_where_cost=0.032000;
+SET sort_buffer_size=262144;
+SET sql_buffer_result='OFF';
+SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+SET standard_compliant_cte='ON';
+SET time_zone='REPLACED';
+SET timestamp=REPLACED;
+## version='REPLACED';
+## version_source_revision='REPLACED';
+
+select count(*) from t1;
+count(*)
+20
+select context into
+dumpfile "../../tmp/dump1.sql" from information_schema.optimizer_context;
+select context into
+dumpfile "dump1.sql" from information_schema.optimizer_context;
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+drop table t1;
+Warnings:
+Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
+count(*)
+20
+set optimizer_replay_context='opt_context';
+select count(*) from t1;
+count(*)
+20
+set optimizer_replay_context=NULL;
+create table t2( a int);
+#
+# MDEV-39222: Errors shown when inserting data into a new table
+#
+insert into t2 select seq from seq_1_to_10;
+drop table t1, t2;
+#
+# MDEV-39382: Trace replay produces "Impossible WHERE noticed after reading const tables"
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select context into dumpfile "../../tmp/dump1.sql" 
+from information_schema.optimizer_context;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39435: Server crash : Assertion `table_records || !head->file->stats.records' failed
+#
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+set optimizer_record_context=ON;
+EXPLAIN SELECT * FROM t1 WHERE a IN
+((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=OFF;
+drop table t1;
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39409: Context replay doesnt handle MIN/MAX optimization
+#
+CREATE TABLE t1 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (2,20), (3,10), (1,10), (0,30), (5,10);
+set optimizer_record_context=1;
+EXPLAIN SELECT MAX(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN SELECT MAX(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39505: Explain delete all from table shows difference in number of rows
+#
+create table t1 (c1 integer);
+insert into t1 values (1), (2), (3);
+set optimizer_record_context=1;
+explain delete from t1 order by c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	3	Deleting all rows
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain delete from t1 order by c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	3	Deleting all rows
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39410: ucs2 data not stored correctly in the context
+#
+create table t1 (a varchar(5) character set ucs2 collate ucs2_bin);
+insert into t1 values (0x00410000);
+set optimizer_record_context=1;
+explain select hex(a) from t1 where a like 'A_';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain select hex(a) from t1 where a like 'A_';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39440: Failed to match the stats from replay context with the optimizer stats
+#
+create table t1 (btn char(10) not null, key using HASH (btn)) engine=heap;
+insert into t1 values ("a"),("b"),("c"),("d");
+alter table t1 add column new_col char(1) not null, add key using HASH (btn,new_col), drop key btn;
+update t1 set new_col=left(btn,1);
+set optimizer_record_context=1;
+explain select * from t1 where btn="a";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	btn	NULL	NULL	NULL	4	Using where
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain select * from t1 where btn="a";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	btn	NULL	NULL	NULL	4	Using where
+set optimizer_replay_context='';
+drop table t1;
+#
+#
+#
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+#
+# Test 1: Reading optimizer context preserves optimizer trace:
+#
+set optimizer_record_context=1, optimizer_trace=1;
+explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+1
+select trace like '%foo%' from information_schema.optimizer_trace;
+trace like '%foo%'
+1
+# 
+# Test 2: Reading optimizer trace preserves optimizer context:
+#
+explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select trace like '%foo%' from information_schema.optimizer_trace;
+trace like '%foo%'
+1
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+1
+drop table t1;
+#
+# MDEV-39791: Handle count aggregate optimization for replay purpose
+#
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+set optimizer_record_context=1;
+explain
+select count(a), count(b), count(c) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain
+select count(a), count(b), count(c) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+set optimizer_replay_context='';
+drop table t1;
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+set optimizer_record_context=1;
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39538: Different cost when same range is read twice
+#
+create table t1 (pk int primary key, a datetime, c int, key(a));
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+set optimizer_record_context=1;
+explain format=json select * from t1
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain cost:
+explain format=json select * from t1
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+set optimizer_replay_context='';
+#
+# Error for non-existent variable must show offset 0. 
+#
+set optimizer_replay_context='NO_SUCH_VARIABLE';
+explain select * from t1 where c < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	4253	Failed to parse saved optimizer context:  at offset 0.
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39360: "set statement optimizer_record_context=1 for query" isn't recording context
+#
+set optimizer_record_context=0;
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+# Here context should be recorded as it is enabled for this query statement
+set statement optimizer_record_context=1 for explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+1
+# rerun above explain query. Here context shouldn't be recorded as it was disabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+set optimizer_record_context=1;
+# Here context shouldn't be recorded as it is disabled for this query statement,
+# even though it is enabled for the session
+set statement optimizer_record_context=0 for explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+# Here context should be recorded as it was already enabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select context like '%bar%' from information_schema.optimizer_context;
+context like '%bar%'
+1
+drop table t1;
+#
+# MDEV-40388: sequence.simple fails on replay
+#
+set optimizer_record_context=0;
+create sequence s1;
+select setval(s1, 10);
+setval(s1, 10)
+10
+set optimizer_record_context=1;
+select nextval(s1) as nv;
+nv
+11
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table s1;
+set optimizer_replay_context='opt_context';
+# Get the last recorded value from the sequence; must have same output as above
+select lastval(s1) as nv;
+nv
+11
+set optimizer_replay_context='';
+drop table s1;
+#
+# MDEV-40383: innodb_gis.point_basic fails on replay
+#
+CREATE TABLE t1 (
+a INT NOT NULL,
+p POINT NOT NULL,
+l LINESTRING NOT NULL,
+g GEOMETRY NOT NULL,
+PRIMARY KEY(p),
+SPATIAL KEY `idx2` (p),
+SPATIAL KEY `idx3` (l),
+SPATIAL KEY `idx4` (g)
+);
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+INSERT INTO t1 VALUES(
+2, ST_GeomFromText('POINT(20 20)'),
+ST_GeomFromText('LINESTRING(2 3, 7 8, 9 10, 15 16)'),
+ST_GeomFromText('POLYGON((10 30, 30 40, 40 50, 40 30, 30 20, 10 30))'));
+set optimizer_record_context=1;
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	1	
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	1	
+set optimizer_replay_context='';
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
+2	POINT(20 20)	LINESTRING(2 3,7 8,9 10,15 16)	POLYGON((10 30,30 40,40 50,40 30,30 20,10 30))
+#
+# MIN/MAX recording with geometry fields in the table
+#
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+alter table t1 add index(a);
+select a from t1;
+a
+1
+2
+SELECT MIN(a) FROM t1;
+MIN(a)
+1
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+set optimizer_replay_context='';
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
+1	POINT(10 10)	LINESTRING(1 1,5 5,10 10)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
+drop table t1;
+#
+# MIN/MAX recording with a virtual column present.
+#
+CREATE TABLE t1 (
+a INT NOT NULL,
+b INT NOT NULL,
+v INT AS (a + 100) VIRTUAL,
+KEY(a)
+) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20),(3,30),(1,40);
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+set optimizer_replay_context='';
+# MIN(a) row is (1,10); the non-indexed NOT NULL column b must be
+# captured (not defaulted to 0), and v must be recomputed as a+100=101:
+SELECT a, b, v FROM t1;
+a	b	v
+1	10	101
+drop table t1;
+# End of 13.1 tests
+drop database db1;

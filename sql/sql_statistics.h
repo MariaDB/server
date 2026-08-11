@@ -101,6 +101,8 @@ enum enum_index_stat_col
   INDEX_STAT_N_FIELDS
 };
 
+bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output);
+
 inline
 Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 { 
@@ -590,7 +592,7 @@ public:
 
 /* Statistical data on an index prefixes */
 
-class Index_statistics
+class Index_statistics : public Sql_alloc
 {
 
 private:
