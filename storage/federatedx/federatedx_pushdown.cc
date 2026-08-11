@@ -15,15 +15,17 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /* !!! For inclusion into ha_federatedx.cc */
-
+/* For CR_MIN_ERROR/CR_MAX_ERROR, the error code range of the client library */
+#include <errmsg.h>
 
 /*
   This is a quick a dirty implemention of the derived_handler and select_handler
   interfaces to be used to push select queries and the queries specifying
   derived tables into FEDERATEDX engine.
   The functions
-    create_federatedx_derived_handler and
-    create_federatedx_select_handler
+    create_federatedx_derived_handler,
+    create_federatedx_select_handler, and
+    create_federatedx_multi_upddel_handler
   that return the corresponding interfaces for pushdown capabilities do
   not check a lot of things. In particular they do not check that the tables
   of the pushed queries belong to the same foreign server.
@@ -79,14 +81,45 @@ bool local_and_remote_names_mismatch(const TABLE_SHARE *tbl_share,
 
 
 /*
-  Check that all tables in the sel_lex use the FederatedX storage engine
-  and return one of them
+  Whether two FederatedX tables live on the same remote server.
+
+  The whole statement is sent to a single remote connection, so all the
+  tables it touches must be reachable through the same one. A connection is
+  identified by its scheme, host, port, socket, and user; the remote
+  database may differ from table to table (one connection can address several
+  databases), so it is not compared here.
+*/
+static bool same_remote_server(const FEDERATEDX_SHARE *a,
+                               const FEDERATEDX_SHARE *b)
+{
+  auto str_eq= [](const char *x, const char *y)
+  { return (!x || !y) ? x == y : !strcmp(x, y); };
+
+  return a->port == b->port &&
+         str_eq(a->scheme, b->scheme) &&
+         str_eq(a->hostname, b->hostname) &&
+         str_eq(a->socket, b->socket) &&
+         str_eq(a->username, b->username);
+}
+
+
+/*
+  Check that all tables in the sel_lex use the FederatedX storage engine and
+  live on the same remote server, and return one of them.
+
+  @param sel_lex    the select to check
+  @param ref_share  in/out: the share of the first FederatedX table seen so
+                    far across the whole statement, every other table is
+                    required to match its remote server. Must point to a
+                    nullptr on the top-level call.
+
   @return
     One of the tables from sel_lex
 */
-static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
+static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex,
+                                         const FEDERATEDX_SHARE **ref_share)
 {
-  TABLE *table= nullptr;
+  TABLE *pushdown_table= nullptr;
   if (!sel_lex->join)
     return nullptr;
   for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
@@ -103,6 +136,7 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
     }
 
     /*
+      Check that all tables are FederatedX tables.
       We intentionally don't support partitioned federatedx tables here, so
       use file->ht and not file->partition_ht().
     */
@@ -110,11 +144,21 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
       return nullptr;
     const FEDERATEDX_SHARE *fshare=
         ((ha_federatedx *) tbl->table->file)->get_federatedx_share();
+    /*
+      We print the local (frontend) query and run it on the remote server.
+      This only works if the table name on the remote server is the same.
+    */
     if (local_and_remote_names_mismatch(tbl->table->s, fshare))
       return nullptr;
 
-    if (!table)
-      table= tbl->table;
+    /* All the tables of the statement must be on the same remote server */
+    if (!*ref_share)
+      *ref_share= fshare;
+    else if (!same_remote_server(*ref_share, fshare))
+      return nullptr;
+
+    if (!pushdown_table)
+      pushdown_table= tbl->table;
   }
 
   for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
@@ -122,14 +166,24 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
   {
     for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
     {
-      auto inner_tbl= get_fed_table_for_pushdown(sl);
+      auto inner_tbl= get_fed_table_for_pushdown(sl, ref_share);
       if (!inner_tbl)
         return nullptr;
-      if (!table)
-        table= inner_tbl;
+      if (!pushdown_table)
+        pushdown_table= inner_tbl;
     }
   }
-  return table;
+  return pushdown_table;
+}
+
+
+/*
+  A wrapper for the top-level call, see get_fed_table_for_pushdown() above
+*/
+static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
+{
+  const FEDERATEDX_SHARE *ref_share= nullptr;
+  return get_fed_table_for_pushdown(sel_lex, &ref_share);
 }
 
 
@@ -143,10 +197,11 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
 static TABLE *get_fed_table_for_unit_pushdown(SELECT_LEX_UNIT *lex_unit)
 {
   TABLE *table= nullptr;
+  const FEDERATEDX_SHARE *ref_share= nullptr;
   for (auto sel_lex= lex_unit->first_select(); sel_lex;
        sel_lex= sel_lex->next_select())
   {
-    auto next_tbl= get_fed_table_for_pushdown(sel_lex);
+    auto next_tbl= get_fed_table_for_pushdown(sel_lex, &ref_share);
     if (!next_tbl)
       return nullptr;
     if (!table)
@@ -238,6 +293,47 @@ create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
   return new ha_federatedx_select_handler(thd, sel_lex, lex_unit, tbl);
 }
 
+
+/*
+  Create FederatedX handler for processing a whole multi-table UPDATE/DELETE
+*/
+static multi_upddel_handler *
+create_federatedx_multi_upddel_handler(THD *thd, LEX *lex)
+{
+  DBUG_ASSERT(lex->sql_command == SQLCOM_UPDATE ||
+              lex->sql_command == SQLCOM_UPDATE_MULTI ||
+              lex->sql_command == SQLCOM_DELETE ||
+              lex->sql_command == SQLCOM_DELETE_MULTI);
+
+  /* Is pushdown enabled by @@federatedx_use_pushdown? */
+  if (!use_pushdown)
+    return nullptr;
+
+  /*
+    SELECT_LEX::print() reproduces neither the IGNORE modifier nor the
+    LOW_PRIORITY/QUICK ones. Of these only IGNORE changes the outcome of the
+    statement: a pushed down UPDATE IGNORE/DELETE IGNORE would turn an error
+    the remote server ignores into a real one, so such statements are executed
+    locally. LOW_PRIORITY and QUICK only affect local locking and index
+    housekeeping; they change neither the affected rows nor the errors raised,
+    and the row-by-row path does not forward them to the remote server either,
+    so dropping them here is harmless and needs no guard.
+  */
+  if (lex->ignore)
+    return nullptr;
+
+  SELECT_LEX *sel_lex= lex->first_select_lex();
+
+  auto tbl= get_fed_table_for_pushdown(sel_lex);
+  if (!tbl)
+    return nullptr;
+
+  if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
+    return nullptr;
+
+  return new ha_federatedx_multi_upddel_handler(thd, lex, tbl);
+}
+
 /*
   Create FederatedX select handler for processing a unit as a whole.
   Term "unit" stands for multiple SELECTs combined with
@@ -314,6 +410,99 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
     DBUG_ASSERT(0);
   }
 }
+
+/*
+  Implementation class of the multi_upddel_handler interface for FEDERATEDX:
+  class implementation
+*/
+
+ha_federatedx_multi_upddel_handler::ha_federatedx_multi_upddel_handler(
+    THD *thd, LEX *lex_arg, TABLE *tbl)
+    : multi_upddel_handler(thd, federatedx_hton, lex_arg),
+      federatedx_handler_base(thd, tbl)
+{
+  query.length(0);
+  /*
+    Print the whole statement back. SELECT_LEX::print() produces
+      update <join> set <assignments> where <cond>
+    for an UPDATE and
+      delete from <targets> using <join> where <cond>
+    for a DELETE, both of which the remote server understands.
+
+    Must go through SELECT_LEX_UNIT::print() rather than call
+    SELECT_LEX::print() directly, because a possible WITH clause is stored at
+    SELECT_LEX_UNIT::with_clause and is printed only by the former.
+  */
+  lex->unit.print(&query, FEDERATEDX_PRINT_UPD_DEL_QUERY_TYPE);
+}
+
+
+/*
+  Execute a multi-table UPDATE/DELETE on the remote server and report
+  how many rows it has changed
+*/
+
+int ha_federatedx_multi_upddel_handler::batch_update_delete(
+    ha_rows *found_rows, ha_rows *affected_rows)
+{
+  THD *thd= query_table->in_use;
+  int rc;
+  DBUG_ENTER("ha_federatedx_multi_upddel_handler::batch_update_delete");
+
+  ha_federatedx *h= (ha_federatedx *) query_table->file;
+  iop= &h->io;
+  share= get_share(query_table->s->table_name.str, query_table,
+                   h->option_struct);
+  txn= h->get_txn(thd);
+
+  /* no need for savepoint in autocommit mode */
+  if (!(thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
+    txn->stmt_autocommit();
+
+  if ((rc= txn->acquire(share, thd, FALSE, iop)))
+  {
+    free_share(txn, share);
+    share= NULL;
+    DBUG_RETURN(rc);
+  }
+
+  if ((*iop)->query(query.ptr(), query.length()))
+  {
+    /*
+      The whole statement was executed by the remote server, so an error it
+      reports is an error of this statement. Pass its error code through
+      instead of hiding it behind ER_QUERY_ON_FOREIGN_DATA_SOURCE, so that the
+      client sees the same error it would have seen had the statement been
+      executed locally, e.g. ER_DIVISION_BY_ZERO or ER_DUP_ENTRY.
+
+      Errors of the client library (a lost connection and the like) are not
+      server error codes and are reported as a foreign data source failure.
+    */
+    const int remote_errno= (*iop)->error_code();
+    if (remote_errno < CR_MIN_ERROR || remote_errno > CR_MAX_ERROR)
+      my_message(remote_errno, (*iop)->error_str(), MYF(0));
+    else
+      my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), (*iop)->error_str());
+    rc= HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM;
+  }
+  else
+  {
+    /*
+      For an UPDATE the remote server reports both the number of matched and
+      of changed rows (matched_rows() parses it out of the info string), for a
+      DELETE matched_rows() returns the number of deleted rows just like
+      affected_rows() does.
+    */
+    *affected_rows= (ha_rows) (*iop)->affected_rows();
+    *found_rows= (ha_rows) (*iop)->matched_rows();
+    rc= 0;
+  }
+
+  free_share(txn, share);
+  share= NULL;
+  DBUG_RETURN(rc);
+}
+
 
 int federatedx_handler_base::init_scan_()
 {
