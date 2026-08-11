@@ -246,6 +246,26 @@ EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
 
 DROP TABLE tg, t2;
 
+CREATE TABLE th (a INT, b INT, KEY(a, b));
+INSERT INTO th VALUES (1,1);
+INSERT INTO th VALUES (1,2);
+INSERT INTO th VALUES (2,2);
+INSERT INTO th VALUES (2,3);
+INSERT INTO th VALUES (3,3);
+INSERT INTO th VALUES (3,4);
+
+# Loose index scan is used and HAVING is pushed down to WHERE
+--let $q= SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+# Loose index scan is used and HAVING is not pushed down to WHERE
+--let $q= SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+DROP TABLE th;
+
 #
 # Aggregate window functions: not streamable yet.
 #

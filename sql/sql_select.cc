@@ -16822,7 +16822,7 @@ void JOIN_TAB::cleanup()
   if (window_funcs_streaming_step)
   {
     window_funcs_streaming_step->cleanup();
-    window_funcs_streaming_step= nullptr;
+    window_funcs_streaming_step= NULL;
   }
   limit= 0;
   // Free select that was created for filesort outside of create_sort_index
@@ -26079,20 +26079,24 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
-  if (join->table_count &&
-      join->join_tab->is_using_loose_index_scan())
+  // If a window streaming step exists, then this was applied earlier already
+  // in end_compute_win_func()
+  if (!(join_tab && (join_tab - 1)->window_funcs_streaming_step != NULL))
   {
-    /* Copy non-aggregated fields when loose index scan is used. */
-    copy_fields(&join->tmp_table_param);
-  }
-  if (join->having && join->having->val_bool() == 0)
-  {
-    /*
+    if (join->table_count && join->join_tab->is_using_loose_index_scan())
+    {
+      /* Copy non-aggregated fields when loose index scan is used. */
+      copy_fields(&join->tmp_table_param);
+    }
+    if (join->having && join->having->val_bool() == 0)
+    {
+      /*
       If we have HAVING clause and it is not satisfied, we don't send
       the row to the client, but rownum should be incremented.
-    */
-    join->accepted_rows++;
-    DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
+      */
+      join->accepted_rows++;
+      DBUG_RETURN(NESTED_LOOP_OK); // Didn't match having
+    }
   }
   if (join->procedure)
   {
@@ -26215,9 +26219,26 @@ enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
   // add() functions read from the TABLE::record[0] directly, as we did
   // NOT call split_sum_func(), so we still point to base table
   DBUG_ENTER("end_compute_win_func");
-  if (!end_of_records &&
-      (join_tab - 1)->window_funcs_streaming_step->process_row())
-    DBUG_RETURN(NESTED_LOOP_ERROR);
+
+  if (!end_of_records)
+  {
+    // If a loose index scan is used (the only case for group by + streaming),
+    // then a HAVING that was not pushed down should be applied before the
+    // window functions process the rows.
+    if (join->table_count && join->join_tab->is_using_loose_index_scan())
+    {
+      copy_fields(&join->tmp_table_param);
+    }
+    if (join->having && join->having->val_bool() == 0)
+    {
+      join->accepted_rows++;
+      DBUG_RETURN(NESTED_LOOP_OK);
+    }
+
+    if ((join_tab - 1)->window_funcs_streaming_step->process_row())
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+  }
+
   DBUG_RETURN(end_send(join, join_tab, end_of_records));
 }
 

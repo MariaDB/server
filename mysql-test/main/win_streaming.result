@@ -507,6 +507,74 @@ EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
 DROP TABLE tg, t2;
+CREATE TABLE th (a INT, b INT, KEY(a, b));
+INSERT INTO th VALUES (1,1);
+INSERT INTO th VALUES (1,2);
+INSERT INTO th VALUES (2,2);
+INSERT INTO th VALUES (2,3);
+INSERT INTO th VALUES (3,3);
+INSERT INTO th VALUES (3,4);
+EXPLAIN FORMAT=JSON SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.007637811,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "th",
+          "access_type": "range",
+          "key": "a",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "loops": 1,
+          "rows": 6,
+          "cost": 0.003827362,
+          "filtered": 100,
+          "attached_condition": "th.b > 1",
+          "using_index_for_group_by": true
+        }
+      }
+    ]
+  }
+}
+SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1;
+a	b	rnk
+1	2	1
+2	2	2
+2	3	2
+3	3	4
+3	4	4
+EXPLAIN FORMAT=JSON SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.007637811,
+    "having_condition": "th.b > 2",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "th",
+          "access_type": "range",
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 6,
+          "cost": 0.003827362,
+          "filtered": 100,
+          "using_index_for_group_by": true
+        }
+      }
+    ]
+  }
+}
+SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
+a	b	rnk
+3	3	1
+DROP TABLE th;
 EXPLAIN EXTENDED SELECT count(*) OVER w, sum(b) OVER w, avg(b) OVER w, min(b) OVER w, max(b) OVER w FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
