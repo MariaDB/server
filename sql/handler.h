@@ -1268,7 +1268,9 @@ class handler;
 class group_by_handler;
 class derived_handler;
 class select_handler;
+class multi_upddel_handler;
 struct Query;
+struct LEX;
 typedef class st_select_lex SELECT_LEX;
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 typedef struct st_order ORDER;
@@ -1773,6 +1775,13 @@ struct handlerton : public transaction_participant
     the statement, return NULL
   */
   select_handler *(*create_unit)(THD *thd, SELECT_LEX_UNIT *select_unit);
+
+  /*
+    Create and return a multi_upddel_handler that performs a whole
+    multi-table UPDATE/DELETE. If the storage engine cannot execute the
+    statement, return NULL
+  */
+  multi_upddel_handler *(*create_multi_upddel)(THD *thd, LEX *lex);
 
   /*********************************************************************
     Table discovery API.
