@@ -1,0 +1,6 @@
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,truncate_fde_at_common_header_len';
+FLUSH BINARY LOGS;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+RESET MASTER;
