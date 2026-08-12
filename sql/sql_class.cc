@@ -1619,6 +1619,12 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
+  delete captured_opt_ctx;
+  captured_opt_ctx= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
@@ -1761,6 +1767,10 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -1889,7 +1899,7 @@ THD::~THD()
   set_current_thd(this);
   if (!status_in_global)
     add_status_to_global();
-
+  clean_captured_ctx(this);
   /*
     Other threads may have a lock on LOCK_thd_kill to ensure that this
     THD is not deleted while they access it. The following mutex_lock
@@ -2522,6 +2532,10 @@ void THD::cleanup_after_query()
       (not just in the end of a stored routine individual statement).
     */
     statement_rcontext_reinit();
+    delete opt_ctx_recorder;
+    opt_ctx_recorder= NULL;
+    delete opt_ctx_replay;
+    opt_ctx_replay= NULL;
   }
 
   /*

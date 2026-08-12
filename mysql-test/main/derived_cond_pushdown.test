@@ -2410,10 +2410,12 @@ select col2, col1 from v1
 union all
 select col2, col1 from v2;
 
+--disable_replay next_query Don't support SPs
 explain select * from v3 where col1=123;
 
 --echo # This must use ref accesses for reading table t1, not full scans:
 --source include/explain-no-costs.inc
+--disable_replay next_query Don't support SPs
 explain format=json
 select * from v3 where col1=123 and col2=321;
 
@@ -2438,6 +2440,7 @@ select a, f1(a), sum(b) from t1 group by a, f1(a);
 --echo #   "a2>123" will be pushed into HAVING (as it refers to an SP call which
 --echo #                                       prevents pushing it to the WHERE)
 --source include/explain-no-costs.inc
+--disable_replay next_query Don't support SPs
 explain format=json
 select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
 
@@ -2451,6 +2454,7 @@ insert into t4 select a,a,a from t1;
 --echo #  "attached_condition": "t1.a + 1 > 10",
 --echo #  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
 --source include/explain-no-costs.inc
+--disable_replay next_query Don't support SPs
 explain format=json
 select *
 from t4

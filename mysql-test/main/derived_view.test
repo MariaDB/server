@@ -40,6 +40,7 @@ select * from (select * from t1 where f1 in (2,3)) tt join
 --disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
+--disable_replay testfile Need to preserve counters
 explain extended 
   select * from (select * from t1 where f1 in (2,3)) tt where f11=2;
 show status like 'Handler_read%';

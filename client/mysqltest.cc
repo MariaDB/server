@@ -424,6 +424,7 @@ enum enum_commands {
   Q_PS_BIND,
   Q_PS_EXECUTE,
   Q_PS_CLOSE,
+  Q_DISABLE_REPLAY,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -549,6 +550,7 @@ const char *command_names[]=
   "PS_bind",
   "PS_execute",
   "PS_close",
+  "disable_replay",
   0
 };
 
@@ -11203,6 +11205,43 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command, cons
 void run_close_stmt(struct st_connection *cn, struct st_command *command, const char *query,
                     size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
+static void do_disable_replay(struct st_command *command)
+{
+  const char *p= command->first_argument;
+  const char *end= command->end;
+  const char *tok;
+  size_t tok_len;
+  DBUG_ENTER("do_disable_replay");
+
+  /* Skip leading whitespace */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  tok= p;
+  while (p < end && !my_isspace(charset_info, *p))
+    p++;
+  tok_len= (size_t)(p - tok);
+
+  if ((tok_len == 10 && strncmp(tok, "next_query", 10) == 0) ||
+      (tok_len == 8 && strncmp(tok, "testfile", 8) == 0))
+  {
+    /* Token is correct. */
+  }
+  else
+    die("Syntax: disable_replay next_query|testfile <reason>");
+
+  /* Skip whitespace between the scope token and the reason */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  if (p >= end)
+    die("Syntax: disable_replay next_query|testfile <reason>  (reason missing)");
+
+  command->last_argument= command->end;
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   Run query using MySQL C API
 
@@ -13571,6 +13610,9 @@ int main(int argc, char **argv)
         break;
       case Q_OPTIMIZER_TRACE:
         enable_optimizer_trace(cur_con);
+        break;
+      case Q_DISABLE_REPLAY:
+        do_disable_replay(command);
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,

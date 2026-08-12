@@ -52,6 +52,7 @@
 #include "sql_priv.h"
 #include "key.h"                                // key_cmp_if_same
 #include "sql_select.h"
+#include "opt_context_store_replay.h"
 
 static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref, Field* field,
                                 COND *cond, uint *range_fl,
@@ -77,13 +78,17 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond);
     #			Multiplication of number of rows in all tables
 */
 
-static ulonglong get_exact_record_count(List<TABLE_LIST> &tables)
+static ulonglong get_exact_record_count(THD *thd, List<TABLE_LIST> &tables)
 {
   ulonglong count= 1;
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(tables);
   while ((tl= ti++))
   {
+    if (thd->opt_ctx_replay)
+    {
+      thd->opt_ctx_replay->infuse_table_rows(tl->table);
+    }
     ha_rows tmp= tl->table->file->records();
     if (tmp == HA_POS_ERROR)
       return ULONGLONG_MAX;
@@ -333,6 +338,9 @@ int opt_sum_query(THD *thd,
     else
     {
       error= tl->table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+
+      if (thd->opt_ctx_replay)
+        thd->opt_ctx_replay->infuse_table_rows(tl->table);
       if (unlikely(error))
       {
         tl->table->file->print_error(error, MYF(ME_FATAL));
@@ -365,7 +373,7 @@ int opt_sum_query(THD *thd,
         {
           if (!is_exact_count)
           {
-            if ((count= get_exact_record_count(tables)) == ULONGLONG_MAX)
+            if ((count= get_exact_record_count(thd, tables)) == ULONGLONG_MAX)
             {
               /* Error from handler in counting rows. Don't optimize count() */
               const_result= 0;
@@ -420,6 +428,12 @@ int opt_sum_query(THD *thd,
           error= 0;
 
           table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
+
+          /* Prepare to capture the MIN/MAX row for the optimizer context */
+          Opt_ctx_recorder_state state;
+          if (thd->opt_ctx_recorder)
+            thd->opt_ctx_recorder->prepare_captured_row_read(table, &state);
+
           if (!table->const_table)
           {
             if (likely(!(error= table->file->ha_index_init((uint) ref.key,
@@ -434,6 +448,14 @@ int opt_sum_query(THD *thd,
               reckey_in_range(is_max, &ref, item_field->field,
                               conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
+
+          /* Capture the MIN/MAX row for the optimizer context */
+          if (Optimizer_context_recorder *rec= thd->opt_ctx_recorder)
+          {
+            if (!error)
+              rec->record_current_table_row(table);
+            rec->finish_captured_row_read(&state);
+          }
           if (!table->const_table)
           {
             table->file->ha_end_keyread();

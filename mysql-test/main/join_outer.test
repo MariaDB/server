@@ -1906,6 +1906,7 @@ SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
                             FROM t t1 LEFT JOIN t t2
                             ON t1.x = t2.x
                             WHERE IFNULL(t2.x,0)=0;
+--disable_replay next_query Don't support SPs.
 explain extended
 SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
                             FROM t t1 LEFT JOIN t t2
@@ -1915,6 +1916,7 @@ SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
                             FROM t t1 LEFT JOIN t t2
                             ON t1.x = t2.x
                             WHERE f(t2.x,0)=0;
+--disable_replay next_query Don't support SPs.
 explain extended
 SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
                             FROM t t1 LEFT JOIN t t2
@@ -1969,6 +1971,7 @@ SELECT t1.col1, t2.col1, t2.col3
 FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE f1(t2.col3,0) = 0;
 eval $q2;
+--disable_replay next_query Don't support SPs.
 eval EXPLAIN EXTENDED $q2;
 
 DROP FUNCTION f1;

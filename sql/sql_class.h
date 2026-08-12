@@ -60,6 +60,7 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
+#include "opt_context_store_replay.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -928,6 +929,8 @@ typedef struct system_variables
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
   my_bool optimizer_record_context;
+  /* Name of the user @variable that has the context we're replaying */
+  char *optimizer_replay_context;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
@@ -4583,6 +4586,19 @@ public:
   Parser_state *m_parser_state;
 
   Locked_tables_list locked_tables_list;
+
+  /*
+    If non-NULL, used to record all the "context" (i.e. environment data) that
+    the optimizer sees. The idea is to save the context and then re-create it
+    somewhere else.
+  */
+  Optimizer_context_recorder *opt_ctx_recorder= NULL;
+
+  /* Optimizer Context we are replaying */
+  Optimizer_context_replay *opt_ctx_replay= NULL;
+
+  /* Previously captured context, available through I_S.OPTIMIZER_CONTEXT */
+  Optimizer_context_capture *captured_opt_ctx= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;

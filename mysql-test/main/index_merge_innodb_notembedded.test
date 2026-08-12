@@ -24,6 +24,7 @@ INSERT INTO t1(id,title,status,country_code)
 SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
 
 --echo # This must not use index_merge:
+--disable_replay next_query Need to preserve optimizer trace
 EXPLAIN
 SELECT * FROM t1 WHERE country_code ='C1' and `status` =1;
 set @trace= (select JSON_EXTRACT(trace, '$**.range_scan_alternatives[*]')
@@ -50,6 +51,7 @@ INSERT INTO t1(id,title,status,country_code)
 SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
 
 --echo # Must not use index_merge:
+--disable_replay next_query Need to preserve optimizer trace
 EXPLAIN
 SELECT * FROM t1 WHERE country_code ='C1' and status = 1;
 
@@ -75,6 +77,7 @@ INSERT INTO t1(id,title,status,country_code)
 SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
 
 --echo # Must not use index_merge:
+--disable_replay next_query Need to preserve optimizer trace
 EXPLAIN
 SELECT * FROM t1 WHERE country_code ='C1' and status = 1;
 

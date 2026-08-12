@@ -15,6 +15,10 @@
 #ifndef SQL_JSON_LIB
 #define SQL_JSON_LIB
 
+#include "json_lib.h"
+#include "sql_string.h"
+#include "mysqld.h"                             /* system_charset_info */
+
 /*
   A syntax sugar interface to json_string_t
 */
@@ -72,5 +76,315 @@ public:
     Un-escape a JSON string and save it into *out.
 */
 bool json_unescape_to_string(const char *val, int val_len, String *out);
+
+/*
+  @brief
+    Escape a JSON string and save it into *out.
+*/
+int json_escape_to_string(const String *str, String *out);
+
+namespace json_reader
+{
+class Read_value;
+};
+
+/*
+  Description of a JSON object member that is to be read by json_read_object().
+  Intended usage:
+
+    char *var1;
+    int var2;
+    Read_named_member memb[]= {
+        {"member1", Read_string(thd->mem_root, &var1), false},
+        {"member2", Read_double(&var2), false},
+        {NULL,      Read_double(NULL), true}
+    };
+    json_read_object(je, memb, err);
+*/
+
+class Read_named_member
+{
+public:
+  const char *name; /* JSON object name */
+  /*
+    Reader object holding the datatype and place for the value.
+    It's an lvalue reference so we can have both inherited classes
+    and refer to unnamed objects on the stack.
+  */
+  json_reader::Read_value &&value;
+
+  const bool is_optional; /* Can this member be omitted in JSON? */
+
+  bool value_assigned= false; /* Filled and checked by json_read_object() */
+};
+
+/* Read an object from JSON according to description in *members */
+int json_read_object(json_engine_t *je, Read_named_member *members,
+                     String *err_buf);
+
+namespace json_reader
+{ /* Things to use with Read_named_member */
+
+bool read_string(MEM_ROOT *mem_root, json_engine_t *je, const char *read_elem_key,
+                 String *err_buf, char *&value);
+
+bool read_double(json_engine_t *je, const char *read_elem_key, String *err_buf,
+                 double &value);
+bool read_ha_rows_and_check_limit(json_engine_t *je, const char *read_elem_key,
+                                  String *err_buf, ha_rows &value,
+                                  ha_rows LIMIT_VAL,
+                                  const char *limit_val_type,
+                                  bool unescape_required);
+
+/*
+  Interface to read a value with value_name from Json,
+  while in the process of parsing the Json document
+*/
+class Read_value
+{
+public:
+  virtual bool read_value(json_engine_t *je, const char *value_name,
+                          String *err_buf)= 0;
+  virtual ~Read_value() {};
+};
+
+class Read_string : public Read_value
+{
+  char **ptr;
+  MEM_ROOT *mem_root; /* The string will be allocated on thd->mem_root */
+
+public:
+  Read_string(MEM_ROOT *mem_root_arg, char **ptr_arg) :
+    ptr(ptr_arg), mem_root(mem_root_arg)
+  {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    return read_string(mem_root, je, value_name, err_buf, *ptr);
+  }
+};
+
+class Read_double : public Read_value
+{
+  double *ptr;
+
+public:
+  Read_double(double *ptr_arg) : ptr(ptr_arg) {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    return read_double(je, value_name, err_buf, *ptr);
+  }
+};
+
+template <typename T, ha_rows MAX_VALUE>
+class Read_non_neg_integer : public Read_value
+{
+  T *ptr;
+
+public:
+  Read_non_neg_integer(T *ptr_arg) : ptr(ptr_arg) {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    ha_rows temp_val;
+    const char *type= "";
+
+    switch (MAX_VALUE)
+    {
+    case 1:
+      type= "boolean";
+      break;
+    case UINT_MAX:
+      type= "unsigned int";
+      break;
+    case LONGLONG_MAX:
+      type= "longlong";
+      break;
+    case ULONGLONG_MAX:
+      type= "unsigned longlong";
+      break;
+    default:
+      err_buf->append(STRING_WITH_LEN("wrong MAX_VALUE provided i.e.: "));
+      err_buf->q_append_int64(MAX_VALUE);
+      return 1;
+    }
+
+    if (read_ha_rows_and_check_limit(je, value_name, err_buf, temp_val,
+                                     MAX_VALUE, type, false))
+    {
+      return 1;
+    }
+
+    switch (MAX_VALUE)
+    {
+    case 1:
+      *ptr= temp_val == 1;
+      break;
+    case UINT_MAX:
+    case LONGLONG_MAX:
+    case ULONGLONG_MAX:
+      *ptr= (T) temp_val;
+    default:;
+    }
+    return 0;
+  }
+};
+
+
+/*
+  Read a JSON object into a value of type T.
+
+  Object construction is done in reader_func, which is expected to
+  constcut object T and invoke json_read_object() for it.
+*/
+template <class T>
+class Read_object : public Read_value
+{
+  MEM_ROOT *mem_root;
+  T **ptr;
+  using reader_func_t= T* (*) (MEM_ROOT *mem_root,
+                               json_engine_t *je,
+                               String *err_buf);
+  reader_func_t reader_func;
+
+public:
+  Read_object(MEM_ROOT *mem_arg, T **ptr_arg, reader_func_t reader_arg) :
+    mem_root(mem_arg), ptr(ptr_arg), reader_func(reader_arg) {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    *ptr = reader_func(mem_root, je, err_buf);
+    /* NULL return value means an error */
+    return (*ptr == NULL);
+  }
+};
+
+/*
+  Extends the Read_value interface to read an array of elements.
+
+  This class will just start reading the JSON array.
+  Reading of array members is done by descendant classes in read_container().
+*/
+class Read_array : public Read_value
+{
+  int read_array_start(json_engine_t *je, const char *value_name,
+                       String *err_buf)
+  {
+    if (json_scan_next(je) || je->state != JST_ARRAY_START)
+    {
+      err_buf->append(STRING_WITH_LEN("error reading "));
+      err_buf->append(value_name, strlen(value_name));
+      err_buf->append(STRING_WITH_LEN(" value"));
+      return 1;
+    }
+    return 0;
+  }
+   // here rc == -1 means we've caught array_end...
+  int after_read(int rc) { return rc > 0; }
+
+public:
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    int rc= read_array_start(je, value_name, err_buf);
+    if (rc <= 0)
+      rc= read_container(je, value_name, err_buf);
+    return after_read(rc);
+  }
+  virtual int read_container(json_engine_t *je, const char *name,
+                             String *err_buf)= 0;
+};
+
+
+class Read_array_of_strings : public Read_array
+{
+  MEM_ROOT *mem_root;
+  List<char> *strings;
+
+public:
+  Read_array_of_strings(MEM_ROOT *mem_root_arg, List<char> *ranges_arg)
+    : mem_root(mem_root_arg), strings(ranges_arg)
+  {}
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+      override
+  {
+    if (json_scan_next(je))
+      return 1;
+
+    while (je->state != JST_ARRAY_END)
+    {
+      char *value;
+      if (read_string(mem_root, je, name, err_buf, value))
+        return 1;
+
+      strings->push_back(value, mem_root);
+      if (json_scan_next(je))
+        return 1;
+    }
+
+    return 0;
+  }
+};
+
+
+/*
+  Parse a JSON array of objects info a List<T>.
+  The constructor accepts reader_func argument which reads one JSON object
+  into an object of type T.
+*/
+
+template <class T>
+class Read_object_array : public Read_array
+{
+  MEM_ROOT *mem_root;
+  List<T> *list_ctx;
+
+  /*
+    A function to read individual array element. It's an object of type T.
+  */
+  using reader_func_t= T* (*) (MEM_ROOT *mem_root,
+                               json_engine_t *je,
+                               String *err_buf);
+  reader_func_t reader_func;
+
+public:
+  Read_object_array(MEM_ROOT *mem_root_arg, List<T> *list_arg, reader_func_t reader_arg)
+      : mem_root(mem_root_arg), list_ctx(list_arg), reader_func(reader_arg)
+  {}
+
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+    override
+  {
+    DBUG_ASSERT(je->state == JST_ARRAY_START);
+    int rc= json_scan_next(je);
+
+    while (1)
+    {
+      if (je->state == JST_ARRAY_END)
+        return -1; // End of array
+
+      /* We get JST_VALUE state before each element. Check and consume it */
+      if (je->state != JST_VALUE)
+        return 1; // Error
+      if (json_scan_next(je))
+        return 1;
+
+      /* Read the element */
+      T *elem= reader_func(mem_root, je, err_buf);
+      if (!elem)
+        return 1; // Error
+      if (list_ctx->push_back(elem, mem_root))
+        return 1;
+
+      /* Consume JST_OBJ_END that is left after reading an object */
+      if (je->state == JST_OBJ_END && json_scan_next(je))
+        return 1;  // Error
+    }
+    return rc;
+  }
+};
+
+}; /* namespace json_reader */
 
 #endif

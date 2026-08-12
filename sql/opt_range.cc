@@ -448,19 +448,12 @@ static int and_range_trees(RANGE_OPT_PARAM *param,
 static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree);
 static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
                                    SEL_ARG **backup);
-static void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                            const uchar* key, uint length);
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
                                 uint n_keypart, key_part_map keypart_map);
 
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
+static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
+                         uint idx, SEL_ARG *keypart,
                          const KEY_PART_INFO *key_parts);
-
-static
-void print_range(String *out, const KEY_PART_INFO *key_part,
-                 KEY_MULTI_RANGE *range, uint n_key_parts);
 
 static
 void print_range_for_non_indexed_field(String *out, Field *field,
@@ -470,6 +463,12 @@ static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
 static bool is_field_an_unique_index(Field *field);
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     const key_range *min_range,
+                                     const key_range *max_range,
+                                     page_range *pages);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -7250,8 +7249,11 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
       }
       min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
-      records= (info->param->table->file->
-                records_in_range(scan->keynr, &min_range, &max_range, &pages));
+
+      records= hook_records_in_range(info->param->old_root, info->param->thd,
+                                     info->param->table, key_part, scan->keynr,
+                                     &min_range, &max_range, &pages);
+
       if (cur_covered)
       {
         /* uncovered -> covered */
@@ -12381,6 +12383,47 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
 #endif
 
 
+class Range_print_enumerator_impl: public Range_print_enumerator
+{
+public:
+  bool next() override
+  {
+    range_info.length(0);
+    if (seq_if.next(seq_it, &range))
+      return true; // No more ranges
+    print_range(&range_info, cur_key_part, &range, n_key_parts);
+    return false;
+  }
+  const String& get_interval_str() override { return range_info; }
+
+  Range_print_enumerator_impl(PARAM *param, uint idx,  SEL_ARG *keypart):
+    range_info(system_charset_info)
+  {
+    KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
+    n_key_parts= param->table->actual_n_key_parts(keyinfo);
+    seq.keyno= idx;
+    seq.key_parts= param->key[idx];
+    seq.real_keyno= param->real_keynr[idx];
+    seq.param= param;
+    seq.start= keypart;
+    seq.is_ror_scan= false; // Don't care about checking it here.
+    cur_key_part= keyinfo->key_part + keypart->part;
+    seq_it= seq_if.init((void *) &seq, 0, 0);
+  }
+
+private:
+  SEL_ARG_RANGE_SEQ seq;
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  uint flags= 0;
+  RANGE_SEQ_IF seq_if= {NULL, sel_arg_range_seq_init,
+                        sel_arg_range_seq_next, 0, 0};
+  StringBuffer<128> range_info;
+  uint n_key_parts;
+  const KEY_PART_INFO *cur_key_part;
+};
+
+
 /**
   Check if first key part has only one value
 
@@ -12440,6 +12483,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
+  ha_rows replay_ctx_max_index_blocks;
+  ha_rows replay_ctx_max_row_blocks;
+  bool replay_ctx_rc;
+  TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
   DBUG_ENTER("check_quick_select");
 
   /* Range not calculated yet */
@@ -12492,6 +12539,18 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
+
+  if (Optimizer_context_replay *rep= param->thd->opt_ctx_replay)
+  {
+    replay_ctx_rc=
+      rep->infuse_multi_range_read_info_const(param->table, keynr, &seq_if,
+                                              &seq, cost, &rows, mrr_flags,
+                                              &replay_ctx_max_index_blocks,
+                                              &replay_ctx_max_row_blocks);
+  }
+  else
+    replay_ctx_rc= true;
+
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
@@ -12515,9 +12574,13 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
+    range->max_index_blocks=
+        file->index_blocks(keynr, param->range_count, rows);
+    range->max_row_blocks=
+        MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+
     if (update_tbl_stats)
     {
-      TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= param->max_key_parts;
       range->ranges= param->range_count;
@@ -12528,12 +12591,33 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                            1.0);                // ok as rows is 0
       range->rows= rows;
       range->cost= *cost;
-      range->max_index_blocks= file->index_blocks(keynr, range->ranges,
-                                                  rows);
-      range->max_row_blocks= MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+      if (!replay_ctx_rc)
+      {
+        // If an index/table is updated due to addition or deletion or
+        // truncation etc.. then the max_index_blocks, and max_row_blocks read
+        // from the handler (though accurate) would change the cost estimate
+        // calculation when we are trying to replaying the context.
+        // So, set them from the replay ctx, if no error has occured during the
+        // fetch operation.
+        range->max_index_blocks= replay_ctx_max_index_blocks;
+        range->max_row_blocks= replay_ctx_max_row_blocks;
+      }
       range->first_key_part_has_only_one_value=
         check_if_first_key_part_has_only_one_value(tree);
     }
+  }
+
+  if (Optimizer_context_recorder *rec= param->thd->opt_ctx_recorder)
+  {
+    Range_print_enumerator_impl range_iter(param, idx, tree);
+    /*
+      We pass range->max_index_blocks, and range->max_row_blocks by address,
+      as they might not have been initialized except when rows != HA_POS_ERROR.
+      This way, ASAN and valgrind also wouldn't complain.
+    */
+    rec->record_multi_range_read_info_const(
+        param->table, keynr, &range_iter, rows, cost,
+        *mrr_flags, &range->max_index_blocks, &range->max_row_blocks);
   }
 
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
@@ -17551,8 +17635,6 @@ static void print_max_range_operator(String *out, const ha_rkey_function flag)
     out->append(STRING_WITH_LEN(" ? "));
 }
 
-
-static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
@@ -17628,8 +17710,6 @@ void print_range_for_non_indexed_field(String *out, Field *field,
   dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
-
-
 /*
 
   Add ranges to the trace
@@ -17639,40 +17719,20 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     so we create a range:
       (2,4) <= (a,b) <= (2,4)
     this is added to the trace
+  Also, record the created ranges if record_ranges is enabled
 */
 
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
+static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
+                         uint idx, SEL_ARG *keypart,
                          const KEY_PART_INFO *key_parts)
 {
-  SEL_ARG_RANGE_SEQ seq;
-  KEY_MULTI_RANGE range;
-  range_seq_t seq_it;
-  uint flags= 0;
-  RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init,
-                         sel_arg_range_seq_next, 0, 0};
-  KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
-  uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
   DBUG_ASSERT(range_trace->trace_started());
-  seq.keyno= idx;
-  seq.key_parts= param->key[idx];
-  seq.real_keyno= param->real_keynr[idx];
-  seq.param= param;
-  seq.start= keypart;
-  /*
-    is_ror_scan is set to FALSE here, because we are only interested
-    in iterating over all the ranges and printing them.
-  */
-  seq.is_ror_scan= FALSE;
-  const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
-  seq_it= seq_if.init((void *) &seq, 0, flags);
+  Range_print_enumerator_impl range_iter(param, idx, keypart);
 
-  while (!seq_if.next(seq_it, &range))
+  while (!range_iter.next())
   {
-    StringBuffer<128> range_info(system_charset_info);
-    print_range(&range_info, cur_key_part, &range, n_key_parts);
-    range_trace->add(range_info.c_ptr_safe(), range_info.length());
+    const String& str= range_iter.get_interval_str();
+    range_trace->add(str.ptr(), str.length());
   }
 }
 
@@ -17685,8 +17745,8 @@ static void trace_ranges(Json_writer_array *range_trace,
   @param[in]  used_length  length of the key tuple
 */
 
-static void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                            const uchar* key, uint used_length)
+void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                     const uchar *key, uint used_length)
 {
   out->append(STRING_WITH_LEN("("));
   Field *field= key_part->field;
@@ -17741,4 +17801,37 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
       break;
   }
   out->append(STRING_WITH_LEN(")"));
+}
+
+/*
+  @brief
+    Call records_in_range(). If necessary,
+    - Replace its return value from Optimizer Context, and/or
+    - Save its return value in the Optimizer Context we're recording.
+
+  @detail
+    Note that currently "pages" and min/max_range->flag are not hooked.
+*/
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     const key_range *min_range,
+                                     const key_range *max_range,
+                                     page_range *pages)
+{
+  ha_rows records=
+      table->file->records_in_range(keynr, min_range, max_range, pages);
+
+  if (Optimizer_context_replay *repl= thd->opt_ctx_replay)
+  {
+    repl->infuse_records_in_range(table, key_part, keynr, min_range,
+                                  max_range, &records);
+  }
+
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
+  {
+    recorder->record_records_in_range(table, key_part, keynr,
+                                      min_range, max_range, records);
+  }
+  return records;
 }

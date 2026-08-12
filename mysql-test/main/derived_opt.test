@@ -531,6 +531,7 @@ select
 from information_schema.optimizer_trace;
 
 --echo # Same as the previous query but unhandled group by expression
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from
   t2,
@@ -581,6 +582,7 @@ where
 --echo # Example with equalities on GROUP BY columns and other columns
 --echo # Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
 alter table t2 add col2 int;
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from
   t2,
@@ -608,6 +610,7 @@ insert into t1 select 1, a.seq from seq_1_to_10 a;
 
 analyze table t1;
 
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from
   t2,
@@ -673,6 +676,7 @@ insert into t4 values (1, 1, 'iron'), (2,2,'aluminium'), (3,3, 'silver');
 insert into t4 select seq, seq, 'junk' from seq_3_to_13;
 
 --echo # split materialized
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from t1
 join t2 on t1.a = t2.a and t1.b = t2.b
@@ -686,6 +690,7 @@ select
 from information_schema.optimizer_trace;
 
 --echo # union with distinct rows
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from t1
 join t2 on t1.a = t2.a and t1.b = t2.b
@@ -701,6 +706,7 @@ select
 from information_schema.optimizer_trace;
 
 --echo # union without distinct rows
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from t1
 join t2 on t1.a = t2.a and t1.b = t2.b
@@ -716,6 +722,7 @@ select
 from information_schema.optimizer_trace;
 
 --echo # union without distinct rows with simple non grouping 2nd select
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from t1
 join t2 on t1.a = t2.a and t1.b = t2.b
@@ -731,6 +738,7 @@ select
 from information_schema.optimizer_trace;
 
 --echo # intersect
+--disable_replay next_query Need to preserve optimizer trace
 explain
 select * from t1
 join t2 on t1.a = t2.a and t1.b = t2.b

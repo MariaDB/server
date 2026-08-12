@@ -1,6 +1,7 @@
 --echo #
 --echo # MDEV-20016 Add MariaDB_DATA_TYPE_PLUGIN
 --echo #
+--disable_replay testfile plugins are not yet supported
 
 --vertical_results
 SELECT
