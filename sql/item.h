@@ -2315,6 +2315,7 @@ public:
   virtual bool check_inner_refs_processor(void *arg) { return 0; }
   virtual bool find_item_in_field_list_processor(void *arg) { return 0; }
   virtual bool find_item_processor(void *arg);
+  bool collect_all_items_processor(void *arg);
   virtual bool change_context_processor(void *arg) { return 0; }
   virtual bool reset_query_id_processor(void *arg) { return 0; }
   virtual bool is_expensive_processor(void *arg) { return 0; }
@@ -8212,6 +8213,14 @@ public:
   { return convert_to_basic_const_item(thd); }
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *) override
   { return convert_to_basic_const_item(thd); }
+
+protected:
+  /*
+    A shallow copy would leave the copy's 'example' pointing at the original's
+    expression, so the two would share every node below the cache. Defined here
+    once for the whole family: it dispatches to each class's shallow_copy().
+  */
+  Item *deep_copy(THD *thd) const override;
 };
 
 
@@ -8235,8 +8244,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_int>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -8271,8 +8278,6 @@ public:
   {
     return type_handler_year.Item_get_date_with_warn(thd, this, to, mode);
   }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_year>(thd, this); }
@@ -8427,8 +8432,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_timestamp>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 public:
   bool cache_value() override;
   String* val_str(String *to) override
@@ -8491,8 +8494,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_double>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -8506,8 +8507,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_float>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -8532,8 +8531,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_decimal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -8565,8 +8562,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -8593,10 +8588,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str_for_nullif>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  {
-    return shallow_copy_with_checks(thd);
-  }
 };
 
 
@@ -8675,10 +8666,8 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_row>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  {
-    return shallow_copy_with_checks(thd);
-  }
+  /* The row's element caches are held in values[], not in 'example' alone. */
+  Item *deep_copy(THD *thd) const override;
 };
 
 
