@@ -7260,7 +7260,14 @@ int spider_db_open_item_field(
       DBUG_RETURN(0);
     } else {
       DBUG_PRINT("info",("spider tmp_table=%u", field->table->s->tmp_table));
-      if (field->table->s->tmp_table != INTERNAL_TMP_TABLE)
+      /*
+        A field of a temporary table created by the optimizer, or of one
+        standing in for a normal table, belongs to no remote table, so it
+        is printed as a plain identifier below rather than looked up among
+        the spider tables.
+      */
+      if (field->table->s->tmp_table != INTERNAL_TMP_TABLE &&
+          !field->table->s->is_optimizer_tmp_table())
       {
         if (!use_fields)
         {
