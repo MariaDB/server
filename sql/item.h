@@ -6804,12 +6804,20 @@ protected:
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     copied_in= 0;
 #endif
   }
 
-#ifndef DBUG_OFF
+  /*
+    Read by a DBUG_ASSERT and by nothing else, so it is compiled wherever
+    a DBUG_ASSERT is rather than wherever a debug build is.  Those are not
+    the same set: DBUG_ASSERT_AS_PRINTF turns the assertion into a printed
+    complaint and leaves its expression standing, while setting DBUG_OFF,
+    so a guard written the other way round leaves that expression with
+    nothing to read and the build stops compiling.
+  */
+#ifdef DBUG_ASSERT_EXISTS
   bool copied_in;
 #endif
 
@@ -6971,7 +6979,7 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     copied_in=1;
 #endif
   }
