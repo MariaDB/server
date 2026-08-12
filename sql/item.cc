@@ -5351,7 +5351,7 @@ void Item_copy_string::copy()
   if (res && res != &str_value)
     str_value.copy(*res);
   null_value=item->null_value;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   copied_in= 1;
 #endif
 }
@@ -5386,7 +5386,7 @@ void Item_copy_real::copy()
 {
   cached_value= item->val_real();
   null_value= item->null_value;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   copied_in= 1;
 #endif
 }
