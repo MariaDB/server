@@ -5277,20 +5277,18 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value,
                      current_mem_root, temp_je, stack))
   {
     value->s.error= temp_je->s.error;
-    value->s.c_str= temp_je->s.c_str;
     goto error;
   }
   if (json_normalize(&b_res, b.ptr(), b.length(), value->s.cs,
                      current_mem_root, temp_je, stack))
   {
     js->s.error= temp_je->s.error;
-    js->s.c_str= temp_je->s.c_str;
     goto error;
   }
 
   result= strcmp(a_res.str, b_res.str) ? 0 : 1;
 
-  error:
+error:
   dynstr_free(&a_res);
   dynstr_free(&b_res);
 
@@ -5298,7 +5296,8 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value,
 }
 
 
-static int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
+static int json_find_overlap_with_object(json_engine_t *js,
+                                         json_engine_t *value,
                                          bool compare_whole,
                                          MEM_ROOT *current_mem_root,
                                          json_engine_t *temp_je,

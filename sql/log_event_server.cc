@@ -4098,6 +4098,15 @@ void User_var_log_event::pack_info(Protocol* protocol)
       char buf2[DECIMAL_MAX_STR_LENGTH+1];
       String str(buf2, sizeof(buf2), &my_charset_bin);
       buf.length(0);
+      decimal_digits_t precision= (uchar)val[0];
+      decimal_digits_t scale= (uchar)val[1];
+      /* Values were intentionally corrupted in User_var_log_event::write */
+      DBUG_EXECUTE_IF("corrupt_user_var_decimal_precision",
+                      precision = 2; scale= 1;);
+
+      if (precision == 0 || scale > precision ||
+          val_len < decimal_bin_size(precision, scale) + 2)
+        return;
       my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
       if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
                                     m_data_type_name) ||
@@ -4193,6 +4202,9 @@ bool User_var_log_event::write(Log_event_writer *writer)
       buf2[1]= (char)dec->frac;
       decimal2bin((decimal_t*)val, buf2+2, buf2[0], buf2[1]);
       val_len= decimal_bin_size(buf2[0], buf2[1]) + 2;
+      /* Leave val_len honest and lie about the metadata. */
+      DBUG_EXECUTE_IF("corrupt_user_var_decimal_precision",
+                      buf2[0]= 65; buf2[1]= 0;);
       break;
     }
     case STRING_RESULT:
@@ -4280,7 +4292,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       float8get(real_val, val);
       it= new (thd->mem_root) Item_float(thd, real_val, 0);
@@ -4293,7 +4305,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       int_val= (longlong) uint8korr(val);
       it= new (thd->mem_root) Item_int(thd, int_val);
@@ -4302,12 +4314,15 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       break;
     case DECIMAL_RESULT:
     {
-      if (val_len < 3)
+      decimal_digits_t precision= (uchar)val[0];
+      decimal_digits_t scale= (uchar)val[1];
+      if (precision == 0 || scale > precision ||
+          val_len < decimal_bin_size(precision, scale) + 2)
       {
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       Item_decimal *dec= new (thd->mem_root) Item_decimal(thd, (uchar*) val+2, val[0], val[1]);
       it= dec;
