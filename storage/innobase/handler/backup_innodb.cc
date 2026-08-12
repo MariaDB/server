@@ -343,6 +343,8 @@ class InnoDB_backup
   /** the original innodb_log_file_size, or 0 */
   uint64_t old_size;
 
+  /** mutex protecting queue, non_log */
+  srw_mutex mutex;
   /** collection of files and sizes, followed by any log files to be copied */
   std::vector<uint64_t> queue;
   /** number of non-log files at the start of the queue */
@@ -359,11 +361,13 @@ public:
   {
     log_sys.latch.wr_lock();
     ut_ad(!ctx);
+    mutex.wr_lock();
     ut_ad(!non_log);
     if (!queue.empty())
       /* A new BACKUP SERVER is being invoked before a previous one
       had been fully finalized. Clean up any log files. */
       delete_logs();
+    mutex.wr_unlock();
 
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
@@ -446,30 +450,31 @@ public:
            const backup_sink &sink) noexcept
   {
     uint64_t id_limit{0};
-    log_sys.latch.wr_lock();
-    const lsn_t first{log_sys.get_first_lsn()};
+    mutex.wr_lock();
     ut_ad(sink.ha_data);
     ut_ad(ctx ? ctx == sink.ha_data
           : phase == BACKUP_PHASE_FINISH || phase == BACKUP_PHASE_NO_COMMIT);
     ut_ad(static_cast<context*>(sink.ha_data)->last_lsn == LSN_MAX
           ? phase == BACKUP_PHASE_START : !ctx);
-    const size_t size{queue.size()};
-    ut_ad(size >= non_log);
+    const size_t size{queue.size()}, non_log_files{non_log};
+    ut_ad(size >= non_log_files);
 
     if (UNIV_UNLIKELY(!size))
     {
-      log_sys.latch.wr_unlock();
+      mutex.wr_unlock();
       return 0;
     }
 
-    const size_t non_log_files{non_log};
     non_log-= size == non_log_files;
     id_limit= queue.back();
     queue.pop_back();
-    log_sys.latch.wr_unlock();
+    mutex.wr_unlock();
 
     if (size > non_log_files)
     {
+      log_sys.latch.rd_lock();
+      const lsn_t first{log_sys.get_first_lsn()};
+      log_sys.latch.rd_unlock();
       if (UNIV_UNLIKELY(id_limit > first))
         /* Wait for checkpoint_complete(). */
         buf_flush_sync_batch(id_limit, true);
@@ -575,11 +580,12 @@ public:
   void commit() noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(!non_log);
     ut_ad(ctx);
     ut_ad(ctx->last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
     lsn_t lsn{log_sys.get_first_lsn()};
+    mutex.wr_lock();
+    ut_ad(!non_log);
     if (queue.empty() || queue.back() != lsn)
     {
       /* Schedule the remaining log for copying */
@@ -588,6 +594,7 @@ public:
       if (next_lsn < last_lsn)
         queue.emplace_back(lsn= next_lsn);
     }
+    mutex.wr_unlock();
     ctx->max_first_lsn= lsn;
     ctx->last_lsn= last_lsn;
     ctx= nullptr; /* unsubscribe to checkpoint_complete() */
@@ -619,15 +626,19 @@ public:
     int fail{0};
     if (!old_size)
     {
+      mutex.wr_lock();
       queue.clear();
       non_log= 0;
+      mutex.wr_unlock();
     }
     else
     {
       log_sys.latch.wr_unlock();
       fail= log_sys.backup_stop_archiving(thd);
       log_sys.latch.wr_lock();
+      mutex.wr_lock();
       delete_logs();
+      mutex.wr_unlock();
     }
 
     log_sys.backup_stop(old_size, thd);
@@ -660,7 +671,12 @@ public:
   {
     ut_ad(log_sys.latch_have_wr());
     if (ctx)
-      queue.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
+    {
+      const lsn_t lsn{log_sys.get_first_lsn() - log_sys.capacity()};
+      mutex.wr_lock();
+      queue.emplace_back(lsn);
+      mutex.wr_unlock();
+    }
   }
 
 private:
