@@ -2924,7 +2924,7 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
           */
           if (WSREP_PROVIDER_EXISTS && wsrep_is_wsrep_xid(info->list + i))
           {
-            int rc= hton->rollback_by_xid(hton, info->list + i);
+            int rc= hton->rollback_by_xid(info->list + i);
             if (rc == 0)
             {
               sql_print_warning("Rolled back orphan prepared wsrep "

@@ -757,7 +757,7 @@ Suggests: mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl,
             mariadb-server-compat,
-            pv
+            pv,
             stunnel
 Pre-Depends: adduser (>= 3.40),
              debconf,
