@@ -418,26 +418,26 @@ SELECT a & b FROM t_mismatch;
 a & b
 NULL
 Warnings:
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SELECT a | b FROM t_mismatch;
 a | b
 NULL
 Warnings:
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SELECT a ^ b FROM t_mismatch;
 a ^ b
 NULL
 Warnings:
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4265	Mismatched length of operands for bitwise operator: 4 and 2
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
 SET sql_mode=DEFAULT;
 DROP TABLE t_mismatch;
 # =========================================================================
