@@ -1054,6 +1054,11 @@ public:
                                    MEM_ROOT *current_mem_root,
                                    json_engine_t *temp_je,
                                    MEM_ROOT_DYNAMIC_ARRAY *stack, HASH *seen);
+  /*
+    Holds a MEM_ROOT, hash tables and a stack by value, which a copy would
+    share with the original: not clonable.
+  */
+  Item *deep_copy(THD *thd) const override { return NULL; }
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func
@@ -1090,6 +1095,11 @@ public:
       free_root(&hash_root, MYF(0));
     Item_str_func::cleanup();
   }
+  /*
+    Holds a MEM_ROOT, hash tables and a stack by value, which a copy would
+    share with the original: not clonable.
+  */
+  Item *deep_copy(THD *thd) const override { return NULL; }
 };
 
 
