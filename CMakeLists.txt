@@ -263,12 +263,13 @@ ENDIF()
 
 # SANs, with their additional processing workload, should have a basic
 # but debuggable optimization unless user specifies otherwise.
-IF((WITH_ASAN OR WITH_UBSAN OR WITH_TSAN OR WITH_MSAN)
-	AND NOT CMAKE_C_FLAGS MATCHES "-O[0-9sgzf]"
-	AND NOT CMAKE_CXX_FLAGS MATCHES "-O[0-9sgzf]"
-	AND NOT CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE} MATCHES "-O[0-9sgzf]"
-	AND NOT CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE} MATCHES "-O[0-9sgzf]")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Og")
+# -Og is supported in a limited number of compliers.
+IF(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang|AppleClang)"
+  AND (WITH_ASAN OR WITH_UBSAN OR WITH_MSAN))
+  SET(_all_lang_flags " ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_DEBUG} ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}")
+  IF(NOT _all_lang_flags MATCHES " -O[0-9sgzf]")
+    ADD_COMPILE_OPTIONS($<$<CONFIG:Debug>:-Og>)
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
