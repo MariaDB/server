@@ -12121,6 +12121,49 @@ Silence_routine_definer_errors::handle_condition(
 }
 
 
+/*
+  The low level function to revoke routine privileges for the given sp handler
+  @param thd         the thd
+  @param proc_privs  the table mysql.proc_privs
+  @param sp_db       the routine database
+  @param sp_name     the routine name
+  @param sph         the sp handler
+*/
+static void sp_revoke_privileges_for_handler(THD *thd, TABLE *proc_privs,
+                                             const Lex_ident_db &sp_db,
+                                             const Lex_ident_routine &sp_name,
+                                             const Sp_handler *sph)
+{
+  uint counter, revoked;
+  HASH *hash= sph->get_priv_hash();
+  do
+  {
+    for (counter= 0, revoked= 0 ; counter < hash->records ; )
+    {
+      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
+      if (sp_db.streq(Lex_cstring_strlen(grant_proc->db)) &&
+          sp_name.streq(Lex_cstring_strlen(grant_proc->tname)))
+      {
+        LEX_USER lex_user;
+	lex_user.user.str= grant_proc->user;
+	lex_user.user.length= strlen(grant_proc->user);
+        lex_user.host.str= safe_str(grant_proc->host.hostname);
+        lex_user.host.length= strlen(lex_user.host.str);
+        if (replace_routine_table(thd, grant_proc,
+                                  proc_privs, lex_user,
+                                  grant_proc->db, grant_proc->tname,
+                                  sph, ALL_KNOWN_ACL, 1) == 0)
+	{
+	  revoked= 1;
+	  continue;
+	}
+      }
+      counter++;
+    }
+  } while (revoked);
+}
+
+
 /**
   Revoke privileges for all users on a stored procedure.  Use an error handler
   that converts errors about missing grants into warnings.
@@ -12143,9 +12186,7 @@ bool sp_revoke_privileges(THD *thd,
                           const Lex_ident_routine &sp_name,
                           const Sp_handler *sph)
 {
-  uint counter, revoked;
   int result;
-  HASH *hash= sph->get_priv_hash();
   Silence_routine_definer_errors error_handler;
   DBUG_ENTER("sp_revoke_privileges");
 
@@ -12165,31 +12206,12 @@ bool sp_revoke_privileges(THD *thd,
   mysql_mutex_lock(&acl_cache->lock);
 
   /* Remove procedure access */
-  do
-  {
-    for (counter= 0, revoked= 0 ; counter < hash->records ; )
-    {
-      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
-      if (sp_db.streq(Lex_cstring_strlen(grant_proc->db)) &&
-          sp_name.streq(Lex_cstring_strlen(grant_proc->tname)))
-      {
-        LEX_USER lex_user;
-	lex_user.user.str= grant_proc->user;
-	lex_user.user.length= strlen(grant_proc->user);
-        lex_user.host.str= safe_str(grant_proc->host.hostname);
-        lex_user.host.length= strlen(lex_user.host.str);
-        if (replace_routine_table(thd, grant_proc,
-                                  tables.procs_priv_table().table(), lex_user,
-                                  grant_proc->db, grant_proc->tname,
-                                  sph, ALL_KNOWN_ACL, 1) == 0)
-	{
-	  revoked= 1;
-	  continue;
-	}
-      }
-      counter++;
-    }
-  } while (revoked);
+  if (sph == &sp_handler_package_spec)
+    sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                     sp_db, sp_name, &sp_handler_package_body);
+
+  sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                   sp_db, sp_name, sph);
 
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
