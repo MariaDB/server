@@ -13,6 +13,12 @@
 
 SET NAMES utf8mb4;
 
+# A check constraint is looked at while the column definition is validated,
+# which for a prepared CREATE TABLE is prepare time, so the warnings the
+# constraints below draw only reach the client when prepare warnings are
+# asked for.
+--enable_prepare_warnings
+
 --echo #
 --echo # 1. What declaring a column JSON actually creates.
 --echo #
@@ -427,3 +433,5 @@ SELECT g, JSON_ARRAY(JSON_SET(j, '$.z', 1)) AS v,
 SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 ORDER BY JSON_EXTRACT(j, '$.a'), v;
 
 DROP TABLE t1, t2, t3, t4, t5, t10;
+
+--disable_prepare_warnings

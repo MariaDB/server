@@ -110,6 +110,10 @@ SELECT vj AS a FROM v1 GROUP BY a
 --echo #    and puts it inside a new one; with the column's answer taken
 --echo #    away the same query reads that document again.
 --echo #
+# What is counted below is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
 SET optimizer_switch='derived_merge=off';
 FLUSH STATUS;
 --disable_result_log
@@ -125,6 +129,7 @@ SELECT JSON_ARRAY(a) FROM (SELECT JSON_SET(j,'$.c',id) AS a FROM t1) d GROUP BY 
 SHOW STATUS LIKE 'Json_scans';
 SET SESSION debug_dbug = DEFAULT;
 SET optimizer_switch=DEFAULT;
+--enable_ps2_protocol
 
 DROP VIEW v1;
 DROP TABLE t1;

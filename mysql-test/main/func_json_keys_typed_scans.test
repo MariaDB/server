@@ -20,6 +20,11 @@
 
 SET NAMES utf8mb4;
 
+# What is recorded here is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
+
 CREATE TABLE ts (j TEXT) CHARACTER SET sjis;
 CREATE TABLE tu (j TEXT) CHARACTER SET utf8mb4;
 INSERT INTO ts VALUES ('{"a":1,"b":2}');
@@ -35,3 +40,5 @@ SELECT JSON_ARRAY(JSON_KEYS(j)) FROM tu;
 --enable_result_log
 SHOW STATUS LIKE 'Json_scans';
 DROP TABLE ts, tu;
+
+--enable_ps2_protocol

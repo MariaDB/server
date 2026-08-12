@@ -99,7 +99,12 @@ SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2}', '[9]') AS v;
 --echo #
 
 --echo # plain strings are quoted, JSON-typed arguments are embedded raw
+# A view keeps its body as printed text, and a boolean literal prints as the
+# number it equals, so read through one this array would hold a 1 rather
+# than a true.
+--disable_view_protocol
 SELECT JSON_ARRAY(1, 'str', NULL, TRUE) AS v;
+--enable_view_protocol
 SELECT JSON_ARRAY() AS v, HEX(JSON_ARRAY()) AS h;
 SELECT JSON_OBJECT() AS v, HEX(JSON_OBJECT()) AS h;
 SELECT JSON_OBJECT('a', 1, 'b', 'str') AS v;

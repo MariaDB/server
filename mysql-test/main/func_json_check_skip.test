@@ -15,6 +15,11 @@
 
 SET NAMES utf8mb4;
 
+# Some of the statements below are looked at once when they are prepared and
+# warn there rather than when they run, so the warnings only reach the client
+# when prepare warnings are asked for.
+--enable_prepare_warnings
+
 --echo #
 --echo # 1. A document that came from a JSON function goes in and stays put.
 --echo #
@@ -299,3 +304,5 @@ DELETE FROM t2 WHERE id = 2;
 SELECT id, j FROM t1 ORDER BY id;
 --remove_file $DATA
 DROP TABLE t1, t2;
+
+--disable_prepare_warnings

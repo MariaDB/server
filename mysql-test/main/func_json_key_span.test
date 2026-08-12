@@ -51,6 +51,10 @@ SELECT JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1) AS backslash_is_valid;
 --echo #    than one byte
 --echo #
 SET @old_coll= @@collation_connection;
+# A wrapping view is created on a connection of its own, which does not
+# carry the connection collation set below, so the answers would come back
+# encoded in the default set instead of the wide one being tested.
+--disable_view_protocol
 
 --echo #    All four of the keys above run again here, and the last two
 --echo #    are the reason the section exists: a key that closes its own
@@ -95,6 +99,7 @@ SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1))
        AS utf32_backslash_is_valid;
 
 SET @@collation_connection= @old_coll;
+--enable_view_protocol
 
 --echo #
 --echo # 5. Removing a key reads the path the same way
