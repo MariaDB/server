@@ -400,7 +400,8 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
-            !space.is_being_imported() && !space.is_stopping()) try
+            !space.is_being_imported() && !space.is_stopping() &&
+            space.create_lsn < start) try
         {
           /* FIXME: how to initialize create_lsn for old files, to
           have efficient incremental backup?
@@ -413,12 +414,9 @@ public:
           (1) In log_parse_file() when processing FILE_CREATE
           (2) In deferred_spaces.create()
           (3) In fil_ibd_create() outside recovery */
-          uint64_t s{space.id};
-#if 1 /* MDEV-39694 FIXME: recover FILE_CREATE by creating files */
-          if (space.create_lsn < start)
-#endif
-            s|= uint64_t{std::min(space.size, space.free_limit)} << 32;
-          queue.emplace_back(s);
+          queue.emplace_back
+            (uint64_t{space.id} |
+             uint64_t{std::min(space.size, space.free_limit)} << 32);
         } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
       mysql_mutex_unlock(&fil_system.mutex);
       non_log= queue.size();

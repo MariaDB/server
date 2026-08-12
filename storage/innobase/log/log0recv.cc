@@ -929,6 +929,18 @@ processed:
         d++;
         continue;
       }
+      else
+      {
+        recv_spaces_t::iterator it{recv_spaces.find(d->first)};
+        if (UNIV_UNLIKELY(it == recv_spaces.end()))
+          ut_ad("inconsistent data structures" == 0);
+        else if (it->second.create_lsn)
+          /*
+            Because a FILE_CREATE record exists, the entire file must
+            be recoverable via log records.
+          */
+          goto next_item;
+      }
       const page_id_t page_id{d->first, 0};
       const byte *page= recv_sys.dblwr.find_page(page_id, max_lsn);
       if (!page)
