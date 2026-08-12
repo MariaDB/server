@@ -92,6 +92,21 @@ DatabaseTableNames::DatabaseTableNames(const char *name)
   db_name= std::string(ori_db_name, db_name_length);
 }
 
+std::string quote_duckdb_identifier(const char *name, size_t length)
+{
+  std::string out;
+  out.reserve(length + 2);
+  out.push_back('"');
+  for (size_t i= 0; i < length; i++)
+  {
+    if (name[i] == '"')
+      out.push_back('"');
+    out.push_back(name[i]);
+  }
+  out.push_back('"');
+  return out;
+}
+
 Databasename::Databasename(const char *path_name)
 {
   char dbname[FN_REFLEN];

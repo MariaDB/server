@@ -2519,12 +2519,17 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     {
       char str_buf[200];
       int str_len= sizeof(str_buf) - 1;
-      int precision= (int)val[0];
-      int scale= (int)val[1];
+      decimal_digits_t precision= (uchar)val[0];
+      decimal_digits_t scale= (uchar)val[1];
       decimal_digit_t dec_buf[10];
       decimal_t dec;
       dec.len= 10;
       dec.buf= dec_buf;
+
+      /* Verify decimal metadata as well as the actual length */
+      if (precision == 0 || scale > precision ||
+          val_len < decimal_bin_size(precision, scale) + 2)
+	goto err;
 
       bin2decimal((uchar*) val+2, &dec, precision, scale);
       decimal2string(&dec, str_buf, &str_len, 0, 0, 0);

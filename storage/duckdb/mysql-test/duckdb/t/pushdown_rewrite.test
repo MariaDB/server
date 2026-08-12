@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 --disable_warnings
 DROP DATABASE IF EXISTS pushdown_rewrite;

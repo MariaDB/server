@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 --skip TODO
 create table t1(id int primary key) engine = duckdb;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -119,7 +119,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       });
 #endif
     }
-    opt_noacl= 0;
+    clear_opt_noacl();
 
     if (unlikely(tmp_thd))
     {

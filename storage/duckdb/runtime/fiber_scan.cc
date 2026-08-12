@@ -163,7 +163,13 @@ int FiberScanState::init(TABLE *tbl,
 
   buffer.Initialize(duckdb::Allocator::DefaultAllocator(), types);
 
-  if (fiber_context_init(&ctx, FIBER_STACK_SIZE))
+  size_t fiber_stack_size= FIBER_STACK_SIZE;
+#if defined(FIBER_ASAN_ENABLED) || defined(WITH_UBSAN)
+  size_t configured_stack_size= static_cast<size_t>(my_thread_stack_size);
+  if (configured_stack_size > fiber_stack_size)
+    fiber_stack_size= configured_stack_size;
+#endif
+  if (fiber_context_init(&ctx, fiber_stack_size))
     return 1;
 
   fiber_thd= create_background_thd();

@@ -934,7 +934,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  HELP_SYM
 %token  <kwd>  HIGH_PRIORITY
 %token  <kwd>  HISTORY_SYM                   /* MYSQL */
-%token  <kwd>  HOST_SYM
 %token  <kwd>  HOSTS_SYM
 %token  <kwd>  HOUR_SYM                      /* SQL-2003-R */
 %token  <kwd>  ID_SYM                        /* MYSQL */
@@ -1045,7 +1044,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  OPTIONS_SYM
 %token  <kwd>  OPTION                        /* SQL-2003-N */
 %token  <kwd>  OVERLAPS_SYM
-%token  <kwd>  OWNER_SYM
 %token  <kwd>  PACK_KEYS_SYM
 %token  <kwd>  PAGE_SYM
 %token  <kwd>  PARSER_SYM
@@ -1132,7 +1130,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SLAVE_POS_SYM
 %token  <kwd>  SLOW
 %token  <kwd>  SNAPSHOT_SYM
-%token  <kwd>  SOCKET_SYM
 %token  <kwd>  SOFT_SYM
 %token  <kwd>  SONAME_SYM
 %token  <kwd>  SOUNDS_SYM
@@ -2436,14 +2433,14 @@ master_def:
             { mi->master_ssl_crlpath= path; };
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' opt_plus num_or_default
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' num_or_default
           {
-            if ($4)
+            if ($3)
             {
               uint32_t milliseconds;
               bool overprecise;
               auto decimal_buf= my_decimal(),
-                  *decimal= $4->val_decimal(&decimal_buf);
+                  *decimal= $3->val_decimal(&decimal_buf);
               DBUG_ASSERT(decimal);
               if (Master_info_file::Heartbeat_period_value::from_decimal(
                 milliseconds, *decimal, overprecise
@@ -2503,7 +2500,7 @@ master_use_gtid_enum:
         | DEFAULT         { $$= enum_master_use_gtid::DEFAULT; }
         ;
 num_or_default:
-          NUM_literal { DBUG_ASSERT($$); }
+          opt_plus NUM_literal { DBUG_ASSERT($2); $$= $2; }
         | DEFAULT { $$= nullptr; }
         ;
 
@@ -3057,21 +3054,6 @@ server_options_list:
 server_option:
           USER_SYM TEXT_STRING_sys
           {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.username.str == 0);
-            Lex->server_options.username= $2;
-            engine_option_value *new_option=
-              new (thd->mem_root) engine_option_value(
-                engine_option_value::Name(
-                  safe_lexcstrdup_root(thd->mem_root, $1)),
-                engine_option_value::Value(
-                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
-            new_option->link(&Lex->server_options.option_list,
-                             &Lex->option_list_last);
-          }
-        | HOST_SYM TEXT_STRING_sys
-          {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
-            Lex->server_options.host= $2;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -3083,21 +3065,6 @@ server_option:
           }
         | DATABASE TEXT_STRING_sys
           {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.db.str == 0);
-            Lex->server_options.db= $2;
-            engine_option_value *new_option=
-              new (thd->mem_root) engine_option_value(
-                engine_option_value::Name(
-                  safe_lexcstrdup_root(thd->mem_root, $1)),
-                engine_option_value::Value(
-                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
-            new_option->link(&Lex->server_options.option_list,
-                             &Lex->option_list_last);
-          }
-        | OWNER_SYM TEXT_STRING_sys
-          {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.owner.str == 0);
-            Lex->server_options.owner= $2;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -3109,21 +3076,6 @@ server_option:
           }
         | PASSWORD_SYM TEXT_STRING_sys
           {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.password.str == 0);
-            Lex->server_options.password= $2;
-            engine_option_value *new_option=
-              new (thd->mem_root) engine_option_value(
-                engine_option_value::Name(
-                  safe_lexcstrdup_root(thd->mem_root, $1)),
-                engine_option_value::Value(
-                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
-            new_option->link(&Lex->server_options.option_list,
-                             &Lex->option_list_last);
-          }
-        | SOCKET_SYM TEXT_STRING_sys
-          {
-            MYSQL_YYABORT_UNLESS(Lex->server_options.socket.str == 0);
-            Lex->server_options.socket= $2;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -3135,23 +3087,6 @@ server_option:
           }
         | PORT_SYM ulong_num
           {
-            /*
-              We especially don't want this to happen:
-
-              The value of $2 is ULONG_MAX, causing
-              server_options.port to be -1, which means "default
-              port".
-
-              Because we are doing a check here, we may as well check
-              against the SQL data type in one go rather than just the
-              C++ type here and SQL type later in sql_servers.cc.
-            */
-            if ($2 > INT32_MAX)
-            {
-              my_error(ER_DATA_OUT_OF_RANGE, myf(0), "port", "INT");
-              MYSQL_YYABORT;
-            }
-            Lex->server_options.port= $2;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -3163,16 +3098,6 @@ server_option:
         /* port can be a quoted number */
         | PORT_SYM TEXT_STRING_sys
           {
-            int error;
-            char *end= (char *) $2.str + $2.length;
-            longlong p= my_strtoll10($2.str, &end, &error);
-            if (error > 0 || end != (char *) $2.str + $2.length ||
-                p > LONG_MAX || p < LONG_MIN)
-            {
-              thd->parse_error();
-              MYSQL_YYABORT;
-            }
-            Lex->server_options.port= (long) p;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -16895,12 +16820,10 @@ keyword_sp_var_not_label:
         | FOLLOWING_SYM
         | GET_SYM
         | HELP_SYM
-        | HOST_SYM
         | INSTALL_SYM
         | OPTION
         | OPTIONS_SYM
         | OTHERS_MARIADB_SYM
-        | OWNER_SYM
         | PARSER_SYM
         | PERIOD_SYM
         | PORT_SYM
@@ -16910,7 +16833,6 @@ keyword_sp_var_not_label:
         | RESET_SYM
         | SECURITY_SYM
         | SERVER_SYM
-        | SOCKET_SYM
         | SLAVE
         | SLAVES
         | SONAME_SYM

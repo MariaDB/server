@@ -62,6 +62,7 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER mysql
   OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
 CREATE SERVER `s'2` FOREIGN DATA WRAPPER 'my''sql'
   OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
+create server `s``3` foreign data wrapper mysql options (host 'value');
 
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
@@ -131,6 +132,7 @@ DROP FUNCTION IF EXISTS metaphon;
 DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
 DROP SERVER `s'2`;
+DROP SERVER `s``3`;
 set time_zone= @@global.time_zone;
 
 --echo # Restore from mysqldump
@@ -157,6 +159,7 @@ DROP FUNCTION IF EXISTS avgcost;
 
 DROP SERVER s1;
 DROP SERVER `s'2`;
+DROP SERVER `s``3`;
 
 # EITS && innodb stats
 DELETE FROM mysql.column_stats WHERE db_name='mysql';

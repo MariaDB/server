@@ -63,6 +63,12 @@ MariaDB function semantics differ from DuckDB in several areas. These are handle
 | `POWER()` | `pow()` | Supported natively |
 | `SUBSTRING()` | `substr()` | Supported natively |
 
+### Not translated by the pushdown layer
+
+| Function | Issue | Workaround |
+|---|---|---|
+| `TIMESTAMPDIFF(unit, dt1, dt2)` | The `unit` keyword is not bindable, so the call reaches DuckDB as an unknown `timestampdiff` function and the query fails. DuckDB's own `date_diff()` takes the unit as a string and is not a drop-in match | Use `UNIX_TIMESTAMP()` arithmetic, e.g. `FLOOR((UNIX_TIMESTAMP(dt2) - UNIX_TIMESTAMP(dt1)) / 600) * 10` for minute buckets |
+
 ### Potentially incompatible (not yet triggered)
 
 | User writes | MariaDB canonical | DuckDB status |
@@ -88,14 +94,15 @@ SELECT pushdown uses the original SQL text from `THD::query()`. MariaDB-specific
 | `HIGH_PRIORITY`, `SQL_NO_CACHE`, `SQL_CACHE`, `SQL_BUFFER_RESULT`, `SQL_SMALL_RESULT`, `SQL_BIG_RESULT`, `SQL_CALC_FOUND_ROWS` | -- | Stripped |
 | `FORCE INDEX(...)`, `USE INDEX(...)`, `IGNORE INDEX(...)` | -- | Stripped |
 
-### Known unhandled cases (currently cause query failures)
+### Known unhandled cases (currently fail or change semantics)
 
-These MariaDB constructs are **not yet rewritten** and fail when pushed down. Because pushdown forwards the original `THD::query()` text (only backticks are converted to double quotes), MariaDB-specific token semantics survive into DuckDB. Discovered while running an analytical query set (402 queries) against DuckDB-engine tables.
+These MariaDB constructs are **not yet rewritten** and either fail or have different semantics when pushed down. Because pushdown forwards the original `THD::query()` text (only backticks are converted to double quotes), MariaDB-specific token semantics survive into DuckDB. Discovered while running an analytical query set (402 queries) against DuckDB-engine tables.
 
 | MariaDB construct | Sent to DuckDB as | DuckDB result | Root cause |
 |---|---|---|---|
 | Double-quoted **string literal**, e.g. `JSON_OBJECT("month", ...)` | `"month"` (verbatim) | `Binder Error: Referenced column "month" not found` | MariaDB without `ANSI_QUOTES` treats `"x"` as a string literal; DuckDB treats `"x"` as an identifier. The forwarded literal is read as a column reference. |
 | Unquoted column **alias equal to a DuckDB reserved keyword**, e.g. `SELECT expr name` / `SELECT expr year` | `... name` / `... year` (verbatim) | `Parser Error: syntax error at or near "name"` | DuckDB forbids reserved keywords as unquoted identifiers. `AS name` or `"name"` work; bare `name` / `year` / `month` do not. This is why most implicit aliases pass but keyword aliases fail. |
+| MariaDB **executable/versioned comments**, e.g. `/*! + 1 */`, `/*!100000 + 1 */`, or `/*M! + 1 */` | Comment text (verbatim) | Contents are ignored as an ordinary block comment | MariaDB executes eligible `/*! ... */` and `/*M! ... */` contents as SQL, optionally gated by a version number; DuckDB treats the entire region as a comment. Forwarded queries can therefore silently use different predicates or expressions. |
 
 Reproductions (against any DuckDB-engine table `t`):
 
@@ -104,9 +111,10 @@ SELECT JSON_OBJECT("k", 1) FROM t;   -- Binder Error: column "k" not found
 SELECT JSON_OBJECT('k', 1) FROM t;   -- OK
 SELECT col name FROM t;              -- Parser Error at "name"
 SELECT col AS name FROM t;           -- OK
+SELECT 1 /*! + 1 */ FROM t;          -- MariaDB: 2; DuckDB pushdown: 1
 ```
 
-**Fix direction**: in `ha_duckdb_pushdown.cc`, convert double-quoted string literals to single-quoted form and quote (or `AS`-prefix) aliases that are DuckDB reserved keywords. Both require lexer-aware handling of the query text, not naive replacement — `backticks_to_double_quotes()` already produces legitimate double-quoted identifiers that must not be altered.
+**Fix direction**: in `ha_duckdb_pushdown.cc`, convert double-quoted string literals to single-quoted form and quote (or `AS`-prefix) aliases that are DuckDB reserved keywords. Both require lexer-aware handling of the query text, not naive replacement — `backticks_to_double_quotes()` already produces legitimate double-quoted identifiers that must not be altered. Executable/versioned comments must either be expanded according to MariaDB's version rules or make the query ineligible for raw SQL forwarding.
 
 ---
 
