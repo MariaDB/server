@@ -223,6 +223,11 @@ DROP TABLE tp;
 --echo #    bytes are converted on the way out.
 --echo #
 
+# What is read here is what the expression itself declares.  A cursor
+# reports the temporary table it materialised the answer into and a view
+# reports its own columns, so neither would be answering the question.
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_ARRAY(1) AS v;
 SELECT JSON_OBJECT('a',1) AS v;
@@ -235,6 +240,8 @@ SELECT JSON_COMPACT('{}') AS v;
 SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
 SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # 8. A result delivered in a character set other than the one it was

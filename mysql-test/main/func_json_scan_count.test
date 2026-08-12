@@ -19,6 +19,11 @@
 # no query is responsible for.
 #
 
+# What is recorded here is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
+
 CREATE TABLE t1 (id INT, js VARCHAR(64));
 INSERT INTO t1 VALUES (1, '{"a":1,"b":2}'), (2, '{"a":3,"b":4}');
 
@@ -612,3 +617,5 @@ SELECT JSON_VALID(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary_va
 --echo # And the same going the other way, which was always refused
 --echo #
 SELECT HEX(CONVERT(JSON_ARRAY('ab') USING binary)) AS to_binary;
+
+--enable_ps2_protocol

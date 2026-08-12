@@ -79,6 +79,10 @@ DROP TABLE t3;
 --echo #    the server built is taken as it stands; the same query with
 --echo #    the column's answer taken away reads it again.
 --echo #
+# What is counted below is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
 SET optimizer_switch='derived_merge=off';
 FLUSH STATUS;
 --disable_result_log
@@ -96,5 +100,6 @@ SELECT JSON_ARRAY(p) FROM (SELECT JSON_SEARCH(j,'all','%') AS p FROM t1) d
 SHOW STATUS LIKE 'Json_scans';
 SET SESSION debug_dbug = DEFAULT;
 SET optimizer_switch=DEFAULT;
+--enable_ps2_protocol
 
 DROP TABLE t1;

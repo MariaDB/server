@@ -8,6 +8,11 @@
 
 SET NAMES utf8mb4;
 
+# The constraint is looked at while the column definition is validated,
+# which for a prepared CREATE TABLE is prepare time, so the warnings below
+# only reach the client when prepare warnings are asked for.
+--enable_prepare_warnings
+
 --echo #
 --echo # A constraint reading another column
 --echo #
@@ -22,9 +27,13 @@ CREATE TABLE t1 (
 SHOW CREATE TABLE t1;
 
 --echo # what the server tells a client the columns are
+# Read through a view the columns belong to the view, so the names and the
+# flags reported here would be the wrapper's rather than the table's.
+--disable_view_protocol
 --enable_metadata
 SELECT a, b, d, e FROM t1;
 --disable_metadata
+--enable_view_protocol
 
 SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' ORDER BY COLUMN_NAME;
@@ -71,9 +80,11 @@ DROP TABLE t2;
 --echo #
 
 CREATE TABLE t3 (a VARCHAR(100) CHECK (JSON_VALID('{}')));
+--disable_view_protocol
 --enable_metadata
 SELECT a FROM t3;
 --disable_metadata
+--enable_view_protocol
 INSERT INTO t3 VALUES ('not json at all');
 SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t3;
 DROP TABLE t3;
@@ -98,9 +109,11 @@ CREATE TABLE t5 (
   b VARCHAR(100),
   CONSTRAINT c CHECK (JSON_VALID(b))
 );
+--disable_view_protocol
 --enable_metadata
 SELECT a, b FROM t5;
 --disable_metadata
+--enable_view_protocol
 DROP TABLE t5;
 
 --echo #
@@ -123,10 +136,12 @@ CREATE TABLE t8 (d TEXT CHECK (JSON_VALID(d)));
 --echo # the protocol tells the client what the warnings told the writer:
 --echo # none of the three is a JSON column, and a column whose check is
 --echo # the call alone still is
+--disable_view_protocol
 --enable_metadata
 SELECT a, b, c, d FROM t7;
 SELECT d FROM t8;
 --disable_metadata
+--enable_view_protocol
 
 --echo # and what each does with a document says the same: quoted, where a
 --echo # column whose check is the call alone is spliced
@@ -147,9 +162,11 @@ DROP TABLE t7, t8;
 CREATE TABLE t6 (j JSON, s VARCHAR(100) CHECK (JSON_VALID(s)));
 INSERT INTO t6 VALUES ('{"x":1}', '{"y":2}'), ('{"x":3}', '{"y":4}');
 
+--disable_view_protocol
 --enable_metadata
 SELECT j, s FROM t6 GROUP BY j, s;
 --disable_metadata
+--enable_view_protocol
 
 SELECT JSON_SET('{}', '$.k', j) AS from_j,
        JSON_SET('{}', '$.k', s) AS from_s
@@ -214,3 +231,5 @@ SELECT JSON_SET('{}','$.k',j) AS direct_nullable FROM t7 ORDER BY 1;
 SELECT JSON_SET('{}','$.k',j) AS direct_notnull FROM t8 ORDER BY 1;
 
 DROP TABLE lg, t7, t8;
+
+--disable_prepare_warnings
