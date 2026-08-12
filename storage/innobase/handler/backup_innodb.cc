@@ -854,7 +854,17 @@ private:
           limit= 0;
       }
 
-      for (uint32_t page{0}; page < limit; )
+      const uint32_t final_limit=
+        node->space->id == 0 &&
+        buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
+        limit > buf_dblwr.end()
+        ? limit : 0;
+      if (final_limit)
+        limit= buf_dblwr.begin();
+
+      uint32_t page{0};
+    loop:
+      while (page < limit)
       {
         buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end= blocks;
         {
@@ -871,6 +881,14 @@ private:
         backup_batch_stop(node->space, blocks, end);
         if (err)
           break;
+      }
+
+      if (page == buf_dblwr.begin() && final_limit && !err)
+      {
+        /* Copy the rest after the doublewrite buffer. */
+        limit= final_limit;
+        page+= buf_dblwr.size();
+        goto loop;
       }
 
       if (IF_WIN(!CloseHandle(f), close(f)) | err)
@@ -899,22 +917,41 @@ private:
       file_size= std::max(std::max(limit, node->size),
                           (FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift) /
                           page_size);
-    backup_chunk chunk[2]{
-      {0, uint64_t{limit} * page_size},
+    uint64_t physical_size{uint64_t{limit} * page_size};
+    backup_chunk chunk[3]{
+      {0, physical_size},
       {uint64_t{file_size} * page_size, 0}
     };
+    size_t n_chunk= (file_size > limit) * 2;
+
     if (file_size < limit)
     {
       limit= file_size;
-      chunk[0].length= chunk[1].offset;
+      chunk[1].length= chunk[2].offset;
     }
+
+    if (node->space->id == 0 &&
+        buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
+        limit > buf_dblwr.end())
+    {
+      n_chunk= 2 + !!n_chunk;
+      limit= buf_dblwr.begin();
+      physical_size-= uint64_t{buf_dblwr.size()} * page_size;
+      memmove(chunk + 1, chunk, 2 * sizeof *chunk);
+      chunk[0].length= uint64_t{limit} * page_size;
+      chunk[1].offset= uint64_t{buf_dblwr.end()} * page_size;
+      chunk[1].length-= chunk[1].offset;
+    }
+
     int err= backup_stream_start(stream, node->name, 0644,
-                                 chunk[0].length,
-                                 chunk, (file_size > limit) * 2);
+                                 physical_size, chunk, n_chunk);
     if (err)
       limit= 0;
 
-    for (uint32_t page{0}; page < limit; )
+    uint32_t page{0};
+
+  loop:
+    while (page < limit)
     {
       buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end= blocks;
       {
@@ -931,10 +968,19 @@ private:
       page= last;
       backup_batch_stop(node->space, blocks, end);
       if (err)
-        break;
+        goto fail;
+    }
+
+    if (limit == buf_dblwr.begin() && n_chunk == 3)
+    {
+      /* Copy the rest after the doublewrite buffer. */
+      page+= buf_dblwr.size();
+      limit= page + uint32_t(chunk[1].length >> srv_page_size_shift);
+      goto loop;
     }
 
     if (err)
+    fail:
       my_error(ER_IO_WRITE_ERROR, MYF(0), errno, strerror(errno),
                "BACKUP SERVER");
     return err;
