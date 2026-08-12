@@ -36,6 +36,11 @@ INSERT INTO t3 VALUES (CONCAT('{"x":"', REPEAT('a',190), '"}')),
 --echo # reach this number, so it says what the arithmetic came to and
 --echo # nothing else.  The Length column is the one to read.
 --echo #
+# What is read here is what the expression itself declares.  A cursor
+# reports the temporary table it materialised the answer into and a view
+# reports its own columns, so neither would be answering the question.
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_SET(v, '$.p', 'z') AS one_pair FROM t1;
 SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w') AS two_pairs FROM t1;
@@ -43,9 +48,11 @@ SELECT JSON_SET(v, '$.p', 'z', '$.q', 'w', '$.s', 'y') AS three_pairs
   FROM t1;
 SELECT JSON_SET(v, '$.p', REPEAT('z',30)) AS plain_value FROM t2;
 SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS escaped_value FROM t2;
-SELECT JSON_SET(v, '$.p', s) AS spelt_out_value FROM t2;
+SELECT JSON_SET(v, '$.p', s) AS wide_escape_value FROM t2;
 SELECT JSON_SET(v, '$.p', REPEAT('"',20)) AS document_fills_column FROM t3;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # The same numbers again, read off the column a result is put in.
@@ -184,8 +191,10 @@ DROP TABLE t4;
 --echo # The same room, asked for by the functions that build a document
 --echo # rather than edit one, and by the two that append to an array.
 --echo # All four work it out the same way and all four are given a value
---echo # whose characters are spelt out.
+--echo # whose characters have to be escaped.
 --echo #
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_ARRAY(s) AS array_value FROM t2;
 SELECT JSON_OBJECT('k', s) AS object_value FROM t2;
@@ -193,6 +202,8 @@ SELECT JSON_ARRAY_APPEND(v, '$.x', s) AS appended FROM t2;
 SELECT JSON_ARRAY_INSERT(JSON_SET(v, '$.x', JSON_ARRAY(1)), '$.x[0]', s)
   AS inserted FROM t2;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 SELECT LENGTH(JSON_ARRAY(s)) AS produced FROM t2;
 SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
@@ -220,9 +231,13 @@ SELECT LENGTH(r) AS kept, JSON_VALID(r) AS valid
 CREATE TABLE t7 (s VARCHAR(45));
 INSERT INTO t7 VALUES (REPEAT('a',45)), (REPEAT('b',45));
 
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_QUOTE(s) AS quoted FROM t7;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 CREATE TABLE d9 AS SELECT JSON_ARRAY(s) AS r FROM t7;
 SHOW CREATE TABLE d9;
@@ -233,9 +248,13 @@ DROP TABLE t7;
 --echo # A value that is already a document goes in as it stands, so the
 --echo # room for it is asked for once over and not twelve times.
 --echo #
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_ARRAY(JSON_QUERY(v, '$')) AS document_value FROM t2;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # A function that takes something out and writes what is left out
@@ -248,9 +267,13 @@ INSERT INTO t5 VALUES
   ('[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]'),
   ('[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]');
 
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_REMOVE(v, '$[0]') AS removed FROM t5;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 SELECT LENGTH(v) AS document FROM t5;
 SELECT LENGTH(JSON_REMOVE(v, '$[0]')) AS produced FROM t5;

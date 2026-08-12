@@ -82,6 +82,10 @@ SELECT LENGTH(g) AS mgrown, JSON_VALID(g) AS parses,
 --echo # 4. A user variable holding the document, written to by the
 --echo #    expression that works out the value
 --echo #
+# Each statement below overwrites the variable it reads, so running it a
+# second time to check that it repeats itself would be asking it about a
+# different document.
+--disable_ps2_protocol
 SET @d= '{"a":1111111111}';
 SELECT JSON_INSERT(@d, '$.b', (@d := REPEAT('z', 30))) AS uvar;
 SET @d= '{"a":1111111111}';
@@ -94,6 +98,7 @@ SET @d= '[1111111111]';
 SELECT JSON_ARRAY_APPEND(@d, '$', (@d := REPEAT('z', 30))) AS uvar_app;
 SET @d= '{"a":1111111111}';
 SELECT JSON_MERGE(@d, (@d := '{"b":2}')) AS uvar_mrg;
+--enable_ps2_protocol
 
 --echo #
 --echo # 5. A routine's own variable holding the document, with the
@@ -166,9 +171,12 @@ SELECT LENGTH(g) AS typed_big, JSON_VALID(g) AS parses,
 --echo #    And where the document being edited is a user variable that
 --echo #    the value expression writes to, with the value a document.
 --echo #
+# This one overwrites the variable it reads as well.
+--disable_ps2_protocol
 SET @d= '{"a":1111111111}';
 SELECT JSON_INSERT(@d, '$.b',
                    JSON_ARRAY((@d := REPEAT('z', 30)), 2)) AS typed_uvar;
+--enable_ps2_protocol
 
 DROP TABLE t1;
 

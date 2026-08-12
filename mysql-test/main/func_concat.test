@@ -316,6 +316,9 @@ SELECT CONCAT(JSON_TYPE(j), JSON_TYPE(j)) AS c FROM t1;
 DROP TABLE t1;
 
 --echo # The || operator in sql_mode=ORACLE concatenates the same way
+# A wrapping view is created on a connection of its own, which does not
+# carry this session's sql_mode, so || would be read as an OR there.
+--disable_view_protocol
 
 SET @save_sql_mode=@@sql_mode;
 SET sql_mode=ORACLE;
@@ -323,5 +326,6 @@ SELECT JSON_TYPE('{"a":1}') || 'X';
 SELECT GET_FORMAT(DATE, 'USA') || 'X';
 SELECT 'P' || JSON_TYPE('{"a":1}');
 SET sql_mode=@save_sql_mode;
+--enable_view_protocol
 
 --echo # End of 10.11 tests

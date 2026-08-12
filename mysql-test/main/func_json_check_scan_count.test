@@ -25,6 +25,13 @@
 
 SET NAMES utf8mb4;
 
+# Everything here is counted rather than read, so a statement that is run a
+# second time to check that it repeats itself would count twice.
+--disable_ps2_protocol
+# A check constraint is looked at while the column definition is validated,
+# which for a prepared CREATE TABLE is prepare time.
+--enable_prepare_warnings
+
 CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
 CREATE TABLE t2 (id INT PRIMARY KEY, j VARCHAR(64));
 INSERT INTO t2 VALUES (1, '{"a":1}'), (2, '{"b":2}');
@@ -303,3 +310,6 @@ UPDATE t1 FOR PORTION OF p FROM '2002-01-01' TO '2003-01-01' SET id = 2;
 SHOW STATUS LIKE 'Json_scans';
 SELECT id, s, e, j FROM t1 ORDER BY s;
 DROP TABLE t1;
+
+--disable_prepare_warnings
+--enable_ps2_protocol

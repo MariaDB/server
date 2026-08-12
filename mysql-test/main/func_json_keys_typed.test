@@ -136,11 +136,18 @@ DROP TABLE t1;
 --echo # 10. The result metadata, which is what decides all of the above.
 --echo #
 
+# What is read here is what the expression itself declares.  A cursor
+# reports the temporary table it materialised the answer into and a view
+# reports its own columns, so neither would be answering the question.
+--disable_cursor_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT JSON_KEYS('{"a":1,"b":2}') AS v;
 SELECT JSON_EXTRACT('{"a":[1,2]}','$.a') AS v;
 SELECT JSON_QUOTE('a') AS v;
 --disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # 11. JSON_QUOTE is documented to return a string and still does.

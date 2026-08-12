@@ -189,6 +189,11 @@ BEGIN
 END//
 DELIMITER ;//
 
+# The counter below records how often the function was called rather than
+# what the query answered, so a statement run a second time to check that it
+# repeats itself would count twice.
+--disable_ps2_protocol
+
 --echo # the array, which reads every row of the group already
 SET @calls= 0;
 SELECT JSON_ARRAYAGG(seen_once(v) ORDER BY v) AS v FROM t5;
@@ -238,9 +243,10 @@ DROP TABLE t6;
 
 DROP FUNCTION seen_once;
 DROP TABLE t5;
+--enable_ps2_protocol
 
 --echo #
---echo # 12. The limit is on the bytes handed back, and the brace that
+--echo # 12. The limit is on the bytes returned, and the brace that
 --echo #     closes the object is one of them.  It goes on after the
 --echo #     length has been tested, so the room for it has to be kept
 --echo #     back when the test is made.

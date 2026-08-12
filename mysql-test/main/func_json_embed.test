@@ -206,9 +206,14 @@ INSERT INTO t5 VALUES (2, '{"a":1,"b":[1,2]}');
 INSERT INTO t5 VALUES (3, '[ 1 ,2, 3 ]');
 
 --echo # with nothing spliced, and with a document spliced in
+# A view keeps its body as printed text, and a boolean literal prints as the
+# number it equals, so read through one this array would hold a 1 rather
+# than a true.
+--disable_view_protocol
 SELECT JSON_ARRAY(1, 'a', TRUE, NULL) AS built,
        JSON_ARRAY(1, 'a', TRUE, NULL) = JSON_LOOSE(JSON_ARRAY(1, 'a', TRUE, NULL))
          AS already_loose;
+--enable_view_protocol
 SELECT JSON_OBJECT('a', 1, 'b', 'x') AS built,
        JSON_OBJECT('a', 1, 'b', 'x') = JSON_LOOSE(JSON_OBJECT('a', 1, 'b', 'x'))
          AS already_loose;

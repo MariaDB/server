@@ -16,6 +16,11 @@
 --echo #
 
 SET NAMES utf8mb4;
+
+# What is recorded here is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
 SET optimizer_switch='derived_merge=off';
 
 CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
@@ -587,3 +592,5 @@ DROP TABLE t39, t39b;
 
 DROP TABLE t1;
 DROP TABLE t13, t13m;
+
+--enable_ps2_protocol
