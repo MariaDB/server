@@ -1260,51 +1260,51 @@ class Item_sum_bit :public Item_sum_int
 public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
     Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
-    as_window_function(FALSE), num_values_added(0) {}
-  Item_sum_bit(THD *thd, Item_sum_bit *item):
-    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits),
-    as_window_function(item->as_window_function),
-    num_values_added(item->num_values_added)
-  {
-    if (as_window_function)
-      memcpy(bit_counters, item->bit_counters, sizeof(bit_counters));
-  }
+    num_values_added(0), direct_bits(0), m_binary_bit_counters(nullptr),
+    m_binary_length(0), as_window_function(FALSE), m_binary_mode(FALSE),
+    direct_added(FALSE), direct_reseted_field(FALSE),
+    direct_sum_is_null(FALSE) {}
+  Item_sum_bit(THD *thd, Item_sum_bit *item);
   enum Sumfunctype sum_func () const override { return SUM_BIT_FUNC;}
   void clear() override;
   longlong val_int() override;
   void reset_field() override;
   void update_field() override;
   const Type_handler *type_handler() const override
-  { return &type_handler_ulonglong; }
-  bool fix_length_and_dec(THD *thd) override
   {
-    if (args[0]->check_type_can_return_int(func_name_cstring()))
-      return true;
-    decimals= 0; max_length=21; unsigned_flag= 1;
-    base_flags&= ~item_base_t::MAYBE_NULL;
-    null_value= 0;
-    return FALSE;
+    if (m_binary_mode)
+      return Type_handler::blob_type_handler(max_length);
+    return &type_handler_ulonglong;
   }
   // block standard processor for never null
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   { return 0; }
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *str) override;
   void cleanup() override
   {
     bits= reset_bits;
+    m_binary_bit_counters= nullptr;
     if (as_window_function)
       clear_as_window();
+    direct_added= FALSE;
+    direct_reseted_field= FALSE;
     Item_sum_int::cleanup();
   }
-  void setup_window_func(THD *, Window_spec *) override
-  {
-    as_window_function= TRUE;
-    clear_as_window();
-  }
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void remove() override
   {
     if (as_window_function)
     {
-      remove_as_window(args[0]->val_int());
+      if (m_binary_mode)
+      {
+        StringBuffer<512> arg_buf;
+        String *arg= args[0]->val_str(&arg_buf);
+        if (arg)
+          remove_binary_as_window(*arg);
+      }
+      else
+        remove_as_window(args[0]->val_int());
       return;
     }
     // Unless we're counting bits, we can not remove anything.
@@ -1315,22 +1315,40 @@ public:
   {
     return true;
   }
+  void direct_add(ulonglong add_bits, bool is_null);
+  void direct_add(const String *add_str, bool is_null);
 
 protected:
   enum bit_counters { NUM_BIT_COUNTERS= 64 };
-  ulonglong reset_bits,bits;
+
+  ulonglong reset_bits;
+  ulonglong bits;
+  ulonglong num_values_added;
+  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  ulonglong direct_bits;
+  uint32 *m_binary_bit_counters;
+  uint m_binary_length;  // byte length of binary operand
+
+  String m_str_value;    // binary accumulator
+  String direct_str_value;
+
   /*
     Marks whether the function is to be computed as a window function.
   */
   bool as_window_function;
-  // When used as an aggregate window function, we need to store
-  // this additional information.
-  ulonglong num_values_added;
-  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  bool m_binary_mode;
+  bool direct_added;
+  bool direct_reseted_field;
+  bool direct_sum_is_null;
+
   bool add_as_window(ulonglong value);
   bool remove_as_window(ulonglong value);
   bool clear_as_window();
+  bool add_binary_as_window(const String &value);
+  bool remove_binary_as_window(const String &value);
+  bool clear_binary_as_window();
   virtual void set_bits_from_counters()= 0;
+  virtual void reset_binary_accumulator() {}
 };
 
 
@@ -1349,6 +1367,7 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void reset_binary_accumulator() override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1372,6 +1391,7 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void reset_binary_accumulator() override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1393,6 +1413,7 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void reset_binary_accumulator() override;
 
 protected:
   Item *shallow_copy(THD *thd) const override

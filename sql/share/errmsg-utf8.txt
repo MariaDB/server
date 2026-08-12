@@ -12414,3 +12414,8 @@ ER_PARTITION_INTERVAL_MAXVALUE
         eng "MAXVALUE is not allowed in range partitioning with interval"
 ER_RANGE_INTERVAL_PART_FAILED
         eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
+ER_INVALID_BITWISE_OPERANDS_SIZE
+        eng "Mismatched length of operands for bitwise operator: %d and %d"
+ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE
+        eng "Operand size %d exceeds maximum limit of 512 bytes for bitwise aggregate function"
+

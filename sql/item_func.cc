@@ -2234,10 +2234,147 @@ public:
 };
 
 
+class Func_handler_shift_bin_to_bin: public Item_handled_func::Handler_str
+{
+protected:
+  virtual void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                        size_t byte_shift, uint bit_shift) const = 0;
+
+public:
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    item->max_length= item->arguments()[0]->max_length;
+    item->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    return false;
+  }
+
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    Longlong_null shift_count_null= item->arguments()[1]->to_longlong_null();
+    if (shift_count_null.is_null())
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    longlong shift_count_signed= shift_count_null.value();
+    size_t len= a->length();
+    if (len == 0)
+    {
+      to->length(0);
+      to->set_charset(&my_charset_bin);
+      item->null_value= false;
+      return to;
+    }
+
+    if (to->realloc(len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), len);
+      item->null_value= true;
+      return nullptr;
+    }
+
+    uchar *out_ptr= (uchar *) to->ptr();
+    const uchar *a_ptr= (const uchar *) a->ptr();
+
+    if (shift_count_signed < 0 || (ulonglong)shift_count_signed >= (ulonglong)len * 8)
+    {
+      memset(out_ptr, 0, len);
+    }
+    else
+    {
+      ulonglong shift_count= (ulonglong) shift_count_signed;
+      size_t byte_shift= shift_count / 8;
+      uint bit_shift= shift_count % 8;
+
+      do_shift(out_ptr, a_ptr, len, byte_shift, bit_shift);
+    }
+
+    to->length(len);
+    to->set_charset(&my_charset_bin);
+    item->null_value= false;
+    return to;
+  }
+};
+
+
+class Func_handler_shift_left_bin_to_bin: public Func_handler_shift_bin_to_bin
+{
+protected:
+  void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                size_t byte_shift, uint bit_shift) const override
+  {
+    /*
+     * Shift the binary string left by shift_count bits.
+     * Split into byte_shift (whole bytes to slide) and
+     * bit_shift (remaining bits to carry across byte boundaries).
+     * output[i] = input[i + byte_shift] << bit_shift
+     *           | input[i + byte_shift + 1] >> (8 - bit_shift)
+     * Bits shifted off the end are discarded.
+     */
+    for (size_t i= 0; i < len; ++i)
+    {
+      if (byte_shift < len - i)
+      {
+        size_t src_idx= i + byte_shift;
+        if (bit_shift > 0)
+        {
+          uchar val= (uchar)(a_ptr[src_idx] << bit_shift);
+          if (src_idx + 1 < len)
+          {
+            val|= (uchar)(a_ptr[src_idx + 1] >> (8 - bit_shift));
+          }
+          out_ptr[i]= val;
+        }
+        else
+        {
+          out_ptr[i]= a_ptr[src_idx];
+        }
+      }
+      else
+      {
+        out_ptr[i]= 0;
+      }
+    }
+  }
+};
+
+
 bool Item_func_shift_left::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_shift_left_bin_to_bin ha_bin_to_bin;
   static Func_handler_shift_left_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_left_decimal_to_ulonglong ha_dec_to_ull;
+
+  const Type_handler *th= args[0]->type_handler();
+  bool is_longstr= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+  bool is_hybrid= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+  bool is_binary= args[0]->collation.collation == &my_charset_bin;
+
+  if (is_longstr && is_binary && !is_hybrid)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -2268,10 +2405,65 @@ public:
 };
 
 
+class Func_handler_shift_right_bin_to_bin: public Func_handler_shift_bin_to_bin
+{
+protected:
+  void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                size_t byte_shift, uint bit_shift) const override
+  {
+    /*
+     * Shift the binary string right by shift_count bits.
+     * Split into byte_shift (whole bytes to slide) and
+     * bit_shift (remaining bits to carry across byte boundaries).
+     * output[i] = input[i - byte_shift] >> bit_shift
+     *           | input[i - byte_shift - 1] << (8 - bit_shift)
+     * Bits shifted off the end are discarded.
+     */
+    for (size_t i= 0; i < len; ++i)
+    {
+      if (i >= byte_shift)
+      {
+        size_t src_idx= i - byte_shift;
+        if (bit_shift > 0)
+        {
+          uchar val= (uchar)(a_ptr[src_idx] >> bit_shift);
+          if (src_idx > 0)
+          {
+            val|= (uchar)(a_ptr[src_idx - 1] << (8 - bit_shift));
+          }
+          out_ptr[i]= val;
+        }
+        else
+        {
+          out_ptr[i]= a_ptr[src_idx];
+        }
+      }
+      else
+      {
+        out_ptr[i]= 0;
+      }
+    }
+  }
+};
+
+
 bool Item_func_shift_right::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_shift_right_bin_to_bin ha_bin_to_bin;
   static Func_handler_shift_right_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_right_decimal_to_ulonglong ha_dec_to_ull;
+
+  const Type_handler *th= args[0]->type_handler();
+  bool is_longstr= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+  bool is_hybrid= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+  bool is_binary= args[0]->collation.collation == &my_charset_bin;
+
+  if (is_longstr && is_binary && !is_hybrid)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -2300,10 +2492,86 @@ public:
 };
 
 
+class Func_handler_bit_neg_bin_to_bin: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    item->max_length= item->arguments()[0]->max_length;
+    item->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    return false;
+  }
+
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    size_t len= a->length();
+    if (len == 0)
+    {
+      to->length(0);
+      to->set_charset(&my_charset_bin);
+      item->null_value= false;
+      return to;
+    }
+
+    if (to->realloc(len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), len);
+      item->null_value= true;
+      return nullptr;
+    }
+
+    const uchar *a_ptr= (const uchar *) a->ptr();
+    uchar *out_ptr= (uchar *) to->ptr();
+
+    for (size_t i= 0; i < len; ++i)
+    {
+      out_ptr[i]= ~a_ptr[i];
+    }
+
+    to->length(len);
+    to->set_charset(&my_charset_bin);
+    item->null_value= false;
+    return to;
+  }
+};
+
+
 bool Item_func_bit_neg::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_neg_bin_to_bin ha_bin_to_bin;
   static Func_handler_bit_neg_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_neg_decimal_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 1);
+  const Type_handler *th= args[0]->type_handler();
+  bool is_longstr= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+  bool is_hybrid= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+  bool is_binary= args[0]->collation.collation == &my_charset_bin;
+
+  if (is_longstr && is_binary && !is_hybrid)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -6620,10 +6888,115 @@ public:
 };
 
 
+class Func_handler_bit_xor_bin_to_bin: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    item->max_length= MY_MAX(item->arguments()[0]->max_length,
+                             item->arguments()[1]->max_length);
+    item->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    return false;
+  }
+
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    DBUG_ASSERT(item->argument_count() == 2);
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    StringBuffer<128> b_buf;
+    String *b= item->arguments()[1]->val_str(&b_buf);
+    if (item->arguments()[1]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    if (a->length() != b->length())
+    {
+      THD *thd= current_thd;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_INVALID_BITWISE_OPERANDS_SIZE,
+                          ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                          (int)a->length(), (int)b->length());
+      item->null_value= true;
+      return nullptr;
+    }
+
+    size_t len= a->length();
+    if (len == 0)
+    {
+      to->length(0);
+      to->set_charset(&my_charset_bin);
+      item->null_value= false;
+      return to;
+    }
+
+    if (to->realloc(len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), len);
+      item->null_value= true;
+      return nullptr;
+    }
+
+    const uchar *a_ptr= (const uchar *) a->ptr();
+    const uchar *b_ptr= (const uchar *) b->ptr();
+    uchar *out_ptr= (uchar *) to->ptr();
+
+    for (size_t i= 0; i < len; ++i)
+    {
+      out_ptr[i]= a_ptr[i] ^ b_ptr[i];
+    }
+
+    to->length(len);
+    to->set_charset(&my_charset_bin);
+    item->null_value= false;
+    return to;
+  }
+};
+
+
 bool Item_func_bit_xor::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_xor_bin_to_bin ha_bin_to_bin;
   static const Func_handler_bit_xor_int_to_ulonglong ha_int_to_ull;
   static const Func_handler_bit_xor_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  uint longstr_count= 0;
+  uint binary_count= 0;
+  uint hybrid_count= 0;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    const Type_handler *th= args[i]->type_handler();
+    longstr_count+= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+    hybrid_count+= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+    binary_count+= args[i]->collation.collation == &my_charset_bin;
+  }
+
+  if (longstr_count == 2 && binary_count == 2 && hybrid_count == 0)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -7529,4 +7902,284 @@ void pause_execution(THD *thd, double timeout)
   mysql_cond_t cond;
 
   do_pause(thd, &timed_cond, &cond, timeout);
+}
+
+
+class Func_handler_bit_and_bin_to_bin: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    item->max_length= MY_MAX(item->arguments()[0]->max_length,
+                             item->arguments()[1]->max_length);
+    item->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    return false;
+  }
+
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    DBUG_ASSERT(item->argument_count() == 2);
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    StringBuffer<128> b_buf;
+    String *b= item->arguments()[1]->val_str(&b_buf);
+    if (item->arguments()[1]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    if (a->length() != b->length())
+    {
+      THD *thd= current_thd;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_INVALID_BITWISE_OPERANDS_SIZE,
+                          ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                          (int)a->length(), (int)b->length());
+      item->null_value= true;
+      return nullptr;
+    }
+
+    size_t len= a->length();
+    if (len == 0)
+    {
+      to->length(0);
+      to->set_charset(&my_charset_bin);
+      item->null_value= false;
+      return to;
+    }
+
+    if (to->realloc(len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), len);
+      item->null_value= true;
+      return nullptr;
+    }
+
+    const uchar *a_ptr= (const uchar *) a->ptr();
+    const uchar *b_ptr= (const uchar *) b->ptr();
+    uchar *out_ptr= (uchar *) to->ptr();
+
+    for (size_t i= 0; i < len; ++i)
+    {
+      out_ptr[i]= a_ptr[i] & b_ptr[i];
+    }
+
+    to->length(len);
+    to->set_charset(&my_charset_bin);
+    item->null_value= false;
+    return to;
+  }
+};
+
+
+class Func_handler_bit_and_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a & item->arguments()[1]->to_longlong_null();
+  }
+};
+
+
+class Func_handler_bit_and_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ?  Longlong_null() :
+      a.to_xlonglong_null() & VDec(item->arguments()[1]).to_xlonglong_null();
+  }
+};
+
+
+bool Item_func_bit_and::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_bit_and_bin_to_bin ha_bin_to_bin;
+  static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  uint longstr_count= 0;
+  uint binary_count= 0;
+  uint hybrid_count= 0;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    const Type_handler *th= args[i]->type_handler();
+    longstr_count+= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+    hybrid_count+= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+    binary_count+= args[i]->collation.collation == &my_charset_bin;
+  }
+
+  if (longstr_count == 2 && binary_count == 2 && hybrid_count == 0)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
+}
+
+
+class Func_handler_bit_or_bin_to_bin: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    item->max_length= MY_MAX(item->arguments()[0]->max_length,
+                             item->arguments()[1]->max_length);
+    item->collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    return false;
+  }
+
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    DBUG_ASSERT(item->argument_count() == 2);
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    StringBuffer<128> b_buf;
+    String *b= item->arguments()[1]->val_str(&b_buf);
+    if (item->arguments()[1]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    if (a->length() != b->length())
+    {
+      THD *thd= current_thd;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_INVALID_BITWISE_OPERANDS_SIZE,
+                          ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                          (int)a->length(), (int)b->length());
+      item->null_value= true;
+      return nullptr;
+    }
+
+    size_t len= a->length();
+    if (len == 0)
+    {
+      to->length(0);
+      to->set_charset(&my_charset_bin);
+      item->null_value= false;
+      return to;
+    }
+
+    if (to->realloc(len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), len);
+      item->null_value= true;
+      return nullptr;
+    }
+
+    const uchar *a_ptr= (const uchar *) a->ptr();
+    const uchar *b_ptr= (const uchar *) b->ptr();
+    uchar *out_ptr= (uchar *) to->ptr();
+
+    for (size_t i= 0; i < len; ++i)
+    {
+      out_ptr[i]= a_ptr[i] | b_ptr[i];
+    }
+
+    to->length(len);
+    to->set_charset(&my_charset_bin);
+    item->null_value= false;
+    return to;
+  }
+};
+
+
+class Func_handler_bit_or_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a | item->arguments()[1]->to_longlong_null();
+  }
+};
+
+
+class Func_handler_bit_or_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ? Longlong_null() :
+      a.to_xlonglong_null() | VDec(item->arguments()[1]).to_xlonglong_null();
+  }
+};
+
+
+bool Item_func_bit_or::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_bit_or_bin_to_bin ha_bin_to_bin;
+  static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  uint longstr_count= 0;
+  uint binary_count= 0;
+  uint hybrid_count= 0;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    const Type_handler *th= args[i]->type_handler();
+    longstr_count+= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+    hybrid_count+= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+    binary_count+= args[i]->collation.collation == &my_charset_bin;
+  }
+
+  if (longstr_count == 2 && binary_count == 2 && hybrid_count == 0)
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }

@@ -1,0 +1,522 @@
+#
+# MDEV-10526: Binary string support for bitwise operators & aggregate functions
+#
+# =========================================================================
+# SECTION 1 — Scalar operators on VARBINARY
+# =========================================================================
+# Rationale: Tests basic functional correctness of scalar bitwise operators
+# (&, |, ^, ~, <<, >>) when applied to VARBINARY(4) operands.
+# =========================================================================
+CREATE TABLE t1 (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t1 VALUES (x'FFFF0000', x'FF00FF00');
+SELECT HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~a), HEX(a << 1), HEX(a >> 1) FROM t1;
+HEX(a & b)	HEX(a | b)	HEX(a ^ b)	HEX(~a)	HEX(a << 1)	HEX(a >> 1)
+FF000000	FFFFFF00	00FFFF00	0000FFFF	FFFE0000	7FFF8000
+DROP TABLE t1;
+# =========================================================================
+# SECTION 2 — INET6_ATON real-world use case
+# =========================================================================
+# Rationale: Verifies the primary target use case (subnet masking and IP math)
+# still operates correctly with INET6_ATON (which returns VARBINARY(16)).
+# =========================================================================
+SELECT HEX(INET6_ATON('ffff:ffff::') & INET6_ATON('2001:db8::1'));
+HEX(INET6_ATON('ffff:ffff::') & INET6_ATON('2001:db8::1'))
+20010DB8000000000000000000000000
+SELECT HEX(INET6_ATON('ffff:ffff::') | INET6_ATON('2001:db8::1'));
+HEX(INET6_ATON('ffff:ffff::') | INET6_ATON('2001:db8::1'))
+FFFFFFFF000000000000000000000001
+SELECT HEX(INET6_ATON('ffff:ffff::') ^ INET6_ATON('2001:db8::1'));
+HEX(INET6_ATON('ffff:ffff::') ^ INET6_ATON('2001:db8::1'))
+DFFEF247000000000000000000000001
+# =========================================================================
+# SECTION 3 — NULL handling
+# =========================================================================
+# Rationale: Ensures that if any of the operands are NULL, the result of the
+# bitwise operation is also NULL.
+# =========================================================================
+CREATE TABLE t_null (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t_null VALUES (x'FFFF0000', NULL);
+SELECT HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~b), HEX(a << b), HEX(a >> b) FROM t_null;
+HEX(a & b)	HEX(a | b)	HEX(a ^ b)	HEX(~b)	HEX(a << b)	HEX(a >> b)
+NULL	NULL	NULL	NULL	NULL	NULL
+DROP TABLE t_null;
+# =========================================================================
+# SECTION 4 — Mismatched length error (in strict mode via INSERT)
+# =========================================================================
+# Rationale: Verifies that operating on binary string operands with mismatched
+# lengths throws ER_INVALID_BITWISE_OPERANDS_SIZE (error 4265) when escalating
+# to an error under strict mode on INSERT.
+# =========================================================================
+CREATE TABLE t_mismatch (a VARBINARY(4), b VARBINARY(2));
+INSERT INTO t_mismatch VALUES (x'FFFF0000', x'FFFF');
+SET sql_mode='STRICT_TRANS_TABLES';
+CREATE TABLE t_insert_mismatch (res VARBINARY(4));
+INSERT INTO t_insert_mismatch SELECT a & b FROM t_mismatch;
+ERROR HY000: Mismatched length of operands for bitwise operator: 4 and 2
+INSERT INTO t_insert_mismatch SELECT a | b FROM t_mismatch;
+ERROR HY000: Mismatched length of operands for bitwise operator: 4 and 2
+INSERT INTO t_insert_mismatch SELECT a ^ b FROM t_mismatch;
+ERROR HY000: Mismatched length of operands for bitwise operator: 4 and 2
+DROP TABLE t_insert_mismatch;
+SET sql_mode=DEFAULT;
+DROP TABLE t_mismatch;
+# =========================================================================
+# SECTION 5 — Literal behavior (FINAL decided behavior)
+# =========================================================================
+# Rationale: Records the decided behavior of constant/hex-constant literals and
+# string/binary cast expressions, per Alexander and Sergei's review.
+# =========================================================================
+SELECT x'FF' & 12;
+x'FF' & 12
+0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '\xFF'
+SELECT 0xFF & 12;
+0xFF & 12
+12
+SELECT HEX(_binary'a' & _binary'b');
+HEX(_binary'a' & _binary'b')
+60
+SELECT 'a' & 'b';
+'a' & 'b'
+0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+# Verification of binary vs integer mode execution on BLOB operands
+CREATE OR REPLACE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('a');
+SELECT
+a & 51,
+a & 0x33,
+a & x'33',
+a & _latin1 '3',
+a & _binary '3',
+0x33 & 0x33
+FROM t1;
+a & 51	a & 0x33	a & x'33'	a & _latin1 '3'	a & _binary '3'	0x33 & 0x33
+0	0	!	0	!	51
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+DROP TABLE t1;
+# Verification that COALESCE correctly retains hex-hybrid type handler
+SELECT HEX(COALESCE(0x30) & 1);
+HEX(COALESCE(0x30) & 1)
+0
+# =========================================================================
+# SECTION 6 — Existing INET6/UUID error preservation
+# =========================================================================
+# Rationale: Confirms that existing parameter data type restrictions for 
+# INET6 and UUID types are preserved and throw ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION (4079).
+# =========================================================================
+SELECT CAST('::' AS INET6) & CAST('::' AS INET6);
+ERROR HY000: Illegal parameter data type inet6 for operation '&'
+SELECT CAST(UUID() AS UUID) & CAST(UUID() AS UUID);
+ERROR HY000: Illegal parameter data type uuid for operation '&'
+SELECT CAST('1.2.3.4' AS INET4) & CAST('1.2.3.4' AS INET4);
+ERROR HY000: Illegal parameter data type inet4 for operation '&'
+SELECT CAST('1.2.3.4' AS INET4) & 1;
+ERROR HY000: Illegal parameter data type inet4 for operation '&'
+SELECT ST_GeomFromText('POINT(1 1)') & ST_GeomFromText('POINT(1 1)');
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+SELECT ST_GeomFromText('POINT(1 1)') & 1;
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+# =========================================================================
+# SECTION 7 — Aggregate functions
+# =========================================================================
+# Rationale: Verifies BIT_AND, BIT_OR, and BIT_XOR aggregate function 
+# calculations on VARBINARY columns under normal grouping conditions.
+# =========================================================================
+CREATE TABLE t_agg (a VARBINARY(4));
+INSERT INTO t_agg VALUES (x'FF000000'), (x'0F0F0F0F'), (x'00FF0000');
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_agg;
+HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))
+FFFF0F0F	00000000	F0F00F0F
+DROP TABLE t_agg;
+# GROUP BY test with multiple groups
+CREATE TABLE t_grp (grp INT, a VARBINARY(4));
+INSERT INTO t_grp VALUES (1, x'FF000000'), (1, x'0F0F0F0F'), (2, x'00FF0000'), (2, x'0F0F0F0F');
+# 1, FF0F0F0F, 0F000000, F00F0F0F
+# 2, 0FFF0F0F, 000F0000, 0FF00F0F
+SELECT grp, HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_grp GROUP BY grp;
+grp	HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))
+1	FF0F0F0F	0F000000	F00F0F0F
+2	0FFF0F0F	000F0000	0FF00F0F
+DROP TABLE t_grp;
+# GROUP BY test with all-NULL group (update_field test)
+CREATE TABLE t_nullgrp (grp INT, a VARBINARY(4), b BIGINT UNSIGNED);
+INSERT INTO t_nullgrp VALUES 
+(1, x'FF000000', 0xFF00000000000000),
+(1, x'0F0F0F0F', 0x0F0F0F0F00000000),
+(2, NULL, NULL),
+(2, NULL, NULL);
+SELECT grp, 
+HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)),
+BIT_OR(b), BIT_AND(b), BIT_XOR(b)
+FROM t_nullgrp GROUP BY grp;
+grp	HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))	BIT_OR(b)	BIT_AND(b)	BIT_XOR(b)
+1	FF0F0F0F	0F000000	F00F0F0F	18378925161421209600	1080863910568919040	17298061250852290560
+2	00000000	FFFFFFFF	00000000	0	18446744073709551615	0
+DROP TABLE t_nullgrp;
+# =========================================================================
+# SECTION 8 — Aggregate edge cases
+# =========================================================================
+# Rationale: Tests aggregate functions with NULL rows, empty tables,
+# and verify that operand sizes > 512 bytes are correctly blocked by the
+# size guard with ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE (4266).
+# =========================================================================
+CREATE TABLE t_edge (a VARBINARY(4));
+INSERT INTO t_edge VALUES (x'FF000000'), (NULL), (x'00FF0000');
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_edge;
+HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))
+FFFF0000	00000000	FFFF0000
+# Empty result set (no rows)
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_edge WHERE 1=0;
+HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))
+00000000	FFFFFFFF	00000000
+DROP TABLE t_edge;
+# Size guard validation (operand size > 512 bytes)
+SELECT BIT_OR(CAST('a' AS BINARY(513)));
+ERROR HY000: Operand size 513 exceeds maximum limit of 512 bytes for bitwise aggregate function
+# =========================================================================
+# SECTION 9 — Backward compatibility — integer mode unchanged
+# =========================================================================
+# Rationale: Verifies that operations on integer literals behave exactly
+# as they did in pre-patch versions of MariaDB.
+# =========================================================================
+SELECT 5 & 3, 5 | 3, 5 ^ 3, ~0, 1 << 2, 8 >> 1;
+5 & 3	5 | 3	5 ^ 3	~0	1 << 2	8 >> 1
+1	7	6	18446744073709551615	4	4
+# =========================================================================
+# SECTION 10 — CREATE TABLE AS SELECT type preservation
+# =========================================================================
+# Rationale: Verifies that CTAS (Create Table As Select) correctly preserves 
+# the resulting datatype as a VARBINARY/binary type.
+# =========================================================================
+CREATE TABLE t_src (a VARBINARY(4), b VARBINARY(4));
+CREATE TABLE t_dest AS SELECT a & b AS res FROM t_src;
+SHOW CREATE TABLE t_dest;
+Table	Create Table
+t_dest	CREATE TABLE `t_dest` (
+  `res` binary(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_dest;
+DROP TABLE t_src;
+# =========================================================================
+# SECTION 11 — return_type_handler length-boundary tests
+# =========================================================================
+# Rationale: Verifies that CTAS picks the correct storage type at each
+# boundary in return_type_handler(): <=255 -> CHAR/BINARY (type_handler_string),
+# 256..MAX_FIELD_VARCHARLENGTH -> VARCHAR (type_handler_varchar),
+# >MAX_FIELD_VARCHARLENGTH (65532) -> BLOB family (blob_type_handler).
+# Covers all binary operators so every Handler_str subclass is exercised.
+# =========================================================================
+# -- Small (<=255 bytes): expect BINARY(10) / char-family type
+CREATE TABLE t_small (a VARBINARY(10), b VARBINARY(10));
+CREATE TABLE t_small_and  AS SELECT a & b AS res FROM t_small;
+CREATE TABLE t_small_or   AS SELECT a | b AS res FROM t_small;
+CREATE TABLE t_small_xor  AS SELECT a ^ b AS res FROM t_small;
+CREATE TABLE t_small_neg  AS SELECT ~a    AS res FROM t_small;
+CREATE TABLE t_small_shl  AS SELECT a << 1 AS res FROM t_small;
+CREATE TABLE t_small_shr  AS SELECT a >> 1 AS res FROM t_small;
+SHOW CREATE TABLE t_small_and;
+Table	Create Table
+t_small_and	CREATE TABLE `t_small_and` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_small_or;
+Table	Create Table
+t_small_or	CREATE TABLE `t_small_or` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_small_xor;
+Table	Create Table
+t_small_xor	CREATE TABLE `t_small_xor` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_small_neg;
+Table	Create Table
+t_small_neg	CREATE TABLE `t_small_neg` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_small_shl;
+Table	Create Table
+t_small_shl	CREATE TABLE `t_small_shl` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_small_shr;
+Table	Create Table
+t_small_shr	CREATE TABLE `t_small_shr` (
+  `res` binary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_small_and, t_small_or, t_small_xor,
+t_small_neg, t_small_shl, t_small_shr, t_small;
+# -- Medium (256 .. 65532 bytes): expect VARCHAR(300) / varchar-family type
+CREATE TABLE t_med (a VARBINARY(300), b VARBINARY(300));
+CREATE TABLE t_med_and  AS SELECT a & b AS res FROM t_med;
+CREATE TABLE t_med_or   AS SELECT a | b AS res FROM t_med;
+CREATE TABLE t_med_xor  AS SELECT a ^ b AS res FROM t_med;
+CREATE TABLE t_med_neg  AS SELECT ~a    AS res FROM t_med;
+CREATE TABLE t_med_shl  AS SELECT a << 1 AS res FROM t_med;
+CREATE TABLE t_med_shr  AS SELECT a >> 1 AS res FROM t_med;
+SHOW CREATE TABLE t_med_and;
+Table	Create Table
+t_med_and	CREATE TABLE `t_med_and` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_med_or;
+Table	Create Table
+t_med_or	CREATE TABLE `t_med_or` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_med_xor;
+Table	Create Table
+t_med_xor	CREATE TABLE `t_med_xor` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_med_neg;
+Table	Create Table
+t_med_neg	CREATE TABLE `t_med_neg` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_med_shl;
+Table	Create Table
+t_med_shl	CREATE TABLE `t_med_shl` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_med_shr;
+Table	Create Table
+t_med_shr	CREATE TABLE `t_med_shr` (
+  `res` varbinary(300) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_med_and, t_med_or, t_med_xor,
+t_med_neg, t_med_shl, t_med_shr, t_med;
+# -- Large (>65532 bytes): expect BLOB family type
+# VARBINARY max is 65532 = MAX_FIELD_VARCHARLENGTH; use BLOB columns (max_length=65535)
+# to exercise the blob_type_handler branch in return_type_handler().
+CREATE TABLE t_large (a BLOB, b BLOB);
+CREATE TABLE t_large_and  AS SELECT a & b AS res FROM t_large;
+CREATE TABLE t_large_or   AS SELECT a | b AS res FROM t_large;
+CREATE TABLE t_large_xor  AS SELECT a ^ b AS res FROM t_large;
+CREATE TABLE t_large_neg  AS SELECT ~a    AS res FROM t_large;
+SHOW CREATE TABLE t_large_and;
+Table	Create Table
+t_large_and	CREATE TABLE `t_large_and` (
+  `res` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_large_or;
+Table	Create Table
+t_large_or	CREATE TABLE `t_large_or` (
+  `res` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_large_xor;
+Table	Create Table
+t_large_xor	CREATE TABLE `t_large_xor` (
+  `res` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_large_neg;
+Table	Create Table
+t_large_neg	CREATE TABLE `t_large_neg` (
+  `res` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_large_and, t_large_or, t_large_xor, t_large_neg, t_large;
+# -- Medium BLOB (>65535 bytes, <=16777215 bytes): expect MEDIUMBLOB
+CREATE TABLE t_mblob (a MEDIUMBLOB, b MEDIUMBLOB);
+CREATE TABLE t_mblob_dest AS SELECT a & b AS res FROM t_mblob LIMIT 0;
+SHOW CREATE TABLE t_mblob_dest;
+Table	Create Table
+t_mblob_dest	CREATE TABLE `t_mblob_dest` (
+  `res` mediumblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_mblob_dest, t_mblob;
+# -- Long BLOB (>16777215 bytes): expect LONGBLOB
+CREATE TABLE t_lblob (a LONGBLOB, b LONGBLOB);
+CREATE TABLE t_lblob_dest AS SELECT a & b AS res FROM t_lblob LIMIT 0;
+SHOW CREATE TABLE t_lblob_dest;
+Table	Create Table
+t_lblob_dest	CREATE TABLE `t_lblob_dest` (
+  `res` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_lblob_dest, t_lblob;
+# =========================================================================
+# SECTION 12 — Large literal tests with REPEAT()
+# =========================================================================
+# Rationale: Verifies that byte-loop and max_length logic in the binary
+# handlers scale correctly to large binary strings well beyond 4-16 bytes.
+# Uses _binary cast to force binary mode on user variables.
+# =========================================================================
+# -- 100-byte operands: check result length and spot-check first 4 bytes
+SET @a100 = REPEAT('a', 100);
+SET @b100 = REPEAT('b', 100);
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)));
+LENGTH(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)))
+100
+SELECT HEX(LEFT(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)), 4));
+HEX(LEFT(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)), 4))
+60606060
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) | CAST(@b100 AS BINARY(100)));
+LENGTH(CAST(@a100 AS BINARY(100)) | CAST(@b100 AS BINARY(100)))
+100
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) ^ CAST(@b100 AS BINARY(100)));
+LENGTH(CAST(@a100 AS BINARY(100)) ^ CAST(@b100 AS BINARY(100)))
+100
+# -- 512-byte operands (at aggregate size guard boundary)
+SET @a512 = REPEAT('x', 512);
+SET @b512 = REPEAT('y', 512);
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) & CAST(@b512 AS BINARY(512)));
+LENGTH(CAST(@a512 AS BINARY(512)) & CAST(@b512 AS BINARY(512)))
+512
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) | CAST(@b512 AS BINARY(512)));
+LENGTH(CAST(@a512 AS BINARY(512)) | CAST(@b512 AS BINARY(512)))
+512
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) ^ CAST(@b512 AS BINARY(512)));
+LENGTH(CAST(@a512 AS BINARY(512)) ^ CAST(@b512 AS BINARY(512)))
+512
+# =========================================================================
+# SECTION 13 — COERCIBILITY() validation
+# =========================================================================
+# Rationale: Confirms that binary-mode results carry DERIVATION_COERCIBLE
+# (value 6), which was explicitly set in the fix_length_and_dec() handlers.
+# This validates the collation derivation fix from review feedback.
+# Per MariaDB docs, DERIVATION_COERCIBLE maps to COERCIBILITY() = 6.
+# =========================================================================
+CREATE TABLE t_coerc (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t_coerc VALUES (x'FFFF0000', x'FF00FF00');
+# All binary-mode scalar operators should return coercibility 6
+SELECT COERCIBILITY(a & b)  FROM t_coerc;
+COERCIBILITY(a & b)
+6
+SELECT COERCIBILITY(a | b)  FROM t_coerc;
+COERCIBILITY(a | b)
+6
+SELECT COERCIBILITY(a ^ b)  FROM t_coerc;
+COERCIBILITY(a ^ b)
+6
+SELECT COERCIBILITY(~a)     FROM t_coerc;
+COERCIBILITY(~a)
+6
+SELECT COERCIBILITY(a << 1) FROM t_coerc;
+COERCIBILITY(a << 1)
+6
+SELECT COERCIBILITY(a >> 1) FROM t_coerc;
+COERCIBILITY(a >> 1)
+6
+DROP TABLE t_coerc;
+# =========================================================================
+# SECTION 14 — Mismatched length warning (outside strict mode via SELECT)
+# =========================================================================
+# Rationale: Verifies that SELECT with mismatched lengths outside strict mode
+# returns NULL with warning 4265 (ER_INVALID_BITWISE_OPERANDS_SIZE) for all
+# three binary operators (&, |, ^).
+# =========================================================================
+CREATE TABLE t_mismatch (a VARBINARY(4), b VARBINARY(2));
+INSERT INTO t_mismatch VALUES (x'FFFF0000', x'FFFF');
+SET sql_mode='';
+SELECT a & b FROM t_mismatch;
+a & b
+NULL
+Warnings:
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SELECT a | b FROM t_mismatch;
+a | b
+NULL
+Warnings:
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SELECT a ^ b FROM t_mismatch;
+a ^ b
+NULL
+Warnings:
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4269	Mismatched length of operands for bitwise operator: 4 and 2
+SET sql_mode=DEFAULT;
+DROP TABLE t_mismatch;
+# =========================================================================
+# SECTION 15 — Window function support for binary mode aggregates
+# =========================================================================
+# Rationale: Verify BIT_AND/OR/XOR work
+# correctly as window functions on binary columns, including proper
+# row removal when the window frame slides (not just full partition).
+# =========================================================================
+CREATE TABLE t_win_part (grp INT, a VARBINARY(4));
+INSERT INTO t_win_part VALUES 
+(1, x'FF000000'), (1, x'0F0F0F0F'), 
+(2, x'00FF0000'), (2, x'000000FF');
+SELECT grp, HEX(a) as hex_a,
+HEX(BIT_OR(a) OVER (PARTITION BY grp)) AS or_w,
+HEX(BIT_AND(a) OVER (PARTITION BY grp)) AS and_w,
+HEX(BIT_XOR(a) OVER (PARTITION BY grp)) AS xor_w
+FROM t_win_part ORDER BY grp, hex_a;
+grp	hex_a	or_w	and_w	xor_w
+1	0F0F0F0F	FF0F0F0F	0F000000	F00F0F0F
+1	FF000000	FF0F0F0F	0F000000	F00F0F0F
+2	000000FF	00FF00FF	00000000	00FF00FF
+2	00FF0000	00FF00FF	00000000	00FF00FF
+DROP TABLE t_win_part;
+# Sliding window frame - proves remove_binary_as_window correctly
+# evicts rows as the frame moves (not just accumulates everything)
+CREATE TABLE t_win_slide (id INT, a VARBINARY(2));
+INSERT INTO t_win_slide VALUES 
+(1, x'FF00'), (2, x'0F0F'), (3, x'00FF');
+SELECT id, HEX(a) as hex_a,
+HEX(BIT_OR(a) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)) AS sliding_or
+FROM t_win_slide ORDER BY id;
+id	hex_a	sliding_or
+1	FF00	FF00
+2	0F0F	FF0F
+3	00FF	0FFF
+DROP TABLE t_win_slide;
+# =========================================================================
+# SECTION 16 — WITH ROLLUP support for binary mode aggregates
+# =========================================================================
+# Rationale: Verify copy_or_same() for BIT_AND/BIT_OR/BIT_XOR
+# fix for ANY_VALUE, verified that BIT_OR/BIT_AND/BIT_XOR already have
+# correct copy_or_same() implementations (each properly clones via the
+# Item_sum_bit copy constructor, which deep-copies m_str_value and
+# m_binary_bit_counters). WITH ROLLUP requires copy_or_same() to clone
+# a separate accumulator for the grand-total row - without it, rollup
+# rows would corrupt or share state with per-group accumulators.
+# =========================================================================
+CREATE TABLE t_rollup (grp INT, a VARBINARY(4));
+INSERT INTO t_rollup VALUES
+(1, x'FF000000'), (1, x'0F0F0F0F'),
+(2, x'00FF0000'), (2, x'000000FF');
+SELECT grp, HEX(BIT_OR(a)) as or_v, HEX(BIT_AND(a)) as and_v, HEX(BIT_XOR(a)) as xor_v
+FROM t_rollup GROUP BY grp WITH ROLLUP;
+grp	or_v	and_v	xor_v
+1	FF0F0F0F	0F000000	F00F0F0F
+2	00FF00FF	00000000	00FF00FF
+NULL	FFFF0FFF	00000000	F0F00FF0
+DROP TABLE t_rollup;
+# =========================================================================
+# SECTION 17 — Truncation warning for non-numeric values in integer mode
+# =========================================================================
+# Rationale: Verify ER_TRUNCATED_WRONG_VALUE (1292) is raised when
+# a non-numeric string is used in integer-mode bitwise operations,
+# consistent with MariaDB's behavior for '123a'+3 -> 123 with warning.
+# =========================================================================
+SELECT 'abc' & 255;
+'abc' & 255
+0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'abc'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect DECIMAL value: 'abc'
+SELECT '123abc' | 255;
+'123abc' | 255
+255
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '123abc'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect DECIMAL value: '123abc'

@@ -1,0 +1,423 @@
+--echo #
+--echo # MDEV-10526: Binary string support for bitwise operators & aggregate functions
+--echo #
+
+--echo # =========================================================================
+--echo # SECTION 1 — Scalar operators on VARBINARY
+--echo # =========================================================================
+--echo # Rationale: Tests basic functional correctness of scalar bitwise operators
+--echo # (&, |, ^, ~, <<, >>) when applied to VARBINARY(4) operands.
+--echo # =========================================================================
+
+CREATE TABLE t1 (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t1 VALUES (x'FFFF0000', x'FF00FF00');
+
+SELECT HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~a), HEX(a << 1), HEX(a >> 1) FROM t1;
+
+DROP TABLE t1;
+
+
+--echo # =========================================================================
+--echo # SECTION 2 — INET6_ATON real-world use case
+--echo # =========================================================================
+--echo # Rationale: Verifies the primary target use case (subnet masking and IP math)
+--echo # still operates correctly with INET6_ATON (which returns VARBINARY(16)).
+--echo # =========================================================================
+
+SELECT HEX(INET6_ATON('ffff:ffff::') & INET6_ATON('2001:db8::1'));
+SELECT HEX(INET6_ATON('ffff:ffff::') | INET6_ATON('2001:db8::1'));
+SELECT HEX(INET6_ATON('ffff:ffff::') ^ INET6_ATON('2001:db8::1'));
+
+
+--echo # =========================================================================
+--echo # SECTION 3 — NULL handling
+--echo # =========================================================================
+--echo # Rationale: Ensures that if any of the operands are NULL, the result of the
+--echo # bitwise operation is also NULL.
+--echo # =========================================================================
+
+CREATE TABLE t_null (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t_null VALUES (x'FFFF0000', NULL);
+SELECT HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~b), HEX(a << b), HEX(a >> b) FROM t_null;
+DROP TABLE t_null;
+
+
+--echo # =========================================================================
+--echo # SECTION 4 — Mismatched length error (in strict mode via INSERT)
+--echo # =========================================================================
+--echo # Rationale: Verifies that operating on binary string operands with mismatched
+--echo # lengths throws ER_INVALID_BITWISE_OPERANDS_SIZE (error 4265) when escalating
+--echo # to an error under strict mode on INSERT.
+--echo # =========================================================================
+
+CREATE TABLE t_mismatch (a VARBINARY(4), b VARBINARY(2));
+INSERT INTO t_mismatch VALUES (x'FFFF0000', x'FFFF');
+
+SET sql_mode='STRICT_TRANS_TABLES';
+CREATE TABLE t_insert_mismatch (res VARBINARY(4));
+
+--error ER_INVALID_BITWISE_OPERANDS_SIZE
+INSERT INTO t_insert_mismatch SELECT a & b FROM t_mismatch;
+
+--error ER_INVALID_BITWISE_OPERANDS_SIZE
+INSERT INTO t_insert_mismatch SELECT a | b FROM t_mismatch;
+
+--error ER_INVALID_BITWISE_OPERANDS_SIZE
+INSERT INTO t_insert_mismatch SELECT a ^ b FROM t_mismatch;
+
+DROP TABLE t_insert_mismatch;
+SET sql_mode=DEFAULT;
+DROP TABLE t_mismatch;
+
+
+--echo # =========================================================================
+--echo # SECTION 5 — Literal behavior (FINAL decided behavior)
+--echo # =========================================================================
+--echo # Rationale: Records the decided behavior of constant/hex-constant literals and
+--echo # string/binary cast expressions, per Alexander and Sergei's review.
+--echo # =========================================================================
+
+SELECT x'FF' & 12;
+
+SELECT 0xFF & 12;
+
+SELECT HEX(_binary'a' & _binary'b');
+
+SELECT 'a' & 'b';
+
+--echo # Verification of binary vs integer mode execution on BLOB operands
+CREATE OR REPLACE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('a');
+SELECT
+  a & 51,
+  a & 0x33,
+  a & x'33',
+  a & _latin1 '3',
+  a & _binary '3',
+  0x33 & 0x33
+FROM t1;
+DROP TABLE t1;
+
+--echo # Verification that COALESCE correctly retains hex-hybrid type handler
+SELECT HEX(COALESCE(0x30) & 1);
+
+
+--echo # =========================================================================
+--echo # SECTION 6 — Existing INET6/UUID error preservation
+--echo # =========================================================================
+--echo # Rationale: Confirms that existing parameter data type restrictions for 
+--echo # INET6 and UUID types are preserved and throw ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION (4079).
+--echo # =========================================================================
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('::' AS INET6) & CAST('::' AS INET6);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(UUID() AS UUID) & CAST(UUID() AS UUID);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('1.2.3.4' AS INET4) & CAST('1.2.3.4' AS INET4);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('1.2.3.4' AS INET4) & 1;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_GeomFromText('POINT(1 1)') & ST_GeomFromText('POINT(1 1)');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_GeomFromText('POINT(1 1)') & 1;
+
+
+--echo # =========================================================================
+--echo # SECTION 7 — Aggregate functions
+--echo # =========================================================================
+--echo # Rationale: Verifies BIT_AND, BIT_OR, and BIT_XOR aggregate function 
+--echo # calculations on VARBINARY columns under normal grouping conditions.
+--echo # =========================================================================
+
+CREATE TABLE t_agg (a VARBINARY(4));
+INSERT INTO t_agg VALUES (x'FF000000'), (x'0F0F0F0F'), (x'00FF0000');
+
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_agg;
+
+DROP TABLE t_agg;
+
+--echo # GROUP BY test with multiple groups
+CREATE TABLE t_grp (grp INT, a VARBINARY(4));
+INSERT INTO t_grp VALUES (1, x'FF000000'), (1, x'0F0F0F0F'), (2, x'00FF0000'), (2, x'0F0F0F0F');
+
+--echo # 1, FF0F0F0F, 0F000000, F00F0F0F
+--echo # 2, 0FFF0F0F, 000F0000, 0FF00F0F
+SELECT grp, HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_grp GROUP BY grp;
+
+DROP TABLE t_grp;
+
+--echo # GROUP BY test with all-NULL group (update_field test)
+CREATE TABLE t_nullgrp (grp INT, a VARBINARY(4), b BIGINT UNSIGNED);
+INSERT INTO t_nullgrp VALUES 
+  (1, x'FF000000', 0xFF00000000000000),
+  (1, x'0F0F0F0F', 0x0F0F0F0F00000000),
+  (2, NULL, NULL),
+  (2, NULL, NULL);
+SELECT grp, 
+  HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)),
+  BIT_OR(b), BIT_AND(b), BIT_XOR(b)
+FROM t_nullgrp GROUP BY grp;
+DROP TABLE t_nullgrp;
+
+
+--echo # =========================================================================
+--echo # SECTION 8 — Aggregate edge cases
+--echo # =========================================================================
+--echo # Rationale: Tests aggregate functions with NULL rows, empty tables,
+--echo # and verify that operand sizes > 512 bytes are correctly blocked by the
+--echo # size guard with ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE (4266).
+--echo # =========================================================================
+
+CREATE TABLE t_edge (a VARBINARY(4));
+INSERT INTO t_edge VALUES (x'FF000000'), (NULL), (x'00FF0000');
+
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_edge;
+
+--echo # Empty result set (no rows)
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a)) FROM t_edge WHERE 1=0;
+
+DROP TABLE t_edge;
+
+--echo # Size guard validation (operand size > 512 bytes)
+--error ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE
+SELECT BIT_OR(CAST('a' AS BINARY(513)));
+
+
+--echo # =========================================================================
+--echo # SECTION 9 — Backward compatibility — integer mode unchanged
+--echo # =========================================================================
+--echo # Rationale: Verifies that operations on integer literals behave exactly
+--echo # as they did in pre-patch versions of MariaDB.
+--echo # =========================================================================
+
+SELECT 5 & 3, 5 | 3, 5 ^ 3, ~0, 1 << 2, 8 >> 1;
+
+
+--echo # =========================================================================
+--echo # SECTION 10 — CREATE TABLE AS SELECT type preservation
+--echo # =========================================================================
+--echo # Rationale: Verifies that CTAS (Create Table As Select) correctly preserves 
+--echo # the resulting datatype as a VARBINARY/binary type.
+--echo # =========================================================================
+
+CREATE TABLE t_src (a VARBINARY(4), b VARBINARY(4));
+CREATE TABLE t_dest AS SELECT a & b AS res FROM t_src;
+
+SHOW CREATE TABLE t_dest;
+
+DROP TABLE t_dest;
+DROP TABLE t_src;
+
+
+--echo # =========================================================================
+--echo # SECTION 11 — return_type_handler length-boundary tests
+--echo # =========================================================================
+--echo # Rationale: Verifies that CTAS picks the correct storage type at each
+--echo # boundary in return_type_handler(): <=255 -> CHAR/BINARY (type_handler_string),
+--echo # 256..MAX_FIELD_VARCHARLENGTH -> VARCHAR (type_handler_varchar),
+--echo # >MAX_FIELD_VARCHARLENGTH (65532) -> BLOB family (blob_type_handler).
+--echo # Covers all binary operators so every Handler_str subclass is exercised.
+--echo # =========================================================================
+
+--echo # -- Small (<=255 bytes): expect BINARY(10) / char-family type
+CREATE TABLE t_small (a VARBINARY(10), b VARBINARY(10));
+CREATE TABLE t_small_and  AS SELECT a & b AS res FROM t_small;
+CREATE TABLE t_small_or   AS SELECT a | b AS res FROM t_small;
+CREATE TABLE t_small_xor  AS SELECT a ^ b AS res FROM t_small;
+CREATE TABLE t_small_neg  AS SELECT ~a    AS res FROM t_small;
+CREATE TABLE t_small_shl  AS SELECT a << 1 AS res FROM t_small;
+CREATE TABLE t_small_shr  AS SELECT a >> 1 AS res FROM t_small;
+SHOW CREATE TABLE t_small_and;
+SHOW CREATE TABLE t_small_or;
+SHOW CREATE TABLE t_small_xor;
+SHOW CREATE TABLE t_small_neg;
+SHOW CREATE TABLE t_small_shl;
+SHOW CREATE TABLE t_small_shr;
+DROP TABLE t_small_and, t_small_or, t_small_xor,
+           t_small_neg, t_small_shl, t_small_shr, t_small;
+
+--echo # -- Medium (256 .. 65532 bytes): expect VARCHAR(300) / varchar-family type
+CREATE TABLE t_med (a VARBINARY(300), b VARBINARY(300));
+CREATE TABLE t_med_and  AS SELECT a & b AS res FROM t_med;
+CREATE TABLE t_med_or   AS SELECT a | b AS res FROM t_med;
+CREATE TABLE t_med_xor  AS SELECT a ^ b AS res FROM t_med;
+CREATE TABLE t_med_neg  AS SELECT ~a    AS res FROM t_med;
+CREATE TABLE t_med_shl  AS SELECT a << 1 AS res FROM t_med;
+CREATE TABLE t_med_shr  AS SELECT a >> 1 AS res FROM t_med;
+SHOW CREATE TABLE t_med_and;
+SHOW CREATE TABLE t_med_or;
+SHOW CREATE TABLE t_med_xor;
+SHOW CREATE TABLE t_med_neg;
+SHOW CREATE TABLE t_med_shl;
+SHOW CREATE TABLE t_med_shr;
+DROP TABLE t_med_and, t_med_or, t_med_xor,
+           t_med_neg, t_med_shl, t_med_shr, t_med;
+
+--echo # -- Large (>65532 bytes): expect BLOB family type
+--echo # VARBINARY max is 65532 = MAX_FIELD_VARCHARLENGTH; use BLOB columns (max_length=65535)
+--echo # to exercise the blob_type_handler branch in return_type_handler().
+CREATE TABLE t_large (a BLOB, b BLOB);
+CREATE TABLE t_large_and  AS SELECT a & b AS res FROM t_large;
+CREATE TABLE t_large_or   AS SELECT a | b AS res FROM t_large;
+CREATE TABLE t_large_xor  AS SELECT a ^ b AS res FROM t_large;
+CREATE TABLE t_large_neg  AS SELECT ~a    AS res FROM t_large;
+SHOW CREATE TABLE t_large_and;
+SHOW CREATE TABLE t_large_or;
+SHOW CREATE TABLE t_large_xor;
+SHOW CREATE TABLE t_large_neg;
+DROP TABLE t_large_and, t_large_or, t_large_xor, t_large_neg, t_large;
+
+--echo # -- Medium BLOB (>65535 bytes, <=16777215 bytes): expect MEDIUMBLOB
+CREATE TABLE t_mblob (a MEDIUMBLOB, b MEDIUMBLOB);
+CREATE TABLE t_mblob_dest AS SELECT a & b AS res FROM t_mblob LIMIT 0;
+SHOW CREATE TABLE t_mblob_dest;
+DROP TABLE t_mblob_dest, t_mblob;
+
+--echo # -- Long BLOB (>16777215 bytes): expect LONGBLOB
+CREATE TABLE t_lblob (a LONGBLOB, b LONGBLOB);
+CREATE TABLE t_lblob_dest AS SELECT a & b AS res FROM t_lblob LIMIT 0;
+SHOW CREATE TABLE t_lblob_dest;
+DROP TABLE t_lblob_dest, t_lblob;
+
+
+--echo # =========================================================================
+--echo # SECTION 12 — Large literal tests with REPEAT()
+--echo # =========================================================================
+--echo # Rationale: Verifies that byte-loop and max_length logic in the binary
+--echo # handlers scale correctly to large binary strings well beyond 4-16 bytes.
+--echo # Uses _binary cast to force binary mode on user variables.
+--echo # =========================================================================
+
+--echo # -- 100-byte operands: check result length and spot-check first 4 bytes
+SET @a100 = REPEAT('a', 100);
+SET @b100 = REPEAT('b', 100);
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)));
+SELECT HEX(LEFT(CAST(@a100 AS BINARY(100)) & CAST(@b100 AS BINARY(100)), 4));
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) | CAST(@b100 AS BINARY(100)));
+SELECT LENGTH(CAST(@a100 AS BINARY(100)) ^ CAST(@b100 AS BINARY(100)));
+
+--echo # -- 512-byte operands (at aggregate size guard boundary)
+SET @a512 = REPEAT('x', 512);
+SET @b512 = REPEAT('y', 512);
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) & CAST(@b512 AS BINARY(512)));
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) | CAST(@b512 AS BINARY(512)));
+SELECT LENGTH(CAST(@a512 AS BINARY(512)) ^ CAST(@b512 AS BINARY(512)));
+
+
+--echo # =========================================================================
+--echo # SECTION 13 — COERCIBILITY() validation
+--echo # =========================================================================
+--echo # Rationale: Confirms that binary-mode results carry DERIVATION_COERCIBLE
+--echo # (value 6), which was explicitly set in the fix_length_and_dec() handlers.
+--echo # This validates the collation derivation fix from review feedback.
+--echo # Per MariaDB docs, DERIVATION_COERCIBLE maps to COERCIBILITY() = 6.
+--echo # =========================================================================
+
+CREATE TABLE t_coerc (a VARBINARY(4), b VARBINARY(4));
+INSERT INTO t_coerc VALUES (x'FFFF0000', x'FF00FF00');
+
+--echo # All binary-mode scalar operators should return coercibility 6
+SELECT COERCIBILITY(a & b)  FROM t_coerc;
+SELECT COERCIBILITY(a | b)  FROM t_coerc;
+SELECT COERCIBILITY(a ^ b)  FROM t_coerc;
+SELECT COERCIBILITY(~a)     FROM t_coerc;
+SELECT COERCIBILITY(a << 1) FROM t_coerc;
+SELECT COERCIBILITY(a >> 1) FROM t_coerc;
+
+DROP TABLE t_coerc;
+
+
+--echo # =========================================================================
+--echo # SECTION 14 — Mismatched length warning (outside strict mode via SELECT)
+--echo # =========================================================================
+--echo # Rationale: Verifies that SELECT with mismatched lengths outside strict mode
+--echo # returns NULL with warning 4265 (ER_INVALID_BITWISE_OPERANDS_SIZE) for all
+--echo # three binary operators (&, |, ^).
+--echo # =========================================================================
+
+CREATE TABLE t_mismatch (a VARBINARY(4), b VARBINARY(2));
+INSERT INTO t_mismatch VALUES (x'FFFF0000', x'FFFF');
+
+SET sql_mode='';
+
+SELECT a & b FROM t_mismatch;
+SHOW WARNINGS;
+
+SELECT a | b FROM t_mismatch;
+SHOW WARNINGS;
+
+SELECT a ^ b FROM t_mismatch;
+SHOW WARNINGS;
+
+SET sql_mode=DEFAULT;
+DROP TABLE t_mismatch;
+
+
+--echo # =========================================================================
+--echo # SECTION 15 — Window function support for binary mode aggregates
+--echo # =========================================================================
+--echo # Rationale: Verify BIT_AND/OR/XOR work
+--echo # correctly as window functions on binary columns, including proper
+--echo # row removal when the window frame slides (not just full partition).
+--echo # =========================================================================
+
+CREATE TABLE t_win_part (grp INT, a VARBINARY(4));
+INSERT INTO t_win_part VALUES 
+  (1, x'FF000000'), (1, x'0F0F0F0F'), 
+  (2, x'00FF0000'), (2, x'000000FF');
+SELECT grp, HEX(a) as hex_a,
+  HEX(BIT_OR(a) OVER (PARTITION BY grp)) AS or_w,
+  HEX(BIT_AND(a) OVER (PARTITION BY grp)) AS and_w,
+  HEX(BIT_XOR(a) OVER (PARTITION BY grp)) AS xor_w
+FROM t_win_part ORDER BY grp, hex_a;
+DROP TABLE t_win_part;
+
+--echo # Sliding window frame - proves remove_binary_as_window correctly
+--echo # evicts rows as the frame moves (not just accumulates everything)
+CREATE TABLE t_win_slide (id INT, a VARBINARY(2));
+INSERT INTO t_win_slide VALUES 
+  (1, x'FF00'), (2, x'0F0F'), (3, x'00FF');
+SELECT id, HEX(a) as hex_a,
+  HEX(BIT_OR(a) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)) AS sliding_or
+FROM t_win_slide ORDER BY id;
+DROP TABLE t_win_slide;
+
+
+--echo # =========================================================================
+--echo # SECTION 16 — WITH ROLLUP support for binary mode aggregates
+--echo # =========================================================================
+--echo # Rationale: Verify copy_or_same() for BIT_AND/BIT_OR/BIT_XOR
+--echo # fix for ANY_VALUE, verified that BIT_OR/BIT_AND/BIT_XOR already have
+--echo # correct copy_or_same() implementations (each properly clones via the
+--echo # Item_sum_bit copy constructor, which deep-copies m_str_value and
+--echo # m_binary_bit_counters). WITH ROLLUP requires copy_or_same() to clone
+--echo # a separate accumulator for the grand-total row - without it, rollup
+--echo # rows would corrupt or share state with per-group accumulators.
+--echo # =========================================================================
+
+CREATE TABLE t_rollup (grp INT, a VARBINARY(4));
+INSERT INTO t_rollup VALUES
+  (1, x'FF000000'), (1, x'0F0F0F0F'),
+  (2, x'00FF0000'), (2, x'000000FF');
+SELECT grp, HEX(BIT_OR(a)) as or_v, HEX(BIT_AND(a)) as and_v, HEX(BIT_XOR(a)) as xor_v
+FROM t_rollup GROUP BY grp WITH ROLLUP;
+DROP TABLE t_rollup;
+
+--echo # =========================================================================
+--echo # SECTION 17 — Truncation warning for non-numeric values in integer mode
+--echo # =========================================================================
+--echo # Rationale: Verify ER_TRUNCATED_WRONG_VALUE (1292) is raised when
+--echo # a non-numeric string is used in integer-mode bitwise operations,
+--echo # consistent with MariaDB's behavior for '123a'+3 -> 123 with warning.
+--echo # =========================================================================
+
+SELECT 'abc' & 255;
+SHOW WARNINGS;
+SELECT '123abc' | 255;
+SHOW WARNINGS;

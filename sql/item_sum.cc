@@ -2623,6 +2623,39 @@ bool Item_sum_max::add()
 
 /* bit_or and bit_and */
 
+bool Item_sum_bit::fix_length_and_dec(THD *thd)
+{
+  const Type_handler *th= args[0]->type_handler();
+  bool is_longstr= dynamic_cast<const Type_handler_longstr*>(th) != nullptr;
+  bool is_hybrid= dynamic_cast<const Type_handler_hex_hybrid*>(th) != nullptr;
+  bool is_binary= args[0]->collation.collation == &my_charset_bin;
+
+  m_binary_mode= is_longstr && is_binary && !is_hybrid;
+  if (m_binary_mode)
+  {
+    // Size guard
+    if (args[0]->max_length > 512)
+    {
+      my_error(ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE, MYF(0),
+               args[0]->max_length);
+      return true;
+    }
+    m_binary_length= args[0]->max_length;
+    collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    max_length= m_binary_length;
+    base_flags&= ~item_base_t::MAYBE_NULL;
+    null_value= 0;
+    return false;
+  }
+  // Original integer path
+  if (args[0]->check_type_can_return_int(func_name_cstring()))
+    return true;
+  decimals= 0; max_length= 21; unsigned_flag= 1;
+  base_flags&= ~item_base_t::MAYBE_NULL;
+  null_value= 0;
+  return false;
+}
+
 longlong Item_sum_bit::val_int()
 {
   DBUG_ASSERT(fixed());
@@ -2630,11 +2663,78 @@ longlong Item_sum_bit::val_int()
 }
 
 
+Item_sum_bit::Item_sum_bit(THD *thd, Item_sum_bit *item):
+  Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits),
+  num_values_added(item->num_values_added),
+  direct_bits(item->direct_bits),
+  m_binary_bit_counters(nullptr),
+  m_binary_length(item->m_binary_length),
+  as_window_function(item->as_window_function),
+  m_binary_mode(item->m_binary_mode),
+  direct_added(item->direct_added),
+  direct_reseted_field(item->direct_reseted_field),
+  direct_sum_is_null(item->direct_sum_is_null)
+{
+  if (m_binary_mode)
+  {
+    if (item->m_binary_bit_counters)
+    {
+      m_binary_bit_counters= (uint32*) thd->alloc(m_binary_length * 8 * sizeof(uint32));
+      if (m_binary_bit_counters)
+        memcpy(m_binary_bit_counters, item->m_binary_bit_counters,
+               m_binary_length * 8 * sizeof(uint32));
+    }
+  }
+  else if (as_window_function)
+  {
+    memcpy(bit_counters, item->bit_counters, sizeof(bit_counters));
+  }
+  m_str_value.copy(item->m_str_value);
+  direct_str_value.copy(item->direct_str_value);
+}
+
+
+void Item_sum_bit::direct_add(ulonglong add_bits, bool is_null)
+{
+  DBUG_ASSERT(!as_window_function);
+  direct_bits= add_bits;
+  direct_sum_is_null= is_null;
+  direct_added= true;
+}
+
+void Item_sum_bit::direct_add(const String *add_str, bool is_null)
+{
+  DBUG_ASSERT(!as_window_function);
+  if (!is_null && add_str)
+    direct_str_value.copy(*add_str);
+  direct_sum_is_null= is_null;
+  direct_added= true;
+}
+
+
+
 void Item_sum_bit::clear()
 {
-  bits= reset_bits;
+  if (m_binary_mode)
+    reset_binary_accumulator();
+  else
+    bits= reset_bits;
   if (as_window_function)
     clear_as_window();
+}
+
+String *Item_sum_bit::val_str(String *str)
+{
+  if (m_binary_mode)
+  {
+    null_value= false;
+    return &m_str_value;
+  }
+  // fall back to integer conversion
+  longlong nr= val_int();
+  if (null_value) return nullptr;
+  str->set((ulonglong) nr, &my_charset_bin);
+  return str;
 }
 
 Item *Item_sum_or::copy_or_same(THD* thd)
@@ -2642,10 +2742,97 @@ Item *Item_sum_or::copy_or_same(THD* thd)
   return new (thd->mem_root) Item_sum_or(thd, this);
 }
 
+void Item_sum_bit::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  if (m_binary_mode)
+  {
+    m_binary_bit_counters= (uint32*) thd->calloc(m_binary_length * 8 * sizeof(uint32));
+    if (!m_binary_bit_counters)
+      return;
+  }
+  as_window_function= TRUE;
+  clear_as_window();
+}
+
 bool Item_sum_bit::clear_as_window()
 {
-  memset(bit_counters, 0, sizeof(bit_counters));
+  if (m_binary_mode)
+  {
+    if (m_binary_bit_counters)
+      memset(m_binary_bit_counters, 0, m_binary_length * 8 * sizeof(uint32));
+  }
+  else
+    memset(bit_counters, 0, sizeof(bit_counters));
   num_values_added= 0;
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::add_binary_as_window(const String &value)
+{
+  DBUG_ASSERT(as_window_function);
+  if (!m_binary_bit_counters)
+    return true;
+
+  if (value.length() != m_binary_length)
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_INVALID_BITWISE_OPERANDS_SIZE,
+                        ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                        (int)value.length(), (int)m_binary_length);
+    return true;
+  }
+
+  const uchar *val_ptr= (const uchar*) value.ptr();
+  for (uint b_idx= 0; b_idx < m_binary_length; ++b_idx)
+  {
+    uchar byte_val= val_ptr[b_idx];
+    for (int bit= 0; bit < 8; ++bit)
+    {
+      if (byte_val & (1 << bit))
+        m_binary_bit_counters[b_idx * 8 + bit]++;
+    }
+  }
+  num_values_added++;
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::remove_binary_as_window(const String &value)
+{
+  DBUG_ASSERT(as_window_function);
+  if (!m_binary_bit_counters)
+    return true;
+
+  if (value.length() != m_binary_length)
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_INVALID_BITWISE_OPERANDS_SIZE,
+                        ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                        (int)value.length(), (int)m_binary_length);
+    return true;
+  }
+
+  if (num_values_added == 0)
+    return 0;
+
+  const uchar *val_ptr= (const uchar*) value.ptr();
+  for (uint b_idx= 0; b_idx < m_binary_length; ++b_idx)
+  {
+    uchar byte_val= val_ptr[b_idx];
+    for (int bit= 0; bit < 8; ++bit)
+    {
+      if (byte_val & (1 << bit))
+      {
+        uint32 &counter= m_binary_bit_counters[b_idx * 8 + bit];
+        if (counter)
+          counter--;
+      }
+    }
+  }
+  num_values_added--;
   set_bits_from_counters();
   return 0;
 }
@@ -2688,6 +2875,30 @@ bool Item_sum_bit::add_as_window(ulonglong value)
 
 void Item_sum_or::set_bits_from_counters()
 {
+  if (m_binary_mode)
+  {
+    if (!m_binary_bit_counters)
+      return;
+    if (m_str_value.alloc(m_binary_length))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+      return;
+    }
+    m_str_value.length(m_binary_length);
+
+    uchar *acc= (uchar*) m_str_value.ptr();
+    for (uint b_idx= 0; b_idx < m_binary_length; ++b_idx)
+    {
+      uchar byte_val= 0;
+      for (int bit= 0; bit < 8; ++bit)
+      {
+        if (m_binary_bit_counters[b_idx * 8 + bit] > 0)
+          byte_val|= (1 << bit);
+      }
+      acc[b_idx]= byte_val;
+    }
+    return;
+  }
   ulonglong value= 0;
   for (uint i= 0; i < NUM_BIT_COUNTERS; i++)
   {
@@ -2696,8 +2907,72 @@ void Item_sum_or::set_bits_from_counters()
   bits= value | reset_bits;
 }
 
+void Item_sum_or::reset_binary_accumulator()
+{
+  if (m_str_value.alloc(m_binary_length))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+    return;
+  }
+  m_str_value.length(m_binary_length);
+  m_str_value.set_charset(&my_charset_bin);
+  memset((char*) m_str_value.ptr(), 0x00, m_binary_length);
+}
+
 bool Item_sum_or::add()
 {
+  if (m_binary_mode)
+  {
+    if (unlikely(direct_added))
+    {
+      direct_added= FALSE;
+      if (!direct_sum_is_null)
+      {
+        if (direct_str_value.length() != m_binary_length)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_INVALID_BITWISE_OPERANDS_SIZE,
+                              ER_THD(current_thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                              (int) direct_str_value.length(),
+                              (int) m_binary_length);
+          direct_added= FALSE;
+          return true;
+        }
+        null_value= 0;
+        uchar *acc= (uchar*) m_str_value.ptr();
+        const uchar *val= (const uchar*) direct_str_value.ptr();
+        for (uint i= 0; i < m_binary_length; i++)
+          acc[i]|= val[i];
+      }
+      return 0;
+    }
+    StringBuffer<512> arg_buf;
+    String *arg= args[0]->val_str(&arg_buf);
+    if (!arg) return 0; // NULL - skip
+    if (arg->length() != m_binary_length)
+    {
+      my_error(ER_INVALID_BITWISE_OPERANDS_SIZE, MYF(0),
+               (int)arg->length(), (int)m_binary_length);
+      return true;
+    }
+    if (as_window_function)
+      return add_binary_as_window(*arg);
+    uchar *acc= (uchar*) m_str_value.ptr();
+    const uchar *val= (const uchar*) arg->ptr();
+    for (uint i= 0; i < m_binary_length; i++)
+      acc[i]|= val[i];
+    return 0;
+  }
+  if (unlikely(direct_added))
+  {
+    direct_added= FALSE;
+    if (!direct_sum_is_null)
+    {
+      null_value= 0;
+      bits|= direct_bits;
+    }
+    return 0;
+  }
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
   {
@@ -2710,6 +2985,30 @@ bool Item_sum_or::add()
 
 void Item_sum_xor::set_bits_from_counters()
 {
+  if (m_binary_mode)
+  {
+    if (!m_binary_bit_counters)
+      return;
+    if (m_str_value.alloc(m_binary_length))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+      return;
+    }
+    m_str_value.length(m_binary_length);
+
+    uchar *acc= (uchar*) m_str_value.ptr();
+    for (uint b_idx= 0; b_idx < m_binary_length; ++b_idx)
+    {
+      uchar byte_val= 0;
+      for (int bit= 0; bit < 8; ++bit)
+      {
+        if (m_binary_bit_counters[b_idx * 8 + bit] % 2 != 0)
+          byte_val|= (1 << bit);
+      }
+      acc[b_idx]= byte_val;
+    }
+    return;
+  }
   ulonglong value= 0;
   for (int i= 0; i < NUM_BIT_COUNTERS; i++)
   {
@@ -2724,8 +3023,72 @@ Item *Item_sum_xor::copy_or_same(THD* thd)
 }
 
 
+void Item_sum_xor::reset_binary_accumulator()
+{
+  if (m_str_value.alloc(m_binary_length))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+    return;
+  }
+  m_str_value.length(m_binary_length);
+  m_str_value.set_charset(&my_charset_bin);
+  memset((char*) m_str_value.ptr(), 0x00, m_binary_length);
+}
+
 bool Item_sum_xor::add()
 {
+  if (m_binary_mode)
+  {
+    if (unlikely(direct_added))
+    {
+      direct_added= FALSE;
+      if (!direct_sum_is_null)
+      {
+        if (direct_str_value.length() != m_binary_length)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_INVALID_BITWISE_OPERANDS_SIZE,
+                              ER_THD(current_thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                              (int) direct_str_value.length(),
+                              (int) m_binary_length);
+          direct_added= FALSE;
+          return true;
+        }
+        null_value= 0;
+        uchar *acc= (uchar*) m_str_value.ptr();
+        const uchar *val= (const uchar*) direct_str_value.ptr();
+        for (uint i= 0; i < m_binary_length; i++)
+          acc[i]^= val[i];
+      }
+      return 0;
+    }
+    StringBuffer<512> arg_buf;
+    String *arg= args[0]->val_str(&arg_buf);
+    if (!arg) return 0; // NULL - skip
+    if (arg->length() != m_binary_length)
+    {
+      my_error(ER_INVALID_BITWISE_OPERANDS_SIZE, MYF(0),
+               (int)arg->length(), (int)m_binary_length);
+      return true;
+    }
+    if (as_window_function)
+      return add_binary_as_window(*arg);
+    uchar *acc= (uchar*) m_str_value.ptr();
+    const uchar *val= (const uchar*) arg->ptr();
+    for (uint i= 0; i < m_binary_length; i++)
+      acc[i]^= val[i];
+    return 0;
+  }
+  if (unlikely(direct_added))
+  {
+    direct_added= FALSE;
+    if (!direct_sum_is_null)
+    {
+      null_value= 0;
+      bits^= direct_bits;
+    }
+    return 0;
+  }
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
   {
@@ -2738,6 +3101,35 @@ bool Item_sum_xor::add()
 
 void Item_sum_and::set_bits_from_counters()
 {
+  if (m_binary_mode)
+  {
+    if (!m_binary_bit_counters)
+      return;
+    if (m_str_value.alloc(m_binary_length))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+      return;
+    }
+    m_str_value.length(m_binary_length);
+
+    uchar *acc= (uchar*) m_str_value.ptr();
+    if (num_values_added == 0)
+    {
+      memset(acc, 0xFF, m_binary_length);
+      return;
+    }
+    for (uint b_idx= 0; b_idx < m_binary_length; ++b_idx)
+    {
+      uchar byte_val= 0;
+      for (int bit= 0; bit < 8; ++bit)
+      {
+        if (m_binary_bit_counters[b_idx * 8 + bit] == num_values_added)
+          byte_val|= (1 << bit);
+      }
+      acc[b_idx]= byte_val;
+    }
+    return;
+  }
   ulonglong value= 0;
   if (!num_values_added)
   {
@@ -2759,8 +3151,72 @@ Item *Item_sum_and::copy_or_same(THD* thd)
 }
 
 
+void Item_sum_and::reset_binary_accumulator()
+{
+  if (m_str_value.alloc(m_binary_length))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), m_binary_length);
+    return;
+  }
+  m_str_value.length(m_binary_length);
+  m_str_value.set_charset(&my_charset_bin);
+  memset((char*) m_str_value.ptr(), 0xFF, m_binary_length);
+}
+
 bool Item_sum_and::add()
 {
+  if (m_binary_mode)
+  {
+    if (unlikely(direct_added))
+    {
+      direct_added= FALSE;
+      if (!direct_sum_is_null)
+      {
+        if (direct_str_value.length() != m_binary_length)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_INVALID_BITWISE_OPERANDS_SIZE,
+                              ER_THD(current_thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                              (int) direct_str_value.length(),
+                              (int) m_binary_length);
+          direct_added= FALSE;
+          return true;
+        }
+        null_value= 0;
+        uchar *acc= (uchar*) m_str_value.ptr();
+        const uchar *val= (const uchar*) direct_str_value.ptr();
+        for (uint i= 0; i < m_binary_length; i++)
+          acc[i]&= val[i];
+      }
+      return 0;
+    }
+    StringBuffer<512> arg_buf;
+    String *arg= args[0]->val_str(&arg_buf);
+    if (!arg) return 0; // NULL - skip
+    if (arg->length() != m_binary_length)
+    {
+      my_error(ER_INVALID_BITWISE_OPERANDS_SIZE, MYF(0),
+               (int)arg->length(), (int)m_binary_length);
+      return true;
+    }
+    if (as_window_function)
+      return add_binary_as_window(*arg);
+    uchar *acc= (uchar*) m_str_value.ptr();
+    const uchar *val= (const uchar*) arg->ptr();
+    for (uint i= 0; i < m_binary_length; i++)
+      acc[i]&= val[i];
+    return 0;
+  }
+  if (unlikely(direct_added))
+  {
+    direct_added= FALSE;
+    if (!direct_sum_is_null)
+    {
+      null_value= 0;
+      bits&= direct_bits;
+    }
+    return 0;
+  }
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
   {
@@ -2962,19 +3418,112 @@ void Item_sum_avg::reset_field()
 
 void Item_sum_bit::reset_field()
 {
+  if (m_binary_mode)
+  {
+    if (unlikely(direct_added))
+    {
+      direct_added= FALSE;
+      direct_reseted_field= TRUE;
+      null_value= direct_sum_is_null;
+      if (null_value)
+      {
+        result_field->set_null();
+        result_field->reset();
+      }
+      else
+      {
+        result_field->set_notnull();
+        result_field->store(direct_str_value.ptr(), direct_str_value.length(), &my_charset_bin);
+      }
+      return;
+    }
+    reset_and_add();
+    if (null_value)
+    {
+      result_field->set_null();
+      result_field->reset();
+    }
+    else
+    {
+      result_field->set_notnull();
+      result_field->store(m_str_value.ptr(), m_str_value.length(), &my_charset_bin);
+    }
+    return;
+  }
+  if (unlikely(direct_added))
+  {
+    direct_added= FALSE;
+    direct_reseted_field= TRUE;
+    null_value= direct_sum_is_null;
+    bits= null_value ? reset_bits : direct_bits;
+    if (null_value)
+      result_field->set_null();
+    else
+      result_field->set_notnull();
+    int8store(result_field->ptr, bits);
+    return;
+  }
   reset_and_add();
   int8store(result_field->ptr, bits);
 }
 
 void Item_sum_bit::update_field()
 {
+  if (m_binary_mode)
+  {
+    char buff[512]; // matches ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE 
+                    // guard (max 512 bytes) in fix_length_and_dec()
+    String tmp(buff, sizeof(buff), &my_charset_bin);
+    String *res= result_field->val_str(&tmp, &tmp);
+    if (!result_field->is_null())
+    {
+      m_str_value.copy(*res);
+      if (unlikely(direct_added || direct_reseted_field))
+      {
+        direct_added= TRUE;
+        direct_reseted_field= FALSE;
+      }
+      add();
+      result_field->set_notnull();
+      result_field->store(m_str_value.ptr(), m_str_value.length(), &my_charset_bin);
+    }
+    else
+    {
+      reset_binary_accumulator();
+      if (unlikely(direct_added || direct_reseted_field))
+      {
+        direct_added= TRUE;
+        direct_reseted_field= FALSE;
+      }
+      add();
+      if (!null_value)
+      {
+        result_field->set_notnull();
+        result_field->store(m_str_value.ptr(), m_str_value.length(), &my_charset_bin);
+      }
+    }
+    return;
+  }
   // We never call update_field when computing the function as a window
   // function. Setting bits to a random value invalidates the bits counters and
   // the result of the bit function becomes erroneous.
   DBUG_ASSERT(!as_window_function);
   uchar *res=result_field->ptr;
-  bits= uint8korr(res);
+  if (unlikely(direct_added || direct_reseted_field))
+  {
+    direct_added= TRUE;
+    direct_reseted_field= FALSE;
+    bits= result_field->is_null() ? reset_bits : uint8korr(res);
+  }
+  else
+  {
+    bits= uint8korr(res);
+  }
   add();
+  if (null_value)
+    result_field->set_null();
+  else
+    result_field->set_notnull();
   int8store(res, bits);
 }
 
