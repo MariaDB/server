@@ -71,5 +71,8 @@ EXECUTE_PROCESS (
  )
 
 IF(NOT RESULT EQUAL 0)
-  MESSAGE(FATAL_ERROR "Could not create initial database \n ${OUT} \n ${ERR}")
+  MESSAGE(FATAL_ERROR
+    "Could not create initial database, result: ${RESULT}\n"
+    "stdout:\n${OUT}\n"
+    "stderr:\n${ERR}")
 ENDIF()
