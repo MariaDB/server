@@ -608,6 +608,13 @@ public:
   */
   virtual bool uses_non_standard_aggregator_for_distinct() const
   { return false; }
+
+protected:
+  /*
+    orig_args addresses this object's own tmp_orig_args, and the aggregator is
+    deleted by cleanup(), so neither pointer may be handed to a clone as it is.
+  */
+  Item *deep_copy(THD *thd) const override;
 };
 
 
@@ -1210,6 +1217,13 @@ public:
   Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
   void setup_caches(THD *thd) override
   { setup_hybrid(thd, arguments()[0], NULL); }
+
+protected:
+  /*
+    'cmp' is deleted by cleanup(), and it is bound to the addresses of this
+    object's own 'value' and 'arg_cache', so a clone needs its own set.
+  */
+  Item *deep_copy(THD *thd) const override;
 };
 
 
