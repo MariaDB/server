@@ -429,7 +429,13 @@ static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
     ddl->append(STRING_WITH_LEN("';\n"));
   }
 
-  if (show_create_table(thd, tbl, ddl, &create_info, WITH_DB_NAME))
+  /* CREATE TABLE should specify the database if it's not the current one */
+  const char *table_db= nullptr;
+  if (!thd->db.str || cmp(&tbl->table->s->db, &thd->db))
+    table_db= tbl->table->s->db.str;
+
+  if (show_create_table_ex(thd, tbl, table_db, tbl->table->s->table_name.str,
+                           ddl, &create_info, /*ignored*/WITH_DB_NAME))
     res= true;
 
   if (restore_mode)
