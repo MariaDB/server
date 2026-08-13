@@ -1,0 +1,175 @@
+#
+# MDEV-39492 Parallel Query: worker-side execution.
+#
+# Each parallel worker runs the whole select-project query over its disjoint
+# chunk of the source table -- WHERE filtering and select-list projection --
+# and ships the final result rows to the manager, which only concatenates and
+# sends them. This test checks that the result is identical to serial
+# execution (the workers' chunks are disjoint and exhaustive, so concatenation
+# is the correct full result), and that the worker-side path is actually taken.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT, b INT, c VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t1
+  SELECT seq, seq * 10, CONCAT('row-', seq) FROM seq_1_to_5000;
+
+SET @save= @@session.parallel_worker_threads;
+
+# --- correctness: worker-side result set == serial result set ----------------
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+--let $pq_query= SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100
+--let $pq_cols= a,b,c
+--source include/parallel_query_fingerprint.inc
+
+--echo # projection of expressions over the whole table
+--let $pq_query= SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1
+--let $pq_cols= sum_ab,uc
+--source include/parallel_query_fingerprint.inc
+
+# --- the worker reads exactly the columns the query needs --------------------
+# A worker copy inherits the manager table's column bitmaps, so the rows it
+# ships must be right when most columns are not read at all, and when a read
+# column is not projected.
+CREATE TABLE wide (
+  id INT, k INT,
+  p1 VARCHAR(60), p2 VARCHAR(60), p3 VARCHAR(60), p4 VARCHAR(60), p5 VARCHAR(60),
+  p6 VARCHAR(60), p7 VARCHAR(60), p8 VARCHAR(60), p9 VARCHAR(60), p10 VARCHAR(60),
+  n1 INT, n2 INT, n3 INT, n4 INT, n5 INT,
+  vk INT AS (k * 2) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO wide (id, k, p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, n1,n2,n3,n4,n5)
+SELECT seq, seq % 100,
+       CONCAT('a',seq), CONCAT('b',seq), CONCAT('c',seq), CONCAT('d',seq),
+       CONCAT('e',seq), CONCAT('f',seq), CONCAT('g',seq), CONCAT('h',seq),
+       CONCAT('i',seq), CONCAT('j',seq),
+       seq, seq*2, seq*3, seq*4, seq*5
+  FROM seq_1_to_2000;
+
+--echo # two columns referenced out of eighteen
+--let $pq_query= SELECT id, k FROM wide WHERE k > 90
+--let $pq_cols= id,k
+--source include/parallel_query_fingerprint.inc
+
+--echo # virtual column: its base column k is read but never projected
+--let $pq_query= SELECT id, vk FROM wide WHERE vk > 190
+--let $pq_cols= id,vk
+--source include/parallel_query_fingerprint.inc
+
+DROP TABLE wide;
+
+--echo # a constant in the select list, which needs a result field of its own
+--let $pq_query= SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0
+--let $pq_cols= k,a,uc
+--source include/parallel_query_fingerprint.inc
+
+SET SESSION optimizer_switch= @save_os;
+
+# --- the session's statistics include the work the workers did ---------------
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+--enable_result_log
+--let $ser_rnd= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+--enable_result_log
+--let $par_rnd= query_get_value(SHOW SESSION STATUS LIKE 'Handler_read_rnd_next', Value, 1)
+
+# the workers read the base table, this thread reads only the materialised rows,
+# so without their counters the parallel run would report far the smaller number
+--echo # the workers' reads are counted in this session (expect 1)
+--disable_query_log
+--eval SELECT $par_rnd >= $ser_rnd AS session_counts_the_workers_reads
+--enable_query_log
+SET SESSION optimizer_switch= @save_os;
+
+# --- ANALYZE reports what the workers did ------------------------------------
+# The manager never runs the driving table's read loop, so its JOIN_TAB tracker
+# only has numbers in it if the workers hand theirs over.
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+--replace_column 9 #
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+--echo # with workers: same r_rows and r_filtered, only the access type differs
+SET SESSION parallel_worker_threads= 4;
+--replace_column 9 #
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+
+# --- constants in the select list --------------------------------------------
+--echo # a constant is shipped per row like any other projected item
+--sorted_result
+SELECT 42 AS k, a FROM t1 WHERE a <= 3;
+--sorted_result
+SELECT a, 'lit' AS s, c FROM t1 WHERE a <= 3;
+--sorted_result
+SELECT a, 1+1 AS folded FROM t1 WHERE a <= 3;
+
+--echo # every item constant, no column of the scanned table reaches the result
+--sorted_result
+SELECT 1 AS one, 2 AS two FROM t1 WHERE a <= 3;
+
+--echo # session constants carry this session's value, not a worker's (expect 1)
+--let $cid= `SELECT CONNECTION_ID()`
+--let $db= `SELECT DATABASE()`
+--disable_query_log
+--eval SELECT DISTINCT CONNECTION_ID() = $cid AND DATABASE() = '$db' AS session_values_are_mine FROM t1 WHERE a <= 500
+--enable_query_log
+
+# --- projection of expressions, and a no-WHERE scan --------------------------
+--echo # projected expressions, sorted for a stable comparison
+--sorted_result
+SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
+
+--echo # whole-table scan (no WHERE), counted
+SELECT COUNT(*) AS n FROM (SELECT a, b, c FROM t1) d;
+
+# --- queries that do NOT qualify must fall back to serial, still correct -----
+# (run with workers enabled; the gate declines, the query runs serially)
+CREATE TABLE t2 (id INT PRIMARY KEY, label VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, CONCAT('L', seq) FROM seq_1_to_50;
+
+--echo # multi-table join (more than one non-const table): correct join result
+--sorted_result
+SELECT t1.a, t2.label FROM t1 JOIN t2 ON t2.id = t1.a WHERE t1.a IN (3,17,42);
+
+--echo # aggregation / GROUP BY: correct grouped result
+SELECT a % 3 AS g, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a % 3 ORDER BY g;
+
+--echo # ORDER BY with LIMIT: correct top-N
+SELECT a, b FROM t1 WHERE a > 100 ORDER BY a LIMIT 5;
+
+DROP TABLE t2;
+
+# --- confirm the worker-side path is actually chosen -------------------------
+SET @save_ot= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+--disable_result_log
+SELECT a, b FROM t1 WHERE a > 0;
+--enable_result_log
+--echo # worker-side parallel query was chosen for the scan (expect 1)
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen
+  FROM information_schema.optimizer_trace;
+
+--echo # a query that does NOT qualify (ORDER BY needs a global sort): not chosen
+--disable_result_log
+SELECT a FROM t1 WHERE a > 0 ORDER BY a;
+--enable_result_log
+--echo # expect 0
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen
+  FROM information_schema.optimizer_trace;
+SET optimizer_trace= @save_ot;
+
+SET SESSION parallel_worker_threads= @save;
+DROP TABLE t1;

@@ -1,0 +1,82 @@
+CREATE TABLE t1 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (9),(0),(7);
+CREATE TABLE t2 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (9),(0),(7),(4),(5),(1),(2),(3),(6),(8);
+CREATE TABLE t3 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (9),(0),(7),(4),(5);
+CREATE TABLE t4 (f1 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (0),(7);
+CREATE TABLE t5 (f1 INT NOT NULL, PRIMARY KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t5 VALUES (7);
+#
+# semijoin conversion leaves a cached reference behind in the condition
+#
+SET SESSION parallel_worker_threads=0;
+SELECT STRAIGHT_JOIN count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+# same answer with workers enabled
+SET SESSION parallel_worker_threads=4;
+SELECT STRAIGHT_JOIN count(*) FROM t1 JOIN t2 JOIN t3
+WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
+count(*)
+10
+#
+# a correlated reference in the select list, and one in the condition
+#
+SET SESSION parallel_worker_threads=0;
+SELECT f1, (SELECT COUNT(*) FROM t4 WHERE t4.f1 = t2.f1) AS c FROM t2;
+f1	c
+0	1
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	1
+8	0
+9	0
+SELECT f1 FROM t2 WHERE EXISTS (SELECT 1 FROM t4 WHERE t4.f1 = t2.f1);
+f1
+0
+7
+# same answers with workers enabled
+SET SESSION parallel_worker_threads=4;
+SELECT f1, (SELECT COUNT(*) FROM t4 WHERE t4.f1 = t2.f1) AS c FROM t2;
+f1	c
+0	1
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	1
+8	0
+9	0
+SELECT f1 FROM t2 WHERE EXISTS (SELECT 1 FROM t4 WHERE t4.f1 = t2.f1);
+f1
+0
+7
+#
+# a cached constant under LEAST(), whose copy must not share the cache
+#
+CREATE TABLE t6 (d DATE) ENGINE=InnoDB;
+INSERT INTO t6 SELECT DATE'2012-01-01' + INTERVAL seq DAY FROM seq_1_to_200;
+SET SESSION parallel_worker_threads=0;
+SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
+d
+2012-01-02
+2012-01-03
+2012-01-04
+# same answer with workers enabled
+SET SESSION parallel_worker_threads=4;
+SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
+d
+2012-01-02
+2012-01-03
+2012-01-04
+DROP TABLE t6;
+DROP TABLE t1,t2,t3,t4,t5;

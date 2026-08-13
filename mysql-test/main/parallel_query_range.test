@@ -1,0 +1,155 @@
+#
+# MDEV-39491 Parallel Query: range scan over the chunked table.
+#
+# The engine partitions the key intervals of a range scan the same way it
+# partitions a whole clustered index, so a range scan can run in the workers
+# too. It converts every interval endpoint against the clustered index, so only
+# a primary-key range qualifies; the gate refuses the rest and the query runs
+# serially. The optimizer trace says which of the two a parallel query got, in
+# range_scan beside chosen_for_parallel_scan.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq%997, seq*2 FROM seq_1_to_20000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_os= @@optimizer_switch;
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_switch='derived_merge=off';
+SET optimizer_trace=1;
+
+--echo #
+--echo # the trace says which of the two the workers divide
+--echo #
+SET SESSION parallel_worker_threads=4;
+
+--echo # a full scan: chosen, and not a range scan
+--replace_column 9 #
+EXPLAIN SELECT pk FROM t1 WHERE b > 39990;
+--disable_result_log
+SELECT pk FROM t1 WHERE b > 39990;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
+  FROM information_schema.optimizer_trace;
+
+--echo # a primary-key range: chosen, and a range scan
+--replace_column 9 #
+EXPLAIN SELECT pk FROM t1 WHERE pk BETWEEN 4000 AND 12000;
+--disable_result_log
+SELECT pk FROM t1 WHERE pk BETWEEN 4000 AND 12000;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
+  FROM information_schema.optimizer_trace;
+
+--echo #
+--echo # EXPLAIN annotates the access method it parallelised, rather than
+--echo # replacing it: ALL_parallel for the whole index, range_parallel for
+--echo # the intervals.
+--echo #
+--replace_column 9 #
+EXPLAIN SELECT pk FROM t1 WHERE b > 39990;
+--replace_column 9 #
+EXPLAIN SELECT pk FROM t1 WHERE pk BETWEEN 4000 AND 12000;
+--echo # and the same in FORMAT=JSON
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT pk FROM t1 WHERE pk BETWEEN 4000 AND 12000;
+
+--echo #
+--echo # the same rows a serial scan returns, for each shape of interval
+--echo #
+--let $pq_cols= pk, b
+
+--echo # bounded both ends
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk BETWEEN 4000 AND 12000
+--source include/parallel_query_fingerprint.inc
+
+--echo # open upper end
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk > 17000
+--source include/parallel_query_fingerprint.inc
+
+--echo # open lower end
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk <= 2500
+--source include/parallel_query_fingerprint.inc
+
+--echo # two disjoint intervals, one add_scan() each
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk < 3000 OR pk > 18000
+--source include/parallel_query_fingerprint.inc
+
+--echo # many single-point intervals
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk IN (1,2,3,4999,5000,5001,19999,20000)
+--source include/parallel_query_fingerprint.inc
+
+--echo # a residual the interval does not express, applied by the worker
+--let $pq_query= SELECT pk, b FROM t1 WHERE pk BETWEEN 4000 AND 12000 AND b % 1000 = 0
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # the endpoints themselves: > and < exclude, >= and <= include
+--echo #
+SET SESSION parallel_worker_threads=4;
+SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
+  FROM (SELECT pk FROM t1 WHERE pk > 5000 AND pk < 5010) d;
+SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
+  FROM (SELECT pk FROM t1 WHERE pk >= 5000 AND pk <= 5010) d;
+--echo # and the same read serially
+SET SESSION parallel_worker_threads=0;
+SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
+  FROM (SELECT pk FROM t1 WHERE pk > 5000 AND pk < 5010) d;
+SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
+  FROM (SELECT pk FROM t1 WHERE pk >= 5000 AND pk <= 5010) d;
+
+--echo #
+--echo # intervals the engine cannot be handed: refused, and answered serially
+--echo #
+SET SESSION parallel_worker_threads=4;
+
+--echo # a range over a secondary index -- its keys are not clustered-index keys
+--replace_column 9 #
+EXPLAIN SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 200;
+FLUSH STATUS;
+--disable_result_log
+SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 200;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen FROM information_schema.optimizer_trace;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+--sorted_result
+SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 105 AND pk < 1000;
+
+--echo # index_merge, which has no single interval list to hand over
+SET SESSION optimizer_switch='derived_merge=off,index_merge=on';
+--replace_column 9 #
+EXPLAIN SELECT pk FROM t1 WHERE pk < 20 OR a = 500;
+FLUSH STATUS;
+--disable_result_log
+SELECT pk FROM t1 WHERE pk < 20 OR a = 500;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen FROM information_schema.optimizer_trace;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+SET SESSION optimizer_switch='derived_merge=off';
+
+--echo # a table with no primary key at all
+CREATE TABLE t2 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq FROM seq_1_to_20000;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--replace_column 9 #
+EXPLAIN SELECT a FROM t2 WHERE a BETWEEN 100 AND 200;
+FLUSH STATUS;
+--disable_result_log
+SELECT a FROM t2 WHERE a BETWEEN 100 AND 200;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen FROM information_schema.optimizer_trace;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+DROP TABLE t2;
+
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
