@@ -1042,6 +1042,7 @@ typedef struct system_status_var
   ulong opened_tables;
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
+  ulong parallel_queries_executed;
 
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
@@ -3368,8 +3369,6 @@ public:
   rpl_group_info* rgi_fake;
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
-
-  pwt_worker *parallel_worker;
 
   union {
     rpl_io_thread_info *rpl_io_info;
