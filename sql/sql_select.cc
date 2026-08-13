@@ -3707,7 +3707,10 @@ int JOIN::optimize_stage2()
        (table_can_be_parallel_scanned);
     3) the access method the plan settled on is one the engine will divide
        (is_parallel_scan_applicable), which is also where the engine's
-       parallel_scan_support() bitmap is matched against it.
+       parallel_scan_support() bitmap is matched against it;
+    4) the query itself is one the workers can run end to end
+       (can_run_query_in_workers) -- a streaming select-project[-join] whose
+       every expression can be cloned onto a worker's own table copies.
 
     This is the last thing optimize_stage2() decides, and it has to be:
     everything above can still change the first table's access method, and
@@ -3717,23 +3720,35 @@ int JOIN::optimize_stage2()
 
     Engine-intrinsic constraints (consistent-read only, record format,
     discarded tablespace, ...) are not known here. They are enforced later
-    inside parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED,
-    and parallel_init_read_record() then restores the serial reader.
+    inside parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED
+    so run_worker_side_join() falls back to serial execution. The table keeps
+    the serial reader either way: the manager never scans it, it only collects
+    the workers' result rows, and the serial reader is what the fall-back path
+    needs. do_select() dispatches on worker_side_parallel.
   */
   {
     JOIN_TAB *first= first_linear_tab(this, WITH_BUSH_ROOTS,
                                       WITHOUT_CONST_TABLES);
     if (thd->variables.parallel_worker_threads > 0 &&             //1
         first && table_can_be_parallel_scanned(first->table) &&   //2
-        is_parallel_scan_applicable(first))                       //3
+        is_parallel_scan_applicable(first) &&                     //3
+        can_run_query_in_workers(this, first))                    //4
     {
-      first->use_parallel_scan= true;
-      first->read_first_record= parallel_init_read_record;
+      first->use_parallel_scan= worker_side_parallel= true;
       if (unlikely(thd->trace_started()))
       {
         Json_writer_object trace_pscan(thd);
         trace_pscan.add("chosen_for_parallel_scan",
                         first->table->alias.c_ptr());
+        /*
+          What the workers will divide: the whole clustered index, or the key
+          intervals of the range scan. The two are partitioned the same way,
+          but which one it is decides whether the chunk boundaries are bounded
+          by the range, so say so rather than leaving it to be inferred from
+          the access method shown elsewhere in the trace.
+        */
+        trace_pscan.add("range_scan",
+                        first->select && first->select->quick != NULL);
       }
     }
   }
@@ -24422,12 +24437,42 @@ do_select(JOIN *join, Procedure *procedure)
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
-    if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
-      error= NESTED_LOOP_NO_MORE_ROWS;
-    else
-      error= join->first_select(join,join_tab,0);
-    if (error >= NESTED_LOOP_OK && likely(join->thd->killed != ABORT_QUERY))
-      error= join->first_select(join,join_tab,1);
+    bool run_serial= true;
+
+    /*
+      The parallel workers run this whole select-project query over their
+      disjoint chunks and ship the final result rows, the manager only
+      collects them and sends them to the client. If the engine declines the
+      parallel scan, run_worker_side_join() returns < 0 and we fall through
+      to ordinary serial execution.
+    */
+    if (join->worker_side_parallel)
+    {
+      JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                           WITHOUT_CONST_TABLES);
+      /*
+        Instantiate the parallel worker thread manager and
+        Initialize our workers (test for engine support)
+        Run the join on the workers
+      */
+      int wr= run_worker_side_join(join, scan_tab);
+      if (wr >= 0)
+      {
+        error= wr ? NESTED_LOOP_ERROR : NESTED_LOOP_OK;
+        run_serial= false;
+      }
+      else
+        join->worker_side_parallel= false;  // declined, run serially
+    }
+    if (run_serial)                         // parallel execution didn't happen
+    {
+      if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
+        error= NESTED_LOOP_NO_MORE_ROWS;
+      else
+        error= join->first_select(join,join_tab,0);
+      if (error >= NESTED_LOOP_OK && likely(join->thd->killed != ABORT_QUERY))
+        error= join->first_select(join,join_tab,1);
+    }
   }
 
   join->thd->limit_found_rows= join->send_records - join->duplicate_rows;

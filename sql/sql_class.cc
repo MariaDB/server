@@ -714,7 +714,7 @@ const char *thd_where(THD *thd)
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
-   rli_fake(0), rgi_fake(0), rgi_slave(NULL), parallel_worker(NULL),
+   rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0), start_time(0), start_time_sec_part(0),
    in_sub_stmt(0), log_all_errors(0),

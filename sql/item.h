@@ -8580,6 +8580,11 @@ extern Cached_item *new_Cached_item(THD *thd, Item *item,
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 extern void resolve_const_item(THD *thd, Item **ref, Item *cmp_item);
 extern int stored_field_cmp_to_item(THD *thd, Field *field, Item *item);
+/*
+  Whether 'clone', a copy of 'src', still reaches an item object 'src' reaches:
+  what makes a deep copy less deep than it claims. See item.cc.
+*/
+extern bool item_clone_shares_nodes(Item *src, Item *clone);
 
 extern const String my_null_string;
 
