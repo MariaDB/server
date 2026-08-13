@@ -1,0 +1,392 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+# ─── Logging helpers ─────────────────────────────────────────────────────────
+if [[ -n "$TERM" && "$TERM" != "dumb" ]] && command -v tput &>/dev/null; then
+    _CLR_RESET=$(tput sgr0); _CLR_BOLD=$(tput bold)
+    _CLR_RED="${_CLR_BOLD}$(tput setaf 1)"
+    _CLR_GREEN="${_CLR_BOLD}$(tput setaf 2)"
+    _CLR_YELLOW="${_CLR_BOLD}$(tput setaf 3)"
+    _CLR_CYAN="${_CLR_BOLD}$(tput setaf 6)"
+    _CLR_GRAY="${_CLR_BOLD}$(tput setaf 0)"
+else
+    _CLR_RESET="\e[0m"; _CLR_RED="\e[1;31m"; _CLR_GREEN="\e[1;32m"
+    _CLR_YELLOW="\e[1;33m"; _CLR_CYAN="\e[1;36m"; _CLR_GRAY="\e[1;30m"
+fi
+
+info()      { echo -e "${_CLR_CYAN} ● $*${_CLR_RESET}"; }
+warn()      { echo -e "${_CLR_YELLOW} ⚠ $*${_CLR_RESET}"; }
+error()     { echo -e "${_CLR_RED} ✖ $*${_CLR_RESET}"; }
+success()   { echo -e "${_CLR_GREEN} ✔ $*${_CLR_RESET}"; }
+fail()      { echo -e "${_CLR_RED} ✖ $*${_CLR_RESET}"; exit 1; }
+separator() { echo -e "${_CLR_GRAY} ────────────────────────────────────────────────────────────${_CLR_RESET}"; }
+header()    { separator; echo -e "${_CLR_GREEN} $*${_CLR_RESET}"; separator; }
+
+# ─── Config ──────────────────────────────────────────────────────────────────
+SCRIPT_LOCATION=$(dirname "$0")
+MDB_SOURCE_PATH=$(realpath "$SCRIPT_LOCATION")
+BUILD_PATH=$(realpath -m "$MDB_SOURCE_PATH/../BuildOf_$(basename "$MDB_SOURCE_PATH")")
+CPUS=$(getconf _NPROCESSORS_ONLN)
+BUILD_TYPE="${BUILD_TYPE:-RelWithDebInfo}"
+MDB_DATADIR=$(realpath -m "${MDB_DATADIR:-/var/lib/mysql}")
+MDB_USER="mysql"
+MDB_GROUP="mysql"
+INSTALL_PREFIX=$(realpath -m "${INSTALL_PREFIX:-/usr}")
+COMMAND=""
+RESET_DATA=false
+ASSUME_YES=false
+
+usage() {
+    cat <<EOF
+Usage: $0 <command> [options]
+
+Commands:
+  deps          Install build prerequisites
+  configure     Configure the CMake build directory
+  build         Configure and compile MariaDB
+  install       Build and install MariaDB
+  init          Initialize the data directory if it does not exist
+  start         Start MariaDB
+  stop          Stop MariaDB
+  restart       Restart MariaDB
+  dev           Build, install, initialize, and start MariaDB
+  clean         Remove build artifacts
+  reset-data    Delete and reinitialize the data directory
+  help          Show this help
+
+Options:
+  -t, --type <type>       Debug | RelWithDebInfo (default: $BUILD_TYPE)
+  -j, --jobs <N>          Number of parallel jobs (default: $CPUS)
+      --build-dir <path>  Build directory (default: $BUILD_PATH)
+      --prefix <path>     Installation prefix (default: $INSTALL_PREFIX)
+      --datadir <path>    MariaDB data directory (default: $MDB_DATADIR)
+      --reset             Reset data before init
+  -y, --yes               Do not prompt before resetting data
+  -h, --help              Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        deps|configure|build|install|init|start|stop|restart|dev|clean|reset-data|help)
+            [[ -z "$COMMAND" ]] || fail "Only one command can be specified"
+            COMMAND="$1"
+            ;;
+        -t|--type)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            BUILD_TYPE="$2"
+            shift
+            ;;
+        --type=*) BUILD_TYPE="${1#*=}" ;;
+        -j|--jobs)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            CPUS="$2"
+            shift
+            ;;
+        --jobs=*) CPUS="${1#*=}" ;;
+        --build-dir)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            BUILD_PATH=$(realpath -m "$2")
+            shift
+            ;;
+        --build-dir=*) BUILD_PATH=$(realpath -m "${1#*=}") ;;
+        --prefix)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            INSTALL_PREFIX=$(realpath -m "$2")
+            shift
+            ;;
+        --prefix=*) INSTALL_PREFIX=$(realpath -m "${1#*=}") ;;
+        --datadir)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            MDB_DATADIR=$(realpath -m "$2")
+            shift
+            ;;
+        --datadir=*) MDB_DATADIR=$(realpath -m "${1#*=}") ;;
+        --reset) RESET_DATA=true ;;
+        -y|--yes) ASSUME_YES=true ;;
+        -h|--help) COMMAND="help" ;;
+        *) fail "Unknown argument: $1" ;;
+    esac
+    shift
+done
+
+[[ -n "$COMMAND" ]] || COMMAND="help"
+[[ "$BUILD_TYPE" == "Debug" || "$BUILD_TYPE" == "RelWithDebInfo" ]] \
+    || fail "Unsupported build type: $BUILD_TYPE"
+[[ "$CPUS" =~ ^[1-9][0-9]*$ ]] || fail "Jobs must be a positive integer"
+if [[ $RESET_DATA = true && "$COMMAND" != "init" ]]; then
+    fail "--reset is only valid with init"
+fi
+if [[ $ASSUME_YES = true && "$COMMAND" != "init" && "$COMMAND" != "reset-data" ]]; then
+    fail "--yes is only valid with init or reset-data"
+fi
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+show_config() {
+    header "MariaDB $COMMAND"
+    info "Source:     ${_CLR_YELLOW}$MDB_SOURCE_PATH"
+    info "Build dir:  ${_CLR_YELLOW}$BUILD_PATH"
+    info "Build type: ${_CLR_YELLOW}$BUILD_TYPE"
+    info "Jobs:       ${_CLR_YELLOW}$CPUS"
+    echo ""
+}
+
+check_user_and_group() {
+    local user=$1
+    if [ -z "$(grep "$user" /etc/passwd)" ]; then
+        info "Adding user $user"
+        useradd -r -U "$user" -d "$MDB_DATADIR"
+    fi
+    if [ -z "$(grep "$user" /etc/group)" ]; then
+        local gid
+        gid=$(awk -F: '{uid[$3]=1}END{for(x=100; x<=999; x++) {if(uid[x] != ""){}else{print x; exit;}}}' /etc/group)
+        info "Adding group $user with id $gid"
+        groupadd -g "$gid" "$user"
+    fi
+}
+
+confirm_data_reset() {
+    if [[ $ASSUME_YES = true ]]; then
+        return
+    fi
+    [[ -t 0 ]] || fail "Refusing to reset $MDB_DATADIR non-interactively without --yes"
+    local answer
+    read -r -p "Delete and reinitialize $MDB_DATADIR? [y/N] " answer
+    [[ "$answer" == "y" || "$answer" == "Y" ]] || fail "Data reset cancelled"
+}
+
+reset_datadir() {
+    [[ -n "$MDB_DATADIR" && "$MDB_DATADIR" != "/" ]] || fail "Unsafe data directory: $MDB_DATADIR"
+    confirm_data_reset
+    rm -rf "$MDB_DATADIR"
+    rm -rf /var/run/mysqld
+}
+
+bootstrap_mdb() {
+    [[ -x "$INSTALL_PREFIX/bin/mariadb-install-db" ]] \
+        || fail "mariadb-install-db not found under $INSTALL_PREFIX; run install first"
+    info "Bootstrap MariaDB"
+    "$INSTALL_PREFIX/bin/mariadb-install-db" \
+        --datadir="$MDB_DATADIR" \
+        --user="$MDB_USER" --group="$MDB_GROUP" > /dev/null
+}
+
+stop_mdb() {
+    if "$INSTALL_PREFIX/bin/mariadb-admin" ping --silent 2>/dev/null; then
+        warn "Stopping MariaDB"
+        "$INSTALL_PREFIX/bin/mariadb-admin" shutdown || true
+    fi
+}
+
+start_mdb() {
+    [[ -x "$INSTALL_PREFIX/bin/mariadbd-safe" ]] \
+        || fail "mariadbd-safe not found under $INSTALL_PREFIX; run install first"
+    [[ -d "$MDB_DATADIR/mysql" ]] || fail "Data directory is not initialized; run init first"
+    if "$INSTALL_PREFIX/bin/mariadb-admin" ping --silent 2>/dev/null; then
+        success "MariaDB is already running"
+        return
+    fi
+
+    info "Starting MariaDB"
+    mkdir -p /run/mysqld
+    chown "$MDB_USER:$MDB_GROUP" /run/mysqld
+    "$INSTALL_PREFIX/bin/mariadbd-safe" --datadir="$MDB_DATADIR" &
+
+    local max_attempts=30
+    local attempt=0
+    while ! "$INSTALL_PREFIX/bin/mariadb-admin" ping --silent 2>/dev/null; do
+        attempt=$((attempt + 1))
+        if [[ $attempt -ge $max_attempts ]]; then
+            local err_log="$MDB_DATADIR/$(hostname).err"
+            if [[ -f "$err_log" ]]; then
+                error "Last 50 lines of $err_log:"
+                tail -50 "$err_log"
+            fi
+            fail "MariaDB failed to start within ${max_attempts} seconds"
+        fi
+        sleep 1
+    done
+    success "MariaDB is ready"
+}
+
+setup_dev_user() {
+    local current_user
+    current_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+    if [[ -n "$current_user" && "$current_user" != "root" ]]; then
+        info "Creating dev user '${_CLR_YELLOW}$current_user${_CLR_CYAN}'"
+        "$INSTALL_PREFIX/bin/mariadb" -e \
+            "CREATE USER IF NOT EXISTS '$current_user'@'localhost' IDENTIFIED VIA unix_socket;
+             GRANT ALL PRIVILEGES ON *.* TO '$current_user'@'localhost';"
+    fi
+}
+
+construct_cmake_flags() {
+    MDB_CMAKE_FLAGS=(
+        "-DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+        "-DCMAKE_INSTALL_PREFIX:PATH=$INSTALL_PREFIX"
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+        -DPLUGIN_ARCHIVE=NO
+        -DPLUGIN_BLACKHOLE=NO
+        -DPLUGIN_FEDERATED=NO
+        -DPLUGIN_FEDERATEDX=NO
+        -DPLUGIN_CONNECT=NO
+        -DPLUGIN_MROONGA=NO
+        -DPLUGIN_OQGRAPH=NO
+        -DPLUGIN_ROCKSDB=NO
+        -DPLUGIN_SPHINX=NO
+        -DPLUGIN_SPIDER=NO
+        -DPLUGIN_TOKUDB=NO
+        -DPLUGIN_COLUMNSTORE=NO
+        -DPLUGIN_DUCKDB=NO
+        -DWITH_EMBEDDED_SERVER=NO
+        -DWITH_WSREP=NO
+        -DWITH_SSL=system
+        -DWITH_SAFEMALLOC=OFF
+        -DMYSQL_MAINTAINER_MODE=OFF
+        -DWITH_SBOM=0
+        -DDEB=noble
+        -DINSTALL_LAYOUT=DEB
+    )
+}
+
+install_deps() {
+    local SUDO=""
+    if [[ $EUID -ne 0 ]]; then
+        SUDO="sudo"
+    fi
+
+    local DEB_DEPS="build-essential git cmake ninja-build bison flex \
+        libncurses-dev libreadline-dev libssl-dev zlib1g-dev libbz2-dev \
+        libzstd-dev libcurl4-openssl-dev libaio-dev libxml2-dev libpcre2-dev \
+        libxcrypt-dev liblzma-dev libpam0g-dev libperl-dev python3 python3-dev \
+        ccache"
+
+    separator
+    info "Installing prerequisites"
+    $SUDO apt-get update
+    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y ${DEB_DEPS} \
+        || fail "DEPENDENCY INSTALL FAILED"
+    success "Prerequisites installed"
+}
+
+configure_build() {
+    construct_cmake_flags
+    separator
+    info "Configuring"
+    cmake "${MDB_CMAKE_FLAGS[@]}" -S"$MDB_SOURCE_PATH" -B"$BUILD_PATH" \
+        || fail "CONFIGURE FAILED"
+    success "Configuration complete"
+}
+
+compile_build() {
+    separator
+    info "Building with ${_CLR_YELLOW}$CPUS${_CLR_CYAN} jobs"
+    cmake --build "$BUILD_PATH" -j "$CPUS" || fail "BUILD FAILED"
+    success "Build complete"
+    info "Adding compile_commands.json symlink"
+    ln -sf "$BUILD_PATH/compile_commands.json" "$MDB_SOURCE_PATH"
+}
+
+install_build() {
+    separator
+    info "Installing"
+    cmake --install "$BUILD_PATH" || fail "INSTALL FAILED"
+    success "Install complete"
+}
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+cmd_deps() {
+    install_deps
+}
+
+cmd_configure() {
+    configure_build
+}
+
+cmd_build() {
+    configure_build
+    compile_build
+}
+
+cmd_install() {
+    cmd_build
+    stop_mdb
+    install_build
+}
+
+cmd_init() {
+    stop_mdb
+    if [[ $RESET_DATA = true ]]; then
+        reset_datadir
+    elif [[ -d "$MDB_DATADIR/mysql" ]]; then
+        success "Data directory is already initialized"
+        return
+    fi
+    check_user_and_group "$MDB_USER"
+    bootstrap_mdb
+    success "Data directory initialized"
+}
+
+cmd_start() {
+    start_mdb
+    setup_dev_user
+}
+
+cmd_stop() {
+    stop_mdb
+    success "MariaDB stopped"
+}
+
+cmd_restart() {
+    stop_mdb
+    start_mdb
+    setup_dev_user
+}
+
+cmd_dev() {
+    cmd_install
+    cmd_init
+    cmd_start
+}
+
+cmd_clean() {
+    [[ -n "$BUILD_PATH" && "$BUILD_PATH" != "/" && "$BUILD_PATH" != "$MDB_SOURCE_PATH" ]] \
+        || fail "Unsafe build directory: $BUILD_PATH"
+    rm -rf "$BUILD_PATH"
+    if [[ -L "$MDB_SOURCE_PATH/compile_commands.json" ]]; then
+        rm -f "$MDB_SOURCE_PATH/compile_commands.json"
+    fi
+    success "Build artifacts removed"
+}
+
+cmd_reset_data() {
+    stop_mdb
+    reset_datadir
+    check_user_and_group "$MDB_USER"
+    bootstrap_mdb
+    success "Data directory reinitialized"
+}
+
+if [[ "$COMMAND" == "help" ]]; then
+    usage
+    exit 0
+fi
+
+show_config
+case "$COMMAND" in
+    deps)       cmd_deps ;;
+    configure)  cmd_configure ;;
+    build)      cmd_build ;;
+    install)    cmd_install ;;
+    init)       cmd_init ;;
+    start)      cmd_start ;;
+    stop)       cmd_stop ;;
+    restart)    cmd_restart ;;
+    dev)        cmd_dev ;;
+    clean)      cmd_clean ;;
+    reset-data) cmd_reset_data ;;
+esac
+
+header "${COMMAND^^} FINISHED"
