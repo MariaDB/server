@@ -3107,15 +3107,12 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
     bool clear_read_bit= false;
     if (table->read_set && bitmap_is_set(table->read_set, field->field_index))
       print_col= true;
-    else
+    else if ((check_also_write_set && bitmap_is_set(table->write_set,
+                                                    field->field_index)))
     {
-      if ((check_also_write_set && bitmap_is_set(table->write_set,
-                                                 field->field_index)))
-      {
-        print_col= true;
-        bitmap_set_bit(table->read_set, field->field_index);
-        clear_read_bit= true;
-      }
+      print_col= true;
+      bitmap_set_bit(table->read_set, field->field_index);
+      clear_read_bit= true;
     }
     if (!print_col)
       continue;
@@ -3157,8 +3154,6 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
         }
         field->val_str(&tmp);
       }
-      if (clear_read_bit)
-        bitmap_clear_bit(table->read_set, field->field_index);
       /*
         Emit non-empty values as a hex literal whenever converting field's
         charset to the output charset conversion is lossy; otherwise emit the
@@ -3180,6 +3175,8 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
           output.append('\'');
       }
     }
+    if (clear_read_bit)
+      bitmap_clear_bit(table->read_set, field->field_index);
   }
   output.append(')');
 }
