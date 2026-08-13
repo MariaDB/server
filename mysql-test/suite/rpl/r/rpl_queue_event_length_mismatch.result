@@ -41,6 +41,8 @@ set @@global.debug_dbug= @saved_dbug;
 connection slave;
 include/stop_slave_sql.inc
 include/start_slave.inc
+connection master;
+include/sync_slave_io_with_master.inc
 #
 # Test Case 2: a Rotate event declaring more bytes than its packet
 #

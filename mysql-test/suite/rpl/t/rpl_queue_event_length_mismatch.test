@@ -107,6 +107,9 @@ set @@global.debug_dbug= @saved_dbug;
 --source include/stop_slave_sql.inc
 --source include/start_slave.inc
 
+--connection master
+--source include/sync_slave_io_with_master.inc
+
 --echo #
 --echo # Test Case 2: a Rotate event declaring more bytes than its packet
 --echo #
