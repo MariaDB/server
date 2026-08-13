@@ -1,7 +1,7 @@
 # MariaDB - DuckDB Incompatibilities
 
 Discovered during porting the DuckDB storage engine plugin to MariaDB 12.
-DuckDB upstream version: **v1.5.4** (submodule at `third_parties/duckdb/`).
+DuckDB upstream version: **v1.5.5** (submodule at `third_parties/duckdb/`).
 
 ---
 
@@ -132,7 +132,20 @@ MariaDB `MEDIUMTEXT`, `LONGTEXT`, `TEXT`, `TINYTEXT` all map to DuckDB `VARCHAR`
 
 ---
 
-## 5. DuckDB API Differences (AliSQL fork vs upstream v1.5.2)
+## 5. Table Partitioning
+
+MariaDB table partitioning is not supported for `ENGINE=DuckDB`. The handlerton declares `HTON_NO_PARTITION`, so the server rejects both partitioned table creation and conversion of an existing DuckDB table:
+
+```sql
+CREATE TABLE t (id INT) ENGINE=DuckDB PARTITION BY HASH(id);
+ALTER TABLE t PARTITION BY HASH(id);
+```
+
+Both statements fail with `ER_PARTITION_MERGE_ERROR` (`Engine cannot be used in partitioned tables`) before MariaDB creates partition child handlers or starts the `ALGORITHM=COPY` protocol.
+
+---
+
+## 6. DuckDB API Differences (AliSQL fork vs upstream v1.5.2)
 
 The AliSQL fork of DuckDB has custom extensions to the API that do not exist in upstream DuckDB:
 
@@ -145,7 +158,7 @@ The AliSQL fork of DuckDB has custom extensions to the API that do not exist in 
 
 ---
 
-## 6. DuckDB Extensions
+## 7. DuckDB Extensions
 
 Loaded via `cmake/duckdb_extensions.cmake`:
 
@@ -159,7 +172,7 @@ Build flags in `cmake/duckdb.cmake`: `EXTENSION_STATIC_BUILD=1`, `DUCKDB_EXTENSI
 
 ---
 
-## 7. ABI Compatibility
+## 8. ABI Compatibility
 
 DuckDB is built as a static library (`libduckdb_bundle.a`) via `ExternalProject_Add` in `cmake/duckdb.cmake`.
 
@@ -171,7 +184,7 @@ DuckDB is built as a static library (`libduckdb_bundle.a`) via `ExternalProject_
 
 ---
 
-## 8. Potential Future Incompatibilities
+## 9. Potential Future Incompatibilities
 
 These have not been triggered yet but are likely to cause issues when more complex queries are pushed down:
 
