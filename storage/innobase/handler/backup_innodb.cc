@@ -401,7 +401,7 @@ public:
       for (fil_space_t &space : fil_system.space_list)
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
             !space.is_being_imported() && !space.is_stopping() &&
-            space.create_lsn < start) try
+            space.create_lsn <= start) try
         {
           /* FIXME: how to initialize create_lsn for old files, to
           have efficient incremental backup?
