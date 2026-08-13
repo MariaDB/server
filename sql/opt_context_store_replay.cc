@@ -552,7 +552,6 @@ static void store_system_variables(THD *thd, String &script)
     {
       sys_var *var= (sys_var *) show_var->value;
       mysql_mutex_lock(&LOCK_global_system_variables);
-      fprintf(stderr, "AAQQ loading: %s:  %d\n", show_var->name, (int) show_var->type);
       pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
                             NULL, &charset_info, buf.c_ptr_safe(), &len);
       mysql_mutex_unlock(&LOCK_global_system_variables);
