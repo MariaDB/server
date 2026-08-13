@@ -7890,8 +7890,19 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
   }
 
+  /*
+    Sequence tables are written with SEQUENCE::mutex held (see
+    SEQUENCE::next_value() and ha_sequence::write_row()). For a streaming
+    transaction wsrep_after_row() would replicate a fragment and block
+    waiting for certification and commit order, while an applier may be
+    waiting for the same mutex in SEQUENCE::set_value(). That deadlocks
+    the node, so skip the streaming step here. The row has already been
+    appended to the write set and will be replicated with the following
+    fragment, or at commit.
+  */
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-      ht->flags & HTON_WSREP_REPLICATION && !error)
+      ht->flags & HTON_WSREP_REPLICATION && !error &&
+      !table_share->sequence)
     error= wsrep_after_row(ha_thd());
 
 err:

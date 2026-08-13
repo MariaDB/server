@@ -1,0 +1,192 @@
+#
+# Test a conflict on an InnoDB sequence between a streaming replication
+# transaction and an applier.
+#
+# The local transaction reserves a new range of sequence values, which
+# writes the sequence table while holding SEQUENCE::mutex. At the same
+# time an applier applies a sequence update originating from the other
+# node, and needs the same mutex in SEQUENCE::set_value().
+#
+# If the sequence table write replicates a streaming fragment while the
+# mutex is held, that fragment waits for commit order behind the applier's
+# write set, while the applier waits for the mutex. The node deadlocks and
+# the BF abort of the local transaction can never be delivered.
+#
+# This is specific to streaming replication. Without it the write set is
+# replicated at COMMIT, after SEQUENCE::mutex has been released.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--disable_ps2_protocol
+
+#
+# We create an InnoDB sequence with a small cache that is then used as
+# value for a column in the table. The cache is exhausted immediately, so
+# that the first NEXTVAL on each node has to write the sequence table.
+#
+--connection node_1
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (4, 0); # No conflict in cert
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+
+--echo # The transaction above must have replicated a fragment, otherwise
+--echo # this test degenerates into galera_sequences_bf_kill
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+
+--echo # Block the applier on node #1 and issue a conflicting insert on node #2
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# Send conflicting INSERT. This updates the sequence table on node #2,
+# and the applier on node #1 will have to apply that update.
+#
+--connection node_2
+INSERT INTO t1 VALUES (2, next value for s);
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # Block the commit monitor and let the local transaction reserve a
+--echo # new range of sequence values, which conflicts with the applier
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send INSERT INTO t1 VALUES (5, next value for s)
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # Release the applier
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--echo # Release the local transaction
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--connection node_1
+--reap
+COMMIT;
+
+--echo # Both nodes must have the same table contents. The sequence values
+--echo # are node specific, each node adjusts them to its own
+--echo # auto_increment_offset
+--connection node_1
+SELECT * FROM t1;
+SELECT LASTVAL(s);
+SELECT next_not_cached_value FROM s;
+
+--connection node_2
+SELECT * FROM t1;
+SELECT LASTVAL(s);
+SELECT next_not_cached_value FROM s;
+
+--echo # All fragments must have been removed on commit
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+#
+# Case 2: the same sequence conflict, but this time the applier also has
+# to BF abort the local transaction over a gap lock. A streaming
+# transaction cannot be replayed, so it is rolled back and the client
+# gets ER_LOCK_DEADLOCK.
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (4, 0);
+SELECT * FROM t1 WHERE f1 > 0 FOR UPDATE; # Should cause GAP lock between 1 and 3
+
+--echo # Block the applier on node #1 and issue a conflicting insert on node #2
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+INSERT INTO t1 VALUES (2, next value for s); # BF aborts on the GAP lock
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # Block the commit monitor and let the local transaction reserve a
+--echo # new range of sequence values, which conflicts with the applier
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send INSERT INTO t1 VALUES (5, next value for s)
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # Release the applier
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--echo # Release the local transaction
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--echo # The streaming transaction is BF aborted and rolled back
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+ROLLBACK;
+
+--echo # The rollback must have removed the already replicated fragments
+--echo # from both nodes, so neither node has row 4
+--connection node_1
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+# Streaming transactions are rolled back rather than replayed, so no
+# replay happened in either case
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 0 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_1
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+--disconnect node_1a
