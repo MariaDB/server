@@ -1357,6 +1357,11 @@ rename:
 				break;
 			}
 
+			if (ftype == FILE_CREATE) {
+				f.create_lsn = lsn;
+				break;
+			}
+
 			if (s == FIL_LOAD_ID_CHANGED) {
 				break;
 			}
