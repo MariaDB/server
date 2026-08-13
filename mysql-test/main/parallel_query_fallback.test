@@ -1,0 +1,32 @@
+#
+# MDEV-39492 Parallel Query: an engine that declines the parallel scan at
+# execution time must fall back to serial execution, not fail the query.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_100;
+SET SESSION parallel_worker_threads=4;
+
+--echo #
+--echo # A locking read is not a consistent read, so InnoDB declines the
+--echo # parallel scan. Each of these must return its rows serially.
+--echo #
+--sorted_result
+SELECT a FROM t1 WHERE a > 97 FOR UPDATE;
+--sorted_result
+SELECT a FROM t1 WHERE a > 97 LOCK IN SHARE MODE;
+
+--echo #
+--echo # CREATE ... SELECT and INSERT ... SELECT do not read their source with a
+--echo # consistent read either, so they take the same fallback.
+--echo #
+CREATE TEMPORARY TABLE t2 ENGINE=InnoDB AS SELECT a, b FROM t1 WHERE a > 97;
+SELECT a, b FROM t2 ORDER BY a;
+CREATE TEMPORARY TABLE t3 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t3 SELECT a, b FROM t1 WHERE a > 97;
+SELECT a, b FROM t3 ORDER BY a;
+
+DROP TEMPORARY TABLE t2, t3;
+DROP TABLE t1;

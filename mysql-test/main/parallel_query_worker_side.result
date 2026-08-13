@@ -1,0 +1,208 @@
+CREATE TABLE t1 (a INT, b INT, c VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t1
+SELECT seq, seq * 10, CONCAT('row-', seq) FROM seq_1_to_5000;
+SET @save= @@session.parallel_worker_threads;
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b,c))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b,c))) AS crc_xor FROM (SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100) d;
+n	crc_sum	crc_xor
+713	1526663308994	1378748566
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a,b,c))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a,b,c))) AS crc_xor FROM (SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100) d;
+n	crc_sum	crc_xor
+713	1526663308994	1378748566
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# projection of expressions over the whole table
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_xor FROM (SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1) d;
+n	crc_sum	crc_xor
+5000	10741355709508	3442214842
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',sum_ab,uc))) AS crc_xor FROM (SELECT a + b AS sum_ab, UPPER(c) AS uc FROM t1) d;
+n	crc_sum	crc_xor
+5000	10741355709508	3442214842
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+CREATE TABLE wide (
+id INT, k INT,
+p1 VARCHAR(60), p2 VARCHAR(60), p3 VARCHAR(60), p4 VARCHAR(60), p5 VARCHAR(60),
+p6 VARCHAR(60), p7 VARCHAR(60), p8 VARCHAR(60), p9 VARCHAR(60), p10 VARCHAR(60),
+n1 INT, n2 INT, n3 INT, n4 INT, n5 INT,
+vk INT AS (k * 2) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO wide (id, k, p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, n1,n2,n3,n4,n5)
+SELECT seq, seq % 100,
+CONCAT('a',seq), CONCAT('b',seq), CONCAT('c',seq), CONCAT('d',seq),
+CONCAT('e',seq), CONCAT('f',seq), CONCAT('g',seq), CONCAT('h',seq),
+CONCAT('i',seq), CONCAT('j',seq),
+seq, seq*2, seq*3, seq*4, seq*5
+FROM seq_1_to_2000;
+# two columns referenced out of eighteen
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,k))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,k))) AS crc_xor FROM (SELECT id, k FROM wide WHERE k > 90) d;
+n	crc_sum	crc_xor
+180	385095272505	1939493139
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,k))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,k))) AS crc_xor FROM (SELECT id, k FROM wide WHERE k > 90) d;
+n	crc_sum	crc_xor
+180	385095272505	1939493139
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# virtual column: its base column k is read but never projected
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,vk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,vk))) AS crc_xor FROM (SELECT id, vk FROM wide WHERE vk > 190) d;
+n	crc_sum	crc_xor
+80	169208122316	0
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',id,vk))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',id,vk))) AS crc_xor FROM (SELECT id, vk FROM wide WHERE vk > 190) d;
+n	crc_sum	crc_xor
+80	169208122316	0
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+DROP TABLE wide;
+# a constant in the select list, which needs a result field of its own
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_xor FROM (SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1516341941440	3809734170
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',k,a,uc))) AS crc_xor FROM (SELECT 7 AS k, a, UPPER(c) AS uc FROM t1 WHERE a % 7 = 0) d;
+n	crc_sum	crc_xor
+714	1516341941440	3809734170
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+SET SESSION optimizer_switch= @save_os;
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) FROM (SELECT a, b FROM t1 WHERE a > 2500) d;
+# the workers' reads are counted in this session (expect 1)
+session_counts_the_workers_reads
+1
+SET SESSION optimizer_switch= @save_os;
+# serial
+SET SESSION parallel_worker_threads= 0;
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	5000.00	100.00	14.28	Using where
+# with workers: same r_rows and r_filtered, only the access type differs
+SET SESSION parallel_worker_threads= 4;
+ANALYZE SELECT a FROM t1 WHERE a % 7 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	#	5000.00	100.00	14.28	Using where
+# a constant is shipped per row like any other projected item
+SELECT 42 AS k, a FROM t1 WHERE a <= 3;
+k	a
+42	1
+42	2
+42	3
+SELECT a, 'lit' AS s, c FROM t1 WHERE a <= 3;
+a	s	c
+1	lit	row-1
+2	lit	row-2
+3	lit	row-3
+SELECT a, 1+1 AS folded FROM t1 WHERE a <= 3;
+a	folded
+1	2
+2	2
+3	2
+# every item constant, no column of the scanned table reaches the result
+SELECT 1 AS one, 2 AS two FROM t1 WHERE a <= 3;
+one	two
+1	2
+1	2
+1	2
+# session constants carry this session's value, not a worker's (expect 1)
+session_values_are_mine
+1
+# projected expressions, sorted for a stable comparison
+SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
+a	sum_ab	uc
+4990	54890	ROW-4990
+4991	54901	ROW-4991
+4992	54912	ROW-4992
+4993	54923	ROW-4993
+4994	54934	ROW-4994
+4995	54945	ROW-4995
+4996	54956	ROW-4996
+4997	54967	ROW-4997
+4998	54978	ROW-4998
+4999	54989	ROW-4999
+5000	55000	ROW-5000
+# whole-table scan (no WHERE), counted
+SELECT COUNT(*) AS n FROM (SELECT a, b, c FROM t1) d;
+n
+5000
+CREATE TABLE t2 (id INT PRIMARY KEY, label VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, CONCAT('L', seq) FROM seq_1_to_50;
+# multi-table join (more than one non-const table): correct join result
+SELECT t1.a, t2.label FROM t1 JOIN t2 ON t2.id = t1.a WHERE t1.a IN (3,17,42);
+a	label
+17	L17
+3	L3
+42	L42
+# aggregation / GROUP BY: correct grouped result
+SELECT a % 3 AS g, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a % 3 ORDER BY g;
+g	n	s
+0	1666	41658330
+1	1667	41675000
+2	1667	41691670
+# ORDER BY with LIMIT: correct top-N
+SELECT a, b FROM t1 WHERE a > 100 ORDER BY a LIMIT 5;
+a	b
+101	1010
+102	1020
+103	1030
+104	1040
+105	1050
+DROP TABLE t2;
+SET @save_ot= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+SELECT a, b FROM t1 WHERE a > 0;
+# worker-side parallel query was chosen for the scan (expect 1)
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen
+FROM information_schema.optimizer_trace;
+chosen
+1
+# a query that does NOT qualify (ORDER BY needs a global sort): not chosen
+SELECT a FROM t1 WHERE a > 0 ORDER BY a;
+# expect 0
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen
+FROM information_schema.optimizer_trace;
+chosen
+0
+SET optimizer_trace= @save_ot;
+SET SESSION parallel_worker_threads= @save;
+DROP TABLE t1;

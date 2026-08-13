@@ -1,0 +1,36 @@
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_100;
+SET SESSION parallel_worker_threads=4;
+#
+# A locking read is not a consistent read, so InnoDB declines the
+# parallel scan. Each of these must return its rows serially.
+#
+SELECT a FROM t1 WHERE a > 97 FOR UPDATE;
+a
+100
+98
+99
+SELECT a FROM t1 WHERE a > 97 LOCK IN SHARE MODE;
+a
+100
+98
+99
+#
+# CREATE ... SELECT and INSERT ... SELECT do not read their source with a
+# consistent read either, so they take the same fallback.
+#
+CREATE TEMPORARY TABLE t2 ENGINE=InnoDB AS SELECT a, b FROM t1 WHERE a > 97;
+SELECT a, b FROM t2 ORDER BY a;
+a	b
+98	980
+99	990
+100	1000
+CREATE TEMPORARY TABLE t3 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t3 SELECT a, b FROM t1 WHERE a > 97;
+SELECT a, b FROM t3 ORDER BY a;
+a	b
+98	980
+99	990
+100	1000
+DROP TEMPORARY TABLE t2, t3;
+DROP TABLE t1;

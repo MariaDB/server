@@ -1,0 +1,186 @@
+#
+# MDEV-39492 Parallel Query: multi-table worker-side join.
+#
+# Each worker scans its chunk of the driving table and joins the other tables
+# itself (index ref/eq_ref lookups or a full scan), shipping final joined rows
+# to the manager. This test checks that the parallel result equals serial
+# execution for eq_ref, ref (with fan-out), a 3-table chain, and a non-indexed
+# (full-scan) inner table. STRAIGHT_JOIN forces the big "fact" table to be the
+# parallel-scanned driving table.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE fact (id INT, dim1 INT, dim2 INT, val INT) ENGINE=InnoDB;
+INSERT INTO fact
+  SELECT seq, seq % 50 + 1, seq % 20 + 1, seq * 3 FROM seq_1_to_5000;
+
+CREATE TABLE d1 (id INT PRIMARY KEY, name VARCHAR(20)) ENGINE=InnoDB;  # eq_ref
+INSERT INTO d1 SELECT seq, CONCAT('n', seq) FROM seq_1_to_50;
+
+CREATE TABLE d2 (k INT, label VARCHAR(20), KEY(k)) ENGINE=InnoDB;      # ref (fan-out)
+INSERT INTO d2 SELECT seq % 20 + 1, CONCAT('L', seq) FROM seq_1_to_60;
+
+CREATE TABLE d3 (x INT, descr VARCHAR(20)) ENGINE=InnoDB;              # no index -> ALL
+INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
+
+SET @s= @@session.parallel_worker_threads;
+
+SET @save_os= @@session.optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+
+--echo #
+--echo # eq_ref: fact STRAIGHT_JOIN d1 on PK
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100
+--let $pq_cols= id,name
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # ref with fan-out: fact STRAIGHT_JOIN d2 on a non-unique key
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000
+--let $pq_cols= id,label
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # 3-table chain: fact STRAIGHT_JOIN d1 STRAIGHT_JOIN d2
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2 WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000
+--let $pq_cols= id,name,label
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # non-indexed inner table (d3, full scan): fact STRAIGHT_JOIN d3
+--echo #
+--let $pq_query= SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500
+--let $pq_cols= id,descr
+--source include/parallel_query_fingerprint.inc
+
+SET SESSION optimizer_switch= @save_os;
+
+--echo #
+--echo # small deterministic spot-check, run worker-side (sorted for stability)
+--echo #
+SET SESSION parallel_worker_threads=4;
+--sorted_result
+SELECT STRAIGHT_JOIN f.id, f.dim1, d1.name, d2.label
+  FROM fact f, d1, d2
+  WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id IN (1, 2, 21);
+
+--echo #
+--echo # confirm the optimizer chooses worker-side for a multi-table join
+--echo #
+SET @ot= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+--disable_result_log
+SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
+--enable_result_log
+--echo # expect 1
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
+  FROM information_schema.optimizer_trace;
+--disable_result_log
+CREATE TEMPORARY TABLE ctas ENGINE=InnoDB AS
+  SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
+--enable_result_log
+# CTAS: chosen by the optimizer, then declined at execution (locking read)
+--echo # CTAS chosen by the optimizer (expect 1); it runs serially, see parallel_query_fallback
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_chosen
+  FROM information_schema.optimizer_trace;
+DROP TEMPORARY TABLE ctas;
+SET optimizer_trace= @ot;
+
+--echo #
+--echo # an inner table whose condition was partly pushed into the index
+--echo #
+# The pushed half lives in the manager handler's pushed_idx_cond, which a worker
+# does not have, so a worker has to filter by the pre-pushdown condition.
+CREATE TABLE p1 (pk INT PRIMARY KEY, a INT, b INT, INDEX idx1(b)) ENGINE=InnoDB
+  STATS_AUTO_RECALC=0;
+INSERT INTO p1 VALUES (1,6,0),(2,1,0),(3,5,2),(4,8,0);
+CREATE TABLE p2 (c INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
+INSERT INTO p2 VALUES (1),(2);
+CREATE TABLE p3 (d INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
+INSERT INTO p3 VALUES (3),(-1),(4);
+SET @os2= @@optimizer_switch;
+SET optimizer_switch='extended_keys=on';
+
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+--sorted_result
+SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+--echo # with workers: the same one row, not one per unfiltered pair
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+--sorted_result
+SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+--echo # and it still ran in the workers rather than falling back (expect 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo # p1 still carries a pushed index condition, so the case is really covered
+--replace_column 9 #
+EXPLAIN SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+
+SET optimizer_switch= @os2;
+DROP TABLE p1, p2, p3;
+
+--echo #
+--echo # an inner table read through a join buffer
+--echo #
+# make_scan_filter() copies the conjuncts that need only this table into
+# cache_select->cond for the buffer to apply as it fills, and
+# remove_redundant_bnl_scan_conds() then removes them from select_cond. A worker
+# uses no buffer, so it has to evaluate both halves.
+CREATE TABLE b1 (id INT, k INT) ENGINE=InnoDB;
+INSERT INTO b1 SELECT seq, seq % 4 FROM seq_1_to_2000;
+CREATE TABLE b2 (x INT, v INT) ENGINE=InnoDB;
+INSERT INTO b2 SELECT seq % 4, seq FROM seq_1_to_20;
+
+--echo # b2 is read through a join buffer and carries a condition of its own
+--replace_column 9 #
+EXPLAIN SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+
+--echo # serial
+SET SESSION parallel_worker_threads= 0;
+--sorted_result
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+
+--echo # with workers: the same two rows, not every row the buffer would reject
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+--sorted_result
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+
+--echo # and it still ran in the workers rather than falling back (expect 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+DROP TABLE b1, b2;
+
+--echo #
+--echo # ANALYZE reports how the workers divided each table between them, beside
+--echo # the r_rows they add up to. Which worker got which chunk is down to
+--echo # scheduling, so the values are masked here; what is asserted is that a
+--echo # parallel plan carries the field and a serial one does not.
+--echo #
+SET SESSION parallel_worker_threads= 3;
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1
+  WHERE d1.id=f.dim1 AND f.val > 100 AND f.val < 130;
+
+--echo # the same plan run serially reports no such split
+SET SESSION parallel_worker_threads= 0;
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1
+  WHERE d1.id=f.dim1 AND f.val > 100 AND f.val < 130;
+
+SET SESSION parallel_worker_threads= @s;
+DROP TABLE fact, d1, d2, d3;

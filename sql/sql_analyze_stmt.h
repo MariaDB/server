@@ -223,12 +223,24 @@ public:
 class Table_access_tracker
 {
 public:
-  Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0)
+  Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0),
+    r_rows_per_worker(NULL), n_workers(0)
   {}
 
   ha_rows r_scans; /* how many scans were ran on this join_tab */
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
+
+  /*
+    When parallel workers read this table, how many rows each of them read, in
+    worker order; NULL otherwise. These are totals rather than the per-scan
+    average r_rows is, and they sum to r_rows. Filled in once the workers have
+    been joined (pwt_manager::quiesce_workers) and printed by ANALYZE
+    FORMAT=JSON, where the split of a parallel scan shows how evenly the
+    engine's chunks divided the work.
+  */
+  ha_rows *r_rows_per_worker;
+  uint     n_workers;
 
   double get_avg_rows() const
   {
