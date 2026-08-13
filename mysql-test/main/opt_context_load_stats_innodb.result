@@ -107,7 +107,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -141,7 +141,7 @@ select @explain_output;
     "query_block": 
     {
         "select_id": 1,
-        "cost": 0.0364371,
+        "cost": 0.0328705,
         "nested_loop": 
         [
             {
@@ -166,13 +166,13 @@ select @explain_output;
                             "used_key_parts": 
                             ["c2"]
                         },
-                        "rows": 4,
-                        "selectivity_pct": 4
+                        "rows": 2,
+                        "selectivity_pct": 2
                     },
                     "loops": 1,
-                    "rows": 4,
-                    "cost": 0.0054176,
-                    "filtered": 4,
+                    "rows": 2,
+                    "cost": 0.0047039,
+                    "filtered": 2,
                     "index_condition": "a.c1 < 3",
                     "attached_condition": "a.c2 < 3"
                 }
@@ -191,8 +191,8 @@ select @explain_output;
                         ],
                         "loops": 1,
                         "rows": 100,
-                        "cost": 0.0310195,
-                        "filtered": 40.95999908,
+                        "cost": 0.0281666,
+                        "filtered": 10.23999977,
                         "attached_condition": "b.c1 < 33 and b.c2 < 33"
                     },
                     "buffer_type": "flat",
@@ -205,7 +205,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -301,7 +301,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -382,7 +382,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -479,7 +479,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -566,7 +566,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -657,7 +657,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -738,7 +738,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -810,7 +810,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -872,7 +872,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -927,7 +927,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -995,7 +995,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -1057,7 +1057,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -1118,7 +1118,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -1209,7 +1209,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
@@ -1307,7 +1307,7 @@ select @explain_output;
 }
 set @saved_explain_output=@explain_output;
 set optimizer_replay_context="";
-delete from t1;
+truncate table t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK

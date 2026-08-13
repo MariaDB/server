@@ -2,6 +2,7 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
 --source include/opt_context_schema.inc
+--source include/innodb_stable_estimates.inc
 
 --echo #
 --echo # In this test, each query is run more than once by
@@ -35,7 +36,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 33;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -49,7 +50,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 33 and a.c2 < 3 and b.c2 < 33;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -91,7 +92,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -114,7 +115,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -139,7 +140,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -164,7 +165,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -187,7 +188,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -210,7 +211,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -225,7 +226,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 = tt2.c2;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -240,7 +241,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -255,7 +256,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -278,7 +279,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 3;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -293,7 +294,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -316,7 +317,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 4;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -342,7 +343,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5 OR tt1.c2 = 10;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
@@ -368,7 +369,7 @@ analyze table t1;
 
 let $explain_query=explain format=json select * from t1 where a=1 and b=1 and c=1;
 
-let $table_update_query=delete from t1;
+let $table_update_query=truncate table t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
