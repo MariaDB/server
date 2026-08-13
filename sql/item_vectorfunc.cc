@@ -181,12 +181,27 @@ Item_func_vec_fromtext::Item_func_vec_fromtext(THD *thd, Item *a)
 
 bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 {
+  uint32 maxlen= args[0]->max_char_length();
   decimals= 0;
   /* Worst case scenario, for a valid input we have a string of the form:
      [1,2,3,4,5,...] single digit numbers.
-     This means we can have (max_length - 1) / 2 floats.
-     Each float takes 4 bytes, so we do (max_length - 1) * 2. */
-  fix_length_and_charset((args[0]->max_length - 1) * 2, &my_charset_bin);
+     This means we can have (maxlen - 1) / 2 floats.
+     Each float takes 4 bytes, so we do (maxlen - 1) * 2. Clamp at 4
+     (so that result is at least VECTOR(1)) and UINT_MAX32 - 1 (to
+     avoid overflow) */
+  if (maxlen <= 2)
+    maxlen= 4;
+  else if (maxlen > INT_MAX32)
+    maxlen= UINT_MAX32 - 1;
+  else
+    maxlen= (maxlen - 1) * 2;
+  fix_length_and_charset(maxlen, &my_charset_bin);
+  if (max_length > MAX_FIELD_VARCHARLENGTH)
+  {
+    my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), name.str,
+             static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / sizeof(float)));
+    return true;
+  }
   set_maybe_null();
   return false;
 }

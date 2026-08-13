@@ -160,7 +160,7 @@ drop table t;
 # MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
 #
 create table t1 (v vector(64) not null);
-insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+insert into t1 select vec_fromtext(cast(concat('[',group_concat(1),']') as char(130))) from seq_1_to_64;
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -565,4 +565,133 @@ tmp	CREATE TABLE `tmp` (
 c
 drop table tmp, t1, t2;
 set sql_mode=@old_sql_mode;
+#
+# MDEV-40486 ER_TOO_BIG_FIELDLENGTH or assertion failure upon creating vector from blob
+#
+## Original testcase
+CREATE TABLE t (a TEXT) AS SELECT '[1]' AS a;
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+DROP TABLE t;
+CREATE TABLE t (a LONGBLOB) AS SELECT '[1]' AS a;
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+DROP TABLE t;
+## Another case, which would have failed with ERROR 1292
+## without the fix
+CREATE TABLE t SELECT VEC_FROMTEXT('[1]');
+DROP TABLE t;
+## Conversion from max varchar length
+CREATE TABLE t (a VARCHAR(16383)) AS
+SELECT concat('[1', repeat(',1', 8190), ']') AS a;
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+DROP TABLE t,tt;
+## Conversion to max vector dimension
+CREATE TABLE tt AS
+SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16382), ']')) AS f;
+DROP TABLE tt;
+CREATE TABLE tt AS
+SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
+ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+## "Zero-dimensional" argument, no change in behaviour after fix
+SELECT VEC_FROMTEXT('[]') as f;
+f
+
+CREATE TABLE t1 SELECT VEC_FROMTEXT('[]');
+ERROR 22007: Incorrect vector value: '' for column `test`.`t1`.`VEC_FROMTEXT('[]')` at row 1
+## Zero length: no underflow
+SELECT VEC_FROMTEXT('') AS f;
+f
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'VEC_FromText'
+CREATE TABLE tt AS SELECT VEC_FROMTEXT('') AS f;
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'VEC_FromText'
+CREATE TABLE t1 (a CHAR(1));
+CREATE TABLE t2 AS SELECT VEC_FROMTEXT(a) AS f FROM t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a CHAR(2));
+CREATE TABLE t2 AS SELECT VEC_FROMTEXT(a) AS f FROM t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+CREATE TABLE t3 (f VECTOR(0));
+ERROR 42000: Incorrect column specifier for column 'f'
+## Fails because concat('[',group_concat(1),']') is mediumblob
+create view v1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+ERROR 42000: Column length too big for column 'vec_fromtext(concat('[',group_concat(1),']'))' (max = 16383); use BLOB or TEXT instead
+## NULLs
+select vec_fromtext(NULL);
+vec_fromtext(NULL)
+NULL
+select vec_fromtext(NULL + NULL);
+vec_fromtext(NULL + NULL)
+NULL
+create table t1 select vec_fromtext(NULL) as c;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+create table t1 select vec_fromtext(NULL + NULL) as c;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` vector(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 select vec_fromtext(c) from (select '[1,2]' as c) d;
+DROP TABLE t1;
+create table t1 select vec_fromtext(c) from (select '' as c) d;
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'VEC_FromText'
+create table t1 select vec_fromtext(c) from (select NULL as c) d;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `vec_fromtext(c)` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+create table t2 (c varchar(5));
+insert into t2 values (NULL);
+create table t1 select vec_fromtext(c) from t2;
+drop table t1, t2;
+## Prepared statements with placeholders
+prepare p1 from 'select vec_fromtext(?)';
+execute p1 using '[1,2]';
+execute p1 using NULL;
+vec_fromtext(?)
+NULL
+execute p1 using '[]';
+vec_fromtext(?)
+
+deallocate prepare p1;
+prepare p1 from 'create table t1 select vec_fromtext(?)';
+execute p1 using '[1,2]';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `vec_fromtext(?)` vector(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+execute p1 using NULL;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `vec_fromtext(?)` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+execute p1 using '[]';
+ERROR 22007: Incorrect vector value: '' for column `test`.`t1`.`vec_fromtext(?)` at row 1
+execute p1 using '';
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'VEC_FromText'
+deallocate prepare p1;
 # End of 11.8 tests
