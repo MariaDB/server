@@ -4491,6 +4491,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
     unit->set_limit(select_lex);
+    if (thd->is_error())
+      goto error;
     MYSQL_UPDATE_START(thd->query());
     res= up_result= mysql_update(thd, all_tables,
                                   select_lex->item_list,
@@ -4525,6 +4527,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       res= 0;
 
     unit->set_limit(select_lex);
+    if (thd->is_error())
+      goto error;
     /*
       We can not use mysql_explain_union() because of parameters of
       mysql_select in mysql_multi_update so just set the option if needed
@@ -4740,6 +4744,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     select_lex->options|= SELECT_NO_UNLOCK;
 
     unit->set_limit(select_lex);
+    if (thd->is_error())
+      goto error;
 
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
