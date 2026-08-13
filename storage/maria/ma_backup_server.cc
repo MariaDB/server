@@ -20,19 +20,83 @@
 #include <aria_backup.h>
 #include <mysqld_error.h>
 #include <atomic>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 #include "span.h"
 
+#ifndef DBUG_OFF
+# include "sql_table.h"
+#endif
+
 /*
-  Implementation of functions declatred in ma_backup.h:
+  Implementation of functions declared in ma_backup.h:
   BACKUP SERVER support for Aria engine
 */
 
 namespace
 {
+  /* Utility class to implement the "backup step" interface when
+  processing several lists. It implements the logic where an item
+  is processed (copied) from the first list which has available
+  items, and a "remaining" counter accumulates the number of
+  items remaining to be processed on all lists, regardless of
+  whether an item from that list was processed or not. */
+  class Copy_from_list
+  {
+    size_t m_remaining {0};
+    bool m_copy_done;
+  public:
+    Copy_from_list(bool copy_done= false) noexcept
+    : m_copy_done(copy_done)
+    {
+    }
+
+    int remaining() const noexcept
+    {
+      /* In theory the list of files/tables to be processed may be larger
+      than the maximum value of signed int, which is the type defined by the
+      API. Rather than impose artificial limits, we recognize that in extreme
+      cases the exact number returned doesn't matter as much as whether there
+      is more processing to be done or not. For these cases it's acceptable to
+      return the max value of int. */
+      return static_cast<int>(m_remaining <= std::numeric_limits<int>::max()
+                              ? m_remaining : std::numeric_limits<int>::max());
+    }
+
+    /* perform copy_action on the next list element if no copy was done
+       previously by this instance, in each case accumulate the count
+       of remaining elements to be copied. Note that because the counter
+       is incremented atomically by multiple threads, it may go over the
+       list size as the copying of the list is completed.
+       Returns true on failure, false on success. */
+    template<typename T, typename Fn>
+    bool operator()(const T &list, std::atomic<size_t> &copied_counter,
+                    Fn copy_action) noexcept
+    {
+      if (!m_copy_done)
+      {
+        size_t idx= copied_counter.fetch_add(1, std::memory_order_relaxed);
+        if (idx < list.size())
+        {
+          if (copy_action(list[idx]) != 0)
+            return true;
+          m_copy_done= true;
+          m_remaining+= list.size() - idx - 1U;
+        }
+      }
+      else
+      {
+        size_t current_copied= copied_counter.load(std::memory_order_relaxed);
+        if (current_copied < list.size())
+          m_remaining+= list.size() - current_copied;
+      }
+      return false;
+    }
+  };
+
   class Aria_backup
   {
   public:
@@ -41,7 +105,7 @@ namespace
     {
 #ifndef _WIN32
       if (logdir_fd >= 0)
-        std::ignore= close(logdir_fd);
+        close(logdir_fd);
 #endif
       if (translog_purge_disabled)
         translog_enable_purge();
@@ -70,50 +134,48 @@ namespace
       return false;
     }
 
-    bool start_copy_dml_safe(const backup_target *target, const backup_sink *sink) noexcept
+    bool start_copy_no_ddl(const backup_target *target,
+                           const backup_sink *sink) noexcept
     {
       assert(translog_purge_disabled);
       if (scan_dbdirs())
         return true;
-      flatten_table_lists();
+      build_table_lists();
       if (sink->stream == sink->NO_STREAM)
         return ensure_target_dirs(target);
       return false;
     }
 
-    bool start_copy_unsafe() noexcept
+    bool start_copy_no_commit() noexcept
     {
       if (scan_logs())
         return true;
       return false;
     }
 
-    /* Copy an Aria table that is safe to be copied while concurrent DML
-    is in progress. */
-    int dml_safe_copy_step(const backup_target *target, const backup_sink *sink) noexcept
+    /* Copy an Aria table that is safe to be copied in BACKUP_PHASE_NO_DDL.
+      These are files for Aria user tables: Writes to non-transactional user
+      tables are blocked in this phase, while transactional tables can be
+      recovered using write-ahead logs. */
+    int no_ddl_copy_step(const backup_target *target,
+                         const backup_sink *sink) noexcept
     {
-      return copy_from_list_step(flat_table_list, tables_copied,
-                                 [this, target, sink](const table_ref &table) noexcept
-                                 {
-                                   return copy_table(target, sink, table);
-                                 });
+      Copy_from_list copy_from_list;
+      if (copy_from_list(user_tables, user_tables_copied,
+                         [this, target, sink](const table_ref &table) noexcept
+                         {
+                           return copy_table(target, sink, table);
+                         }))
+        return -1;
+      return copy_from_list.remaining();
     }
 
-    /* Copy an entity that is not safe to copy if there are concurrent
-    writes to it. One entity is copied, of the first category that has
-    any remaning entities to be copied. Returns the total number of
-    entities to be copied in all categories. Categories in order:
-     - log control file
-     - log files
-     - Aria tables
-     - other ("miscellaneous") files
-    */
-    int unsafe_copy_step(const backup_target *target, const backup_sink *sink) noexcept
+    /* Copy an entity (Aria table or log file) that is only safe to copy in
+       BACKUP_PHASE_NO_COMMIT. System tables fall in this category. */
+    int no_commit_copy_step(const backup_target *target,
+                            const backup_sink *sink) noexcept
     {
-      /* If control file is always the first file copied and there is only
-      one, it is never included in the "steps remaining" calculation.
-      Should the order be changed, the calculation needs to be updated for
-      the control file as well. */
+      bool control_file_copied_now= false;
       if (have_control_file)
       {
         bool already_copied= control_file_copied.exchange(true);
@@ -121,18 +183,27 @@ namespace
         {
           if (copy_control_file(target, sink) != 0)
             return -1;
-          size_t current_copied= log_files_copied.load(std::memory_order_relaxed);
-          return (current_copied < log_files.size()) ?
-                 static_cast<int>(log_files.size() - current_copied) :
-                 0;
+          control_file_copied_now= true;
         }
       }
 
-      return copy_from_list_step(log_files, log_files_copied,
-                                 [this, target, sink](const std::string &path) noexcept
-                                 {
-                                   return copy_log_file(target, sink, path.c_str());
-                                 });
+      Copy_from_list copy_from_list(control_file_copied_now);
+
+      if (copy_from_list(system_tables, system_tables_copied,
+                         [this, target, sink](const table_ref &table) noexcept
+                         {
+                           return copy_table(target, sink, table);
+                         }))
+        return -1;
+
+      if (copy_from_list(log_files, log_files_copied,
+                         [this, target, sink](const std::string &path) noexcept
+                         {
+                           return copy_log_file(target, sink, path.c_str());
+                         }))
+        return -1;
+
+      return copy_from_list.remaining();
     }
 
     int end() noexcept
@@ -176,8 +247,10 @@ namespace
     using table_ref= std::pair<dir_ref, tablename_ref>;
     using table_list= std::vector<table_ref>;
 
-    table_list flat_table_list;
-    std::atomic<size_t> tables_copied {0};
+    table_list user_tables;
+    table_list system_tables;
+    std::atomic<size_t> user_tables_copied {0};
+    std::atomic<size_t> system_tables_copied {0};
     std::atomic<size_t> log_files_copied {0};
     std::atomic<bool> control_file_copied {false};
 
@@ -225,7 +298,7 @@ namespace
           /* Length of filename without extension. */
           size_t base_filename_len= filename.length - ext_len;
           const char* suffix = filename.str + base_filename_len;
-          if(match_ext(suffix, index_ext))
+          if (match_ext(suffix, index_ext))
           {
             if (!is_tmp_table(filename))
             {
@@ -245,17 +318,29 @@ namespace
       return begins_with(filename, tmp_prefix);
     }
 
-    void flatten_table_lists() noexcept
+    void build_table_lists() noexcept
     {
-      flatten_table_list(tables, flat_table_list);
-    }
+      /* This relies on the assumption that all the non-transactional
+      non-user tables are in MYSQL_SCHEMA ("mysql"). We copy the
+      transactional non-user tables in this schema under a higher lock
+      level than strictly necessary to avoid the cost of inspecting
+      these tables.
+      Note that directory name matching relies on the fact that
+      MYSQL_SCHEMA_NAME has the same representation in the filesystem
+      charset (as provided by directory listing) and the internal
+      identifier charset, which is true at least as long as it's
+      comprised of ASCII letters, digits and underscore character
+      only. */
+      assert(schema_name_is_its_own_filename());
 
-    static void flatten_table_list(const database_dirs& dirs, table_list& list) noexcept
-    {
-      for (const database_dir& dir : dirs)
+      for (const database_dir& dir : tables)
       {
-        for (const std::string& table : dir.second)
-          list.emplace_back(dir.first, table);
+        if (match_str(dir.first, MYSQL_SCHEMA_NAME))
+          for (const std::string& table : dir.second)
+            system_tables.emplace_back(dir.first, table);
+        else
+          for (const std::string& table : dir.second)
+            user_tables.emplace_back(dir.first, table);
       }
     }
 
@@ -282,25 +367,9 @@ namespace
     bool ensure_target_dirs(const backup_target *target) noexcept
     {
       for (const database_dir &dir : tables)
-        if(::ensure_target_subdir(target, dir.first.c_str()) != 0)
+        if (::ensure_target_subdir(target, dir.first.c_str()) != 0)
           return true;
       return false;
-    }
-
-    template<typename T, typename Fn>
-    static int copy_from_list_step(const std::vector<T> &list,
-                                   std::atomic<size_t> &copied,
-                                   Fn copy_action)
-    {
-      size_t idx= copied.fetch_add(1, std::memory_order_relaxed);
-      if (idx < list.size())
-      {
-        if (copy_action(list[idx]) != 0)
-            return -1;
-        return static_cast<int>(list.size() - idx - 1U);
-      }
-
-      return 0;
     }
 
     int copy_table(const backup_target *target, const backup_sink *sink,
@@ -375,7 +444,8 @@ namespace
       return memcmp(ext1, ext2, ext_len) == 0;
     }
 
-    static bool begins_with(const LEX_CSTRING &str, const LEX_CSTRING &prefix) noexcept
+    static bool begins_with(const LEX_CSTRING &str,
+                            const LEX_CSTRING &prefix) noexcept
     {
       if (str.length < prefix.length)
         return false;
@@ -387,6 +457,27 @@ namespace
       return str.length == control_file_name.length &&
         memcmp(str.str, control_file_name.str, control_file_name.length) == 0;
     }
+
+    static bool match_str(const std::string &str1,
+                          const LEX_CSTRING &str2) noexcept
+    {
+      return str1.length() == str2.length &&
+             memcmp(str1.data(), str2.str, str2.length) == 0;
+    }
+
+#ifndef DBUG_OFF
+    /* Whether MYSQL_SCHEMA_NAME is left unchanged by the conversion from the
+    identifier charset to the filesystem charset. That is what allows
+    build_table_lists() to compare it with a directory name byte by byte. */
+    static bool schema_name_is_its_own_filename() noexcept
+    {
+      char filename[FN_REFLEN];
+      uint length= tablename_to_filename(MYSQL_SCHEMA_NAME.str, filename,
+                                         sizeof(filename));
+      return length == MYSQL_SCHEMA_NAME.length &&
+             memcmp(filename, MYSQL_SCHEMA_NAME.str, length) == 0;
+    }
+#endif
   };
 }
 
@@ -416,11 +507,11 @@ void *aria_backup_start(THD *thd, const backup_target *target,
   switch(phase)
   {
   case BACKUP_PHASE_NO_DDL:
-    if (aria_backup->start_copy_dml_safe(target, sink))
+    if (aria_backup->start_copy_no_ddl(target, sink))
       goto error;
     break;
   case BACKUP_PHASE_NO_COMMIT:
-    if (aria_backup->start_copy_unsafe())
+    if (aria_backup->start_copy_no_commit())
       goto error;
     break;
   default:
@@ -441,9 +532,9 @@ int aria_backup_step(THD*, const backup_target *target, backup_phase phase,
   switch (phase)
   {
   case BACKUP_PHASE_NO_DDL:
-    return aria_backup->dml_safe_copy_step(target, sink);
+    return aria_backup->no_ddl_copy_step(target, sink);
   case BACKUP_PHASE_NO_COMMIT:
-    return aria_backup->unsafe_copy_step(target, sink);
+    return aria_backup->no_commit_copy_step(target, sink);
   default:
     return 0;
   }
