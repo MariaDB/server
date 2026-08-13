@@ -33,8 +33,8 @@
 #include "sql_update.h"
 
 #include "cset_narrowing.h"
-#include "sql_parallel_workers.h"
 
+class pwt_manager;
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
@@ -1756,6 +1756,17 @@ public:
   Sql_cmd_dml *sql_cmd_dml;
 
   pwt_manager *parallel_work_manager{0};
+
+  /*
+    Set by make_join_readinfo()'s gate when the parallel workers run this whole
+    query themselves: each worker scans its chunk of the single non-const
+    source table, applies the WHERE filter and select-list projection, and
+    ships the final result rows to the manager, which only concatenates and
+    sends them. do_select() dispatches to run_worker_side_join() when this is
+    set (see can_run_query_in_workers / sql_parallel_workers.cc). Queries that
+    do not qualify run serially.
+  */
+  bool worker_side_parallel{false};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
