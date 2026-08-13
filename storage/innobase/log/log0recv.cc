@@ -1247,6 +1247,24 @@ ATTRIBUTE_COLD static void fil_delete_apply(fil_space_t *space) noexcept
   fil_space_free(space->id, false);
 }
 
+/** Apply a FILE_DELETE record to a tablespace that has not been loaded yet. */
+ATTRIBUTE_COLD static void fil_delete_apply(uint32_t id, const char *name)
+  noexcept
+{
+  if (log_sys.archive)
+  {
+    fil_space_t *space{nullptr};
+    if (fil_ibd_load(id, name, space) == FIL_LOAD_OK)
+    {
+      ut_ad(space);
+      deferred_spaces.remove(id);
+      fil_delete_apply(space);
+      return;
+    }
+    ut_ad(!space);
+  }
+}
+
 /** Process a file name from a FILE_* record.
 @param[in]	name		file name
 @param[in]	len		length of the file name
@@ -1281,7 +1299,9 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 		if (d) {
 			d->deleted = true;
 		}
-		if (!p.second && f.status != file_name_t::DELETED) {
+		if (p.second) {
+			fil_delete_apply(space_id, f.name.c_str());
+		} else if (f.status != file_name_t::DELETED) {
 			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
 				fil_delete_apply(f.space);
