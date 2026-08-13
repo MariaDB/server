@@ -10989,7 +10989,6 @@ void Item_cache::store(Item *item)
 }
 
 
-#ifndef DBUG_OFF
 /*
   @brief
     Whether 'clone' reaches any item object that 'src' reaches too.
@@ -11003,6 +11002,14 @@ void Item_cache::store(Item *item)
     Walking with find_item_processor asks whether a tree reaches one given
     object, so collecting the copy's nodes and asking that of the original
     covers both, and covers the classes not yet met rather than the two above.
+
+    Debug builds assert on it after a deep_copy(). Parallel query asks it of
+    every expression it would hand a worker, in every build, because a shared
+    node there is not just a copy that is less deep than it claims: the worker
+    repoints the Item_field leaves of its copy at its own tables, so a shared
+    leaf moves the manager's own item onto a worker's table, and a shared node
+    that is not a leaf carries evaluation state that several workers then write
+    at once. See can_run_query_in_workers().
 */
 bool item_clone_shares_nodes(Item *src, Item *clone)
 {
@@ -11018,7 +11025,6 @@ bool item_clone_shares_nodes(Item *src, Item *clone)
       return true;
   return false;
 }
-#endif
 
 
 /**

@@ -1037,6 +1037,7 @@ typedef struct system_status_var
   ulong opened_tables;
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
+  ulong parallel_queries_executed;
 
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;

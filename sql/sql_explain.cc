@@ -1557,12 +1557,28 @@ int Explain_table_access::print_explain(select_result_sink *output,
       item_list.push_back(item_null, mem_root);
   }
 
-  /* `type` column */
-   StringBuffer<64> join_type_buf;
+  /*
+    `type` column.
+
+    Parallel scan annotates the access method rather than replacing it: the
+    workers divide the whole clustered index of a full scan, or the key
+    intervals of a range scan, and which one it is decides whether the chunk
+    boundaries are bounded by a range, so "ALL" alone would not say which.
+    The modifier is joined with '_', keeping the value one word for whatever
+    is reading the column -- as eq_ref and ref_or_null already are.
+  */
+  StringBuffer<64> join_type_buf;
   if (rowid_filter == NULL)
   {
-    if (type == JT_ALL && use_parallel_scan)
-      push_str(thd, &item_list, "PARALLEL");
+    if (use_parallel_scan)
+    {
+      join_type_buf.append(join_type_str[type], strlen(join_type_str[type]));
+      join_type_buf.append(STRING_WITH_LEN("_parallel"));
+      item_list.push_back(new (mem_root)
+                          Item_string_sys(thd, join_type_buf.ptr(),
+                                               join_type_buf.length()),
+                          mem_root);
+    }
     else
       push_str(thd, &item_list, join_type_str[type]);
   }
@@ -2053,8 +2069,15 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
   }
 
-  if (type == JT_ALL && use_parallel_scan)
-    writer->add_member("access_type").add_str("PARALLEL");
+  /* Same spelling as the tabular form above: "ALL_parallel", "range_parallel". */
+  if (use_parallel_scan)
+  {
+    StringBuffer<64> access_type_buf;
+    access_type_buf.append(join_type_str[type], strlen(join_type_str[type]));
+    access_type_buf.append(STRING_WITH_LEN("_parallel"));
+    writer->add_member("access_type").add_str(access_type_buf.ptr(),
+                                              access_type_buf.length());
+  }
   else
     writer->add_member("access_type").add_str(join_type_str[type]);
 
@@ -2179,6 +2202,21 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         writer->add_double(tracker.get_avg_rows());
       else
         writer->add_null();
+    }
+
+    /*
+      How the parallel workers divided that between them: rows read by each,
+      in worker order. Totals rather than the per-scan average r_rows is, so
+      for the parallel-scanned table, where the chunks are one scan between
+      them, they sum to the r_rows above. Absent unless workers read this
+      table.
+    */
+    if (tracker.r_rows_per_worker)
+    {
+      writer->add_member("r_rows_per_worker").start_array();
+      for (uint i= 0; i < tracker.n_workers; i++)
+        writer->add_ll((longlong) tracker.r_rows_per_worker[i]);
+      writer->end_array();
     }
   }
 
