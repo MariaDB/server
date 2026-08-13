@@ -204,7 +204,7 @@ class String;
 #define STOP_HEADER_LEN      0
 #define LOAD_HEADER_LEN      (4 + 4 + 4 + 1 +1 + 4)
 #define SLAVE_HEADER_LEN     0
-#define START_V3_HEADER_LEN     (2 + ST_SERVER_VER_LEN + 4)
+#define START_V3_HEADER_LEN  ST_COMMON_HEADER_LEN_OFFSET
 #define ROTATE_HEADER_LEN    8 // this is FROZEN (the Rotate post-header is frozen)
 #define INTVAR_HEADER_LEN      0
 #define CREATE_FILE_HEADER_LEN 4
@@ -285,6 +285,7 @@ class String;
 #define ST_SERVER_VER_OFFSET  2
 #define ST_CREATED_OFFSET     (ST_SERVER_VER_OFFSET + ST_SERVER_VER_LEN)
 #define ST_COMMON_HEADER_LEN_OFFSET (ST_CREATED_OFFSET + 4)
+#define ST_POST_HEADER_LEN_OFFSET (ST_COMMON_HEADER_LEN_OFFSET + 1)
 
 /* slave event post-header (this event is never written) */
 
@@ -5507,7 +5508,8 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, ulong event_len,
                          enum_binlog_checksum_alg alg);
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+bool get_checksum_alg(const uchar *buf, ulong len,
+                      enum_binlog_checksum_alg *alg);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);

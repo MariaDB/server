@@ -4596,6 +4596,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     select_lex->options|= SELECT_NO_UNLOCK;
 
     unit->set_limit(select_lex);
+    if (thd->is_error())
+      goto error;
 
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
