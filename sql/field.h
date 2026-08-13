@@ -5215,7 +5215,7 @@ public:
   const TYPELIB *interval;
   CHARSET_INFO *charset;
   uint32 srid;
-  uint32 pack_flag;
+  uint32 pack_flag;                /* Bitmap of FIELDFLAG_* flags */
   decimal_digits_t decimals;
   Field::utype unireg_check;
   Column_definition_attributes()

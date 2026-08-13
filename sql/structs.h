@@ -86,10 +86,10 @@ typedef struct st_key_part_info {	/* Info about a key part */
      - possible HA_KEY_BLOB_LENGTH bytes needed to store actual value length.
   */
   uint store_length;
-  uint16 key_type;
+  uint16 key_type;                      /* Bitmap of FIELDFLAG_* flags */
   field_index_t fieldnr;                /* Fieldnr begins counting from 1 */
   uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
-  uint8 type;
+  uint8 type;                           /* One of HA_KEYTYPE_* values  */
   uint8 null_bit;                       /* Position to null_bit */
 } KEY_PART_INFO ;
 
