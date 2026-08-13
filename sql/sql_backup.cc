@@ -920,6 +920,11 @@ bool Sql_cmd_backup::execute(THD *thd)
            copy_misc_files(&target_phase->target, &target_phase->sink)))
         break;
     }
+    else if (phase == BACKUP_PHASE_NO_COMMIT)
+    {
+      if((fail= flush_tables(thd, FLUSH_SYS_TABLES)))
+        break;
+    }
 
     fail= plugin_foreach_with_mask(thd, backup_start,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
