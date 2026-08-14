@@ -2393,10 +2393,9 @@ bool Binlog_checkpoint_log_event::print(FILE *file,
 }
 
 /*
-
   Constructor for Gtid_list_log_event.
-  Used in mysqlbinlog to generate GTID_LIST_EVENT while converting the engine binlog to legacy binlog.
-  TODO: Tarun get this reviewed.
+  Used in mysqlbinlog to generate GTID_LIST_EVENT while converting the engine
+  binlog to legacy binlog.
 */
 Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state_base *gtid_set)
   : count(gtid_set->count_nolock()), gl_flags(0), list(0), sub_id_list(0)

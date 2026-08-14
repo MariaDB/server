@@ -24,10 +24,9 @@ DELETE FROM t1 WHERE a=2;
 REPLACE INTO t1 VALUES (3, 3);
 SELECT * FROM t1 ORDER BY a;
 
-# Rotate so binlog-000000.ibb is complete on disk. Waiting for the *next*
-# pre-allocated file (binlog-000002.ibb, fully pre-allocated and empty)
-# guarantees both 000000 and the new active 000001 exist.
 FLUSH BINARY LOGS;
+# Wait for binlog-000002.ibb to guarantee that all data in binlog-000000.ibb
+# is available to read from disk
 --let $binlog_name= binlog-000002.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc

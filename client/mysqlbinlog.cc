@@ -1686,8 +1686,10 @@ static void update_checksum(Log_event *ev)
 static bool write_format_description_event_to_legacy_binlog(
     FILE *outfile, Format_description_log_event *fdev)
 {
-  // temp_buf stores the raw bytes of the event and data_written is the length of those raw bytes
-  if(fdev->temp_buf) {
+  // temp_buf stores the raw bytes of the event and data_written is the length
+  // of those raw bytes
+  if (fdev->temp_buf)
+  {
     /* Update the log_file_pos */
     if (update_event_end_log_pos(fdev))
       return true;
@@ -1695,16 +1697,12 @@ static bool write_format_description_event_to_legacy_binlog(
     /* recompute checksum */
     update_checksum(fdev);
 
-    if (my_fwrite(outfile, (const uchar *)fdev->temp_buf,
-                  fdev->data_written, MYF(MY_NABP)))
+    if (my_fwrite(outfile, (const uchar *) fdev->temp_buf, fdev->data_written,
+                  MYF(MY_NABP)))
     {
-      error("Could not write into converted binlog file '%s'",
-            out_file_name);
+      error("Could not write into converted binlog file '%s'", out_file_name);
       return true;
     }
-
-    fflush(outfile);
-    
     return false;
   }
 
@@ -1760,7 +1758,6 @@ static bool write_format_description_event_to_legacy_binlog(
           out_file_name);
     return true;
   }
-  fflush(outfile);
 
   return false;
 }
@@ -1807,7 +1804,6 @@ static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
           out_file_name);
     return true;
   }
-  fflush(outfile);
 
   return false;
 }
@@ -1877,7 +1873,6 @@ static bool write_binlog_checkpoint_event_to_legacy_binlog(
           out_file_name);
     return true;
   }
-  fflush(outfile);
 
   return false;
 }
@@ -1919,8 +1914,13 @@ write_rotate_log_event_to_legacy_binlog(FILE *outfile,
     return true;
   }
 
-  /* we are not writing the footer because we are not supporting the checksum
-     in every event */
+  /* write footer to output legacy binlog file */
+  if (write_event_footer(outfile, do_checksum, crc))
+  {
+    error("Could not write footer into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
 
   return false;
 }
@@ -2009,8 +2009,15 @@ static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
   if (write_rotate_log_event_to_legacy_binlog(*out_file, next_out_file_name))
     return true;
 
-  my_fclose(*out_file, MYF(0));
+  int err= my_fclose(*out_file, MYF(0));
   *out_file= NULL;
+
+  if (err)
+  {
+    error("Could not close converted binlog file '%s' during rotation",
+          out_name);
+    return true;
+  }
 
   return init_output_legacy_binlog(out_file, out_name, out_name_len);
 }
@@ -2100,7 +2107,6 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
     error("Could not write into converted binlog file '%s'", out_file_name);
     goto err;
   }
-  fflush(output_legacy_binlog_file);
 
   delete ev;
   return OK_CONTINUE;
@@ -4052,7 +4058,11 @@ err:
 end:
   if (output_legacy_binlog_file)
   {
-    my_fclose(output_legacy_binlog_file, MYF(0));
+    if (my_fclose(output_legacy_binlog_file, MYF(0)))
+    {
+      error("Could not close converted binlog file '%s'", out_file_name);
+      retval= ERROR_STOP;
+    }
     output_legacy_binlog_file= NULL;
   }
   if (fd >= 0)
@@ -4136,7 +4146,8 @@ int main(int argc, char** argv)
     }
     if (opt_raw_mode)
     {
-      error("The --convert-engine-binlog option cannot be combined with --raw");
+      error(
+          "The --convert-engine-binlog option cannot be combined with --raw");
       die(1);
     }
     if (opt_flashback)
