@@ -193,7 +193,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
                          thd->start_time_sec_part;
       else
         general_time_us= my_hrtime().val;
-      event.general_time= hrtime_to_time({ general_time_us });
+      my_hrtime_t general_time= { general_time_us };
+      event.general_time= hrtime_to_time(general_time);
       event.general_time_microseconds= general_time_us;
     }
     event.general_command= msg;
