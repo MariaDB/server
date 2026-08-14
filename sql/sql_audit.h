@@ -180,16 +180,21 @@ void mysql_audit_general(THD *thd, uint event_subtype,
     event.general_error_code= error_code;
     {
       /*
-        Use the timestamp the server already maintains for the current
-        command (set once per query in dispatch_command), so that all audit
-        events of the same query carry the same time and no extra clock call
-        is made per event. Fall back to the current time if it is not set.
+        Use the wall-clock timestamp the server already maintains for the
+        current command (set once per query in dispatch_command), so that
+        all audit events of the same query carry the same time and no extra
+        clock call is made per event. start_utime cannot be used here: it is
+        a monotonic interval timer, not a wall-clock timestamp. Fall back to
+        the current wall-clock time if the timestamp is not set.
       */
-      my_hrtime_t general_time= { thd ? thd->start_utime : 0 };
-      if (!general_time.val)
-        general_time= my_hrtime();
-      event.general_time= hrtime_to_time(general_time);
-      event.general_time_microseconds= general_time.val;
+      unsigned long long general_time_us;
+      if (thd && thd->start_time)
+        general_time_us= (unsigned long long) thd->start_time * 1000000 +
+                         thd->start_time_sec_part;
+      else
+        general_time_us= my_hrtime().val;
+      event.general_time= hrtime_to_time({ general_time_us });
+      event.general_time_microseconds= general_time_us;
     }
     event.general_command= msg;
     event.general_command_length= safe_strlen_uint(msg);
