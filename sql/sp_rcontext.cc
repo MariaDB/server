@@ -109,7 +109,7 @@ sp_cursor *Sp_rcontext_handler_local::get_cursor(THD *thd, uint offset) const
 
 sp_cursor *Sp_rcontext_handler_statement::get_cursor(THD *thd, uint offset) const
 {
-  return &thd->statement_cursors()->at(offset);
+  return thd->statement_cursors()->at(offset);
 }
 
 sp_cursor *Sp_rcontext_handler_statement::get_cursor_by_ref(THD *thd,
