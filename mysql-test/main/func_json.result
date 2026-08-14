@@ -970,7 +970,7 @@ a	b
 SELECT json_object("a", json_compact(a), "b", b)
 FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", b)
-{"a": [1,2,3], "b": "{\"a\":\"foo\"}"}
+{"a": [1,2,3], "b": {"a":"foo"}}
 SELECT json_object("a", json_compact(a), "b", json_compact(b))
 FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", json_compact(b))
@@ -1621,7 +1621,7 @@ insert into t1 values('{"color":"red", "size":1}' );
 insert into t1 values('{"color":"blue", "size":2}' );
 select JSON_ARRAYAGG(col1) from t1;
 JSON_ARRAYAGG(col1)
-["{\"color\":\"red\", \"size\":1}","{\"color\":\"blue\", \"size\":2}"]
+[{"color":"red", "size":1},{"color":"blue", "size":2}]
 drop table t1;
 #
 # MDEV-23029: JSON_OBJECTAGG returns NULL when used together with GROUP BY

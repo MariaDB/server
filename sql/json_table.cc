@@ -956,7 +956,7 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
   m_path.s.c_str= (const uchar *) path.str;
 
   if (ctype == PATH)
-    m_format_json= m_field->type_handler() == &type_handler_long_blob_json;
+    m_format_json= Type_handler_json_common::is_json_type_handler(m_field->type_handler());
 
   return 0;
 }

@@ -880,8 +880,7 @@ EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TINYTEXT PAT
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb MEDIUMTEXT PATH '$')) as alias;
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb LONGTEXT PATH '$')) as alias;
 # But can't be used as a data source
-#--error ER_WRONG_ARGUMENTS
---error ER_PARSE_ERROR
+
 SELECT * FROM 
   (SELECT CAST(blb AS JSON) jf FROM
     JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti) AS dt,

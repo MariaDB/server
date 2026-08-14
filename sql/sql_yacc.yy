@@ -12330,6 +12330,12 @@ json_table_field_type:
         | field_type_temporal
         | field_type_string
         | field_type_lob
+        | JSON_SYM opt_binary_and_compression
+          {
+            if (Lex->set_field_type_udt(&$$, Lex_cstring("json", 4),
+                                        Lex_length_and_dec_st(), $2))
+              MYSQL_YYABORT;
+          }
         ;
 
 json_opt_on_empty_or_error:
