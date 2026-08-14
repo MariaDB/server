@@ -14581,7 +14581,9 @@ func_exit:
 	goto cleanup;
 }
 
-int ha_innobase::parallel_init_coordinator(size_t n_threads)
+
+int ha_innobase::parallel_init_coordinator(size_t n_threads,
+					  const Dynamic_array<KEY_MULTI_RANGE> &ranges)
 {
 	/* Reset any state left by a prior execution (correlateds subquery
 	re-execution, stored procedure loop, etc.) before initializing fresh. */
@@ -14638,20 +14640,163 @@ int ha_innobase::parallel_init_coordinator(size_t n_threads)
 		m_prebuilt->trx->read_view.open(m_prebuilt->trx);
 	}
 
-	const Parallel_coordinator::Scan_range FULL_SCAN;
 	m_parallel_coordinator.initialize(n_threads);
 
 	// Get the clustered index which is always first in the list
 	dict_index_t *index = m_prebuilt->table->indexes.start;
 	ut_ad(index->is_clust());
-	Parallel_coordinator::Config config(FULL_SCAN, index);
 
-	dberr_t err = m_parallel_coordinator.add_scan(m_prebuilt->trx, config);
+	dberr_t err = DB_SUCCESS;
+
+	if (ranges.size() == 0) {
+		/* Already cleared by the parallel_end_coordinator() above;
+		repeated here so both branches state what they leave the
+		interval bookkeeping in. */
+		m_pscan_ranges = nullptr;
+		m_pscan_n_ranges = 0;
+
+		const Parallel_coordinator::Scan_range FULL_SCAN;
+		err = m_parallel_coordinator.add_scan(
+			m_prebuilt->trx, Parallel_coordinator::Config(FULL_SCAN, index));
+	} else {
+		const size_t n_ranges = ranges.size();
+
+		const ulint INITIAL_HEAP_SIZE = 1000;
+		m_pscan_range_heap = mem_heap_create(INITIAL_HEAP_SIZE);
+
+		KEY_MULTI_RANGE* saved = static_cast<KEY_MULTI_RANGE*>(
+				mem_heap_alloc(m_pscan_range_heap,
+							   n_ranges * sizeof(KEY_MULTI_RANGE)));
+		memcpy(saved, ranges.front(),
+		       n_ranges * sizeof(KEY_MULTI_RANGE));
+		m_pscan_ranges = saved;
+		m_pscan_n_ranges = (uint) n_ranges;
+
+		for (size_t i = 0; i < n_ranges && err == DB_SUCCESS; i++) {
+			/* keypart_map == 0 means the endpoint is unbounded;
+			this is the MRR convention, see handler::multi_range_read_next().*/
+			const key_range* min_key =
+				ranges.at(i).start_key.keypart_map
+				? &ranges.at(i).start_key : nullptr;
+			const key_range* max_key =
+				ranges.at(i).end_key.keypart_map
+				? &ranges.at(i).end_key : nullptr;
+
+			dtuple_t* start = pscan_convert_key(
+				min_key, index, m_pscan_range_heap);
+			dtuple_t* end = pscan_convert_key(
+				max_key, index, m_pscan_range_heap);
+
+			/* HA_READ_AFTER_KEY means "up to and including this key",
+			see handler::set_end_range(). */
+			const bool end_inclusive =
+				max_key != nullptr && max_key->flag == HA_READ_AFTER_KEY;
+
+			Parallel_coordinator::Scan_range scan_range(
+				start, end, end_inclusive);
+			err = m_parallel_coordinator.add_scan(
+				m_prebuilt->trx,
+				Parallel_coordinator::Config(scan_range, index));
+		}
+	}
+
 	if (err != DB_SUCCESS) {
 		return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
 						   m_user_thd);
 	}
 	return 0;
+}
+
+const key_range* ha_innobase::pscan_get_start_key(size_t scan_id) const
+{
+	/* Scan ids and m_pscan_ranges positions are the same sequence:
+	parallel_init_coordinator() calls add_scan() once per interval, in
+	order, on a coordinator whose scan id counter starts at 0. */
+	ut_ad(m_pscan_n_ranges == 0 || scan_id < m_pscan_n_ranges);
+
+	if (scan_id >= m_pscan_n_ranges) {
+		return NULL;			/* full table scan */
+	}
+
+	/* keypart_map == 0 means the endpoint is unbounded; this is the MRR
+	convention, see handler::multi_range_read_next(). */
+	const KEY_MULTI_RANGE& r = m_pscan_ranges[scan_id];
+	return r.start_key.keypart_map ? &r.start_key : NULL;
+}
+
+void ha_innobase::pscan_begin_chunk(Parallel_coordinator::Worker_ctx *wctx)
+{
+	wctx->m_first_call = true;
+
+	const key_range* start_key =
+		pscan_get_start_key(wctx->m_exec_ctx->scan_id());
+	wctx->m_check_start = start_key != NULL;
+
+	if (start_key) {
+		/* pscan_before_range_start() compares table->record[0] against
+		the key through range_key_part. A key range is only ever handed
+		to us for a scan of the primary key, so active_index is a real
+		key number here - unlike a full scan of a table whose clustered
+		index was auto-generated, where ha_rnd_init() leaves it
+		MAX_KEY. */
+		ut_ad(active_index == table->s->primary_key);
+		ut_ad(active_index < MAX_KEY);
+		range_key_part = table->key_info[active_index].key_part;
+	}
+}
+
+bool ha_innobase::pscan_before_range_start(
+	Parallel_coordinator::Worker_ctx *wctx)
+{
+	/* A chunk is entered with PAGE_CUR_GE, which cannot express an
+	exclusive lower bound ("a > 5"). Skip such rows rather than hand them
+	up: parallel_get_next_row() must only return rows inside the
+	interval. */
+	const key_range* start_key =
+		pscan_get_start_key(wctx->m_exec_ctx->scan_id());
+	const int cmp = key_cmp(range_key_part, start_key->key,
+				start_key->length);
+
+	if (cmp < 0
+	    || (cmp == 0 && start_key->flag == HA_READ_AFTER_KEY)) {
+		return true;
+	}
+
+	/* rows are ordered, so the flag can be safely reset after
+	the first row is checked */
+	wctx->m_check_start = false;
+	return false;
+}
+
+dtuple_t* ha_innobase::pscan_convert_key(const key_range *kr,
+					 const dict_index_t *index,
+					 mem_heap_t *heap)
+{
+	if (kr == nullptr) {
+		return nullptr;			/* -/+ infinity */
+	}
+
+	/* Each endpoint gets its own scratch buffer: the resulting tuple's
+	fields point into it, so the two srch_key_val buffers on prebuilt
+	(which records_in_range() can reuse freely) would alias across
+	intervals here. */
+	byte* buf = static_cast<byte*>(
+		mem_heap_alloc(heap, m_prebuilt->srch_key_val_len));
+
+	ut_ad(table->s->primary_key < MAX_KEY);
+	const uint n_key_fields =
+		table->key_info[table->s->primary_key].ext_key_parts;
+
+	dtuple_t* tuple = dtuple_create(heap, n_key_fields);
+	dict_index_copy_types(tuple, index, n_key_fields);
+
+	row_sel_convert_mysql_key_to_innobase(tuple, buf,
+					      m_prebuilt->srch_key_val_len,
+					      const_cast<dict_index_t*>(index),
+					      kr->key, kr->length);
+	ut_ad(dtuple_get_n_fields(tuple) > 0);
+	ut_ad(dtuple_get_n_fields(tuple) <= n_key_fields);
+	return tuple;
 }
 
 Parallel_worker_ctx *ha_innobase::parallel_get_worker_context(
@@ -14683,37 +14828,37 @@ int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
 		return err; // preserve HA_ERR_* (e.g. HA_ERR_TABLE_DEF_CHANGED)
 
 	worker_ctx->m_exec_ctx= exec_ctx;
-	auto start_tuple= const_cast<dtuple_t *>(exec_ctx->m_range.first->m_tuple);
-	auto end_tuple= const_cast<dtuple_t *>(exec_ctx->m_range.second->m_tuple);
-	ut_ad(start_tuple != nullptr);
+	ut_ad(exec_ctx->m_range.first->m_tuple != nullptr);
+	pscan_begin_chunk(worker_ctx);
 
-	m_pscan_start_tuple= start_tuple;
-    m_pscan_end_tuple= end_tuple;    // may be null (+infinity)
-    m_pscan_first_call= true;
-
-	ut_ad(m_pscan_start_tuple != nullptr);
-    return 0;
+	return 0;
 }
 
 
 int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 {
+	auto worker_ctx = static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
+
 	/* Loop: when a chunk is exhausted we pull the next job */
 	for (;;) {
+		const auto& chunk = *worker_ctx->m_exec_ctx;
 		dberr_t err;
 		{
 			mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
 
-			if (m_pscan_first_call) {
-				m_pscan_first_call = false;
+			if (worker_ctx->m_first_call) {
+				worker_ctx->m_first_call = false;
 				/* Clamp the scan to this chunk inside the engine, so
 				the prefetch cache stops exactly at the boundary and
 				never reads into the next chunk. NULL == +infinity. */
-				m_prebuilt->set_pscan_end_tuple(m_pscan_end_tuple);
+				m_prebuilt->set_pscan_end_tuple(
+					chunk.m_range.second->m_tuple,
+					chunk.m_end_inclusive);
 
-				if (m_pscan_start_tuple) {
+				if (chunk.m_range.first->m_tuple) {
 					// Position at first record >= start, AND load it.
-					m_prebuilt->search_tuple = m_pscan_start_tuple;
+					m_prebuilt->search_tuple = const_cast<dtuple_t *>(
+						chunk.m_range.first->m_tuple);
 					err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
 											m_prebuilt, 0, 0 /*opening*/);
 				} else {
@@ -14731,8 +14876,17 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 			}
 		} // <-- mariadb_set_stats destructor
 
-		if (err == DB_SUCCESS)
+		if (err == DB_SUCCESS) {
+			/* Only rows inside the interval may be handed up. The
+			lower bound needs checking because a chunk is entered
+			with PAGE_CUR_GE. The upper bound is enforced by the chunk
+			clamp inside row_search_mvcc(). */
+			if (worker_ctx->m_check_start
+			    && pscan_before_range_start(worker_ctx)) {
+				continue;	/* next row in this chunk */
+			}
 			return 0;
+		}
 
 		/* DB_RECORD_NOT_FOUND is returned both at the chunk boundary
 		(our clamp above) and at end of index; DB_END_OF_INDEX likewise.
@@ -14742,19 +14896,14 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 			return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
 											   m_user_thd);
 
-		auto worker_ctx = static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
 		auto exec_ctx =
 		  worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
 		if (exec_ctx == nullptr)
 			return HA_ERR_END_OF_FILE; // No more data
 
 		worker_ctx->m_exec_ctx = exec_ctx;
-		m_pscan_start_tuple =
-		  const_cast<dtuple_t *>(exec_ctx->m_range.first->m_tuple);
-		m_pscan_end_tuple  =
-		  const_cast<dtuple_t *>(exec_ctx->m_range.second->m_tuple);
-		ut_ad(m_pscan_start_tuple != nullptr);
-		m_pscan_first_call  = true;
+		ut_ad(exec_ctx->m_range.first->m_tuple != nullptr);
+		pscan_begin_chunk(worker_ctx);
 		// loop: re-enter the search for the new chunk
 	}
 }
@@ -14769,15 +14918,18 @@ int ha_innobase::parallel_end_worker()
 		m_pscan_saved_search_tuple = nullptr;
 	}
 	m_prebuilt->set_pscan_end_tuple(nullptr);
-	m_pscan_first_call  = false;
-	m_pscan_start_tuple = nullptr;
-	m_pscan_end_tuple   = nullptr;
 	return 0;
 }
 
 int ha_innobase::parallel_end_coordinator()
 {
 	m_parallel_coordinator.cleanup();
+	if (m_pscan_range_heap) {
+		mem_heap_free(m_pscan_range_heap);
+		m_pscan_range_heap = nullptr;
+	}
+	m_pscan_ranges = nullptr;
+	m_pscan_n_ranges = 0;
 	return 0;
 }
 

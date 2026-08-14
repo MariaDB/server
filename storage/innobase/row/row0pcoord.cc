@@ -95,8 +95,10 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
   ut_ad(m_range.second->m_tuple == nullptr ||
         dtuple_validate(m_range.second->m_tuple));
 
-  /* Setup the sub-range. */
-  Scan_range scan_range(m_range.first->m_tuple, m_range.second->m_tuple);
+  /* Setup the sub-range. Carry the inclusivity of this chunk's end so that
+  create_ranges() keeps the sub-tree holding the boundary key. */
+  Scan_range scan_range(m_range.first->m_tuple, m_range.second->m_tuple,
+                        m_end_inclusive);
 
   /* S lock so that the tree structure doesn't change while we are
   figuring out the sub-trees to scan. */
@@ -110,10 +112,16 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
 
   dberr_t err{DB_SUCCESS};
 
-  /* Create the partitioned scan execution contexts. */
+  /* Create the partitioned scan execution contexts. Only the last sub-chunk
+  ends where this chunk ended, so only it inherits the inclusivity. */
+  size_t i{};
+
   for (auto &range : ranges)
   {
-    err = m_scan_ctx->create_context(range, false);
+    const bool last = (++i == ranges.size());
+
+    err = m_scan_ctx->create_context(range, false,
+                                     last && m_end_inclusive);
 
     if (err != DB_SUCCESS) {
       break;
@@ -544,8 +552,15 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
     const auto end = scan_range.m_end;
 
-    if (end != nullptr && cmp_dtuple_rec(end, rec, index, offsets) <= 0)
-      break;
+    if (end != nullptr)
+    {
+      const int cmp= cmp_dtuple_rec(end, rec, index, offsets);
+      /* rec is the lowest key of the sub-tree it points at, so cmp == 0 means
+      that sub-tree starts exactly at the bound. An inclusive bound needs it -
+      that is where the boundary rows live - so stop one record later. */
+      if (scan_range.m_end_inclusive ? cmp < 0 : cmp <= 0)
+        break;
+    }
 
     page_cur_t level_page_cursor;
 
@@ -656,6 +671,9 @@ dberr_t Parallel_coordinator::Scan_ctx::partition(
   err = create_ranges(scan_range, m_config.m_index->page, 0, split_level,
                       ranges, &mtr);
 
+  /* Stamp the scan's own upper bound onto the last chunk. Whether the bound
+  itself belongs to the scan travels separately, on the Exec_ctx built from
+  this range, and reaches the clamp via set_pscan_end_tuple(). */
   if (err == DB_SUCCESS && scan_range.m_end != nullptr && !ranges.empty()) {
     auto &iter = ranges.back().second;
 
@@ -676,7 +694,8 @@ dberr_t Parallel_coordinator::Scan_ctx::partition(
 }
 
 dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
-                                                       bool split)
+                                                       bool split,
+                                                       bool end_inclusive)
 {
   auto ctx_id =
     m_coordinator->m_ctx_id.fetch_add(1, std::memory_order_relaxed);
@@ -695,6 +714,7 @@ dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
   else
   {
     ctx->m_split = split;
+    ctx->m_end_inclusive = end_inclusive;
     m_coordinator->enqueue(ctx);
   }
 
@@ -720,7 +740,12 @@ dberr_t Parallel_coordinator::Scan_ctx::create_contexts(const Ranges &ranges)
   size_t i{};
 
   for (auto range : ranges) {
-    auto err = create_context(range, i >= split_point);
+    /* Only the last chunk ends at the caller's upper bound, so only it can
+    be inclusive. */
+    const bool last = (i + 1 == ranges.size());
+
+    auto err = create_context(range, i >= split_point,
+                              last && m_config.m_scan_range.m_end_inclusive);
 
     if (err != DB_SUCCESS) {
       return (err);

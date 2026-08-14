@@ -4342,7 +4342,8 @@ by the verdict of any page.
 @param rec	the record that is about to be returned to the SQL layer
 @param index	the index that rec belongs to
 @param offsets	rec_get_offsets(rec, index)
-@return whether rec is at or past the exclusive upper bound of the chunk */
+@return whether rec is past the upper bound of the chunk. The bound itself
+counts as past it unless m_pscan_end_inclusive is set. */
 static bool row_pscan_reached_chunk_end(
 	row_prebuilt_t*		prebuilt,
 	const rec_t*		rec,
@@ -4350,6 +4351,7 @@ static bool row_pscan_reached_chunk_end(
 	const rec_offs*		offsets)
 {
 	const dtuple_t*	end_tuple = prebuilt->m_pscan_end_tuple;
+	const bool	inclusive = prebuilt->m_pscan_end_inclusive;
 	const btr_pcur_t* pcur = prebuilt->pcur;
 
 	ut_ad(end_tuple != NULL);
@@ -4383,9 +4385,12 @@ static bool row_pscan_reached_chunk_end(
 					index->n_core_fields,
 					dtuple_get_n_fields_cmp(end_tuple),
 					&heap);
-				in_range = cmp_dtuple_rec(end_tuple, last,
-							  index, last_offsets)
-					> 0;
+				/* The page is wholly in range when its last
+				user record is still below the bound - or at
+				it, when the bound is inclusive. */
+				const int cmp = cmp_dtuple_rec(
+					end_tuple, last, index, last_offsets);
+				in_range = inclusive ? cmp >= 0 : cmp > 0;
 				if (UNIV_LIKELY_NULL(heap)) {
 					mem_heap_free(heap);
 				}
@@ -4401,7 +4406,8 @@ static bool row_pscan_reached_chunk_end(
 		}
 	}
 
-	return cmp_dtuple_rec(end_tuple, rec, index, offsets) <= 0;
+	const int cmp = cmp_dtuple_rec(end_tuple, rec, index, offsets);
+	return inclusive ? cmp < 0 : cmp <= 0;
 }
 
 /** Searches for rows in the database using cursor.

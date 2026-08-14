@@ -1403,6 +1403,8 @@ public:
   void save_last_pos() override
   { file->position(record); }
   int get_type() override { return QS_TYPE_RANGE; }
+  /* Number of disjoint key intervals this scan covers. */
+  uint num_ranges() const { return ranges.elements; }
   void add_keys_and_lengths(String *key_names, String *used_lengths) override;
   Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 #ifndef DBUG_OFF
