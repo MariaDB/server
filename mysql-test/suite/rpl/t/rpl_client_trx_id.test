@@ -1,0 +1,133 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @gtid1= @@SESSION.last_gtid;
+
+INSERT INTO t1 VALUES (0, 1);
+
+BEGIN;
+SET SESSION trx_connect_id= 42;
+SET SESSION trx_commit_id= 1;
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 2);
+COMMIT;
+
+SET SESSION trx_commit_id= 0;
+INSERT INTO t1 VALUES (4, 3);
+SET @gtid2= @@SESSION.last_gtid;
+
+#--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT trx_status();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT trx_status(1, 2, 3, 4);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT trx_status(42, 1, 42);
+--error ER_INCORRECT_GTID_STATE
+SELECT trx_status(42, 1, 'hulubulu!!?!');
+
+SELECT trx_status(42, 1, @gtid1);
+SELECT trx_status(42, 1);
+SELECT trx_status(42, 1, @gtid2);
+
+# Not existing trx_id.
+SELECT trx_status(42, 12345);
+SELECT trx_status(42, 12345, @gtid1);
+SELECT trx_status(42, 12345, '1000-1000-1000');
+
+
+# Test some more transactions spread out over multiple binlog files,
+# and test transactions in purged binlog files.
+BEGIN;
+SET SESSION trx_commit_id= 4;
+INSERT INTO t1 VALUES (5, 4);
+INSERT INTO t1 VALUES (6, 4);
+COMMIT;
+SET @gtid3= @@SESSION.last_gtid;
+
+BEGIN;
+SET SESSION trx_commit_id= 5;
+INSERT INTO t1 VALUES (7, 5);
+COMMIT;
+
+# Move to master-bin.000002
+FLUSH BINARY LOGS;
+
+SET SESSION trx_commit_id= 6;
+INSERT INTO t1 VALUES (8, 6);
+SET @gtid4= @@SESSION.last_gtid;
+
+BEGIN;
+SET SESSION trx_commit_id= 7;
+INSERT INTO t1 VALUES (9, 7);
+INSERT INTO t1 VALUES (10, 7);
+COMMIT;
+SET @gtid5= @@SESSION.last_gtid;
+
+# Move to master-bin.000003
+FLUSH BINARY LOGS;
+
+SET SESSION trx_commit_id= 8;
+INSERT INTO t1 VALUES (11, 8);
+SET @gtid6= @@SESSION.last_gtid;
+
+SET SESSION trx_commit_id= 9;
+INSERT INTO t1 VALUES (12, 9);
+
+# Make sure slave is up-to-date so it doesn't block purge.
+--sync_slave_with_master
+
+--connection master
+PURGE BINARY LOGS TO 'master-bin.000002';
+--source include/show_binary_logs.inc
+
+--echo ### trx_id has been committed but purged.
+SELECT trx_status(42, 4);
+SELECT trx_status(42, 4, @gtid2);
+
+--echo ### trx_id has been committed and purged, but too late start_gtid.
+SELECT trx_status(42, 4, @gtid4);
+
+--echo ### trx_id is present in earlier binlog file.
+SELECT trx_status(42, 7);
+SELECT trx_status(42, 7, @gtid3);
+SELECT trx_status(42, 7, @gtid4);
+
+--echo ### trx_id is present, but too late start_gtid.
+SELECT trx_status(42, 7, @gtid5);
+SELECT trx_status(42, 7, @gtid6);
+
+--echo ### trx_id is present in last of multiple binlog files.
+SELECT trx_status(42, 9);
+SELECT trx_status(42, 9, @gtid1);
+SELECT trx_status(42, 9, @gtid5);
+SELECT trx_status(42, 9, @gtid6);
+
+--echo ### Multiple binlog files, trx_id not present.
+SELECT trx_status(100, 200);
+SELECT trx_status(100, 200, @gtid1);
+SELECT trx_status(100, 200, @gtid4);
+SELECT trx_status(100, 200, @gtid6);
+
+--connection slave
+--echo ### The trx_id should be replicated to the slave.
+
+--let $MYSQLD_DATADIR2= `select @@datadir`
+#--exec $MYSQL_BINLOG $MYSQLD_DATADIR2/slave-bin.000001
+
+SELECT trx_status(42, 1);
+SELECT trx_status(42, 12345);
+SELECT trx_status(42, 12345, '1000-1000-1000');
+SELECT trx_status(42, 7);
+SELECT trx_status(42, 9);
+
+
+# Clean up.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

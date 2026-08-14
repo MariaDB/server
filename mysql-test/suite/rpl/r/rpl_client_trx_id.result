@@ -1,0 +1,148 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @gtid1= @@SESSION.last_gtid;
+INSERT INTO t1 VALUES (0, 1);
+BEGIN;
+SET SESSION trx_connect_id= 42;
+SET SESSION trx_commit_id= 1;
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 2);
+COMMIT;
+SET SESSION trx_commit_id= 0;
+INSERT INTO t1 VALUES (4, 3);
+SET @gtid2= @@SESSION.last_gtid;
+SELECT trx_status();
+ERROR 42000: Incorrect parameter count in the call to native function 'trx_status'
+SELECT trx_status(1, 2, 3, 4);
+ERROR 42000: Incorrect parameter count in the call to native function 'trx_status'
+SELECT trx_status(42, 1, 42);
+ERROR HY000: Illegal parameter data type int for operation 'trx_status'
+SELECT trx_status(42, 1, 'hulubulu!!?!');
+ERROR HY000: Could not parse GTID list
+SELECT trx_status(42, 1, @gtid1);
+trx_status(42, 1, @gtid1)
+0
+SELECT trx_status(42, 1);
+trx_status(42, 1)
+0
+SELECT trx_status(42, 1, @gtid2);
+trx_status(42, 1, @gtid2)
+0
+SELECT trx_status(42, 12345);
+trx_status(42, 12345)
+1
+SELECT trx_status(42, 12345, @gtid1);
+trx_status(42, 12345, @gtid1)
+1
+SELECT trx_status(42, 12345, '1000-1000-1000');
+trx_status(42, 12345, '1000-1000-1000')
+3
+BEGIN;
+SET SESSION trx_commit_id= 4;
+INSERT INTO t1 VALUES (5, 4);
+INSERT INTO t1 VALUES (6, 4);
+COMMIT;
+SET @gtid3= @@SESSION.last_gtid;
+BEGIN;
+SET SESSION trx_commit_id= 5;
+INSERT INTO t1 VALUES (7, 5);
+COMMIT;
+FLUSH BINARY LOGS;
+SET SESSION trx_commit_id= 6;
+INSERT INTO t1 VALUES (8, 6);
+SET @gtid4= @@SESSION.last_gtid;
+BEGIN;
+SET SESSION trx_commit_id= 7;
+INSERT INTO t1 VALUES (9, 7);
+INSERT INTO t1 VALUES (10, 7);
+COMMIT;
+SET @gtid5= @@SESSION.last_gtid;
+FLUSH BINARY LOGS;
+SET SESSION trx_commit_id= 8;
+INSERT INTO t1 VALUES (11, 8);
+SET @gtid6= @@SESSION.last_gtid;
+SET SESSION trx_commit_id= 9;
+INSERT INTO t1 VALUES (12, 9);
+connection slave;
+connection master;
+PURGE BINARY LOGS TO 'master-bin.000002';
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+master-bin.000003	#
+### trx_id has been committed but purged.
+SELECT trx_status(42, 4);
+trx_status(42, 4)
+1
+SELECT trx_status(42, 4, @gtid2);
+trx_status(42, 4, @gtid2)
+3
+### trx_id has been committed and purged, but too late start_gtid.
+SELECT trx_status(42, 4, @gtid4);
+trx_status(42, 4, @gtid4)
+1
+### trx_id is present in earlier binlog file.
+SELECT trx_status(42, 7);
+trx_status(42, 7)
+0
+SELECT trx_status(42, 7, @gtid3);
+trx_status(42, 7, @gtid3)
+0
+SELECT trx_status(42, 7, @gtid4);
+trx_status(42, 7, @gtid4)
+0
+### trx_id is present, but too late start_gtid.
+SELECT trx_status(42, 7, @gtid5);
+trx_status(42, 7, @gtid5)
+0
+SELECT trx_status(42, 7, @gtid6);
+trx_status(42, 7, @gtid6)
+1
+### trx_id is present in last of multiple binlog files.
+SELECT trx_status(42, 9);
+trx_status(42, 9)
+0
+SELECT trx_status(42, 9, @gtid1);
+trx_status(42, 9, @gtid1)
+0
+SELECT trx_status(42, 9, @gtid5);
+trx_status(42, 9, @gtid5)
+0
+SELECT trx_status(42, 9, @gtid6);
+trx_status(42, 9, @gtid6)
+0
+### Multiple binlog files, trx_id not present.
+SELECT trx_status(100, 200);
+trx_status(100, 200)
+1
+SELECT trx_status(100, 200, @gtid1);
+trx_status(100, 200, @gtid1)
+3
+SELECT trx_status(100, 200, @gtid4);
+trx_status(100, 200, @gtid4)
+1
+SELECT trx_status(100, 200, @gtid6);
+trx_status(100, 200, @gtid6)
+1
+connection slave;
+### The trx_id should be replicated to the slave.
+SELECT trx_status(42, 1);
+trx_status(42, 1)
+0
+SELECT trx_status(42, 12345);
+trx_status(42, 12345)
+1
+SELECT trx_status(42, 12345, '1000-1000-1000');
+trx_status(42, 12345, '1000-1000-1000')
+3
+SELECT trx_status(42, 7);
+trx_status(42, 7)
+0
+SELECT trx_status(42, 9);
+trx_status(42, 9)
+0
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

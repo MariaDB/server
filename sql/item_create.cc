@@ -1764,6 +1764,20 @@ protected:
 };
 
 
+class Create_func_trx_status : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
+
+  static Create_func_trx_status s_singleton;
+
+protected:
+  Create_func_trx_status() = default;
+  ~Create_func_trx_status() override = default;
+};
+
+
 class Create_func_md5 : public Create_func_arg1
 {
 public:
@@ -5064,6 +5078,48 @@ Create_func_master_gtid_wait::create_native(THD *thd, const LEX_CSTRING *name,
 }
 
 
+Create_func_trx_status Create_func_trx_status::s_singleton;
+
+Item*
+Create_func_trx_status::create_native(THD *thd, const LEX_CSTRING *name,
+                                       List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (unlikely(arg_count < 2 || arg_count > 3))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+
+  thd->lex->safe_to_cache_query= 0;
+
+  Item *param_1= item_list->pop();
+  Item *param_2= item_list->pop();
+  switch (arg_count) {
+  case 2:
+  {
+    func= new (thd->mem_root) Item_trx_status(thd, param_1, param_2);
+    break;
+  }
+  case 3:
+  {
+    Item *param_3= item_list->pop();
+    func= new (thd->mem_root) Item_trx_status(thd, param_1, param_2, param_3);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
 Create_func_md5 Create_func_md5::s_singleton;
 
 Item*
@@ -6246,6 +6302,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
+  { { STRING_WITH_LEN("TRX_STATUS") }, BUILDER(Create_func_trx_status)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)}
 };
 

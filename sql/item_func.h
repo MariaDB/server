@@ -3517,6 +3517,37 @@ protected:
 };
 
 
+class Item_trx_status :public Item_long_func
+{
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_int(func_name_cstring()) ||
+      args[1]->check_type_can_return_int(func_name_cstring()) ||
+      (arg_count > 2 && args[2]->check_type_general_purpose_string(func_name_cstring()));
+  }
+  String value;
+public:
+  Item_trx_status(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b) {}
+  Item_trx_status(THD *thd, Item *a, Item *b, Item *c)
+   :Item_long_func(thd, a, b, c) {}
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("trx_status") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override { max_length= 3; return FALSE; }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_trx_status>(thd, this); }
+};
+
+
 /* Handling of user definable variables */
 
 class user_var_entry;

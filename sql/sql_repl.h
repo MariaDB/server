@@ -18,6 +18,14 @@
 
 #include "rpl_filter.h"
 
+
+enum enum_mariadb_trx_status {
+  MARIADB_TRX_COMMITTED,    // Transaction ID found in binlog
+  MARIADB_TRX_ABORTED,      // Transaction ID not found after start GTID
+  MARIADB_TRX_IN_PROGRESS,  // Not used currently
+  MARIADB_TRX_UNKNOWN,      // Neither transaction ID nor start GTID found
+};
+
 #ifdef HAVE_REPLICATION
 #include "slave.h"
 
@@ -42,6 +50,8 @@ bool log_in_use(const char* log_name);
 void adjust_linfo_offsets(my_off_t purge_offset);
 void show_binlogs_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlogs(THD* thd);
+int trx_search(uint64 trx_connect_id, uint64 trx_commit_id,
+                const rpl_gtid *start_gtid);
 extern int init_master_info(Master_info* mi);
 bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);

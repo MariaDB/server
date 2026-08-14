@@ -4815,6 +4815,166 @@ err:
   DBUG_RETURN(TRUE);
 }
 
+
+/**
+  Search for a client transaction id (trx_id).
+
+  @param binlog_name     Filename of binlog file to search.
+  @param trx_connect_id First part of trx_id
+  @param trx_commit_id  Second part of trx_id
+  @param start_gtid      Optional GTID to start from, or NULL
+
+  @retval MARIADB_TRX_COMMITTED    The trx_id was found
+  @retval MARIADB_TRX_ABORTED      Starting GTID was found but not the trx_id
+  @retval MARIADB_TRX_IN_PROGRESS  (not currently returned)
+  @retval MARIADB_TRX_UNKNOWN      Neither GTID nor trx_id was found
+  @retval -1                        Error
+*/
+
+static int
+trx_search_in_file(const char *binlog_name, uint64 trx_connect_id,
+                    uint64 trx_commit_id, const rpl_gtid *start_gtid)
+{
+  int error= 1;
+  const char *errmsg= "";
+  IO_CACHE log;
+  File file= -1;
+  bool fd_seen= false;
+  bool gtid_seen= false;
+  bool trx_seen= false;
+  Format_description_log_event *description_event= 0;
+  DBUG_ENTER("trx_search_in_file");
+
+  if (!mysql_bin_log.is_open())
+    return MARIADB_TRX_UNKNOWN;
+
+  if ((file=open_binlog(&log, binlog_name, &errmsg)) < 0)
+  {
+    error= my_errno;
+    if (!error)
+      error= 1;
+    goto err_after_cleanup;
+  }
+
+  description_event= new Format_description_log_event(3); /* MySQL 4.0 */
+
+  while (!trx_seen)
+  {
+    Log_event *ev= Log_event::read_log_event(&log, &error, description_event,
+                                             opt_master_verify_checksum);
+    if (ev == NULL)
+      break;
+    if (!ev->is_valid())
+    {
+      delete ev;
+      errmsg= "Error while reading event from binlog file";
+      goto err;
+    }
+    if (unlikely(ev->get_type_code() == FORMAT_DESCRIPTION_EVENT))
+    {
+      delete description_event;
+      description_event= (Format_description_log_event*) ev;
+      fd_seen= true;
+    }
+    else
+    {
+      if (unlikely(!fd_seen))
+      {
+        delete ev;
+        error= 1;
+        errmsg= "No format description found at start of binlog file";
+        goto err;
+      }
+      if (ev->get_type_code() == START_ENCRYPTION_EVENT)
+      {
+        if (description_event->start_decryption((Start_encryption_log_event*) ev))
+        {
+          delete ev;
+          error= 1;
+          errmsg= "Could not initialize decryption of binlog.";
+          goto err;
+        }
+      }
+
+      if (ev->get_type_code() == GTID_EVENT)
+      {
+        Gtid_log_event *gtid_ev= (Gtid_log_event *)ev;
+        if (start_gtid &&
+            start_gtid->domain_id == gtid_ev->domain_id &&
+            start_gtid->server_id == gtid_ev->server_id &&
+            start_gtid->seq_no == gtid_ev->seq_no)
+          gtid_seen= true;
+        if (gtid_ev->flags_extra & Gtid_log_event::FL_CLIENT_TRX_ID &&
+            trx_connect_id == gtid_ev->trx_connect_id &&
+            trx_commit_id == gtid_ev->trx_commit_id)
+          trx_seen= true;
+      }
+      delete ev;
+    }
+  }
+
+  error= 0;
+
+err:
+  delete description_event;
+  end_io_cache(&log);
+  mysql_file_close(file, MYF(MY_WME));
+
+
+err_after_cleanup:
+
+  if (unlikely(error))
+  {
+    my_error(ER_MASTER_FATAL_ERROR_READING_BINLOG, MYF(0), error, errmsg);
+    return -1;
+  }
+
+  if (trx_seen)
+    DBUG_RETURN(MARIADB_TRX_COMMITTED);
+
+  if (gtid_seen)
+    DBUG_RETURN(MARIADB_TRX_ABORTED);
+  DBUG_RETURN(MARIADB_TRX_UNKNOWN);
+}
+
+
+int
+trx_search(uint64 trx_connect_id, uint64 trx_commit_id,
+            const rpl_gtid *start_gtid)
+{
+  MEM_ROOT mem_root;
+  binlog_file_entry *list;
+  int res= MARIADB_TRX_UNKNOWN;
+
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return -1;
+  }
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 8192, 0,
+                  MYF(MY_THREAD_SPECIFIC));
+  if (unlikely(!(list= get_binlog_list(&mem_root))))
+    goto err;
+
+  for (binlog_file_entry *cur_link= list; cur_link; cur_link= cur_link->next)
+  {
+    res= trx_search_in_file(cur_link->name.str, trx_connect_id,
+                             trx_commit_id, start_gtid);
+    if (res == MARIADB_TRX_COMMITTED || res == MARIADB_TRX_ABORTED)
+      break;
+  }
+
+  free_root(&mem_root, MYF(0));
+  if (res == MARIADB_TRX_UNKNOWN && !start_gtid)
+    return MARIADB_TRX_ABORTED;
+  return res;
+
+err:
+  free_root(&mem_root, MYF(0));
+  return -1;
+}
+
+
 /**
    Load data's io cache specific hook to be executed
    before a chunk of data is being read into the cache's buffer

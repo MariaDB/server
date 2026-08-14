@@ -3929,8 +3929,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F, this);
-  char buf[21];
-  char buf2[21];
+  char buf[LONGLONG_BUFFER_SIZE];
+  char buf2[LONGLONG_BUFFER_SIZE];
 
   if (!print_event_info->short_form && !is_flashback)
   {
@@ -3962,6 +3962,13 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags_extra & FL_ROLLBACK_ALTER_E1)
       if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
+    if (flags_extra & FL_CLIENT_TRX_ID)
+    {
+      longlong10_to_str(trx_connect_id, buf1, 10);
+      longlong10_to_str(trx_commit_id,  buf2, 10);
+      if (my_b_printf(&cache, " trx_id=%s:%s", buf1, buf2))
+        goto err;
+    }
     if (my_b_printf(&cache, "\n"))
       goto err;
 
