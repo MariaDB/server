@@ -506,6 +506,45 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+CREATE FUNCTION nd(x INT) RETURNS INT NOT DETERMINISTIC
+BEGIN
+RETURN x;
+END|
+EXPLAIN FORMAT=JSON SELECT pk, a, b, rank() OVER (ORDER BY a, nd(b), pk) AS r FROM t1 ORDER BY a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.017171443,
+    "filesort": {
+      "sort_key": "t1.a",
+      "window_functions_computation": {
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.a, nd(t1.b), t1.pk"
+            }
+          }
+        ],
+        "temporary_table": {
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 9,
+                "cost": 0.011443245,
+                "filtered": 100
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+DROP FUNCTION nd;
 DROP TABLE tg, t2;
 CREATE TABLE th (a INT, b INT, KEY(a, b));
 INSERT INTO th VALUES (1,1);

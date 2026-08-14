@@ -244,6 +244,19 @@ EXPLAIN EXTENDED SELECT pk, a, rank() OVER (ORDER BY pk) AS rnk FROM t1 GROUP BY
 # Ordering the outer query by the window function value, it needs to save the value first.
 EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
 
+# User defined functions / stored procedures in the order list force materialization.
+# The outer sort key should be only 'a' and not 'a, nd(b), pk'
+DELIMITER |;
+CREATE FUNCTION nd(x INT) RETURNS INT NOT DETERMINISTIC
+BEGIN
+  RETURN x;
+END|
+DELIMITER ;|
+
+EXPLAIN FORMAT=JSON SELECT pk, a, b, rank() OVER (ORDER BY a, nd(b), pk) AS r FROM t1 ORDER BY a;
+
+DROP FUNCTION nd;
+
 DROP TABLE tg, t2;
 
 CREATE TABLE th (a INT, b INT, KEY(a, b));

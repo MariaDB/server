@@ -2827,6 +2827,7 @@ int JOIN::optimize_stage2()
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
   JOIN_TAB *tab;
+  ORDER *save_order= order;
   DBUG_ENTER("JOIN::optimize_stage2");
 
   if (subq_exit_fl)
@@ -3463,6 +3464,15 @@ int JOIN::optimize_stage2()
         }
       }
     }
+
+    /*
+      If streaming window functions are present and test_if_need_tmp_table() is
+      false, then the main query order was replaced with the longest window
+      function order. In this case if we fall back to materialization, we need
+      to restore the main query order to avoid sorting redundant keys.
+    */
+    if (need_tmp)
+      order= save_order;
 
     /*
       Because filesort always does a full table scan or a quick range scan
