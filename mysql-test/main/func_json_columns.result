@@ -473,79 +473,71 @@ Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 
 #
 SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	[{"a":1,]
-11	[not json at all]
-12	[{"a":1} trailing]
-13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 32
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 32
 SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t1 WHERE id >= 10 ORDER BY id;
 id	still_valid
-10	0
-11	0
-12	0
-13	0
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 32
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 32
 SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	{"k": {"a":1,}
-11	{"k": not json at all}
-12	{"k": {"a":1} trailing}
-13	{"k": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 32
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 32
 SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS still_valid
 FROM t1 WHERE id >= 10 ORDER BY id;
 id	still_valid
-10	0
-11	0
-12	0
-13	0
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 15
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 32
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 37
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 32
 SELECT id, JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
 id	v
-10	[{"a":1,]
-11	[not json at all]
-12	[{"a":1} trailing]
-13	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_arrayagg' at position 32
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_arrayagg' at position 32
 SELECT id, JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
 id	v
-10	{"10":{"a":1,}
-11	{"11":not json at all}
-12	{"12":{"a":1} trailing}
-13	{"13":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}
+10	NULL
+11	NULL
+12	NULL
+13	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_objectagg' at position 32
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_objectagg' at position 32
 # the same column read as plain text is quoted instead of embedded
 SELECT id, JSON_ARRAY(CONCAT(j, '')) AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
@@ -564,16 +556,15 @@ id	still_valid
 SELECT id, JSON_ARRAY(j) AS v FROM t3 ORDER BY id;
 id	v
 1	[{"a":1}]
-10	[{"a":1,]
+10	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t3 ORDER BY id;
 id	still_valid
 1	1
-10	0
+10	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 # 5a. The same column reached through a scalar subquery, where the
 #     value is fetched once and held rather than read per row.
 CREATE TABLE ts (id INT, j JSON);
@@ -589,23 +580,22 @@ ok
 1
 SELECT JSON_ARRAY((SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
 v_poisoned
-[{"a":1,]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_VALID(JSON_ARRAY((SELECT j FROM ts WHERE id = 2))) AS ok_poisoned;
 ok_poisoned
-0
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 1)) AS v;
 v
 {"k": {"a": 1}}
 SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
 v_poisoned
-{"k": {"a":1,}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
 SELECT JSON_SET('{}', '$.d', (SELECT j FROM ts WHERE id = 1)) AS v;
 v
 {"d": {"a": 1}}
@@ -644,20 +634,18 @@ SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
 FROM v_merge ORDER BY id;
 id	v	ok
 1	[{"a": 1, "b": [1, 2]}]	1
-2	[{"a":1,]	0
+2	NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
 FROM v_tmp ORDER BY id;
 id	v	ok
 1	[{"a": 1, "b": [1, 2]}]	1
-2	[{"a":1,]	0
+2	NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT id, JSON_SET(j, '$.z', 1) AS v FROM v_merge ORDER BY id;
 id	v
 1	{"a": 1, "b": [1, 2], "z": 1}
@@ -728,23 +716,27 @@ j
 {"a": 1, "b": 2}
 [1, 2]
 {"a": 1}
-# a value the constructor built that the check does not accept
+# a value the constructor will not build.  A released server built
+# something 32 deep, which is one too many to read back, and the
+# check on the column was what caught it.  The constructor now
+# answers NULL, and the complaint that says why is a warning, which
+# a statement inserting under strict mode makes an error of - so
+# the statement stops at the value rather than at the column, and
+# says what is wrong with the value.
 CREATE TABLE t7 (j JSON);
 INSERT INTO t7 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
-ERROR 23000: CONSTRAINT `t7.j` failed for `test`.`t7`
+ERROR HY000: Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT COUNT(*) AS stored FROM t7;
 stored
 0
-# the same value stored into a plain LONGTEXT column
+# the same value into a plain LONGTEXT column, which has no check
+# on it to reach: the constructor is where it stops either way
 CREATE TABLE t8 (j LONGTEXT);
 INSERT INTO t8 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
-Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-SELECT JSON_VALID(j) AS v, LENGTH(j) AS len FROM t8;
-v	len
-0	65
-Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+ERROR HY000: Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT COUNT(*) AS stored FROM t8;
+stored
+0
 # a value that is truncated on the way into the column
 CREATE TABLE t9 (j VARCHAR(10));
 SET @@sql_mode='';
@@ -904,16 +896,15 @@ Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
 SELECT id, JSON_ARRAY(j) AS v FROM tmp1 ORDER BY id;
 id	v
 1	[{"a":1}]
-2	[{"a":1,]
+2	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM tmp1 ORDER BY id;
 id	still_valid
 1	1
-2	0
+2	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT id, JSON_SET(j, '$.z', 1) AS v FROM tmp1 ORDER BY id;
 id	v
 1	{"a": 1, "z": 1}

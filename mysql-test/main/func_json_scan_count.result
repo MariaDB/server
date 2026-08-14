@@ -320,6 +320,43 @@ SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
 Json_scans	2
 #
+# The elements a group gathers through a table are not read on the
+# way back out either, whatever composed them.  A constructor
+# attests to every value it will ever make, so the column it
+# fills says so once for all its rows, and the reading that used
+# to happen per element does not happen at all - which is the one
+# count here that a released server never paid, it having read
+# nothing anywhere and returned whatever the bytes were.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id, 'b', js)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_ARRAY(id, js)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# The same through the tree, which gathers the elements first and
+# writes them out when the group is asked for.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id, 'b', js) ORDER BY id) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# And a group gathering a column of a caller's own, which nothing
+# has attested to, reads every element as it always did.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(j) FROM t2;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
 # A name given to a value in the select list and used again later
 # in the same statement reaches it through a reference, and a
 # reference reads what the item's RESULT side passes.  For

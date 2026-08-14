@@ -142,9 +142,9 @@ SELECT n + 1, t5.bad FROM r, t5 WHERE n < 2)
 SELECT n, JSON_ARRAY(x) AS unioned FROM r ORDER BY n;
 n	unioned
 1	[{"a": 1}]
-2	[not a document]
+2	NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 DROP TABLE t5;
 #
 # Branches written in different character sets.  The column takes
@@ -167,14 +167,14 @@ HEX(x) AS bytes FROM
 UNION ALL
 SELECT JSON_QUERY(b, '$') FROM t7) d ORDER BY bytes;
 packed	still_a_document	bytes
-5B005B0031002C0032005D5D	0	005B0031002C0032005D
-5B007B002200610022003A0031007D5D	0	007B002200610022003A0031007D
+NULL	0	005B0031002C0032005D
+NULL	0	007B002200610022003A0031007D
 5B5B332C345D5D	1	5B332C345D
 5B7B2262223A327D5D	1	7B2262223A327D
 Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
 Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 1
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
 Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 1
 #
 # The same two branches with the wide one on the right, so that it
@@ -186,14 +186,14 @@ HEX(x) AS bytes FROM
 UNION ALL
 SELECT JSON_QUERY(j, '$') FROM t6) d ORDER BY bytes;
 packed	still_a_document	bytes
-5B005B0031002C0032005D5D	0	005B0031002C0032005D
-5B007B002200610022003A0031007D5D	0	007B002200610022003A0031007D
+NULL	0	005B0031002C0032005D
+NULL	0	007B002200610022003A0031007D
 5B5B332C345D5D	1	5B332C345D
 5B7B2262223A327D5D	1	7B2262223A327D
 Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
 Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 1
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
 Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at position 1
 #
 # And both branches in the wide set, where the column takes that
@@ -209,15 +209,50 @@ unioned	still_a_document
 [{"a":1}]	1
 DROP TABLE t6, t7;
 #
-# 6. A producer that is a document only some of the time keeps its
-# column untrusted.  JSON_OBJECT answers per evaluation, not for the
-# class, so a column fed by one is read like any other.
+# 6. A producer that attests to every value it will ever make,
+# rather than to the one it has just made.  A constructor returns a
+# document or nothing whatever it is given, so a column fed by one
+# is read without being asked.  So does an aggregate, and so does a
+# constructor composing from one.
 #
 SELECT JSON_ARRAY(x) AS spliced FROM
 (SELECT JSON_OBJECT('a', id) AS x FROM t1) d ORDER BY 1;
 spliced
 [{"a": 1}]
 [{"a": 2}]
+SELECT JSON_ARRAY(x) AS spliced FROM
+(SELECT JSON_ARRAY(id, j) AS x FROM t1) d ORDER BY 1;
+spliced
+[[1, {"a":1}]]
+[[2, [1,2]]]
+SELECT JSON_ARRAY(x) AS spliced FROM
+(SELECT JSON_ARRAYAGG(j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+spliced
+[[[1,2]]]
+[[{"a":1}]]
+SELECT JSON_ARRAY(x) AS spliced FROM
+(SELECT JSON_OBJECTAGG(id, j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+spliced
+[{"1":{"a":1}}]
+[{"2":[1,2]}]
+#
+# And in a character set that cannot write the brackets it answers
+# nothing, there being no document to promise - see section 12.
+#
+SELECT HEX(JSON_ARRAY(x)) AS spliced FROM
+(SELECT JSON_ARRAY(CONVERT(j USING swe7)) AS x FROM t1) d ORDER BY 1;
+spliced
+NULL
+NULL
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x7B to 'swe7'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	1977	Cannot convert 'utf8mb4' character 0x5B to 'swe7'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 #
 # 7. A function that returns more than it was given.  JSON_REMOVE
 # writes a space after every separator it copies, so taking one
@@ -568,8 +603,7 @@ id	d
 1	NULL
 2	3
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 497
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 452
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 497
 #
 # Each level of these is fourteen characters, so half the length is
 # seven times the limit and the length can tell neither of them from

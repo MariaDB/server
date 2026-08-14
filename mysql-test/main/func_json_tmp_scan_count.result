@@ -57,9 +57,9 @@ SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
 Json_scans	2
 #
-# 4. The same shape with a producer that answers per evaluation
-# rather than for every one of them.  Nothing can be said about the
-# column at the time it is made, so each row is read on the way out.
+# 4. The same shape with a producer that attests for its class.
+# The claim holds for the column at the time it is made, so no row
+# is read on the way out.
 #
 FLUSH STATUS;
 SELECT JSON_ARRAY(x) AS r FROM
@@ -69,7 +69,7 @@ r
 [{"a": 2}]
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
-Json_scans	2
+Json_scans	0
 #
 # 5. Through a GROUP BY, which writes a temporary table of its own.
 #
@@ -179,10 +179,10 @@ SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
 Json_scans	2
 #
-# 12. The same, with a producer that attests per evaluation rather
-# than to every value it makes.  Its column is read on the way out,
-# so the total matches 11 from the other side: 11's two readings are
-# the producer's own, these two are the readings back 11 was spared.
+# 12. The same, with a producer that attests for its class.  The
+# column takes that claim, so the elements are not read back and
+# nothing is counted here - where 11 pays two readings for the
+# values its producer parsed itself.
 #
 FLUSH STATUS;
 SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id)) AS r FROM t1;
@@ -190,7 +190,7 @@ r
 [{"a": 1},{"a": 2}]
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
-Json_scans	2
+Json_scans	0
 #
 # 13. An aggregate whose arguments are buffered before the group can
 # be built - a join with a grouping the rows do not arrive in.  The
@@ -361,11 +361,11 @@ Variable_name	Value
 Json_scans	2
 SET SESSION debug_dbug= @old_debug;
 #
-# 22. The same UNION with one branch that attests per evaluation
-# rather than to every value it makes.  One branch not attesting is
-# the whole column not attesting, there being no telling which
-# branch a row came out of once it is in there.  So every row is
-# read on the way out - four - on top of the two the JSON_EXTRACT
+# 22. The same UNION where both branches attest for their class,
+# which is what a column needs: there is no telling which branch a
+# row came out of once it is in there, so one branch not attesting
+# would be the whole column not attesting.  No row is read on the
+# way out, and the two counted here are the ones the JSON_EXTRACT
 # branch read itself.
 #
 FLUSH STATUS;
@@ -380,7 +380,7 @@ r
 [{"a": 2}]
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
-Json_scans	6
+Json_scans	2
 #
 # 23. The same again with a branch that is a column, which says
 # nothing about itself and so says nothing for the column it is
@@ -415,8 +415,10 @@ SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
 Json_scans	2
 #
-# And one list that answers per evaluation is the same column not
-# answering, exactly as one branch is.
+# And a list whose producer attests for its class leaves the
+# column attesting, exactly as a branch does.  The one counted
+# here is the JSON_EXTRACT list reading its own value; the
+# constructor reads nothing.
 #
 FLUSH STATUS;
 WITH d(x) AS
@@ -427,7 +429,7 @@ r
 [{"b": 2}]
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
-Json_scans	5
+Json_scans	1
 #
 # 25. A recursive CTE, whose column is built once the parts that do
 # not go round have agreed on a type - the parts that DO go round

@@ -444,14 +444,17 @@ INSERT INTO t2 (j) VALUES ('{"a":1}');
 SELECT j, note, JSON_VALID(note) AS note_valid FROM t2;
 j	note	note_valid
 {"a":1}	[{"a":1}]	1
+# A row whose document does not read leaves the trigger with
+# nothing to set the column to.  Saying so is a warning, and an
+# INSERT under strict mode makes an error of it, so the row does
+# not go in at all - where a released server stored the bytes the
+# constructor had spliced and let the column keep them.
 SET SESSION check_constraint_checks = OFF;
 INSERT INTO t2 (j) VALUES ('{"a":1,');
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'json_array'
 SET SESSION check_constraint_checks = ON;
 SELECT j, note, JSON_VALID(note) AS note_valid FROM t2 ORDER BY j;
 j	note	note_valid
-{"a":1,	[{"a":1,]	0
 {"a":1}	[{"a":1}]	1
-Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
 DROP TABLE t2;
 DROP TABLE t1;

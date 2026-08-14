@@ -18,9 +18,14 @@
 # the caller gets.
 #
 # A value that does not parse is spliced all the same, byte for
-# byte, and a note is raised saying which argument it was.  Reading
-# the result back is still where a caller finds out that what came
-# out is not a document; the note is what says so at the time.
+# byte.  What the constructor has then built is not a document, so
+# it returns NULL instead of it, and a warning names the argument
+# that was responsible.  A warning and not a note, because it is
+# the only word the statement gets about why it was given NULL,
+# and because a statement running under strict mode then stops at
+# the value rather than finishing without one.  A function that
+# reads its whole answer back has a second complaint to make about
+# the same value, and leaves this one a note.
 #
 # Non ASCII characters below are written as the bytes that encode
 # them, so this file needs no character set of its own:
@@ -53,108 +58,100 @@ INSERT INTO t1 VALUES (12, '{"a":1} and then some', NULL);
 SET SESSION check_constraint_checks = ON;
 SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	[{"a":1,]
-11	[not json at all]
-12	[{"a":1} and then some]
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
 SELECT id, JSON_VALID(JSON_ARRAY(j)) AS built_a_document
 FROM t1 WHERE id >= 10 ORDER BY id;
 id	built_a_document
-10	0
-11	0
-12	0
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
 SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	{"k": {"a":1,}
-11	{"k": not json at all}
-12	{"k": {"a":1} and then some}
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
 SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS built_a_document
 FROM t1 WHERE id >= 10 ORDER BY id;
 id	built_a_document
-10	0
-11	0
-12	0
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 15
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
 # more than one element, so the value is spliced in the middle of a
 # document rather than as the whole of it
 SELECT id, JSON_ARRAY(1, j, 'z') AS v FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	[1, {"a":1,, "z"]
-11	[1, not json at all, "z"]
-12	[1, {"a":1} and then some, "z"]
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 9
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 9
 SELECT id, JSON_OBJECT('before', 1, 'k', j, 'after', 2) AS v
 FROM t1 WHERE id >= 10 ORDER BY id;
 id	v
-10	{"before": 1, "k": {"a":1,, "after": 2}
-11	{"before": 1, "k": not json at all, "after": 2}
-12	{"before": 1, "k": {"a":1} and then some, "after": 2}
+10	NULL
+11	NULL
+12	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 4 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 9
+Warning	4037	Unexpected end of JSON text in argument 4 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 9
 # the aggregates, which splice a value per row
 SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10;
 v
-[{"a":1,,not json at all,{"a":1} and then some]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
 SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS built_a_document
 FROM t1 WHERE id >= 10;
 built_a_document
-0
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
 SELECT JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10;
 v
-{"10":{"a":1,, "11":not json at all, "12":{"a":1} and then some}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
 SELECT JSON_VALID(JSON_OBJECTAGG(id, j)) AS built_a_document
 FROM t1 WHERE id >= 10;
 built_a_document
-0
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
 # a group mixing a good row with a bad one
 SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id = 1 OR id = 10;
 v
-[{"a": 1},{"a":1,]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
 # the mutators splice the same way, but read back what they built
 SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS v
 FROM t1 WHERE id >= 10 ORDER BY id;
@@ -183,12 +180,14 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_app
 Note	4038	Syntax error in JSON text in argument 3 to function 'json_array_append' at position 9
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 13
 #
-# 3. Bytes that are not a document but do not look wrong afterwards.
+# 3. Bytes that are not a document and would not have looked wrong
+#    afterwards.
 #
-# An empty value leaves nothing behind at all, so the result parses
-# and reports one element fewer than it was given.  The document
-# itself gives no sign of this, which is what makes the note the
-# only way to tell it apart from an array that really was short.
+# An empty value leaves nothing behind at all, so what is built
+# round it parses and reports one element fewer than it was given.
+# A document like that gives no sign of what happened to it, and
+# is exactly what is not returned: the row is refused, and the
+# warning says which argument it was.
 #
 SET SESSION check_constraint_checks = OFF;
 INSERT INTO t1 VALUES (20, '', NULL);
@@ -199,77 +198,68 @@ SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS looks_fine,
 JSON_LENGTH(JSON_ARRAY(j)) AS elements
 FROM t1 WHERE id >= 20 ORDER BY id;
 id	v	looks_fine	elements
-20	[]	1	0
-21	[   ]	1	0
-22	[// nothing here]	0	NULL
+20	NULL	NULL	NULL
+21	NULL	NULL	NULL
+22	NULL	NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 2
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 SELECT id, JSON_ARRAY(1, j, 2) AS v, JSON_VALID(JSON_ARRAY(1, j, 2)) AS looks_fine,
 JSON_LENGTH(JSON_ARRAY(1, j, 2)) AS elements
 FROM t1 WHERE id >= 20 ORDER BY id;
 id	v	looks_fine	elements
-20	[1, , 2]	0	NULL
-21	[1,    , 2]	0	NULL
-22	[1, // nothing here, 2]	0	NULL
+20	NULL	NULL	NULL
+21	NULL	NULL	NULL
+22	NULL	NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 5
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 8
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 5
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
 SELECT id, JSON_OBJECT('k', j) AS v, JSON_VALID(JSON_OBJECT('k', j)) AS looks_fine
 FROM t1 WHERE id >= 20 ORDER BY id;
 id	v	looks_fine
-20	{"k": }	0
-21	{"k":    }	0
-22	{"k": // nothing here}	0
+20	NULL	NULL
+21	NULL	NULL
+22	NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 10
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
 SELECT JSON_ARRAYAGG(j) AS v, JSON_VALID(JSON_ARRAYAGG(j)) AS looks_fine
 FROM t1 WHERE id >= 20;
 v	looks_fine
-[,   ,// nothing here]	0
+NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
 #
 # 4. Nesting that only goes over the limit once the value is wrapped.
 #
 # The scanner takes 31 nested structures.  A document of exactly 31
-# is a document; put it inside one more and it is not.
+# is a document; put it inside one more and it is not, so the
+# constructor that wrapped it has nothing to return.  A mutator
+# reads its whole answer back and finds out there, as it always
+# did.
 #
 CREATE TABLE t2 (id INT, j JSON);
 INSERT INTO t2 VALUES (31, CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31)));
@@ -282,26 +272,23 @@ SELECT id, JSON_VALID(JSON_ARRAY(j)) AS wrapped_once,
 LENGTH(JSON_ARRAY(j)) AS bytes FROM t2 ORDER BY id;
 id	wrapped_once	bytes
 30	1	63
-31	0	65
+31	NULL	NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS wrapped_once FROM t2 ORDER BY id;
 id	wrapped_once
 30	1
-31	0
+31	NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 37
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 63
 # without a table in the way
 SELECT JSON_VALID(JSON_ARRAY(JSON_COMPACT(
 CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31))))) AS wrapped_once;
 wrapped_once
-0
+NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 # a mutator splices at the depth the path reaches, and reads back
 SELECT id, JSON_VALID(JSON_SET('{}', '$.k', j)) AS spliced FROM t2 ORDER BY id;
 id	spliced
@@ -508,13 +495,17 @@ id	built	already_loose
 # An aggregate writes the separator before it asks for the element,
 # so a row that yields nothing leaves a separator with nothing on
 # one side of it.  There are two reasons a row can yield nothing
-# and they are not answered alike.  A character that cannot be
-# written into a document at all is a property of the data: the
-# element was dropped and the separator left standing before, and
-# it still is, now with a note saying so.  A buffer that would not
-# grow is not a property of the data, and has already stopped the
-# statement by the time it is noticed, so the group is refused
-# whole rather than returned with a gap in it.
+# and they are not reported alike.  A character that cannot be
+# written into a document at all is a property of the data, and
+# gets a note naming the row; a buffer that would not grow is not,
+# and has already stopped the statement by the time it is noticed.
+# Either way what is left is a group with a gap in it, which is not
+# a document and is not returned.
+#
+# A KEY that cannot be written is neither of those.  It goes in as
+# the empty key with its pair finished round it, so the object is a
+# document whose keys are not the ones that were asked for, and the
+# note is the whole of what is said about it.
 #
 # cp1250 is used here because it admits every byte, so a column can
 # hold one that stands for no character at all.
@@ -528,13 +519,13 @@ id	stored
 3	8881
 SELECT JSON_ARRAYAGG(c) AS v FROM t6;
 v
-[,"ok",]
+NULL
 Warnings:
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
 SELECT JSON_OBJECTAGG(id, c) AS v FROM t6;
 v
-{"1":", "2":"ok", "3":"}
+NULL
 Warnings:
 Note	4035	Broken JSON string in argument 2 to function 'json_objectagg' at position 0
 Note	4035	Broken JSON string in argument 2 to function 'json_objectagg' at position 0
@@ -553,13 +544,13 @@ v
 # when the group is asked for rather than as they arrive
 SELECT JSON_ARRAYAGG(c ORDER BY id) AS v FROM t6;
 v
-[,"ok",]
+NULL
 Warnings:
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
 SELECT JSON_ARRAYAGG(DISTINCT c) AS v FROM t6;
 v
-["ok",,]
+NULL
 Warnings:
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
 Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
@@ -584,12 +575,10 @@ SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
 JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
 FROM t2 WHERE id = 31;
 wrapped_once	wrapped_once_obj
-0	0
+NULL	NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_objectagg' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_arrayagg' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 37
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_objectagg' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_arrayagg' at position 63
 SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
 JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
 FROM t2 WHERE id = 30;
@@ -604,6 +593,12 @@ wrapped_once	wrapped_once_obj
 # value alike throw the whole result away here; all that is left
 # of either is what is said about it, and both sides say which
 # argument it was.
+#
+# Said at note level, where the same constructor refusing a value
+# that did not parse says it at warning level.  Both answer NULL.
+# The difference is that refusing a character is what a released
+# server did and refusing an unparsed value is not, so only the
+# second is raised to where strict mode can act on it.
 #
 # the value side, which has always been named
 SELECT JSON_ARRAY(c) AS v FROM t6 WHERE id = 1;
@@ -667,4 +662,83 @@ v
 NULL
 Warnings:
 Note	4035	Broken JSON string in argument 1 to function 'json_array' at position 0
+#
+# 11. What a constructor or an aggregate returns when what it put
+#     together is not a document.
+#
+# These four have no closing pass over what they built, so whatever
+# went in wrong is in the answer, and every way that can happen is
+# above: a value typed as JSON that does not parse, one that parses
+# as nothing at all, a nesting that only goes over the limit once
+# the value is wrapped, and a character no document can carry, which
+# leaves an aggregate's separator with nothing beside it.
+#
+# None of the four is a document and none of them is returned.  The
+# complaint saying what was wrong is raised where it always was;
+# what follows it is NULL rather than the bytes.
+#
+# Two cases that look like these and are not stay as they were.  A
+# KEY that could not be written leaves the pair around it whole, so
+# the object is a document whose keys are not the ones asked for.
+# A group cut to fit its length limit is cut back to the last whole
+# element, so the brackets go round a document as well.
+#
+# a value typed as JSON that does not parse, and one that parses as
+# nothing at all
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+JSON_OBJECT('k', j) IS NULL AS refused_obj
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	refused	refused_obj
+10	1	1
+11	1	1
+12	1	1
+20	1	1
+21	1	1
+22	1	1
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+FROM t1 WHERE id >= 10;
+refused	refused_obj
+1	1
+# a nesting that only goes over the limit once the value is wrapped
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+JSON_OBJECT('k', j) IS NULL AS refused_obj
+FROM t2 ORDER BY id;
+id	refused	refused_obj
+30	0	0
+31	1	1
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+FROM t2 WHERE id = 31;
+refused	refused_obj
+1	1
+# a character no document can carry, in a value
+SELECT JSON_ARRAYAGG(c) IS NULL AS refused,
+JSON_OBJECTAGG(id, c) IS NULL AS refused_obj FROM t6;
+refused	refused_obj
+1	1
+# the same character in a KEY, which leaves a document behind
+SELECT JSON_OBJECTAGG(c, id) AS v FROM t6;
+v
+{"":1, "ok":2, "":3}
+# a group cut to fit its length limit
+SET SESSION group_concat_max_len= 28;
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+v
+[{"a": 1, "b": [1, 2]}]
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+v
+{"1":{"a": 1, "b": [1, 2]}}
+SET SESSION group_concat_max_len= DEFAULT;
+# and what IS a document comes back as it always did
+SELECT id, JSON_ARRAY(j) AS v FROM t4 WHERE id <= 2 ORDER BY id;
+id	v
+1	[{"a": 1, "b": [1, 2]}]
+2	[[1, 2, 3]]
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+v
+[{"a": 1, "b": [1, 2]},[1, 2, 3]]
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+v
+{"1":{"a": 1, "b": [1, 2]}, "2":[1, 2, 3]}
 DROP TABLE t1, t2, t3, t4, t5, t6;

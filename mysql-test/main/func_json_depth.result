@@ -254,19 +254,17 @@ SELECT JSON_DEPTH(JSON_ARRAY(JSON_COMPACT(@d31))) AS d32;
 d32
 NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT JSON_VALID(JSON_ARRAY(JSON_COMPACT(@d31))) AS still_valid;
 still_valid
-0
+NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT LENGTH(JSON_ARRAY(JSON_COMPACT(@d31))) AS produced_bytes;
 produced_bytes
-65
+NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 # the same through an object constructor
 SELECT JSON_DEPTH(JSON_OBJECT('a', JSON_COMPACT(@d30))) AS d32;
 d32
@@ -277,10 +275,9 @@ still_valid
 # two levels of constructor
 SELECT JSON_VALID(JSON_ARRAY(JSON_ARRAY(JSON_COMPACT(@d30)))) AS still_valid;
 still_valid
-0
+NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT JSON_DEPTH(JSON_ARRAY(JSON_ARRAY(JSON_COMPACT(@d29)))) AS d31;
 d31
 32

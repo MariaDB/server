@@ -143,12 +143,26 @@ SELECT JSON_ARRAY(x) AS unioned, JSON_VALID(x) AS still_a_document FROM
 DROP TABLE t6, t7;
 
 --echo #
---echo # 6. A producer that is a document only some of the time keeps its
---echo # column untrusted.  JSON_OBJECT answers per evaluation, not for the
---echo # class, so a column fed by one is read like any other.
+--echo # 6. A producer that attests to every value it will ever make,
+--echo # rather than to the one it has just made.  A constructor returns a
+--echo # document or nothing whatever it is given, so a column fed by one
+--echo # is read without being asked.  So does an aggregate, and so does a
+--echo # constructor composing from one.
 --echo #
 SELECT JSON_ARRAY(x) AS spliced FROM
   (SELECT JSON_OBJECT('a', id) AS x FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_ARRAY(id, j) AS x FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_ARRAYAGG(j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_OBJECTAGG(id, j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+--echo #
+--echo # And in a character set that cannot write the brackets it answers
+--echo # nothing, there being no document to promise - see section 12.
+--echo #
+SELECT HEX(JSON_ARRAY(x)) AS spliced FROM
+  (SELECT JSON_ARRAY(CONVERT(j USING swe7)) AS x FROM t1) d ORDER BY 1;
 
 --echo #
 --echo # 7. A function that returns more than it was given.  JSON_REMOVE

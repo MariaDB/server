@@ -6,10 +6,12 @@
 # sjis decodes every ASCII byte to itself and is flagged as not
 # ASCII-compatible all the same, so the array it answers is a
 # perfectly good document with no mark on it, and the splice reads
-# it again.  utf8mb4 stands beside it, over the same document,
-# where the mark is given and the splice reads nothing - which is
-# what makes the count a fact about the set rather than about the
-# document or the splice.
+# it again.  The constructor round it then reads its own answer
+# once more, that flag being the only warning it has that a set
+# might not write the brackets as brackets - a set that says
+# nothing against itself is not read at all.  utf8mb4 stands
+# beside it, over the same document, where no reading happens on
+# either count.
 #
 # What the answers themselves look like is in
 # func_json_keys_typed.
@@ -23,7 +25,7 @@ FLUSH STATUS;
 SELECT JSON_ARRAY(JSON_KEYS(j)) FROM ts;
 SHOW STATUS LIKE 'Json_scans';
 Variable_name	Value
-Json_scans	2
+Json_scans	3
 FLUSH STATUS;
 SELECT JSON_ARRAY(JSON_KEYS(j)) FROM tu;
 SHOW STATUS LIKE 'Json_scans';

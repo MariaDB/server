@@ -570,6 +570,46 @@ static inline bool is_json_compatible_charset(CHARSET_INFO *cs)
 
 
 /*
+  Whether a container just composed has to be refused for the character
+  set it was composed in.
+
+  A container is written with punctuation round it, and a set that does
+  not encode that punctuation as itself holds no container: what was
+  composed reads as something else, or as nothing.  A released server
+  returned those bytes.  The functions that read their whole answer back
+  have always returned NULL there instead, the reading being what fails,
+  and the ones that compose their answer say the same thing here, in the
+  same words and at the same position.
+
+  Which is why it is read rather than reckoned.  The question above is
+  not the question this is: a set stops being JSON-compatible as soon as
+  it puts ANY character somewhere other than ASCII does, and a set can do
+  that and still write brackets - sjis moves the backslash and leaves the
+  brackets where they were, so what it composes IS a document and is
+  returned.  A compatible set is not read at all, so the reading is
+  confined to the sets that might have got it wrong.
+*/
+static bool json_container_charset_refused(String *str, const char *fname)
+{
+  json_engine_t je;
+
+  if (is_json_compatible_charset(str->charset()))
+    return false;
+
+  json_scan_start(&je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+  while (json_scan_next(&je) == 0)
+  {}
+  if (!je.s.error)
+    return false;
+
+  report_json_error_ex(str->ptr(), &je, fname, 0,
+                       Sql_condition::WARN_LEVEL_WARN);
+  return true;
+}
+
+
+/*
   Whether the document argument leaves a function free to return what
   it composes, instead of reading the whole answer again at the end to
   find out what it is.
@@ -3112,15 +3152,16 @@ struct Json_splice_marks
   the column afterwards.  Nothing on the way from the column to here
   reads them.
 
-  So the value is parsed as it is copied, but a value that does not
-  parse is copied ALL THE SAME, with a note saying so.  It has always
-  been copied, callers have always been able to see the result, and
-  what a released server does is not something to take away from the
-  people relying on it; the note is what is new.  Reading the result
-  back is where a caller finds out, exactly as before.  What the parse
-  is for is to know WHETHER to say anything - and, once the trust
-  predicates exist, to keep an unparseable value from ever being taken
-  on trust by a later reader.
+  So the value is parsed as it is copied, and a value that does not
+  parse is copied ALL THE SAME, with a complaint saying so.  Undoing the
+  copy is not this function's to do: the bytes have gone in where the
+  caller asked for them, and how much of a result there is around them
+  is the caller's to know.  What is owed here is to say so, which is
+  what the marks are for, and each caller answers it the way its own
+  result works.  The four that compose a document and return what they
+  composed return NULL rather than bytes no reader will take; the
+  ones that read their whole answer back find out there, exactly as
+  before.
 
   A value written in another character set is converted first, because
   the result is read in the character set it is being built in, not in
@@ -3147,13 +3188,24 @@ struct Json_splice_marks
   'value_depth' is how deep the item says the value goes, or
   JSON_DEPTH_UNKNOWN where it does not say.  It is only ever read
   alongside is_valid.
+
+  'lv' is the level to complain at.  A caller that has another
+  complaint to make about the same value - which every caller that
+  reads its whole answer back does, from the reading - leaves this a
+  note, so that the two do not say the same thing twice at the same
+  volume.  The four that compose their answer and return it have no
+  second complaint and no answer either, and pass a warning: it is the
+  only word the statement gets about why it was given NULL, and under
+  strict mode it stops the statement where the value went wrong rather
+  than letting it finish with nothing.
 */
 static int append_json_typed_value(String *str, const String *sv, uint depth,
                                    const char *fname, int n_param,
                                    Json_splice_marks &marks,
                                    bool caller_reads_back, bool is_valid,
                                    bool is_nice, bool need_nice,
-                                   uint value_depth)
+                                   uint value_depth,
+                                   Sql_condition::enum_warning_level lv)
 {
   StringBuffer<STRING_BUFFER_USUAL_SIZE> cnv;
   const char *ptr= sv->ptr();
@@ -3381,12 +3433,15 @@ static int append_json_typed_value(String *str, const String *sv, uint depth,
     Too deep only once it is in place.  There is nothing wrong with the
     value itself, so a caller that reads its whole result back says it
     about the answer rather than about this one value - which is what it
-    has always said, and where it has always said it.  All that is owed
-    here is to stop such an answer being taken on trust.
+    has always said, and where it has always said it.
 
     A caller that does not read back has nobody else to hear it from, so
-    for that one the scanner is put into error and the note goes out as
-    it always has.
+    for that one the scanner is put into error and the complaint goes out
+    below at whatever level that caller asked for.  Clearing the mark is
+    what carries it further: a composed answer that reaches past the
+    limit cannot be read back by this server at all, so the caller
+    composing it has nothing to return, and the mark is where it finds
+    that out.
   */
   if (je.s.error == 0 && max_level + (int) depth >= JSON_DEPTH_LIMIT)
   {
@@ -3413,17 +3468,12 @@ static int append_json_typed_value(String *str, const String *sv, uint depth,
     what went wrong with a value, and reports nothing at all when that
     engine is not itself in error.
 
-    A note and not a warning, because a warning becomes an error inside
-    a statement running under strict mode, and a statement that used to
-    finish would then stop finishing.  What is being added here is
-    something to read, not a new way to fail.  json_valid() says the
-    same thing at the same level for the same reason.
+    At the level the caller asked for, and see there for what picks it.
   */
   if (je.s.error)
   {
     marks.is_valid= marks.is_nice= false;
-    report_json_error_ex(ptr, &je, fname, n_param,
-                         Sql_condition::WARN_LEVEL_NOTE);
+    report_json_error_ex(ptr, &je, fname, n_param, lv);
   }
 
   return reformat ? 0 : append_simple(str, ptr, length);
@@ -3485,7 +3535,9 @@ __attribute__((warn_unused_result))
 static int append_json_value(String *str, Item *item, String *tmp_val,
                              uint depth, const char *fname, int n_param,
                              Json_splice_marks &marks,
-                             bool caller_reads_back, bool need_nice)
+                             bool caller_reads_back, bool need_nice,
+                             Sql_condition::enum_warning_level lv=
+                               Sql_condition::WARN_LEVEL_NOTE)
 {
   /*
     Said before anything is looked at, because it holds for whatever the
@@ -3562,7 +3614,7 @@ static int append_json_value(String *str, Item *item, String *tmp_val,
       return append_json_typed_value(str, sv, depth, fname, n_param, marks,
                                      caller_reads_back, item->is_valid_json(),
                                      item->is_nice_json(), need_nice,
-                                     item->last_depth());
+                                     item->last_depth(), lv);
 
     /*
       Being a document is what gets a value spliced rather than quoted,
@@ -3596,7 +3648,11 @@ append_null:
 }
 
 
-/* The same, reading the value out of a row rather than off an Item. */
+/*
+  The same, reading the value out of a row rather than off an Item.
+  Only JSON_ARRAYAGG reads a row back this way, so the level it
+  complains at is the one that composer asks for everywhere else.
+*/
 __attribute__((warn_unused_result))
 static int append_json_value_from_field(String *str,
   Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val,
@@ -3663,7 +3719,8 @@ static int append_json_value_from_field(String *str,
       return append_json_typed_value(str, sv, depth, fname, n_param, marks,
                                      false, f->is_valid_json_static(),
                                      f->is_nice_json_static(), false,
-                                     f->json_static_depth());
+                                     f->json_static_depth(),
+                                     Sql_condition::WARN_LEVEL_WARN);
 
     rc= append_escaped_value(str, sv, i->result_type() == STRING_RESULT,
                              fname, n_param);
@@ -3806,6 +3863,14 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  /*
+    An argument can leave this with no document to return - see
+    val_str() - and that is decided by what the argument holds rather
+    than by whether it was NULL, so an argument that is never NULL does
+    not settle it.  The constructor with no arguments at all is the one
+    that cannot happen to, and it is answered above.
+  */
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3822,21 +3887,39 @@ String *Item_func_json_array::val_str(String *str)
   Json_splice_marks marks(1);
 
   m_marks.clear();
+  /*
+    Said for this evaluation rather than left where the last one put it:
+    a row refused below would otherwise leave it set for the row after,
+    which composes a document and would be answered NULL for it.
+  */
+  null_value= 0;
 
   str->length(0);
   str->set_charset(collation.collation);
 
-  if (str->append('[') ||
-      ((arg_count > 0) &&
-       append_json_value(str, args[0], &tmp_val, 1, func_name(), 0, marks,
-                          false, false)))
+  if (str->append('['))
     goto err_return;
 
-  for (n_arg=1; n_arg < arg_count; n_arg++)
+  for (n_arg=0; n_arg < arg_count; n_arg++)
   {
-    if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
+    if ((n_arg && str->append(STRING_WITH_LEN(json_loose_comma))) ||
         append_json_value(str, args[n_arg], &tmp_val, 1, func_name(),
-                          (int) n_arg, marks, false, false))
+                          (int) n_arg, marks, false, false,
+                          Sql_condition::WARN_LEVEL_WARN))
+      goto err_return;
+
+    /*
+      A value that is not a document is the whole array not being one,
+      and there is no other answer to compose, so the arguments after it
+      are not evaluated.  The marks ARE the reading a closing pass would
+      have done, taken a value at a time as the values go in, so this is
+      where the question is answered.
+
+      A released server spliced such a value as it stood and returned
+      bytes no reader will take.  The warning naming the argument is
+      raised where it always was, just above.
+    */
+    if (!marks.is_valid)
       goto err_return;
   }
 
@@ -3859,13 +3942,14 @@ String *Item_func_json_array::val_str(String *str)
       marks.is_nice are cleared by whichever of them did not hold, and
       that is the whole of what this has to go on.
 
-      All of which holds only where the brackets written above are
-      brackets - see is_json_compatible_charset().
+      is_valid is settled above, a value at a time, so only the brackets
+      are left to ask about.
     */
-    bool is_json_compatible= is_json_compatible_charset(str->charset());
+    if (json_container_charset_refused(str, func_name()))
+      goto err_return;
 
-    m_marks.set(str, is_json_compatible && marks.is_valid,
-                is_json_compatible && marks.is_nice, marks.deepest);
+    DBUG_ASSERT(marks.is_valid);
+    m_marks.set(str, true, marks.is_nice, marks.deepest);
     return str;
   }
 
@@ -4467,24 +4551,36 @@ String *Item_func_json_object::val_str(String *str)
   Json_splice_marks marks(1);
 
   m_marks.clear();
+  /* Said per evaluation, as in the sister constructor. */
+  null_value= 0;
 
   str->length(0);
   str->set_charset(collation.collation);
 
-  if (str->append('{') ||
-      (arg_count > 0 &&
-       (append_json_keyname(str, args[0], &tmp_val, func_name(), 0) ||
-        append_json_value(str, args[1], &tmp_val, 1, func_name(), 1, marks,
-                           false, false))))
+  if (str->append('{'))
     goto err_return;
 
-  for (n_arg=2; n_arg < arg_count; n_arg+=2)
+  /*
+    The first pair used to be written outside this loop, the separator
+    being what set it apart.  It is written here instead so that the
+    refusal below is written once for every pair rather than twice.
+  */
+  for (n_arg=0; n_arg < arg_count; n_arg+=2)
   {
-    if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
+    if ((n_arg && str->append(STRING_WITH_LEN(json_loose_comma))) ||
         append_json_keyname(str, args[n_arg], &tmp_val, func_name(),
                             (int) n_arg) ||
         append_json_value(str, args[n_arg+1], &tmp_val, 1, func_name(),
-                          (int) n_arg + 1, marks, false, false))
+                          (int) n_arg + 1, marks, false, false,
+                          Sql_condition::WARN_LEVEL_WARN))
+      goto err_return;
+
+    /*
+      As in the sister constructor: one value that is not a document is
+      the whole object not being one, so the arguments after it are not
+      evaluated.
+    */
+    if (!marks.is_valid)
       goto err_return;
   }
 
@@ -4496,11 +4592,12 @@ String *Item_func_json_object::val_str(String *str)
 
   if (str->length() <= result_limit)
   {
-    /* As in the sister constructor above. */
-    bool is_json_compatible= is_json_compatible_charset(str->charset());
+    /* As in the sister constructor above, and so is the refusal. */
+    if (json_container_charset_refused(str, func_name()))
+      goto err_return;
 
-    m_marks.set(str, is_json_compatible && marks.is_valid,
-                is_json_compatible && marks.is_nice, marks.deepest);
+    DBUG_ASSERT(marks.is_valid);
+    m_marks.set(str, true, marks.is_nice, marks.deepest);
     return str;
   }
 
@@ -7385,15 +7482,20 @@ void Item_func_json_arrayagg::clear()
   stays written whether an element follows it or not, so a row declined
   here leaves a separator with nothing on one side of it.
 
-  That is what has always been returned for a value holding a
-  character no document can carry, and it still is: the note is the new
-  part, the shape is not.  A row lost to a buffer that would not grow
-  is a different matter - nothing about the data asked for it, and the
-  statement is over anyway - so the group is marked and refused whole
+  That is what has always been written for a value holding a character
+  no document can carry, and it still is - the writing is not this
+  function's to undo, and how much of a group there is around it is not
+  its to know either.  A row lost to a buffer that would not grow is a
+  different matter: nothing about the data asked for it and the
+  statement is over anyway, so the group is marked and refused whole
   when it is asked for.
 
   A row holding something that does not parse as JSON reaches neither
   of these.  It is written out as it stands, the same as it always was.
+
+  What becomes of the group in the two cases that leave it not a
+  document is settled where it is asked for, both of them through the
+  same mark - see val_str().
 */
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
@@ -7409,7 +7511,7 @@ String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 
   m_tmp_json.length(0);
   rc= append_json_value(&m_tmp_json, i, tmp, 1, json_arrayagg_name, 0, marks,
-                        false, false);
+                        false, false, Sql_condition::WARN_LEVEL_WARN);
   if (!marks.is_valid)
     m_elements_valid= false;
   m_elements_depth= MY_MAX(m_elements_depth, marks.deepest);
@@ -7513,6 +7615,29 @@ String* Item_func_json_arrayagg::val_str(String *str)
     }
 
     /*
+      A group that is not a document is not returned either, for the
+      reason the constructors give where they refuse the same thing: the
+      elements were read as they went in, that reading is the only one
+      there is, and what it found has nowhere else to be acted on.
+
+      The row that made it so has already been reported - a value that
+      did not parse through the warning naming the argument, one carrying
+      a character no document can hold through the note saying which - so
+      what is added here is the refusal and not the complaint.
+
+      A group cut back to fit the length limit is NOT this.  It is cut to
+      the last whole element and the brackets go round what is left, so
+      it is a shorter document and still a document; the mark below
+      declines it all the same, that being about the answer this group
+      had rather than about the one it gives.
+    */
+    if (!m_elements_valid)
+    {
+      null_value= 1;
+      return NULL;
+    }
+
+    /*
       Asked for a second time, the group is already inside its brackets
       and there is nothing left to do to it.  What can be said about it
       is said either way: the answer is about the value, and the value
@@ -7536,12 +7661,18 @@ String* Item_func_json_arrayagg::val_str(String *str)
     }
 
     /*
+      Asked once the brackets are on, for the reason given there.  The
+      bare name, func_name() here carrying the open bracket that the cut
+      warning writes its own closing one after.
+    */
+    if (json_container_charset_refused(str, json_arrayagg_name))
+      goto bad_result;
+
+    /*
       A group that was cut to fit the length limit is cut back to the
       last whole element, so what stands between the brackets reads -
-      and it is a shorter answer than the group has, with the row it
-      stopped at reported.  One that carried something not readable as
-      JSON is a group with that in it still.  Either way the brackets
-      are around something this cannot attest to.
+      but it is a shorter answer than the group has, with the row it
+      stopped at reported, so this declines it.
 
       Never said to be nicely written: what goes between the elements is
       the separator this function inherits from GROUP_CONCAT, a comma
@@ -7549,9 +7680,7 @@ String* Item_func_json_arrayagg::val_str(String *str)
       space there as well.  There is no asking for another one - the
       grammar takes no SEPARATOR here and writes that comma itself.
     */
-    m_marks.set(str, is_json_compatible_charset(str->charset()) &&
-                     m_elements_valid && !warning_for_row, false,
-                m_elements_depth);
+    m_marks.set(str, !warning_for_row, false, m_elements_depth);
   }
   return str;
 
@@ -7696,30 +7825,24 @@ bool Item_func_json_objectagg::add()
   */
   uint32 old_length= result.length();
 
+  /*
+    A cut group takes nothing further, so neither argument is evaluated
+    for the rows after the cut.  The rows are still read; see the cut at
+    the end of this function.
+
+    An argument with side effects - a stored function that writes, an
+    assignment, a warning raised per row - therefore runs for the rows
+    up to the cut and not for those after it.  Nothing documents how
+    many times an aggregate evaluates its arguments.
+  */
+  if (m_cut)
+    return 0;
+
   key= args[0]->val_str(&buf);
   if (args[0]->is_null())
     return 0;
 
   m_row_count++;
-
-  /*
-    Nothing more goes into a group that has been cut, but the rows of it
-    are still read to the end.  An argument is an expression, and working
-    one out once for every row of the group is what the object has always
-    done - a row that stops being read stops whatever the expression does,
-    which is not the caller's answer to give away.  So only the writing
-    stops here; see the cut at the end of this function.
-
-    The value is worked out and dropped rather than written, and it is
-    asked for the way append_json_value() would ask a value of its type.
-    The key was worked out above, where every row needs it: whether a row
-    makes a pair of it is what its being NULL decides, cut or not.
-  */
-  if (m_cut)
-  {
-    args[1]->update_null_value();
-    return 0;
-  }
 
   /*
     Whether this pair needs a separator in front of it is whether a pair
@@ -7744,13 +7867,16 @@ bool Item_func_json_objectagg::add()
   {
     if (rc == JSON_APPEND_OOM)
       goto bad_pair;
-    report_bad_chr_note(func_name(), 1);
     /*
-      However much of the key could be written went in and the pair was
-      finished around it, so the object is complete and its keys are
-      not what was asked for.
+      The escaping writes into the buffer and says afterwards how much of
+      what it wrote counts, and a key it refused counts for none - so
+      the key that goes in is the empty one, with the quotes and the
+      colon written round it here as they are round any other.  The
+      object that comes of it is a document, and its keys are not the
+      ones that were asked for; the note is what says so, and nothing
+      about being a document is dropped for it.
     */
-    m_pairs_valid= false;
+    report_bad_chr_note(func_name(), 1);
   }
 
   if (result.append(STRING_WITH_LEN("\":")) ||
@@ -7759,7 +7885,7 @@ bool Item_func_json_objectagg::add()
 
   buf.length(0);
   rc= append_json_value(&result, args[1], &buf, 1, func_name(), 1, marks,
-                        false, false);
+                        false, false, Sql_condition::WARN_LEVEL_WARN);
   if (!marks.is_valid)
     m_pairs_valid= false;
   m_pairs_depth= MY_MAX(m_pairs_depth, marks.deepest);
@@ -7827,12 +7953,25 @@ String* Item_func_json_objectagg::val_str(String* str)
   m_closed= true;
 
   /*
+    And an object that is not a document is not returned, for the reason
+    the sister aggregate gives where it refuses the same thing.  Only a
+    VALUE gets an object here: a key that could not be written leaves
+    the pair whole around an empty one.
+
+    The braces are on by now, which is what the second of these reads.
+  */
+  if (!m_pairs_valid || json_container_charset_refused(&result, func_name()))
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  /*
     Never said to be nicely written: a key is followed here by a colon
     and the value straight after it, where the loose form puts a space
     between the two.
   */
-  m_marks.set(&result, is_json_compatible_charset(result.charset()) &&
-                       m_pairs_valid, false, m_pairs_depth);
+  m_marks.set(&result, true, false, m_pairs_depth);
   return &result;
 }
 

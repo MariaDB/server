@@ -362,7 +362,13 @@ END $$
 --delimiter ;
 INSERT INTO t2 (j) VALUES ('{"a":1}');
 SELECT j, note, JSON_VALID(note) AS note_valid FROM t2;
+--echo # A row whose document does not read leaves the trigger with
+--echo # nothing to set the column to.  Saying so is a warning, and an
+--echo # INSERT under strict mode makes an error of it, so the row does
+--echo # not go in at all - where a released server stored the bytes the
+--echo # constructor had spliced and let the column keep them.
 SET SESSION check_constraint_checks = OFF;
+--error ER_JSON_EOS
 INSERT INTO t2 (j) VALUES ('{"a":1,');
 SET SESSION check_constraint_checks = ON;
 SELECT j, note, JSON_VALID(note) AS note_valid FROM t2 ORDER BY j;
