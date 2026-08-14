@@ -1310,7 +1310,7 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
 
   Returns 0 on ok, non-zero on parse error.
 */
-static int
+int
 gtid_parser_helper(const char **ptr, const char *end, rpl_gtid *out_gtid)
 {
   char *q;

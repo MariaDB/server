@@ -55,6 +55,7 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#include "sql_repl.h"                           // xact_search
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
@@ -4077,6 +4078,44 @@ longlong Item_master_gtid_wait::val_int()
 #else
   null_value= 0;
 #endif /* REPLICATION */
+  DBUG_RETURN(result);
+}
+
+
+longlong Item_xact_status::val_int()
+{
+  DBUG_ASSERT(fixed());
+  longlong result= 0;
+  longlong xact_connect_id __attribute__((unused))= args[0]->val_int();
+  longlong xact_commit_id __attribute__((unused))= args[1]->val_int();
+  DBUG_ENTER("Item_xact_status::val_int");
+
+  if (args[0]->null_value || args[1]->null_value)
+  {
+    null_value= 1;
+    DBUG_RETURN(0);
+  }
+
+  null_value=0;
+#ifdef HAVE_REPLICATION
+  rpl_gtid start_gtid;
+  rpl_gtid *start_gtid_ptr= nullptr;
+  if (arg_count==3 && !args[2]->null_value)
+  {
+    String *start_gtid_str= args[2]->val_str(&value);
+    const char *p= start_gtid_str->c_ptr_safe();
+    start_gtid_ptr= &start_gtid;
+    if (gtid_parser_helper(&p, p + start_gtid_str->length(), start_gtid_ptr))
+    {
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+      DBUG_RETURN(-1);
+    }
+  }
+  result= xact_search(xact_connect_id, xact_commit_id, start_gtid_ptr);
+#else
+  result= MARIADB_XACT_UNKNOWN;
+#endif
+
   DBUG_RETURN(result);
 }
 

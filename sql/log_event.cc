@@ -2652,6 +2652,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
+    xact_connect_id(0), xact_commit_id(0),
     flags_extra(0), extra_engines(0)
 {
   uint8 header_size= description_event->common_header_len;
@@ -2731,6 +2732,17 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
       }
       sa_seq_no= uint8korr(buf);
       buf+= 8;
+    }
+    if (flags_extra & FL_CLIENT_XACT_ID)
+    {
+      if (unlikely(event_len < static_cast<uint>(buf - buf_0) + (8 + 8)))
+      {
+        seq_no= 0;
+        return;
+      }
+      xact_connect_id= uint8korr(buf);
+      xact_commit_id= uint8korr(buf + 8);
+      buf += (8 + 8);
     }
   }
   /*

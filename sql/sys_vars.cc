@@ -1962,6 +1962,22 @@ Sys_gtid_seq_no(
        ON_CHECK(check_gtid_seq_no));
 
 
+static Sys_var_ulonglong Sys_xact_connect_id(
+       "xact_connect_id",
+       "Connection id part of client-supplied transaction id",
+       SESSION_ONLY(xact_connect_id),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+
+static Sys_var_ulonglong Sys_xact_commit_id(
+       "xact_commit_id",
+       "Counter part of client-supplied transaction id",
+       SESSION_ONLY(xact_commit_id),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+
 #ifdef HAVE_REPLICATION
 READ_ONLY_SYSVAR static unsigned char opt_gtid_binlog_pos_dummy;
 static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(

@@ -3674,6 +3674,12 @@ public:
   uint64 commit_id;
   uint32 domain_id;
   uint64 sa_seq_no;   // start alter identifier for CA/RA
+  /*
+    Client-privided transaction id, for checking if a transaction was committed
+    or not.
+  */
+  uint64 xact_connect_id;
+  uint64 xact_commit_id;
 #ifdef MYSQL_SERVER
   event_xid_t xid;
 #else
@@ -3736,6 +3742,8 @@ public:
   static const uchar FL_START_ALTER_E1= 2;
   static const uchar FL_COMMIT_ALTER_E1= 4;
   static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  // 16 is reserved for FL_EXTRA_THREAD_ID in later versions.
+  static const uchar FL_CLIENT_XACT_ID= 32;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

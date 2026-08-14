@@ -826,6 +826,14 @@ typedef struct system_variables
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
 
+  /**
+     Client-supplied transaction id. This can be used by the client to check
+     if a specific transaction was committed, by searching the binlog for the
+     transaction id.
+  */
+  uint64 xact_connect_id;
+  uint64 xact_commit_id;
+
   uint group_concat_max_len;
 
   /**

@@ -3962,6 +3962,14 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags_extra & FL_ROLLBACK_ALTER_E1)
       if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
+    if (flags_extra & FL_CLIENT_XACT_ID)
+    {
+      char buf3[21], buf4[21];
+      longlong10_to_str(xact_connect_id, buf3, 10);
+      longlong10_to_str(xact_commit_id, buf4, 10);
+      if (my_b_printf(&cache, " xact_id=%s:%s", buf3, buf4))
+        goto err;
+    }
     if (my_b_printf(&cache, "\n"))
       goto err;
 
