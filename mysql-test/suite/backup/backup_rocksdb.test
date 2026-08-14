@@ -1,0 +1,76 @@
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+
+CREATE TABLE ti(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO ti SET a=1;
+
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_dir
+--error 0,1
+--rmdir $targetdir
+--replace_result $targetdir target_dir
+--eval BACKUP SERVER TO '$targetdir'
+--file_exists $targetdir/#rocksdb
+
+INSERT INTO tr VALUES (4,'r-four');
+INSERT INTO ti VALUES (2,'two');
+
+--exec cat $MYSQLTEST_VARDIR/my.cnf >> $targetdir/backup.cnf
+--let $restart_parameters=--defaults-file=$targetdir/backup.cnf --datadir=$targetdir --plugin-load-add=$HA_ROCKSDB_SO
+--source include/restart_mysqld.inc
+
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+--echo # restart on the original datadir
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+--rmdir $targetdir
+
+--echo #
+--echo # BACKUP SERVER WITH ... N CONCURRENT (streamed oldgnu tar)
+--echo #
+--remove_files_wildcard $MYSQL_TMP_DIR/. rstream.bat
+--write_file $MYSQL_TMP_DIR/rstream.bat
+#!/bin/sh
+exec cat > $MYSQL_TMP_DIR/$1.tar
+EOF
+--let $script=/bin/sh $MYSQL_TMP_DIR/rstream.bat
+
+--replace_result $script rstream.bat
+eval BACKUP SERVER WITH 2 CONCURRENT '$script';
+--remove_file $MYSQL_TMP_DIR/rstream.bat
+
+INSERT INTO tr VALUES (5,'r-five');
+INSERT INTO ti VALUES (3,'three');
+
+--let $target_directory=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_stream
+--error 0,1
+--rmdir $target_directory
+--mkdir $target_directory
+--exec tar xf $MYSQL_TMP_DIR/1.tar -C $target_directory
+--exec tar xf $MYSQL_TMP_DIR/2.tar -C $target_directory
+--file_exists $target_directory/#rocksdb
+--exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory --plugin-load-add=$HA_ROCKSDB_SO
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+--remove_file $MYSQL_TMP_DIR/1.tar
+--remove_file $MYSQL_TMP_DIR/2.tar
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+DROP TABLE ti, tr;
+--rmdir $target_directory
