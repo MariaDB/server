@@ -95,8 +95,8 @@ SET @@session.gtid_domain_id= 3;
 SET @@session.server_id= 4;
 INSERT INTO t4 VALUES (1);
 
-# this will trigger a ROTATE_EVENT and will be converted to/end of gtid_conv.000003
-
+# this will trigger a FORMAT_DESCRIPTION_EVENT which on conversion will trigger
+# a ROTATE_EVENT
 --source include/restart_mysqld.inc
 
 # start of converted gtid_conv.000004
@@ -108,7 +108,7 @@ INSERT INTO t1 VALUES (3);
 # end of binlog-000002.ibb which will be converted to gtid_conv.000004
 FLUSH BINARY LOGS;
 
---let $binlog_name= binlog-000003.ibb
+--let $binlog_name= binlog-000004.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 
@@ -198,7 +198,7 @@ SET @@session.gtid_domain_id= 200;
 INSERT INTO t_large_gtid_state VALUES (200);
 FLUSH BINARY LOGS;
 
---let $binlog_name= binlog-000002.ibb
+--let $binlog_name= binlog-000003.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 --enable_query_log
