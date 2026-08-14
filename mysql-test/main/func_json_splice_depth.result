@@ -69,9 +69,9 @@ SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
 SET @d30a= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
 SELECT JSON_ARRAY(JSON_EXTRACT(@d31, '$')) AS built_deep;
 built_deep
-[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
 SELECT JSON_ARRAY(JSON_EXTRACT(@d30a, '$')) AS built_limit;
 built_limit
 [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
@@ -90,8 +90,7 @@ SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k31, '$'))) AS padded_deep_depth;
 padded_deep_depth
 NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 497
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 452
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 497
 SELECT JSON_ARRAY(JSON_EXTRACT(@k30, '$')) AS padded_limit;
 SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))) AS padded_limit_depth;
 padded_limit_depth
@@ -107,8 +106,7 @@ AS padded_two_depth;
 padded_two_depth
 NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 483
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 438
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 483
 #
 # 9. A document that was EDITED is as deep as it was or as deep as
 #    what went into it, whichever is more, and says so without
@@ -137,8 +135,7 @@ AS edited_deep_depth;
 edited_deep_depth
 NULL
 Warnings:
-Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 479
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 443
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 479
 #
 # 10. Wrapping, where the new array is a structure the document
 #     being read never had.  What was found is put inside it and

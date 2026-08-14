@@ -168,13 +168,22 @@ DROP TABLE t4;
 DROP TABLE t1;
 
 --echo #
---echo # 11. A cut group is still read to the end.  An argument is an
---echo #     expression, and the rows past the cut work it out exactly as
---echo #     the rows before it do - only the writing stops.  Each shape
---echo #     below is run twice over the same rows, once under a cap that
---echo #     cuts and once under one that does not, and counts what the
---echo #     argument did.  The two counts are the same because the
---echo #     reading is.
+--echo # 11. A cut group is still read to the end, but takes nothing
+--echo #     further, so the object evaluates neither of its arguments
+--echo #     for the rows after the cut.  Each shape below is run twice
+--echo #     over the same rows, once under a cap that cuts and once
+--echo #     under one that does not, and counts what the argument did.
+--echo #
+--echo #     The array counts the same either way: it discovers the cut
+--echo #     when the group is asked for, by which time every row has
+--echo #     been read, so there is no row left to skip.  The object
+--echo #     knows while the rows are still coming, and its count falls
+--echo #     to the rows up to the cut.
+--echo #
+--echo #     Nothing documents how many times an aggregate evaluates its
+--echo #     arguments, so an argument that does something besides
+--echo #     produce a value does that thing for the rows before the cut
+--echo #     and not for the rows after it.
 --echo #
 
 CREATE TABLE t5 (k VARCHAR(20), v VARCHAR(20));
@@ -216,7 +225,7 @@ SELECT @uncut AS uncut_calls, @calls AS cut_calls;
 
 --echo # the object, on the key.  The object also asks the key whether it
 --echo # is NULL, and asking that of a function is running it again, so
---echo # the count here is two a row - under either cap.
+--echo # the count is two a row - for the rows it reaches.
 SET @calls= 0;
 SELECT JSON_OBJECTAGG(seen_once(k), v) AS v FROM t5;
 SET @uncut= @calls;
@@ -227,7 +236,7 @@ SET SESSION group_concat_max_len = DEFAULT;
 SELECT @uncut AS uncut_calls, @calls AS cut_calls;
 
 --echo # a row whose key is NULL makes no pair, so its value is not read
---echo # for it - past the cut no differently from before it
+--echo # for it either, which is a second reason not to read one
 CREATE TABLE t6 (k VARCHAR(20), v VARCHAR(20));
 INSERT INTO t6 VALUES
   ('kkkk', 'aaaa'), ('llll', 'bbbb'), (NULL, 'cccc'), ('nnnn', 'dddd');

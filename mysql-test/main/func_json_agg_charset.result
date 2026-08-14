@@ -290,32 +290,36 @@ g	h
 #
 SELECT HEX(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS h FROM t1;
 h
-5B226161222C226262222C226363222C226464225D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
 SELECT CHARSET(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS cs FROM t1;
 cs
 swe7
 SELECT JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid FROM t1;
 valid
-0
+NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
 SELECT g, JSON_VALID(JSON_ARRAYAGG(CONVERT(a USING swe7))) AS valid
 FROM t1 GROUP BY g ORDER BY g;
 g	valid
-1	0
-2	0
+1	NULL
+2	NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
 SELECT HEX(JSON_OBJECTAGG(CONVERT(a USING swe7),
 CONVERT(a USING swe7))) AS h FROM t1;
 h
-7B226161223A226161222C20226262223A226262222C20226363223A226363222C20226464223A226464227D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_objectagg' at position 1
 SELECT JSON_VALID(JSON_OBJECTAGG(CONVERT(a USING swe7),
 CONVERT(a USING swe7))) AS valid FROM t1;
 valid
-0
+NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_objectagg' at position 1
 DROP TABLE t1, t2;
 SET NAMES utf8mb4;

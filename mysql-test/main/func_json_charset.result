@@ -144,15 +144,17 @@ swe7_to_utf8mb4
 C3A4C3A5
 SELECT HEX(JSON_ARRAY(_swe7 X'7B7D')) AS embedded;
 embedded
-5B227B7D225D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 SELECT HEX(JSON_QUOTE(_swe7 X'7B7D')) AS quoted;
 quoted
 22C3A4C3A522
 SELECT JSON_VALID(JSON_ARRAY(_swe7 X'7B7D')) AS still_valid;
 still_valid
-0
+NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 # a document written in swe7 itself
 SELECT HEX(JSON_COMPACT(CONVERT('{"a":1}' USING swe7))) AS as_swe7;
 as_swe7
@@ -449,11 +451,10 @@ SET SESSION check_constraint_checks = ON;
 SELECT JSON_ARRAY(CONVERT(j USING latin1)) AS v,
 JSON_VALID(JSON_ARRAY(CONVERT(j USING latin1))) AS ok FROM tp;
 v	ok
-[{"a":1,]	0
+NULL	NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_SET('{"x":1}', '$.y', CONVERT(j USING latin1)) AS v FROM tp;
 v
 NULL

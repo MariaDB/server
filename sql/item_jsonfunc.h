@@ -540,6 +540,23 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array") };
     return name;
   }
+  /*
+    A document or nothing.  Every value is read as it goes in - the ones
+    quoted here come out of json_escape() and are documents of their
+    own, and the ones spliced as they stand were either read on the way
+    or passed by something that had already read them - and a value that
+    did not read as one takes the whole result down to NULL rather than
+    into the answer.  What goes between them is written here.
+
+    Which leaves the brackets and the separators.  In a character set
+    that might not write those as themselves the result is read back
+    before it is returned, and one that does not read comes back NULL,
+    exactly as it does for the functions that always read back.
+
+    Said for Item_func_json_object as well, which composes the same way
+    through the same routines.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -964,8 +981,8 @@ protected:
     having failed to grow.  Neither a row whose value does not parse as
     JSON nor one holding a character no document can carry is this:
     the first is written out as it stands and the second is dropped
-    where it always was, both with a note.  Reset for each group by
-    clear().
+    where it always was, both with a note.  Those two are answered by
+    the mark below instead.  Reset for each group by clear().
   */
   bool m_bad_element;
   /*
@@ -984,7 +1001,8 @@ protected:
     them.  Reset for each group by clear(), the same as above, and kept
     apart from it because they say different things - that one means the
     group is missing a row, this one that the group is complete and
-    still not a document.
+    still not a document.  Either way there is no array to return,
+    so a group this is cleared for is refused when it is asked for.
   */
   bool m_elements_valid;
   /*
@@ -1027,6 +1045,24 @@ public:
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
   uint last_depth() const override { return m_marks.depth(); }
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array declares the same: the elements are read as
+    they arrive, a group carrying one that did not read as a document
+    comes back NULL, and the brackets are written here.  A group cut to
+    fit its length limit is cut back to the last whole element, so the
+    brackets still go round a document.
+  */
+  bool is_valid_json_static() const override { return true; }
+  /*
+    Asked for rather than read off.  The aggregate this inherits from
+    settles a NULL before any of the group is written, that being what
+    it says about a group with no rows in it and the only time it says
+    it, so Item_sum::is_null() reads what is already there.  A group
+    refused here is refused as it is written out, and what is already
+    there is then the answer to a question nothing has asked yet.
+  */
+  bool is_null() override { update_null_value(); return null_value; }
 
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1065,13 +1101,19 @@ class Item_func_json_objectagg : public Item_sum
   bool m_closed;
   /*
     Whether everything that went into this group leaves the object
-    around it answerable for.  Cleared by a key or a value holding a
-    character that could not be written, which goes in as however much
-    of it fitted, or by a value that did not read as JSON.  Reset for
+    around it answerable for.  Cleared by a value that did not read as
+    JSON, or one holding a character that could not be written, which
+    leaves the string it was being written into unclosed.  Reset for
     each group by clear(), and kept apart from the flag above for the
     same reason as in the sister aggregate - one means a pair is
     missing, this one that the pairs are all there and still do not make
-    a document.
+    a document.  Either way there is no object to return, so a group
+    this is cleared for is refused when it is asked for.
+
+    A KEY holding such a character is neither: it goes in as the empty
+    key with its pair finished round it, so the object is a document
+    whose keys are not the ones that were asked for, and the note raised
+    where it happens is the whole of what is said about it.
   */
   bool m_pairs_valid;
   /*
@@ -1084,15 +1126,16 @@ class Item_func_json_objectagg : public Item_sum
     The group has been cut back to fit group_concat_max_len and nothing
     further goes into it.  A later pair small enough to fit in what is
     left would go in behind the pair that did not fit, putting the
-    object out of the order the group was read in.  Reset for each group
-    by clear().
+    object out of the order the group was read in.  Once this is set,
+    add() evaluates neither argument.  Reset for each group by clear().
   */
   bool m_cut;
   /*
     Which row of this group is being added, counted over the rows that
     have a key to make a pair of - a row whose key is NULL is not one of
-    them and is not counted.  Only the cut warning reads it, to say
-    where the group stopped.
+    them and is not counted.  Neither is a row read after the cut, whose
+    key is not evaluated.  Only the cut warning reads it, to say where
+    the group stopped, and it has been raised by then.
 
     Counted per group, where the sister aggregate's row_count runs on
     across the groups of a statement.  Nothing here needs it to run on,
@@ -1147,6 +1190,13 @@ public:
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
   uint last_depth() const override { return m_marks.depth(); }
+  /*
+    A document or nothing, for the reason given where the sister
+    aggregate declares the same.
+  */
+  bool is_valid_json_static() const override { return true; }
+  /* Asked for rather than read off, also as in the sister aggregate. */
+  bool is_null() override { update_null_value(); return null_value; }
   void clear() override;
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }        // not used

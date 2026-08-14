@@ -40,19 +40,19 @@ from_good
 [{"a": 1}]
 SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 2)) AS from_broken;
 from_broken
-[{"a":1,]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_ARRAY((SELECT j FROM tj WHERE id = 3)) AS from_empty;
 from_empty
-[]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 SELECT JSON_OBJECT('k', (SELECT j FROM tj WHERE id = 2)) AS from_broken_object;
 from_broken_object
-{"k": {"a":1,}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
 #
 #    The compact one reads perfectly well and is simply not
 #    written the way this function writes.
@@ -167,16 +167,16 @@ Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
 SET SESSION group_concat_max_len = @save_len;
 SELECT JSON_ARRAYAGG(j) AS agg_broken FROM tj;
 agg_broken
-[{"a": 1},{"a":1,,,{"a":1}]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
 SELECT JSON_OBJECTAGG(id, j) AS objagg_broken FROM tj;
 objagg_broken
-{"1":{"a": 1}, "2":{"a":1,, "3":, "4":{"a":1}}
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
-Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
 #
 # 6. Character sets
 #
@@ -187,12 +187,15 @@ Note	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
 SELECT HEX(JSON_ARRAY(_swe7 0x61)) AS array_in_swe7,
 JSON_VALID(JSON_ARRAY(_swe7 0x61)) AS array_in_swe7_valid;
 array_in_swe7	array_in_swe7_valid
-5B2261225D	0
+NULL	NULL
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 SELECT HEX(JSON_ARRAYAGG(CONVERT(s USING swe7))) AS agg_in_swe7 FROM tg;
 agg_in_swe7
-5B2261222C2262222C2263222C2264225D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
 SELECT HEX(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING ucs2))) AS array_in_ucs2,
 JSON_VALID(JSON_ARRAY(CONVERT(_utf8mb4 0xC3A9 USING ucs2)))
 AS array_in_ucs2_valid;
@@ -287,9 +290,9 @@ Note	4036	Character disallowed in JSON in argument 1 to function 'json_valid' at
 SELECT JSON_ARRAY(CONVERT(CONVERT(JSON_OBJECT('a', 1) USING ucs2)
 USING binary)) AS built_from_relabelled;
 built_from_relabelled
-[ { " a " :   1 }]
+NULL
 Warnings:
-Note	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_array' at position 1
 #
 # 8. Values that arrive through a reference
 #
@@ -300,9 +303,9 @@ through_derived
 SELECT JSON_ARRAY(x) AS through_broken_derived
 FROM (SELECT j AS x FROM tj WHERE id = 2) d;
 through_broken_derived
-[{"a":1,]
+NULL
 Warnings:
-Note	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
 CREATE VIEW v1 AS SELECT JSON_OBJECT('a', 1) AS x;
 SELECT JSON_ARRAY(x) AS through_view FROM v1;
 through_view

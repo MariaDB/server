@@ -79,10 +79,14 @@ srch
 222422
 SELECT HEX(JSON_ARRAY(CONVERT('1' USING swe7), CONVERT('2' USING swe7))) AS arr;
 arr
-5B2231222C202232225D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
 SELECT HEX(JSON_OBJECT(CONVERT('a' USING swe7), CONVERT('1' USING swe7))) AS obj;
 obj
-7B2261223A202231227D
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_object' at position 1
 SELECT HEX(JSON_QUERY(CONVERT('1' USING swe7), '$')) AS qry;
 qry
 NULL

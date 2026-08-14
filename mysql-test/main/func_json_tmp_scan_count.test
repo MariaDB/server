@@ -55,9 +55,9 @@ SELECT JSON_ARRAY(x) AS r FROM
 SHOW STATUS LIKE 'Json_scans';
 
 --echo #
---echo # 4. The same shape with a producer that answers per evaluation
---echo # rather than for every one of them.  Nothing can be said about the
---echo # column at the time it is made, so each row is read on the way out.
+--echo # 4. The same shape with a producer that attests for its class.
+--echo # The claim holds for the column at the time it is made, so no row
+--echo # is read on the way out.
 --echo #
 FLUSH STATUS;
 SELECT JSON_ARRAY(x) AS r FROM
@@ -144,10 +144,10 @@ SELECT JSON_ARRAYAGG(JSON_EXTRACT(j, '$')) AS r FROM t1;
 SHOW STATUS LIKE 'Json_scans';
 
 --echo #
---echo # 12. The same, with a producer that attests per evaluation rather
---echo # than to every value it makes.  Its column is read on the way out,
---echo # so the total matches 11 from the other side: 11's two readings are
---echo # the producer's own, these two are the readings back 11 was spared.
+--echo # 12. The same, with a producer that attests for its class.  The
+--echo # column takes that claim, so the elements are not read back and
+--echo # nothing is counted here - where 11 pays two readings for the
+--echo # values its producer parsed itself.
 --echo #
 FLUSH STATUS;
 SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id)) AS r FROM t1;
@@ -287,11 +287,11 @@ SHOW STATUS LIKE 'Json_scans';
 SET SESSION debug_dbug= @old_debug;
 
 --echo #
---echo # 22. The same UNION with one branch that attests per evaluation
---echo # rather than to every value it makes.  One branch not attesting is
---echo # the whole column not attesting, there being no telling which
---echo # branch a row came out of once it is in there.  So every row is
---echo # read on the way out - four - on top of the two the JSON_EXTRACT
+--echo # 22. The same UNION where both branches attest for their class,
+--echo # which is what a column needs: there is no telling which branch a
+--echo # row came out of once it is in there, so one branch not attesting
+--echo # would be the whole column not attesting.  No row is read on the
+--echo # way out, and the two counted here are the ones the JSON_EXTRACT
 --echo # branch read itself.
 --echo #
 FLUSH STATUS;
@@ -324,8 +324,10 @@ WITH d(x) AS
 SELECT JSON_ARRAY(x) AS r FROM d ORDER BY r;
 SHOW STATUS LIKE 'Json_scans';
 --echo #
---echo # And one list that answers per evaluation is the same column not
---echo # answering, exactly as one branch is.
+--echo # And a list whose producer attests for its class leaves the
+--echo # column attesting, exactly as a branch does.  The one counted
+--echo # here is the JSON_EXTRACT list reading its own value; the
+--echo # constructor reads nothing.
 --echo #
 FLUSH STATUS;
 WITH d(x) AS

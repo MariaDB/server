@@ -270,15 +270,23 @@ INSERT INTO t6 SELECT JSON_SET('{"a":1}', '$.b', 2);
 INSERT INTO t6 SELECT JSON_ARRAY(1,2);
 INSERT INTO t6 SELECT JSON_OBJECT('a',1);
 SELECT j FROM t6;
---echo # a value the constructor built that the check does not accept
+--echo # a value the constructor will not build.  A released server built
+--echo # something 32 deep, which is one too many to read back, and the
+--echo # check on the column was what caught it.  The constructor now
+--echo # answers NULL, and the complaint that says why is a warning, which
+--echo # a statement inserting under strict mode makes an error of - so
+--echo # the statement stops at the value rather than at the column, and
+--echo # says what is wrong with the value.
 CREATE TABLE t7 (j JSON);
---error ER_CONSTRAINT_FAILED
+--error ER_JSON_DEPTH
 INSERT INTO t7 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
 SELECT COUNT(*) AS stored FROM t7;
---echo # the same value stored into a plain LONGTEXT column
+--echo # the same value into a plain LONGTEXT column, which has no check
+--echo # on it to reach: the constructor is where it stops either way
 CREATE TABLE t8 (j LONGTEXT);
+--error ER_JSON_DEPTH
 INSERT INTO t8 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
-SELECT JSON_VALID(j) AS v, LENGTH(j) AS len FROM t8;
+SELECT COUNT(*) AS stored FROM t8;
 --echo # a value that is truncated on the way into the column
 CREATE TABLE t9 (j VARCHAR(10));
 SET @@sql_mode='';

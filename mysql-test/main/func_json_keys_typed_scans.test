@@ -9,10 +9,12 @@
 --echo # sjis decodes every ASCII byte to itself and is flagged as not
 --echo # ASCII-compatible all the same, so the array it answers is a
 --echo # perfectly good document with no mark on it, and the splice reads
---echo # it again.  utf8mb4 stands beside it, over the same document,
---echo # where the mark is given and the splice reads nothing - which is
---echo # what makes the count a fact about the set rather than about the
---echo # document or the splice.
+--echo # it again.  The constructor round it then reads its own answer
+--echo # once more, that flag being the only warning it has that a set
+--echo # might not write the brackets as brackets - a set that says
+--echo # nothing against itself is not read at all.  utf8mb4 stands
+--echo # beside it, over the same document, where no reading happens on
+--echo # either count.
 --echo #
 --echo # What the answers themselves look like is in
 --echo # func_json_keys_typed.
