@@ -9701,6 +9701,25 @@ SEL_ARG *Field::stored_field_make_mm_leaf_bounded_int(RANGE_OPT_PARAM *param,
 }
 
 
+/*
+  Check whether a partial (prefix) key segment cannot be used as a range
+  bound because of the collation.
+
+  For a collation with a complex, non one-to-one character-to-weight mapping
+  (contractions, expansions or ignorable characters: MY_CS_NON1TO1) the sort
+  key of a character prefix does not preserve the ordering of the full value,
+  so neither a lower nor an upper prefix bound is sound.
+  Equality is unaffected and keeps using the prefix (the full condition is
+  always rechecked).
+*/
+static bool prefix_key_part_unsafe_for_range(const KEY_PART *key_part,
+                                             const Field *field)
+{
+  return (key_part->flag & HA_PART_KEY_SEG) &&
+         (field->charset()->state & MY_CS_NON1TO1);
+}
+
+
 SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
                                           KEY_PART *key_part,
                                           scalar_comparison_op op,
@@ -9715,12 +9734,20 @@ SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
 
   switch (op) {
   case SCALAR_CMP_LE:
+    if (prefix_key_part_unsafe_for_range(key_part, this))
+      DBUG_RETURN(0);
     DBUG_RETURN(new (mem_root) SEL_ARG_LE(str, this));
   case SCALAR_CMP_LT:
+    if (prefix_key_part_unsafe_for_range(key_part, this))
+      DBUG_RETURN(0);
     DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, key_part, this, value));
   case SCALAR_CMP_GT:
+    if (prefix_key_part_unsafe_for_range(key_part, this))
+      DBUG_RETURN(0);
     DBUG_RETURN(new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value));
   case SCALAR_CMP_GE:
+    if (prefix_key_part_unsafe_for_range(key_part, this))
+      DBUG_RETURN(0);
     DBUG_RETURN(new (mem_root) SEL_ARG_GE(thd, str, key_part, this, value));
   case SCALAR_CMP_EQ:
   case SCALAR_CMP_EQUAL:
