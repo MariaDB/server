@@ -60,6 +60,22 @@ public:
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
+#if !defined(HAVE_WOLFSSL) && OPENSSL_VERSION_NUMBER >= 0x40000000L
+    /* MDEV-39509: In OpenSSL 4.0, EVP_CIPHER_CTX_new initializes the internal
+      iv_len with a sentinel value of -1. If EVP_CipherInit_ex is called with
+      cipher, key, and ii in a single step, the provider validates the IV
+      against this uninitialized state before the cipher's default
+      metadata is applied, resulting in an "invalid iv length" error.
+
+      We perform a two-stage initialization: first, bind the cipher to the
+      context to "thaw" the metadata and set the correct default iv_len.
+      Second, provide the actual Key and IV data. This approach is used
+      instead of EVP_CipherInit_ex2 to maintain compatibility with FIPS mode.
+    */
+    if (EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, encrypt) != 1)
+      return MY_AES_OPENSSL_ERROR;
+#endif
+
     if (EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt) != 1)
       return MY_AES_OPENSSL_ERROR;
 
