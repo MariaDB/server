@@ -614,16 +614,66 @@ SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
 a	b	rnk
 3	3	1
 DROP TABLE th;
-EXPLAIN EXTENDED SELECT count(*) OVER w, sum(b) OVER w, avg(b) OVER w, min(b) OVER w, max(b) OVER w FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	11	10.0000	10	10
+2	1	10	2	22	10.0000	10	10
+3	1	20	4	56	12.5000	10	20
+4	2	20	5	78	14.0000	10	20
+5	2	20	6	100	15.0000	10	20
+6	2	30	7	132	17.1429	10	30
+7	3	10	3	35	10.0000	10	10
+8	3	30	8	165	18.7500	10	30
+9	3	30	9	198	20.0000	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	11	10.0000	10	10
+2	1	10	2	22	10.0000	10	10
+3	1	20	4	56	12.5000	10	20
+4	2	20	5	78	14.0000	10	20
+5	2	20	6	100	15.0000	10	20
+6	2	30	7	132	17.1429	10	30
+7	3	10	3	35	10.0000	10	10
+8	3	30	8	165	18.7500	10	30
+9	3	30	9	198	20.0000	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	1	20	20.0000	20	20
+5	2	20	2	40	20.0000	20	20
+6	2	30	3	70	23.3333	20	30
+7	3	10	1	10	10.0000	10	10
+8	3	30	2	40	20.0000	10	30
+9	3	30	3	70	23.3333	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	1	20	20.0000	20	20
+5	2	20	2	40	20.0000	20	20
+6	2	30	3	70	23.3333	20	30
+7	3	10	1	10	10.0000	10	10
+8	3	30	2	40	20.0000	10	30
+9	3	30	3	70	23.3333	10	30
 EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
 EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
-EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) FROM t1;
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 5 FOLLOWING) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b, pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
 EXPLAIN EXTENDED SELECT sum(b) OVER () FROM t1;
@@ -632,4 +682,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+SELECT sum(DISTINCT b) OVER (ORDER BY b ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUM(DISTINCT) aggregate as window function'
 DROP TABLE t1;

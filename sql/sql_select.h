@@ -537,7 +537,7 @@ typedef struct st_join_table {
 
   /*
     Non-NULL value means this join_tab (last real table) must do stream window
-    function computation before sending
+    function computation before sending to the client.
   */
   Window_funcs_sort_streaming *window_funcs_streaming_step;
 

@@ -1616,8 +1616,11 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                           &hidden_group_fields))
     DBUG_RETURN(-1);
 
-  // this needs to decide compatibility with main query sorting if exists
-  // but the actual setting of which is set before test_if_need_tmp_table()
+  /*
+    Checks streamability of window functions, which will be used in
+    optimize_stage2() to choose the streaming path if a temp table is not
+    needed for other reasons
+  */
   if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
       have_streaming_window_funcs(thd, select_lex->window_funcs,
                                   win_func_longest_order, order, group_list,
@@ -24999,7 +25002,6 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     {
       enum enum_nested_loop_state rc;
       /* A match from join_tab is found for the current partial join. */
-      // this is the loop
       rc= (*join_tab->next_select)(join, join_tab+1, 0);
       join->thd->get_stmt_da()->inc_current_row_for_warning();
       if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
@@ -26217,17 +26219,21 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
+/*
+  @brief
+    Compute streaming window functions and call end_send to send the row to the
+  client.
+
+  @detail
+    This is attached to the last real table instead of end_send, given that:
+    - Window functions are streamable (see have_streaming_window_funcs)
+    - No temp table is needed for any other reason
+    - The query would have attached end_send to the last real table anyway
+      (incoming rows from the join loop need no further accumulation)
+*/
 enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
                                             bool end_of_records)
 {
-  // this show call process_row with the current row, and the list of window
-  // functions, process row runs cursors for wfs on the current row (will
-  // partition trackers work?)
-  // Then end_send would call the window_func()->val_*() so we need phase
-  // computation to read the live value
-  // we don't even need to pass the row to the window function, because the
-  // add() functions read from the TABLE::record[0] directly, as we did
-  // NOT call split_sum_func(), so we still point to base table
   DBUG_ENTER("end_compute_win_func");
 
   if (!end_of_records)

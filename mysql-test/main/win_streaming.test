@@ -280,34 +280,48 @@ eval $q;
 DROP TABLE th;
 
 #
-# Aggregate window functions: not streamable yet.
+# Streamable aggregate window functions: SUM / COUNT / AVG / MIN / MAX.
 #
-# Aggregates return is_streamable() == false today, so every case below falls
-# back and shows "Using temporary". They split into two groups: the cumulative
-# running frame is only blocked by that is_streamable() gate and is intended to
-# stream once aggregates are enabled; the rest fall back for frame reasons that
-# will remain even then.
+# Aggregate window functions are streamable for ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW (which does not require removal)
 
-# Will stream once aggregates are enabled: an explicit ROWS ... CURRENT ROW
-# frame makes "current row" a physical position, so row N depends only on rows
-# <= N and an O(1) running accumulator is enough. The EXPLAIN EXTENDED will then
-# show "Using filesort" and NOT "Using temporary".
-EXPLAIN EXTENDED SELECT count(*) OVER w, sum(b) OVER w, avg(b) OVER w, min(b) OVER w, max(b) OVER w FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+--let $q= pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+--let $q= pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+#
+# Aggregate window functions that do NOT stream (still "Using temporary").
+#
 
 # Default-frame: ORDER BY with no explicit frame defaults to RANGE, not ROWS.
 # Under RANGE "current row" is the end of the peer group, so a row's value is
-# unknown until the group is scanned ahead and buffered. Looks like the
-# streamable ROWS form above but will not stream.
+# unknown until the group is scanned ahead and buffered.
 EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
 # Explicit RANGE, same peer-group reason.
 EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
-# Bottom bound past CURRENT ROW needs lookahead regardless of units.
-EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) FROM t1;
+# ROWS but bottom bound past CURRENT ROW needs lookahead.
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 5 FOLLOWING) FROM t1;
+# ROWS but top bound is CURRENT ROW (not UNBOUNDED PRECEDING): the frame start
+# moves and removes rows, which needs random access to the departing row.
+EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b, pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW) FROM t1;
 
 # Those span whole partitions, the whole partition must be buffered before the row is emitted,
 # hence no streaming.
 EXPLAIN EXTENDED SELECT sum(b) OVER () FROM t1;
 EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
+
+# DISTINCT aggregates as window functions are not supported on either path (streaming / materialization).
+--error ER_NOT_SUPPORTED_YET
+SELECT sum(DISTINCT b) OVER (ORDER BY b ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
 
 DROP TABLE t1;
 

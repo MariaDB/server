@@ -502,15 +502,6 @@ int compare_order_elements(ORDER *ord1, int weight1,
     return cmp > 0 ? CMP_GT : CMP_LT;
 }
 
-/*
-  Overloaded to take ORDER* objects instead of SQL_I_List<ORDER>* (the longest
-  wf order list, and the main query order list).
-  Note that we use -1 for the spec_number of the main query order list, as
-  window spec numbers start from 0.
-  Returns CMP_EQ if the lists are equal or NULL, CMP_LT_C if the first list is
-  NULL or a prefix of the second list, CMP_GT_C if the second list is NULL or
-  a prefix of the first list, and CMP_LT or CMP_GT otherwise.
-*/
 static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
                                int spec_number2)
 {
@@ -805,22 +796,22 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 }
 
 /*
-  Returns true if the window frame is unbounded preceding or current row.
+  Returns true for ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
+
+  This is the only frame for which the set of rows in the frame grows by one
+  per row and never shrinks.
 */
 static inline bool frame_is_streaming_compatible(Window_spec *win_spec)
 {
   Window_frame *frame= win_spec->window_frame;
-  if (!frame)
-    return true;
-  if (frame->units != Window_frame::Frame_units::UNITS_ROWS)
+  // This means a RANGE frame by default for aggregate functions.
+  if (!frame || frame->units != Window_frame::Frame_units::UNITS_ROWS)
     return false;
-  bool unbounded_preceding_or_current=
-      frame->top_bound->precedence_type == Window_frame_bound::CURRENT ||
-      (frame->top_bound->precedence_type == Window_frame_bound::PRECEDING &&
-       frame->top_bound->is_unbounded());
-  return (unbounded_preceding_or_current &&
-          win_spec->window_frame->bottom_bound->precedence_type ==
-              Window_frame_bound::CURRENT);
+
+  if (!(frame->top_bound->precedence_type == Window_frame_bound::PRECEDING &&
+        frame->top_bound->is_unbounded()))
+    return false;
+  return (frame->bottom_bound->precedence_type == Window_frame_bound::CURRENT);
 }
 
 static inline bool check_argument_list_aggregation(Window_spec *win_spec)
@@ -882,12 +873,40 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
   return longest;
 }
 
-// 1. Checks if all window function orderings are compatible.
-// 2. We check each fucntion from our subset or no (let it be rank and
-// row_number for now)
-// 3. frame only current row (normal), or unbounded preceding (for sum
-// functions and stuff like that, can be skipped now)
-// 4. Longest order is compatible with main query order (if exists) or not.
+/*
+  Decide whether all window functions in the SELECT can be computed in a single
+  streaming pass over the join output (no temporary table), and if so work out
+  the sort order that pass must use.
+
+  Returns true if:
+
+    1. All window specs share one most-specific ordering: one window's
+       PARTITION BY + ORDER BY is a prefix-compatible superset of every other's
+       (find_longest_compatible_order()). That longest order becomes the sort
+  key.
+
+    2. Every function is streamable:
+       - window_func()->is_streamable() (ROW_NUMBER, RANK, DENSE_RANK and the
+         running aggregates SUM, COUNT, AVG, MIN, MAX),
+       - it is not a DISTINCT aggregate (the streaming path uses the SIMPLE
+         aggregator and cannot deduplicate), and
+       - no PARTITION BY / ORDER BY expression contains an aggregate
+         (check_argument_list_aggregation()).
+
+    3. The frame is prohibited or streamable: for aggregates it must be exactly
+       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       (frame_is_streaming_compatible()).
+
+    4. The longest window order is compatible (equal, or one a prefix of the
+       other) with the main query ORDER BY, and with the GROUP BY list when
+       present, so a single sort satisfies both the window(s) and the query.
+
+  On success it sets:
+    longest_wf_order             - the order the streaming sort should use.
+    streaming_wf_order_is_longer - true if that order extends the main query
+                                   ORDER BY (so it replaces it as the sort
+  key).
+*/
 bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *&longest_wf_order,
                                  ORDER *main_query_order,
@@ -909,9 +928,11 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
   while ((win_func= it++))
   {
     Window_spec *spec= win_func->window_spec;
-    if (check_argument_list_aggregation(spec) ||
-        !(win_func->window_func()->is_streamable() &&
-          frame_is_streaming_compatible(win_func->window_spec)))
+    Item_sum *sum_func= win_func->window_func();
+    if (!sum_func->is_streamable() || sum_func->has_with_distinct() ||
+        check_argument_list_aggregation(spec) ||
+        (!win_func->is_frame_prohibited() &&
+         !frame_is_streaming_compatible(spec)))
       return false;
   }
 
@@ -2867,9 +2888,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
    those window functions will be registered to the same cursor.
 */
 bool get_window_functions_required_cursors(
-    THD *thd,
-    List<Item_window_func>& window_functions,
-    List<Cursor_manager> *cursor_managers)
+    THD *thd, List<Item_window_func> &window_functions,
+    List<Cursor_manager> *cursor_managers, bool for_streaming= false)
 {
   List_iterator_fast<Item_window_func> it(window_functions);
   Item_window_func* item_win_func;
@@ -2943,7 +2963,7 @@ bool get_window_functions_required_cursors(
     cursor_manager->add_cursor(frame_bottom);
     cursor_manager->add_cursor(frame_top);
     if (is_computed_with_remove(sum_func->sum_func()) &&
-        !sum_func->supports_removal())
+        !sum_func->supports_removal() && !for_streaming)
     {
       frame_bottom->set_no_action();
       frame_top->set_no_action();
@@ -3075,8 +3095,7 @@ bool compute_window_func(THD *thd,
     tracker->init();
     partition_trackers.push_back(tracker);
   }
-  // the frame cursor thing i think would not need much change if we assume
-  // current frame = current row
+
   List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
   uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, tbl->file->ref_length, MYF(0));
@@ -3094,6 +3113,7 @@ bool compute_window_func(THD *thd,
     iter_win_funcs.rewind();
     iter_part_trackers.rewind();
     iter_cursor_managers.rewind();
+
     Group_bound_tracker *tracker;
     while ((win_func= iter_win_funcs++) &&
            (tracker= iter_part_trackers++) &&
@@ -3254,7 +3274,6 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
                                      tbl, filesort_result);
   while ((win_func= it++))
   {
-    // we do not want this at all in streaming
     win_func->set_phase_to_retrieval();
   }
 
@@ -3294,7 +3313,6 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
 {
   Window_spec *spec;
   Item_window_func *win_func= it.peek();
-  // reuse this
   Item_window_func *win_func_with_longest_order= NULL;
   int longest_order_elements= -1;
 
@@ -3434,7 +3452,7 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
   List_iterator_fast<Item_window_func> it(window_funcs);
   Item_window_func *win_func;
   if (get_window_functions_required_cursors(thd, window_funcs,
-                                            &cursor_managers))
+                                            &cursor_managers, true))
     return true;
 
   Group_bound_tracker *tracker;
