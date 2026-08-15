@@ -1956,10 +1956,10 @@ gtid_state_from_pos(const char *name, uint32 offset,
         goto end;
       }
 
-      current_checksum_alg= get_checksum_alg((uchar*) packet.ptr(),
-                                             packet.length());
       found_format_description_event= true;
-      if (unlikely(!(tmp= new Format_description_log_event((uchar*) packet.ptr(),
+      if (unlikely(get_checksum_alg((uchar*) packet.ptr(), packet.length(),
+                                    &current_checksum_alg) ||
+                   !(tmp= new Format_description_log_event((uchar*)packet.ptr(),
                                                            packet.length(),
                                                            fdev))))
       {
@@ -2773,6 +2773,8 @@ static int init_binlog_sender(binlog_send_info *info,
 static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                         LOG_INFO *linfo, my_off_t start_pos)
 {
+  static constexpr const char* CORRUPT_FDE=
+    "Corrupt Format_description event found or out-of-memory";
   int error;
   ulong ev_offset;
   THD *thd= info->thd;
@@ -2841,9 +2843,14 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  info->current_checksum_alg= get_checksum_alg((uchar*) packet->ptr() +
-                                               ev_offset,
-                                               packet->length() - ev_offset);
+  if (unlikely(get_checksum_alg((uchar*) packet->ptr() + ev_offset,
+                                packet->length() - ev_offset,
+                                &(info->current_checksum_alg))))
+  {
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    info->errmsg= CORRUPT_FDE;
+    DBUG_RETURN(1);
+  }
 
   DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
               info->current_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
@@ -2871,8 +2878,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                               ev_len, info->fdev)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-    info->errmsg= "Corrupt Format_description event found "
-        "or out-of-memory";
+    info->errmsg= CORRUPT_FDE;
     DBUG_RETURN(1);
   }
   delete info->fdev;
