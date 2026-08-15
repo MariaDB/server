@@ -81,6 +81,8 @@ REPLACE INTO t1 SELECT * FROM t1;
 XA END '2';
 XA PREPARE '2';
 XA ROLLBACK '2';
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 DROP SEQUENCE s;
 DROP TABLE t1;
 # Proof of  correct logging incl empty XA-PREPARE

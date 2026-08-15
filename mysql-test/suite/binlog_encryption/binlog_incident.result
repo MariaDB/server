@@ -11,3 +11,73 @@ DROP TABLE t1;
 FLUSH LOGS;
 Contain RELOAD DATABASE
 1
+#
+# MDEV-25488 thd::transaction::modified_non_trans_tables is not set before Rows_log_event caching
+#
+connection default;
+CREATE TABLE t1w (a TEXT) ENGINE = myisam;
+/* `w` stands for write as insert */
+CREATE TABLE t2d (a TEXT) ENGINE = myisam;
+CREATE TABLE t3u (a TEXT) ENGINE = myisam;
+CREATE TABLE t1  (a INT)  ENGINE = innodb;
+CREATE TABLE t2  (a INT)  ENGINE = innodb;
+CREATE FUNCTION f_25488 ()
+RETURNS INTEGER
+BEGIN
+INSERT INTO t2 SET a=1;
+DELETE FROM t1w;
+RETURN 1;
+END |
+SET STATEMENT binlog_format=STATEMENT FOR INSERT INTO t2d VALUES (REPEAT('a', 4096)),(REPEAT('a', 4096)),(REPEAT('a', 4096));
+SET STATEMENT binlog_format=STATEMENT FOR INSERT INTO t3u VALUES (REPEAT('a', 4096)),(REPEAT('a', 4096)),(REPEAT('a', 4096));
+call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage");
+SET @max_binlog_stmt_cache_size         = @@global.max_binlog_stmt_cache_size;
+SET @binlog_stmt_cache_size             = @@global.binlog_stmt_cache_size;
+SET @@global.max_binlog_stmt_cache_size = 4096;
+SET @@global.binlog_stmt_cache_size     = 4096;
+FLUSH LOGS;
+connect  con_i,localhost,root,,;
+SET STATEMENT binlog_format=ROW FOR INSERT INTO t1w VALUES (REPEAT('a', 4096)),(REPEAT('a', 4096)),(REPEAT('a', 4096));
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+SET STATEMENT binlog_format=ROW FOR INSERT INTO t1w SELECT * FROM t3u;
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+connect  con_d,localhost,root,,;
+SET STATEMENT binlog_format=ROW FOR DELETE FROM t2d;
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+connect  con_u,localhost,root,,;
+SET STATEMENT binlog_format=ROW FOR UPDATE t3u SET a = REPEAT('@', 4096);
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+connect  con_f,localhost,root,,;
+SET STATEMENT binlog_format=statement FOR INSERT INTO t1w VALUES (REPEAT('a', 4096)),(REPEAT('a', 4096)),(REPEAT('a', 4096));
+SET STATEMENT binlog_format=ROW FOR INSERT INTO t1 SET a=f_25488();
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+connect  con_g,localhost,root,,;
+SET STATEMENT binlog_format=statement FOR DELETE FROM t1w;
+SET STATEMENT binlog_format=statement FOR INSERT INTO t1w VALUES (REPEAT('a', 3*4096));
+SET STATEMENT binlog_format=ROW FOR INSERT INTO t1 SET a=f_25488();
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage.
+# The proof.
+connection default;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; SET STATEMENT binlog_format=statement FOR INSERT INTO t1w VALUES (REPEAT('a', 4096)),(REPEAT('a', 4096)),(REPEAT('a', 4096))
+master-bin.000004	#	Query	#	#	COMMIT
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; SET STATEMENT binlog_format=statement FOR DELETE FROM t1w
+master-bin.000004	#	Query	#	#	COMMIT
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; SET STATEMENT binlog_format=statement FOR INSERT INTO t1w VALUES (REPEAT('a', 3*4096))
+master-bin.000004	#	Query	#	#	COMMIT
+master-bin.000004	#	Incident	#	#	#1 (LOST_EVENTS)
+SET @@global.max_binlog_stmt_cache_size = @max_binlog_stmt_cache_size;
+SET @@global.binlog_stmt_cache_size     = @binlog_stmt_cache_size;
+DROP TABLE t1w,t2d,t3u,t1,t2;
+DROP FUNCTION f_25488;
