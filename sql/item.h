@@ -1942,6 +1942,43 @@ public:
   virtual uint last_depth_result() const { return last_depth(); }
 
   /*
+    The argument of the wrapper that aggregating character sets puts
+    round an item whose value has to move to another one, and that
+    CONVERT(x USING cs) is written as, or NULL from every other item -
+    which is to say, this asks "are you that wrapper, and if so what
+    are you put round".
+
+    It is here so that a caller that has to look through the wrapper to
+    reach the item underneath can be told, instead of working it out
+    from the object it was handed.  is_json_type() is that caller: the
+    wrapper round a document is put there for the character set and
+    leaves a document, so a look that stopped at it would take the
+    documents moved between character sets for values that have to be
+    quoted.  It is asked once per value written into a container and
+    once per argument sized, which between them is nearly every
+    argument the JSON functions are given.
+
+    The two ways of working it out from the object are both worse.  A
+    dynamic_cast that fails walks the base classes of what it was
+    handed and cannot stop early, absence being provable only by
+    exhausting the graph, and Item derives from two classes, so every
+    item that reaches it is walked as the multiple-inheritance case;
+    no is the answer for all but a few.  A Functype of the wrapper's
+    own would be one comparison, but Functype is dispatched on by
+    engines outside the tree, several of which take UNKNOWN_FUNC to
+    mean "printed by name" - a wrapper that stopped answering it would
+    fall out of their dispatch, and what they build would lose the
+    conversion rather than refuse it.  A virtual answers the one
+    question that is being asked and is read by nothing else.
+
+    NULL is read as "not that wrapper, nothing to look through", never
+    as an error, and anything that comes to derive from the wrapper
+    inherits the answer - which is what the cast this replaces would
+    have said about it too.
+  */
+  virtual Item *conv_charset_arg() const { return NULL; }
+
+  /*
     Return decimal representation of item with fixed point.
 
     SYNOPSIS

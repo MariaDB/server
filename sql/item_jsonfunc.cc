@@ -3109,10 +3109,18 @@ bool is_json_type(const Item *item)
   {
     if (Type_handler_json_common::is_json_type_handler(item->type_handler()))
       return true;
-    const Item_func_conv_charset *func;
-    if (!(func= dynamic_cast<const Item_func_conv_charset*>(item->real_item())))
+    /*
+      The wrapper is asked what it is put round rather than made to
+      prove what it is, which is one virtual call where a dynamic_cast
+      walks the base classes of whatever it was handed before it can
+      say no.  Every argument that is not a document reaches here and
+      is told no, and on the arms this is called from those are most of
+      them.
+    */
+    Item *arg= item->real_item()->conv_charset_arg();
+    if (!arg)
       return false;
-    item= func->arguments()[0];
+    item= arg;
   }
   return false;
 }

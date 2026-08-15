@@ -2094,6 +2094,13 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("convert") };
     return name;
   }
+  /*
+    What this wrapper is put round.  A caller looking through it for the
+    item underneath is told, rather than working out from the object
+    that this is what it was handed - see Item::conv_charset_arg(),
+    which says why that is worth a virtual of its own.
+  */
+  Item *conv_charset_arg() const override { return args[0]; }
   bool is_valid_json() const override { return m_marks.valid(); }
   bool is_nice_json() const override { return m_marks.nice(); }
   uint last_depth() const override { return m_marks.depth(); }
