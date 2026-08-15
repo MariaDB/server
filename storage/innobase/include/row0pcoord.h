@@ -119,15 +119,27 @@ class Parallel_coordinator
 
     /** Constructor.
     @param[in] start            Start key
-    @param[in] end              End key. */
-    Scan_range(const dtuple_t *start, const dtuple_t *end)
-        : m_start(start), m_end(end) {}
+    @param[in] end              End key.
+    @param[in] end_inclusive    Whether records equal to 'end' belong to the
+                                scan. */
+    Scan_range(const dtuple_t *start, const dtuple_t *end,
+               bool end_inclusive= false)
+        : m_start(start), m_end(end), m_end_inclusive(end_inclusive) {}
 
     /** Start of the scan, can be nullptr for -infinity. */
     const dtuple_t *m_start{};
 
     /** End of the scan, can be null for +infinity. */
     const dtuple_t *m_end{};
+
+    /** Whether m_end itself is part of the scan.
+
+    Chunks tile as [start, end): a chunk's start is inclusive and its end is
+    exclusive - the same key is one chunk's end and the next chunk's start.
+    A chunk end is therefore never inclusive, and this flag only describes the
+    caller's own upper bound, so it can only be true for a range scan. A full
+    table scan passes m_end == NULL. */
+    bool m_end_inclusive{};
 
     /** Convert the instance to a string representation. */
     [[nodiscard]] std::string to_string() const;
@@ -183,6 +195,16 @@ class Parallel_coordinator
     size_t m_worker_idx;
     Parallel_coordinator *m_pcoordinator;
     std::shared_ptr<Parallel_coordinator::Exec_ctx> m_exec_ctx{};
+
+    /** Whether m_exec_ctx still has to be positioned. Cleared by the first
+    read of the chunk, set again when the next chunk is picked up. */
+    bool m_first_call{};
+
+    /** Whether the interval's lower bound still has to be checked. A chunk
+    is entered inclusively, so an exclusive bound needs the first rows
+    filtered; rows arrive in ascending key order, so this clears as soon as
+    one row clears the bound. */
+    bool m_check_start{};
   };
 
   /** Constructor */
@@ -416,8 +438,12 @@ class Parallel_coordinator::Scan_ctx {
   the Parallel_coordinator's run queue.
   @param[in] range              Range for which to create the context.
   @param[in] split              true if the sub-tree should be split further.
+  @param[in] end_inclusive      true if records equal to the range's end
+                                belong to it. Only ever true for the chunk
+                                that ends at the caller's own upper bound.
   @return DB_SUCCESS or error code. */
-  [[nodiscard]] dberr_t create_context(const Range &range, bool split);
+  [[nodiscard]] dberr_t create_context(const Range &range, bool split,
+                                       bool end_inclusive= false);
 
   /** Create the execution contexts based on the ranges.
   @param[in]  ranges            Ranges for which to create the contexts.
@@ -509,6 +535,13 @@ class Parallel_coordinator::Exec_ctx {
 
   /** Range to read in this context. */
   Scan_ctx::Range m_range{};
+
+  /** Whether a record equal to m_range.second belongs to this chunk.
+
+  Chunks tile as [start, end), so this is false for every chunk except the
+  one ending at the caller's own inclusive upper bound. It reaches the row
+  clamp through row_prebuilt_t::set_pscan_end_tuple(). */
+  bool m_end_inclusive{};
 
   /** Scanner context. */
   Scan_ctx *m_scan_ctx{};
