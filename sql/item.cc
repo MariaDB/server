@@ -9760,21 +9760,21 @@ String *Item_cache_wrapper::val_str(String* str)
   DBUG_ENTER("Item_cache_wrapper::val_str");
   if (!expr_cache)
   {
-    String *tmp= orig_item->val_str(str);
+    String *tmp= m_value_arm.read(orig_item, str);
     null_value= orig_item->null_value;
     DBUG_RETURN(tmp);
   }
 
   if ((cached_value= check_cache()))
   {
-    String *tmp= cached_value->val_str(str);
+    String *tmp= m_value_arm.read(cached_value, str);
     null_value= cached_value->null_value;
     DBUG_RETURN(tmp);
   }
   cache();
   if ((null_value= expr_value->null_value))
     DBUG_RETURN(NULL);
-  DBUG_RETURN(expr_value->val_str(str));
+  DBUG_RETURN(m_value_arm.read(expr_value, str));
 }
 
 
@@ -11337,11 +11337,13 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 
 bool Item_cache_str::cache_value()
 {
+  bool kept= true;
   if (!example)
   {
     DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
   }
+  m_marks.clear();
   value_cached= TRUE;
   THD *thd= current_thd;
   const bool err= thd->is_error();
@@ -11361,12 +11363,24 @@ bool Item_cache_str::cache_value()
              (select c from t1 where a=t2.a)
         from t2;
     */
-    value_buff.copy(*value);
+    kept= !value_buff.copy(*value);
     value= &value_buff;
   }
   else
-    value_buff.copy();
+    kept= !value_buff.copy();
   value_buff.mark_as_const();
+  /*
+    The item was evaluated just above and nothing has evaluated it since,
+    so this is the one moment its answers are about the bytes being kept
+    here.  They are asked of its result side because str_result() is what
+    was read.  String::copy() takes the character set along with the
+    bytes, so the characters answered about are the characters kept - a
+    copy that could not get the room keeps nothing this can attest to.
+  */
+  if (value && kept)
+    m_marks.set(value, example->is_valid_json_result(),
+                example->is_nice_json_result(),
+                example->last_depth_result());
   return TRUE;
 }
 

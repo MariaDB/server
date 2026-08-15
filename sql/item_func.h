@@ -1092,6 +1092,31 @@ public:
 */
 class Item_func_case_expression: public Item_func_hybrid_field_type
 {
+protected:
+  /*
+    What this item returns is what one of its arguments returned, byte
+    for byte, so the questions below are put to that argument.  Every
+    path that returns a string value reads it through here.
+  */
+  Json_value_arm m_value_arm;
+  String *read_arm(Item *arm, String *str)
+  { return m_value_arm.read(arm, str); }
+
+  /*
+    Whether every one of 'count' arguments starting at 'first' returns a
+    document or nothing at all each time it is evaluated.  One of them
+    will be the one this item returns and nothing here knows which, so
+    what can be said before any of them is evaluated is only what they
+    all say.
+  */
+  bool args_are_valid_json_static(uint first, uint count) const
+  {
+    for (uint i= first; i < first + count; i++)
+      if (!args[i]->is_valid_json_static())
+        return false;
+    return true;
+  }
+
 public:
   Item_func_case_expression(THD *thd)
    :Item_func_hybrid_field_type(thd)
@@ -1109,6 +1134,31 @@ public:
     Item_func_hybrid_field_type(thd, list)
   { }
   bool find_not_null_fields(table_map allowed) override { return false; }
+
+  /*
+    Asked for a document rather than for a string, which is a request the
+    argument has to see - see Json_value_arm.  val_str() is what reaches
+    str_op(), and str_op() is what reads the argument.
+  */
+  String *val_json(String *str) override
+  {
+    m_value_arm.want_json(true);
+    String *res= val_str(str);
+    m_value_arm.want_json(false);
+    return res;
+  }
+
+  /*
+    Nothing is said where the evaluation produced no value: NULL is not a
+    document, and the argument written down would then be whichever one
+    was read last rather than one this item returned.
+  */
+  bool is_valid_json() const override
+  { return !null_value && m_value_arm.valid(); }
+  bool is_nice_json() const override
+  { return !null_value && m_value_arm.nice(); }
+  uint last_depth() const override
+  { return null_value ? JSON_DEPTH_UNKNOWN : m_value_arm.depth(); }
 };
 
 

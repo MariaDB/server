@@ -935,6 +935,48 @@ public:
 };
 
 
+/*
+  What an item that returns a value one of its arguments made needs in
+  order to pass on what that argument said about it.  Such an item copies
+  the bytes out and adds nothing of its own to them, so the three
+  questions above are answered by putting them to the argument that made
+  the value.
+
+  Which argument that was is written down while the value is being read.
+  It cannot be worked out afterwards: some of these items find their
+  argument by reading it, and the rest are told which one by a condition
+  that may hold a subquery or a stored program, so asking a second time
+  would run those a second time.
+*/
+class Json_value_arm
+{
+  Item *m_arm;
+  /*
+    Whether the value is being read for a caller that asked for a
+    document.  An argument that keeps a value of its own returns a view
+    of it from val_str() and a copy from val_json(), and an item that
+    passes values on has to pass that request on with them.
+  */
+  bool m_read_as_json;
+public:
+  Json_value_arm() : m_arm(NULL), m_read_as_json(false) {}
+  /*
+    A copy is a new item that has not been evaluated, so it has read no
+    argument and there is nothing for it to pass on.  Json_result_marks
+    is not copied for the same reason.
+  */
+  Json_value_arm(const Json_value_arm &)
+   : m_arm(NULL), m_read_as_json(false) {}
+  /* Read the value off the argument that is returning it. */
+  String *read(Item *arm, String *str);
+  /* Have the reads above made with val_json() rather than val_str(). */
+  void want_json(bool want) { m_read_as_json= want; }
+  bool valid() const;
+  bool nice() const;
+  uint depth() const;
+};
+
+
 class Item :public Value_source,
             public Type_all_attributes
 {
@@ -6688,6 +6730,13 @@ private:
   */
   Item_cache *expr_value;
 
+  /*
+    What this item returns is what the expression returned or what the
+    cache kept of it, and it adds nothing of its own to either.  See
+    Json_value_arm.
+  */
+  Json_value_arm m_value_arm;
+
   List<Item> parameters;
 
   Item *check_cache();
@@ -6711,6 +6760,30 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String* tmp) override;
+  /*
+    Asked for a document, which is a request whatever returns the value
+    has to see - see Json_value_arm.  val_str() below is what reads it.
+  */
+  String *val_json(String* tmp) override
+  {
+    m_value_arm.want_json(true);
+    String *res= val_str(tmp);
+    m_value_arm.want_json(false);
+    return res;
+  }
+  bool is_valid_json() const override
+  { return !null_value && m_value_arm.valid(); }
+  bool is_nice_json() const override
+  { return !null_value && m_value_arm.nice(); }
+  uint last_depth() const override
+  { return null_value ? JSON_DEPTH_UNKNOWN : m_value_arm.depth(); }
+  /*
+    A property of the expression rather than of any value it has
+    produced.  The cache keeps every character of what the expression
+    returns, so what holds of the expression holds of the cache.
+  */
+  bool is_valid_json_static() const override
+  { return orig_item->is_valid_json_static(); }
   bool val_native(THD *thd, Native *to) override;
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
@@ -8588,7 +8661,18 @@ class Item_cache_str: public Item_cache
   char buffer[STRING_BUFFER_USUAL_SIZE];
   String *value, value_buff;
   bool is_varbinary;
-  
+  /*
+    What the item this was cached from said about the value at the
+    moment it was cached, which is the moment the two are about the same
+    bytes.  Asking that item later would pair an answer about whatever
+    it has gone on to produce with the copy kept here - the copy being
+    the point of this item, and being what val_str() below returns.
+
+    Taken beside the copy exactly as Item_copy_string does over the value
+    it keeps.
+  */
+  Json_result_marks m_marks;
+
 public:
   Item_cache_str(THD *thd, const Item *item):
     Item_cache(thd, item->type_handler()), value(0),
@@ -8608,6 +8692,25 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
+  /*
+    Asked next to val_str(), which returns the bytes these are about.
+    A cache emptied by clear() or set_null() keeps no value at all, and
+    what was said about the one it used to keep is not said about that.
+  */
+  bool is_valid_json() const override
+  { return !null_value && m_marks.valid(); }
+  bool is_nice_json() const override
+  { return !null_value && m_marks.nice(); }
+  uint last_depth() const override
+  { return null_value ? JSON_DEPTH_UNKNOWN : m_marks.depth(); }
+  /*
+    A property of the item being cached rather than of any value it has
+    produced, so it is answered whether or not anything has been cached
+    yet.  The copy keeps every character of what that item returns, so
+    what holds of the one holds of the other.
+  */
+  bool is_valid_json_static() const override
+  { return example && example->is_valid_json_static(); }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str>(thd, this); }

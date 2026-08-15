@@ -1569,6 +1569,36 @@ bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
 }
 
 
+/*
+  A row subquery has more than one cache and none of them is the value,
+  which is what 'value' is NULL for; a subquery that has not been fixed
+  yet has none at all.
+*/
+
+bool Item_singlerow_subselect::is_valid_json() const
+{
+  return value && value->is_valid_json();
+}
+
+
+bool Item_singlerow_subselect::is_nice_json() const
+{
+  return value && value->is_nice_json();
+}
+
+
+uint Item_singlerow_subselect::last_depth() const
+{
+  return value ? value->last_depth() : JSON_DEPTH_UNKNOWN;
+}
+
+
+bool Item_singlerow_subselect::is_valid_json_static() const
+{
+  return value && value->is_valid_json_static();
+}
+
+
 my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed());

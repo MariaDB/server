@@ -1237,6 +1237,50 @@ void Json_result_marks::set(const String *str, bool valid, bool nice,
 }
 
 
+String *Json_value_arm::read(Item *arm, String *str)
+{
+  m_arm= arm;
+  String *res= m_read_as_json ? arm->val_json(str) : arm->val_str(str);
+  /*
+    An item that passes a value on passes the argument's answers on with
+    it, unread.  This is the one moment both are in hand, so a debug
+    build holds the one against the other here, for the reason given at
+    Json_result_marks::set(): nothing else ever would.
+
+    The reading costs nothing where there is no answer to hold, which is
+    every argument that is not a document.
+  */
+  DBUG_ASSERT(!res || !arm->is_valid_json() ||
+              json_value_reads_as_document(res));
+  DBUG_ASSERT(!res || !arm->is_nice_json() || json_value_is_nice(res));
+  return res;
+}
+
+
+/*
+  The three below are the argument's own answers, passed straight on.
+  An item that has read no argument yet says what an item with nothing
+  to say says.
+*/
+
+bool Json_value_arm::valid() const
+{
+  return m_arm && m_arm->is_valid_json();
+}
+
+
+bool Json_value_arm::nice() const
+{
+  return m_arm && m_arm->is_nice_json();
+}
+
+
+uint Json_value_arm::depth() const
+{
+  return m_arm ? m_arm->last_depth() : JSON_DEPTH_UNKNOWN;
+}
+
+
 #define report_json_error(js, je, n_param) \
   report_json_error_ex(js->ptr(), je, func_name(), n_param, \
       Sql_condition::WARN_LEVEL_WARN)
