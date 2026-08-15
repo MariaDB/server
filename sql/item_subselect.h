@@ -323,6 +323,14 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  /*
+    val_str() above returns what the cache holds, so the cache is what is
+    asked.  Out of line because Item_cache is not a complete type here.
+  */
+  bool is_valid_json() const override;
+  bool is_nice_json() const override;
+  uint last_depth() const override;
+  bool is_valid_json_static() const override;
   const Type_handler *type_handler() const override;
   bool fix_length_and_dec() override;
 

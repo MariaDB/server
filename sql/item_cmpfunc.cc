@@ -2469,14 +2469,14 @@ String *
 Item_func_ifnull::str_op(String *str)
 {
   DBUG_ASSERT(fixed());
-  String *res  =args[0]->val_str(str);
+  String *res  = read_arm(args[0], str);
   if (!args[0]->null_value)
   {
     null_value=0;
     res->set_charset(collation.collation);
     return res;
   }
-  res=args[1]->val_str(str);
+  res= read_arm(args[1], str);
   if ((null_value=args[1]->null_value))
     return 0;
   res->set_charset(collation.collation);
@@ -2975,7 +2975,7 @@ Item_func_nullif::str_op(String *str)
     null_value=1;
     return 0;
   }
-  res= args[2]->val_str(str);
+  res= read_arm(args[2], str);
   null_value= args[2]->null_value;
   return res;
 }
@@ -3126,7 +3126,7 @@ String *Item_func_case::str_op(String *str)
     return 0;
   }
   null_value= 0;
-  if (!(res=item->val_str(str)))
+  if (!(res= read_arm(item, str)))
     null_value= 1;
   return res;
 }
@@ -3516,7 +3516,7 @@ String *Item_func_coalesce::str_op(String *str)
   for (uint i=0 ; i < arg_count ; i++)
   {
     String *res;
-    if ((res=args[i]->val_str(str)))
+    if ((res= read_arm(args[i], str)))
       return res;
   }
   null_value=1;
