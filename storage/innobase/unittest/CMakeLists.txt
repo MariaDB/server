@@ -26,7 +26,8 @@ TARGET_LINK_LIBRARIES(innodb_fts-t mysys mytap)
 ADD_DEPENDENCIES(innodb_fts-t GenError)
 MY_ADD_TEST(innodb_fts)
 # See explanation in innobase/CmakeLists.txt
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x"
+   OR CMAKE_SYSTEM_NAME MATCHES "AIX")
   ADD_COMPILE_FLAGS(
       ../sync/srw_lock.cc
       COMPILE_FLAGS "-mhtm"
