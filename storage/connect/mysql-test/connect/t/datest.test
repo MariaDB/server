@@ -26,3 +26,22 @@ SELECT * FROM t1 WHERE col1 >= '2015-02-01';
 SELECT * FROM t1 WHERE col1 < '2015-02-01';
 SELECT * FROM t1 WHERE col1 <= '2015-02-01';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40310 use-of-uninitialized-value in XFILE::Write(_global*, void*, int, int, bool&)
+--echo #
+
+CREATE TABLE t1 (d DATE KEY,
+                dt DATETIME NOT NULL,
+                y YEAR NOT NULL,
+                KEY(d), KEY(dt), KEY(y)) ENGINE=CONNECT;
+INSERT IGNORE INTO t1 VALUES(1,1,-1);
+
+INSERT INTO t1
+VALUES ('2026-07-10', '2026-07-10 14:30:45', '2026');
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo # End of 11.8 tests
