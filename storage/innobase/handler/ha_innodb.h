@@ -514,6 +514,15 @@ protected:
 	int parallel_init_coordinator(size_t n_threads,
 				      const Dynamic_array<KEY_MULTI_RANGE> &ranges) override;
 
+	/** Convert one MySQL-format key endpoint into an InnoDB tuple.
+	@param kr       endpoint, or NULL for an unbounded one
+	@param index    index the key belongs to
+	@param heap     heap to allocate the tuple and its data from
+	@return the tuple, or NULL if kr was NULL */
+	dtuple_t* pscan_convert_key(const key_range *kr,
+				    const dict_index_t *index,
+				    mem_heap_t *heap);
+
 	int parallel_end_coordinator() override;
 
 	Parallel_worker_ctx*
@@ -567,11 +576,31 @@ protected:
 	*/
 	Parallel_coordinator m_parallel_coordinator;
 
-	/** Values used during parallel scans */
+	/** Values used during parallel scans. */
 	dtuple_t *m_pscan_saved_search_tuple{};
-	dtuple_t *m_pscan_start_tuple{};
-	dtuple_t *m_pscan_end_tuple{};
-	bool m_pscan_first_call{};
+
+	/** Holds the key tuples handed to the coordinator for a range scan. */
+	mem_heap_t *m_pscan_range_heap{};
+
+	/** The scanned key intervals, indexed the same way as the
+	coordinator's scan ids, or NULL for a full scan. Used to re-arm the
+	lower bound whenever a worker moves to a chunk of another interval.
+	Allocated from m_pscan_range_heap. */
+	const KEY_MULTI_RANGE *m_pscan_ranges{};
+	uint m_pscan_n_ranges{};
+
+	/** Lower bound of interval 'scan_id', or NULL if it is unbounded or
+	this is a full table scan. The upper bound needs no handler-side state:
+	it is enforced by the chunk clamp inside row_search_mvcc(). */
+	const key_range *pscan_get_start_key(size_t scan_id) const;
+
+	/** Prepare to read the chunk wctx has just picked up. */
+	void pscan_begin_chunk(Parallel_coordinator::Worker_ctx *wctx);
+
+	/** Whether the row in table->record[0] falls short of the lower bound
+	of the interval wctx is currently reading. Clears wctx->m_check_start
+	once a row clears the bound. */
+	bool pscan_before_range_start(Parallel_coordinator::Worker_ctx *wctx);
 };
 
 
