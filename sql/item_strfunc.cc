@@ -4276,11 +4276,12 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
 {
   DBUG_ASSERT(&tmp_value != str);
   String *res= args[0]->val_str(&tmp_value);
-  THD *thd= current_thd;
+  THD *thd;
 
   if ((null_value= (res == NULL)))
     return NULL;
 
+  thd= current_thd;
   if (res->length()*2 > thd->variables.max_allowed_packet)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -4291,6 +4292,8 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
     return NULL;
   }
 
+  if (!res->ptr() || res->length() == 0)
+    return make_empty_result(str);
   return str->set_hex(res->ptr(), res->length()) ? make_empty_result(str) : str;
 }
 

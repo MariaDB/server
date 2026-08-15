@@ -121,15 +121,15 @@ public:
     return m_charset != &my_charset_bin && m_charset->mbminlen == 1;
   }
 
-  size_t numchars(const char *str, const char *end) const
+  size_t numchars(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL) const
   {
     return m_charset->numchars(str, end);
   }
-  size_t lengthsp(const char *str, size_t length) const
+  size_t lengthsp(const char *str ATTRIBUTE_NONNULL, size_t length) const
   {
     return m_charset->lengthsp(str, length);
   }
-  size_t charpos(const char *str, const char *end, size_t pos) const
+  size_t charpos(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL, size_t pos) const
   {
     return m_charset->charpos(str, end, pos);
   }
@@ -334,7 +334,7 @@ public:
 
   // Returns offset to substring or -1
   int strstr(const Binary_string &search, uint32 offset=0) const;
-  int strstr(const char *search, uint32 search_length, uint32 offset=0) const;
+  int strstr(const char *search ATTRIBUTE_NONNULL, uint32 search_length, uint32 offset=0) const;
   // Returns offset to substring or -1
   int strrstr(const Binary_string &search, uint32 offset=0) const;
 
@@ -367,7 +367,7 @@ public:
     float8store(Ptr + str_length, d);
     str_length += 8;
   }
-  void q_append(double *d)
+  void q_append(double *d ATTRIBUTE_NONNULL)
   {
     ASSERT_LENGTH(8);
     float8store(Ptr + str_length, *d);
@@ -386,7 +386,7 @@ public:
       str_length+= (uint32) mblen;
     return mblen;
   }
-  void q_append(const char *data, size_t data_len)
+  void q_append(const char *data ATTRIBUTE_NONNULL, size_t data_len)
   {
     ASSERT_LENGTH(data_len);
     if (data_len)
@@ -408,18 +408,18 @@ public:
     int4store(Ptr + position,value);
   }
 
-  void qs_append(const LEX_CSTRING *ls)
+  void qs_append(const LEX_CSTRING *ls ATTRIBUTE_NONNULL)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&
                 ((ls->length == 0 && !ls->str) ||
                  ls->length == strlen(ls->str)));
     qs_append(ls->str, (uint32)ls->length);
   }
-  void qs_append(const char *str, size_t len);
-  void qs_append_hex(const char *str, uint32 len);
+  void qs_append(const char *str ATTRIBUTE_NONNULL, size_t len);
+  void qs_append_hex(const char *str ATTRIBUTE_NONNULL, uint32 len);
   void qs_append_hex_uint32(uint32 num);
   void qs_append(double d);
-  void qs_append(const double *d);
+  void qs_append(const double *d ATTRIBUTE_NONNULL);
   inline void qs_append(const char c)
   {
     ASSERT_LENGTH(1);
@@ -456,7 +456,7 @@ public:
   inline void extra_allocation(size_t len) { extra_alloc= (uint32)len; }
   inline void mark_as_const() { Alloced_length= 0;}
 
-  inline bool uses_buffer_owned_by(const Binary_string *s) const
+  inline bool uses_buffer_owned_by(const Binary_string *s ATTRIBUTE_NONNULL) const
   {
     return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->Alloced_length);
   }
@@ -804,7 +804,7 @@ public:
   void q_net_store_length(ulonglong length)
   {
     DBUG_ASSERT(Alloced_length >= (str_length + net_length_size(length)));
-    char *pos= (char *) net_store_length((uchar *)(Ptr + str_length), length);
+    const char *pos= (const char *) net_store_length((uchar *)(Ptr + str_length), length);
     str_length= uint32(pos - Ptr);
   }
   void q_net_store_data(const uchar *from, size_t length)
@@ -813,6 +813,7 @@ public:
     DBUG_ASSERT(Alloced_length >= (str_length + length +
                                    net_length_size(length)));
     q_net_store_length(length);
+    if (!length) return;
     q_append((const char *)from, (uint32) length);
   }
 };
@@ -1119,7 +1120,7 @@ public:
   friend class Field;
   uint32 numchars() const
   {
-    return (uint32) Charset::numchars(ptr(), end());
+    return ptr() ? (uint32) Charset::numchars(ptr(), end()) : 0;
   }
   int charpos(longlong i, uint32 offset=0)
   {
