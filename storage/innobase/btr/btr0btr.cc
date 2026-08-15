@@ -34,6 +34,7 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
+#include "buf0lru.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "trx0trx.h"
@@ -249,7 +250,7 @@ buf_block_t *btr_block_get(const dict_index_t &index, uint32_t page,
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
     }
-    else if (!buf_page_make_young_if_needed(&block->page) && first)
+    else if (!block->page.flag_accessed() && first)
       *first= true;
   }
   else
@@ -313,7 +314,7 @@ btr_root_block_get(
       block= nullptr;
     }
     else
-      buf_page_make_young_if_needed(&block->page);
+      block->page.flag_accessed();
   }
   else
     btr_read_failed(*err, *index);
@@ -621,10 +622,7 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
   /* The root page is freed by btr_free_root(). */
   ut_ad(page != index->page);
   ut_ad(mtr->is_named_space(index->table->space));
-
-  /* The page gets invalid for optimistic searches: increment the frame
-  modify clock */
-  buf_block_modify_clock_inc(block);
+  block->invalidate();
 
   /* TODO: Discard any operations for block from mtr->m_log.
   The page will be freed, so previous changes to it by this
@@ -1280,7 +1278,7 @@ void btr_write_autoinc(trx_t *trx, dict_index_t *index, uint64_t autoinc,
 #ifdef BTR_CUR_HASH_ADAPT
     ut_d(if (dict_index_t *ri= root->index)) ut_ad(ri == index);
 #endif /* BTR_CUR_HASH_ADAPT */
-    buf_page_make_young_if_needed(&root->page);
+    root->page.flag_accessed();
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
   }
