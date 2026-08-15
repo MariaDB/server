@@ -19718,7 +19718,7 @@ static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
 
 static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enrypt the temporary table data.",
+  "Encrypt the temporary table data.",
   NULL, NULL, false);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {

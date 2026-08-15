@@ -33,7 +33,7 @@ MACRO(BUNDLE_PCRE2)
     SET(file ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}${CMAKE_STATIC_LIBRARY_SUFFIX})
 
     IF(WIN32)
-      # Debug libary name.
+      # Debug library name.
       # Same condition as in pcre2 CMakeLists.txt that adds "d"
       SET(file_d ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}d${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${file_d})
