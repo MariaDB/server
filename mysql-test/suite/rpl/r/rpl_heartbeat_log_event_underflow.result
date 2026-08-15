@@ -1,0 +1,76 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Unexpected master's heartbeat data");
+call mtr.add_suppression("Event from master is shorter than its common header");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+#
+# Initialize test data
+#
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= 0.5;
+include/start_slave.inc
+connection master;
+set @saved_dbug= @@global.debug_dbug;
+#
+# Test Case 1: a heartbeat that leaves no room for a file name
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_truncated_heartbeat";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+# Waiting for the IO thread to reject the truncated heartbeat
+include/wait_for_slave_io_error.inc [errno=1595]
+Last_IO_Error = 'Relay log write failure: could not queue event from master'
+# Ensure heartbeat validation rejected the event
+include/assert_grep.inc [The IO thread reported an inconsistent heartbeat event]
+include/assert_grep.inc [The heartbeat error should report an empty log_file_name]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+connection slave;
+include/stop_slave_sql.inc
+include/start_slave.inc
+#
+# Test Case 2: a heartbeat shorter than the common header
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_undersized_heartbeat";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+# Waiting for the IO thread to reject the undersized heartbeat
+include/wait_for_slave_io_error.inc [errno=1595]
+Last_IO_Error = 'Relay log write failure: could not queue event from master'
+# Ensure the event was rejected before its header was read
+include/assert_grep.inc [The IO thread reported an event shorter than the common header]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+connection slave;
+include/stop_slave_sql.inc
+include/start_slave.inc
+#
+# Ensure replication works after the invalid heartbeat events
+#
+connection master;
+insert into t1 values (2);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Cleanup
+#
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_heartbeat_log_event_underflow.test
