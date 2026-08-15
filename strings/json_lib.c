@@ -1821,7 +1821,7 @@ int json_escape(CHARSET_INFO *str_cs,
       {
         /* We have to use /uXXXX escaping. */
         uchar utf16buf[4];
-        uchar code_str[8];
+        uchar code_str[4];
         int u_len= my_uni_utf16(0, c_chr, utf16buf, utf16buf + 4);
 
         code_str[0]= hexconv[utf16buf[0] >> 4];
@@ -1829,22 +1829,48 @@ int json_escape(CHARSET_INFO *str_cs,
         code_str[2]= hexconv[utf16buf[1] >> 4];
         code_str[3]= hexconv[utf16buf[1] & 15];
 
+        if ((c_len= json_append_ascii(json_cs, json, json_end,
+                                      code_str, code_str + 4)) <= 0)
+        {
+          /* JSON buffer is depleted. */
+          return JSON_ERROR_OUT_OF_SPACE;
+        }
+        json+= c_len;
+
         if (u_len > 2)
         {
-          code_str[4]= hexconv[utf16buf[2] >> 4];
-          code_str[5]= hexconv[utf16buf[2] & 15];
-          code_str[6]= hexconv[utf16buf[3] >> 4];
-          code_str[7]= hexconv[utf16buf[3] & 15];
-        }
-        
-        if ((c_len= json_append_ascii(json_cs, json, json_end,
-                                      code_str, code_str+u_len*2)) > 0)
-        {
+          /*
+            A character outside the first plane is two UTF-16 units, and
+            each unit is written as an escape of its own: a reader takes
+            \uXXXX one at a time and puts the pair back together itself.
+            The second unit's figures after the first escape and nothing
+            to introduce them is not a second escape - it is four more
+            characters of the string, and the reader stops at the one
+            escape with half a character in hand.
+          */
+          code_str[0]= hexconv[utf16buf[2] >> 4];
+          code_str[1]= hexconv[utf16buf[2] & 15];
+          code_str[2]= hexconv[utf16buf[3] >> 4];
+          code_str[3]= hexconv[utf16buf[3] & 15];
+
+          if ((c_len= my_ci_wc_mb(json_cs, '\\', json, json_end)) <= 0 ||
+              (c_len= my_ci_wc_mb(json_cs, 'u', json+= c_len,
+                                  json_end)) <= 0)
+          {
+            /* JSON buffer is depleted. */
+            return JSON_ERROR_OUT_OF_SPACE;
+          }
           json+= c_len;
-          continue;
+
+          if ((c_len= json_append_ascii(json_cs, json, json_end,
+                                        code_str, code_str + 4)) <= 0)
+          {
+            /* JSON buffer is depleted. */
+            return JSON_ERROR_OUT_OF_SPACE;
+          }
+          json+= c_len;
         }
-        /* JSON buffer is depleted. */
-        return JSON_ERROR_OUT_OF_SPACE;
+        continue;
       }
     }
     else /* c_len == 0, an illegal symbol. */
