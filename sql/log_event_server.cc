@@ -2459,7 +2459,12 @@ Format_description_log_event::to_packet(String *packet)
 {
   uchar *p;
   uint32 needed_length=
-    packet->length() + START_V3_HEADER_LEN + 1 + number_of_event_types + 1;
+    packet->length() + DBUG_IF("truncate_fde_common_header_len") ?
+      ST_COMMON_HEADER_LEN_OFFSET : ST_POST_HEADER_LEN_OFFSET;
+  if (!DBUG_IF("truncate_fde_post_header_len"))
+    needed_length += number_of_event_types;
+  if (!DBUG_IF("truncate_fde_used_checksum_alg"))
+    needed_length += BINLOG_CHECKSUM_ALG_DESC_LEN;
   if (packet->reserve(needed_length))
     return true;
   p= (uchar *)packet->ptr() + packet->length();;
@@ -2472,9 +2477,13 @@ Format_description_log_event::to_packet(String *packet)
     created= get_time();
   int4store(p, created);
   p+= 4;
-  *p++= common_header_len;
-  memcpy(p, post_header_len, number_of_event_types);
-  p+= number_of_event_types;
+  if (!DBUG_IF("truncate_fde_common_header_len"))
+    *p++= common_header_len;
+  if (!DBUG_IF("truncate_fde_post_header_len"))
+  {
+    memcpy(p, post_header_len, number_of_event_types);
+    p+= number_of_event_types;
+  }
 
   /*
     if checksum is requested
@@ -2500,7 +2509,8 @@ Format_description_log_event::to_packet(String *packet)
      (A), (V) presence in FD of the checksum-aware server makes the event
      1 + 4 bytes bigger comparing to the former FD.
   */
-  *p++= checksum_byte;
+  if (!DBUG_IF("truncate_fde_used_checksum_alg"))
+    *p++= checksum_byte;
 
   return false;
 }
@@ -2519,7 +2529,7 @@ bool Format_description_log_event::write(Log_event_writer *writer)
   if (to_packet(&packet))
     return true;
   size_t rec_size= packet.length();
-  DBUG_ASSERT(needed == rec_size);
+  DBUG_ASSERT(needed >= rec_size);
 
   uint orig_checksum_len= writer->checksum_len;
   writer->checksum_len= BINLOG_CHECKSUM_LEN;
