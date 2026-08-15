@@ -6742,7 +6742,7 @@ bool Table_map_log_event::write_data_body()
          write_data(cbuf, (size_t) (cbuf_end - cbuf)) ||
          write_data(m_coltype, m_colcnt) ||
          write_data(mbuf, (size_t) (mbuf_end - mbuf)) ||
-         write_data(m_field_metadata, m_field_metadata_size),
+         write_data(m_field_metadata, m_field_metadata_size) ||
          write_data(m_null_bits, (m_colcnt + 7) / 8) ||
          write_data((const uchar*) m_metadata_buf.ptr(),
                                   m_metadata_buf.length());
