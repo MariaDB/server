@@ -171,6 +171,8 @@
 
 #define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks
+#define STACK_BUFF_HEAVY        256    // stack overrun checks for decimal type
+#define STACK_BUFF_LIGHT        128    // stack overrun checks for other types
 #ifndef MYSQLD_NET_RETRY_COUNT
 #define MYSQLD_NET_RETRY_COUNT  10	///< Abort read after this many int.
 #endif
