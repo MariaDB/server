@@ -3187,12 +3187,11 @@ static Exit_status check_header(IO_CACHE* file,
       else if (buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT)
       {
         /* This is 5.0 */
-        Format_description_log_event *new_description_event;
+        Log_event *new_description_event;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
-        if (!(new_description_event= (Format_description_log_event*) 
-              Log_event::read_log_event(file, &read_error,
-                                        glob_description_event,
-                                        opt_verify_binlog_checksum)))
+        if (!(new_description_event= Log_event::read_log_event(file, &read_error,
+                                                               glob_description_event,
+                                                               opt_verify_binlog_checksum)))
           /* EOF can't be hit here normally, so it's a real error */
         {
           error("Could not read a Format_description_log_event event at "
@@ -3200,6 +3199,24 @@ static Exit_status check_header(IO_CACHE* file,
                 (ulonglong)tmp_pos);
           return ERROR_STOP;
         }
+        if (new_description_event->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+        {
+          /*
+            With --force-read, an event whose checksum is invalid is
+            returned as an Unknown_log_event instead of NULL.  Such an event
+            does not describe the log's format, so report it the way the main
+            loop would and continue with the default description event below.
+          */
+          DBUG_ASSERT(new_description_event->get_type_code() == UNKNOWN_EVENT);
+          Exit_status retval= process_event(print_event_info,
+                                            new_description_event, tmp_pos,
+                                            logname);
+          if (retval != OK_CONTINUE)
+            return retval;
+          break;
+        }
+        Format_description_log_event *new_fde=
+          static_cast<Format_description_log_event *>(new_description_event);
         if (opt_base64_output_mode == BASE64_OUTPUT_AUTO)
         {
           /*
@@ -3207,10 +3224,9 @@ static Exit_status check_header(IO_CACHE* file,
             the new one, so we should not do it ourselves in this
             case.
           */
-          DBUG_ASSERT(tmp_pos + new_description_event->data_written ==
+          DBUG_ASSERT(tmp_pos + new_fde->data_written ==
                       my_b_tell(file));
-          Exit_status retval= process_event(print_event_info,
-                                            new_description_event, tmp_pos,
+          Exit_status retval= process_event(print_event_info, new_fde, tmp_pos,
                                             logname);
           if (retval != OK_CONTINUE)
             return retval;
@@ -3218,7 +3234,7 @@ static Exit_status check_header(IO_CACHE* file,
         else
         {
           delete glob_description_event;
-          glob_description_event= new_description_event;
+          glob_description_event= new_fde;
         }
         DBUG_PRINT("info",("Setting description_event"));
       }
