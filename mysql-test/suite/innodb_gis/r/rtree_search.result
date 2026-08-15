@@ -250,3 +250,39 @@ count(*)
 drop procedure curdemo;
 drop table t3;
 drop table t1;
+#
+# MDEV 26123 : Always mark spatial index reads as locking
+#
+SET @old_autocommit = @@autocommit;
+SET @old_tx_read_only = @@session.tx_read_only;
+CREATE TABLE t1 (
+c1 INT PRIMARY KEY,
+category INT NOT NULL,
+p POINT NOT NULL,
+KEY idx_category (category),
+SPATIAL INDEX sp_idx_p (p)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1, 10, POINT(1,2));
+CREATE PROCEDURE populate_t1()
+BEGIN
+DECLARE i INT DEFAULT 2;
+WHILE i <= 5000 DO
+INSERT INTO t1 VALUES
+(i, 20, POINT(5,5));
+SET i = i + 1;
+END WHILE;
+END |
+CALL populate_t1();
+SELECT COUNT(*) FROM t1 WHERE ST_Contains(t1.p, (SELECT p FROM t1 WHERE category = 10));
+COUNT(*)
+1
+SET SESSION TRANSACTION READ ONLY;
+SET autocommit = OFF;
+SELECT COUNT(*) FROM t1 WHERE category = (SELECT category FROM t1 WHERE ST_EQUALS(p, POINT(1,2)));
+COUNT(*)
+1
+SET autocommit = @old_autocommit;
+SET SESSION tx_read_only = @old_tx_read_only;
+DROP PROCEDURE populate_t1;
+DROP TABLE t1;

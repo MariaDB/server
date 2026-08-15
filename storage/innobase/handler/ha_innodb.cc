@@ -9002,12 +9002,8 @@ ha_innobase::index_read(
 
 	/* For R-Tree index, we will always place the page lock to
 	pages being searched */
-	if (index->is_spatial() && !m_prebuilt->trx->will_lock) {
-		if (trx_state != TRX_STATE_NOT_STARTED) {
-			DBUG_RETURN(HA_ERR_READ_ONLY_TRANSACTION);
-		} else {
-			m_prebuilt->trx->will_lock = true;
-		}
+	if (index->is_spatial()) {
+		m_prebuilt->trx->will_lock = true;
 	}
 
 	/* Note that if the index for which the search template is built is not
