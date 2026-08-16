@@ -1,0 +1,37 @@
+# MDEV-37605
+#
+# Verify that mariadb-binlog rejects options which are incompatible with
+# --convert-engine-binlog. Option validation happens before the input file is
+# opened, so a placeholder input name is sufficient.
+
+--echo *** --read-from-remote-server is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --read-from-remote-server placeholder.ibb 2>&1
+
+--echo *** --raw is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --raw placeholder.ibb 2>&1
+
+--echo *** --flashback is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --flashback placeholder.ibb 2>&1
+
+--echo *** --stop-datetime is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --stop-datetime="2030-01-01 00:00:00" placeholder.ibb 2>&1
+
+--echo *** Numeric --stop-position is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --stop-position=100 placeholder.ibb 2>&1
+
+--echo *** GTID --start-position is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --start-position=0-1-1 placeholder.ibb 2>&1
+
+--echo *** GTID --stop-position is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --stop-position=0-1-1 placeholder.ibb 2>&1
+
+--echo *** Legacy binlog input is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog $MYSQL_TEST_DIR/std_data/mariadb-5.5-binlog.000001 2>&1
