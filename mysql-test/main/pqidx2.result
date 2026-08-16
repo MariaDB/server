@@ -1,0 +1,188 @@
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_50000;
+explain select count(*), sum(a), sum(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+#
+# The scans below have to really be the parallel ones, otherwise this
+# file quietly degrades into a serial correctness test. Probe with
+# LIMIT 1 so the DBUG trace stays small - the plan is the same.
+#
+     parallel: YES
+#
+# ==== all data committed ====
+# PAGE_MAX_TRX_ID lets the read view see the whole page, so rows are
+# served from the index and never reach the clustered index.
+#
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+#
+# ==== reading our own uncommitted writes ====
+# Our own trx id is above the read view low limit, so the page gate
+# fails on every page and every row is resolved through the clustered
+# index. row_search_mvcc() then returns the clustered record, which is
+# the case where a chunk-end check applied to the wrong index silently
+# drops rows.
+#
+begin;
+insert into t1 select seq+100000, seq div 10, concat('x',seq) from seq_1_to_2000;
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+52000	1452026000	125179200
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+52000	1452026000	125179200
+rollback;
+#
+# ==== concurrent uncommitted writer ====
+# Same gate failure, plus older versions have to be built for rows the
+# other transaction has modified.
+#
+connect  w,localhost,root,,test;
+begin;
+update t1 set b = b + 1 where a between 1 and 5000;
+connection default;
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+connection w;
+rollback;
+disconnect w;
+connection default;
+#
+# ==== back to a quiet table ====
+#
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+drop table t1;
+#
+# ==== one value of the leading key part spanning several leaf pages ====
+# In t1 a value of b is 10 narrow index records, so it always fits one
+# leaf and a range bound naming only b ties with at most one node
+# pointer. Here 2500 rows share each value of es, ~3 leaves, so the node
+# pointers above them repeat it: a prefix bound compares equal to several
+# and the descent has to enter the first of them rather than the last -
+# see Scan_ctx::search(). Landing on the last skips whole leaves.
+#
+create table t2 (id int primary key, es tinyint, pad char(200), key(es))
+engine=innodb;
+insert into t2 select seq, seq%8, repeat('y',200) from seq_1_to_20000;
+explain select count(*) from t2 where es >= 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	es	es	2	NULL	#	Using where; Using index
+select count(*), min(id), max(id) from t2 where es >= 4;
+count(*)	min(id)	max(id)
+10000	4	19999
+select count(*), min(id), max(id) from t2 ignore index(es) where es >= 4;
+count(*)	min(id)	max(id)
+10000	4	19999
+select count(*), min(id), max(id) from t2 where es >= 1 and es < 2;
+count(*)	min(id)	max(id)
+2500	1	19993
+select count(*), min(id), max(id) from t2 ignore index(es) where es >= 1 and es < 2;
+count(*)	min(id)	max(id)
+2500	1	19993
+select count(*), min(id), max(id) from t2 where es = 5;
+count(*)	min(id)	max(id)
+2500	5	19997
+select count(*), min(id), max(id) from t2 ignore index(es) where es = 5;
+count(*)	min(id)	max(id)
+2500	5	19997
+select count(*), min(id), max(id) from t2 where es < 2;
+count(*)	min(id)	max(id)
+5000	1	20000
+select count(*), min(id), max(id) from t2 ignore index(es) where es < 2;
+count(*)	min(id)	max(id)
+5000	1	20000
+#
+# ==== non-covering: the pushed index condition rides along ====
+# pad is not in the index, so every row takes the clustered detour and
+# push_index_cond() pushes the range predicate down. Nothing in the
+# parallel path handles ICP explicitly: the worker reads through
+# row_search_mvcc(table->record[0], ...) and that is the buffer
+# pushed_idx_cond evaluates against. Which is worth proving rather than
+# assuming, so the counters below say whether ICP really ran.
+#
+explain select count(pad) from t2 where es >= 7;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	es	es	2	NULL	#	Using index condition
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	7	19999
+# attempts = rows the scan examined, match = rows it kept
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+Variable_name	Value
+Handler_icp_attempts	2500
+Handler_icp_match	2500
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es) where es >= 7;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	7	19999
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 1 and es < 2;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	1	19993
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+Variable_name	Value
+Handler_icp_attempts	2500
+Handler_icp_match	2500
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es)
+where es >= 1 and es < 2;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	1	19993
+# An exclusive lower bound must not cost a whole key value. A chunk is
+# entered with PAGE_CUR_GE, which cannot express "es > 0", so the open
+# switches to the bound itself with PAGE_CUR_G - see
+# pscan_exclusive_start(). Without it the 2500 es=0 rows would each be
+# read and then discarded, and attempts below would say 5000.
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es > 0 and es < 2;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	1	19993
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+Variable_name	Value
+Handler_icp_attempts	2500
+Handler_icp_match	2500
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es)
+where es > 0 and es < 2;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	1	19993
+# ICP switched off: prebuilt->idx_cond stays NULL and
+# row_search_idx_cond_check() short-circuits, so the same rows have to
+# come back with no ICP accounting at all.
+set optimizer_switch='index_condition_pushdown=off';
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+count(pad)	count(*)	min(id)	max(id)
+2500	2500	7	19999
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+Variable_name	Value
+Handler_icp_attempts	0
+Handler_icp_match	0
+set optimizer_switch='index_condition_pushdown=default';
+# Own uncommitted writes: the PAGE_MAX_TRX_ID gate fails on every page,
+# so every row is resolved through the clustered index and row_search_mvcc()
+# returns the clustered record. That is the heaviest exercise of the chunk
+# clamp, which has to keep comparing against the secondary index.
+begin;
+insert into t2 select seq+100000, seq%8, repeat('z',200) from seq_1_to_2000;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+count(pad)	count(*)	min(id)	max(id)
+2750	2750	7	101999
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es) where es >= 7;
+count(pad)	count(*)	min(id)	max(id)
+2750	2750	7	101999
+rollback;
+drop table t2;

@@ -1,0 +1,168 @@
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+#### correctness ####
+select count(*), min(a), max(a) from t1 where a < 100;
+count(*)	min(a)	max(a)
+99	1	99
+select count(*), min(a), max(a) from t1 where a > 900;
+count(*)	min(a)	max(a)
+100	901	1000
+select count(*), min(a), max(a) from t1 where a >= 900;
+count(*)	min(a)	max(a)
+101	900	1000
+select count(*), min(a), max(a) from t1 where a <= 100;
+count(*)	min(a)	max(a)
+100	1	100
+select count(*), min(a), max(a) from t1 where a between 100 and 199;
+count(*)	min(a)	max(a)
+100	100	199
+select count(*), min(a), max(a) from t1 where a in (1,500,900);
+count(*)	min(a)	max(a)
+3	1	900
+select count(*), min(a), max(a) from t1 where a < 10 or a > 995;
+count(*)	min(a)	max(a)
+14	1	1000
+select count(*), min(a), max(a) from t1 where a = 500;
+count(*)	min(a)	max(a)
+1	500	500
+select count(*), min(a), max(a) from t1;
+count(*)	min(a)	max(a)
+1000	1	1000
+select count(*) from t1 where a < 1;
+count(*)
+0
+select count(*) from t1 where a > 100000;
+count(*)
+0
+drop table t1;
+#### multi-part PK, prefix bounds ####
+create table t2 (a int, b int, c char(50), primary key(a,b)) engine=innodb;
+insert into t2 select seq/10, seq%10, repeat('x',50) from seq_1_to_50000;
+select count(*) from t2 where a <= 100;
+count(*)
+1004
+select count(*) from t2 where a <= 100 and b = 5;
+count(*)
+100
+select count(*) from t2 where a < 100;
+count(*)
+994
+select count(*) from t2 where a between 100 and 4000;
+count(*)
+39010
+select count(*) from t2 where a >= 4999;
+count(*)
+16
+select count(*) from t2 where a = 2500;
+count(*)
+10
+# cross-check with the PK ignored (range logic out of the picture)
+select count(*) from t2 ignore index(primary) where a <= 100;
+count(*)
+1004
+select count(*) from t2 ignore index(primary) where a between 100 and 4000;
+count(*)
+39010
+select count(*) from t2 ignore index(primary) where a = 2500;
+count(*)
+10
+drop table t2;
+#### many chunks; exact sums prove no row lost or duplicated ####
+create table t3 (a int primary key, b int) engine=innodb;
+insert into t3 select seq, seq from seq_1_to_100000;
+select count(*), min(a), max(a) from t3 where a <= 50000;
+count(*)	min(a)	max(a)
+50000	1	50000
+select count(*), min(a), max(a) from t3 where a < 50000;
+count(*)	min(a)	max(a)
+49999	1	49999
+select count(*), min(a), max(a) from t3 where a between 25000 and 75000;
+count(*)	min(a)	max(a)
+50001	25000	75000
+select count(*), min(a), max(a) from t3 where a in (1, 50000, 100000);
+count(*)	min(a)	max(a)
+3	1	100000
+select count(*), min(a), max(a) from t3 where a <= 1;
+count(*)	min(a)	max(a)
+1	1	1
+select count(*), min(a), max(a) from t3 where a >= 100000;
+count(*)	min(a)	max(a)
+1	100000	100000
+select count(*), min(a), max(a) from t3 where a < 30 or a > 99990;
+count(*)	min(a)	max(a)
+39	1	100000
+select sum(a) from t3 where a <= 50000;
+sum(a)
+1250025000
+select sum(a) from t3 where a between 25000 and 75000;
+sum(a)
+2500050000
+drop table t3;
+#### which read path ####
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+# where a < 100
+count(*)
+99
+  parallel: YES
+# where a > 900
+count(*)
+100
+  parallel: YES
+# where a <= 100
+count(*)
+100
+  parallel: YES
+# where a between 100 and 199
+count(*)
+100
+  parallel: YES
+# where a in (1,500,900)
+count(*)
+3
+  parallel: YES
+# where a < 10 or a > 995
+count(*)
+14
+  parallel: YES
+# where a = 500
+count(*)
+1
+  parallel: no
+drop table t1;
+#### interval-count limit ####
+# get_applicable_parallel_scan_type() rejects a range plan with more than
+# MAX_PARALLEL_SCAN_RANGES (128) intervals, so it runs serially. Each case
+# shows the plan type: the verdict below only says something about the
+# limit while type is still "range".
+#
+# A 100k-row table keeps a few hundred point lookups cheaper than a full
+# scan; on a small table the optimizer would abandon the range plan on
+# cost grounds and the parallel full scan would fire instead.
+create table t4 (a int primary key, b int) engine=innodb;
+insert into t4 select seq, seq from seq_1_to_100000;
+# 128 intervals - at the limit, still parallel
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	#	#	#	NULL	#	Using where
+count(*)	min(a)	max(a)	sum(a)
+128	700	89600	5779200
+  parallel: YES
+# 129 intervals - one over the limit, declined
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	#	#	#	NULL	#	Using where
+count(*)	min(a)	max(a)	sum(a)
+129	700	90300	5869500
+  parallel: no
+# 300 intervals - declined
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	#	#	#	NULL	#	Using where
+count(*)	min(a)	max(a)	sum(a)
+300	300	90000	13545000
+  parallel: no
+# the declined plans, cross-checked with the PK ignored: a fallback that
+# dropped or duplicated a row would disagree here
+count(*)	min(a)	max(a)	sum(a)
+129	700	90300	5869500
+count(*)	min(a)	max(a)	sum(a)
+300	300	90000	13545000
+drop table t4;

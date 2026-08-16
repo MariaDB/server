@@ -1,0 +1,154 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+let $trace=$MYSQL_TMP_DIR/pq.trace;
+
+--echo #### correctness ####
+select count(*), min(a), max(a) from t1 where a < 100;
+select count(*), min(a), max(a) from t1 where a > 900;
+select count(*), min(a), max(a) from t1 where a >= 900;
+select count(*), min(a), max(a) from t1 where a <= 100;
+select count(*), min(a), max(a) from t1 where a between 100 and 199;
+select count(*), min(a), max(a) from t1 where a in (1,500,900);
+select count(*), min(a), max(a) from t1 where a < 10 or a > 995;
+select count(*), min(a), max(a) from t1 where a = 500;
+select count(*), min(a), max(a) from t1;
+select count(*) from t1 where a < 1;
+select count(*) from t1 where a > 100000;
+drop table t1;
+
+--echo #### multi-part PK, prefix bounds ####
+create table t2 (a int, b int, c char(50), primary key(a,b)) engine=innodb;
+insert into t2 select seq/10, seq%10, repeat('x',50) from seq_1_to_50000;
+select count(*) from t2 where a <= 100;
+select count(*) from t2 where a <= 100 and b = 5;
+select count(*) from t2 where a < 100;
+select count(*) from t2 where a between 100 and 4000;
+select count(*) from t2 where a >= 4999;
+select count(*) from t2 where a = 2500;
+--echo # cross-check with the PK ignored (range logic out of the picture)
+select count(*) from t2 ignore index(primary) where a <= 100;
+select count(*) from t2 ignore index(primary) where a between 100 and 4000;
+select count(*) from t2 ignore index(primary) where a = 2500;
+drop table t2;
+
+--echo #### many chunks; exact sums prove no row lost or duplicated ####
+create table t3 (a int primary key, b int) engine=innodb;
+insert into t3 select seq, seq from seq_1_to_100000;
+select count(*), min(a), max(a) from t3 where a <= 50000;
+select count(*), min(a), max(a) from t3 where a < 50000;
+select count(*), min(a), max(a) from t3 where a between 25000 and 75000;
+select count(*), min(a), max(a) from t3 where a in (1, 50000, 100000);
+select count(*), min(a), max(a) from t3 where a <= 1;
+select count(*), min(a), max(a) from t3 where a >= 100000;
+select count(*), min(a), max(a) from t3 where a < 30 or a > 99990;
+select sum(a) from t3 where a <= 50000;
+select sum(a) from t3 where a between 25000 and 75000;
+drop table t3;
+
+--echo #### which read path ####
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+--echo # where a < 100
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a < 100;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a > 900
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a > 900;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a <= 100
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a <= 100;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a between 100 and 199
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a between 100 and 199;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a in (1,500,900)
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a in (1,500,900);
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a < 10 or a > 995
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a < 10 or a > 995;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--echo # where a = 500
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a = 500;
+set session debug_dbug="";
+--enable_query_log
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+drop table t1;
+
+--echo #### interval-count limit ####
+--echo # get_applicable_parallel_scan_type() rejects a range plan with more than
+--echo # MAX_PARALLEL_SCAN_RANGES (128) intervals, so it runs serially. Each case
+--echo # shows the plan type: the verdict below only says something about the
+--echo # limit while type is still "range".
+--echo #
+--echo # A 100k-row table keeps a few hundred point lookups cheaper than a full
+--echo # scan; on a small table the optimizer would abandon the range plan on
+--echo # cost grounds and the parallel full scan would fire instead.
+create table t4 (a int primary key, b int) engine=innodb;
+insert into t4 select seq, seq from seq_1_to_100000;
+
+# Spaced-out constants, so the range optimizer cannot coalesce adjacent values
+# into fewer intervals than there are values.
+--disable_query_log
+set session group_concat_max_len= 100000;
+--let $in128= `select group_concat(seq*700) from seq_1_to_128`
+--let $in129= `select group_concat(seq*700) from seq_1_to_129`
+--let $in300= `select group_concat(seq*300) from seq_1_to_300`
+--enable_query_log
+
+--echo # 128 intervals - at the limit, still parallel
+--let $q= select count(*), min(a), max(a), sum(a) from t4 where a in ($in128)
+--source include/pqkmr_limit.inc
+
+--echo # 129 intervals - one over the limit, declined
+--let $q= select count(*), min(a), max(a), sum(a) from t4 where a in ($in129)
+--source include/pqkmr_limit.inc
+
+--echo # 300 intervals - declined
+--let $q= select count(*), min(a), max(a), sum(a) from t4 where a in ($in300)
+--source include/pqkmr_limit.inc
+
+--echo # the declined plans, cross-checked with the PK ignored: a fallback that
+--echo # dropped or duplicated a row would disagree here
+--disable_query_log
+eval select count(*), min(a), max(a), sum(a) from t4
+  ignore index(primary) where a in ($in129);
+eval select count(*), min(a), max(a), sum(a) from t4
+  ignore index(primary) where a in ($in300);
+--enable_query_log
+drop table t4;

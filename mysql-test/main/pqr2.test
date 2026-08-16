@@ -1,0 +1,55 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--echo # multi-part PK: prefix bounds are where an exclusive clamp drops rows
+create table t2 (a int, b int, c char(50), primary key(a,b)) engine=innodb;
+insert into t2 select seq/10, seq%10, repeat('x',50) from seq_1_to_50000;
+--echo # inclusive prefix upper bound: must include every b for a=100
+select count(*) from t2 where a <= 100;
+select count(*) from t2 where a <= 100 and b = 5;
+select count(*) from t2 where a < 100;
+select count(*) from t2 where a between 100 and 4000;
+select count(*) from t2 where a >= 4999;
+select count(*) from t2 where a = 2500;
+--echo # cross-check against the same predicates with the PK ignored
+select count(*) from t2 ignore index(primary) where a <= 100;
+select count(*) from t2 ignore index(primary) where a between 100 and 4000;
+select count(*) from t2 ignore index(primary) where a = 2500;
+drop table t2;
+
+--echo # the same prefix bounds, but one value of the leading part now spans
+--echo # several leaf pages
+#
+# t2 above cannot catch a descent bug however many prefix bounds it tries: its
+# 10 narrow rows per value of a all live on one leaf, so a bound naming only a
+# ties with at most one node pointer. Widen the row and each value of a covers
+# 3-4 leaves, so the node pointers above them repeat that value and a prefix
+# bound compares equal to all of them - the descent then has to enter the
+# first, not the last (see Scan_ctx::search()).
+#
+create table t4 (a int, b int, c char(200), primary key(a,b)) engine=innodb;
+insert into t4 select seq div 200, seq, repeat('x',200) from seq_1_to_20000;
+select count(*), min(b), max(b) from t4 where a between 40 and 41;
+select count(*), min(b), max(b) from t4 ignore index(primary) where a between 40 and 41;
+select count(*), min(b), max(b) from t4 where a >= 90;
+select count(*), min(b), max(b) from t4 ignore index(primary) where a >= 90;
+select count(*), min(b), max(b) from t4 where a = 40;
+select count(*), min(b), max(b) from t4 ignore index(primary) where a = 40;
+select count(*), min(b), max(b) from t4 where a < 3;
+select count(*), min(b), max(b) from t4 ignore index(primary) where a < 3;
+select count(*), min(b), max(b) from t4 where a between 40 and 41 and b > 8100;
+select count(*), min(b), max(b) from t4 ignore index(primary) where a between 40 and 41 and b > 8100;
+drop table t4;
+
+--echo # large single-column PK, many chunks; verify every boundary row
+create table t3 (a int primary key, b int) engine=innodb;
+insert into t3 select seq, seq from seq_1_to_100000;
+select count(*), min(a), max(a) from t3 where a <= 50000;
+select count(*), min(a), max(a) from t3 where a < 50000;
+select count(*), min(a), max(a) from t3 where a between 25000 and 75000;
+select count(*), min(a), max(a) from t3 where a in (1, 50000, 100000);
+select count(*), min(a), max(a) from t3 where a <= 1;
+select count(*), min(a), max(a) from t3 where a >= 100000;
+select count(*), min(a), max(a) from t3 where a < 30 or a > 99990;
+select sum(a) from t3 where a <= 50000;
+drop table t3;

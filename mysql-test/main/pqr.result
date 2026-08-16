@@ -1,0 +1,66 @@
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+#### correctness ####
+select count(*), min(a), max(a) from t1 where a < 100;
+count(*)	min(a)	max(a)
+99	1	99
+select count(*), min(a), max(a) from t1 where a > 900;
+count(*)	min(a)	max(a)
+100	901	1000
+select count(*), min(a), max(a) from t1 where a >= 900;
+count(*)	min(a)	max(a)
+101	900	1000
+select count(*), min(a), max(a) from t1 where a <= 100;
+count(*)	min(a)	max(a)
+100	1	100
+select count(*), min(a), max(a) from t1 where a between 100 and 199;
+count(*)	min(a)	max(a)
+100	100	199
+select count(*), min(a), max(a) from t1 where a in (1,500,900);
+count(*)	min(a)	max(a)
+3	1	900
+select count(*), min(a), max(a) from t1 where a < 10 or a > 995;
+count(*)	min(a)	max(a)
+14	1	1000
+select count(*), min(a), max(a) from t1 where a = 500;
+count(*)	min(a)	max(a)
+1	500	500
+select count(*), min(a), max(a) from t1;
+count(*)	min(a)	max(a)
+1000	1	1000
+select count(*) from t1 where a < 1;
+count(*)
+0
+select count(*) from t1 where a > 100000;
+count(*)
+0
+#### which path ####
+# where a < 100
+count(*)
+99
+  parallel: YES
+# where a > 900
+count(*)
+100
+  parallel: YES
+# where a <= 100
+count(*)
+100
+  parallel: YES
+# where a between 100 and 199
+count(*)
+100
+  parallel: YES
+# where a in (1,500,900)
+count(*)
+3
+  parallel: YES
+# where a < 10 or a > 995
+count(*)
+14
+  parallel: YES
+# where a = 500
+count(*)
+1
+  parallel: no
+drop table t1;

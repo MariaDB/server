@@ -852,3 +852,14 @@ int read_record_func_for_rr_and_unpack(READ_RECORD *info)
 
   return error;
 }
+
+int parallel_rr_next(READ_RECORD *info)
+{
+  TABLE *table = info->table;
+  handler *file = table->file;
+
+  int err = file->ha_parallel_get_next_row(info->parallel_worker_ctx);
+  if (err == HA_ERR_END_OF_FILE)
+    return -1;
+  return err == 0 ? 0 : rr_handle_error(info, err);
+}

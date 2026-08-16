@@ -1,0 +1,80 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+let $trace=$MYSQL_TMP_DIR/pq.trace;
+
+--echo #### correctness ####
+select count(*), min(a), max(a) from t1 where a < 100;
+select count(*), min(a), max(a) from t1 where a > 900;
+select count(*), min(a), max(a) from t1 where a >= 900;
+select count(*), min(a), max(a) from t1 where a <= 100;
+select count(*), min(a), max(a) from t1 where a between 100 and 199;
+select count(*), min(a), max(a) from t1 where a in (1,500,900);
+select count(*), min(a), max(a) from t1 where a < 10 or a > 995;
+select count(*), min(a), max(a) from t1 where a = 500;
+select count(*), min(a), max(a) from t1;
+select count(*) from t1 where a < 1;
+select count(*) from t1 where a > 100000;
+
+--echo #### which path ####
+--disable_query_log
+--enable_query_log
+--echo # where a < 100
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a < 100;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a > 900
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a > 900;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a <= 100
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a <= 100;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a between 100 and 199
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a between 100 and 199;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a in (1,500,900)
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a in (1,500,900);
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a < 10 or a > 995
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a < 10 or a > 995;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+--echo # where a = 500
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+select count(*) from t1 where a = 500;
+set session debug_dbug="";
+--exec grep -c "ha_parallel_get_next_row" $trace >/dev/null && echo "  parallel: YES" || echo "  parallel: no"
+--exec rm -f $trace
+--enable_query_log
+drop table t1;

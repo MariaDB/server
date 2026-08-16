@@ -1,0 +1,92 @@
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_1000;
+#
+# ==== which read path ====
+#
+# -- covering: every column read is in the secondary index
+# ---- select b from t1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+     parallel: YES
+# a is the PK, carried in the index as the suffix, so this still covers
+# ---- select a, b from t1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+     parallel: YES
+# ---- select count(*) from t1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+     parallel: YES
+# ---- select sum(b) from t1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+     parallel: YES
+# -- covering range on the secondary index
+# ---- select b from t1 where b > 90
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	#	Using where; Using index
+     parallel: YES
+# ---- select b from t1 where b between 20 and 40
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	#	Using where; Using index
+     parallel: YES
+# ---- select b from t1 where b in (5, 50, 95)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	#	Using where; Using index
+     parallel: YES
+# -- non-covering range: c forces the clustered detour, and the range
+#    predicate is pushed down as an index condition
+# ---- select c from t1 where b > 90
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	#	Using index condition
+     parallel: YES
+# a is in the index as the PK suffix, so this predicate is pushable too
+# ---- select c from t1 where b > 90 and a % 3 = 0
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	#	Using index condition
+     parallel: YES
+# -- ordering comes from the index: must stay serial even once
+#    secondary index scans are supported
+# ---- select b from t1 order by b
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+     parallel: no
+# -- c is not in the index, so this drops to the clustered index
+#    (parallel today - the contrast is the point)
+# ---- select b, c from t1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+     parallel: YES
+#
+# ==== correctness ====
+# Each aggregate is cross-checked with the secondary index ignored, so a
+# future parallel path that drops or duplicates rows disagrees here.
+#
+select count(*), min(b), max(b), sum(b) from t1;
+count(*)	min(b)	max(b)	sum(b)
+1000	0	100	49600
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b);
+count(*)	min(b)	max(b)	sum(b)
+1000	0	100	49600
+select count(*), min(b), max(b), sum(b) from t1 where b > 90;
+count(*)	min(b)	max(b)	sum(b)
+91	91	100	8650
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b) where b > 90;
+count(*)	min(b)	max(b)	sum(b)
+91	91	100	8650
+select count(*), min(b), max(b), sum(b) from t1 where b between 20 and 40;
+count(*)	min(b)	max(b)	sum(b)
+210	20	40	6300
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b)
+where b between 20 and 40;
+count(*)	min(b)	max(b)	sum(b)
+210	20	40	6300
+select count(*), min(b), max(b), sum(b) from t1 where b in (5, 50, 95);
+count(*)	min(b)	max(b)	sum(b)
+30	5	95	1500
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b)
+where b in (5, 50, 95);
+count(*)	min(b)	max(b)	sum(b)
+30	5	95	1500
+drop table t1;

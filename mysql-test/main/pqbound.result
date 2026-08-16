@@ -1,0 +1,53 @@
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+# Handler_read_next counts calls to the parallel row reader,
+# i.e. rows RETURNED by parallel_get_next_row() plus the final EOF call.
+# Exclusive lower bound must not return the boundary row.
+# a >= 900 : rows 900..1000 = 101 returned, expect 102
+flush status;
+select count(*) from t1 where a >= 900;
+count(*)
+101
+show status like 'Handler_read_next';
+Variable_name	Value
+Handler_read_next	102
+# a > 900  : rows 901..1000 = 100 returned, expect 101
+flush status;
+select count(*) from t1 where a > 900;
+count(*)
+100
+show status like 'Handler_read_next';
+Variable_name	Value
+Handler_read_next	101
+# a > 900 or a > 995 collapses; use two exclusive intervals instead
+# a < 5 or a > 995 : rows 1..4 and 996..1000 = 9 returned, expect 10
+flush status;
+select count(*) from t1 where a < 5 or a > 995;
+count(*)
+9
+show status like 'Handler_read_next';
+Variable_name	Value
+Handler_read_next	10
+# correctness must be unchanged
+select count(*), min(a), max(a) from t1 where a > 900;
+count(*)	min(a)	max(a)
+100	901	1000
+select count(*), min(a), max(a) from t1 where a >= 900;
+count(*)	min(a)	max(a)
+101	900	1000
+select count(*), min(a), max(a) from t1 where a <= 100;
+count(*)	min(a)	max(a)
+100	1	100
+select count(*), min(a), max(a) from t1 where a between 100 and 199;
+count(*)	min(a)	max(a)
+100	100	199
+select count(*), min(a), max(a) from t1 where a in (1,500,900);
+count(*)	min(a)	max(a)
+3	1	900
+select count(*), min(a), max(a) from t1 where a < 10 or a > 995;
+count(*)	min(a)	max(a)
+14	1	1000
+select count(*), min(a), max(a) from t1 where a < 100;
+count(*)	min(a)	max(a)
+99	1	99
+drop table t1;

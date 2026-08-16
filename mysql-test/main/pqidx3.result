@@ -1,0 +1,99 @@
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_50000;
+connect  w,localhost,root,,test;
+connection default;
+explain select count(*), sum(a), sum(b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	#	Using index
+#
+# ==== page splits: writer doubles the table mid-scan ====
+#
+# snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+select count(*), sum(a), sum(b) from t1;
+connection w;
+set debug_sync='now WAIT_FOR parked';
+insert into t1 select seq, seq div 10, concat('abcdef',seq)
+from seq_50001_to_100000;
+set debug_sync='now SIGNAL go';
+connection default;
+# parallel scan result:
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+set debug_sync='RESET';
+#
+# ==== page merges: writer removes half the table mid-scan ====
+#
+# snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+100000	5000050000	499960000
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+select count(*), sum(a), sum(b) from t1;
+connection w;
+set debug_sync='now WAIT_FOR parked';
+delete from t1 where a > 50000;
+set debug_sync='now SIGNAL go';
+connection default;
+# parallel scan result:
+count(*)	sum(a)	sum(b)
+100000	5000050000	499960000
+set debug_sync='RESET';
+#
+# ==== entries move within the secondary index ====
+# Updating b deletes and re-inserts the index entry at a different key,
+# so rows migrate between chunks while the scan is in flight.
+#
+# snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+select count(*), sum(a), sum(b) from t1;
+connection w;
+set debug_sync='now WAIT_FOR parked';
+update t1 set b = b + 100000 where a <= 25000;
+set debug_sync='now SIGNAL go';
+connection default;
+# parallel scan result:
+count(*)	sum(a)	sum(b)
+50000	1250025000	124980000
+set debug_sync='RESET';
+#
+# ==== same, on the clustered index ====
+# ignore index(b) forces type=ALL, which is partitioned on the clustered
+# index and read through handler_rnd_next_end instead.
+#
+# snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 force index(b);
+count(*)	sum(a)	sum(b)
+50000	1250025000	2624980000
+set debug_sync='handler_rnd_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+connection w;
+set debug_sync='now WAIT_FOR parked';
+delete from t1 where a between 10000 and 40000;
+insert into t1 select seq, seq div 10, concat('z',seq)
+from seq_100001_to_120000;
+set debug_sync='now SIGNAL go';
+connection default;
+# parallel scan result:
+count(*)	sum(a)	sum(b)
+50000	1250025000	2624980000
+set debug_sync='RESET';
+#
+# ==== the table is consistent afterwards ====
+#
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+39999	2700010000	1269883000
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+count(*)	sum(a)	sum(b)
+39999	2700010000	1269883000
+disconnect w;
+connection default;
+drop table t1;

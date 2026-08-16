@@ -1,0 +1,38 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+create table t1 (a int, b int, primary key(a)) engine=innodb;
+insert into t1 select seq, 1001-seq from seq_1_to_1000;
+let $trace=$MYSQL_TMP_DIR/pq.trace;
+
+--echo #
+--echo # For each plan: EXPLAIN (does it filesort?) and did parallel scan fire?
+--echo # NO filesort + parallel YES would be a wrong-results risk: the ordering
+--echo # would come from the scan, which parallel workers may reorder.
+--echo #
+
+--let $q= select * from t1 order by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 order by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 order by a, b
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a between 100 and 199 order by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 order by a limit 5
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a <= 100 order by a
+--source include/pqorder_one.inc
+--let $q= select a from t1 where a > 900 group by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 and b > 0 order by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 order by a desc
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a in (1,500,900) order by a
+--source include/pqorder_one.inc
+--let $q= select * from t1 where a > 900 order by b
+--source include/pqorder_one.inc
+
+drop table t1;

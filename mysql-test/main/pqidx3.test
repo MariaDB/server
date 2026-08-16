@@ -1,0 +1,129 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+#
+# Concurrent tree reshaping during a parallel scan (MDEV-40005).
+#
+# Chunk boundaries are snapshotted once, under an S-latch on the index, and the
+# latch is dropped before any row is read. A concurrent writer is therefore
+# free to split and merge pages underneath the scan while it runs.
+#
+# The boundaries are supposed to survive that, because they are key *values*
+# rather than page pointers: a chunk is (re-)entered with PAGE_CUR_GE, so a
+# boundary key that has moved to another page - or been purged away entirely -
+# still positions correctly. This file pins that down.
+#
+# Each scan is parked on its first row with DEBUG_SYNC. By then the coordinator
+# has already partitioned the whole index, so every remaining chunk is read
+# from a tree the writer has since rebuilt. The read view is opened in
+# parallel_init_coordinator(), before any row, so under REPEATABLE READ the
+# result must equal the pre-reshape snapshot no matter what the writer did.
+#
+# The expected snapshot is printed immediately before each scan, so the two
+# numbers sit next to each other in the result.
+#
+# The WAIT_FOR actions carry an explicit TIMEOUT: without one, a sync point
+# that has been renamed or removed makes this file hang for 300s per wait
+# rather than fail. With it, the wait times out, the warning lands in the
+# result and the test fails - which also means the parking cannot silently
+# stop happening and leave the reshaping untested.
+#
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_50000;
+
+connect (w,localhost,root,,test);
+connection default;
+
+--replace_column 9 #
+explain select count(*), sum(a), sum(b) from t1;
+
+--echo #
+--echo # ==== page splits: writer doubles the table mid-scan ====
+--echo #
+--echo # snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+--send select count(*), sum(a), sum(b) from t1
+
+connection w;
+set debug_sync='now WAIT_FOR parked';
+insert into t1 select seq, seq div 10, concat('abcdef',seq)
+  from seq_50001_to_100000;
+set debug_sync='now SIGNAL go';
+
+connection default;
+--echo # parallel scan result:
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # ==== page merges: writer removes half the table mid-scan ====
+--echo #
+--echo # snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+--send select count(*), sum(a), sum(b) from t1
+
+connection w;
+set debug_sync='now WAIT_FOR parked';
+delete from t1 where a > 50000;
+set debug_sync='now SIGNAL go';
+
+connection default;
+--echo # parallel scan result:
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # ==== entries move within the secondary index ====
+--echo # Updating b deletes and re-inserts the index entry at a different key,
+--echo # so rows migrate between chunks while the scan is in flight.
+--echo #
+--echo # snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+set debug_sync='handler_ha_index_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+--send select count(*), sum(a), sum(b) from t1
+
+connection w;
+set debug_sync='now WAIT_FOR parked';
+update t1 set b = b + 100000 where a <= 25000;
+set debug_sync='now SIGNAL go';
+
+connection default;
+--echo # parallel scan result:
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # ==== same, on the clustered index ====
+--echo # ignore index(b) forces type=ALL, which is partitioned on the clustered
+--echo # index and read through handler_rnd_next_end instead.
+--echo #
+--echo # snapshot the parallel scan must return:
+select count(*), sum(a), sum(b) from t1 force index(b);
+set debug_sync='handler_rnd_next_end SIGNAL parked WAIT_FOR go EXECUTE 1';
+--send select count(*), sum(a), sum(b) from t1 ignore index(b)
+
+connection w;
+set debug_sync='now WAIT_FOR parked';
+delete from t1 where a between 10000 and 40000;
+insert into t1 select seq, seq div 10, concat('z',seq)
+  from seq_100001_to_120000;
+set debug_sync='now SIGNAL go';
+
+connection default;
+--echo # parallel scan result:
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # ==== the table is consistent afterwards ====
+--echo #
+select count(*), sum(a), sum(b) from t1;
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+
+disconnect w;
+connection default;
+drop table t1;

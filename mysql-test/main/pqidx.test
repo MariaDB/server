@@ -1,0 +1,81 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+#
+# Secondary index scans (MDEV-40005). Full scans and ranges are parallelized,
+# covering or not; a non-covering range keeps its pushed index condition. Scans
+# whose ordering comes from the index stay serial. This file pins down which is
+# which.
+#
+# b is deliberately non-unique (~10 rows per value): in a secondary index the
+# key alone does not identify a position, so chunk boundaries have to include
+# the PK suffix. See dict_index_get_n_unique_in_tree().
+#
+# NOTE: 1000 rows fit in a single index page, so the secondary index here is
+# one chunk - this file cannot catch a chunk-boundary bug. Multi-chunk
+# coverage needs a table big enough for the leaf level to span pages.
+#
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_1000;
+let $trace=$MYSQL_TMP_DIR/pq.trace;
+
+--echo #
+--echo # ==== which read path ====
+--echo #
+
+--echo # -- covering: every column read is in the secondary index
+--let $q= select b from t1
+--source include/pqidx_one.inc
+--echo # a is the PK, carried in the index as the suffix, so this still covers
+--let $q= select a, b from t1
+--source include/pqidx_one.inc
+--let $q= select count(*) from t1
+--source include/pqidx_one.inc
+--let $q= select sum(b) from t1
+--source include/pqidx_one.inc
+
+--echo # -- covering range on the secondary index
+--let $q= select b from t1 where b > 90
+--source include/pqidx_one.inc
+--let $q= select b from t1 where b between 20 and 40
+--source include/pqidx_one.inc
+--let $q= select b from t1 where b in (5, 50, 95)
+--source include/pqidx_one.inc
+
+--echo # -- non-covering range: c forces the clustered detour, and the range
+--echo #    predicate is pushed down as an index condition
+--let $q= select c from t1 where b > 90
+--source include/pqidx_one.inc
+--echo # a is in the index as the PK suffix, so this predicate is pushable too
+--let $q= select c from t1 where b > 90 and a % 3 = 0
+--source include/pqidx_one.inc
+
+--echo # -- ordering comes from the index: must stay serial even once
+--echo #    secondary index scans are supported
+--let $q= select b from t1 order by b
+--source include/pqidx_one.inc
+
+--echo # -- c is not in the index, so this drops to the clustered index
+--echo #    (parallel today - the contrast is the point)
+--let $q= select b, c from t1
+--source include/pqidx_one.inc
+
+--echo #
+--echo # ==== correctness ====
+--echo # Each aggregate is cross-checked with the secondary index ignored, so a
+--echo # future parallel path that drops or duplicates rows disagrees here.
+--echo #
+select count(*), min(b), max(b), sum(b) from t1;
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b);
+select count(*), min(b), max(b), sum(b) from t1 where b > 90;
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b) where b > 90;
+select count(*), min(b), max(b), sum(b) from t1 where b between 20 and 40;
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b)
+  where b between 20 and 40;
+select count(*), min(b), max(b), sum(b) from t1 where b in (5, 50, 95);
+select count(*), min(b), max(b), sum(b) from t1 ignore index(b)
+  where b in (5, 50, 95);
+
+drop table t1;

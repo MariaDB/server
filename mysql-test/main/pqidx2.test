@@ -1,0 +1,169 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+#
+# Multi-chunk covering secondary index scan (MDEV-40005).
+#
+# main.pqidx covers the plan shapes, but its 1000-row table fits in a single
+# index page: that is a one-chunk scan, so it cannot catch a chunk-boundary
+# bug. 50000 rows put ~46 chunks in index b, so boundaries are really crossed
+# here.
+#
+# b is non-unique (~10 rows per value), so chunk boundaries land in the middle
+# of a run of equal b values. Getting those right needs the PK suffix in the
+# boundary tuple - see dict_index_get_n_unique_in_tree().
+#
+# Every query is cross-checked against the same query with the secondary index
+# ignored. A boundary computed wrongly drops or duplicates rows, which moves
+# count(*) and both sums. sum(a) is included because a is the PK suffix carried
+# in the index, so it shifts even where b values repeat.
+#
+create table t1 (a int, b int, c varchar(20), primary key(a), index(b))
+engine=innodb;
+insert into t1 select seq, seq div 10, concat('abcdef',seq) from seq_1_to_50000;
+let $trace=$MYSQL_TMP_DIR/pq.trace;
+
+--replace_column 9 #
+explain select count(*), sum(a), sum(b) from t1;
+
+--echo #
+--echo # The scans below have to really be the parallel ones, otherwise this
+--echo # file quietly degrades into a serial correctness test. Probe with
+--echo # LIMIT 1 so the DBUG trace stays small - the plan is the same.
+--echo #
+--disable_query_log
+eval set session debug_dbug="+d:t:O,$trace";
+--disable_result_log
+select b from t1 limit 1;
+--enable_result_log
+set session debug_dbug="";
+--enable_query_log
+--exec grep -q "ha_parallel_get_next_row" $trace && echo "     parallel: YES" || echo "     parallel: no"
+--exec rm -f $trace
+
+--echo #
+--echo # ==== all data committed ====
+--echo # PAGE_MAX_TRX_ID lets the read view see the whole page, so rows are
+--echo # served from the index and never reach the clustered index.
+--echo #
+select count(*), sum(a), sum(b) from t1;
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+
+--echo #
+--echo # ==== reading our own uncommitted writes ====
+--echo # Our own trx id is above the read view low limit, so the page gate
+--echo # fails on every page and every row is resolved through the clustered
+--echo # index. row_search_mvcc() then returns the clustered record, which is
+--echo # the case where a chunk-end check applied to the wrong index silently
+--echo # drops rows.
+--echo #
+begin;
+insert into t1 select seq+100000, seq div 10, concat('x',seq) from seq_1_to_2000;
+select count(*), sum(a), sum(b) from t1;
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+rollback;
+
+--echo #
+--echo # ==== concurrent uncommitted writer ====
+--echo # Same gate failure, plus older versions have to be built for rows the
+--echo # other transaction has modified.
+--echo #
+connect (w,localhost,root,,test);
+begin;
+update t1 set b = b + 1 where a between 1 and 5000;
+connection default;
+select count(*), sum(a), sum(b) from t1;
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+connection w;
+rollback;
+disconnect w;
+connection default;
+
+--echo #
+--echo # ==== back to a quiet table ====
+--echo #
+select count(*), sum(a), sum(b) from t1;
+select count(*), sum(a), sum(b) from t1 ignore index(b);
+
+drop table t1;
+
+--echo #
+--echo # ==== one value of the leading key part spanning several leaf pages ====
+--echo # In t1 a value of b is 10 narrow index records, so it always fits one
+--echo # leaf and a range bound naming only b ties with at most one node
+--echo # pointer. Here 2500 rows share each value of es, ~3 leaves, so the node
+--echo # pointers above them repeat it: a prefix bound compares equal to several
+--echo # and the descent has to enter the first of them rather than the last -
+--echo # see Scan_ctx::search(). Landing on the last skips whole leaves.
+--echo #
+create table t2 (id int primary key, es tinyint, pad char(200), key(es))
+engine=innodb;
+insert into t2 select seq, seq%8, repeat('y',200) from seq_1_to_20000;
+
+--replace_column 9 #
+explain select count(*) from t2 where es >= 4;
+select count(*), min(id), max(id) from t2 where es >= 4;
+select count(*), min(id), max(id) from t2 ignore index(es) where es >= 4;
+select count(*), min(id), max(id) from t2 where es >= 1 and es < 2;
+select count(*), min(id), max(id) from t2 ignore index(es) where es >= 1 and es < 2;
+select count(*), min(id), max(id) from t2 where es = 5;
+select count(*), min(id), max(id) from t2 ignore index(es) where es = 5;
+select count(*), min(id), max(id) from t2 where es < 2;
+select count(*), min(id), max(id) from t2 ignore index(es) where es < 2;
+
+--echo #
+--echo # ==== non-covering: the pushed index condition rides along ====
+--echo # pad is not in the index, so every row takes the clustered detour and
+--echo # push_index_cond() pushes the range predicate down. Nothing in the
+--echo # parallel path handles ICP explicitly: the worker reads through
+--echo # row_search_mvcc(table->record[0], ...) and that is the buffer
+--echo # pushed_idx_cond evaluates against. Which is worth proving rather than
+--echo # assuming, so the counters below say whether ICP really ran.
+--echo #
+--replace_column 9 #
+explain select count(pad) from t2 where es >= 7;
+
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+--echo # attempts = rows the scan examined, match = rows it kept
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es) where es >= 7;
+
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 1 and es < 2;
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es)
+  where es >= 1 and es < 2;
+
+--echo # An exclusive lower bound must not cost a whole key value. A chunk is
+--echo # entered with PAGE_CUR_GE, which cannot express "es > 0", so the open
+--echo # switches to the bound itself with PAGE_CUR_G - see
+--echo # pscan_exclusive_start(). Without it the 2500 es=0 rows would each be
+--echo # read and then discarded, and attempts below would say 5000.
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es > 0 and es < 2;
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es)
+  where es > 0 and es < 2;
+
+--echo # ICP switched off: prebuilt->idx_cond stays NULL and
+--echo # row_search_idx_cond_check() short-circuits, so the same rows have to
+--echo # come back with no ICP accounting at all.
+set optimizer_switch='index_condition_pushdown=off';
+flush status;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+show status where variable_name in ('Handler_icp_attempts','Handler_icp_match');
+set optimizer_switch='index_condition_pushdown=default';
+
+--echo # Own uncommitted writes: the PAGE_MAX_TRX_ID gate fails on every page,
+--echo # so every row is resolved through the clustered index and row_search_mvcc()
+--echo # returns the clustered record. That is the heaviest exercise of the chunk
+--echo # clamp, which has to keep comparing against the secondary index.
+begin;
+insert into t2 select seq+100000, seq%8, repeat('z',200) from seq_1_to_2000;
+select count(pad), count(*), min(id), max(id) from t2 where es >= 7;
+select count(pad), count(*), min(id), max(id) from t2 ignore index(es) where es >= 7;
+rollback;
+
+drop table t2;
