@@ -83,8 +83,9 @@ struct READ_RECORD
   */
   Copy_field *copy_field;
   Copy_field *copy_field_end;
+  Parallel_worker_ctx *parallel_worker_ctx;
 public:
-  READ_RECORD() : table(NULL), cache(NULL) {}
+  READ_RECORD() : table(NULL), cache(NULL), parallel_worker_ctx(NULL) {}
   ~READ_RECORD() { end_read_record(this); }
 };
 

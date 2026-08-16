@@ -2792,6 +2792,149 @@ setup_subq_exit:
   DBUG_RETURN(0);
 }
 
+enum class Parallel_scan_type
+{
+  NONE,
+  FULL_SCAN,
+  RANGE_SCAN
+};
+
+static
+Parallel_scan_type get_applicable_parallel_scan_type(JOIN_TAB *join_tab)
+{
+  if (!(join_tab->type == JT_ALL &&
+    join_tab->read_first_record == join_init_read_record &&
+    join_tab->table->s->tmp_table == NO_TMP_TABLE &&
+    join_tab->table->s->blob_fields == 0 &&
+    !join_tab->table->fulltext_searched &&
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    !join_tab->table->part_info &&
+#endif
+    (join_tab->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN)))
+  {
+    return Parallel_scan_type::NONE;
+  }
+
+  /*
+    The plan may be relying on this table's rows arriving in index order to
+    satisfy ORDER BY or GROUP BY without a filesort, but a parallel scan
+    does not preserve that order. Reject parallelization in that case.
+  */
+  if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
+    return Parallel_scan_type::NONE;
+
+  if (join_tab->filesort || join_tab->filesort_result ||
+      join_tab->need_to_build_rowid_filter || join_tab->rowid_filter ||
+      join_tab->distinct ||
+      join_tab->table->file->keyread_enabled())
+    return Parallel_scan_type::NONE;
+
+  SQL_SELECT *sql_select= join_tab->select;
+
+  if (sql_select && sql_select->quick)
+  {
+    /*
+      The case of a range scan.
+      Only a plain range over the clustered index can be handed to the
+      parallel coordinator, and only if it has few enough intervals to be
+      worth splitting.
+    */
+    const uint MAX_PARALLEL_SCAN_RANGES= 128;
+    if (sql_select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE &&
+        sql_select->quick->index == join_tab->table->s->primary_key &&
+        join_tab->use_quick != 2 /*exclude dynamic range*/ &&
+        ((QUICK_RANGE_SELECT*) sql_select->quick)->num_ranges() <=
+          MAX_PARALLEL_SCAN_RANGES)
+    {
+      return Parallel_scan_type::RANGE_SCAN;
+    }
+    else
+    {
+      return Parallel_scan_type::NONE;
+    }
+  }
+  else
+  {
+    return Parallel_scan_type::FULL_SCAN;
+  }
+}
+
+extern int parallel_rr_next(READ_RECORD *info);
+
+/*
+  Snapshot the quick select's key intervals into the `ranges` array.
+  An empty result means "scan the whole table".
+
+  @return true on error (my_error() has been called)
+*/
+static bool parallel_build_key_ranges(JOIN_TAB *tab,
+                                      Dynamic_array<KEY_MULTI_RANGE> *ranges)
+{
+  if (!tab->use_parallel_scan || !tab->select || !tab->select->quick)
+    return false;
+
+  QUICK_RANGE_SELECT *quick= (QUICK_RANGE_SELECT*) tab->select->quick;
+  range_seq_t seq= quick_range_seq_init(quick, 0, 0);
+  KEY_MULTI_RANGE range;
+
+  while (!quick_range_seq_next(seq, &range))
+  {
+    if (ranges->append(range))
+      return true;
+  }
+  return false;
+}
+
+int parallel_init_read_record(JOIN_TAB *tab)
+{
+  TABLE *table = tab->table;
+  handler *file = table->file;
+
+  /*
+    parallel_init_coordinator() copies what it keeps, so these only have to
+    outlive the call. prealloc=0 defers the allocation until there is
+    something to store: a full scan contributes no intervals at all.
+  */
+  Dynamic_array<KEY_MULTI_RANGE> ranges(PSI_INSTRUMENT_MEM, 0, 16);
+  if (parallel_build_key_ranges(tab, &ranges))
+    return 1;
+
+  const size_t ARBITRARY_WORKERS_NUM = 4;
+  int err= file->parallel_init_coordinator(ARBITRARY_WORKERS_NUM, ranges);
+  if (err == HA_ERR_UNSUPPORTED)
+  {
+    // Fall back to the serial record reader
+    tab->read_first_record= join_init_read_record;
+    tab->use_parallel_scan= false;
+    return join_init_read_record(tab);
+  }
+  if (err)
+  {
+    file->print_error(err, MYF(0));
+    return 1;
+  }
+
+  tab->read_record.table            = tab->table;
+  tab->read_record.thd              = tab->join->thd;
+  tab->read_record.read_record_func = parallel_rr_next;
+  tab->read_record.print_error      = TRUE;
+
+  Parallel_worker_ctx *worker_ctx= file->parallel_get_worker_context(0);
+  DBUG_ASSERT(worker_ctx);
+  err= file->parallel_init_worker(worker_ctx);
+  if (err == HA_ERR_END_OF_FILE)
+    return -1;  // No rows — read_first_record's "empty result" sentinel
+  if (err)
+  {
+    // Real error from the engine
+    file->print_error(err, MYF(0));
+    return 1;
+  }
+  tab->read_record.parallel_worker_ctx = worker_ctx;
+
+  // Fetch the first row before returning — this is what join_init_read_record does.
+  return tab->read_record.read_record();
+}
 
 /*
   @brief
@@ -3581,6 +3724,20 @@ int JOIN::optimize_stage2()
   if (init_range_rowid_filters())
     DBUG_RETURN(1);
 
+  /*
+    Parallel-scan decision must come last: everything above can still
+    change the first table's access method.
+  */
+  {
+    JOIN_TAB *first= first_linear_tab(this, WITH_BUSH_ROOTS,
+                                      WITHOUT_CONST_TABLES);
+    if (first && !(select_options & SELECT_DESCRIBE) &&
+        get_applicable_parallel_scan_type(first) != Parallel_scan_type::NONE)
+    {
+      first->use_parallel_scan= true;
+      first->read_first_record= parallel_init_read_record;
+    }
+  }
   error= 0;
 
   if (select_options & SELECT_DESCRIBE)
@@ -16326,7 +16483,6 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
     set_cond(NULL);
 }
 
-
 /*
   Plan refinement stage: do various setup things for the executor
 
@@ -16662,7 +16818,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
-
   DBUG_RETURN(FALSE);
 }
 
@@ -16796,6 +16951,12 @@ void JOIN_TAB::cleanup()
       table->file->ha_ft_end();
     else if (table->hlindex && table->hlindex->context)
       table->hlindex_read_end();
+    else if (use_parallel_scan)
+    {
+      table->file->parallel_end_worker();
+      table->file->parallel_end_coordinator();
+      read_record.parallel_worker_ctx= NULL;
+    }
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;

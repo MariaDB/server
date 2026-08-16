@@ -428,6 +428,7 @@ typedef struct st_join_table {
   bool          shortcut_for_distinct;
   bool          sorted;
   bool          cached_pfs_batch_update;
+  bool          use_parallel_scan;
 
   /* 
     If it's not 0 the number stored this field indicates that the index
