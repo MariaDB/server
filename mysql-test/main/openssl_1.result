@@ -70,8 +70,8 @@ variable_name LIKE 'SSL_CALLBACK_CACHE_HITS';
 END$$
 SELECT variable_name, variable_value FROM thread_status;
 variable_name	variable_value
-SSL_ACCEPTS	#
 SSL_CALLBACK_CACHE_HITS	#
+SSL_ACCEPTS	#
 DROP TABLE thread_status;
 SET GLOBAL event_scheduler=0;
 CREATE TABLE t1(a int);

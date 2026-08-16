@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2025, MariaDB plc
+   Copyright (c) 2008, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4784,6 +4784,49 @@ void ssl_acceptor_stats_update(int sslaccept_ret)
     statistic_increment(ssl_acceptor_stats.accept_good,&LOCK_status);
 }
 
+static int show_ssl_ctx_stats(THD *, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum_var_type)
+{
+  static constexpr size_t count= 7;
+  static const char *names[count]=
+  { "accept_renegotiates", "callback_cache_hits", "session_cache_hits",
+    "session_cache_misses", "session_cache_overflows",
+    "session_cache_timeouts", "used_session_cache_entries" };
+  SHOW_VAR *vars= (SHOW_VAR *) buff;
+  long *value= (long *) (vars + count + 1);
+  DBUG_ASSERT((char*)(value + count) <= (char*)buff + SHOW_VAR_FUNC_BUFF_SIZE);
+
+  mysql_rwlock_rdlock(&LOCK_ssl_refresh);
+  if (ssl_acceptor_fd)
+  {
+    SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
+    value[0]= SSL_CTX_sess_accept_renegotiate(ctx);
+    value[1]= SSL_CTX_sess_cb_hits(ctx);
+    value[2]= SSL_CTX_sess_hits(ctx);
+    value[3]= SSL_CTX_sess_misses(ctx);
+    value[4]= SSL_CTX_sess_cache_full(ctx);
+    value[5]= SSL_CTX_sess_timeouts(ctx);
+    value[6]= SSL_CTX_sess_number(ctx);
+  }
+  else
+    bzero(value, count * sizeof(*value));
+  mysql_rwlock_unlock(&LOCK_ssl_refresh);
+
+  for (uint i= 0; i < count; i++)
+  {
+    vars[i].name= names[i];
+    vars[i].value= (char*) &value[i];
+    vars[i].type= SHOW_LONG; // long, as that's what SSL functions return above
+  }
+  vars[count].name= NULL;
+  vars[count].value= NULL;
+  vars[count].type= SHOW_UNDEF;
+
+  var->type= SHOW_ARRAY;
+  var->value= (char*) vars;
+  return 0;
+}
+
 LEX_CUSTRING ssl_acceptor_fingerprint()
 {
   return { ssl_acceptor_stats.fprint, sizeof(ssl_acceptor_stats.fprint) };
@@ -7527,6 +7570,18 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
+static int show_ssl_get_sessions_reused(THD *thd, SHOW_VAR *var, void *buff,
+                                        system_status_var *, enum_var_type)
+{
+  var->type= SHOW_INT;
+  var->value= buff;
+  if( thd->vio_ok() && thd->net.vio->ssl_arg )
+    *((int *)buff)= SSL_session_reused((SSL*) thd->net.vio->ssl_arg);
+  else
+    *((int *)buff)= 0;
+  return 0;
+}
+
 static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, void *buff,
                                     system_status_var *, enum_var_type)
 {
@@ -8068,9 +8123,8 @@ SHOW_VAR status_vars[]= {
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
-  {"Ssl_accept_renegotiates",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  SHOW_FUNC_ENTRY("Ssl", &show_ssl_ctx_stats),
   {"Ssl_accepts",              (char*) &ssl_acceptor_stats.accept, SHOW_LONG},
-  {"Ssl_callback_cache_hits",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_SIMPLE_FUNC},
   {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_SIMPLE_FUNC},
   {"Ssl_client_connects",      (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
@@ -8082,14 +8136,9 @@ SHOW_VAR status_vars[]= {
   {"Ssl_finished_connects",    (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},
   {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_hits",   (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
-  {"Ssl_session_cache_misses", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_session_cache_mode",   (char*) &ssl_acceptor_stats.session_cache_mode, SHOW_CHAR_PTR},
-  {"Ssl_session_cache_overflows", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_session_cache_size",   (char*) &ssl_acceptor_stats.cache_size, SHOW_LONG},
-  {"Ssl_session_cache_timeouts", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
-  {"Ssl_sessions_reused",      (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
-  {"Ssl_used_session_cache_entries",(char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_sessions_reused",      (char*) &show_ssl_get_sessions_reused, SHOW_SIMPLE_FUNC},
   {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
   {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},

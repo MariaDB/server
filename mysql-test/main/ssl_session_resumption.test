@@ -1,0 +1,48 @@
+--echo #
+--echo # TLS session resumption statistics
+--echo #
+
+--source include/not_embedded.inc
+--source include/not_windows.inc
+--source include/have_openssl_binary.inc
+
+# Driven by openssl s_client rather than by a MariaDB client, to verify the
+# server against an independent TLS implementation.
+
+--echo #
+--echo # TLS 1.2, session ticket
+--echo #
+--let $tls_opt= -tls1_2
+--source include/tls_session_resume.inc
+
+--echo #
+--echo # TLS 1.2, session id. Unlike a ticket, this session is also stored in
+--echo # the server side cache, so it is the only case that fills it up
+--echo #
+--let $tls_opt= -tls1_2 -no_ticket
+--source include/tls_session_resume.inc
+
+--echo #
+--echo # TLS 1.3, session ticket. No session id resumption exists in TLS 1.3,
+--echo # so like a TLS 1.2 ticket it leaves nothing on the server
+--echo #
+--let $tls_opt= -tls1_3
+--source include/tls_session_resume.inc
+
+--echo #
+--echo # A session cannot be resumed across FLUSH SSL: it replaces the
+--echo # acceptor context, and with it the session cache and the ticket keys
+--echo #
+--let $tls_opt= -tls1_3
+--source include/tls_session_resume.inc
+FLUSH SSL;
+--echo openssl s_client -ign_eof $tls_opt -sess_in tls_session.pem
+--exec printf '\001\000\000\001\000' | $s_client -sess_in $tls_session 2>/dev/null | grep -q '^Reused' && echo RESUMED || echo FULL
+
+--echo # and it resets the acceptor statistics
+eval select ($status 'Ssl_session_cache_hits') as 'Ssl_session_cache_hits',
+            ($status 'Ssl_used_session_cache_entries') as 'Ssl_used_session_cache_entries';
+
+--remove_file $tls_session
+
+--echo # End of 13.2 tests
