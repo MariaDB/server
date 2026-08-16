@@ -1,0 +1,59 @@
+--echo #
+--echo # TLS session resumption, client side
+--echo #
+
+--source include/have_ssl_communication.inc
+--source include/not_embedded.inc
+
+# Every test gets its own mysqltest process, so the client side session
+# cache starts out empty here.
+
+--echo #
+--echo # a second connection of the same configuration resumes
+--echo #
+connect ssl1,localhost,root,,,,,SSL;
+connection ssl1;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect ssl1;
+
+connect ssl2,localhost,root,,,,,SSL;
+connection ssl2;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect ssl2;
+
+--echo #
+--echo # a resumed connection has a session again, so it keeps working. With
+--echo # TLS 1.3 the server issues a new ticket, before that the session we
+--echo # resumed with is put back
+--echo #
+connect ssl3,localhost,root,,,,,SSL;
+connection ssl3;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect ssl3;
+
+--echo #
+--echo # a resumed handshake verifies no certificate at all, so a session
+--echo # must not be offered to a differently configured connection. Both
+--echo # the cipher and the transport are part of the cache key.
+--echo #
+connect ssl4,localhost,root,,,,,SSL SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256;
+connection ssl4;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect ssl4;
+
+connect tcp1,127.0.0.1,root,,,$MASTER_MYPORT,,SSL TCP;
+connection tcp1;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect tcp1;
+
+--echo #
+--echo # and each of those configurations resumes on its own
+--echo #
+connect tcp2,127.0.0.1,root,,,$MASTER_MYPORT,,SSL TCP;
+connection tcp2;
+SHOW SESSION STATUS LIKE 'Ssl_sessions_reused';
+disconnect tcp2;
+
+connection default;
+
+--echo # End of 13.2 tests
