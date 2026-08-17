@@ -1959,6 +1959,8 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'four'
 Warning	1292	Truncated incorrect DECIMAL value: 'four'
 Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
 select * from t3 left join t5 on t3.a = t5.a union select * from t3 right join t5 on t3.a = t5.a;
 a	a
 1	1
@@ -6237,5 +6239,75 @@ a1	a3	a2
 NULL	NULL	3
 NULL	NULL	4
 set optimizer_switch=default;
+drop table t1, t2, t3;
+# ====================================================================
+# Section 23: Every match on the right side of a FULL JOIN is recorded
+# ====================================================================
+#
+# A FULL JOIN runs as a LEFT JOIN of its left side over its right side,
+# then a pass emits the right side rows that matched no left row.  The
+# pass reads a record of which right side rows matched, and that record
+# has to hold every row whose ON expression was satisfied, whatever the
+# WHERE then makes of the row.  The WHERE predicates on the right side
+# are held back by a guard that is closed only until the first match of
+# the current left side row, so a second or later matching row is where
+# a predicate can reject the row before its match is recorded.  The
+# pass would then emit it as a row that matched nothing.
+create table t1 (a int, b int);
+insert into t1 values (1,10);
+create table t2 (a int, c int);
+insert into t2 values (1,100),(1,50),(9,900);
+create table t3 (a int, d int);
+insert into t3 values (1,1000),(9,9000);
+# The t1 row matches both t2 a = 1 rows.  The second one is rejected by
+# the WHERE, and a predicate that accepts a NULL left side must not
+# then let it back in as a row that matched nothing.
+select * from t1 full join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null;
+a	b	a	c
+NULL	NULL	9	900
+select * from t1 left join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null;
+a	b	a	c
+NULL	NULL	9	900
+# Both matching rows rejected by the WHERE.
+select * from t1 full join t2 on t1.a = t2.a where t2.c > 150000 or t1.a is null;
+a	b	a	c
+NULL	NULL	9	900
+select * from t1 left join t2 on t1.a = t2.a
+where t2.c > 150000 or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a
+where t2.c > 150000 or t1.a is null;
+a	b	a	c
+NULL	NULL	9	900
+# The predicate reads the left side only.
+select * from t1 full join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null;
+a	b	a	c
+NULL	NULL	9	900
+select * from t1 left join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null
+union
+select * from t1 right join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null;
+a	b	a	c
+NULL	NULL	9	900
+# The left side is a nest, so the FULL JOIN's right side is reached
+# after more than one table has been read.
+select * from (t3 join t1 on t3.a = t1.a) full join t2 on t1.a = t2.a
+where t2.c > 150 or t1.a is null;
+a	d	a	b	a	c
+NULL	NULL	NULL	NULL	9	900
+select * from (t3 join t1 on t3.a = t1.a) left join t2 on t1.a = t2.a
+where t2.c > 150 or t1.a is null
+union
+select * from (t3 join t1 on t3.a = t1.a) right join t2 on t1.a = t2.a
+where t2.c > 150 or t1.a is null;
+a	d	a	b	a	c
+NULL	NULL	NULL	NULL	9	900
+# Chained FULL JOINs, where one join's right side is the next one's
+# left side.
+select * from t1 full join t2 on t1.a = t2.a full join t3 on t2.a = t3.a
+where t2.c > 150 or t1.a is null;
+a	b	a	c	a	d
+NULL	NULL	9	900	9	9000
 drop table t1, t2, t3;
 # End of 12.3 tests
