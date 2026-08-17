@@ -210,9 +210,6 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   if ((null_value= !value))
     return nullptr;
 
-  if (value->length() > max_length)
-    return nullptr;
-
   buf->length(0);
   buf->set_charset(&my_charset_bin);
   CHARSET_INFO *cs= value->charset();
@@ -262,7 +259,8 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   if (!end_ok)
     goto error_format;
 
-  if (Type_handler_vector::is_valid(buf->ptr(), buf->length()))
+  if (buf->length() <= MAX_FIELD_VARCHARLENGTH &&
+      Type_handler_vector::is_valid(buf->ptr(), buf->length()))
     return buf;
 
   null_value= true;

@@ -592,7 +592,15 @@ SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16382), ']')) AS f;
 DROP TABLE tt;
 CREATE TABLE tt AS
 SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
-ERROR 22007: Incorrect vector value: '\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00...' for column `test`.`tt`.`f` at row 1
+ERROR 22007: Truncated incorrect vector value: '[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,...'
+CREATE TABLE t1 (v VECTOR(2));
+INSERT INTO t1 VALUES (VEC_FROMTEXT(CONCAT('[1.', REPEAT('0',70000), ',2]')));
+DROP TABLE t1;
+SELECT VEC_FROMTEXT('😀😀😀');
+VEC_FROMTEXT('😀😀😀')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'VEC_FromText' at position 1
 ## "Zero-dimensional" argument, no change in behaviour after fix
 SELECT VEC_FROMTEXT('[]') as f;
 f
