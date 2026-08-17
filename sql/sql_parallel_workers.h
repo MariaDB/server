@@ -451,4 +451,10 @@ extern bool parallel_scan_supports_access(JOIN_TAB *tab);
 */
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
 
+extern bool table_can_be_parallel_scanned(TABLE *table);
+extern uint scale_cost_for_parallel_scan(THD *thd, TABLE *table,
+                                        ALL_READ_COST *cost);
+extern uint parallel_join_divisor(const POSITION *positions, uint const_tables);
+extern double parallel_scan_io_divisor(TABLE *table, uint n);
+
 #endif

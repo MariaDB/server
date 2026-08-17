@@ -8767,15 +8767,6 @@ struct best_plan
 };
 
 
-/* Defined in sql_parallel_workers.cc */
-extern bool table_can_be_parallel_scanned(TABLE *table);
-extern uint scale_cost_for_parallel_scan(THD *thd, TABLE *table,
-                                        ALL_READ_COST *cost);
-extern uint parallel_join_divisor(const POSITION *positions, uint const_tables);
-/* Defined in sql_parallel_workers.cc, with the other parallel-scan costing. */
-extern double parallel_scan_io_divisor(TABLE *table, uint n);
-
-
 void
 best_access_path(JOIN      *join,
                  JOIN_TAB  *s,
