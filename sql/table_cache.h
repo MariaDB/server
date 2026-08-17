@@ -119,29 +119,32 @@ class Share_acquire
 public:
   bool flush_unused;
   TABLE_SHARE *share;
+  bool error= false;  // set by acquire(): non-suppressed acquisition error
 
   Share_acquire() : flush_unused(false), share(NULL) {}
   template <class TABLE_NAME>
-  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags= 0) : flush_unused(false)
+  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags= 0,
+                bool use_check_foreign= true) : flush_unused(false)
   {
-    acquire(thd, tn, flags);
+    acquire(thd, tn, flags, use_check_foreign);
   }
   Share_acquire(const Share_acquire &src)= delete;
 
   // NB: noexcept is required for STL containers
   Share_acquire(Share_acquire &&src) noexcept :
-    flush_unused(src.flush_unused), share(src.share)
+    flush_unused(src.flush_unused), share(src.share), error(src.error)
   {
     src.share= NULL;
   }
   ~Share_acquire();
-  bool fk_error(THD *thd, bool use_check_foreign= true) const;
-  void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0);
-  void acquire(THD *thd, Table_name &tn, uint flags= 0)
+  void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0,
+               bool use_check_foreign= true);
+  void acquire(THD *thd, Table_name &tn, uint flags= 0,
+               bool use_check_foreign= true)
   {
     TABLE_LIST tl;
     tl.init_one_table(&tn.db, &tn.name, NULL, TL_IGNORE);
-    return acquire(thd, tl, flags);
+    return acquire(thd, tl, flags, use_check_foreign);
   }
   void release()
   {

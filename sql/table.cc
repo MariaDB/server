@@ -10804,8 +10804,8 @@ FK_info::get_referenced_share(THD *thd, Share_map *ref_shares, myf MyFlags) cons
   if (ref_shares->find(ref) != ref_shares->end())
     return false;
 
-  Share_acquire sa(thd, ref);
-  if (sa.fk_error(thd, false))
+  Share_acquire sa(thd, ref, 0, false);
+  if (sa.error)
   {
     my_error(ER_WRONG_FK_DEF, MyFlags, ref.name.str, "referenced table failed");
     return MyFlags & (ME_WARNING | ME_NOTE) ? false : true;

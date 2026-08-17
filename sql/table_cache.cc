@@ -1373,28 +1373,29 @@ Share_acquire::~Share_acquire()
 }
 
 
-void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags)
+void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags,
+                            bool use_check_foreign)
 {
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info tmp_wi(thd->query_id, false, true);
+  No_such_table_error_handler no_such_table;
+  /*
+    Two independent conditions gate FK enforcement. use_check_foreign is the
+    caller's per-acquisition policy: whether a missing referenced table matters
+    for this particular operation (e.g. FK_table_to_lock::fail). check_foreign()
+    is the user's foreign_key_checks session switch. A missing table is an error
+    only when both hold; with foreign_key_checks=0 the user explicitly permits
+    dangling foreign keys, so we tolerate it regardless of the caller's policy.
+  */
+  bool ignore_missing= !(use_check_foreign && thd->variables.check_foreign());
 
   da->push_warning_info(&tmp_wi);
+  if (ignore_missing)
+    thd->push_internal_handler(&no_such_table);
   share= tdc_acquire_share(thd, &tl, GTS_TABLE|flags);
+  if (ignore_missing)
+    thd->pop_internal_handler();
   da->pop_warning_info();
-}
 
-
-bool Share_acquire::fk_error(THD *thd, bool use_check_foreign) const
-{
-  if (share)
-    return false;
-
-  if (!(use_check_foreign && thd->variables.check_foreign()) &&
-      thd->is_error() &&
-      thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
-  {
-    thd->clear_error();
-    return false;
-  }
-  return true;
+  error= !share && thd->is_error();
 }
