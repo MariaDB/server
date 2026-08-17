@@ -28995,6 +28995,25 @@ end:
   in sorted order.
 *****************************************************************************/
 
+/*
+  Return true if tl is the left side of a surviving FULL JOIN or lies
+  inside the nest that is one.  A rewritten FULL JOIN has JOIN_TYPE_FULL
+  cleared on both sides, so the flag is set only while the join still
+  runs as a FULL JOIN.
+*/
+
+static bool is_in_full_join_left_side(TABLE_LIST *tl)
+{
+  for ( ; tl ; tl= tl->embedding)
+  {
+    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_LEFT)) ==
+        (JOIN_TYPE_FULL | JOIN_TYPE_LEFT))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   Check if "left_item=right_item" equality is guaranteed to be true by use of
   [eq]ref access on left_item->field->table.
@@ -29022,6 +29041,16 @@ bool test_if_ref(Item *root_cond, Item_field *left_item,Item *right_item)
 {
   Field *field=left_item->field;
   JOIN_TAB *join_tab= field->table->reginfo.join_tab;
+  /*
+    A ref access guarantees the equality only for the rows it read.  A
+    table on the left side of a surviving FULL JOIN also reaches an
+    enclosing outer join's ON condition as a null row, emitted by the
+    pass that produces the right side rows with no match on the left,
+    and the ON condition has to reject those rows.  The equality is the
+    only thing that rejects them, so it has to stay in the condition.
+  */
+  if (is_in_full_join_left_side(field->table->pos_in_table_list))
+    return 0;
   // No need to change const test
   if (!field->table->const_table && join_tab &&
       !join_tab->is_ref_for_hash_join() &&
