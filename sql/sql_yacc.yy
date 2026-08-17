@@ -1898,7 +1898,10 @@ rule:
         handler_rkey_function handler_read_or_scan
         single_multi opt_wild
         opt_and
-        select_var_list select_var_list_init help
+        select_var_list select_var_list_init
+        into_destination_select_var_list_init
+        opt_into_select_var_list_init
+        help
         opt_extended_describe shutdown
         opt_format_json
         prepare execute deallocate
@@ -10052,6 +10055,10 @@ expr:
               my_error(ER_WRONG_USAGE, MYF(0), "OLD_VALUE", "non-UPDATE");
               MYSQL_YYABORT;
             }
+            Sql_cmd_update *update= dynamic_cast<Sql_cmd_update*>(
+                                                                lex->m_sql_cmd);
+            DBUG_ASSERT(update);
+            update->set_with_old_value_items();
             $$= new (thd->mem_root)
                                 Item_old_field(thd,
                                                &lex->current_select->context,
@@ -13992,10 +13999,25 @@ into_destination:
                 MYSQL_YYABORT;
             }
           }
-        | select_var_list_init
+        | into_destination_select_var_list_init
+        ;
+
+into_destination_select_var_list_init:
+          select_var_list_init
           {
             Lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
             status_var_increment(thd->status_var.feature_into_variable);
+          }
+        ;
+
+opt_into_select_var_list_init:
+          /* empty */ { }
+        | INTO into_destination_select_var_list_init
+          {
+            if (Lex->set_returning_into_result(
+                                   dynamic_cast<select_dumpvar*>(Lex->result)))
+              MYSQL_YYABORT;
+
           }
         ;
 
@@ -14522,17 +14544,19 @@ update:
             Lex->first_select_lex()->master_unit()->set_with_clause($1);
             if ($1)
               $1->attach_to(Lex->first_select_lex());
+            if (!(Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_update(Lex,
+                                                                     false)))
+              MYSQL_YYABORT;
           }
           opt_low_priority opt_ignore update_table_list
           SET update_list
           {
-            bool is_multiupdate= false;
-            LEX *lex= Lex;
             SELECT_LEX *slex= Lex->first_select_lex();
             if (slex->table_list.elements > 1)
             {
               Lex->sql_command= SQLCOM_UPDATE_MULTI;
-              is_multiupdate= true;
+              DBUG_ASSERT(dynamic_cast<Sql_cmd_update*>(Lex->m_sql_cmd));
+              static_cast<Sql_cmd_update*>(Lex->m_sql_cmd)->set_as_multitable();
             }
             else if (slex->get_table_list()->derived)
             {
@@ -14541,9 +14565,6 @@ update:
                        slex->get_table_list()->alias.str, "UPDATE");
               MYSQL_YYABORT;
             }
-            if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_update(is_multiupdate)))
-              MYSQL_YYABORT;
             /*
               In case of multi-update setting write lock for all tables may
               be too pessimistic. We will decrease lock level if possible
@@ -14647,7 +14668,7 @@ delete_part2:
             lex->last_table()->vers_conditions= lex->vers_conditions;
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(false)))
+                  new (thd->mem_root) Sql_cmd_delete(lex, false)))
               MYSQL_YYABORT;
             if (lex->check_main_unit_semantics())
               MYSQL_YYABORT;
@@ -14706,7 +14727,7 @@ single_multi:
               Select->order_list= *($3);
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(false)))
+                  new (thd->mem_root) Sql_cmd_delete(lex, false)))
               MYSQL_YYABORT;
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
@@ -14717,7 +14738,7 @@ single_multi:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DELETE_MULTI;
             if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(true)))
+                  new (thd->mem_root) Sql_cmd_delete(lex, true)))
               MYSQL_YYABORT;
             mysql_init_multi_delete(Lex);
             YYPS->m_lock_type= TL_READ_DEFAULT;
@@ -14738,7 +14759,7 @@ single_multi:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DELETE_MULTI;
             if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(true)))
+                  new (thd->mem_root) Sql_cmd_delete(lex, true)))
               MYSQL_YYABORT;
             mysql_init_multi_delete(Lex);
             YYPS->m_lock_type= TL_READ_DEFAULT;
@@ -14808,6 +14829,8 @@ opt_returning:
             std::swap(thd->lex->returning()->returning_list,
                       thd->lex->returning()->item_list);
           }
+          opt_into_select_var_list_init
+          { }
         ;
 
 opt_wild:
@@ -15475,10 +15498,8 @@ describe_command:
         ;
 
 analyze_stmt_command:
-          ANALYZE_SYM opt_format_json explainable_command
-          {
-            Lex->analyze_stmt= true;
-          }
+          ANALYZE_SYM { Lex->analyze_stmt= true; }
+          opt_format_json explainable_command { }
         ;
 
 opt_extended_describe:

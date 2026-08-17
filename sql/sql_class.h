@@ -8010,6 +8010,7 @@ public:
    :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
   { var_list.empty(); }
   ~select_dumpvar() = default;
+  bool accepts_only_one_row() const override { return true; }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   int send_data(List<Item> &items) override;
   bool send_eof() override;
