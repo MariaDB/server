@@ -1522,11 +1522,19 @@ void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
     DBUG_ASSERT(table == thd->open_tables);
 
     handlerton *table_type= table->s->db_type();
+    ulonglong save_bits= thd->variables.option_bits;
     table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     table->s->tdc->flush(thd, true);
     close_thread_table(thd, &thd->open_tables);
+    /*
+      Atomic CREATE OR REPLACE the table has inherited the constraints
+      that were referencing the original table, which is restored
+      from the backup copy after this.
+    */
+    thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
     /* Remove the table from the storage engine and rm the .frm. */
     quick_rm_table(thd, table_type, db_name, table_name, QRMT_DEFAULT);
+    thd->variables.option_bits= save_bits;
  }
   DBUG_VOID_RETURN;
 }

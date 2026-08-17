@@ -1200,7 +1200,10 @@ static int execute_drop_table(THD *thd, handlerton *hton, const LEX_CSTRING *db,
   uint keys, total_keys;
   int error, first_error= 0;
   MDL_request mdl_request;
+  ulonglong save_bits= thd->variables.option_bits;
   DBUG_ENTER("execute_drop_table");
+
+  thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
 
   /*
     Under an unexpected error conditions, like server shutdown, there may
@@ -1233,6 +1236,7 @@ static int execute_drop_table(THD *thd, handlerton *hton, const LEX_CSTRING *db,
   }
   if (mdl_request.ticket)
     thd->mdl_context.release_lock(mdl_request.ticket);
+  thd->variables.option_bits= save_bits;
   DBUG_ASSERT(!tdc_share_is_cached(thd, db->str, table->str));
   DBUG_RETURN(first_error);
 }
