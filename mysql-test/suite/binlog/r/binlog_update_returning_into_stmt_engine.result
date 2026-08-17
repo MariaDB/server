@@ -1,0 +1,35 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+# MDEV-41260 Misleading message text "uses a LIMIT clause" after
+# Update Returning Into
+#
+# UPDATE..RETURNING..INTO is unsafe for the statement based
+# replication. With a storage engine limited to statement logging
+# the statement can be neither logged as a row event nor as a statement
+# in the MIXED mode, so an error is raised with the explanation of
+# the unsafeness. The engine is simulated using a debug injection point.
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+SET @saved_dbug= @@debug_dbug;
+SET @@debug_dbug="+d,binlog_stmt_only_engine";
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+ERROR HY000: Cannot execute statement: impossible to write to binary log since statement is unsafe, storage engine is limited to statement-based logging, and BINLOG_FORMAT = MIXED. The statement is unsafe because it uses RETURNING..INTO. This is unsafe because the set of rows included cannot be predicted
+# The same in a stored procedure
+CREATE PROCEDURE p1()
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+CALL p1;
+ERROR HY000: Cannot execute statement: impossible to write to binary log since statement is unsafe, storage engine is limited to statement-based logging, and BINLOG_FORMAT = MIXED. The statement is unsafe because it uses RETURNING..INTO. This is unsafe because the set of rows included cannot be predicted
+DROP PROCEDURE p1;
+# UPDATE..RETURNING without INTO is safe
+UPDATE t1 SET a=a+1 RETURNING a;
+a
+11
+SET @@debug_dbug= @saved_dbug;
+# Only the last UPDATE changed the table (10 -> 11)
+SELECT * FROM t1;
+a	b
+11	b10
+DROP TABLE t1;
+# End of 13.1 tests

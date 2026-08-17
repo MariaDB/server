@@ -1,0 +1,93 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+# Tests for UPDATE..RETURNING without INTO, which are related to
+# the changes made for UPDATE..RETURNING..INTO
+# (see also update_returning_into*.test).
+#
+#
+# UPDATE..RETURNING without INTO executed several times
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+CREATE PROCEDURE p1()
+BEGIN
+UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+END;
+$$
+CALL p1;
+a	b
+21	b20
+CALL p1;
+a	b
+22	b20
+CALL p1;
+a	b
+23	b20
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# ANALYZE UPDATE..RETURNING executed several times
+# The RETURNING result is created for every execution
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+# A stored procedure
+CREATE PROCEDURE p1()
+BEGIN
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+END;
+$$
+CALL p1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+CALL p1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+DROP PROCEDURE p1;
+# A prepared statement
+PREPARE stmt FROM 'ANALYZE UPDATE t1 SET a=a+1 WHERE a>=? RETURNING a,b';
+SET @p=20;
+EXECUTE stmt USING @p;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+EXECUTE stmt USING @p;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+DEALLOCATE PREPARE stmt;
+# The updates were really done by every execution
+SELECT * FROM t1;
+a	b
+10	b10
+26	b20
+# ANALYZE UPDATE..RETURNING after a plain UPDATE..RETURNING
+UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+a	b
+27	b20
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+a	b
+29	b20
+DROP TABLE t1;
+#
+# UPDATE..RETURNING without INTO is not allowed in a trigger,
+# as it returns a result set
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, c INT);
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b;
+END;
+$$
+ERROR 0A000: Not allowed to return a result set from a trigger
+DROP TABLE t1, t2;
+# End of 13.1 tests

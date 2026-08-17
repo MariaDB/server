@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo # UPDATE FOR PORTION OF .. RETURNING .. INTO
+--echo #
+
+--echo # The row returned is the updated portion, not the whole old row.
+--echo # The leftover portions are inserted without affecting RETURNING.
+
+CREATE TABLE t1 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e),
+                 UNIQUE(id, p WITHOUT OVERLAPS)) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2020-01-01','2020-12-31',10),
+                      (2,'2020-01-01','2020-12-31',20);
+INSERT INTO t2 SELECT * FROM t1;
+
+--echo # One row
+UPDATE t1 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 WHERE id=1 RETURNING id,s,e,v INTO @i,@s,@e,@v;
+SELECT @i,@s,@e,@v;
+SELECT * FROM t1 ORDER BY id,s;
+
+--echo # No rows
+SET @i=NULL;
+UPDATE t1 FOR PORTION OF p FROM '2021-03-01' TO '2021-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+SELECT @i;
+
+--echo # Two rows
+--echo # InnoDB: the statement is rolled back, including the first row's
+--echo # leftover portions
+--error ER_TOO_MANY_ROWS
+UPDATE t1 FOR PORTION OF p FROM '2020-05-01' TO '2020-06-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+SELECT * FROM t1 ORDER BY id,s;
+
+--echo # Two rows
+--echo # MyISAM: the first row stays updated, with its leftover portions
+--error ER_TOO_MANY_ROWS
+UPDATE t2 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+SELECT * FROM t2 ORDER BY id,s;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # The OK packet info includes the number of the inserted leftover
+--echo # portions
+--echo #
+
+CREATE TABLE t1 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e));
+INSERT INTO t1 VALUES (1,'2020-01-01','2020-12-31',10);
+--enable_info
+UPDATE t1 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+UPDATE t1 FOR PORTION OF p FROM '2021-03-01' TO '2021-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+--disable_info
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

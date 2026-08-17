@@ -6920,6 +6920,54 @@ void start_new_trans::restore_old_transaction()
 
 
 /**
+  The explanation of an unsafe statement type, for the %s parameter of
+  ER_BINLOG_UNSAFE_STATEMENT, ER_BINLOG_UNSAFE_AND_STMT_ENGINE, etc.
+  The message of BINLOG_STMT_UNSAFE_RETURNING_INTO (ER_BINLOG_UNSAFE_CLAUSE)
+  has a parameter, which is substituted. The other messages have no parameter.
+*/
+class Binlog_unsafe_explanation: private CharBuffer<MYSQL_ERRMSG_SIZE>
+{
+  /*
+    The message itself, if it has no parameter. In this case the message
+    is not copied to the buffer, and ptr() returns this pointer.
+  */
+  const char *m_no_param;
+public:
+  /**
+    @param thd          Client thread, to get the message in the client
+                        language. If nullptr, ER() is used, i.e. the language
+                        of current_thd.
+    @param unsafe_type  The type of unsafety, an element of
+                        LEX::enum_binlog_stmt_unsafe.
+  */
+  Binlog_unsafe_explanation(THD *thd, int unsafe_type)
+   :m_no_param(nullptr)
+  {
+    DBUG_ASSERT(unsafe_type >= 0 &&
+                unsafe_type < LEX::BINLOG_STMT_UNSAFE_COUNT);
+    const int errcode= LEX::binlog_stmt_unsafe_errcode[unsafe_type];
+    const char *fmt= thd ? ER_THD(thd, errcode) : ER(errcode);
+    switch (unsafe_type) {
+    case LEX::BINLOG_STMT_UNSAFE_RETURNING_INTO:
+      // The message has a parameter: the name of the unsafe clause
+      m_length= my_snprintf(m_buff, max_data_size() + 1, fmt,
+                            "RETURNING..INTO");
+      break;
+    default:
+      // A message with a parameter needs its own case above
+      DBUG_ASSERT(!strchr(fmt, '%'));
+      m_no_param= fmt;
+      break;
+    }
+  }
+  const char *ptr() const
+  {
+    return m_no_param ? m_no_param : CharBuffer<MYSQL_ERRMSG_SIZE>::ptr();
+  }
+};
+
+
+/**
   Decide on logging format to use for the statement and issue errors
   or warnings as needed.  The decision depends on the following
   parameters:
@@ -7354,6 +7402,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
 
+    /* Pretend that all tables use engines limited to statement logging */
+    DBUG_EXECUTE_IF("binlog_stmt_only_engine",
+                    flags_write_all_set&= ~HA_BINLOG_ROW_CAPABLE;);
+
     DBUG_PRINT("info", ("flags_write_all_set: 0x%llx", flags_write_all_set));
     DBUG_PRINT("info", ("flags_write_some_set: 0x%llx", flags_write_some_set));
     DBUG_PRINT("info", ("flags_access_some_set: 0x%llx", flags_access_some_set));
@@ -7428,8 +7480,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
              unsafe_type++)
           if (unsafe_flags & (1 << unsafe_type))
             my_error((error= ER_BINLOG_UNSAFE_AND_STMT_ENGINE), MYF(0),
-                     ER_THD(this,
-                            LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+                     Binlog_unsafe_explanation(this, unsafe_type).ptr());
       }
       /* log in statement format! */
     }
@@ -7473,6 +7524,21 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             7. Warning: Unsafe statement logged as statement due to
                binlog_format = STATEMENT
           */
+          if (unsafe_flags & (1U << LEX::BINLOG_STMT_UNSAFE_RETURNING_INTO))
+          {
+            /*
+              RETURNING..INTO is not allowed with binlog_format=STATEMENT.
+              This statement is going to be logged as a statement, and it
+              contains RETURNING..INTO, e.g. in a stored function.
+              A direct RETURNING..INTO statement is rejected here too.
+              The statements of a stored procedure are checked one by one
+              when they are executed, so CALL itself is not rejected.
+            */
+            if (lex->sql_command != SQLCOM_CALL)
+              my_error((error= ER_WRONG_USAGE), MYF(0),
+                       "--binlog-format=statement", "RETURNING..INTO");
+            unsafe_flags&= ~(1U << LEX::BINLOG_STMT_UNSAFE_RETURNING_INTO);
+          }
           binlog_unsafe_warning_flags|= unsafe_flags;
 
           DBUG_PRINT("info", ("Scheduling warning to be issued by "
@@ -8189,7 +8255,7 @@ static void print_unsafe_warning_to_log(THD *thd, int unsafe_type, char* buf,
 {
   DBUG_ENTER("print_unsafe_warning_in_log");
   snprintf(buf, buf_size, ER_THD(thd, ER_BINLOG_UNSAFE_STATEMENT),
-           ER_THD(thd, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+           Binlog_unsafe_explanation(thd, unsafe_type).ptr());
   sql_print_warning(ER_DEFAULT(ER_MESSAGE_AND_STATEMENT), buf, query);
   DBUG_VOID_RETURN;
 }
@@ -8257,7 +8323,8 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
       {
         unsafe_warning_suppression_active[unsafe_type]= 1;
         sql_print_information("Suppressing warnings of type '%s' for up to %d seconds because of flooding",
-                              ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]),
+                              Binlog_unsafe_explanation(nullptr,
+                                                        unsafe_type).ptr(),
                               LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT);
       }
       else
@@ -8328,7 +8395,7 @@ void THD::issue_unsafe_warnings()
       push_warning_printf(this, Sql_condition::WARN_LEVEL_NOTE,
                           ER_BINLOG_UNSAFE_STATEMENT,
                           ER_THD(this, ER_BINLOG_UNSAFE_STATEMENT),
-                          ER_THD(this, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+                          Binlog_unsafe_explanation(this, unsafe_type).ptr());
       if (global_system_variables.log_warnings > 0 &&
           !protect_against_unsafe_warning_flood(unsafe_type))
         print_unsafe_warning_to_log(this, unsafe_type, buf,

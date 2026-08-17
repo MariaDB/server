@@ -1,0 +1,30 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+# A failed assignment to an INTO target stops the statement
+# before the update is processed any further (history rows, AFTER
+# triggers), and the error is reported.
+#
+CREATE TABLE t1 (a VARCHAR(10), b INT) ENGINE=MyISAM;
+CREATE TABLE log (i INT) ENGINE=MyISAM;
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (1);
+INSERT INTO t1 VALUES ('abc', 1);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+UPDATE t1 SET b=b+1 RETURNING a INTO v;
+END;
+$$
+# Strict mode: the value 'abc' cannot be assigned to an INT variable
+CALL p1;
+ERROR 22007: Incorrect integer value: 'abc' for column ``.``.`v` at row 1
+SHOW WARNINGS;
+Level	Code	Message
+Error	1366	Incorrect integer value: 'abc' for column ``.``.`v` at row 1
+Note	4094	At line 4 in test.p1
+SELECT * FROM log;
+i
+DROP PROCEDURE p1;
+DROP TRIGGER t1_au;
+DROP TABLE t1, log;
+# End of 13.1 tests
