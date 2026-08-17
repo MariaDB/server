@@ -128,26 +128,27 @@ STATS_AUTO_RECALC=0;
 INSERT INTO p1 VALUES (1,6,0),(2,1,0),(3,5,2),(4,8,0);
 CREATE TABLE p2 (c INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
 INSERT INTO p2 VALUES (1),(2);
+INSERT INTO p2 SELECT 0 FROM seq_1_to_3000;
 CREATE TABLE p3 (d INT) ENGINE=InnoDB STATS_AUTO_RECALC=0;
 INSERT INTO p3 VALUES (3),(-1),(4);
 SET @os2= @@optimizer_switch;
 SET optimizer_switch='extended_keys=on';
 # serial
 SET SESSION parallel_worker_threads= 0;
-SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+SELECT STRAIGHT_JOIN pk, a, b FROM p2,p1,p3 WHERE b >= d AND pk < c AND b = '0';
 pk	a	b
 1	6	0
 # with workers: the same one row, not one per unfiltered pair
 SET SESSION parallel_worker_threads= 4;
 FLUSH STATUS;
-SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+SELECT STRAIGHT_JOIN pk, a, b FROM p2,p1,p3 WHERE b >= d AND pk < c AND b = '0';
 pk	a	b
 1	6	0
 # and it still ran in the workers rather than falling back (expect 1)
 ran_in_the_workers
 1
 # p1 still carries a pushed index condition, so the case is really covered
-EXPLAIN SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
+EXPLAIN SELECT STRAIGHT_JOIN pk, a, b FROM p2,p1,p3 WHERE b >= d AND pk < c AND b = '0';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	p2	ALL_parallel	NULL	NULL	NULL	NULL	#	
 1	SIMPLE	p1	ref	PRIMARY,idx1	idx1	5	const	#	Using index condition

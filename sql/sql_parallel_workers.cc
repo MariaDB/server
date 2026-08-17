@@ -114,11 +114,30 @@ bool table_can_be_parallel_scanned(TABLE *table)
   @description
     When parallel query is enabled the first non-const table can be scanned by
     N worker threads, each reading a disjoint partition concurrently while the
-    manager runs the rest of the join. The wall-clock cost of reading and
-    copying the rows is therefore roughly 1/N of a serial scan, so the row
-    (full-scan) components of 'cost' -- I/O, CPU and row-copy -- are scaled by
-    1/N. The index components are left untouched: this only ever discounts a
-    full table scan.
+    manager runs the rest of the join, so the row (full-scan) components of
+    'cost' -- I/O, CPU and row-copy -- are divided among them. The CPU and
+    row-copy terms divide by N; the I/O term divides by however much of the table
+    has to be read from storage rather than the engine's cache, which is N for a
+    table much larger than the cache and 1 for one that fits in it (see
+    parallel_scan_io_divisor). The index components are left untouched: this only
+    ever discounts a full table scan.
+
+    N is not parallel_worker_threads. The engine divides the table by its own
+    geometry, and hands a worker beyond the last chunk nothing to read, so the
+    chunk count bounds the parallelism however many threads were asked for (see
+    init_parallel_workers, which starts no more workers than chunks). Taking
+    the request at face value is the difference between believing a scan is 50
+    times cheaper and its being 2.2 times cheaper, which is enough to prefer a
+    parallel full scan over a perfectly good index.
+
+    Two costs the division does not express are added back. The worker path is
+    more expensive per row than the serial one, measured at some 1.16 times for
+    a scan whose rows are cheap to evaluate, because rows are copied into a
+    batch buffer, handed over under a mutex and re-read by the manager. And
+    each worker has to be created, with its own THD, table instances, cloned
+    items and row buffer, measured at some 22 microseconds. The setup term is
+    what makes the optimizer decline parallelism for a query too small to
+    amortise it rather than relying on a threshold.
 
     Eligibility mirrors the runtime gate in make_join_readinfo() exactly
     (engine support, no blob-backed columns, not fulltext-searched, a real base
@@ -130,21 +149,134 @@ bool table_can_be_parallel_scanned(TABLE *table)
 
   @return
     true   the cost was scaled (table is parallel-scan eligible)
-    false  no change (parallel scan disabled or table not eligible)
+    false  no change (parallel scan disabled, table not eligible, or the
+           table cannot be divided among two or more workers)
 */
 
-bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
+uint parallel_scan_worker_count(THD *thd, TABLE *table)
 {
-  const uint n= thd->variables.parallel_worker_threads;
+  uint n= thd->variables.parallel_worker_threads;
   if (n < 2 ||                                   // disabled, or no speed-up
       !table_can_be_parallel_scanned(table))
-    return false;
+    return 0;
 
-  const double factor= 1.0 / (double) n;
-  cost->row_cost.io  *= factor;
-  cost->row_cost.cpu *= factor;
-  cost->copy_cost    *= factor;
-  return true;
+  /* No more workers than the engine will have chunks to give them. */
+  if (const size_t chunks= table->file->parallel_chunk_count_estimate())
+    set_if_smaller(n, (uint) chunks);
+  if (n < 2)
+    return 0;                        // one chunk: nothing to divide
+  return n;
+}
+
+
+/*
+  @brief
+    How much of a parallel scan's I/O cost the workers divide between them.
+
+  @description
+    Workers overlap each other's reads only where a page has to come from
+    storage. A page the engine already holds in its cache is fetched from memory,
+    which the CPU and row-copy terms account for, so a scan of a table that fits
+    in the cache takes its parallelism from those terms and gains nothing from
+    overlapping reads however many workers are asked for. The proportion of the
+    table that cannot be resident is what the I/O term may be divided by.
+
+    Where the reads are real, this is worth much more than the worker count would
+    suggest, which is why the I/O term is the one to divide. Measured on TPC-H
+    SF1 Q6, LINEITEM at 1176 MB against a 128 MB buffer pool with
+    innodb_flush_method=O_DIRECT: scan throughput rose from 885 MB/s serial to
+    4210 MB/s at a hundred workers and the wall clock fell 6.2 times, while the
+    CPU the query consumed stayed flat -- the workers were converting read
+    latency into queue depth rather than doing more work. At sixteen workers, one
+    per core on that machine, only 4.3 cores' worth of work was in flight; the
+    rest of the time the workers were blocked in a read, holding no core. That is
+    why the gain continues well past the core count.
+
+    The ratio comes from the engine's configured cache size and the table's size
+    on disk, never from what the cache happens to hold at the time, so costing
+    the same query twice gives the same answer and EXPLAIN does not move
+    underneath the user. DISK_READ_RATIO is a constant for that same reason, see
+    optimizer_defaults.h.
+
+    An engine that does not report a cache size, or a table whose size is not
+    known, is costed as before with the whole I/O term dividing.
+
+  @return the divisor for the scan's I/O cost, between 1.0 and n.
+*/
+
+double parallel_scan_io_divisor(TABLE *table, uint n)
+{
+  const ulonglong cache= table->file->engine_cache_size();
+  const ulonglong bytes= table->file->stats.data_file_length;
+  if (!cache || !bytes)
+    return (double) n;
+  const double resident= MY_MIN(1.0, (double) cache / (double) bytes);
+  return 1.0 + (n - 1) * (1.0 - resident);
+}
+
+
+uint scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
+{
+  const uint n= parallel_scan_worker_count(thd, table);
+  if (!n)
+    return 0;
+
+  /*
+    Both factors are session variables rather than constants because they are
+    measured quantities, and measuring them wants sweeping them without a
+    rebuild: parallel_query_row_cost_ratio and parallel_query_setup_cost.
+
+    The I/O term divides by less than n where the table is small enough to be
+    held in the engine's cache, there being no read latency to overlap -- see
+    parallel_scan_io_divisor().
+  */
+  const double ratio= thd->variables.parallel_query_row_cost_ratio;
+  cost->row_cost.io  *= ratio / parallel_scan_io_divisor(table, n);
+  cost->row_cost.cpu *= ratio / (double) n;
+  cost->copy_cost    *= ratio / (double) n;
+  cost->row_cost.cpu+= n * thd->variables.parallel_query_setup_cost;
+  return n;
+}
+
+
+/*
+  @brief
+    How much of a joined table's cost the workers divide between them.
+
+  @description
+    A worker does not only scan its chunk of the driving table: it runs the whole
+    join over that chunk, so the work of every table joined after the driving one
+    is divided between the workers just as the scan is. The optimizer costs those
+    tables one at a time, after the driving table's access has been chosen, so
+    this is asked once per table and answers with the divisor to apply to what
+    that table costs.
+
+    It is deliberately not applied while the access method for the table is being
+    chosen, only to the cost recorded for the plan. Dividing every candidate by
+    the same number cannot change which one is cheapest, so doing it earlier would
+    buy nothing and would risk changing a choice by scaling one candidate's cost
+    components and not another's. The driving table is the exception and is scaled
+    while its access is chosen, because there the division is what can make a full
+    scan worth more than an index -- which is a choice, and the point.
+
+  @param  positions     the plan prefix, whose first non-const entry is the
+                        driving table and carries the worker count that was used
+                        to scale it
+  @param  const_tables  index of the driving table in positions
+
+  @return the number of workers the join is being divided between, or 0 if this
+          plan's driving table is not being parallel-scanned and nothing is.
+*/
+
+uint parallel_join_divisor(const POSITION *positions, uint const_tables)
+{
+  const POSITION *driver= positions + const_tables;
+  /*
+    parallel_workers is only left non-zero when the access finally chosen for the
+    driving table was the scan that was costed as parallel, so there is nothing
+    further to check here: a driving table that ended up on an index carries 0.
+  */
+  return driver->parallel_workers;
 }
 
 

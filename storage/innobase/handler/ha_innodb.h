@@ -525,6 +525,10 @@ protected:
 
 	int parallel_end_coordinator() override;
 
+	size_t parallel_chunk_count_estimate() const override;
+
+	ulonglong engine_cache_size() const override;
+
 	Parallel_worker_ctx*
 		parallel_get_worker_context(size_t worker_idx) override;
 

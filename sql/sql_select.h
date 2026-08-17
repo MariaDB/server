@@ -1068,6 +1068,17 @@ public:
   double prefix_cost;
 
   /*
+    For the driving table of a plan that is being costed as a parallel scan, the
+    number of workers its cost was divided between; 0 everywhere else, including
+    on a driving table whose chosen access turned out not to be that scan.
+
+    The tables joined after it read it to divide their own cost by the same
+    number, because a worker runs the whole join over its chunk rather than only
+    the scan. See parallel_join_divisor().
+  */
+  uint parallel_workers;
+
+  /*
     NULL  -  'index' or 'range' or 'index_merge' or 'ALL' access is used.
     Other - [eq_]ref[_or_null] access is used. Pointer to {t.keypart1 = expr}
   */

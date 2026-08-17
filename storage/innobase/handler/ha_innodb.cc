@@ -14648,6 +14648,42 @@ func_exit:
 }
 
 
+/** Estimate how many chunks a parallel scan of this table would be divided
+into, without reading a page. Parallel_coordinator partitions one level below
+the root, so the count is the root page's fanout: for a tree of three levels
+that is the number of pages one level below the root, which is every non-leaf
+page but the root itself, and for a tree of two levels the root's records are
+the leaf pages. Deeper trees are under-counted here, which is the safe
+direction: split() re-partitions a chunk's sub-tree one level deeper at run
+time, so the scan ends up with at least this many.
+@return estimated chunk count, or 0 if statistics are not available. */
+size_t ha_innobase::parallel_chunk_count_estimate() const
+{
+	if (!m_prebuilt || !m_prebuilt->table)
+		return 0;
+
+	const dict_index_t *clust = m_prebuilt->table->indexes.start;
+	if (!clust)
+		return 0;
+
+	const uint32_t leaf = clust->stat_n_leaf_pages;
+	const uint32_t total = clust->stat_index_size;
+	if (!leaf || total < leaf)
+		return 0;			// statistics not gathered yet
+
+	const uint32_t non_leaf = total - leaf;
+	return non_leaf > 1 ? non_leaf - 1 : leaf;
+}
+
+/** Size of the InnoDB buffer pool, for judging how much of a table's scan can
+be served without reading from storage. The configured size is reported rather
+than the momentary one, so that costing a query twice gives the same answer.
+@return innodb_buffer_pool_size in bytes */
+ulonglong ha_innobase::engine_cache_size() const
+{
+	return buf_pool.size_in_bytes_requested;
+}
+
 int ha_innobase::parallel_init_coordinator(size_t n_threads,
 					  const Dynamic_array<KEY_MULTI_RANGE> &ranges)
 {

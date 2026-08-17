@@ -3816,6 +3816,24 @@ public:
   */
   virtual int parallel_end_coordinator() { return 0; }
 
+  /*
+    How many chunks parallel_init_coordinator() would divide the table into,
+    estimated from statistics so the optimizer can cost a parallel scan before
+    the coordinator has run. Cheap and approximate: no pages are read, and
+    stale statistics give a stale answer. 0 means the engine cannot say, and
+    the caller must not draw a bound from it.
+  */
+  virtual size_t parallel_chunk_count_estimate() const { return 0; }
+
+  /*
+    Size in bytes of the engine's page cache, or 0 if it has none or will not
+    say. This is the configured size and not a measurement of what the cache
+    currently holds, so it does not move between two executions of the same
+    query -- the same reason DISK_READ_RATIO is a constant rather than a cache
+    statistic, see optimizer_defaults.h.
+  */
+  virtual ulonglong engine_cache_size() const { return 0; }
+
   /* To be called from the master thread to get context data for each worker */
   virtual Parallel_worker_ctx *parallel_get_worker_context(size_t worker_idx)
   {
