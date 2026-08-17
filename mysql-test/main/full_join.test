@@ -3826,4 +3826,39 @@ select t1.a, t2.a from t1 full join t2 on t2.a is not null and t1.a < 3;
 
 drop table t1, t2;
 
+--echo # ====================================================================
+--echo # Section 22: A merged derived table inside a FULL JOIN operand
+--echo # ====================================================================
+--echo #
+--echo # The null complement pass marks the whole opposite operand as a null
+--echo # row before it emits a row of the side it rescans.  A merged derived
+--echo # table is both its own placeholder and the tables merged into it, and
+--echo # the query reads the fields of those tables, so the walk that marks
+--echo # the operand has to reach them.  Keeping the nesting the parser built
+--echo # leaves the derived table in a nest of its own, which is the shape
+--echo # that reaches the walk.
+
+create table t1 (a int, b varchar(10));
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10));
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+create table t3 (a int, b varchar(10));
+insert into t3 values (1,'w'), (2,'v'), (6,'u');
+
+set optimizer_switch='simplify_joins=off';
+--sorted_result
+with vals as (select a, b from t1)
+select vals.a as a1, t3.a as a3, t2.a as a2
+from (vals join t3 on vals.a = t3.a) full join t2 on vals.a = t2.a;
+--sorted_result
+with vals as (select a, b from t1)
+select vals.a as a1, t3.a as a3, t2.a as a2
+from (vals join t3 on vals.a = t3.a) left join t2 on vals.a = t2.a
+  union
+select vals.a as a1, t3.a as a3, t2.a as a2
+from (vals join t3 on vals.a = t3.a) right join t2 on vals.a = t2.a;
+set optimizer_switch=default;
+
+drop table t1, t2, t3;
+
 --echo # End of 12.3 tests
