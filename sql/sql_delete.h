@@ -44,14 +44,18 @@ class Sql_cmd_delete final : public Sql_cmd_dml
 {
 public:
   ha_rows deleted{0};
-  Sql_cmd_delete(bool multitable_arg)
-    : orig_multitable(multitable_arg), multitable(multitable_arg),
+  Sql_cmd_delete(LEX *lex, bool multitable_arg)
+    : Sql_cmd_dml(lex),
+      multitable(multitable_arg),
       save_protocol(NULL)
   {}
 
-  enum_sql_command sql_command_code() const override
+  /**
+    @brief Check if the statement returns a result set
+  */
+  bool returns_result_set() const override
   {
-    return orig_multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
+    return returns_result_set_generic(lex);
   }
 
   DML_prelocking_strategy *get_dml_prelocking_strategy() override
@@ -94,9 +98,6 @@ protected:
     @biefSpecial handling of single-table deletes after prepare phase
   */
   bool delete_from_single_table(THD *thd);
-
-  /* Original value of the 'multitable' flag set by constructor */
-  const bool orig_multitable;
 
   /*
     True if the statement is a multitable delete or converted to such.
