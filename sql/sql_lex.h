@@ -871,6 +871,7 @@ typedef class st_select_lex_node SELECT_LEX_NODE;
 */
 class THD;
 class select_result;
+class select_dumpvar;
 class JOIN;
 class select_unit;
 class Procedure;
@@ -2125,6 +2126,14 @@ public:
        primary key.
     */
     BINLOG_STMT_UNSAFE_SKIP_LOCKED,
+
+    /**
+      RETURNING..INTO is unsafe because the order in which
+      rows are processed cannot be predicted (like SELECT..LIMIT without
+      ORDER BY), so it is not known which row is assigned, and, if several
+      rows are changed, which rows are changed before the error.
+    */
+    BINLOG_STMT_UNSAFE_RETURNING_INTO,
 
     /* The last element of this enumeration type. */
     BINLOG_STMT_UNSAFE_COUNT
@@ -4084,6 +4093,8 @@ public:
     DBUG_RETURN(select_lex);
   }
 
+  bool set_returning_into_result(select_dumpvar *res);
+  const char *unsupported_returning_into_name() const;
   void handle_parsed_optimizer_hints_in_last_select();
   void resolve_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
@@ -5327,7 +5338,7 @@ public:
 
   SELECT_LEX *returning()
   { return &builtin_select; }
-  bool has_returning()
+  bool has_returning() const
   { return !builtin_select.returning_list.is_empty(); }
 
 private:

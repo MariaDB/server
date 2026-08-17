@@ -1,0 +1,56 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO on system versioned tables.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_versioned.combinations).
+--echo #
+
+--echo #
+--echo # System versioned table: the new values are the same as the old values
+--echo # but a new row version is created, so the row is changed.
+--echo # Plain RETURNING returns the rows, and RETURNING .. INTO assigns
+--echo # the only row, or raises ER_TOO_MANY_ROWS for two rows.
+--echo # (InnoDB rolls back the statement, MyISAM keeps the first row version).
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1),(2,2);
+
+--echo # One row
+UPDATE t1 SET b=b WHERE a=1 RETURNING a,b;
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+SET @a='unchanged';
+UPDATE t1 SET b=b WHERE a=1 RETURNING a INTO @a;
+SELECT @a;
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+
+--echo # Two rows
+SET @a='unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b RETURNING a INTO @a;
+SELECT @a;
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+UPDATE t1 SET b=b RETURNING a;
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+DROP TABLE t1;
+
+--echo #
+--echo # The OK packet info for a system versioned table includes
+--echo # the number of the inserted row versions
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1),(2,2);
+--enable_info
+UPDATE t1 SET b=b+1 WHERE a=1 RETURNING a INTO @a;
+UPDATE t1 SET b=b WHERE a=1 RETURNING a INTO @a;
+UPDATE t1 SET b=b WHERE a=100 RETURNING a INTO @a;
+--disable_info
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

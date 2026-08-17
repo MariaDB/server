@@ -1,0 +1,105 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # The OK packet info: "Rows matched: N  Changed: M  Warnings: W"
+--echo # as for a plain UPDATE, not only the number of the assigned rows.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_info.combinations).
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+--enable_info
+
+--echo # Three rows match, one is changed
+UPDATE t1 SET b=IF(a=1,11,b) RETURNING a INTO @a;
+
+--echo # Three rows match, none is changed: the "No data" warning is counted
+UPDATE t1 SET b=b RETURNING a INTO @a;
+
+--echo # One row matches and is changed
+UPDATE t1 SET b=b+1 WHERE a=3 RETURNING a INTO @a;
+
+--echo # One row matches and needs no update
+UPDATE t1 SET b=b WHERE a=3 RETURNING a INTO @a;
+
+--echo # No row matches
+UPDATE t1 SET b=b+1 WHERE a=100 RETURNING a INTO @a;
+
+--echo # Two rows are changed: an error, no OK packet
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b+1 RETURNING a INTO @a;
+
+--echo # Nothing to read: the plain OK without the info, and the warning
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a INTO @a;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a INTO @a;
+
+--disable_info
+SET @a=NULL;
+DROP TABLE t1;
+
+--echo #
+--echo # ROW_COUNT() in a stored routine after UPDATE..RETURNING..INTO.
+--echo # It is the number of the changed rows (the same as for a plain
+--echo # UPDATE), and not the number of the assigned rows.
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT, pb INT)
+BEGIN
+  DECLARE va INT DEFAULT -1;
+  UPDATE t1 SET b=pb WHERE a=pa RETURNING a INTO va;
+  SELECT va, ROW_COUNT() AS row_count;
+END;
+$$
+DELIMITER ;$$
+
+--echo # One row is changed
+CALL p1(1, 11);
+--echo # One row matches and needs no update
+CALL p1(2, 20);
+--echo # No row matches
+CALL p1(100, 1);
+
+--echo # Three rows match, one is changed
+DELIMITER $$;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE va INT DEFAULT -1;
+  UPDATE t1 SET b=IF(a=3,31,b) RETURNING a INTO va;
+  SELECT va, ROW_COUNT() AS row_count;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # A prepared UPDATE..RETURNING..INTO executed several times:
+--echo # the OK packet with the info is sent once, every time
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+PREPARE stmt FROM 'UPDATE t1 SET b=b+1 WHERE a=? RETURNING a INTO @a';
+SET @p=1;
+--enable_info
+EXECUTE stmt USING @p;
+EXECUTE stmt USING @p;
+--disable_info
+SET @p=100;
+--enable_info
+EXECUTE stmt USING @p;
+--disable_info
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

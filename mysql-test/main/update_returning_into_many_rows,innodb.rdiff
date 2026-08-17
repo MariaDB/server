@@ -1,0 +1,154 @@
+--- main/update_returning_into_many_rows.result
++++ main/update_returning_into_many_rows.reject
+@@ -62,7 +62,7 @@
+ SELECT * FROM t1;
+ a	b
+ 1	11
+-2	21
++2	20
+ 3	30
+ SET @a=NULL;
+ DROP TABLE t1;
+@@ -100,7 +100,7 @@
+ 11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ SET sql_mode=DEFAULT;
+@@ -109,10 +109,10 @@
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a;
+ @a
+-12
++11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ SET @a=NULL;
+@@ -141,7 +141,7 @@
+ 11	11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ CALL p1();
+@@ -149,10 +149,10 @@
+ Still here
+ SELECT @a,@b;
+ @a	@b
+-12	12
++11	11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ CALL p1();
+@@ -160,10 +160,10 @@
+ Still here
+ SELECT @a,@b;
+ @a	@b
+-13	13
++11	11
+ SELECT * FROM t1;
+ a
+-13
++10
+ 20
+ 30
+ SET @a=NULL, @b=NULL;
+@@ -193,27 +193,27 @@
+ 11	11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ CALL p1();
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a,@b;
+ @a	@b
+-12	12
++11	11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ CALL p1();
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a,@b;
+ @a	@b
+-13	13
++11	11
+ SELECT * FROM t1;
+ a
+-13
++10
+ 20
+ 30
+ SET @a=NULL, @b=NULL;
+@@ -267,7 +267,7 @@
+ 11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ SET @a=NULL;
+@@ -300,7 +300,6 @@
+ 1
+ SELECT * FROM log;
+ a
+-1
+ DELETE FROM log;
+ # Rows are found but not changed
+ SET @a=123;
+@@ -329,7 +328,7 @@
+ ERROR 23000: Duplicate entry '3' for key 'a'
+ SELECT * FROM t1 ORDER BY b;
+ a	b
+-10	1
++1	1
+ 2	2
+ 3	3
+ DELETE FROM t1;
+@@ -342,7 +341,7 @@
+ 1
+ SELECT * FROM t1 ORDER BY b;
+ a	b
+-10	1
++1	1
+ 2	2
+ 3	3
+ # The first row violates the unique key: the same error with and
+@@ -364,7 +363,7 @@
+ ERROR HY000: Table has no partition for value 50
+ SELECT * FROM t1 ORDER BY b;
+ a	b
+-10	1
++1	1
+ 2	2
+ DELETE FROM t1;
+ INSERT INTO t1 VALUES (1,1),(2,2);
+@@ -376,7 +375,7 @@
+ 1
+ SELECT * FROM t1 ORDER BY b;
+ a	b
+-10	1
++1	1
+ 2	2
+ # The first row has no partition: the same error with and without INTO
+ UPDATE t1 SET a=50 RETURNING b;

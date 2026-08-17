@@ -1,0 +1,75 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+# UPDATE FOR PORTION OF .. RETURNING .. INTO
+#
+# The row returned is the updated portion, not the whole old row.
+# The leftover portions are inserted without affecting RETURNING.
+CREATE TABLE t1 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e),
+UNIQUE(id, p WITHOUT OVERLAPS)) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2020-01-01','2020-12-31',10),
+(2,'2020-01-01','2020-12-31',20);
+INSERT INTO t2 SELECT * FROM t1;
+# One row
+UPDATE t1 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 WHERE id=1 RETURNING id,s,e,v INTO @i,@s,@e,@v;
+SELECT @i,@s,@e,@v;
+@i	@s	@e	@v
+1	2020-03-01	2020-04-01	11
+SELECT * FROM t1 ORDER BY id,s;
+id	s	e	v
+1	2020-01-01	2020-03-01	10
+1	2020-03-01	2020-04-01	11
+1	2020-04-01	2020-12-31	10
+2	2020-01-01	2020-12-31	20
+# No rows
+SET @i=NULL;
+UPDATE t1 FOR PORTION OF p FROM '2021-03-01' TO '2021-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @i;
+@i
+NULL
+# Two rows
+# InnoDB: the statement is rolled back, including the first row's
+# leftover portions
+UPDATE t1 FOR PORTION OF p FROM '2020-05-01' TO '2020-06-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1 ORDER BY id,s;
+id	s	e	v
+1	2020-01-01	2020-03-01	10
+1	2020-03-01	2020-04-01	11
+1	2020-04-01	2020-12-31	10
+2	2020-01-01	2020-12-31	20
+# Two rows
+# MyISAM: the first row stays updated, with its leftover portions
+UPDATE t2 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t2 ORDER BY id,s;
+id	s	e	v
+1	2020-01-01	2020-03-01	10
+1	2020-03-01	2020-04-01	11
+1	2020-04-01	2020-12-31	10
+2	2020-01-01	2020-12-31	20
+DROP TABLE t1, t2;
+#
+# The OK packet info includes the number of the inserted leftover
+# portions
+#
+CREATE TABLE t1 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s,e));
+INSERT INTO t1 VALUES (1,'2020-01-01','2020-12-31',10);
+UPDATE t1 FOR PORTION OF p FROM '2020-03-01' TO '2020-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 2  Warnings: 0
+UPDATE t1 FOR PORTION OF p FROM '2021-03-01' TO '2021-04-01'
+  SET v=v+1 RETURNING id,v INTO @i,@v;
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Inserted: 0  Warnings: 1
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP TABLE t1;
+# End of 13.1 tests

@@ -1,0 +1,94 @@
+--source include/have_log_bin.inc
+--source include/have_binlog_format_statement.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--source include/reset_master.inc
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+--error ER_WRONG_USAGE
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+
+PREPARE stmt FROM 'UPDATE t1 SET a=a+1 RETURNING a INTO @a1';
+--error ER_WRONG_USAGE
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-41260 Misleading message text "uses a LIMIT clause" after Update Returning Into
+--echo #
+--echo # No "Unsafe statement written to the binary log" warning is raised,
+--echo # because the statement is rejected and not written.
+--echo #
+
+CREATE PROCEDURE p1()
+  UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+--error ER_WRONG_USAGE
+CALL p1;
+SHOW WARNINGS;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # A stored function or a trigger is rejected in the same way:
+--echo # the calling statement would be logged as a statement.
+--echo #
+
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  UPDATE t1 SET a=a+1 RETURNING a INTO v;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_USAGE
+SELECT f1();
+--error ER_WRONG_USAGE
+INSERT INTO t2 VALUES (f1());
+
+--echo # The unsafeness is known at the function creation time, so a function
+--echo # which does not execute UPDATE..RETURNING..INTO is rejected too
+DELIMITER $$;
+CREATE FUNCTION f2(c INT) RETURNS INT
+BEGIN
+  DECLARE v INT DEFAULT 0;
+  IF c THEN
+    UPDATE t1 SET a=a+1 RETURNING a INTO v;
+  END IF;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_USAGE
+SELECT f2(0);
+
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+  DECLARE v INT;
+  UPDATE t1 SET a=a+1 RETURNING a INTO v;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_USAGE
+INSERT INTO t2 VALUES (1);
+
+--echo # Nothing was changed
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TRIGGER tr1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+--echo # End of 13.1 tests

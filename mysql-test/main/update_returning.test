@@ -1,0 +1,88 @@
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+--echo # Tests for UPDATE..RETURNING without INTO, which are related to
+--echo # the changes made for UPDATE..RETURNING..INTO
+--echo # (see also update_returning_into*.test).
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING without INTO executed several times
+--echo #
+
+# MDEV-39563 changed the implementation of UPDATE..RETURNING.
+# Check that the usual UPDATE..RETURNING, without INTO, did not break.
+# The second execution is important to test.
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # ANALYZE UPDATE..RETURNING executed several times
+--echo # The RETURNING result is created for every execution
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+
+--echo # A stored procedure
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # A prepared statement
+PREPARE stmt FROM 'ANALYZE UPDATE t1 SET a=a+1 WHERE a>=? RETURNING a,b';
+SET @p=20;
+EXECUTE stmt USING @p;
+EXECUTE stmt USING @p;
+DEALLOCATE PREPARE stmt;
+
+--echo # The updates were really done by every execution
+SELECT * FROM t1;
+
+--echo # ANALYZE UPDATE..RETURNING after a plain UPDATE..RETURNING
+UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+ANALYZE UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+DROP TABLE t1;
+
+--echo #
+--echo # UPDATE..RETURNING without INTO is not allowed in a trigger,
+--echo # as it returns a result set
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, c INT);
+DELIMITER $$;
+--error ER_SP_NO_RETSET
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+  UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1, t2;
+
+--echo # End of 13.1 tests

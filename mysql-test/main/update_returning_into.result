@@ -1,0 +1,1003 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+UPDATE t1 SET a=OLD_VALUE(a);
+# OLD_VALUE() outside of RETURNING is allowed with INTO
+UPDATE t1 SET a=OLD_VALUE(a) RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (10,5);
+UPDATE t2 SET b=OLD_VALUE(a) RETURNING a,b INTO @a,@b;
+SELECT @a,@b;
+@a	@b
+10	10
+SET @a=NULL, @b=NULL;
+DROP TABLE t2;
+UPDATE t1 SET a=OLD_VALUE(a)+1 RETURNING a INTO @a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '+1 RETURNING a INTO @a' at line 1
+UPDATE t1 SET a=1+OLD_VALUE(a) RETURNING a INTO @a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a) RETURNING a INTO @a' at line 1
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a) INTO @a;
+ERROR HY000: Incorrect usage of OLD_VALUE(..) and RETURNING..INTO
+UPDATE t1 SET a=a+1 RETURNING (SELECT OLD_VALUE(a)) INTO @a;
+ERROR HY000: Incorrect usage of OLD_VALUE(..) and RETURNING..INTO
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a)+1 INTO @a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '+1 INTO @a' at line 1
+UPDATE t1 SET a=a+1 RETURNING 1+OLD_VALUE(a) INTO @a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a) INTO @a' at line 1
+UPDATE (SELECT OLD_VALUE(a) AS x FROM t1) AS dt SET dt.x=1;
+ERROR HY000: The target table dt of the UPDATE is not updatable
+DROP TABLE t1;
+#
+# ANALYZE/EXPLAIN UPDATE .. RETURNING .. INTO ..;
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+ANALYZE UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+ERROR HY000: 'RETURNING..INTO' is not allowed in this context
+SELECT @a,@b;
+@a	@b
+NULL	NULL
+EXPLAIN UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+ERROR HY000: 'RETURNING..INTO' is not allowed in this context
+SELECT @a,@b;
+@a	@b
+NULL	NULL
+DROP TABLE t1;
+#
+# Too few and too many INTO variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a;
+ERROR 21000: The used SELECT statements have a different number of columns
+SELECT @a;
+@a
+NULL
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c;
+ERROR 21000: The used SELECT statements have a different number of columns
+SELECT @a,@b,@c;
+@a	@b	@c
+NULL	NULL	NULL
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a';
+EXECUTE stmt;
+ERROR 21000: The used SELECT statements have a different number of columns
+SELECT @a;
+@a
+NULL
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c';
+EXECUTE stmt;
+ERROR 21000: The used SELECT statements have a different number of columns
+SELECT @a,@b,@c;
+@a	@b	@c
+NULL	NULL	NULL
+DROP TABLE t1;
+#
+# A prepared UPDATE..RETURNING..INTO executed several times
+# The state of the INTO result (e.g. the row counter) is reset
+# for every execution
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+PREPARE stmt FROM 'UPDATE t1 SET b=b+1 WHERE a=? RETURNING a,b INTO @a,@b';
+SET @p=1;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+@a	@b
+1	11
+# No rows: a warning, the targets are not changed
+SET @p=99;
+EXECUTE stmt USING @p;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a,@b;
+@a	@b
+1	11
+# One row again: no ER_TOO_MANY_ROWS from the previous executions
+SET @p=2;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+@a	@b
+2	21
+SET @p=2;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+@a	@b
+2	22
+# Two rows: ER_TOO_MANY_ROWS at every execution
+PREPARE stmt2 FROM 'UPDATE t1 SET b=b+1 WHERE a>=? RETURNING a INTO @a';
+SET @p=1;
+EXECUTE stmt2 USING @p;
+ERROR 42000: Result consisted of more than one row
+EXECUTE stmt2 USING @p;
+ERROR 42000: Result consisted of more than one row
+# A single row after the errors
+SET @p=3;
+EXECUTE stmt2 USING @p;
+SELECT @a;
+@a
+3
+DEALLOCATE PREPARE stmt;
+DEALLOCATE PREPARE stmt2;
+DROP TABLE t1;
+#
+# Multi-table UPDATEs
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+UPDATE t1,t2 SET t1.a=t1.a+1 WHERE t1.a=t2.a AND t1.a=10 RETURNING t1.a INTO @a;
+ERROR 42000: This version of MariaDB doesn't yet support 'RETURNING for multi-table UPDATE'
+# The updated table is used in a subquery
+UPDATE t1 SET a=a+1 WHERE a=(SELECT MAX(a) FROM t1) RETURNING a INTO @a;
+ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
+# The updated table is used in a subquery through a view
+CREATE VIEW v2 AS SELECT a FROM t1;
+UPDATE t1 SET a=a+1 WHERE a=(SELECT MAX(a) FROM v2) RETURNING a INTO @a;
+ERROR HY000: The definition of table 'v2' prevents operation UPDATE on table 't1'
+DROP VIEW v2;
+# A subquery converted to a semi-join, and a multi-table view
+UPDATE t1 SET a=a+1 WHERE a IN (SELECT a FROM t2) RETURNING a INTO @a;
+ERROR 42000: This version of MariaDB doesn't yet support 'multi-table UPDATE..RETURNING..INTO'
+CREATE VIEW v1 AS SELECT t1.a FROM t1,t2 WHERE t1.a=t2.a;
+UPDATE v1 SET a=a+1 RETURNING a INTO @a;
+ERROR 42000: This version of MariaDB doesn't yet support 'multi-table UPDATE..RETURNING..INTO'
+DROP VIEW v1;
+# ORDER BY .. LIMIT prevents the conversion to multi-table,
+# so a subquery on the updated table works
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @a=NULL;
+UPDATE t1 SET a=a+10 WHERE a=(SELECT MAX(a) FROM t1) ORDER BY a LIMIT 1 RETURNING a INTO @a;
+SELECT @a;
+@a
+13
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+13
+# The same with two changed rows
+SET @a=NULL;
+UPDATE t1 SET a=a+10 WHERE a>=(SELECT MIN(a) FROM t1) ORDER BY a LIMIT 2 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+11
+DROP TABLE t1,t2;
+#
+# Stored functions with UPDATE..RETURNING
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+UPDATE t1 SET a=a+1 RETURNING a;
+RETURN 1;
+END;
+$$
+ERROR 0A000: Not allowed to return a result set from a function
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+RETURN 1;
+END;
+$$
+SELECT f1();
+f1()
+1
+SELECT @a;
+@a
+11
+SELECT * FROM t1;
+a	b
+11	b10
+SET @a=NULL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for user variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+SET @va=NULL;
+SET @vb=NULL;
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO @va, @vb;
+SELECT @va, @vb;
+SET @va=NULL;
+SET @vb=NULL;
+END;
+$$
+CALL p1(100);
+@va	@vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @va, @vb;
+@va	@vb
+NULL	NULL
+CALL p1(100);
+@va	@vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @va, @vb;
+@va	@vb
+NULL	NULL
+CALL p1(100);
+@va	@vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @va, @vb;
+@va	@vb
+NULL	NULL
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT @va, @vb;
+@va	@vb
+11	b10
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT @va, @vb;
+@va	@vb
+12	b10
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT @va, @vb;
+@va	@vb
+13	b10
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+@va	@vb
+31	b30
+CALL p1(30);
+@va	@vb
+32	b30
+CALL p1(30);
+@va	@vb
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for SP variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE va INT;
+DECLARE vb VARCHAR(10);
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO va,vb;
+SELECT va, vb;
+END;
+$$
+CALL p1(100);
+va	vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+va	vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+va	vb
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+va	vb
+31	b30
+CALL p1(30);
+va	vb
+32	b30
+CALL p1(30);
+va	vb
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO row_var.not_existing_field
+#
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1_row_explicit()
+BEGIN
+DECLARE r0 ROW(a INT, b VARCHAR(10));
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+SELECT r0.a, r0.b;
+END;
+$$
+ERROR HY000: Row variable 'r0' does not have a field 'b_not_existing'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1_row_type_of_table()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1_row_type_of_table;
+ERROR HY000: Row variable 'r0' does not have a field 'b_not_existing'
+DROP PROCEDURE p1_row_type_of_table;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1_row_type_of_cursor()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+SELECT r0.a, r0.b;
+END;
+END;
+$$
+CALL p1_row_type_of_cursor;
+ERROR HY000: Row variable 'r0' does not have a field 'b_not_existing'
+DROP PROCEDURE p1_row_type_of_cursor;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a ROW variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW(a INT, b VARCHAR(10));
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a ROW variable fields
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW(a INT, b VARCHAR(10));
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec.a, vrec.b;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW TYPE OF t1;
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable fields
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW TYPE OF t1;
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec.a, vrec.b;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW TYPE OF c1;
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable fields
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE vrec ROW TYPE OF c1;
+UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO vrec.a, vrec.b;
+SELECT vrec.a, vrec.b;
+END;
+END;
+$$
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(100);
+vrec.a	vrec.b
+NULL	NULL
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+11	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+12	b10
+20	b20
+30	b30
+CALL p1(0);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a	b
+13	b10
+20	b20
+30	b30
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+vrec.a	vrec.b
+31	b30
+CALL p1(30);
+vrec.a	vrec.b
+32	b30
+CALL p1(30);
+vrec.a	vrec.b
+33	b30
+SELECT * FROM t1;
+a	b
+10	b10
+20	b20
+33	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-41262 ER_TOO_MANY_ROWS should be checked after CHECK OPTION in view while Update Returning Into
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(10);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a < 100 WITH CHECK OPTION;
+UPDATE v1 SET a=IF(a=1,2,1000) RETURNING a INTO @a;
+ERROR 44000: CHECK OPTION failed `test`.`v1`
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a
+2
+10
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-41265 SELECT/ UPDATE RETURNING INTO a single row-field fails with ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT, even though the column count matches
+#
+# One scalar column into one field of an explicit ROW variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+END;
+$$
+CALL p1;
+r0.a
+2
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# One scalar column into one field of a `ROW TYPE OF table1` variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+END;
+$$
+CALL p1;
+r0.a
+2
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# One scalar column into one field of a `ROW TYPE OF cursor1` variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+SELECT r0.a;
+END;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+END;
+END;
+$$
+CALL p1;
+r0.a
+2
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO in a trigger
+# UPDATE..RETURNING without INTO returns a result set, so it is not
+# allowed in triggers (see update_returning.test).
+# With INTO it does not return a result set.
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, c INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(2,21);
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+DECLARE v INT;
+UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b INTO v;
+SET NEW.c= v;
+END;
+$$
+# One row
+INSERT INTO t2 (a) VALUES (1);
+SELECT * FROM t2;
+a	c
+1	11
+SELECT * FROM t1;
+a	b
+1	11
+2	20
+2	21
+# No rows: a warning, the variable is not changed
+INSERT INTO t2 (a) VALUES (99);
+SELECT * FROM t2;
+a	c
+1	11
+99	NULL
+# Two rows: ER_TOO_MANY_ROWS, the row is not inserted
+INSERT INTO t2 (a) VALUES (2);
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t2;
+a	c
+1	11
+99	NULL
+DROP TRIGGER t2_bi;
+# No rows with a NOT FOUND handler
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+DECLARE v INT DEFAULT -1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET NEW.c= -2;
+UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b INTO v;
+END;
+$$
+INSERT INTO t2 (a) VALUES (99);
+SELECT * FROM t2 WHERE a=99;
+a	c
+99	NULL
+99	-2
+DROP TRIGGER t2_bi;
+DROP TABLE t1, t2;
+# End of 13.1 tests

@@ -24550,6 +24550,54 @@ static void test_mdev35953()
 
   mysql_query(mysql, "drop table t1");
 }
+
+
+/*
+  MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+  mysql_affected_rows() after UPDATE..RETURNING..INTO is the same as after
+  a plain UPDATE: the number of the changed rows, or the number of
+  the matched rows if CLIENT_FOUND_ROWS is set.
+*/
+static void test_mdev_39563()
+{
+  MYSQL *conn;
+
+  myquery(mysql_query(mysql, "DROP TABLE IF EXISTS t1"));
+  myquery(mysql_query(mysql, "CREATE TABLE t1 (a INT, b INT)"));
+  myquery(mysql_query(mysql, "INSERT INTO t1 VALUES (1,10),(2,20),(3,30)"));
+
+  /* Three rows match, one is changed */
+  myquery(mysql_query(mysql,
+                      "UPDATE t1 SET b=IF(a=1,11,b) RETURNING a INTO @a"));
+  DIE_UNLESS(mysql_affected_rows(mysql) == 1);
+  /* Three rows match, none is changed */
+  myquery(mysql_query(mysql, "UPDATE t1 SET b=b RETURNING a INTO @a"));
+  DIE_UNLESS(mysql_affected_rows(mysql) == 0);
+
+  if (!(conn= mysql_client_init(NULL)))
+  {
+    myerror("test_mdev_39563 init failed");
+    exit(1);
+  }
+  if (!mysql_real_connect(conn, opt_host, opt_user, opt_password,
+                          opt_db ? opt_db : "test", opt_port,
+                          opt_unix_socket, CLIENT_FOUND_ROWS))
+  {
+    myerror("test_mdev_39563 connection failed");
+    mysql_close(conn);
+    exit(1);
+  }
+  /* CLIENT_FOUND_ROWS: the matched rows are counted */
+  myquery(mysql_select_db(conn, current_db));
+  myquery(mysql_query(conn,
+                      "UPDATE t1 SET b=IF(a=1,12,b) RETURNING a INTO @a"));
+  DIE_UNLESS(mysql_affected_rows(conn) == 3);
+  myquery(mysql_query(conn, "UPDATE t1 SET b=b RETURNING a INTO @a"));
+  DIE_UNLESS(mysql_affected_rows(conn) == 3);
+  mysql_close(conn);
+
+  myquery(mysql_query(mysql, "DROP TABLE t1"));
+}
 #endif
 
 static struct my_tests_st my_tests[]= {
@@ -24880,6 +24928,7 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_mdev_36080", test_mdev_36080},
   { "test_mdev35953", test_mdev35953 },
+  { "test_mdev_39563", test_mdev_39563 },
 #endif
   { 0, 0 }
 };

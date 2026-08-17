@@ -35848,6 +35848,38 @@ static void MYSQL_DML_DONE(THD *thd, int rc, ha_rows found, ha_rows changed)
 }
 
 
+/**
+  @brief Check if the statement returns a result set
+*/
+bool Sql_cmd_dml::returns_result_set_generic(const LEX *lex)
+{
+  // UPDATE is handled separately
+  DBUG_ASSERT(lex->sql_command != SQLCOM_UPDATE);
+  DBUG_ASSERT(lex->sql_command != SQLCOM_UPDATE_MULTI);
+  /*
+    DML normally doesn't return result sets, but there are 3 exceptions:
+     - {INSERT|REPLACE|DELETE} ... RETURNING
+     - EXPLAIN {INSERT|REPLACE|DELETE} ...
+     - ANALYZE {INSERT|REPLACE|DELETE} ...
+  */
+  return lex->has_returning() || lex->describe || lex->analyze_stmt;
+}
+
+
+bool Sql_cmd_dml::set_returning_into_result(select_dumpvar *res)
+{
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), lex->unsupported_returning_into_name());
+  return true;
+}
+
+
+enum_sql_command Sql_cmd_dml::sql_command_code() const
+{
+  DBUG_ASSERT(lex); // Set in the constructor
+  return lex->sql_command;
+}
+
+
 /*
   @brief Perform actions needed before locking tables for a DML statement
 
@@ -35868,7 +35900,7 @@ static void MYSQL_DML_DONE(THD *thd, int rc, ha_rows found, ha_rows changed)
 
 bool Sql_cmd_dml::prepare(THD *thd)
 {
-  lex= thd->lex;
+  DBUG_ASSERT(lex == thd->lex);
   SELECT_LEX_UNIT *unit= &lex->unit;
 
   DBUG_ASSERT(!is_prepared());
@@ -35929,7 +35961,7 @@ err:
 
 bool Sql_cmd_dml::execute(THD *thd)
 {
-  lex = thd->lex;
+  DBUG_ASSERT(lex == thd->lex);
   ha_rows found= 0, changed= 0;
   bool res;
 

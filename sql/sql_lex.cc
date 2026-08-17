@@ -630,7 +630,8 @@ Query_tables_list::binlog_stmt_unsafe_errcode[BINLOG_STMT_UNSAFE_COUNT] =
     non-GA release.
   */
   ER_BINLOG_UNSAFE_SYSTEM_VARIABLE,
-  ER_BINLOG_UNSAFE_SKIP_LOCKED
+  ER_BINLOG_UNSAFE_SKIP_LOCKED,
+  ER_BINLOG_UNSAFE_CLAUSE
 };
 
 
@@ -14527,6 +14528,53 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 
   // Hints were not empty and were parsed without errors
   return {false, new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints))};
+}
+
+
+/**
+  The name of the RETURNING..INTO clause of the current statement,
+  for the "not supported yet" error of the statements that have no
+  Sql_cmd_xxx yet (INSERT, REPLACE). It consists of SQL keywords only,
+  so it needs no translation.
+*/
+const char *LEX::unsupported_returning_into_name() const
+{
+  switch (sql_command) {
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+    return "INSERT..RETURNING..INTO";
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+    return "REPLACE..RETURNING..INTO";
+  default:
+    DBUG_ASSERT(0);
+    return "RETURNING..INTO";
+  }
+}
+
+
+bool LEX::set_returning_into_result(select_dumpvar *res)
+{
+  if (!analyze_stmt && !describe)
+  {
+    DBUG_ASSERT(res);
+    if (Sql_cmd_dml *dml= dynamic_cast<Sql_cmd_dml*>(m_sql_cmd))
+    {
+      // UPDATE, DELETE (their Sql_cmd_xxx is created before RETURNING)
+      if (dml->set_returning_into_result(res))
+        return true;
+      // The order of rows is not predictable, like in SELECT..LIMIT
+      set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_RETURNING_INTO);
+      return false;
+    }
+    // REPLACE, INSERT have no Sql_cmd_xxx yet
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), unsupported_returning_into_name());
+    return true;
+  }
+
+  // ANALYZE and EXPLAIN
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "RETURNING..INTO");
+  return true;
 }
 
 
