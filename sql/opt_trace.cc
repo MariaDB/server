@@ -592,12 +592,21 @@ void get_table_name_for_trace(const JOIN_TAB *tab, String *out)
   }
   else if (tab->is_sjm_nest())
   {
-    JOIN_TAB *ctab= tab->bush_children.start;
+    JOIN_TAB *ctab= enter_bushes(tab->bush_children.start);
     size_t len= my_snprintf(table_name_buffer,
                             sizeof(table_name_buffer)-1,
                             "<subquery%d>",
                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
     out->copy(table_name_buffer, len, &my_charset_bin);
+  }
+  else if (tab->is_full_join_nest())
+  {
+    /*
+      Named as EXPLAIN names it.  The temporary table the nest is computed
+      into does not exist yet when the chosen join order is traced, so
+      there is nothing else to read a name from.
+    */
+    out->set(STRING_WITH_LEN("<derived>"), &my_charset_bin);
   }
   else
   {

@@ -6094,6 +6094,7 @@ public:
   Copy_field() = default;
   ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 
+  void set_restoring_null_row(Field *to, Field *from);
   void set(uchar *to,Field *from);		// Field to string
   void (*do_copy)(const Copy_field *);
   void (*do_copy2)(const Copy_field *);		// Used to handle null values

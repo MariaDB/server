@@ -17,13 +17,19 @@ use mysqltest_nfj;
 create table t1 (a int, b int);
 create table t2 (a int, c int);
 create table t3 (a int, d int);
+create table t4 (a int, e int);
+create table t5 (a int, f int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
 insert into t3 values (2,2000),(9,9000);
+insert into t4 values (2,20000),(4,40000);
+insert into t5 values (2,200000),(5,500000);
 create user nfj_user@localhost;
 grant select (a,b) on mysqltest_nfj.t1 to nfj_user@localhost;
 grant select (c)   on mysqltest_nfj.t2 to nfj_user@localhost;
 grant select (d)   on mysqltest_nfj.t3 to nfj_user@localhost;
+grant select (e)   on mysqltest_nfj.t4 to nfj_user@localhost;
+grant select (f)   on mysqltest_nfj.t5 to nfj_user@localhost;
 connect  nfj_con, localhost, nfj_user,, mysqltest_nfj;
 # nfj_user lacks SELECT on t2.a, so the coalesced a is denied in
 # the SELECT list and in WHERE.
@@ -58,13 +64,44 @@ a
 2
 3
 9
+# The chained join above puts the nested join on the left of the
+# outer NATURAL FULL JOIN.  The two below put it on the right and
+# then on both sides, so the walk has to descend into an operand
+# from either direction.
+# Nested join on the right; t4.a is not granted.
+select a from t1 natural full join (t2 natural full join t4);
+ERROR 42000: SELECT command denied to user 'nfj_user'@'localhost' for column 'a' in table 't4'
+connection default;
+grant select (a) on mysqltest_nfj.t4 to nfj_user@localhost;
+connection nfj_con;
+# With t4.a granted the read works.
+select a from t1 natural full join (t2 natural full join t4);
+a
+1
+2
+3
+4
+# Nested joins on both sides; t5.a is not granted.
+select a from (t1 natural full join t2)
+natural full join (t4 natural full join t5);
+ERROR 42000: SELECT command denied to user 'nfj_user'@'localhost' for column 'a' in table 't5'
+connection default;
+grant select (a) on mysqltest_nfj.t5 to nfj_user@localhost;
+connection nfj_con;
+# With t5.a granted the read works.
+select a from (t1 natural full join t2)
+natural full join (t4 natural full join t5);
+a
+1
+2
+3
+4
+5
 connection default;
 disconnect nfj_con;
-# The same check covers views, and across view kinds.  A view on the
-# right side of a FULL JOIN is rejected as a non-base table, so the
-# executable shape is a view on the left.  Reading the coalesced
-# column then requires the column grant on the view, however the view
-# is materialized.
+# The same check covers views, and across view kinds.  Reading the
+# coalesced column requires the column grant on the view, however the
+# view is materialized.
 #
 # v_merge  mergeable view
 # v_tmp    temptable (materialized) view
@@ -76,9 +113,12 @@ create algorithm=temptable view v_tmp as select a, b from t1;
 create view v_expr as select a + 0 as a, b from t1;
 create view v_over as select a, b from v_merge;
 create view v_union as select a, b from t1 union select a, b from t1;
-# A view on the right side is rejected (run as the table owner).
+# A view on the right side runs (run as the table owner).
 select a from t2 natural full join v_merge;
-ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'v_merge' is not a base table
+a
+1
+2
+3
 create user nfj_vuser@localhost;
 grant select (a,c) on mysqltest_nfj.t2 to nfj_vuser@localhost;
 grant select (b) on mysqltest_nfj.v_merge to nfj_vuser@localhost;

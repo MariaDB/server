@@ -7741,6 +7741,22 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
       }
     }
   }
+  else if ((emb_nest= embedding_materialized_nest(field)) &&
+           emb_nest->nested_join->materialized_full_join)
+  {
+    /*
+      It's a field of a FULL JOIN operand nest that is computed into a
+      temporary table.  The tables outside the nest have no current row
+      while the nest is computed, so the substitute has to be a constant
+      or a field of the same nest.
+    */
+    while ((item= it++))
+    {
+      if (item->const_item() ||
+          embedding_materialized_nest(it.get_curr_field()) == emb_nest)
+        return (item != field_item) ? item : NULL;
+    }
+  }
   else
   {
     /*

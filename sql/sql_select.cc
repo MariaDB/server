@@ -202,15 +202,19 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              void *table_join_idx,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
-                            COND *conds, bool in_sj);
-bool check_full_join_base_tables(List<TABLE_LIST> *join_list);
-static bool check_full_join_after_simplify(List<TABLE_LIST> *join_list);
+                            COND *conds, bool in_sj, TABLE_LIST *fj_operand,
+                            bool fj_left_operand);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
 static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
                                           uint first_unused);
 static COND *lift_full_join_left_where(JOIN *join, COND *conds);
+static COND *restore_full_join_left_conds(JOIN *join, COND *conds);
+static void record_full_join_nest_cond(THD *thd, TABLE_LIST *nest,
+                                       Item *on_expr);
+static void clear_full_join_nest_conds(List<TABLE_LIST> *join_list);
+static bool join_transform_enabled(THD *thd, ulonglong switch_flag);
 
 static COND *optimize_cond(JOIN *join, COND *conds,
                            List<TABLE_LIST> *join_list,
@@ -679,6 +683,11 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   explain= NULL;
   tmp_table_keep_current_rowid= 0;
   allowed_top_level_tables= 0;
+  full_join_nest_tables= 0;
+  full_join_groups= 0;
+  full_join_group_count= 0;
+  fj_nest_spans= 0;
+  fj_nest_span_count= 0;
 
   all_fields= fields_arg;
   if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -2472,9 +2481,6 @@ JOIN::optimize_inner()
   }
 #endif
 
-  if (check_full_join_base_tables(join_list))
-    DBUG_RETURN(1);
-
   SELECT_LEX *sel= select_lex;
   if (sel->first_cond_optimization)
   {
@@ -2493,23 +2499,10 @@ JOIN::optimize_inner()
 
     sel->first_cond_optimization= 0;
 
-    /* Convert all outer joins to inner joins if possible */
-    conds= simplify_joins(this, join_list, conds, FALSE);
+    clear_full_join_nest_conds(join_list);
 
-    /*
-      simplify_joins may rewrite a FULL JOIN to a one-sided join or swap its
-      operands, so shapes that depend on the post-rewrite structure are
-      checked here, after the existing pre-rewrite check_full_join_base_tables
-      call.  check_full_join_after_simplify rejects a surviving FULL JOIN whose
-      right operand is still a nested join, which the swap could not reduce to
-      a base table.
-    */
-    if (check_full_join_after_simplify(join_list))
-    {
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
-      DBUG_RETURN(1);
-    }
+    /* Convert all outer joins to inner joins if possible */
+    conds= simplify_joins(this, join_list, conds, FALSE, NULL, false);
 
     add_table_function_dependencies(join_list, table_map(-1), &error);
 
@@ -2539,8 +2532,8 @@ JOIN::optimize_inner()
       thd->restore_active_arena(arena, &backup);
   }
 
-  if (!allowed_top_level_tables)
-    calc_allowed_top_level_tables(select_lex);
+  if (!allowed_top_level_tables && calc_allowed_top_level_tables(select_lex))
+    DBUG_RETURN(1);
 
   if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(1);
@@ -3072,6 +3065,8 @@ int JOIN::optimize_stage2()
   {
     DBUG_RETURN(1);
   }
+
+  conds= restore_full_join_left_conds(this, conds);
 
   /*
     Among the equal fields belonging to the same multiple equality
@@ -5807,11 +5802,25 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
   else if (sql_table->embedding &&
            !sql_table->embedding->sj_on_expr)
   {
+    TABLE_LIST *nest= sql_table->embedding;
     /*
-      This is the inner side of a multi-table outer join. Use the
-      ON expression from the nested join containing the table.
+      The ON expression of a FULL JOIN operand nest decides which rows of
+      the operand meet the other side, not which rows the operand has.
+      An access path built from it would leave rows out of the operand
+      before the join reads it, and the FULL JOIN could no longer produce
+      them as rows that met nothing.  What the inner joins inside the
+      operand require is the part that holds for every row of it.
     */
-    retval= &(sql_table->embedding->on_expr);
+    if (nest->outer_join & JOIN_TYPE_FULL)
+      retval= &nest->nested_join->fj_inner_cond;
+    else
+    {
+      /*
+        This is the inner side of a multi-table outer join. Use the
+        ON expression from the nested join containing the table.
+      */
+      retval= &nest->on_expr;
+    }
   }
   else
   {
@@ -5819,6 +5828,70 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
     retval= &join->conds;
   }
   return retval;
+}
+
+
+/*
+  The tables of one side of a join.  A side is a nested join when the
+  query parenthesised it and a single table otherwise, and this holds for
+  either side of a FULL JOIN.
+*/
+
+static table_map join_side_map(TABLE_LIST *side)
+{
+  return side->nested_join ? side->nested_join->used_tables
+                           : side->table->map;
+}
+
+
+/*
+  Collect the entries that are the right side of a surviving FULL JOIN.
+
+  Since a side can be a nested join, what is collected here is not always
+  a base table and leaf_tables does not hold all of them.  The search
+  walks the join list and descends into every nest.
+
+  Returns true on error.
+*/
+
+static bool collect_full_join_right_sides(List<TABLE_LIST> *join_list,
+                                          List<TABLE_LIST> *right_sides,
+                                          MEM_ROOT *mem_root)
+{
+  List_iterator<TABLE_LIST> li(*join_list);
+  TABLE_LIST *tl;
+  while ((tl= li++))
+  {
+    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) ==
+        (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT) && tl->foj_partner &&
+        right_sides->push_back(tl, mem_root))
+      return true;
+    if (tl->nested_join &&
+        collect_full_join_right_sides(&tl->nested_join->join_list,
+                                      right_sides, mem_root))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  The top level conjuncts of a condition.
+
+  A condition is either a single predicate or a top level AND of
+  predicates.  A single predicate goes into the caller's throwaway list
+  so both shapes iterate the same way.  Returns NULL on error.
+*/
+
+static List<Item> *top_level_conjuncts(THD *thd, COND *cond,
+                                       List<Item> *single)
+{
+  if (cond->type() == Item::COND_ITEM &&
+      ((Item_cond *) cond)->functype() == Item_func::COND_AND_FUNC)
+    return ((Item_cond *) cond)->argument_list();
+  if (single->push_back(cond, thd->mem_root))
+    return NULL;
+  return single;
 }
 
 
@@ -5850,10 +5923,16 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
   the right partner under the found-match guard, so they apply to every
   output row only after the match is recorded.  A conjunct that also
   references the right side stays in place, because the right side
-  already defers it.  A multiple equality stays in place to keep
-  cond_equal consistent; it could not reach a surviving FULL JOIN
-  anyway, because a null-rejecting predicate on the left side rewrites
-  the FULL JOIN to a LEFT JOIN.
+  already defers it.
+
+  A multiple equality is lifted only when the FULL JOIN rewrite is
+  disabled.  With the rewrite enabled a multiple equality cannot reach a
+  surviving FULL JOIN, because it rejects NULLs on the left side and
+  that rewrites the FULL JOIN to a LEFT JOIN, so leaving it in place
+  keeps cond_equal consistent at no cost.  With the rewrite disabled the
+  FULL JOIN survives regardless of what the WHERE clause rejects, the
+  multiple equality does reach it, and leaving it in place puts it on a
+  left side table where the null complement pass never evaluates it.
 
   Called once per execution on the statement's working copy of the
   WHERE, so the held conjuncts are reset first.  Returns the WHERE with
@@ -5866,65 +5945,43 @@ static COND *lift_full_join_left_where(JOIN *join, COND *conds)
   if (!thd->lex->full_join_count || !conds)
     return conds;
 
-  bool have_full_right= false;
-  List_iterator<TABLE_LIST> li(join->select_lex->leaf_tables);
+  List<TABLE_LIST> right_sides;
+  if (collect_full_join_right_sides(join->join_list, &right_sides,
+                                    thd->mem_root))
+    return conds;
+  if (right_sides.is_empty())
+    return conds;
+  List_iterator<TABLE_LIST> li(right_sides);
   TABLE_LIST *tl;
   while ((tl= li++))
-  {
-    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) ==
-        (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT) && tl->foj_partner)
-    {
-      tl->fj_left_cond= NULL;
-      have_full_right= true;
-    }
-  }
-  if (!have_full_right)
+    tl->fj_left_cond= NULL;
+
+  List<Item> single;
+  List<Item> *conjuncts= top_level_conjuncts(thd, conds, &single);
+  if (!conjuncts)
     return conds;
 
-  /*
-    conds is either a single predicate or a top level AND of predicates.
-    Wrap a single predicate in a throwaway list so both shapes iterate
-    the same way.
-  */
-  bool is_and= conds->type() == Item::COND_ITEM &&
-               ((Item_cond *) conds)->functype() == Item_func::COND_AND_FUNC;
-  List<Item> single;
-  List<Item> *conjuncts;
-  if (is_and)
-    conjuncts= ((Item_cond *) conds)->argument_list();
-  else
-  {
-    if (single.push_back(conds, thd->mem_root))
-      return conds;
-    conjuncts= &single;
-  }
+  const bool rewrite_enabled=
+    join_transform_enabled(thd, OPTIMIZER_SWITCH_FULL_JOIN_REWRITE);
 
   List_iterator<Item> it(*conjuncts);
   Item *c;
   while ((c= it++))
   {
-    if (c->type() == Item::FUNC_ITEM &&
+    if (rewrite_enabled &&
+        c->type() == Item::FUNC_ITEM &&
         ((Item_func *) c)->functype() == Item_func::MULT_EQUAL_FUNC)
       continue;
 
     table_map used= c->used_tables();
     TABLE_LIST *best= NULL;
     table_map best_left= 0;
-    List_iterator<TABLE_LIST> lj(join->select_lex->leaf_tables);
+    List_iterator<TABLE_LIST> lj(right_sides);
     TABLE_LIST *r;
     while ((r= lj++))
     {
-      if ((r->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) !=
-          (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT) || !r->foj_partner)
-        continue;
-      /*
-        The right side of a surviving FULL JOIN is always a base table, so
-        its map is r->table->map.  The left side may be a nested join.
-      */
-      TABLE_LIST *l= r->foj_partner;
-      table_map left= l->nested_join ? l->nested_join->used_tables
-                                     : l->table->map;
-      if ((used & left) && !(used & r->table->map))
+      table_map left= join_side_map(r->foj_partner);
+      if ((used & left) && !(used & join_side_map(r)))
       {
         /*
           A conjunct may sit on the left side of several FULL JOINs at
@@ -5957,7 +6014,7 @@ static COND *lift_full_join_left_where(JOIN *join, COND *conds)
     it.remove();
   }
 
-  if (!is_and)
+  if (conjuncts == &single)
     return single.elements ? conds : NULL;
 
   if (((Item_cond *) conds)->argument_list()->elements == 0)
@@ -11453,12 +11510,19 @@ void JOIN::get_partial_cost_and_fanout(int end_tab_idx,
     table_map cur_table_map;
     if (tab->table)
       cur_table_map= tab->table->map;
+    else if (tab->is_full_join_nest())
+      cur_table_map= tab->full_join_nest_map();
     else
     {
       /* This is a SJ-Materialization nest. Check all of its tables */
       DBUG_ASSERT(tab->is_sjm_nest());
-      TABLE *first_child= tab->bush_children.start->table;
-      TABLE_LIST *sjm_nest= first_child->pos_in_table_list->embedding;
+      /*
+        The entry stepped in to names the semi-join nest whatever it is
+        embedded in, which the entry the run begins with need not be when
+        that entry stands for a run of its own.
+      */
+      TABLE_LIST *sjm_nest=
+        enter_bushes(tab->bush_children.start)->emb_sj_nest;
       cur_table_map= sjm_nest->nested_join->used_tables;
     }
     if (tab->records_read && (cur_table_map & filter_map))
@@ -13727,8 +13791,110 @@ static Item * const null_ptr= NULL;
 
 
 /*
+  Find the span of the picked join order occupied by one FULL JOIN
+  operand nest and record it, if the nest is worth a run of its own.
+
+  A nest of a single surviving table is left out, since a run holding one
+  table is that table.  A nest whose tables the order did not keep
+  together is left out as well, which leaves it joined table by table as
+  before.  restrict_to_unplaced_fj_tables is what keeps them together,
+  so a broken span means that rule and this one disagree.
+*/
+
+static void
+record_full_join_nest_span(JOIN *join, TABLE_LIST *nest)
+{
+  table_map nest_tables= nest->nested_join->used_tables &
+                         ~join->eliminated_tables;
+  uint first= 0, count= 0;
+  bool broken= false;
+
+  for (uint i= 0; i < join->table_count; i++)
+  {
+    if (!(join->best_positions[i].table->table->map & nest_tables))
+      continue;
+    if (!count)
+      first= i;
+    else if (i != first + count)
+      broken= true;
+    count++;
+  }
+
+  DBUG_ASSERT(!broken);
+  if (broken || count < 2)
+    return;
+
+  Full_join_nest_span *span=
+    &join->fj_nest_spans[join->fj_nest_span_count++];
+  span->nest= nest;
+  span->first= first;
+  span->count= count;
+}
+
+
+/*
+  Walk the join tree and record the span of every nest that is an operand
+  of a FULL JOIN.  A nest is handled before the tree below it, so the
+  spans come out outermost first.
+*/
+
+static void
+record_full_join_nest_spans(JOIN *join, List<TABLE_LIST> *lst)
+{
+  List_iterator<TABLE_LIST> li(*lst);
+  TABLE_LIST *tl;
+
+  while ((tl= li++))
+  {
+    if (!tl->nested_join)
+      continue;
+    if (tl->outer_join & JOIN_TYPE_FULL)
+    {
+      /*
+        Whether the nest ends up with a run of its own follows from the
+        join order, so the answer from a previous optimization says
+        nothing here.
+      */
+      tl->nested_join->materialized_full_join= FALSE;
+      record_full_join_nest_span(join, tl);
+    }
+    record_full_join_nest_spans(join, &tl->nested_join->join_list);
+  }
+}
+
+
+/*
+  Record where the FULL JOIN operand nests land in the picked join order.
+
+  The join order search is over by the time this runs, so each nest now
+  has a definite place, which is what the layout of the JOIN_TAB array
+  needs in order to gather a nest into a run of its own.
+*/
+
+bool JOIN::record_full_join_nest_spans()
+{
+  fj_nest_spans= NULL;
+  fj_nest_span_count= 0;
+
+  if (!full_join_nest_tables)
+    return false;
+
+  /*
+    The nests are strictly nested or disjoint and each holds at least two
+    tables, so there are fewer of them than there are tables.
+  */
+  if (!(fj_nest_spans= thd->alloc<Full_join_nest_span>(table_count)))
+    return true;
+
+  ::record_full_join_nest_spans(this, &select_lex->top_join_list);
+
+  return false;
+}
+
+
+/*
   Set up join struct according to the picked join order in
-  
+
   SYNOPSIS
     get_best_combination()
       join  The join to process (the picked join order is mainly in
@@ -13757,8 +13923,16 @@ bool JOIN::get_best_combination()
   table_map used_tables;
   JOIN_TAB *j;
   KEYUSE *keyuse;
-  JOIN_TAB *sjm_nest_end= NULL;
-  JOIN_TAB *sjm_nest_root= NULL;
+  /*
+    The runs entered and not yet finished, outermost first.  A run ends
+    at the position that fills its last entry, at which point the entry
+    that stands for the run becomes the current one again.  A run holds
+    the tables of a materialized semi join nest or of a FULL JOIN operand
+    nest, and the latter can hold further runs.
+  */
+  JOIN_TAB *run_root[MAX_TABLES];
+  uint      run_last_pos[MAX_TABLES];
+  uint      run_depth= 0;
   DBUG_ENTER("get_best_combination");
 
    /*
@@ -13791,6 +13965,8 @@ bool JOIN::get_best_combination()
   hash_join= FALSE;
 
   fix_semijoin_strategies_for_picked_join_order(this);
+  if (record_full_join_nest_spans())
+    DBUG_RETURN(TRUE);
   top_join_tab_count= get_number_of_tables_at_top_level(this);
 
 #ifndef DBUG_OFF
@@ -13819,6 +13995,8 @@ bool JOIN::get_best_combination()
     goto error;
    root_range->start= join_tab;
   root_range->kind= JOIN_TAB_RANGE_TOP_LEVEL;
+  root_range->nest= NULL;
+  root_range->mat= NULL;
   /* root_range->end will be set later */
   join_tab_ranges.empty();
 
@@ -13829,50 +14007,112 @@ bool JOIN::get_best_combination()
   {
     TABLE *form;
     POSITION *cur_pos= &best_positions[tablenr];
-    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE || 
+    SJ_MATERIALIZATION_INFO *sjm= NULL;
+    /*
+      Where the semi-join run belongs among the FULL JOIN operand nest
+      runs that begin here, as an index into the spans.  Past the last
+      span when there is no semi-join run or when no span holds it.
+    */
+    uint sjm_at= fj_nest_span_count;
+
+    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE ||
         cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
-      /*
-        Ok, we've entered an SJ-Materialization semi-join (note that this can't
-        be done recursively, semi-joins are not allowed to be nested).
-        1. Put into main join order a JOIN_TAB that represents a lookup or scan
-           in the temptable.
-      */
-      bzero((void*)j, sizeof(JOIN_TAB));
-      j->join= this;
-      j->table= NULL; //temporary way to tell SJM tables from others.
-      j->ref.key = -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      /* The unique index is always in 'possible keys' in EXPLAIN */
-      j->keys= key_map(1);
+      sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
+      for (sjm_at= 0; sjm_at < fj_nest_span_count; sjm_at++)
+      {
+        if (fj_nest_spans[sjm_at].first == tablenr &&
+            fj_nest_spans[sjm_at].count <= sjm->tables)
+          break;
+      }
+    }
 
-      /*
-        2. Proceed with processing SJM nest's join tabs, putting them into the
-           sub-order
-      */
-      SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
-      j->records_read= (sjm->is_sj_scan? sjm->rows : 1.0);
-      j->records_init= j->records_out= j->records_read;
-      j->records= (ha_rows) j->records_read;
-      j->cond_selectivity= 1.0;
-      j->join_read_time= 0.0; /* Not saved currently */
-      j->join_loops= 0.0;
+    /*
+      Start the runs that begin here, the one covering the most positions
+      first.  They all begin at this position, so the one covering the
+      most positions holds the others, and a run has to be opened before
+      every run it holds.  Spans are recorded outermost first, which
+      leaves only the semi-join run to be placed among them, and a run
+      covering as many positions as the semi-join run is one it holds.
+
+      A run's entries are sized by the number of positions it covers,
+      which is an upper bound because a run inside it stands for two
+      positions or more.  The end is narrowed to what was used once the
+      run is finished.
+    */
+    for (uint i= 0; i <= fj_nest_span_count; i++)
+    {
       JOIN_TAB *jt;
-      if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)))
-        goto error;
-      j->bush_children.start= jt;
-      j->bush_children.end= jt + sjm->tables;
-      j->bush_children.kind= JOIN_TAB_RANGE_SJM;
-      join_tab_ranges.push_back(&j->bush_children, thd->mem_root);
-      sjm_nest_end= jt + sjm->tables;
-      sjm_nest_root= j;
 
+      if (sjm && i == sjm_at)
+      {
+        /*
+          Ok, we've entered an SJ-Materialization semi-join (note that
+          this can't be done recursively, semi-joins are not allowed to
+          be nested).
+          1. Put into main join order a JOIN_TAB that represents a lookup
+             or scan in the temptable.
+        */
+        bzero((void*)j, sizeof(JOIN_TAB));
+        j->join= this;
+        j->table= NULL; //temporary way to tell SJM tables from others.
+        j->ref.key = -1;
+        j->on_expr_ref= (Item**) &null_ptr;
+        j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
+        /* The unique index is always in 'possible keys' in EXPLAIN */
+        j->keys= key_map(1);
+
+        /*
+          2. Proceed with processing SJM nest's join tabs, putting them
+             into the sub-order
+        */
+        j->records_read= (sjm->is_sj_scan? sjm->rows : 1.0);
+        j->records_init= j->records_out= j->records_read;
+        j->records= (ha_rows) j->records_read;
+        j->cond_selectivity= 1.0;
+        j->join_read_time= 0.0; /* Not saved currently */
+        j->join_loops= 0.0;
+        if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)))
+          goto error;
+        j->bush_children.start= jt;
+        j->bush_children.end= jt + sjm->tables;
+        j->bush_children.kind= JOIN_TAB_RANGE_SJM;
+        join_tab_ranges.push_back(&j->bush_children, thd->mem_root);
+        DBUG_ASSERT(run_depth < MAX_TABLES);
+        run_root[run_depth]= j;
+        run_last_pos[run_depth]= tablenr + sjm->tables - 1;
+        run_depth++;
+
+        j= jt;
+      }
+
+      if (i == fj_nest_span_count || fj_nest_spans[i].first != tablenr)
+        continue;
+      if (!(jt= thd->alloc<JOIN_TAB>(fj_nest_spans[i].count)))
+        goto error;
+      bzero((void*) j, sizeof(JOIN_TAB));
+      j->join= this;
+      j->table= NULL;
+      j->ref.key= -1;
+      j->on_expr_ref= (Item**) &null_ptr;
+      j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
+      j->bush_children.start= jt;
+      j->bush_children.end= jt + fj_nest_spans[i].count;
+      j->bush_children.kind= JOIN_TAB_RANGE_FULL_JOIN;
+      j->bush_children.nest= fj_nest_spans[i].nest;
+      j->bush_children.nest->nested_join->materialized_full_join= TRUE;
+      if (join_tab_ranges.push_back(&j->bush_children, thd->mem_root))
+        goto error;
+      DBUG_ASSERT(run_depth < MAX_TABLES);
+      run_root[run_depth]= j;
+      run_last_pos[run_depth]= tablenr + fj_nest_spans[i].count - 1;
+      run_depth++;
       j= jt;
     }
-    
+
     *j= *cur_pos->table;
 
-    j->bush_root_tab= sjm_nest_root;
+    j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
 
     form= table[tablenr]= j->table;
     form->reginfo.join_tab=j;
@@ -13929,22 +14169,26 @@ bool JOIN::get_best_combination()
 
     map2table[j->table->tablenr]= j;
 
-    /* If we've reached the end of sjm nest, switch back to main sequence */
-    if (j + 1 == sjm_nest_end)
+    /*
+      Finish the runs that end here, innermost first.  The entry standing
+      for a finished run becomes the current one, and is itself the last
+      entry of the run around it when that one ends here too.
+    */
+    while (run_depth && run_last_pos[run_depth-1] == tablenr)
     {
+      JOIN_TAB *root= run_root[--run_depth];
       j->last_leaf_in_bush= TRUE;
-      j= sjm_nest_root;
-      sjm_nest_root= NULL;
-      sjm_nest_end= NULL;
+      root->bush_children.end= j + 1;
+      j= root;
     }
   }
+  DBUG_ASSERT(!run_depth);
   root_range->end= j;
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
-    if (j->has_bush_children())
-      j= j->bush_children.start;
+    j= enter_bushes(j);
 
     used_tables|= j->table->map;
     if (j->type != JT_CONST && j->type != JT_SYSTEM)
@@ -13953,8 +14197,7 @@ bool JOIN::get_best_combination()
           create_ref_for_key(this, j, keyuse, TRUE, used_tables))
         goto error;                            // Something went wrong
     }
-    if (j->last_leaf_in_bush)
-      j= j->bush_root_tab;
+    j= leave_ended_bushes(j);
   }
  
   top_join_tab_count= (uint)(join_tab_ranges.head()->end - 
@@ -14113,10 +14356,15 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
   {
     /*
       jtab is inside execution join nest. We may not refer to outside tables,
-      except the const tables.
+      except the const tables.  The nest that counts is the innermost run
+      holding jtab, since that one is computed before the runs around it.
     */
-    DBUG_ASSERT(jtab->bush_root_tab->is_sjm_nest());
-    table_map local_tables= jtab->emb_sj_nest->nested_join->used_tables |
+    JOIN_TAB *root= jtab->bush_root_tab;
+    DBUG_ASSERT(root->is_sjm_nest() || root->is_full_join_nest());
+    table_map nest_tables= root->is_full_join_nest() ?
+                           root->full_join_nest_map() :
+                           jtab->emb_sj_nest->nested_join->used_tables;
+    table_map local_tables= nest_tables |
                             jtab->join->const_table_map |
                             OUTER_REF_TABLE_BIT;
     return !MY_TEST(used_tables & ~local_tables);
@@ -14590,6 +14838,12 @@ bool TABLE_LIST::is_active_sjm()
 }
 
 
+bool TABLE_LIST::is_materialized_full_join()
+{
+  return nested_join && nested_join->materialized_full_join;
+}
+
+
 /**
   Fill in outer join related info for the execution plan structure.
 
@@ -14638,6 +14892,128 @@ bool TABLE_LIST::is_active_sjm()
     has been chosen.
 */
 
+/*
+  Collect an Item_field for every column of the tables under a run that
+  the optimizer marked as read.  A run inside this one is descended into,
+  since the temporary table has to hold the values themselves and not a
+  reference to the table that produced them.
+*/
+
+static bool
+collect_full_join_nest_cols(THD *thd, JOIN_TAB *start, JOIN_TAB *end,
+                            List<Item> *cols)
+{
+  for (JOIN_TAB *tab= start; tab != end; tab++)
+  {
+    TABLE *table;
+
+    if (tab->has_bush_children())
+    {
+      if (collect_full_join_nest_cols(thd, tab->bush_children.start,
+                                      tab->bush_children.end, cols))
+        return TRUE;
+      continue;
+    }
+
+    table= tab->table;
+    for (Field **field= table->field; *field; field++)
+    {
+      Item_field *item;
+
+      if (!bitmap_is_set(table->read_set, (*field)->field_index))
+        continue;
+      if (!(item= new (thd->mem_root) Item_field(thd, *field)) ||
+          cols->push_back(item, thd->mem_root))
+        return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+/*
+  Create the temporary table that holds the rows of a FULL JOIN operand
+  nest.
+
+  The table holds every column of the nest's tables that is read, which
+  is a superset of what anything outside the nest refers to.  Reading a
+  row back into those same columns therefore restores every value an
+  enclosing condition can ask for, and lets such a condition go on
+  naming the nest's tables as the query wrote them.
+
+  Two things a materialized semi join does are wrong here.  Duplicate
+  rows are kept, since the enclosing join is an ordinary join and not a
+  test for existence.  A row holding NULL is kept as well, since a nest
+  containing an outer join produces null complemented rows that are part
+  of the answer, and producing them inside the nest rather than outside
+  it is the whole point of the run.
+*/
+
+static bool
+setup_full_join_materialization(JOIN_TAB *tab)
+{
+  THD *thd= tab->join->thd;
+  TABLE_LIST *nest= tab->bush_children.nest;
+  Full_join_mat_info *mat;
+  const LEX_CSTRING full_join_name= { STRING_WITH_LEN("full-join") };
+  DBUG_ENTER("setup_full_join_materialization");
+  DBUG_ASSERT(tab->is_full_join_nest());
+
+  if (!(mat= new (thd->mem_root) Full_join_mat_info))
+    DBUG_RETURN(TRUE);
+
+  mat->table_param.init();
+  mat->table_param.bit_fields_as_long= TRUE;
+
+  if (collect_full_join_nest_cols(thd, tab->bush_children.start,
+                                  tab->bush_children.end, &mat->table_cols))
+    DBUG_RETURN(TRUE);
+
+  /*
+    Nothing in the query need read a column of the nest, and then the only
+    thing the temporary table carries is how many rows the nest produced.
+    A table still has to have a column, so give it a constant one, the
+    same way create_dummy_tmp_table does.  Reading a row back copies
+    nothing, since there is no column of the nest to restore.
+  */
+  if (mat->table_cols.is_empty())
+  {
+    Item *column_item= new (thd->mem_root) Item_int(thd, 1);
+    if (!column_item ||
+        mat->table_cols.push_back(column_item, thd->mem_root))
+      DBUG_RETURN(TRUE);
+  }
+
+  mat->table_param.field_count= mat->table_cols.elements;
+  mat->table_param.func_count= mat->table_param.field_count;
+
+  if (!(mat->table= create_tmp_table(thd, &mat->table_param, mat->table_cols,
+                                     (ORDER*) 0, FALSE /* distinct */,
+                                     1 /* save_sum_fields */,
+                                     thd->variables.option_bits |
+                                     TMP_TABLE_ALL_COLUMNS,
+                                     HA_POS_ERROR /* rows_limit */,
+                                     &full_join_name)))
+    DBUG_RETURN(TRUE);
+
+  mat->table->map= nest->nested_join->used_tables;
+  mat->table->file->extra(HA_EXTRA_WRITE_CACHE);
+  mat->copy_field= NULL;
+  mat->materialized= FALSE;
+
+  if (tab->join->sj_tmp_tables.push_back(mat->table, thd->mem_root) ||
+      tab->join->full_join_mat_list.push_back(mat, thd->mem_root))
+    DBUG_RETURN(TRUE);
+
+  tab->bush_children.mat= mat;
+  tab->table= mat->table;
+  tab->tab_list= nest;
+  mat->table->pos_in_table_list= nest;
+
+  DBUG_RETURN(FALSE);
+}
+
+
 static bool
 make_outerjoin_info(JOIN *join)
 {
@@ -14656,6 +15032,12 @@ make_outerjoin_info(JOIN *join)
     if (tab->is_sjm_nest())
     {
       if (setup_sj_materialization_part1(tab))
+        DBUG_RETURN(TRUE);
+      tab->table->reginfo.join_tab= tab;
+    }
+    else if (tab->is_full_join_nest())
+    {
+      if (setup_full_join_materialization(tab))
         DBUG_RETURN(TRUE);
       tab->table->reginfo.join_tab= tab;
     }
@@ -14704,6 +15086,20 @@ skip_outer_join_setup:
         /*
           We're trying to walk out of an SJ-Materialization nest.
           Don't do this.
+        */
+        break;
+      }
+      if (embedding->is_materialized_full_join())
+      {
+        /*
+          Same for a FULL JOIN operand nest computed into a temporary
+          table.  The enclosing join positions no table while the nest is
+          computed, so an outer join outside the nest owns no table
+          inside it, and the null complementing for that outer join
+          happens at the entry that stands for the whole nest.  The
+          tables of the nest also live in their own JOIN_TAB array, and
+          several walks step from first_inner or last_inner by pointer
+          arithmetic, which only holds within one array.
         */
         break;
       }
@@ -14828,121 +15224,217 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
 
 
 /*
-  Push parts of an outer-join ON expression to tables that appear
-  after the inner tables in the execution order.
+  A copy of a materialized FULL JOIN operand nest's recorded join
+  condition, for this execution to evaluate.
 
-  The caller (make_join_select) has a loop that walks the inner tables
-  of each outer join, extracting conjuncts from the ON expression
-  and pushing them to each inner table's select_cond.  But that loop
-  only visits tables from [start_from...last_tab], building used_tables2
-  as it goes.  If the ON expression references a table that the
-  optimizer placed after last_tab, no conjunct is ever extracted for
-  it, and the condition is silently lost.
-
-  This shape arises with FULL JOIN.  For example,
-
-      (A FULL JOIN B ON A.x = B.x) RIGHT JOIN C ON B.x = C.x
-
-  can be rewritten as
-
-      C LEFT JOIN (A, B) ON B.x = C.x
-
-  and the constraint that keeps the FULL JOIN tables A and B contiguous
-  can place the tables in the order A, B, C.  The inner scope of the
-  LEFT JOIN is {A, B} with last_tab = B, but the ON expression
-  "B.x = C.x" references C, which comes after B.  The main loop never
-  reaches C, so "B.x = C.x" would be lost without this function.
-
-  This function picks up where the main loop left off.  It scans
-  tables after last_tab and, for each one referenced by on_expr,
-  extracts the relevant conjuncts, wraps them in the same trigcond
-  guards used for outer join conditions, and attaches them to that
-  table's select_cond.
-
-  The scan below is currently unreachable in phase 2 but is kept as
-  defensive scaffolding for phase 3, which lifts the restriction.
-
-  @param used_tables  Cumulative bitmap of tables visited so far
-                      (updated in place so the caller sees the new
-                      tables we covered).
-  @return true on error.
+  The recording happens once, during the first optimization of a
+  statement, and it is an AND node of the server's own making rather than
+  a part of the parsed tree.  Every item a statement creates is cleaned
+  up when an execution ends, which leaves that node unfixed, and no later
+  execution records it again because by then the expression it was copied
+  from has moved into the enclosing FULL JOIN's ON.  Restoring the
+  condition from the recording for each execution, the way an ON
+  expression is restored from prep_on_expr, keeps the recording itself
+  out of execution and gives every execution a node it fixed.
 */
-static bool
-push_on_expr_to_later_outer_tables(THD *thd, JOIN *join, JOIN_TAB *last_tab,
-                                   JOIN_TAB *first_inner_tab, Item *on_expr,
-                                   table_map *used_tables)
+
+static Item *restore_full_join_nest_cond(THD *thd, Item *recorded)
 {
-  /*
-    Every table referenced by on_expr is already in used_tables;
-    nothing left to push.
-  */
-  if (!(on_expr->used_tables() & ~(*used_tables)))
-    return false;
+  Item *cond= recorded->copy_andor_structure(thd);
 
-  JOIN_TAB *end_tab= join->join_tab + join->top_join_tab_count;
-  for (JOIN_TAB *outer_tab= last_tab + 1; outer_tab < end_tab; outer_tab++)
+  if (!cond)
+    return NULL;
+  if (!cond->fixed())
   {
-    if (!outer_tab->table)
-      continue;
-
-    /*
-      Always add the table to used_tables even if on_expr doesn't
-      reference it.  make_cond_for_table needs used_tables to include
-      all tables up to and including the one being extracted for.
-    */
-    table_map current_map= outer_tab->table->map;
-    *used_tables|= current_map;
-    if (!(on_expr->used_tables() & current_map))
-      continue;
-
-    /*
-      Extract the conjuncts from on_expr that can be evaluated once
-      this table's row is available.
-    */
-    COND *tmp_cond= make_cond_for_table(thd, on_expr, *used_tables,
-                                        current_map, -1,
-                                        FALSE, FALSE);
-    if (thd->is_error())
-      return true;
-    if (!tmp_cond)
-      continue;
-
-    /*
-      Wrap in the two "standard" outer-join trigcond guards:
-
-        trigcond(found, <cond>)         -- disabled until a match is found
-        trigcond(not_null_compl, ...)   -- disabled during null-complement
-
-      This makes the pushed condition behave identically to conditions
-      pushed to inner tables by the main loop.
-    */
-    DBUG_ASSERT(tmp_cond->fixed());
-    if (!(tmp_cond= add_found_match_trig_cond(thd, first_inner_tab,
-                                              tmp_cond, 0)))
-      return true;
-
-    tmp_cond= new (thd->mem_root)
-      Item_func_trig_cond(thd, tmp_cond, &first_inner_tab->not_null_compl);
-    if (!tmp_cond)
-      return true;
-    tmp_cond->quick_fix_field();
-
-    /* AND the wrapped condition into this table's select_cond. */
-    DBUG_ASSERT(!outer_tab->select_cond || outer_tab->select_cond->fixed());
-    outer_tab->select_cond=
-      !outer_tab->select_cond ? tmp_cond :
-      new (thd->mem_root)
-        Item_cond_and(thd, outer_tab->select_cond, tmp_cond);
-    if (!outer_tab->select_cond)
-      return true;
-
-    outer_tab->select_cond->quick_fix_field();
-    outer_tab->select_cond->update_used_tables();
-    if (outer_tab->select)
-      outer_tab->select->cond= outer_tab->select_cond;
+    cond->fix_fields(thd, 0);
+    cond->update_used_tables();
   }
+  return cond;
+}
 
-  return false;
+
+/*
+  Apply a materialized FULL JOIN operand nest's own join condition while
+  the nest is computed.
+
+  Simplifying the join tree moved the ON expressions of the inner joins
+  inside the nest into the enclosing FULL JOIN's ON, which is checked only
+  once that join has positioned the whole nest.  The nest is computed
+  before that, so without its own condition it produces the cross product
+  of its tables.  The condition goes on the last table of the run, where
+  every table of the nest holds a row.
+*/
+
+static void attach_full_join_nest_conds(THD *thd, JOIN *join)
+{
+  for (JOIN_TAB *tab= first_depth_first_tab(join); tab;
+       tab= next_depth_first_tab(join, tab))
+  {
+    Item *recorded;
+    Item *cond;
+
+    if (!tab->is_full_join_nest())
+      continue;
+
+    recorded= tab->bush_children.nest->nested_join->fj_inner_cond;
+    if (!recorded)
+      continue;
+
+    if (!(cond= restore_full_join_nest_cond(thd, recorded)))
+      continue;
+
+    JOIN_TAB *last= tab->bush_children.end - 1;
+    add_cond_and_fix(thd, &last->select_cond, cond);
+    if (last->select)
+      last->select->cond= last->select_cond;
+  }
+}
+
+
+/*
+  The tab that completes one side of a FULL JOIN.
+
+  A predicate over the whole side can only be checked once every table of
+  the side holds a row.  That is the entry standing for the side when the
+  side is a nest computed into a temporary table, and otherwise the last
+  tab in the plan holding one of the side's tables, which for a side that
+  is a single table is that table.
+*/
+
+static JOIN_TAB *tab_for_full_join_right_side(JOIN *join, TABLE_LIST *side)
+{
+  table_map side_map= join_side_map(side);
+  JOIN_TAB *last= NULL;
+
+  for (JOIN_TAB *tab= first_depth_first_tab(join); tab;
+       tab= next_depth_first_tab(join, tab))
+  {
+    if (!tab->table)
+      continue;
+    if (tab->tab_list == side)
+      return tab;
+    if (tab->table->map & side_map)
+      last= tab;
+  }
+  return last;
+}
+
+
+/*
+  The tab a lifted left side predicate can first be checked on.
+
+  A lifted predicate references the FULL JOIN's left side and may also
+  reference tables outside the FULL JOIN, which the planner is free to
+  place after the right partner.  A predicate checked on a tab that
+  precedes a table it references reads that table's record buffer before
+  the table has been read, so the check waits for the last of them.  The
+  tables of a nest computed into a temporary table hold their row once
+  the nest's own tab produces one, so a reference into such a nest
+  counts as a reference to the nest.
+
+  Returns the right partner when no referenced table follows it.
+*/
+
+static JOIN_TAB *tab_for_full_join_left_cond(JOIN *join, JOIN_TAB *partner,
+                                             table_map used)
+{
+  JOIN_TAB *last= partner;
+  JOIN_TAB *root= NULL;
+  uint pos= 0;
+  uint root_pos= 0;
+  uint last_pos= 0;
+  bool seen_partner= false;
+
+  for (JOIN_TAB *tab= first_depth_first_tab(join); tab;
+       tab= next_depth_first_tab(join, tab), pos++)
+  {
+    if (!tab->bush_root_tab)
+    {
+      root= tab;
+      root_pos= pos;
+    }
+    if (tab == partner)
+    {
+      last_pos= pos;
+      seen_partner= true;
+      continue;
+    }
+    if (!seen_partner || !tab->table || !(tab->table->map & used))
+      continue;
+    if (root && root_pos > last_pos)
+    {
+      last= root;
+      last_pos= root_pos;
+    }
+  }
+  return last;
+}
+
+
+/*
+  Return the lifted conjuncts the plan does not need lifted.
+
+  A conjunct is lifted so that a predicate over the FULL JOIN's left
+  side is checked only after the match is recorded on the right partner.
+  A conjunct that also references a table the plan places after the
+  right partner is already checked after the match without any help,
+  and it cannot be checked on the right partner at all, since that table
+  has not been read there.  Put those back in the WHERE, where the usual
+  distribution of predicates over the plan places them on the last table
+  they reference.
+
+  Called once the join order is known and before the WHERE is
+  distributed.  Returns the WHERE with the returned conjuncts restored.
+*/
+
+static COND *restore_full_join_left_conds(JOIN *join, COND *conds)
+{
+  THD *thd= join->thd;
+  List<TABLE_LIST> right_sides;
+
+  if (!thd->lex->full_join_count)
+    return conds;
+  if (collect_full_join_right_sides(join->join_list, &right_sides,
+                                    thd->mem_root))
+    return conds;
+
+  List_iterator<TABLE_LIST> li(right_sides);
+  TABLE_LIST *side;
+  while ((side= li++))
+  {
+    JOIN_TAB *partner;
+    Item *cond= side->fj_left_cond;
+
+    if (!cond)
+      continue;
+    if (!(partner= tab_for_full_join_right_side(join, side)))
+      continue;
+    if (tab_for_full_join_left_cond(join, partner, cond->used_tables()) ==
+        partner)
+      continue;
+
+    side->fj_left_cond= NULL;
+    if (!conds)
+    {
+      conds= cond;
+      continue;
+    }
+    /*
+      lift_full_join_left_where took the conjunct out of the top level
+      AND, so putting it back there restores the WHERE it started from.
+    */
+    if (conds->type() == Item::COND_ITEM &&
+        ((Item_cond *) conds)->functype() == Item_func::COND_AND_FUNC)
+    {
+      if (((Item_cond *) conds)->argument_list()->push_back(cond,
+                                                            thd->mem_root))
+        return conds;
+      conds->update_used_tables();
+      continue;
+    }
+    add_cond_and_fix(thd, &conds, cond);
+  }
+  return conds;
 }
 
 
@@ -14950,19 +15442,30 @@ push_on_expr_to_later_outer_tables(THD *thd, JOIN *join, JOIN_TAB *last_tab,
   Attach each surviving FULL JOIN's lifted left side predicates to its
   right partner under the found-match guard, so they are checked only
   after the match is recorded.  lift_full_join_left_where moved these
-  conjuncts onto the right partner's TABLE_LIST; here they join its
-  pushed-down conditions.  Returns true on error.
+  conjuncts onto the right partner's TABLE_LIST and
+  restore_full_join_left_conds returned the ones the plan does not need
+  lifted; here the rest join the partner's pushed-down conditions.
+  Returns true on error.
 */
 
 static bool attach_full_join_left_conds(THD *thd, JOIN *join)
 {
-  for (JOIN_TAB *tab= first_depth_first_tab(join); tab;
-       tab= next_depth_first_tab(join, tab))
+  List<TABLE_LIST> right_sides;
+  if (collect_full_join_right_sides(join->join_list, &right_sides,
+                                    thd->mem_root))
+    return true;
+
+  List_iterator<TABLE_LIST> li(right_sides);
+  TABLE_LIST *side;
+  while ((side= li++))
   {
-    if (!tab->table || !tab->tab_list || !tab->tab_list->fj_left_cond)
+    if (!side->fj_left_cond)
+      continue;
+    JOIN_TAB *tab= tab_for_full_join_right_side(join, side);
+    if (!tab)
       continue;
     COND *guarded= add_found_match_trig_cond(thd, tab->first_inner,
-                                             tab->tab_list->fj_left_cond, 0);
+                                             side->fj_left_cond, 0);
     if (!guarded)
       return true;
     add_cond_and_fix(thd, &tab->select_cond, guarded);
@@ -14970,6 +15473,195 @@ static bool attach_full_join_left_conds(THD *thd, JOIN *join)
       tab->select->cond= tab->select_cond;
   }
   return false;
+}
+
+
+/*
+  Move the WHERE predicates over a surviving FULL JOIN's right side out
+  of the WHERE, when that side is a nest the chosen join order computes
+  into a temporary table.
+
+  Distributing the WHERE over the plan places such a predicate on a table
+  inside the nest, since that is the last tab holding a table it
+  references.  There it decides which rows the nest holds rather than
+  which rows of the join survive.  A nest row it drops is a row the FULL
+  JOIN can no longer match, so a left side row that would have matched it
+  reports no match and is emitted null complemented, and a WHERE that
+  accepts NULLs then passes that row on.  A side that is a single table
+  needs nothing here, since the predicate lands on that table and that is
+  also where the null complemented row is built.
+
+  Held on the right side entry, the predicates are attached by
+  attach_full_join_nest_where to the tab that stands for the whole nest.
+  Only the predicates a tab exists for are taken, so nothing is left with
+  no place to be checked.  Called once the join order is known and after
+  the constant part of the WHERE has been taken out.  Returns the WHERE
+  with the held conjuncts removed.
+*/
+
+static COND *lift_full_join_nest_where(THD *thd, JOIN *join, COND *cond)
+{
+  List<TABLE_LIST> right_sides;
+  List<Item> single;
+  List<Item> *conjuncts;
+  List<Item> keep;
+  Item_cond_and *reduced;
+  bool lifted= false;
+
+  if (!thd->lex->full_join_count)
+    return cond;
+  if (collect_full_join_right_sides(join->join_list, &right_sides,
+                                    thd->mem_root))
+    return cond;
+  if (right_sides.is_empty())
+    return cond;
+
+  List_iterator<TABLE_LIST> li(right_sides);
+  TABLE_LIST *side;
+  while ((side= li++))
+    side->fj_nest_where= NULL;
+
+  if (!cond)
+    return cond;
+  if (!(conjuncts= top_level_conjuncts(thd, cond, &single)))
+    return cond;
+
+  List_iterator<Item> it(*conjuncts);
+  Item *c;
+  while ((c= it++))
+  {
+    table_map used= c->used_tables();
+    bool held= false;
+
+    li.rewind();
+    while ((side= li++))
+    {
+      table_map side_map;
+
+      if (!side->is_materialized_full_join())
+        continue;
+      if (!tab_for_full_join_right_side(join, side))
+        continue;
+      side_map= join_side_map(side);
+      if (!(used & side_map) || (used & ~side_map))
+        continue;
+      add_cond_and_fix(thd, &side->fj_nest_where, c);
+      held= lifted= true;
+      break;
+    }
+    if (!held && keep.push_back(c, thd->mem_root))
+      return cond;
+  }
+
+  if (!lifted)
+    return cond;
+  if (keep.is_empty())
+    return NULL;
+  if (keep.elements == 1)
+    return keep.head();
+  if (!(reduced= new (thd->mem_root) Item_cond_and(thd, keep)))
+    return cond;
+  reduced->quick_fix_field();
+  reduced->update_used_tables();
+  return reduced;
+}
+
+
+/*
+  Attach the predicates lift_full_join_nest_where holds on a surviving
+  FULL JOIN's right side to the tab that stands for that side.
+
+  The tab produces the whole nest as one row, and the FULL JOIN null
+  complements that row for a left side row that matched nothing, so this
+  is the first place the predicate can see the row the query returns.
+  The found-match guard holds the predicate back until the FULL JOIN
+  match has been recorded, so rejecting a row here cannot turn a right
+  side row that did match into a right-only row.
+
+  Returns true on error.
+*/
+
+static bool attach_full_join_nest_where(THD *thd, JOIN *join)
+{
+  List<TABLE_LIST> right_sides;
+
+  if (!thd->lex->full_join_count)
+    return false;
+  if (collect_full_join_right_sides(join->join_list, &right_sides,
+                                    thd->mem_root))
+    return true;
+
+  List_iterator<TABLE_LIST> li(right_sides);
+  TABLE_LIST *side;
+  while ((side= li++))
+  {
+    JOIN_TAB *tab;
+    COND *guarded;
+
+    if (!side->fj_nest_where)
+      continue;
+    if (!(tab= tab_for_full_join_right_side(join, side)))
+      continue;
+    if (!(guarded= add_found_match_trig_cond(thd, tab->first_inner,
+                                             side->fj_nest_where, 0)))
+      return true;
+    add_cond_and_fix(thd, &tab->select_cond, guarded);
+    if (tab->select)
+      tab->select->cond= tab->select_cond;
+  }
+  return false;
+}
+
+
+/*
+  Find the table an outer join's ON condition must be attached to when a
+  surviving FULL JOIN sits inside that outer join.
+
+  A surviving FULL JOIN runs as a LEFT JOIN of its left side over its
+  right side, then a pass rescans the right side and emits the rows that
+  never matched a left row.  That is correct only if every left side row
+  reaches the right side, so that every match is recorded.  An enclosing
+  outer join's ON condition breaks this when it lands on the FULL JOIN's
+  left side, either in a left table's select_cond or in the on_precond
+  that stops the left side from being read at all.  A left row it rejects
+  never reaches the right side, so a right row that did match is never
+  recorded and the pass emits it as a row the FULL JOIN never produced.
+
+  The condition belongs on the FULL JOIN's right side table instead.  That
+  table is the inner table of the FULL JOIN's own outer join scope, so the
+  standard wrapping in make_join_select adds that scope's found-match
+  guard, which holds the condition back until the FULL JOIN match has been
+  recorded and then applies it to the complete FULL JOIN row.  This is the
+  same treatment an enclosing ON condition already gets when it lands on
+  the inner table of a plain nested outer join.
+
+  Return the right side table of the last surviving FULL JOIN that lies
+  after dest and within the inner scope starting at first_inner_tab, or
+  NULL when there is none.  The last one is chosen so that chained FULL
+  JOINs all record their matches before the condition applies.  Since the
+  search starts after dest, and dest is never earlier than
+  first_inner_tab, a FULL JOIN whose own ON condition this is can never be
+  returned.
+*/
+
+static JOIN_TAB *fj_deferral_target(JOIN *join, JOIN_TAB *dest,
+                                    JOIN_TAB *first_inner_tab)
+{
+  JOIN_TAB *target= NULL;
+
+  if (!join->thd->lex->full_join_count)
+    return NULL;
+
+  for (JOIN_TAB *tab= dest + 1; tab <= first_inner_tab->last_inner; tab++)
+  {
+    TABLE_LIST *tl= tab->tab_list;
+    if (!tab->table || !tl || !tl->foj_partner)
+      continue;
+    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) ==
+        (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT))
+      target= tab;
+  }
+  return target;
 }
 
 
@@ -15096,6 +15788,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       Step #2: Extract WHERE/ON parts
     */
 
+    cond= lift_full_join_nest_where(thd, join, cond);
+
     /*
       The last top level table that is not the entry standing for a run of
       other tables.  A top level that holds nothing but such entries has no
@@ -15113,6 +15807,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     }
 
     table_map save_used_tables= 0;
+    /*
+      The FULL JOIN run whose entry restores save_used_tables, so that a
+      run inside it does not restore it early.
+    */
+    JOIN_TAB *fj_save_root= NULL;
     used_tables=((select->const_tables=join->const_table_map) |
 		 OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
     JOIN_TAB *tab;
@@ -15132,10 +15831,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       if (!tab->has_bush_children())
         current_map= tab->table->map;
+      else if (tab->is_full_join_nest())
+        current_map= tab->full_join_nest_map();
       else
       {
         DBUG_ASSERT(tab->is_sjm_nest());
-        current_map= tab->bush_children.start->emb_sj_nest->sj_inner_tables;
+        current_map=
+          enter_bushes(tab->bush_children.start)->emb_sj_nest->sj_inner_tables;
       }
 
       /* 
@@ -15143,13 +15845,46 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         conditions referring to preceding non-const tables.
          - If we're looking at the first SJM table, reset used_tables
            to refer to only allowed tables
+         - A nest goes on naming a table that elimination removed, and
+           an eliminated table is a const table, so leave the eliminated
+           tables out of the test the way the FULL JOIN run below does
       */
-      if (tab->emb_sj_nest && tab->emb_sj_nest->sj_mat_info && 
+      if (tab->emb_sj_nest && tab->emb_sj_nest->sj_mat_info &&
           tab->emb_sj_nest->sj_mat_info->is_used &&
-          !(used_tables & tab->emb_sj_nest->sj_inner_tables))
+          !(used_tables & tab->emb_sj_nest->sj_inner_tables &
+            ~join->eliminated_tables))
       {
         save_used_tables= used_tables;
-        used_tables= join->const_table_map | OUTER_REF_TABLE_BIT | 
+        used_tables= join->const_table_map | OUTER_REF_TABLE_BIT |
+                     RAND_TABLE_BIT;
+      }
+
+      /*
+        A table inside a materialized FULL JOIN operand nest cannot have a
+        condition referring to a table outside the nest either, since the
+        nest is computed before the enclosing join has positioned those
+        tables.  The outermost run containing the table is the one that
+        matters, because nothing outside it is available to anything
+        within it, and it is entered at the first table it holds.
+
+        A nest goes on naming a table that elimination removed, and an
+        eliminated table is a const table, so its bit is in used_tables
+        before any table is positioned.  Leaving those bits out of the
+        test is what keeps a nest holding one from reading as a run that
+        has already been entered.
+      */
+      JOIN_TAB *fj_root= NULL;
+      for (JOIN_TAB *root= tab->bush_root_tab; root; root= root->bush_root_tab)
+      {
+        if (root->is_full_join_nest())
+          fj_root= root;
+      }
+      if (fj_root && !(used_tables & fj_root->full_join_nest_map() &
+                       ~join->eliminated_tables))
+      {
+        save_used_tables= used_tables;
+        fj_save_root= fj_root;
+        used_tables= join->const_table_map | OUTER_REF_TABLE_BIT |
                      RAND_TABLE_BIT;
       }
 
@@ -15221,13 +15956,14 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       if (cond)
       {
-        if (tab->is_sjm_nest())
+        if (tab->is_sjm_nest() || tab == fj_save_root)
         {
           // Reached the materialization tab
           tmp= make_cond_after_sjm(thd, cond, cond, save_used_tables,
                                    used_tables, /*inside_or_clause=*/FALSE);
           used_tables= save_used_tables | used_tables;
           save_used_tables= 0;
+          fj_save_root= NULL;
         }
         else
         {
@@ -15596,7 +16332,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         if (!*join_tab->on_expr_ref || !join_tab->first_inner)
           continue;
 
-        JOIN_TAB *cond_tab= join_tab->first_inner;
+        JOIN_TAB *first_inner_tab= join_tab->first_inner;
+        JOIN_TAB *cond_tab= first_inner_tab;
         COND *tmp_cond= make_cond_for_table(thd, *join_tab->on_expr_ref,
                                             join->const_table_map,
                                             (table_map) 0, -1, FALSE, FALSE);
@@ -15606,8 +16343,24 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             continue;
           DBUG_RETURN(1);
         }
+        /*
+          A constant condition still rejects left side rows of a FULL JOIN
+          before their matches are recorded, so it is deferred to the FULL
+          JOIN's right side table the same way a non-constant one is.  The
+          found-match guards that the non-constant path gets from
+          add_found_match_trig_cond are added here for the same reason.
+        */
+        JOIN_TAB *fj_tab= fj_deferral_target(join, cond_tab, first_inner_tab);
+        if (fj_tab)
+        {
+          cond_tab= fj_tab;
+          if (!(tmp_cond= add_found_match_trig_cond(thd, fj_tab->first_inner,
+                                                    tmp_cond,
+                                                    first_inner_tab)))
+            DBUG_RETURN(1);
+        }
         tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
-                                          &cond_tab->not_null_compl);
+                                          &first_inner_tab->not_null_compl);
         if (!tmp_cond)
           DBUG_RETURN(1);
         tmp_cond->quick_fix_field();
@@ -15703,7 +16456,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               would be true anyway.
             */
             SJ_MATERIALIZATION_INFO *sjm=
-              inner_tab->bush_children.start->emb_sj_nest->sj_mat_info;
+              enter_bushes(inner_tab->bush_children.start)->
+                emb_sj_nest->sj_mat_info;
             if (sjm->is_used && !sjm->is_sj_scan)
               is_sjm_lookup_tab= TRUE;
           }
@@ -15718,6 +16472,19 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             Item **sel_cond_ref= (inner_tab < first_inner_tab ?
                                   &first_inner_tab->on_precond :
                                   &inner_tab->select_cond);
+            /*
+              Move the condition past any surviving FULL JOIN it would
+              otherwise evaluate on the left side of; see
+              fj_deferral_target.  cond_tab moves with it so the guards
+              below are the ones for its new position.
+            */
+            JOIN_TAB *fj_tab= fj_deferral_target(join, cond_tab,
+                                                 first_inner_tab);
+            if (fj_tab)
+            {
+              cond_tab= fj_tab;
+              sel_cond_ref= &fj_tab->select_cond;
+            }
             /*
               First add the guards for match variables of
               all embedding outer join operations.
@@ -15755,10 +16522,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           }
         }
 
-        if (push_on_expr_to_later_outer_tables(thd, join, last_tab,
-                                               first_inner_tab, on_expr,
-                                               &used_tables2))
-          DBUG_RETURN(1);
         first_inner_tab= first_inner_tab->first_upper;
       }
       if (!tab->has_bush_children())
@@ -15767,6 +16530,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
     if (attach_full_join_left_conds(thd, join))
       DBUG_RETURN(1);
+
+    if (attach_full_join_nest_where(thd, join))
+      DBUG_RETURN(1);
+
+    attach_full_join_nest_conds(thd, join);
 
     if (unlikely(thd->trace_started()))
     {
@@ -16308,7 +17076,14 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   int error;
   THD *thd= join->thd;
-  SJ_MATERIALIZATION_INFO *sjm= join_tab[-1].emb_sj_nest->sj_mat_info;
+  /*
+    The last entry of the run can stand for a run of its own rather than
+    for a table of the query, in which case it names no semi-join nest.
+    The JOIN_TAB the run belongs to names the nest whatever the last entry
+    is.
+  */
+  SJ_MATERIALIZATION_INFO *sjm=
+    join_tab[-1].bush_root_tab->tab_list->sj_mat_info;
   DBUG_ENTER("end_sj_materialize");
   if (!end_of_records)
   {
@@ -16339,8 +17114,111 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 }
 
 
-/* 
-  Check whether a join buffer can be used to join the specified table   
+/*
+  end_select compatible function that writes one row of a FULL JOIN
+  operand nest into the temporary table the nest is computed into.
+
+  Every row the nest produces is written.  A semi join's version drops a
+  row holding NULL and lets the table remove duplicates, neither of which
+  applies here, since the enclosing join is an ordinary join over the
+  nest's result and a nest containing an outer join produces null
+  complemented rows that belong to that result.
+*/
+
+enum_nested_loop_state
+end_full_join_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
+{
+  int error;
+  THD *thd= join->thd;
+  Full_join_mat_info *mat= join_tab[-1].bush_root_tab->bush_children.mat;
+  DBUG_ENTER("end_full_join_materialize");
+
+  if (!end_of_records)
+  {
+    TABLE *table= mat->table;
+
+    fill_record(thd, table, table->field, mat->table_cols, true, false, true);
+    if (unlikely(thd->is_error()))
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
+    {
+      if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
+          create_internal_tmp_table_from_heap(thd, table,
+                                              mat->table_param.start_recinfo,
+                                              &mat->table_param.recinfo,
+                                              error, 1, NULL))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+    }
+  }
+  DBUG_RETURN(NESTED_LOOP_OK);
+}
+
+
+/*
+  Set up reading the temporary table a FULL JOIN operand nest was
+  computed into.
+
+  The table is always scanned, since the enclosing join has no key into
+  it.  Each column read is copied back into the field of the nest table
+  it was taken from, which is what lets a condition outside the nest go
+  on naming that table.  The last entry of the run sends its rows to the
+  temporary table rather than onwards, which is how the nest is computed
+  in isolation.
+*/
+
+static bool
+setup_full_join_materialization_scan(JOIN_TAB *tab)
+{
+  Full_join_mat_info *mat= tab->bush_children.mat;
+  List_iterator<Item> it(mat->table_cols);
+  Item *item;
+  /* Position in table_cols, which is also the temporary table's column. */
+  uint i= 0;
+  /* How many of those columns stand for a column of the nest. */
+  uint copies= 0;
+  DBUG_ENTER("setup_full_join_materialization_scan");
+  DBUG_ASSERT(tab->is_full_join_nest());
+
+  if (!(mat->copy_field= new Copy_field[mat->table_cols.elements]))
+    DBUG_RETURN(TRUE);
+
+  while ((item= it++))
+  {
+    /*
+      A column that stands for no column of the nest has nothing to be
+      copied back into.
+    */
+    if (item->type() == Item::FIELD_ITEM)
+    {
+      Field *copy_to= ((Item_field *) item)->field;
+
+      /*
+        A column of the nest declared NOT NULL still reads as NULL when an
+        outer join inside the nest null complemented its row, so the copy
+        back has to restore that state rather than store a zero.
+      */
+      mat->copy_field[copies].set_restoring_null_row(copy_to,
+                                                     mat->table->field[i]);
+      /* The write_set of the nest's tables must allow the copying. */
+      bitmap_set_bit(copy_to->table->write_set, copy_to->field_index);
+      copies++;
+    }
+    i++;
+  }
+
+  tab->type= JT_ALL;
+  tab->read_first_record= join_init_read_record;
+  tab->read_record.copy_field= mat->copy_field;
+  tab->read_record.copy_field_end= mat->copy_field + copies;
+
+  tab->bush_children.end[-1].next_select= end_full_join_materialize;
+
+  DBUG_RETURN(FALSE);
+}
+
+
+/*
+  Check whether a join buffer can be used to join the specified table
 
   SYNOPSIS
     check_join_cache_usage()
@@ -17076,6 +17954,11 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     if (tab->is_sjm_nest())
     {
       if (setup_sj_materialization_part2(tab))
+        return TRUE;
+    }
+    else if (tab->is_full_join_nest())
+    {
+      if (setup_full_join_materialization_scan(tab))
         return TRUE;
     }
 
@@ -19752,14 +20635,43 @@ static int compare_fields_by_table_order(Item *field1,
 }
 
 
+/*
+  The materialized nest a field's table sits inside, otherwise NULL.
+
+  Two kinds of nest are computed into a temporary table before the tables
+  around them are positioned, a semi join nest read by materialization
+  and a FULL JOIN operand nest gathered into a run of its own.  An
+  equality may not be generated across the boundary of such a nest,
+  because evaluating it while the nest is computed would read a table
+  that has no current row.
+
+  A semi join nest never holds another, so only the nest a table sits
+  directly in can be one.  A FULL JOIN run can hold further runs, and
+  then the outermost is the one that counts, since nothing outside it is
+  available to anything within it.
+*/
+
+TABLE_LIST *embedding_materialized_nest(Field *field)
+{
+  TABLE_LIST *immediate= field->table->pos_in_table_list->embedding;
+  TABLE_LIST *outermost= NULL;
+
+  if (immediate && immediate->sj_mat_info && immediate->sj_mat_info->is_used)
+    return immediate;
+
+  for (TABLE_LIST *nest= immediate; nest; nest= nest->embedding)
+  {
+    if (nest->nested_join && nest->nested_join->materialized_full_join)
+      outermost= nest;
+  }
+  return outermost;
+}
+
+
 static TABLE_LIST* embedding_sjm(Item *item)
 {
   Item_field *item_field= (Item_field *) (item->real_item());
-  TABLE_LIST *nest= item_field->field->table->pos_in_table_list->embedding;
-  if (nest && nest->sj_mat_info && nest->sj_mat_info->is_used)
-    return nest;
-  else
-    return NULL;
+  return embedding_materialized_nest(item_field->field);
 }
 
 /**
@@ -19915,9 +20827,14 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     bool produce_equality= MY_TEST(item == field_item);
     if (!item_const && field_sjm && field_sjm != current_sjm)
     {
-      /* Entering an SJM nest */
+      /* Entering a materialized nest */
       current_sjm_head= field_item;
-      if (!field_sjm->sj_mat_info->is_sj_scan)
+      /*
+        A semi join nest read by an index lookup has no value to compare
+        against inside it.  A FULL JOIN run is always scanned, so its
+        first field is a usable head.
+      */
+      if (field_sjm->sj_mat_info && !field_sjm->sj_mat_info->is_sj_scan)
         produce_equality= FALSE;
     }
 
@@ -20462,6 +21379,10 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   @param conds       conditions to add on expressions for converted joins
   @param top         true <=> conds is the where condition
   @param in_sj       TRUE <=> processing semi-join nest's children
+  @param fj_operand  the FULL JOIN operand nest conds is the ON
+                     expression of, NULL when conds is not one
+  @param fj_left_operand true <=> the nest lies inside the left operand
+                     of a FULL JOIN
   @parma used_tables_ptr     IN/OUT parameter for the used_tables value
   @parma not_null_tables_ptr IN/OUT parameter for the used_tables value
 
@@ -20470,6 +21391,8 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
 
 static COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
                                   COND *conds, bool in_sj,
+                                  TABLE_LIST *fj_operand,
+                                  bool fj_left_operand,
                                   table_map *used_tables,
                                   table_map *not_null_tables)
 {
@@ -20481,7 +21404,8 @@ static COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
   nested_join->used_tables= (table_map) 0;
   nested_join->not_null_tables=(table_map) 0;
   conds= simplify_joins(join, &nested_join->join_list, conds,
-                        in_sj || table->sj_on_expr);
+                        in_sj || table->sj_on_expr, fj_operand,
+                        fj_left_operand);
   if (!conds && join->thd->is_error())
     return nullptr;
   *used_tables= nested_join->used_tables;
@@ -20707,6 +21631,47 @@ static bool join_transform_enabled(THD *thd, ulonglong switch_flag)
 
 
 /**
+  The tables the current conditions reject NULLs for, as far as the
+  simplifications in simplify_joins may rely on that rejection.
+
+  A condition allows dropping an outer join's null complemented rows
+  only when a row that keeps those NULLs cannot reach the result.  The
+  WHERE clause has that property, and so does the ON expression of a
+  LEFT or RIGHT JOIN with respect to its own inner operand, since rows
+  of that operand which fail the ON are not emitted.
+
+  The ON expression of a FULL JOIN does not have it while the FULL JOIN
+  stays a FULL JOIN, since the operand keeps the rows that fail the ON,
+  null complemented on the other side.  Null rejection in that ON then
+  says nothing about which rows survive and must not drive any
+  simplification inside the operand it is attached to.  Nothing here
+  restricts the WHERE clause, which goes on rewriting FULL JOINs the
+  way it did before, nested ones included.
+
+  A FULL JOIN the WHERE clause turns into a LEFT or RIGHT JOIN does get
+  the property back for whichever operand lands on the inner side.  The
+  descent into the operand runs before that outcome is known, so the
+  rejection is given up there as well.  The cost is a plan that keeps
+  an outer join it could have dropped, never a wrong result.
+
+  @param conds       the conditions in force at this point
+  @param fj_operand  the FULL JOIN operand nest conds is the ON
+                     expression of, NULL when conds is not one
+
+  @return the tables NULLs are rejected for, or no tables at all when
+          the rejection cannot be relied on
+*/
+
+static table_map usable_not_null_tables(COND *conds, TABLE_LIST *fj_operand)
+{
+  if (!conds || fj_operand)
+    return (table_map) 0;
+
+  return conds->not_null_tables();
+}
+
+
+/**
   What the WHERE clause allows a FULL JOIN to become.
 */
 
@@ -20783,59 +21748,85 @@ classify_full_join(THD *thd,
 }
 
 
+/*
+  The condition a FULL JOIN operand collected from the inner joins inside
+  it, or NULL when the operand is a single table or collected nothing.
+*/
+
+static COND *full_join_operand_conds(TABLE_LIST *operand)
+{
+  if (!operand->nested_join)
+    return NULL;
+  return operand->nested_join->fj_inner_cond;
+}
+
+
 /**
   Descend into the left operand of a FULL JOIN.
 
-  simplify_joins skips the left operand of a FULL JOIN when the join
-  list iteration reaches it, so this is the only descent into it.  It
-  runs whether or not the FULL JOIN is rewritten afterwards, as the
-  nest's used_tables and the ON expressions inside it are needed in
-  either case.
+  simplify_joins skips the left operand of a FULL JOIN while the join is
+  still a FULL JOIN, so this is the descent that collects the operand's
+  own condition.  It runs whether or not the FULL JOIN is rewritten
+  afterwards, as the nest's used_tables and the ON expressions inside it
+  are needed in either case.
+
+  The descent starts from no condition rather than from the WHERE
+  clause, so the ON expressions of the inner joins inside the operand
+  collect into a condition of their own instead of joining the WHERE
+  clause.  They decide which rows the operand has and say nothing about
+  a row where the whole operand is null, which is what the enclosing
+  FULL JOIN produces for a right side row that matched nothing.  The
+  caller decides where the collected condition belongs once it knows
+  whether the FULL JOIN survives.
+
+  Starting from no condition also keeps the WHERE clause out of the
+  null rejection analysis inside the operand.  A WHERE clause predicate
+  cannot convert an outer join inside the operand while the enclosing
+  FULL JOIN survives, for the same reason.
 
   @param join       reference to the query info
-  @param conds      conditions to add on expressions for converted joins
   @param in_sj      TRUE <=> processing semi-join nest's children
+  @param fj_operand the FULL JOIN operand nest the enclosing conds is
+                    the ON expression of, NULL when it is not one
   @param left_table the left operand
   @param right_not_null_tables not_null_tables computed for the right
                                operand
   @param left_used_tables      OUT tables of the left operand
   @param left_not_null_tables  OUT tables the left operand rejects
                                NULLs for
-  @param conds_hoisted         OUT true <=> the descent moved
-                               conditions into conds
 
-  @return the new condition, or nullptr on error
+  @return the operand's own condition, NULL when it has none or on
+          error, which the caller tells apart by the error state
 */
 
-static COND *simplify_full_join_left_operand(JOIN *join, COND *conds,
+static COND *simplify_full_join_left_operand(JOIN *join,
                                              bool in_sj,
+                                             TABLE_LIST *fj_operand,
                                              TABLE_LIST *left_table,
                                              table_map right_not_null_tables,
                                              table_map *left_used_tables,
-                                             table_map *left_not_null_tables,
-                                             bool *conds_hoisted)
+                                             table_map *left_not_null_tables)
 {
-  COND *conds_before= conds;
+  COND *left_conds;
 
-  if (left_table->nested_join)
-  {
-    conds= simplify_nested_join(join, left_table, conds, in_sj,
-                                left_used_tables, left_not_null_tables);
-    if (!conds && join->thd->is_error())
-      return nullptr;
-  }
-  else
+  if (!left_table->nested_join)
   {
     *left_used_tables= left_table->get_map();
     *left_not_null_tables= right_not_null_tables;
+    return NULL;
   }
 
+  left_conds= simplify_nested_join(join, left_table, NULL, in_sj, fj_operand,
+                                   TRUE, left_used_tables,
+                                   left_not_null_tables);
   /*
-    Every condition that moves into conds reassigns it (see and_conds),
-    so comparing the pointer afterward detects that a move happened.
+    An earlier descent into the operand already moved the ON expressions
+    of the inner joins out of the tables that held them, so this descent
+    collects nothing and the condition is the one that descent recorded.
   */
-  *conds_hoisted= (conds != conds_before);
-  return conds;
+  if (!left_conds && !join->thd->is_error())
+    left_conds= full_join_operand_conds(left_table);
+  return left_conds;
 }
 
 
@@ -20896,6 +21887,31 @@ static void keep_full_join(TABLE_LIST *left_table,
 }
 
 
+/*
+  Move a FULL JOIN operand's own condition into the condition that
+  encloses the join, which is where the operand's rows are decided once
+  the operand is the outer side of a rewritten join.  This is the same
+  move an inner join's ON expression makes on its own when no FULL JOIN
+  encloses it; see hoist_on_expr_to_conds.
+*/
+
+static COND *merge_full_join_operand_conds(THD *thd, COND *conds,
+                                           COND *operand_conds)
+{
+  if (!operand_conds)
+    return conds;
+  if (!conds)
+    return operand_conds;
+
+  conds= and_conds(thd, conds, operand_conds);
+  conds->top_level_item();
+  /* conds is always a new item as both conditions existed */
+  DBUG_ASSERT(!conds->fixed());
+  conds->fix_fields(thd, &conds);
+  return conds;
+}
+
+
 /**
   Attempt to rewrite [NATURAL] FULL JOIN to LEFT, RIGHT, or INNER JOIN,
   depending on the WHERE clause and whether it rejects NULLs.  For example,
@@ -20914,6 +21930,8 @@ static void keep_full_join(TABLE_LIST *left_table,
                      if rewrite happens.
   @param top         true <=> conds is the where condition
   @param in_sj       TRUE <=> processing semi-join nest's children
+  @param fj_operand  the FULL JOIN operand nest conds is the ON
+                     expression of, NULL when conds is not one
 
   The following parameters are IN/OUT parameters and are mutated by
   this function:
@@ -20930,6 +21948,7 @@ static void keep_full_join(TABLE_LIST *left_table,
 static COND *rewrite_full_outer_joins(JOIN *join,
                                       COND *conds,
                                       bool in_sj,
+                                      TABLE_LIST *fj_operand,
                                       TABLE_LIST **right_table,
                                       List_iterator<TABLE_LIST> *li,
                                       table_map *used_tables,
@@ -20964,35 +21983,38 @@ static COND *rewrite_full_outer_joins(JOIN *join,
   TABLE_LIST *left_table= li->peek();
   table_map left_used_tables= 0;
   table_map left_not_null_tables= 0;
-  bool left_conds_hoisted= false;
   DBUG_ASSERT(test_all_bits(left_table->outer_join,
                             JOIN_TYPE_FULL | JOIN_TYPE_LEFT));
 
-  conds= simplify_full_join_left_operand(join, conds, in_sj, left_table,
-                                         *not_null_tables,
-                                         &left_used_tables,
-                                         &left_not_null_tables,
-                                         &left_conds_hoisted);
-  if (!conds && join->thd->is_error())
+  COND *left_conds= simplify_full_join_left_operand(join, in_sj, fj_operand,
+                                                    left_table,
+                                                    *not_null_tables,
+                                                    &left_used_tables,
+                                                    &left_not_null_tables);
+  if (join->thd->is_error())
     DBUG_RETURN(nullptr);
 
-  /*
-    When left_table is a nested join with an unrewritten FULL JOIN
-    inside it, and rewriting that FULL JOIN would result in a query
-    with a FULL JOIN on the inner side of another join, reject the
-    rewrite.  In phase 2, we cannot support FULL JOIN on the inner
-    side of another JOIN (support coming in phase 3).
-  */
-  if (left_table->contains_full_join())
-  {
-    *not_null_tables= 0;
-    DBUG_RETURN(conds);
-  }
-
   switch (classify_full_join(join->thd, left_used_tables, *used_tables,
-                             *not_null_tables, left_conds_hoisted))
+                             *not_null_tables, left_conds != NULL))
   {
   case FULL_JOIN_TO_RIGHT:
+    /*
+      A condition of the left operand's own would end up on the inner
+      side of the rewritten join, which classify_full_join refuses.
+    */
+    DBUG_ASSERT(!left_conds);
+    /*
+      The right operand is the outer side of the rewritten join, so no
+      row of it is null complemented and its own condition decides the
+      same rows from the WHERE clause as it does inside the operand.
+      The condition also stays in the ON expression it moved into, where
+      it no longer decides which rows the operand has, since a row of the
+      outer side reaches the result whether or not the ON expression
+      holds.  Only a nest computed into a temporary table reads the
+      condition back, and the rewrite below leaves no such nest.
+    */
+    conds= merge_full_join_operand_conds(join->thd, conds,
+                                         full_join_operand_conds(*right_table));
     /*
       RIGHT JOINs don't actually exist in MariaDB!  This will do what
       the grammar does and convert_right_join together do when given a
@@ -21017,81 +22039,28 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     rewrite_full_to_left(left_table, *right_table);
     --join->thd->lex->full_join_count;
     *not_null_tables= left_not_null_tables;
+    /*
+      The left operand is the outer side of the rewritten join, so no row
+      of it is null complemented and its own condition decides the same
+      rows from the WHERE clause as it does inside the operand.
+    */
+    conds= merge_full_join_operand_conds(join->thd, conds, left_conds);
     break;
 
   case FULL_JOIN_SURVIVES:
     keep_full_join(left_table, right_table, li, left_used_tables,
                    left_not_null_tables, used_tables, not_null_tables);
+    /*
+      The operand's condition stays with the operand, which is computed
+      into a temporary table before the FULL JOIN reads it.  A condition
+      an earlier descent recorded is already there.
+    */
+    if (left_conds && left_conds != full_join_operand_conds(left_table))
+      record_full_join_nest_cond(join->thd, left_table, left_conds);
     break;
   }
 
   DBUG_RETURN(conds);
-}
-
-
-/**
-  FULL JOIN feature caveats:
-
-    (1) The right side of a FULL JOIN must be a base table; violations
-        trigger ER_FULL_JOIN_BASE_TABLES_ONLY.
-
-    (2) A FULL JOIN may not appear on the inner side of an enclosing
-        LEFT or RIGHT JOIN; violations trigger
-        ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN.  FULL JOIN is allowed
-        on the right side of an INNER JOIN and on the outer side of
-        any outer join (including another FULL JOIN).  The restriction
-        exists because the current FULL JOIN null-complement pass
-        cannot correctly pair its right-unmatched rows with each outer
-        row of an enclosing LEFT/RIGHT JOIN when the FULL JOIN sits on
-        that join's inner side.
-
-        MariaDB converts every RIGHT JOIN into the equivalent LEFT
-        JOIN via convert_right_join at parse time, so "inner of an
-        outer join" is unambiguous, it's the table that carries either
-        JOIN_TYPE_LEFT or JOIN_TYPE_RIGHT (and no JOIN_TYPE_FULL,
-        which would identify it as a FULL JOIN table).
-*/
-
-bool
-check_full_join_base_tables(List<TABLE_LIST> *join_list)
-{
-  TABLE_LIST *table;
-  List_iterator<TABLE_LIST> li(*join_list);
-
-  while ((table= li++))
-  {
-    /*
-      (1) The right partner of a FULL JOIN must be a base table.
-    */
-    if ((table->outer_join & JOIN_TYPE_FULL) &&
-        (table->outer_join & JOIN_TYPE_RIGHT))
-    {
-      if (table->derived || table->is_view())
-      {
-        my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0), table->alias.str);
-        return true;
-      }
-    }
-
-    /*
-      (2) The inner of any outer join must not contain a FULL JOIN.
-      The inner is identified by JOIN_TYPE_LEFT or JOIN_TYPE_RIGHT
-      with JOIN_TYPE_FULL absent.
-    */
-    if ((table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)) &&
-        !(table->outer_join & JOIN_TYPE_FULL) &&
-        table->contains_full_join())
-    {
-      my_error(ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN, MYF(0));
-      return true;
-    }
-
-    if (table->nested_join &&
-        check_full_join_base_tables(&table->nested_join->join_list))
-      return true;  // already set thd error state
-  }
-
-  return false;
 }
 
 
@@ -21176,56 +22145,6 @@ static void mark_join_as_inner(TABLE_LIST *table)
 
 
 /**
-  Re-check FULL JOIN shapes after simplify_joins has run.
-
-  check_full_join_base_tables runs before simplify_joins and rejects the
-  shapes that are apparent from the parse tree.  simplify_joins then rewrites
-  FULL JOINs to one-sided joins where the WHERE clause allows, and
-  swap_full_join_sides moves a base table onto the right side of a surviving
-  FULL JOIN when the parser placed a nested join there.  One disallowed shape
-  is only visible after that work:
-
-    A surviving FULL JOIN whose right operand is still a nested join.  The
-    null complement pass keys off a JOIN_TAB carrying JOIN_TYPE_FULL |
-    JOIN_TYPE_RIGHT; a nested join has no such JOIN_TAB, so the right
-    unmatched rows would be dropped.  The swap leaves a nested join on the
-    right when it cannot move a base table there, e.g., both operands are
-    nested joins, the right operand is an inner-join nest, or the right
-    operand's own FULL JOIN was rewritten away before the swap check ran.
-
-  Reject these with ER_FULL_JOIN_BASE_TABLES_ONLY rather than return wrong
-  results.
-
-  @return true if a disallowed shape was found, with the error already raised
-*/
-
-static bool
-check_full_join_after_simplify(List<TABLE_LIST> *join_list)
-{
-  TABLE_LIST *table;
-  List_iterator<TABLE_LIST> li(*join_list);
-
-  while ((table= li++))
-  {
-    if ((table->outer_join & JOIN_TYPE_FULL) &&
-        (table->outer_join & JOIN_TYPE_RIGHT) &&
-        table->nested_join)
-    {
-      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
-               table->alias.str ? table->alias.str : "(nested join)");
-      return true;
-    }
-
-    if (table->nested_join &&
-        check_full_join_after_simplify(&table->nested_join->join_list))
-      return true;  // already set thd error state
-  }
-
-  return false;
-}
-
-
-/**
   Drop the outer join marks from an entry that is not an outer join.
 
   An entry with neither JOIN_TYPE_LEFT nor JOIN_TYPE_RIGHT set can
@@ -21284,6 +22203,86 @@ static void reset_dep_tables(TABLE_LIST *table, bool straight_join)
 }
 
 
+/*
+  Drop what an earlier optimization recorded on the FULL JOIN operand
+  nests of a join list.
+
+  A recorded condition is a copy of ON expressions that are themselves
+  restored from prep_on_expr for every optimization, so a copy an earlier
+  one made belongs to an arena that is gone.  One sweep before
+  simplify_joins runs is what drops them.  simplify_joins cannot drop
+  them itself as it descends into a nest more than once, and only the
+  first descent still finds the ON expressions to collect.
+*/
+
+static void clear_full_join_nest_conds(List<TABLE_LIST> *join_list)
+{
+  List_iterator<TABLE_LIST> li(*join_list);
+  TABLE_LIST *table;
+
+  while ((table= li++))
+  {
+    if (!table->nested_join)
+      continue;
+    table->nested_join->fj_inner_cond= NULL;
+    clear_full_join_nest_conds(&table->nested_join->join_list);
+  }
+}
+
+
+/*
+  Remember an inner join's ON expression as the join condition of the FULL
+  JOIN operand nest that holds it, before the expression moves into the
+  enclosing FULL JOIN's ON.  Only a nest computed into a temporary table
+  reads this back, so the expression stays in the enclosing ON as well.
+
+  The nest is the operand as a whole, not whatever nest inside it the
+  expression came from.  An ON expression that moves out of an inner join
+  at any depth holds for every row the operand produces, and the operand
+  is the only nest of the group that survives to be computed, so a
+  condition left on a nest below it is never applied.  An operand that
+  collects more than one such expression arrives here once per
+  expression, and the conjunction is built up across those calls.
+*/
+
+static void record_full_join_nest_cond(THD *thd, TABLE_LIST *nest,
+                                       Item *on_expr)
+{
+  NESTED_JOIN *nested_join= nest->nested_join;
+  Item *both;
+  /*
+    The expression itself cannot be kept, since it is about to become part
+    of the enclosing FULL JOIN's ON and equality propagation rewrites that
+    tree, moving conjuncts into multiple equalities and leaving the AND
+    node they came from empty.  Own a copy of the AND structure for the
+    same reason prep_on_expr does, which shares the conjuncts themselves
+    because those are replaced in a list rather than changed in place.
+  */
+  Item *own= on_expr->copy_andor_structure(thd);
+
+  if (!own)
+    return;
+  if (!own->fixed())
+  {
+    own->fix_fields(thd, 0);
+    own->update_used_tables();
+  }
+
+  if (!nested_join->fj_inner_cond)
+  {
+    nested_join->fj_inner_cond= own;
+    return;
+  }
+  if (!(both= new (thd->mem_root) Item_cond_and(thd,
+                                                nested_join->fj_inner_cond,
+                                                own)))
+    return;
+  both->fix_fields(thd, 0);
+  both->update_used_tables();
+  nested_join->fj_inner_cond= both;
+}
+
+
 /**
   Move an entry's ON expression into the WHERE clause, or into the ON
   expression of the enclosing outer join.
@@ -21296,12 +22295,15 @@ static void reset_dep_tables(TABLE_LIST *table, bool straight_join)
   @param join  reference to the query info
   @param table the join list entry
   @param conds the conditions to move the ON expression into
+  @param keep_prep_on_expr true <=> keep the prepared copy of the ON
+               expression, since the condition it moves into does not
+               outlive this optimization
 
   @return the new condition
 */
 
 static COND *hoist_on_expr_to_conds(JOIN *join, TABLE_LIST *table,
-                                    COND *conds)
+                                    COND *conds, bool keep_prep_on_expr)
 {
   if (!table->on_expr)
     return conds;
@@ -21317,7 +22319,9 @@ static COND *hoist_on_expr_to_conds(JOIN *join, TABLE_LIST *table,
   else
     conds= table->on_expr;
 
-  table->prep_on_expr= table->on_expr= 0;
+  table->on_expr= 0;
+  if (!keep_prep_on_expr)
+    table->prep_on_expr= 0;
   return conds;
 }
 
@@ -21541,13 +22545,23 @@ static void flatten_nest(JOIN *join, TABLE_LIST *table,
   @param join_list   list representation of the join to be converted
   @param conds       conditions to add on expressions for converted joins
   @param in_sj       TRUE <=> processing semi-join nest's children
+  @param fj_operand  the FULL JOIN operand nest conds is the ON
+                     expression of, NULL when conds is not one.  No
+                     simplification may rely on the null rejection of
+                     such a condition; see usable_not_null_tables.  An
+                     ON expression that moves out of an inner join
+                     inside the operand is recorded on this nest
+  @param fj_left_operand true <=> the list lies inside the left operand
+                     of a FULL JOIN, so conds is that operand's own
+                     condition rather than the WHERE clause
   @return
     - The new condition, if success
     - nullptr otherwise
 */
 
 static COND *
-simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
+simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds,
+               bool in_sj, TABLE_LIST *fj_operand, bool fj_left_operand)
 {
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
@@ -21616,8 +22630,17 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
            the outer join is converted to an inner join and
            the corresponding on expression is added to E.
         */
+        /*
+          An ON expression of its own holds whatever moves out of the
+          joins below it, and prep_on_expr below preserves it for the
+          next optimization, so the descent is not the one that has to
+          keep an inner join's ON expression restorable.
+        */
         expr= simplify_joins(join, &nested_join->join_list,
-                             expr, in_sj || table->sj_on_expr);
+                             expr, in_sj || table->sj_on_expr,
+                             (table->outer_join & JOIN_TYPE_FULL) ? table
+                                                                  : NULL,
+                             FALSE);
         if (!expr && join->thd->is_error())
           DBUG_RETURN(nullptr);
 
@@ -21629,7 +22652,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
           table->prep_on_expr= expr->copy_andor_structure(join->thd);
         }
       }
-      conds= simplify_nested_join(join, table, conds, in_sj,
+      conds= simplify_nested_join(join, table, conds, in_sj, fj_operand,
+                                  fj_left_operand,
                                   &used_tables, &not_null_tables);
       if (!conds && join->thd->is_error())
         DBUG_RETURN(nullptr);
@@ -21639,8 +22663,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       if (!table->prep_on_expr)
         table->prep_on_expr= table->on_expr;
       used_tables= table->get_map();
-      if (conds)
-        not_null_tables= conds->not_null_tables();
+      not_null_tables= usable_not_null_tables(conds, fj_operand);
     }
 
     /*
@@ -21648,8 +22671,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       JOINs that could be further rewritten to INNER JOINs are done below.
     */
     if (table->outer_join & JOIN_TYPE_FULL)
-      conds= rewrite_full_outer_joins(join, conds, in_sj, &table,
-                                      &li, &used_tables,
+      conds= rewrite_full_outer_joins(join, conds, in_sj, fj_operand,
+                                      &table, &li, &used_tables,
                                       &not_null_tables);
     if (!conds && join->thd->is_error())
       DBUG_RETURN(nullptr);
@@ -21671,7 +22694,15 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
     if (outcome != JOIN_STAYS_OUTER)
     {
       reset_dep_tables(table, straight_join);
-      conds= hoist_on_expr_to_conds(join, table, conds);
+      /*
+        The left operand is exempt because its own descent starts from no
+        condition and hands the whole conjunction back to its caller,
+        which records it on the operand there.  Recording it here as well
+        would put it on the operand twice.
+      */
+      if (fj_operand && !fj_left_operand && table->on_expr)
+        record_full_join_nest_cond(join->thd, fj_operand, table->on_expr);
+      conds= hoist_on_expr_to_conds(join, table, conds, fj_left_operand);
     }
 
     /* 
@@ -22169,6 +23200,24 @@ static void restore_prev_nj_state(JOIN_TAB *last)
 
 
 /*
+  Record a set of tables that has to occupy an unbroken span of the join
+  order.  The same nest is reached only once, but a set can repeat when a
+  FULL JOIN has a single nest under it, so identical sets are dropped.
+*/
+
+static void
+add_full_join_group(JOIN *join, table_map group)
+{
+  for (uint i= 0; i < join->full_join_group_count; i++)
+  {
+    if (join->full_join_groups[i] == group)
+      return;
+  }
+  join->full_join_groups[join->full_join_group_count++]= group;
+}
+
+
+/*
   Walk the join tree and collect, into full_join_nest_tables, every
   table that participates in any FULL JOIN.  The optimizer must keep
   those tables adjacent in the join order because the FULL JOIN
@@ -22177,6 +23226,11 @@ static void restore_prev_nj_state(JOIN_TAB *last)
   A FULL JOIN table can be an actual table or a nested join.  We
   recognize either by the JOIN_TYPE_FULL flag, then OR in all of the
   tables it covers.
+
+  A nested join under that flag also becomes a group of its own, so that
+  its tables stay together rather than merely staying inside the wider
+  span.  Materializing such a nest needs it to occupy one span, and the
+  wider span alone permits the two operands of a FULL JOIN to interleave.
 */
 
 static void
@@ -22190,7 +23244,10 @@ collect_full_join_tables(JOIN *join, List<TABLE_LIST> *lst)
     if (tl->outer_join & JOIN_TYPE_FULL)
     {
       if (tl->nested_join)
+      {
         join->full_join_nest_tables|= tl->nested_join->used_tables;
+        add_full_join_group(join, tl->nested_join->used_tables);
+      }
       else if (tl->table)
         join->full_join_nest_tables|= tl->table->map;
     }
@@ -22201,32 +23258,50 @@ collect_full_join_tables(JOIN *join, List<TABLE_LIST> *lst)
 }
 
 
-static void
+static bool
 compute_full_join_nest_tables(JOIN *join, SELECT_LEX *lex)
 {
   join->full_join_nest_tables= 0;
+  join->full_join_groups= NULL;
+  join->full_join_group_count= 0;
   if (!join->thd->lex->full_join_count)
-    return;
+    return false;
+
+  /*
+    A group per join nest that is an operand of a FULL JOIN, of which
+    there are fewer than there are tables, and one more for all the FULL
+    JOIN tables together.
+  */
+  if (!(join->full_join_groups=
+        join->thd->alloc<table_map>(join->table_count + 1)))
+    return true;
 
   collect_full_join_tables(join, &lex->top_join_list);
+
+  if (join->full_join_nest_tables)
+    add_full_join_group(join, join->full_join_nest_tables);
+
+  return false;
 }
 
 
 /*
-  Keep the FULL JOIN block contiguous in the join order.  Once any
-  FULL JOIN table has been placed, every subsequent table must also be
-  a FULL JOIN table until all FULL JOIN tables are placed.  Other
-  tables may appear before or after the block of FULL JOIN tables.
+  Keep each set of tables recorded in full_join_groups on an unbroken
+  span of the join order.  Once a table of a set has been placed, every
+  subsequent table must come from that same set until all of it is
+  placed.  Other tables may appear before or after such a span.
 
-  Returns the set of remaining FULL JOIN tables, otherwise 0 (no
-  restriction).
+  The sets nest, so a table can be inside more than one of them at once,
+  and the one with the least left to place is the one that decides.
+
+  Returns the set of tables allowed next, otherwise 0 (no restriction).
 */
 
 static table_map
 restrict_to_unplaced_fj_tables(JOIN *join, uint idx, table_map pool)
 {
   // Nothing to place.
-  if (!join->full_join_nest_tables)
+  if (!join->full_join_group_count)
     return 0;
 
   /*
@@ -22234,26 +23309,38 @@ restrict_to_unplaced_fj_tables(JOIN *join, uint idx, table_map pool)
     cannot be FULL JOIN tables that are constant (const table
     optimization for FULL JOIN tables disabled).
    */
-  table_map placed_fj= 0;
+  table_map placed= 0;
   for (uint i= join->const_tables; i < idx; i++)
-    placed_fj|= join->positions[i].table->table->map &
-                join->full_join_nest_tables;
+    placed|= join->positions[i].table->table->map;
 
-  // Haven't entered the FULL JOIN block yet, no restriction.
-  if (!placed_fj)
+  /*
+    A set that has been entered and not finished allows only what it has
+    left.  A set that has not been entered, or that is already complete,
+    says nothing about what comes next.
+  */
+  table_map allowed= ~(table_map) 0;
+  bool restricted= false;
+  for (uint i= 0; i < join->full_join_group_count; i++)
+  {
+    table_map group= join->full_join_groups[i];
+    table_map remaining_in_group= group & ~placed;
+
+    if (!(group & placed) || !remaining_in_group)
+      continue;
+
+    allowed&= remaining_in_group;
+    restricted= true;
+  }
+
+  if (!restricted)
     return 0;
 
-  // Already finished the FULL JOIN block, no restriction.
-  table_map remaining_fj= join->full_join_nest_tables & ~placed_fj;
-  if (!remaining_fj)
-    return 0;
-
-  // Inside the block, only the remaining FULL JOIN tables are allowed.
+  // Inside a span, only the tables that span still owes are allowed.
   table_map remaining= 0;
   for (uint i= idx; i < join->table_count; i++)
     remaining|= join->best_ref[i]->table->map;
 
-  return remaining_fj & remaining & pool;
+  return allowed & remaining & pool;
 }
 
 
@@ -22271,7 +23358,7 @@ restrict_to_unplaced_fj_tables(JOIN *join, uint idx, table_map pool)
   semi-join nest.
 */
 
-void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
+bool JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
 {
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(lex->leaf_tables);
@@ -22331,8 +23418,7 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
     }
   }
 
-  compute_full_join_nest_tables(this, lex);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(compute_full_join_nest_tables(this, lex));
 }
 
 
@@ -26720,27 +27806,24 @@ static void
 reset_fj_duplicate_filters(JOIN_TAB *join_tab)
 {
   /*
-    If this tab is the left-most JOIN_TAB for one or more FULL JOIN
-    right side JOIN_TABs, then reset their duplicate filters so that
+    If this tab is the left-most JOIN_TAB of a FULL JOIN right
+    side JOIN_TAB, then reset its duplicate filters so that
     each fresh iteration of this tab accumulates a clean set of
     matched right side rowids.  The matching null-complement rescans
     fire at the end of sub_select for this JOIN_TAB, below.
 
     Skip when this tab is itself in the middle of a null-complement
-    rescan (writing_null_complements is true).  That path is
+    rescan (i.e., writing_null_complements == true).  That path is
     entered from run_fj_null_complement_pass and is not a fresh
     outer scope iteration; resetting fj_dups here would wipe out
-    the matches the outer scan accumulated.
+    the matches of that outer scan.
   */
-  if (!join_tab->writing_null_complements)
-  {
-    for (JOIN_TAB *target= join_tab->fj_first_target;
-         target;
-         target= target->fj_next_target)
-    {
-      target->fj_dups->reset();
-    }
-  }
+  if (join_tab->writing_null_complements)
+    return;
+  for (JOIN_TAB *target= join_tab->fj_first_target;
+       target;
+       target= target->fj_next_target)
+    target->fj_dups->reset();
 }
 
 
@@ -26908,25 +27991,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     rc= evaluate_join_record(join, join_tab, error);
   }
 
-  if (rc == NESTED_LOOP_NO_MORE_ROWS)
-  {
-    /*
-      Skip the standard outer-join null complement when we are doing a
-      FULL JOIN null-complement rescan of the right table.  During
-      that rescan the evaluate_join_record() early-exit path handles
-      unmatched rows directly, and the normal "no match found" path
-      must not fire because join_tab->found is not being maintained.
-    */
-    if (join_tab->last_inner && !join_tab->found &&
-        !join_tab->writing_null_complements)
-    {
-      rc= evaluate_null_complemented_join_record(join, join_tab);
-      if (rc == NESTED_LOOP_NO_MORE_ROWS)
-        rc= NESTED_LOOP_OK;
-    }
-    else
-      rc= NESTED_LOOP_OK;
-  }
+  bool scan_exhausted= (rc == NESTED_LOOP_NO_MORE_ROWS);
+  if (scan_exhausted)
+    rc= NESTED_LOOP_OK;
 
   /*
     When the left side of a FULL JOIN has const table optimizations,
@@ -26941,6 +28008,27 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
   if (rc == NESTED_LOOP_OK)
     rc= run_fj_null_complement_passes(join, join_tab);
+
+  /*
+    The pass above can emit rows of the outer join whose inner scope
+    starts at this table, and each one sets found for that scope, so the
+    decision to null complement the scope has to be made after the pass
+    has run.
+
+    Skip the standard outer-join null complement when we are doing a
+    FULL JOIN null-complement rescan of the right table.  During
+    that rescan the evaluate_join_record() early-exit path handles
+    unmatched rows directly, and the normal "no match found" path
+    must not fire because join_tab->found is not being maintained.
+  */
+  if (rc == NESTED_LOOP_OK && scan_exhausted &&
+      join_tab->last_inner && !join_tab->found &&
+      !join_tab->writing_null_complements)
+  {
+    rc= evaluate_null_complemented_join_record(join, join_tab);
+    if (rc == NESTED_LOOP_NO_MORE_ROWS)
+      rc= NESTED_LOOP_OK;
+  }
 
   DBUG_RETURN(rc);
 }
@@ -27029,6 +28117,17 @@ evaluate_fj_null_complement_row(JOIN *join, JOIN_TAB *join_tab,
       return NESTED_LOOP_OK;
     }
   }
+
+  /*
+    This row is a row of every outer join whose inner scope ends at this
+    table, so those scopes have a match and must not be null complemented.
+    The main loop does the same bookkeeping in evaluate_join_record when it
+    walks first_upper after a match.
+  */
+  for (JOIN_TAB *upper= join_tab->first_upper;
+       upper && upper->last_inner == join_tab;
+       upper= upper->first_upper)
+    upper->found= 1;
 
   enum_nested_loop_state rc=
     (*join_tab->next_select)(join, join_tab+1, false);
@@ -27353,6 +28452,14 @@ evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab)
     /* The outer row is complemented by nulls for each inner tables */
     restore_record(join_tab->table,s->default_values);  // Make empty record
     mark_as_null_row(join_tab->table);       // For group by without error
+    /*
+      A materialized FULL JOIN operand nest is read back into the fields
+      of the nest's own tables, and that is where the select list and the
+      conditions outside the nest read the row from, so nulling the
+      temporary table alone leaves them the values of the last row read.
+    */
+    if (join_tab->is_full_join_nest())
+      mark_table_list_as_null_row(join_tab->tab_list);
     select_cond= join_tab->select_cond;
     /* Check all attached conditions for inner table rows. */
     if (select_cond && !select_cond->val_bool())
@@ -27750,7 +28857,8 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
   */
   if (tab && tab->is_sjm_nest())
   {
-    TABLE_LIST *emb_sj_nest= tab->bush_children.start->emb_sj_nest;
+    TABLE_LIST *emb_sj_nest=
+      enter_bushes(tab->bush_children.start)->emb_sj_nest;
     emb_sj_nest->sj_subq_pred->left_exp()->bring_value();
   }
 
@@ -28083,6 +29191,45 @@ int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
 }
 
 
+/*
+  Read a row of a materialized FULL JOIN nest and leave the nest's tables
+  in the state a read of those tables would have left them in.
+
+  Copying the columns back restores the values and, where a column of the
+  nest cannot hold a NULL, whether the row was null complemented.  A
+  table carries one more piece of row state, TABLE::status, which says
+  whether it holds a usable row at all.  The tables of the nest are never
+  read by the enclosing join, so their status still describes whatever
+  read last touched them, and code that consults it treats the row as
+  absent.  Item_equal::val_bool, for one, then skips the field and
+  reports the equality as satisfied.
+
+  The status of a table that holds a row is zero, or STATUS_NULL_ROW when
+  the row is a null complemented one, which is the pairing
+  mark_as_null_row and unmark_as_null_row maintain.
+
+  A table of the nest that the query reads no column of has no column to
+  copy and keeps its old status.  No condition can name such a table, so
+  nothing reads the state that is left stale.
+*/
+
+static int read_record_func_for_full_join_nest(READ_RECORD *info)
+{
+  int error;
+
+  if ((error= read_record_func_for_rr_and_unpack(info)))
+    return error;
+
+  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
+  {
+    TABLE *table= cp->to_field->table;
+    table->status= table->null_row ? STATUS_NULL_ROW : 0;
+  }
+
+  return error;
+}
+
+
 int join_init_read_record(JOIN_TAB *tab)
 {
   bool need_unpacking= FALSE;
@@ -28098,7 +29245,13 @@ int join_init_read_record(JOIN_TAB *tab)
   if (join->top_join_tab_count != join->const_tables)
   {
     TABLE_LIST *tbl= tab->table->pos_in_table_list;
-    need_unpacking= tbl ? tbl->is_sjm_scan_table() : FALSE;
+    /*
+      A materialized FULL JOIN operand nest is read the same way, since
+      the columns of a row have to go back into the nest's tables for a
+      condition outside the nest to read them there.
+    */
+    need_unpacking= (tbl && tbl->is_sjm_scan_table()) ||
+                    tab->is_full_join_nest();
   }
 
   if (tab->need_to_build_rowid_filter)
@@ -28171,7 +29324,9 @@ int join_init_read_record(JOIN_TAB *tab)
   {
     tab->read_record.read_record_func_and_unpack_calls=
                                              tab->read_record.read_record_func;
-    tab->read_record.read_record_func = read_record_func_for_rr_and_unpack;
+    tab->read_record.read_record_func= tab->is_full_join_nest() ?
+                                       read_record_func_for_full_join_nest :
+                                       read_record_func_for_rr_and_unpack;
   }
 
   return tab->read_record.read_record();
@@ -33532,13 +34687,23 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   }
   else if (is_sjm_nest())
   {
-    JOIN_TAB *ctab= bush_children.start;
+    JOIN_TAB *ctab= enter_bushes(bush_children.start);
     /* table */
     size_t len= my_snprintf(table_name_buffer,
                          sizeof(table_name_buffer)-1,
-                         "<subquery%d>", 
+                         "<subquery%d>",
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
     eta->table_name.copy(table_name_buffer, len, cs);
+  }
+  else if (is_full_join_nest())
+  {
+    /*
+      A materialized FULL JOIN operand nest is one of the tables the
+      server made for itself, which MariaDB calls a derived table
+      whatever produced it.  It comes from no select of its own, so it
+      carries no number.
+    */
+    eta->table_name.copy(STRING_WITH_LEN("<derived>"), cs);
   }
   else
   {
@@ -34135,8 +35300,15 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *cur_table= tab->table;
 
-      /* Don't show eliminated tables */
-      if (cur_table->map & join->eliminated_tables)
+      /*
+        Don't show eliminated tables.  A JOIN_TAB that stands for a run
+        covers every table of the nest it holds, so testing its map
+        against the eliminated tables would hide the run itself as soon
+        as one table inside the nest was eliminated.  Such a JOIN_TAB is
+        not a table of the query and is never eliminated.
+      */
+      if (!tab->has_bush_children() &&
+          (cur_table->map & join->eliminated_tables))
       {
         used_tables|= cur_table->map;
         continue;
@@ -34159,10 +35331,23 @@ int JOIN::save_explain_data_intern(Explain_query *output,
                 new (output->mem_root) Explain_basic_join(output->mem_root)))
             DBUG_RETURN(1);
 
-          DBUG_ASSERT(tab->bush_root_tab->is_sjm_nest());
-          JOIN_TAB *first_child= tab->bush_root_tab->bush_children.start;
-          cur_parent->select_id=
-            first_child->emb_sj_nest->sj_subq_pred->get_identifier();
+          if (tab->bush_root_tab->is_full_join_nest())
+          {
+            /*
+              A FULL JOIN operand nest belongs to the select that wrote
+              it, so it reports under that select's id rather than under
+              one of its own.
+            */
+            cur_parent->select_id= join->select_lex->select_number;
+          }
+          else
+          {
+            DBUG_ASSERT(tab->bush_root_tab->is_sjm_nest());
+            JOIN_TAB *first_child=
+              enter_bushes(tab->bush_root_tab->bush_children.start);
+            cur_parent->select_id=
+              first_child->emb_sj_nest->sj_subq_pred->get_identifier();
+          }
         }
         else
         {
