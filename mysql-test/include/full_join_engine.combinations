@@ -1,0 +1,17 @@
+# InnoDB keeps its index statistics in a table and recalculates them from a
+# background thread once enough rows have changed.  An EXPLAIN that runs
+# while that recalculation is still pending reports a row estimate taken
+# from whatever the table held at the time, so the same query gives a
+# different estimate from one run to the next.  Transient statistics are
+# computed when the table is opened, from a sample large enough to cover
+# every one of these small tables, which makes the estimates reproducible.
+[innodb]
+innodb
+default-storage-engine=innodb
+innodb-stats-persistent=0
+
+[myisam]
+default-storage-engine=myisam
+
+[aria]
+default-storage-engine=aria

@@ -1,3 +1,15 @@
+# This file runs once for every point of three crossed axes.  The optimizer
+# switch axis is full_join.combinations, the storage engine axis is
+# full_join_engine.combinations, and the index axis is
+# full_join_index.combinations.  Thirty runs in all.
+#
+# The result file here is the run with the default engine, no added indexes
+# and the switches at their defaults.  Every other run's expected output is
+# a diff against it, and a run whose output matches it has no file of its
+# own.  A query added here shows up in all thirty runs, so a diff needs
+# regenerating whenever its run disagrees with this one on more than the
+# plan.
+#
 # Each section creates every table it reads and drops every table it
 # creates, so a section can be read on its own and moved or deleted
 # without disturbing the sections around it.
@@ -19,6 +31,8 @@
 --source include/have_sequence.inc
 
 # Two more axes, each crossed with the optimizer switch combinations above.
+--source include/full_join_engine.inc
+--source include/full_join_index.inc
 
 --echo #
 --echo # MDEV-37932 / MDEV-39014: FULL [OUTER] JOIN
@@ -42,6 +56,7 @@ create table t2 (a int);
 insert into t2 (a) values (1),(3);
 create table t3 (a int);
 insert into t3 (a) values (1),(4);
+--source include/full_join_add_indexes.inc
 
 --echo # Basic FULL [OUTER] JOIN syntax.
 select * from t1 full join t2 on t1.a = t2.a;
@@ -134,6 +149,7 @@ select * from t1 left join t2 on true union select * from t1 right join t2 on tr
 --echo # accept a parenthesized join wherever it accepts a table.
 create table t4 (a int);
 insert into t4 (a) values (3),(5);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select * from t1 full join (t2 join t3 on t2.a = t3.a) on t1.a = t2.a;
@@ -193,6 +209,7 @@ create table t2 (a int);
 insert into t2 (a) values (1),(3);
 create table t3 (a int);
 insert into t3 (a) values (1),(4);
+--source include/full_join_add_indexes.inc
 
 select * from t1 inner join t2 full join t3 on t1.a=t3.a;
 select * from t1 inner join t2 left join t3 on t1.a=t3.a union select * from t1 inner join t2 right join t3 on t1.a=t3.a;
@@ -237,6 +254,7 @@ create table d1 (a int);
 insert into d1 values (1),(1),(2);
 create table d2 (a int);
 insert into d2 values (1),(3),(3);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from (d1 full join d2 on d1.a=d2.a) full join t3 on d1.a=t3.a;
 --sorted_result
@@ -262,6 +280,7 @@ create table t1 (pk int auto_increment, x int, y int, primary key (pk));
 create table t2 (pk int auto_increment, x int, y int, primary key (pk));
 insert into t1 (x, y) values (-5,-5),(-4,-4),(-3,-3),(-2,-2),(-1,-1),(0,0),(1,1),(2,2),(3,3),(4,4),(5,5);
 insert into t2 (x, y) values (-5,25),(-4,16),(-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9),(4,16),(5,25);
+--source include/full_join_add_indexes.inc
 
 --echo # FULL to RIGHT JOIN, these two queries should be equal:
 select * from t1  full join t2 on t1.y = t2.y where t2.pk is not null;
@@ -306,6 +325,7 @@ select * from t1 natural left join t2 union select * from t1 natural right join 
 --echo # so the pass has to reach through the nest to reject the side.
 create table t3 (pk int auto_increment, x int, y int, primary key (pk));
 insert into t3 (x, y) values (0,0),(1,1),(2,4),(3,9),(4,16);
+--source include/full_join_add_indexes.inc
 
 --echo # Nested join on the left, FULL to LEFT JOIN, these two queries
 --echo # should be equal:
@@ -357,6 +377,7 @@ create table t2 (v int);
 insert into t2 (v) values (2);
 create table t3 (v int);
 insert into t3 (v) values (3);
+--source include/full_join_add_indexes.inc
 
 --echo # (FULL)FULL to (INNER)INNER JOIN
 select * from t1 full join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t1.v is not null and t2.v is not null and t3.v is not null;
@@ -387,6 +408,7 @@ insert into t1 (v) values (2),(3);
 insert into t2 (v) values (1);
 truncate t3;
 insert into t3 (v) values (1);
+--source include/full_join_add_indexes.inc
 select * from t1;
 select * from t2;
 select * from t3;
@@ -419,6 +441,7 @@ create table t3 (a int, b int);
 insert into t1 (a,b) values (1,1),(2,2);
 insert into t2 (a,b) values (1,1),(3,3);
 insert into t3 (a,b) values (3,3),(4,4);
+--source include/full_join_add_indexes.inc
 
 select * from t1 natural full join t2 where
   t1.a is not null and t1.b is not null and
@@ -530,6 +553,7 @@ create table t1 (a int, b int);
 create table t2 (a int, c int);
 insert into t1 (a,b) values (1,10),(2,20);
 insert into t2 (a,c) values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 
 # Right-only row: a = 3 lives only in t2.  The WHERE must see the
 # COALESCE, otherwise the right-only (3, NULL, 300) row is filtered
@@ -610,6 +634,7 @@ select * from t1 natural right join t2 where a = 3;
 # left side of the inner join.
 create table t3 (a int, d int);
 insert into t3 (a,d) values (1,1000),(3,3000);
+--source include/full_join_add_indexes.inc
 # Disabling VIEW protocol here because the coalesced a and t3.a are
 # both named a, so view creation renames one with a 'My_exp_' prefix,
 # changing the result file output.
@@ -648,6 +673,7 @@ insert into t1 (a,b) values (1,10),(2,20);
 insert into t2 (a,c) values (2,200),(5,500),(6,600);
 insert into t3 (a,d) values (5,5000),(4,4000);
 insert into t4 (a,e) values (6,60000),(7,70000);
+--source include/full_join_add_indexes.inc
 
 --echo # No UNION companion: the LEFT/RIGHT permutation UNION form
 --echo # over-approximates for chained joins (see the note above
@@ -691,6 +717,7 @@ create table t1 (a int, b int);
 create table t2 (a int, c int);
 insert into t1 (a,b) values (1,10),(2,20);
 insert into t2 (a,c) values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 
 --echo # An explicit alias must name only its own reference.  The
 --echo # COALESCE is shared, so renaming it in place would change the
@@ -766,6 +793,7 @@ create table t1 (a int, b int);
 create table t2 (b int, a int);
 insert into t1 (a,b) values (1,10),(2,20);
 insert into t2 (a,b) values (1,10),(3,30);
+--source include/full_join_add_indexes.inc
 select * from t1 natural full join t2 order by a;
 drop table t1;
 drop table t2;
@@ -775,6 +803,7 @@ create table t1 (a int, x int);
 create table t2 (a int, y int);
 insert into t1 values (1,11);
 insert into t2 values (1,22);
+--source include/full_join_add_indexes.inc
 select a from t1 natural join t2;
 drop table t1;
 drop table t2;
@@ -792,6 +821,7 @@ create table t1 (a int, b int, x int);
 create table t2 (a int, b int, y int);
 insert into t1 values (1,1,10),(2,2,20);
 insert into t2 values (2,2,200),(3,3,300);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select a, b, x, y from t1 natural full join t2;
@@ -829,6 +859,7 @@ create table t1 (a int, b int);
 create table t2 (a blob, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values ('2',200),('3',300);
+--source include/full_join_add_indexes.inc
 select a, b, c from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.b, t2.c
   from t1 full join t2 on t1.a = t2.a order by a;
@@ -840,6 +871,7 @@ create table t1 (a int, b int);
 create table t2 (a varchar(20), c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values ('2',200),('3',300);
+--source include/full_join_add_indexes.inc
 select a, b, c from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.b, t2.c
   from t1 full join t2 on t1.a = t2.a order by a;
@@ -866,6 +898,7 @@ create table t1 (a varchar(20) collate utf8mb4_bin, b int);
 create table t2 (a varchar(20) collate utf8mb4_general_ci, c int);
 insert into t1 values ('A',1),('a',2);
 insert into t2 values ('a',3),('B',4);
+--source include/full_join_add_indexes.inc
 select a, b, c, collation(a) from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.b, t2.c
   from t1 full join t2 on t1.a = t2.a order by a;
@@ -878,6 +911,7 @@ create table t1 (a varchar(20) collate utf8mb4_general_ci, b int);
 create table t2 (a varchar(20) collate utf8mb4_unicode_ci, c int);
 insert into t1 values ('x',1);
 insert into t2 values ('x',2);
+--source include/full_join_add_indexes.inc
 --error ER_CANT_AGGREGATE_2COLLATIONS
 select * from t1 natural full join t2;
 drop table t1;
@@ -892,6 +926,7 @@ create table t1 (a varchar(20), b int) collate=utf8mb4_bin;
 create table t2 (a varchar(20), c int) collate=utf8mb4_general_ci;
 insert into t1 values ('A',1),('a',2);
 insert into t2 values ('a',3),('B',4);
+--source include/full_join_add_indexes.inc
 select a, b, c, collation(a) from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.b, t2.c
   from t1 full join t2 on t1.a = t2.a order by a;
@@ -903,6 +938,7 @@ create table t1 (a varchar(20), b int) collate=utf8mb4_general_ci;
 create table t2 (a varchar(20), c int) collate=utf8mb4_unicode_ci;
 insert into t1 values ('x',1);
 insert into t2 values ('x',2);
+--source include/full_join_add_indexes.inc
 --error ER_CANT_AGGREGATE_2COLLATIONS
 select * from t1 natural full join t2;
 drop table t1;
@@ -927,6 +963,7 @@ create table t3 (a int, d int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(5,500),(6,600);
 insert into t3 values (5,5000),(4,4000);
+--source include/full_join_add_indexes.inc
 
 select * from t1 natural full join t2 natural full join t3 order by a;
 
@@ -947,6 +984,7 @@ create table t3 (b int, e int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,20),(3,30);
 insert into t3 values (20,1),(99,2);
+--source include/full_join_add_indexes.inc
 select * from t1 natural full join t2 natural full join t3 order by a;
 drop table t1;
 drop table t2;
@@ -974,6 +1012,7 @@ create table t1 (x int, a int, y int, b int);
 create table t2 (b int, z int, a int);
 insert into t1 values (10,1,100,1),(20,2,200,2);
 insert into t2 values (2,2000,2),(3,3000,3);
+--source include/full_join_add_indexes.inc
 select * from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, coalesce(t1.b, t2.b) as b,
        t1.x, t1.y, t2.z
@@ -988,6 +1027,7 @@ create table t1 (p int, q int, a int);
 create table t2 (a int, r int);
 insert into t1 values (11,12,1),(21,22,2);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 select * from t1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.p, t1.q, t2.r
   from t1 full join t2 on t1.a = t2.a order by a;
@@ -1011,6 +1051,7 @@ create table t1 (a int, b int);
 create table t2 (a int, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 create view v1 as select a, b from t1;
 
 --echo # Single common column from a view on the left.
@@ -1049,6 +1090,7 @@ create table t1 (a int, b int);
 create table t2 (a int, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 create view v1(a, b) as select a, b * 10 from t1;
 select a, v1.b, t2.c from v1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, t1.b * 10 as b, t2.c
@@ -1066,6 +1108,7 @@ create table t1 (a int not null, b int not null);
 create table t2 (a int, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 create view v1 as select a, b from t1;
 --echo # Disabling VIEW protocol here because the coalesced unqualified
 --echo # a and the qualified v1.a are both named a, so view creation
@@ -1090,6 +1133,7 @@ create table t1 (a int not null, b int not null);
 create table t2 (a int, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 prepare s from
   'select t1.a, t1.b, t2.c from t1 full join t2 on t1.a = t2.a
    where t1.a is null';
@@ -1105,6 +1149,7 @@ create table t1 (a int, b int, x int);
 create table t2 (a int, b int, y int);
 insert into t1 values (1,1,10),(2,2,20);
 insert into t2 values (2,2,200),(3,3,300);
+--source include/full_join_add_indexes.inc
 create view v1 as select a, b, x from t1;
 select a, b, v1.x, t2.y from v1 natural full join t2 order by a;
 select coalesce(t1.a, t2.a) as a, coalesce(t1.b, t2.b) as b, t1.x, t2.y
@@ -1120,6 +1165,7 @@ create table t1 (a int, b int);
 create table t2 (a int, c int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
+--source include/full_join_add_indexes.inc
 create view v2 as select a, c from t2;
 select * from t1 natural full join v2;
 drop view v2;
@@ -1144,6 +1190,7 @@ create table t3 (a int, d int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(5,500),(6,600);
 insert into t3 values (5,5000),(4,4000);
+--source include/full_join_add_indexes.inc
 create view v1 as select a, b from t1;
 
 --echo # View on the left, base table on the right.
@@ -1171,7 +1218,9 @@ select coalesce(dt.a, t3.a) as a, dt.b, dt.c, t3.d
 --echo # table.
 create view vf as
   select t1.a as a, t1.b as b, t2.c as c from t1 full join t2 on t1.a = t2.a;
+--sorted_result
 select * from vf natural full join t3 order by a;
+--sorted_result
 select coalesce(dt.a, t3.a) as a, dt.b, dt.c, t3.d
   from (select t1.a as a, t1.b as b, t2.c as c
           from t1 full join t2 on t1.a = t2.a) dt
@@ -1188,6 +1237,7 @@ create table t6 (a int, b int);
 insert into t4 (a,b) values (1,1),(2,2),(5,5);
 insert into t5 (a,b) values (2,2),(3,3),(6,6);
 insert into t6 (a,b) values (2,2),(3,3),(7,7);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select * from (t1 natural join t4) natural full join (t5 natural join t6);
@@ -1216,6 +1266,7 @@ create table t1 (a int, b int);
 insert into t1 values (NULL, NULL), (1, 10), (NULL, NULL);
 create table t2 (a int, b int);
 insert into t2 values (NULL, NULL), (2, 20), (NULL, NULL);
+--source include/full_join_add_indexes.inc
 
 --echo # Both sides have all-NULL rows; no match possible.
 --sorted_result
@@ -1241,6 +1292,7 @@ select * from t1 left join t2 on t1.a <=> t2.a union select * from t1 right join
 --echo # Table with only all-NULL rows on one side.
 create table t3 (a int, b int);
 insert into t3 values (NULL, NULL), (NULL, NULL);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t3 on t1.a = t3.a;
 --sorted_result
@@ -1258,6 +1310,7 @@ insert into t4 values (NULL,NULL), (1,10), (2,20), (3,30);
 insert into t5 values (NULL,NULL), (1,11), (3,31), (4,41);
 insert into t6 values (NULL,NULL), (1,12), (2,22), (5,52);
 insert into t7 values (NULL,NULL), (1,13), (5,53), (6,63);
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right.
 --sorted_result
@@ -1321,6 +1374,7 @@ create table t4 (a int);
 insert into t4 values (1), (4);
 create table t5 (a int);
 insert into t5 values (2), (5);
+--source include/full_join_add_indexes.inc
 
 --echo # The LEFT/RIGHT-permutation UNION form is not a valid oracle
 --echo # for chained FULL JOINs: it over-approximates by emitting a
@@ -1414,6 +1468,7 @@ insert into t2 values
   (2, 'WORLD', 20.75, '2024-06-15'),
   (4, 'test', 99.99, '2025-12-31'),
   (NULL, NULL, NULL, NULL);
+--source include/full_join_add_indexes.inc
 
 --echo # FULL JOIN on integer column with mixed-type rows.
 --sorted_result
@@ -1459,6 +1514,7 @@ create table t3 (a int);
 insert into t3 values (1), (2), (3);
 create table t4 (a decimal(5,1));
 insert into t4 values (1.0), (2.5), (3.0);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t3 full join t4 on t3.a = t4.a;
 --sorted_result
@@ -1467,6 +1523,7 @@ select * from t3 left join t4 on t3.a = t4.a union select * from t3 right join t
 --echo # FULL JOIN with cross-type comparison (int vs varchar).
 create table t5 (a varchar(10));
 insert into t5 values ('1'), ('2'), ('four');
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t3 full join t5 on t3.a = t5.a;
 --sorted_result
@@ -1482,6 +1539,7 @@ insert into t6 values
   (2, 'WORLD', 20.75, '2024-06-15'),
   (3, 'test',  30.25, '2024-03-03'),
   (5, 'five',  99.99, '2025-12-31');
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right joins on varchar, the FULL JOIN on date.
 --sorted_result
@@ -1555,6 +1613,7 @@ create table t1 (grp char(1), val int);
 insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
 create table t2 (grp char(1), val int);
 insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+--source include/full_join_add_indexes.inc
 
 --echo # COUNT and SUM over a FULL JOIN.
 --sorted_result
@@ -1646,6 +1705,7 @@ create table t3 (grp char(1), val int);
 create table t4 (grp char(1), val int);
 insert into t3 values ('b',5), ('c',6), ('e',7);
 insert into t4 values ('c',9), ('d',8), ('f',7);
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right.
 --sorted_result
@@ -1688,6 +1748,7 @@ create table t1 (a int, grp int, val int);
 insert into t1 values (1,10,100), (2,10,200), (3,20,300), (4,20,400);
 create table t2 (a int, grp int, val int);
 insert into t2 values (3,20,3000), (4,20,4000), (5,30,5000), (6,30,6000);
+--source include/full_join_add_indexes.inc
 
 --echo # ROW_NUMBER() over a FULL JOIN ordered by the coalesced key.
 select coalesce(t1.a, t2.a) as a,
@@ -1828,6 +1889,7 @@ group by coalesce(t1grp, t2grp);
 --echo # counts toward a frame like any other row.
 create table t3 (a int, grp int, val int);
 insert into t3 values (2,10,20), (4,20,40), (5,30,50), (7,40,70);
+--source include/full_join_add_indexes.inc
 
 --echo # ROW_NUMBER() with the nest on the right.
 select coalesce(t1.a, t2.a) as a, t3.a as a3,
@@ -1870,6 +1932,7 @@ create table t4 (id int, val varchar(10));
 insert into t4 values (1,'w'), (2,'v'), (6,'u');
 create table t5 (id int, val varchar(10));
 insert into t5 values (2,'m'), (4,'n'), (6,'o');
+--source include/full_join_add_indexes.inc
 
 --echo # Simple CTE wrapping a FULL JOIN.
 --sorted_result
@@ -2120,6 +2183,7 @@ create table t1 (a int, b int);
 insert into t1 values (1,10), (2,20), (3,30);
 create table t2 (a int, b int);
 insert into t2 values (2,200), (3,300), (4,400);
+--source include/full_join_add_indexes.inc
 
 --echo # Simple view over a FULL JOIN.
 create view v_full as
@@ -2141,6 +2205,7 @@ create table t3 (a int, c varchar(10));
 insert into t3 values (1,'x'), (2,'y'), (4,'z');
 create table t4 (a int, d varchar(10));
 insert into t4 values (2,'p'), (4,'q'), (6,'r');
+--source include/full_join_add_indexes.inc
 --sorted_result
 select v_full.a1, v_full.a2, t3.c
 from v_full full join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
@@ -2230,6 +2295,7 @@ create table t1 (a int, b varchar(10));
 insert into t1 values (1,'one'), (2,'two'), (3,'three');
 create table t2 (a int, b varchar(10));
 insert into t2 values (2,'TWO'), (3,'THREE'), (4,'FOUR');
+--source include/full_join_add_indexes.inc
 
 --echo # Basic prepared statement with FULL JOIN.
 prepare stmt1 from
@@ -2288,6 +2354,7 @@ deallocate prepare stmt3;
 --echo # the first over a join tree that holds a nest.
 create table t3 (a int, b varchar(10));
 insert into t3 values (2,'p'), (3,'q'), (4,'r');
+--source include/full_join_add_indexes.inc
 
 prepare stmt4 from
   'select t1.a as a1, t2.a as a2, t3.a as a3
@@ -2354,6 +2421,7 @@ create table t3 (a int, b varchar(20));
 insert into t3 values (2,'two'), (4,'four'), (6,'six');
 create table t4 (a int, b varchar(20));
 insert into t4 values (1,'one'), (3,'three'), (7,'seven');
+--source include/full_join_add_indexes.inc
 
 delimiter |;
 
@@ -2495,6 +2563,7 @@ create table t4 (a int, b int);
 insert into t4 values (2,2000), (4,4000), (6,6000);
 create table t5 (a int, b int);
 insert into t5 values (1,111), (3,333), (7,777);
+--source include/full_join_add_indexes.inc
 
 --echo # IN subquery (semijoin) on the result of a FULL JOIN.
 --sorted_result
@@ -2765,6 +2834,7 @@ create table t1 (id int primary key, val varchar(10));
 insert into t1 values (1,'a'), (2,'b'), (3,'c');
 create table t2 (id int primary key, val varchar(10));
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 
 explain select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
 from t1 full join t2 on t1.id = t2.id;
@@ -2812,6 +2882,7 @@ create table t1 (id int, grp int, val varchar(10), key(grp));
 insert into t1 values (1,10,'a'), (2,20,'b'), (3,20,'c'), (4,30,'d');
 create table t2 (id int, grp int, val varchar(10), key(grp));
 insert into t2 values (5,20,'x'), (6,30,'y'), (7,30,'z'), (8,40,'w');
+--source include/full_join_add_indexes.inc
 
 explain select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
 from t1 full join t2 on t1.grp = t2.grp;
@@ -2842,6 +2913,7 @@ create table t1 (a int, b int, val varchar(10), primary key(a, b));
 insert into t1 values (1,1,'p'), (1,2,'q'), (2,1,'r');
 create table t2 (a int, b int, val varchar(10), primary key(a, b));
 insert into t2 values (1,2,'s'), (2,1,'t'), (2,2,'u');
+--source include/full_join_add_indexes.inc
 
 explain select t1.a as a1, t1.b as b1, t1.val as v1,
        t2.a as a2, t2.b as b2, t2.val as v2
@@ -2880,6 +2952,7 @@ create table t1 (id int auto_increment primary key, val int, unique key(val));
 insert into t1 (val) values (1), (NULL), (3), (NULL);
 create table t2 (id int auto_increment primary key, val int, unique key(val));
 insert into t2 (val) values (2), (3), (NULL), (NULL);
+--source include/full_join_add_indexes.inc
 
 explain select t1.val as v1, t2.val as v2
 from t1 full join t2 on t1.val = t2.val;
@@ -2910,6 +2983,7 @@ insert into t1 values (1,'a'), (2,'b'), (3,'c');
 insert into t2 values (2,'x'), (4,'y'), (5,'z');
 insert into t3 values (2,'p'), (3,'q'), (6,'r');
 insert into t4 values (2,'m'), (4,'n'), (7,'o');
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right; the join inside it reads t4 by primary key.
 explain select t1.id as i1, t2.id as i2, t4.id as i4
@@ -2969,6 +3043,7 @@ create table t3 (a int, b int, val varchar(10), primary key(a, b));
 insert into t1 values (1,1,'a'), (2,1,'b'), (2,2,'c'), (3,1,'d');
 insert into t2 values (2,1,'x'), (2,2,'y'), (4,1,'z');
 insert into t3 values (2,1,'p'), (2,2,'q'), (4,1,'r');
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right, full key inside it.
 explain select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2, t3.b as b3
@@ -3038,6 +3113,7 @@ create table t3 (id int primary key, u int, unique key(u));
 insert into t1 values (1,10), (2,20), (3,NULL);
 insert into t2 values (4,20), (5,30), (6,NULL), (10,40);
 insert into t3 values (7,20), (8,40), (9,NULL);
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right.
 explain select t1.u as u1, t2.u as u2, t3.u as u3
@@ -3081,6 +3157,7 @@ insert into t1 values (1), (2);
 create table t2 (id int, v vector(2) not null, vector(v));
 insert into t2 values (2, vec_fromtext('[1,0]')),
                      (3, vec_fromtext('[2,0]'));
+--source include/full_join_add_indexes.inc
 
 explain select t1.a as a1, t2.id as id2, vec_totext(t2.v) as v2
 from t1 full join t2 on t1.a = t2.id;
@@ -3106,6 +3183,7 @@ insert into t1 values (1, vec_fromtext('[1,0]')),
 create table t2 (id int, v vector(2) not null, vector(v));
 insert into t2 values (2, vec_fromtext('[3,0]')),
                      (3, vec_fromtext('[4,0]'));
+--source include/full_join_add_indexes.inc
 
 explain select t1.id as id1, vec_totext(t1.v) as v1,
        t2.id as id2, vec_totext(t2.v) as v2
@@ -3136,12 +3214,14 @@ create table t20 (a varchar(100), b varchar(100), index(a));
 create table t21 (a varchar(100), b varchar(100), index(a));
 insert into t20 values('match','match'), ('no-match-t20', 'no-match-t20');
 insert into t21 values('match','match'), ('no-match-t21', 'no-match-t21');
+--source include/full_join_add_indexes.inc
 explain select * from (t10 full outer join t11 on t10.a=t11.a) , (t20 full outer join t21 on t20.a=t21.a);
 --sorted_result
 select * from (t10 full outer join t11 on t10.a=t11.a) , (t20 full outer join t21 on t20.a=t21.a);
 --echo # Join order under straight_join with FULL JOIN
 create table two (c int);
 insert into two values (1),(2);
+--source include/full_join_add_indexes.inc
 explain select * from two, (t10 full outer join t11 on t10.a=t11.a);
 --sorted_result
 select * from two, (t10 full outer join t11 on t10.a=t11.a);
@@ -3173,6 +3253,7 @@ create table t2 (
 );
 insert into t1 select a, a from one_k where a between 1 and 100;
 insert into t2 select a, a from one_k where a between 95 and 195;
+--source include/full_join_add_indexes.inc
 explain select * from t1 full outer join t2 on (t1.a=t2.a and t1.b>90 and t2.b<110);
 --sorted_result
 select * from t1 full outer join t2 on (t1.a=t2.a and t1.b>90 and t2.b<110);
@@ -3200,6 +3281,7 @@ create table t1 (a int, b varchar(10)) engine=MyISAM;
 insert into t1 values (1,'a'), (2,'b'), (3,'c');
 create table t2 (a int, b varchar(10)) engine=MyISAM;
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
@@ -3226,6 +3308,7 @@ create table t1 (a int, b varchar(10)) engine=Aria;
 insert into t1 values (1,'a'), (2,'b'), (3,'c');
 create table t2 (a int, b varchar(10)) engine=Aria;
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
@@ -3252,6 +3335,7 @@ create table t1 (a int, b varchar(10)) engine=InnoDB;
 insert into t1 values (1,'a'), (2,'b'), (3,'c');
 create table t2 (a int, b varchar(10)) engine=MyISAM;
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 
 --echo # InnoDB on left, MyISAM on right.
 --sorted_result
@@ -3283,6 +3367,7 @@ create table t1 (a int, b varchar(10)) engine=InnoDB;
 insert into t1 values (1,'a'), (2,'b'), (3,'c');
 create table t2 (a int, b varchar(10)) engine=Aria;
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 
 --echo # InnoDB on left, Aria on right.
 --sorted_result
@@ -3319,6 +3404,7 @@ create table t2 (a int) engine=MyISAM;
 insert into t2 values (2), (3), (4);
 create table t3 (a int) engine=Aria;
 insert into t3 values (3), (4), (5);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select t1.a as a1, t2.a as a2, t3.a as a3
@@ -3337,6 +3423,7 @@ create table t2 (id int primary key, val varchar(10)) engine=MyISAM;
 insert into t2 values (2,'x'), (3,'y'), (4,'z');
 create table t3 (id int primary key, val varchar(10)) engine=Aria;
 insert into t3 values (3,'p'), (4,'q'), (5,'r');
+--source include/full_join_add_indexes.inc
 
 --echo # InnoDB PK full join MyISAM PK.
 --sorted_result
@@ -3408,6 +3495,7 @@ insert into t1 values (1), (2), (3);
 insert into t2 values (2), (4), (5);
 insert into t3 values (2), (3), (6);
 insert into t4 values (2), (4), (7);
+--source include/full_join_add_indexes.inc
 
 --echo # Nest on the right, spanning Aria and MyISAM.
 --sorted_result
@@ -3468,6 +3556,7 @@ create table t3r (k int, tag varchar(8));
 insert into t3r values (3,'R3'), (4,'R4'), (5,'R5'), (6,'R6');
 create table t3m (k int, tag varchar(8));
 insert into t3m values (2,'M2'), (5,'M5'), (7,'M7');
+--source include/full_join_add_indexes.inc
 
 --echo # 17.1 FULL JOIN inside a materialized semijoin.
 --echo # Exercises get_allowed_nj_tables() with emb_sjm_nest set:
@@ -3659,6 +3748,7 @@ where t3o.x between 3 and 4;
 --echo # the cross of the two pairs' LEFT/RIGHT UNION oracle.
 create table t3n (k int);
 insert into t3n values (1), (3), (5), (7);
+--source include/full_join_add_indexes.inc
 explain
 select straight_join
        coalesce(t3l.k, t3r.k) as klr, t3o.x,
@@ -3762,6 +3852,7 @@ create table t1 (grp char(1), val int);
 insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
 create table t2 (grp char(1), val int);
 insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select coalesce(t1.grp, t2.grp) as grp,
        count(*) as cnt,
@@ -3798,6 +3889,7 @@ insert into t2 values (4),(5),(9), (4),(1),(7);
 create table t3 (c int);
 insert into t3 values (3),(1),(3),(9);
 create index idx_a on t1(a);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
   on (t3.c=t1.a or t2.b=5);
@@ -3823,6 +3915,7 @@ create table t2 (a int, b int);
 insert into t2 values (2,200), (3,300), (4,400);
 create table t3 (a int, c varchar(10));
 insert into t3 values (1,'x'), (2,'y'), (4,'z');
+--source include/full_join_add_indexes.inc
 --sorted_result
 select dt.a1, dt.a2, t3.c
 from (select t1.a as a1, t2.a as a2 from t1 full join t2 on t1.a=t2.a) dt
@@ -3845,6 +3938,7 @@ create table t2 (a int);
 insert into t2 values (2),(3),(4);
 create table t3 (a int);
 insert into t3 values (3),(4),(5);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a as a1, t2.a as a2, t3.a as a3
 from (t1 join t2 on t1.a=t2.a) full join t3 on t2.a=t3.a;
@@ -3868,6 +3962,7 @@ insert into t2 values (4),(5),(9), (4),(1),(7);
 create table t3 (c int);
 insert into t3 values (3),(1),(3),(9);
 create index idx_a on t1(a);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
@@ -3908,6 +4003,7 @@ create table t2 (b int);
 insert into t2 values (4), (5), (9), (4), (1), (7);
 create table t3 (c int);
 insert into t3 values (3), (1), (3), (9);
+--source include/full_join_add_indexes.inc
 --echo # No hint, base case, should match other results.
 explain extended select *
 from t3 inner join (t1 full join t2 on t1.a=t2.b)
@@ -3964,6 +4060,7 @@ create table t3 (c int);
 insert into t3 values (1), (5);
 create table t4 (d int);
 insert into t4 values (1), (5);
+--source include/full_join_add_indexes.inc
 
 --echo # No hint, base case.
 explain extended select *
@@ -4041,6 +4138,7 @@ create table t2 (b int);
 insert into t2 values (4), (5), (9), (4), (1), (7);
 create table t3 (c int);
 insert into t3 values (3), (1), (3), (9);
+--source include/full_join_add_indexes.inc
 
 --echo # JOIN_PREFIX with the outside table, honored (was rejected
 --echo # before the FULL JOIN check was relaxed).
@@ -4114,6 +4212,7 @@ drop table t3;
 --echo # bypass the const table optimization.
 create table t1 (pk int) ENGINE=MyISAM;
 create table t2 (pk int) ENGINE=InnoDB;
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk from t1 full join t2 on (true);
 --sorted_result
@@ -4126,6 +4225,7 @@ drop table t2;
 --echo # Both partners empty MyISAM.
 create table t1 (pk int) ENGINE=MyISAM;
 create table t2 (pk int) ENGINE=MyISAM;
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t2 on (true);
 --sorted_result
@@ -4141,6 +4241,7 @@ drop table t2;
 create table t1 (pk int) ENGINE=MyISAM;
 create table t2 (pk int) ENGINE=InnoDB;
 insert into t2 values (10), (20);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t2 on (true);
 --sorted_result
@@ -4154,6 +4255,7 @@ drop table t2;
 --echo # become const) and empty InnoDB on the left.
 create table t1 (pk int) ENGINE=InnoDB;
 create table t2 (pk int) ENGINE=MyISAM;
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t2 on (true);
 --sorted_result
@@ -4169,6 +4271,7 @@ create table t1 (a int) ENGINE=MyISAM;
 create table t2 (b int) ENGINE=MyISAM;
 insert into t1 values (1);
 insert into t2 values (2);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t2 on t1.a = t2.b;
 --sorted_result
@@ -4200,6 +4303,7 @@ insert into t1 values (1);
 insert into t2 values (10);
 insert into t3 values (100);
 insert into t4 values (1000), (2000);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t2.a, t3.a, t4.a
 from t1 left join t2 on (true)
@@ -4259,6 +4363,7 @@ group by field1;
 --echo # the same WHERE predicate still rewrites and the UNION oracle
 --echo # matches.
 insert into t1 values (1);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
 explain extended
@@ -4296,6 +4401,7 @@ insert into t3 values (100);
 insert into t4 values (1000);
 insert into t5 values (10000);
 insert into t6 values (100000), (200000);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t2.a, t3.a, t4.a, t5.a, t6.a
 from t1 left join t2 on (true)
@@ -4349,6 +4455,7 @@ insert into t1 values (1);
 insert into t2 values (10);
 insert into t3 values (100);
 insert into t4 values (1000);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t2.a, t3.a, t4.a
 from t1 left join t2 on (true)
@@ -4374,6 +4481,7 @@ drop table t4;
 --echo # without trying to eliminate it.
 create table t1 (a int);
 insert into t1 values (1), (2);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1, (select alias1.a from t1 as alias1
                                    full join t1 as alias2 on (true)) dt;
@@ -4390,10 +4498,12 @@ drop table t1;
 --echo # allocation loop used to walk off the end of JOIN::join_tab list.
 create table t1 (pk int not null, primary key (pk));
 create table t2 (pk int);
+--source include/full_join_add_indexes.inc
 select t1.pk from (t1 full join t2 on (true))
 where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)));
 insert into t1 values (1), (2);
 insert into t2 values (1), (null);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk from (t1 full join t2 on (true))
 where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)));
@@ -4417,6 +4527,7 @@ create table t3 (pk int primary key, a int, key idx(a));
 insert into t1 values (1), (2);
 insert into t2 values (1, 10);
 insert into t3 values (1, 100), (2, 200);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select (select min(t2.pk) from (t2 full join t3 on true)
         where t3.pk = t1.pk or t2.a = t2.a) as f
@@ -4454,6 +4565,7 @@ create table t2 (pk int);
 create table t3 (pk int);
 create table t4 (pk int);
 create table t5 (pk int);
+--source include/full_join_add_indexes.inc
 select t2.pk as field1 from t1
   full join t2
   full join t4
@@ -4469,6 +4581,7 @@ insert into t1 values (1), (2);
 insert into t2 values (1), (3);
 insert into t3 values (1), (4);
 insert into t5 values (1), (5);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t2.pk as field1 from t1
   full join t2
@@ -4491,6 +4604,7 @@ drop table t5;
 create table t1 (a int);
 create table t2 (a int);
 create table t3 (a int);
+--source include/full_join_add_indexes.inc
 select * from t1 inner join t2 full join t3 on t1.a=t3.a;
 drop table t1;
 drop table t2;
@@ -4510,6 +4624,7 @@ create table t2 (pk int);
 create table t3 (pk int);
 create table t4 (pk int);
 insert into t1 values (1), (2);
+--source include/full_join_add_indexes.inc
 select max(t3.pk) from t1
   full join t2
   full join t3 on t2.pk = t3.pk
@@ -4524,6 +4639,7 @@ select max(t3.pk) from t1
 insert into t2 values (1), (3);
 insert into t3 values (1), (4);
 insert into t4 values (1), (5);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk, t2.pk, t3.pk, alias5.pk, t4.pk from t1
   full join t2
@@ -4546,6 +4662,7 @@ create table t2 (pk int);
 create table t3 (pk int);
 create table t4 (pk int);
 insert into t1 values (1), (2);
+--source include/full_join_add_indexes.inc
 select t1.pk from t1
   full join t2
   full outer join t3 on (true)
@@ -4580,6 +4697,7 @@ insert into t2 values (1), (3);
 insert into t3 values (1), (4);
 insert into t4 values (1), (5);
 insert into t5 values (1), (6);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk
   from t1
@@ -4605,6 +4723,7 @@ drop table t5;
 --echo # greedy_search.
 create table t1 (pk int);
 create table t2 (pk int);
+--source include/full_join_add_indexes.inc
 select table1.pk from t1 as table1
   straight_join (select alias1.* from t2 as alias1
                  full join t1 as alias2 on (true)) as table2
@@ -4630,11 +4749,13 @@ drop table t2;
 create table t1 (pk int not null, primary key(pk));
 create table t2 (pk int);
 insert into t1 values (8);
+--source include/full_join_add_indexes.inc
 select t1.pk as field2 from t1 full join t2 on (true)
   group by field2 having field2 = 8;
 select t1.pk as field2 from t1 full join t2 on (true)
   group by field2 having t1.pk = 8;
 insert into t2 values (1), (8), (null);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk as a, t2.pk as b from t1 full join t2 on (t1.pk = t2.pk);
 --sorted_result
@@ -4655,6 +4776,7 @@ create table t1 (a int);
 insert into t1 values (1), (2);
 create table t2 (pk int primary key, b int);
 insert into t2 values (5, 50), (6, 60), (7, 70);
+--source include/full_join_add_indexes.inc
 --echo # Constant lookup on the right side's primary key.
 --sorted_result
 select * from t1 full join t2 on t2.pk = 5;
@@ -4685,6 +4807,7 @@ create table t1 (a int);
 insert into t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 create table t2 (pk int primary key, b int);
 insert into t2 values (5, 50), (6, 60), (7, 70);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select * from t1 full join t2 on t2.b = 50;
 --sorted_result
@@ -4710,6 +4833,7 @@ insert into t1 values (1,1),(2,2);
 insert into t2 values (1,1),(3,3);
 insert into t3 values (3,3),(4,4);
 insert into t4 values (1,1),(5,5);
+--source include/full_join_add_indexes.inc
 --echo # Inner join nest on the left, the WHERE clause rejects the right
 --echo # side.
 --sorted_result
@@ -4785,6 +4909,7 @@ select t1.a, t2.a, t4.a, t3.a
 --echo # The same shape with the WHERE clause also rejecting the left side
 --echo # collapses to inner joins.
 insert into t3 values (1,10);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t2.a, t4.a, t3.a
   from ((t1 full join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
@@ -4812,6 +4937,7 @@ create table t1 (pk int primary key, a int);
 create table t2 (b int);
 insert into t1 values (1,10),(2,20),(3,10);
 insert into t2 values (10),(20),(99);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.pk, t1.a, t2.b from t1 full join t2 on t2.b = t1.a
   where t1.a = 20 or t1.a is null;
@@ -4825,6 +4951,7 @@ select t1.pk, t1.a, t2.b from t1 right join t2 on t2.b = t1.a
 --echo # drive a ref or range access that skips the rejected left rows.  The
 --echo # left side is still read with a full scan so every match is recorded.
 alter table t1 add key (a);
+--source include/full_join_add_indexes.inc
 explain
 select t1.pk, t1.a, t2.b from t1 full join t2 on t2.b = t1.a
   where t1.a = 20 or t1.a is null;
@@ -4850,6 +4977,7 @@ create table t3 (c int);
 create table t2 (b int primary key);
 insert into t1 values (1,1,5),(2,2,6),(3,1,7);
 insert into t2 values (1),(3);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t1.x, t2.b
   from (t1 left join t3 on t3.c = t1.a) full join t2 on t2.b = t1.a
@@ -4916,6 +5044,7 @@ insert into t2 values
 (22,2,0,NULL,NULL),(23,5,4,'d','d'),(24,7,8,'g','g'),(25,6,NULL,'x','x'),
 (26,6,NULL,'f','f'),(27,2,0,'p','p'),(28,9,NULL,'j','j'),(29,6,8,'c','c');
 insert into t3 values (0);
+--source include/full_join_add_indexes.inc
 
 --echo # The reported query.  The null-complemented outer row
 --echo # (NULL, 26, NULL, NULL, NULL) appears once, not twice.
@@ -4998,6 +5127,7 @@ create table t2 (a int primary key, b int)
   as select a, a as b from t1 where a in (1,2);
 create table t3 (a int primary key, b int)
   as select a, a as b from t1 where a in (1,3);
+--source include/full_join_add_indexes.inc
 --sorted_result
 select t1.a, t2.a, t3.a
 from t1 full join (t2 full join t3 on t2.b=t3.b)
@@ -5026,6 +5156,7 @@ create table t3 (a int, b int);
 insert into t1 (a,b) values (1,1),(2,2);
 insert into t2 (a,b) values (1,1),(3,3);
 insert into t3 (a,b) values (3,3),(4,4);
+--source include/full_join_add_indexes.inc
 prepare s from
   'select t1.a from t1 natural full join (t2 natural join t3)
    where t1.a is not null';
@@ -5051,6 +5182,7 @@ create table t1 (a int);
 create table t2 (a int);
 insert into t1 values (1),(2);
 insert into t2 values (2),(3);
+--source include/full_join_add_indexes.inc
 
 --echo # Derived table on the right side of a simple FULL JOIN
 explain select * from t1 full join (select * from t2) dt on t1.a = dt.a;
@@ -5077,6 +5209,7 @@ drop view v1;
 --echo # JOIN, so this query stands on its own.
 create table t3 (a int);
 insert into t3 values (2),(4);
+--source include/full_join_add_indexes.inc
 explain select * from t1 full join t2 on t1.a = t2.a
                 full join (select * from t3) dt on t2.a = dt.a;
 --sorted_result
@@ -5117,6 +5250,7 @@ create table t2 (b int);
 insert into t2 values (1), (3);
 create table t3 (c int);
 insert into t3 values (1), (4);
+--source include/full_join_add_indexes.inc
 
 --echo # t3 LEFT JOIN (FJ) -- FJ is inner.
 explain select * from t3 left join (t1 full join t2 on t1.a = t2.b)
@@ -5203,6 +5337,7 @@ create table t4 (d int);
 create table t5 (e int);
 insert into t4 values (1), (2), (5);
 insert into t5 values (1), (3), (6);
+--source include/full_join_add_indexes.inc
 
 --echo # t3 LEFT JOIN (base FULL JOIN nest).
 --sorted_result
@@ -5256,6 +5391,7 @@ create table t1 (a int, b int, key(a));
 create table t2 (a int, c int, key(a));
 insert into t1 values (1,10),(2,20),(3,30),(4,40),(5,50);
 insert into t2 values (1,11),(2,22),(3,33),(4,44),(5,55);
+--source include/full_join_add_indexes.inc
 
 --echo # An indexed sargable range in the ON.  The left table is analyzed
 --echo # through its partner's on_expr.  Every t1 row (including a>=3) and
@@ -5289,6 +5425,7 @@ create table t1 (a int, key(a));
 create table t2 (b int, key(b));
 insert into t1 values (1),(2),(3);
 insert into t2 values (1),(2),(3);
+--source include/full_join_add_indexes.inc
 explain extended select * from t1 natural full join t2;
 --sorted_result
 select * from t1 natural full join t2;
@@ -5305,6 +5442,7 @@ create table t1 (a int not null, b int, key(a));
 create table t2 (a int not null, c int, key(a));
 insert into t1 values (1,10),(2,20),(3,30),(4,40),(5,50);
 insert into t2 values (1,11),(2,22),(3,33),(4,44),(5,55);
+--source include/full_join_add_indexes.inc
 
 --echo # ON 1=1: a constant true ON makes every left row match every right row.
 --sorted_result
@@ -5347,6 +5485,7 @@ select t1.a, t2.a from t1 full join t2 on t2.a is not null and t1.a < 3;
 --echo # inside the nest, and every row of both sides must still survive.
 create table t3 (a int, d int, key(a));
 insert into t3 values (2,20),(3,30),(4,40),(6,60);
+--source include/full_join_add_indexes.inc
 
 --sorted_result
 select t1.a as a1, t3.a as a3, t2.a as a2
@@ -5440,6 +5579,7 @@ insert into t1 (a,b) values (1,1),(2,2);
 insert into t2 (a,b) values (1,1),(3,3);
 insert into t3 (a,b) values (3,3),(4,4);
 insert into t4 (a,b) values (1,1),(5,5);
+--source include/full_join_add_indexes.inc
 
 --echo # Both sides nested.  The left side has one row and the right side has
 --echo # one row, and they do not match, so each is kept once.  Computing
@@ -5609,6 +5749,7 @@ insert into t2 values (2),(3),(4);
 insert into t3 values (2),(3);
 insert into t4 values (2),(4);
 insert into t5 values (1),(2),(7);
+--source include/full_join_add_indexes.inc
 
 --echo # LEFT JOIN, FULL JOIN between two base tables, LEFT JOIN.  The
 --echo # enclosing LEFT JOIN holds the FULL JOIN as its inner operand, so
@@ -5935,6 +6076,7 @@ insert into t3 values (2),(3);
 insert into t4 values (2),(4);
 insert into t5 values (1),(2),(7);
 insert into t6 values (3),(5),(6);
+--source include/full_join_add_indexes.inc
 
 --echo # A chain of FULL JOINs whose first one has a nested join on its
 --echo # right side.
@@ -6206,6 +6348,7 @@ insert into t2 values (2),(3),(4);
 insert into t3 values (2),(3);
 insert into t4 values (2),(4);
 insert into t5 values (1),(2),(7);
+--source include/full_join_add_indexes.inc
 
 --echo # Derived table in FROM, nested join on the right side of the FULL
 --echo # JOIN.
@@ -6554,6 +6697,7 @@ insert into t1 values (1),(2),(3);
 insert into t2 values (2),(3),(4);
 insert into t4 values (2),(4);
 insert into t5 values (1),(2),(7);
+--source include/full_join_add_indexes.inc
 
 --echo # Plain: a base table on each side.
 explain select t1.a as a1, t2.a as a2
@@ -6635,6 +6779,7 @@ insert into t1 values (1,1),(2,2),(3,3);
 insert into t2 values (2,2),(3,3),(4,4);
 insert into t4 values (2,2),(4,4);
 insert into t5 values (1,1),(2,2),(7,7);
+--source include/full_join_add_indexes.inc
 
 --echo # Indexed: a base table on each side.
 explain select t1.a as a1, t2.a as a2
@@ -6712,6 +6857,7 @@ insert into t1 values (1,'one'),(2,'two'),(3,'three');
 insert into t2 values (2,2.25),(3,3.50),(4,4.75);
 insert into t4 values (2,'two text'),(4,'four text');
 insert into t5 values (1,'2020-01-01'),(2,'2020-01-02'),(7,'2020-01-07');
+--source include/full_join_add_indexes.inc
 
 --echo # Typed: a base table on each side.
 explain select t1.a as a1, t1.v as v1, t2.a as a2, t2.v as v2
@@ -6799,6 +6945,7 @@ insert into t1 values (1,10),(2,20),(3,30),(4,40),(5,50);
 insert into t2 values (2,200),(3,300),(6,600);
 insert into t3 values (3,3000),(4,4000),(6,6000);
 insert into t4 values (1,11),(3,33),(7,77);
+--source include/full_join_add_indexes.inc
 
 --echo # The nest is the right side.  Only the nest row a = 3 matches a t1
 --echo # row, and its d fails the predicate, so t1 a = 3 must be absent.  It
@@ -6945,6 +7092,7 @@ create table t3 (a int, d int);
 insert into t1 values (1,10);
 insert into t2 values (1,100),(1,50),(9,900);
 insert into t3 values (1,1000),(9,9000);
+--source include/full_join_add_indexes.inc
 
 --echo # The t1 row matches both t2 a = 1 rows.  The second one is rejected
 --echo # by the WHERE, and a predicate that accepts a NULL left side must not
@@ -7065,6 +7213,174 @@ select count(*) from t1 full join t2 on t1.a = t2.a
   and t2.c between 1 and 100;
 
 drop table t1, t2;
+
+--echo # ====================================================================
+--echo # Section 31: A WHERE clause the nest holds only part of
+--echo # ====================================================================
+--echo #
+--echo # A predicate over nothing but a nest beside a FULL JOIN is held back
+--echo # from the plan and checked once the nest has produced a row, which
+--echo # Section 27 covers on its own.  Here the WHERE also carries
+--echo # predicates over a table outside the FULL JOIN.  Those stay in the
+--echo # WHERE and the reduced WHERE has to be rebuilt around them, once as
+--echo # the single predicate that is left and once as a conjunction of two.
+
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (b int, c int);
+create table t4 (x int, y int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 values (1,1),(2,2),(5,5);
+insert into t4 values (1,1),(2,2);
+--source include/full_join_add_indexes.inc
+
+--sorted_result
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0;
+--sorted_result
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0
+  union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0;
+
+--sorted_result
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100;
+--sorted_result
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100
+  union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+  where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100;
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+--echo # ====================================================================
+--echo # Section 32: A left side predicate the right partner cannot check
+--echo # ====================================================================
+--echo #
+--echo # A WHERE predicate over the left side of a surviving FULL JOIN is
+--echo # held back and checked on the right partner, so that the match is
+--echo # recorded before the predicate can reject the row.  A predicate that
+--echo # also reads a table the plan places after the right partner cannot be
+--echo # checked there, since that table has not been read yet, and it goes
+--echo # back into the WHERE.  t3 is large enough that the plan places it
+--echo # last.  The second query leaves two predicates behind, so the WHERE
+--echo # the predicate returns to is a conjunction and the predicate joins
+--echo # the conjunction that is already there.
+
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (x int, y int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 select seq, seq from seq_1_to_200;
+--source include/full_join_add_indexes.inc
+
+select count(*) from t1 full join t2 on t1.a = t2.a, t3
+  where (t1.b is null or t1.b + t3.x > 1);
+select count(*) from
+  (select t1.a as a1, t2.a as a2, t3.x as x from t1 left join t2 on t1.a = t2.a, t3
+     where (t1.b is null or t1.b + t3.x > 1)
+   union
+   select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
+     where (t1.b is null or t1.b + t3.x > 1)) d;
+
+select count(*) from t1 full join t2 on t1.a = t2.a, t3
+  where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000;
+select count(*) from
+  (select t1.a as a1, t2.a as a2, t3.x as x from t1 left join t2 on t1.a = t2.a, t3
+     where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000
+   union
+   select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
+     where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000) d;
+
+drop table t1;
+drop table t2;
+drop table t3;
+
+--echo # ====================================================================
+--echo # Section 33: A nest whose temporary table outgrows the heap
+--echo # ====================================================================
+--echo #
+--echo # The nest beside a FULL JOIN is computed into a temporary table that
+--echo # starts out in memory.  A nest wider and longer than the memory limit
+--echo # allows has to be moved to disk partway through, which is a path the
+--echo # small tables everywhere else in this file never reach.  The limits
+--echo # are lowered for the query and put back afterwards.
+
+create table t1 (a int);
+create table t2 (b int, pad char(200));
+create table t3 (b int, c int);
+insert into t1 values (1),(2),(3);
+insert into t2 select seq, repeat('x',200) from seq_1_to_150;
+insert into t3 select seq, seq from seq_1_to_150;
+--source include/full_join_add_indexes.inc
+
+set @save_tmp_table_size= @@tmp_table_size;
+set @save_max_heap_table_size= @@max_heap_table_size;
+set tmp_table_size= 16384;
+set max_heap_table_size= 16384;
+
+select count(*), sum(length(t2.pad)) from
+  t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b;
+select count(*), sum(length(pad)) from
+  (select t1.a as a, t2.b as b, t3.c as c, t2.pad as pad
+     from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b
+   union
+   select t1.a, t2.b, t3.c, t2.pad
+     from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b) d;
+
+set tmp_table_size= @save_tmp_table_size;
+set max_heap_table_size= @save_max_heap_table_size;
+
+drop table t1;
+drop table t2;
+drop table t3;
+
+--echo # ====================================================================
+--echo # Section 34: The name a nest is traced under
+--echo # ====================================================================
+--echo #
+--echo # The optimizer trace names every table it considers.  A nest beside a
+--echo # FULL JOIN has no name of its own and the temporary table it is
+--echo # computed into does not exist yet when the join order is traced, so
+--echo # the trace uses the name EXPLAIN gives it.  Nothing else in this file
+--echo # turns the trace on, so the query is run twice, once for the row set
+--echo # and once for what the trace holds.
+
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (b int, c int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 values (1,1),(2,2),(5,5);
+--source include/full_join_add_indexes.inc
+
+--sorted_result
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+--sorted_result
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a
+  union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+
+set @save_optimizer_trace= @@optimizer_trace;
+set optimizer_trace='enabled=on';
+--disable_result_log
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+--enable_result_log
+select trace like '%<derived>%' as nest_named
+  from information_schema.optimizer_trace;
+set optimizer_trace= @save_optimizer_trace;
+
+drop table t1;
+drop table t2;
+drop table t3;
 
 --echo # ====================================================================
 --echo # Section 35: An ON expression below the top of a nest operand

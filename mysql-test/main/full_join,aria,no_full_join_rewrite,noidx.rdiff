@@ -1,0 +1,486 @@
+--- full_join.result	2026-08-17 11:50:12
++++ full_join,aria,no_full_join_rewrite,noidx.result	2026-08-17 11:46:30
+@@ -557,8 +557,8 @@
+ select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null and t2.pk is not null;
+ pk	x	y	pk	x	y
+ 6	0	0	6	0	0
+-7	1	1	6	0	0
+ 6	0	0	7	1	1
++7	1	1	6	0	0
+ 7	1	1	7	1	1
+ select * from t1 inner join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+ pk	x	y	pk	x	y
+@@ -569,15 +569,15 @@
+ # FULL to LEFT JOIN, these two queries should be equal:
+ select * from t1 full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null;
+ pk	x	y	pk	x	y
+-6	0	0	6	0	0
+-7	1	1	6	0	0
+-6	0	0	7	1	1
+-7	1	1	7	1	1
+ 1	-5	-5	NULL	NULL	NULL
+ 2	-4	-4	NULL	NULL	NULL
+ 3	-3	-3	NULL	NULL	NULL
+ 4	-2	-2	NULL	NULL	NULL
+ 5	-1	-1	NULL	NULL	NULL
++6	0	0	6	0	0
++6	0	0	7	1	1
++7	1	1	6	0	0
++7	1	1	7	1	1
+ 8	2	2	NULL	NULL	NULL
+ 9	3	3	NULL	NULL	NULL
+ 10	4	4	NULL	NULL	NULL
+@@ -636,13 +636,13 @@
+ # FULL NATURAL to RIGHT JOIN
+ select * from t1 natural full join t2 where t2.pk is not null;
+ pk	x	y
++6	0	0
++7	1	1
+ 1	-5	25
+ 2	-4	16
+ 3	-3	9
+ 4	-2	4
+ 5	-1	1
+-6	0	0
+-7	1	1
+ 8	2	4
+ 9	3	9
+ 10	4	16
+@@ -963,10 +963,10 @@
+ t1.a is not null and t1.b is not null and
+ t2.a is not null and t2.b is not null;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ Warnings:
+-Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null
++Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t2`.`a` is not null and `test`.`t2`.`b` is not null
+ select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+ t2 join t1 where
+ t2.a = t1.a and t2.b = t1.b and
+@@ -985,10 +985,10 @@
+ 2	2
+ explain extended select * from t1 natural full join t2 where t1.a is not null;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ Warnings:
+-Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null
++Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where 1
+ select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+ t1 left join t2 on t2.a = t1.a and t2.b = t1.b where t1.a is not null;
+ a	b
+@@ -1006,10 +1006,10 @@
+ 3	3
+ explain extended select * from t1 natural full join t2 where t2.a is not null;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+ 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+ Warnings:
+-Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`t1`.`b` = `test`.`t2`.`b`) where `test`.`t2`.`a` is not null
++Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t2`.`a` is not null
+ select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+ t2 left join t1 on t1.a = t2.a and t1.b = t2.b where t2.a is not null;
+ a	b
+@@ -1037,11 +1037,12 @@
+ explain extended select t1.a from
+ t1 natural full join (t2 natural join t3) where t1.a is not null;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t3`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null
++Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` full join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t3`.`b` = `test`.`t2`.`b`) where 1
+ select t1.a AS a from t1 left join (t2 join t3) on
+ t2.a = t1.a and t3.a = t1.a and t2.b = t1.b and t3.b = t1.b where
+ t1.a is not null;
+@@ -1070,10 +1071,10 @@
+ explain extended select *, avg(t2.a) from t1 natural full join t2 where
+ t1.a is not null group by t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ Warnings:
+-Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b`,avg(`test`.`t2`.`a`) AS `avg(t2.a)` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null group by `test`.`t1`.`a`
++Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b`,avg(`test`.`t2`.`a`) AS `avg(t2.a)` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where 1 group by `test`.`t1`.`a`
+ select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
+ avg(t2.a) AS avg_t2_a from
+ t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
+@@ -3135,11 +3136,13 @@
+ from fj a join fj b on a.id1 = b.id1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t5	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t5	ALL	NULL	NULL	NULL	NULL	3	
+ with fj as (
+ select t1.id as id1, t2.id as id2, t5.id as id5
+ from t1 full join (t2 join t5 on t2.id = t5.id) on t1.id = t2.id
+@@ -4493,7 +4496,7 @@
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t1	index	NULL	u	5	NULL	3	Using index
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
+-1	MATERIALIZED	t2	range	u	u	5	NULL	3	Using where; Using index
++1	MATERIALIZED	t2	range	u	u	5	NULL	4	Using where; Using index
+ 1	MATERIALIZED	t3	eq_ref	u	u	5	test.t2.u	1	Using where; Using index
+ select t1.u as u1, t2.u as u2, t3.u as u3
+ from t1 full join (t2 join t3 on t2.u = t3.u) on t1.u = t2.u;
+@@ -6693,13 +6696,12 @@
+ full join t4 on (true)
+ where t4.a <= 3000;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+-1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
+-1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
++1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from `test`.`t4` left join ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) on(1) where `test`.`t4`.`a` <= 3000
++Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1) where `test`.`t4`.`a` <= 3000
+ # IS NOT NULL drives the same rewrite path.
+ select t1.a, t2.a, t3.a, t4.a
+ from t1 left join t2 on (true)
+@@ -6715,13 +6717,12 @@
+ full join t4 on (true)
+ where t4.a is not null;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+-1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
+-1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
++1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from `test`.`t4` left join ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) on(1) where `test`.`t4`.`a` is not null
++Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1) where `test`.`t4`.`a` is not null
+ # RIGHT JOIN canonicalizes to LEFT JOIN, same trigger applies.
+ select t1.a, t2.a, t3.a, t4.a
+ from t1 right join t2 on (true)
+@@ -6737,13 +6738,12 @@
+ full join t4 on (true)
+ where t4.a <= 3000;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+-1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	
+-1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
++1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from `test`.`t4` left join ((`test`.`t2` left join `test`.`t1` on(1)) full join `test`.`t3` on(1)) on(1) where `test`.`t4`.`a` <= 3000
++Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a` from ((`test`.`t2` left join `test`.`t1` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1) where `test`.`t4`.`a` <= 3000
+ # Reproducer matching the original ticket.  All left tables are
+ # empty so only null complement rows for t4 reach the WHERE,
+ # and GROUP BY collapses them.
+@@ -6765,13 +6765,12 @@
+ where t4.a <= 3000
+ group by field1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+-1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
+-1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using temporary; Using filesort
++1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
++1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `field1` from `test`.`t4` left join ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) on(1) where `test`.`t4`.`a` <= 3000 group by `test`.`t1`.`a`
++Note	1003	select `test`.`t1`.`a` AS `field1` from ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1) where `test`.`t4`.`a` <= 3000 group by `test`.`t1`.`a`
+ # The guard must not block the normal FULL JOIN rewrite when
+ # the left side is a base table.  A plain t1 FULL JOIN t4 with
+ # the same WHERE predicate still rewrites and the UNION oracle
+@@ -6784,10 +6783,10 @@
+ explain extended
+ select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
+ 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t4`.`a` AS `a` from `test`.`t4` left join `test`.`t1` on(1) where `test`.`t4`.`a` <= 3000
++Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t4`.`a` AS `a` from `test`.`t1` full join `test`.`t4` on(1) where `test`.`t4`.`a` <= 3000
+ select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
+ union
+ select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
+@@ -6848,13 +6847,12 @@
+ full join t6 on (true)
+ where t6.a <= 300000;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t6	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	SIMPLE	t6	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+ 1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	MATERIALIZED	t5	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a`,`test`.`t5`.`a` AS `a`,`test`.`t6`.`a` AS `a` from `test`.`t6` left join ((((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1)) full join `test`.`t5` on(1)) on(1) where `test`.`t6`.`a` <= 300000
++Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t4`.`a` AS `a`,`test`.`t5`.`a` AS `a`,`test`.`t6`.`a` AS `a` from ((((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1)) full join `test`.`t5` on(1)) full join `test`.`t6` on(1) where `test`.`t6`.`a` <= 300000
+ drop table t1;
+ drop table t2;
+ drop table t3;
+@@ -6906,12 +6904,12 @@
+ full join t4 on (true)
+ where t3.a <= 1000;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	1	100.00	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
++1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+ Warnings:
+-Note	1003	select `test`.`t1`.`a` AS `a` from (`test`.`t1` left join `test`.`t2` on(1)) left join `test`.`t4` on(1) where 1
++Note	1003	select `test`.`t1`.`a` AS `a` from ((`test`.`t1` left join `test`.`t2` on(1)) full join `test`.`t3` on(1)) full join `test`.`t4` on(1) where 1
+ drop table t1;
+ drop table t2;
+ drop table t3;
+@@ -7885,8 +7883,8 @@
+ on t3.c = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+ on t3.c = t1.a;
+ c	a	b
+@@ -7911,8 +7909,8 @@
+ on t3.c = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+ on t3.c = t1.a;
+ c	a	b
+@@ -7922,8 +7920,8 @@
+ where t3.c = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select * from t3, (t1 full join t2 on t1.a = t2.b)
+ where t3.c = t1.a;
+ c	a	b
+@@ -7947,8 +7945,8 @@
+ on t1.a = t3.c;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select * from (t1 full join t2 on t1.a = t2.b) right join t3
+ on t1.a = t3.c;
+ a	b	c
+@@ -7976,9 +7974,9 @@
+ on t3.c = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t3b	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
++1	SIMPLE	t3b	ALL	NULL	NULL	NULL	NULL	2	
+ select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
+ on t3.c = t1.a;
+ c	a	b	c
+@@ -8395,7 +8393,7 @@
+ from (t1 join t3 on t1.a = t3.a) full join t2 on t1.a = t2.a and t2.a > 3;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
+-1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	40.00	Using where; Using index
++1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	60.00	Using where; Using index
+ 1	MATERIALIZED	t3	index	NULL	a	5	NULL	4	100.00	Using index
+ 1	MATERIALIZED	t1	index	NULL	a	4	NULL	5	100.00	Using index
+ Warnings:
+@@ -8516,8 +8514,8 @@
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+ 1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
+ 1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
+-1	MATERIALIZED	t2	range	a	a	4	NULL	2	20.00	Using where; Using index
+-1	MATERIALIZED	t3	ref	a	a	5	test.t2.a	1	50.00	Using where; Using index
++1	MATERIALIZED	t2	range	a	a	4	NULL	3	20.00	Using where; Using index
++1	MATERIALIZED	t3	ref	a	a	5	test.t2.a	1	75.00	Using where; Using index
+ Warnings:
+ Note	1003	select `test`.`t1`.`a` AS `a1`,`test`.`t2`.`a` AS `a2`,`test`.`t3`.`a` AS `a3` from `test`.`t1` full join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t2`.`a` > 3) where 1
+ drop table t1;
+@@ -8579,10 +8577,12 @@
+ on t1.a=t2.a
+ where t1.a > 0;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
++1	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	
+ select t1.a, t4.a
+ from (t1 join t4 on t1.a=t4.a) full join (t2 join t3 on t2.a=t3.a)
+ on t1.a=t2.a
+@@ -8783,9 +8783,9 @@
+ left join t3 on t3.a = t2.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
++1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+ select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
+ from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
+ left join t3 on t3.a = t2.a;
+@@ -8877,9 +8877,10 @@
+ on t5.a = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
+ from t5 left join
+ (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
+@@ -8908,9 +8909,9 @@
+ right join t3 on t3.a = t2.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
++1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where
+ select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
+ from t5 right join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
+ right join t3 on t3.a = t2.a;
+@@ -8937,9 +8938,10 @@
+ right join t3 on t3.a = t2.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
++1	MATERIALIZED	t5	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+ select t1.a as a1, t5.a as a5, t2.a as a2, t3.a as a3
+ from (t1 right join t5 on t1.a = t5.a) full join t2 on t1.a = t2.a
+ right join t3 on t3.a = t2.a;
+@@ -9029,9 +9031,9 @@
+ inner join t3 on t3.a = t2.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+ select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
+ from t5 inner join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
+ inner join t3 on t3.a = t2.a;
+@@ -9109,9 +9111,10 @@
+ on t5.a = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
+ select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
+ from t5 inner join
+ (t1 full join (t2 inner join t4 on t2.a = t4.a) on t1.a = t2.a)
+@@ -9556,9 +9559,9 @@
+ inner join t3 on t3.a = t2.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+ select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
+ from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
+ inner join t3 on t3.a = t2.a;
+@@ -9771,9 +9774,10 @@
+ on t5.a = t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
++1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+ select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
+ from t5 inner join
+ (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
+@@ -9801,10 +9805,11 @@
+ cross join t4;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
++1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	
++1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+ 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
++1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	
++1	MATERIALIZED	t5	ALL	NULL	NULL	NULL	NULL	3	Using where
+ select t1.a as a1, t5.a as a5, t2.a as a2, t3.a as a3, t4.a as a4
+ from (t1 left join t5 on t1.a = t5.a) full join t2 on t1.a = t2.a
+ inner join t3 on t3.a = t2.a

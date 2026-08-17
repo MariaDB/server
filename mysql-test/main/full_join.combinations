@@ -1,0 +1,29 @@
+# The optimizer switch axis of the FULL JOIN tests.  One run has the join
+# simplification pass allowed to transform the join tree, the others hold
+# back one transformation each, so the plans for every query in the file
+# can be compared side by side.
+#
+# This axis is crossed with the engine axis of full_join_engine.combinations
+# and the index axis of full_join_index.combinations.  The expected output
+# of a run is a diff against the result file of the run that holds every
+# default, which keeps the comparison to the lines that actually change.
+#
+# Every run answers every query correctly, so a diff holds plan lines, the
+# rewritten query an EXPLAIN EXTENDED prints, and row ordering.  Any row
+# that appears on one side of a diff and not the other is a defect in the
+# run it comes from.
+
+[simplify_joins]
+optimizer_switch=simplify_joins=on
+
+[no_simplify_joins]
+optimizer_switch=simplify_joins=off
+
+[no_outer_join_to_inner]
+optimizer_switch=outer_join_to_inner=off
+
+[no_full_join_rewrite]
+optimizer_switch=full_join_rewrite=off
+
+[no_flatten_join_nests]
+optimizer_switch=flatten_join_nests=off

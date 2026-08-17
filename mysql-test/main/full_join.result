@@ -1885,23 +1885,23 @@ create view vf as
 select t1.a as a, t1.b as b, t2.c as c from t1 full join t2 on t1.a = t2.a;
 select * from vf natural full join t3 order by a;
 a	b	c	d
-NULL	NULL	500	NULL
-NULL	NULL	600	NULL
 1	10	NULL	NULL
 2	20	200	NULL
 4	NULL	NULL	4000
 5	NULL	NULL	5000
+NULL	NULL	500	NULL
+NULL	NULL	600	NULL
 select coalesce(dt.a, t3.a) as a, dt.b, dt.c, t3.d
 from (select t1.a as a, t1.b as b, t2.c as c
 from t1 full join t2 on t1.a = t2.a) dt
 full join t3 on dt.a = t3.a order by a;
 a	b	c	d
-NULL	NULL	500	NULL
-NULL	NULL	600	NULL
 1	10	NULL	NULL
 2	20	200	NULL
 4	NULL	NULL	4000
 5	NULL	NULL	5000
+NULL	NULL	500	NULL
+NULL	NULL	600	NULL
 drop view v1, v12, vf;
 # A nested join on each side of a NATURAL FULL JOIN.  The common
 # columns are those the two nests share, and the COALESCE the
@@ -11073,6 +11073,183 @@ and t2.c between 1 and 100;
 count(*)
 2010
 drop table t1, t2;
+# ====================================================================
+# Section 31: A WHERE clause the nest holds only part of
+# ====================================================================
+#
+# A predicate over nothing but a nest beside a FULL JOIN is held back
+# from the plan and checked once the nest has produced a row, which
+# Section 27 covers on its own.  Here the WHERE also carries
+# predicates over a table outside the FULL JOIN.  Those stay in the
+# WHERE and the reduced WHERE has to be rebuilt around them, once as
+# the single predicate that is left and once as a conjunction of two.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (b int, c int);
+create table t4 (x int, y int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 values (1,1),(2,2),(5,5);
+insert into t4 values (1,1),(2,2);
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0;
+a	b	a	b	b	c	x	y
+2	2	2	2	2	2	1	1
+2	2	2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL	1	1
+3	3	NULL	NULL	NULL	NULL	2	2
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0
+union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0;
+a	b	a	b	b	c	x	y
+2	2	2	2	2	2	1	1
+2	2	2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL	1	1
+3	3	NULL	NULL	NULL	NULL	2	2
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100;
+a	b	a	b	b	c	x	y
+2	2	2	2	2	2	1	1
+2	2	2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL	1	1
+3	3	NULL	NULL	NULL	NULL	2	2
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100
+union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a, t4
+where (t3.c is null or t3.c > 1) and t4.x > 0 and t4.y < 100;
+a	b	a	b	b	c	x	y
+2	2	2	2	2	2	1	1
+2	2	2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL	1	1
+3	3	NULL	NULL	NULL	NULL	2	2
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+# ====================================================================
+# Section 32: A left side predicate the right partner cannot check
+# ====================================================================
+#
+# A WHERE predicate over the left side of a surviving FULL JOIN is
+# held back and checked on the right partner, so that the match is
+# recorded before the predicate can reject the row.  A predicate that
+# also reads a table the plan places after the right partner cannot be
+# checked there, since that table has not been read yet, and it goes
+# back into the WHERE.  t3 is large enough that the plan places it
+# last.  The second query leaves two predicates behind, so the WHERE
+# the predicate returns to is a conjunction and the predicate joins
+# the conjunction that is already there.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (x int, y int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 select seq, seq from seq_1_to_200;
+select count(*) from t1 full join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1);
+count(*)
+800
+select count(*) from
+(select t1.a as a1, t2.a as a2, t3.x as x from t1 left join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1)
+union
+select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1)) d;
+count(*)
+800
+select count(*) from t1 full join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000;
+count(*)
+800
+select count(*) from
+(select t1.a as a1, t2.a as a2, t3.x as x from t1 left join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000
+union
+select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
+where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000) d;
+count(*)
+800
+drop table t1;
+drop table t2;
+drop table t3;
+# ====================================================================
+# Section 33: A nest whose temporary table outgrows the heap
+# ====================================================================
+#
+# The nest beside a FULL JOIN is computed into a temporary table that
+# starts out in memory.  A nest wider and longer than the memory limit
+# allows has to be moved to disk partway through, which is a path the
+# small tables everywhere else in this file never reach.  The limits
+# are lowered for the query and put back afterwards.
+create table t1 (a int);
+create table t2 (b int, pad char(200));
+create table t3 (b int, c int);
+insert into t1 values (1),(2),(3);
+insert into t2 select seq, repeat('x',200) from seq_1_to_150;
+insert into t3 select seq, seq from seq_1_to_150;
+set @save_tmp_table_size= @@tmp_table_size;
+set @save_max_heap_table_size= @@max_heap_table_size;
+set tmp_table_size= 16384;
+set max_heap_table_size= 16384;
+select count(*), sum(length(t2.pad)) from
+t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b;
+count(*)	sum(length(t2.pad))
+150	30000
+select count(*), sum(length(pad)) from
+(select t1.a as a, t2.b as b, t3.c as c, t2.pad as pad
+from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b
+union
+select t1.a, t2.b, t3.c, t2.pad
+from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.b) d;
+count(*)	sum(length(pad))
+150	30000
+set tmp_table_size= @save_tmp_table_size;
+set max_heap_table_size= @save_max_heap_table_size;
+drop table t1;
+drop table t2;
+drop table t3;
+# ====================================================================
+# Section 34: The name a nest is traced under
+# ====================================================================
+#
+# The optimizer trace names every table it considers.  A nest beside a
+# FULL JOIN has no name of its own and the temporary table it is
+# computed into does not exist yet when the join order is traced, so
+# the trace uses the name EXPLAIN gives it.  Nothing else in this file
+# turns the trace on, so the query is run twice, once for the row set
+# and once for what the trace holds.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (b int, c int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+insert into t3 values (1,1),(2,2),(5,5);
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+a	b	a	b	b	c
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL
+select * from t1 left join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a
+union
+select * from t1 right join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+a	b	a	b	b	c
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	NULL	NULL	NULL	NULL
+set @save_optimizer_trace= @@optimizer_trace;
+set optimizer_trace='enabled=on';
+select * from t1 full join (t2 join t3 on t2.b = t3.b) on t1.a = t2.a;
+select trace like '%<derived>%' as nest_named
+from information_schema.optimizer_trace;
+nest_named
+1
+set optimizer_trace= @save_optimizer_trace;
+drop table t1;
+drop table t2;
+drop table t3;
 # ====================================================================
 # Section 35: An ON expression below the top of a nest operand
 # ====================================================================
