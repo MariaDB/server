@@ -79,8 +79,8 @@ ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
 -- The following tables doesn't have to be transactional
 ALTER TABLE help_topic ENGINE=Aria transactional=0;
 ALTER TABLE help_category ENGINE=Aria transactional=0;
-ALTER TABLE help_relation ENGINE=Aria transactional=0;
 ALTER TABLE help_keyword ENGINE=Aria transactional=0;
+ALTER TABLE help_relation ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 

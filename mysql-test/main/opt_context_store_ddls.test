@@ -285,8 +285,8 @@ from t1,t2 where t1.id = t2.id;
 
 --source include/opt_context_list_tables_ddls.inc
 
-drop table t1;
 drop table t2;
+drop table t1;
 
 --echo #
 --echo # MDEV-37207: test multi delete of 2 tables

@@ -128,10 +128,10 @@ CREATE TABLE IF NOT EXISTS help_topic ( help_topic_id int unsigned not null, nam
 CREATE TABLE IF NOT EXISTS help_category ( help_category_id smallint unsigned not null, name  char(64) not null, parent_category_id smallint unsigned null, url text not null, primary key (help_category_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment='help categories';
 
 
-CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=Aria transactional=0 CHARACTER SET utf8mb3 CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment='keyword-topic relation';
-
-
 CREATE TABLE IF NOT EXISTS help_keyword (   help_keyword_id  int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment='help keywords';
+
+
+CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=Aria transactional=0 CHARACTER SET utf8mb3 CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment='keyword-topic relation';
 
 
 CREATE TABLE IF NOT EXISTS time_zone_name (   Name char(64) NOT NULL, Time_zone_id int unsigned NOT NULL, PRIMARY KEY /*Name*/ (Name) ) engine=Aria transactional=1 CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci comment='Time zone names';
