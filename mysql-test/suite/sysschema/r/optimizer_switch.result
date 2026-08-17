@@ -10,6 +10,8 @@ duplicateweedout	on
 exists_to_in	on
 extended_keys	on
 firstmatch	on
+flatten_join_nests	on
+full_join_rewrite	on
 hash_join_cardinality	on
 index_condition_pushdown	on
 index_merge	on
@@ -24,6 +26,7 @@ loosescan	on
 materialization	on
 optimize_join_buffer_size	on
 orderby_uses_equalities	on
+outer_join_to_inner	on
 outer_join_with_cache	on
 partial_match_rowid_merge	on
 partial_match_table_scan	on
@@ -31,6 +34,7 @@ rowid_filter	on
 sargable_casefold	on
 semijoin	on
 semijoin_with_cache	on
+simplify_joins	on
 split_materialized	on
 subquery_cache	on
 table_elimination	on

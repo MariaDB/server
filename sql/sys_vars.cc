@@ -3101,6 +3101,10 @@ export const char *optimizer_switch_names[]=
   "cset_narrowing",
   "sargable_casefold",
   "reorder_outer_joins",
+  "full_join_rewrite",
+  "outer_join_to_inner",
+  "flatten_join_nests",
+  "simplify_joins",
   "default",
   NullS
 };

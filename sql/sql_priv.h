@@ -177,6 +177,36 @@
 #define OPTIMIZER_SWITCH_CSET_NARROWING            (1ULL << 37)
 #define OPTIMIZER_SWITCH_SARGABLE_CASEFOLD         (1ULL << 38)
 #define OPTIMIZER_SWITCH_REORDER_OUTER_JOINS       (1ULL << 39)
+/*
+  Rewrite a FULL JOIN as a one sided outer join when the WHERE clause
+  rejects NULLs on one operand.  Turning this off keeps the FULL JOIN
+  and forces the null complement pass to run, which is useful when
+  narrowing down where a wrong result comes from.
+*/
+#define OPTIMIZER_SWITCH_FULL_JOIN_REWRITE         (1ULL << 40)
+/*
+  Convert an outer join to an inner join when a conjunctive predicate
+  rejects NULLs for one of its inner tables.  Turning this off keeps
+  the outer join and the ON expression that goes with it, which limits
+  the join orders the optimizer may consider.
+*/
+#define OPTIMIZER_SWITCH_OUTER_JOIN_TO_INNER       (1ULL << 41)
+/*
+  Replace a join nest that carries no ON expression with its children,
+  so the optimizer may interleave those children with their siblings.
+  Turning this off keeps the nesting the parser produced, which costs
+  plan quality but does not change results.
+*/
+#define OPTIMIZER_SWITCH_FLATTEN_JOIN_NESTS        (1ULL << 42)
+/*
+  Umbrella over the three switches above.  Turning this off turns all
+  three off at once, which leaves the join tree the way the parser built
+  it.  The pass that would transform it still runs, as it is also the
+  only producer of the nest attributes and table dependencies the rest
+  of the optimizer reads, so results stay correct and only plan quality
+  suffers.
+*/
+#define OPTIMIZER_SWITCH_SIMPLIFY_JOINS            (1ULL << 43)
 
 
 /*
@@ -221,7 +251,11 @@
                                   OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
                                   OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY |\
                                   OPTIMIZER_SWITCH_CSET_NARROWING  |\
-                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD)
+                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD |\
+                                  OPTIMIZER_SWITCH_FULL_JOIN_REWRITE |\
+                                  OPTIMIZER_SWITCH_OUTER_JOIN_TO_INNER |\
+                                  OPTIMIZER_SWITCH_FLATTEN_JOIN_NESTS |\
+                                  OPTIMIZER_SWITCH_SIMPLIFY_JOINS)
 
 #define OPTIMIZER_ADJ_DEFAULT (OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF | \
                                OPTIMIZER_ADJ_FIX_CARD_MULT)
