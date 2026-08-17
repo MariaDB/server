@@ -6902,7 +6902,6 @@ bool Table_map_log_event::write_data_body(Log_event_writer *writer)
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-#ifndef DBUG_OFF
   DBUG_EXECUTE_IF("flashback_corrupt_blob_metadata", {
     if (m_dbnam && m_tblnam && m_dblen == 4 &&
         memcmp(m_dbnam, "test", 4) == 0 && m_tbllen == 2 &&
@@ -6912,7 +6911,6 @@ bool Table_map_log_event::write_data_body(Log_event_writer *writer)
       m_field_metadata[0]= 5;
     }
   });
-#endif
 
   return write_data(writer, dbuf, sizeof(dbuf)) ||
          write_data(writer, m_dbnam, m_dblen + 1) ||
