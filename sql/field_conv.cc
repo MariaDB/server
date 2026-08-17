@@ -303,6 +303,33 @@ static void do_copy_not_null(const Copy_field *copy)
 }
 
 
+/*
+  Copy: (NULL-able field) -> (not NULL-able field of a row that may be
+  NULL as a whole)
+
+  A field declared NOT NULL holds no null bit, so the only way for it to
+  read as NULL is TABLE::null_row, which says the whole row is a null
+  complemented one.  A NULL reaching such a field therefore says the row
+  it came from was null complemented, and restoring that state is what
+  makes the field read as NULL again.  This is the inverse of
+  do_outer_field_null, which recorded the state in the first place.
+*/
+
+static void do_copy_null_to_outer_field(const Copy_field *copy)
+{
+  if (*copy->from_null_ptr & copy->from_bit)
+  {
+    copy->to_field->table->null_row= 1;
+    copy->to_field->reset();
+  }
+  else
+  {
+    copy->to_field->table->null_row= 0;
+    (copy->do_copy2)(copy);
+  }
+}
+
+
 /* Copy: (non-NULLable field) -> (NULLable field) */
 static void do_copy_maybe_null(const Copy_field *copy)
 {
@@ -774,6 +801,26 @@ void Copy_field::set(Field *to,Field *from,bool save)
     do_copy2= from->get_copy_func_to(to);
   if (!do_copy)					// Not null
     do_copy=do_copy2;
+}
+
+
+/*
+  Same as set(), except that a NULL arriving at a destination declared
+  NOT NULL is kept rather than turned into a zero with a truncation
+  warning.  It is kept as TABLE::null_row on the destination's table,
+  the only place such a field can carry a NULL.
+
+  This is for reading a row back out of a temporary table into the fields
+  it was collected from.  A truncation warning would be wrong there, since
+  no value is being narrowed, and losing the NULL would turn a null
+  complemented row into a row of zeroes.
+*/
+
+void Copy_field::set_restoring_null_row(Field *to, Field *from)
+{
+  set(to, from, FALSE);
+  if (from->maybe_null() && from->null_ptr && !to->real_maybe_null())
+    do_copy= do_copy_null_to_outer_field;
 }
 
 

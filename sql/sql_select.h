@@ -469,6 +469,19 @@ typedef enum_nested_loop_state
 Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
+TABLE_LIST *embedding_materialized_nest(Field *field);
+JOIN_TAB *first_depth_first_tab(JOIN* join);
+JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
+void add_cond_and_fix(THD *thd, Item **e1, Item *e2);
+COND *add_found_match_trig_cond(THD *thd, JOIN_TAB *tab, COND *cond,
+                                JOIN_TAB *root_tab);
+COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
+                           COND *conds, bool in_sj,
+                           TABLE_LIST *fj_operand,
+                           bool fj_left_operand,
+                           table_map *used_tables,
+                           table_map *not_null_tables);
+bool join_transform_enabled(THD *thd, ulonglong switch_flag);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
@@ -487,7 +500,7 @@ class AGGR_OP;
 class Filesort;
 struct SplM_plan_info;
 class SplM_opt_info;
-class full_join_duplicate_filter;
+class Full_join_info;
 
 /*
   What a contiguous run of JOIN_TABs holds.  A join's plan is one run of
@@ -538,22 +551,53 @@ enum Join_tab_range_type
 };
 
 
+/*
+  What a FULL JOIN operand nest needs in order to have its rows computed
+  into a temporary table and read back as one table of the enclosing
+  join.
+*/
+
+class Full_join_mat_info: public Sql_alloc
+{
+public:
+  TMP_TABLE_PARAM table_param;
+  /* One Item_field per column of the nest's tables that is read. */
+  List<Item> table_cols;
+  TABLE *table;
+  /*
+    Copies each column of a row read back from the table into the field
+    of the nest table it came from, one per entry of table_cols.
+  */
+  Copy_field *copy_field;
+  /* True once the nest's rows have been written for this execution. */
+  bool materialized;
+};
+
+
 class JOIN_TAB_RANGE: public Sql_alloc
 {
 public:
   JOIN_TAB *start;
   JOIN_TAB *end;
   Join_tab_range_type kind;
+  /*
+    The join nest whose tables the run holds, for a run of kind
+    JOIN_TAB_RANGE_FULL_JOIN.  A materialized semi join run reaches its
+    nest through the semi join predicate carried by its tables instead,
+    and leaves this NULL.
+  */
+  TABLE_LIST *nest;
+  /* The temporary table the nest's rows go into, and how to fill it. */
+  Full_join_mat_info *mat;
 };
 
 
 typedef struct st_join_table {
   /*
-    Non-NULL only on the right side of a FULL JOIN.  Tracks right-side
-    rowids matched during the LEFT JOIN pass so the null-complement
-    rescan can skip them.
+    The FULL JOIN this tab is the rescan_tab of, set for one execution by
+    alloc_full_join_duplicate_filters.  NULL on every other tab.
   */
-  full_join_duplicate_filter *fj_dups;
+  Full_join_info *full_join;
 
   /*
     True when sending null-complemented rows to the result sink when
@@ -562,30 +606,17 @@ typedef struct st_join_table {
   bool writing_null_complements{false};
 
   /*
-    Linked list of FULL JOIN right side JOIN_TABs whose left-side
-    null-complement generation ends at this tab.  At the end of
-    sub_select(this, 0), each target's null-complement rescan runs so
-    the rescan participates in the enclosing nested loop and
-    cross-products with any outer scope tables.  This will be NULL on
-    tabs that are not the left-most JOIN_TAB of any FULL JOIN's left
-    side.  Ordered inside-out for chained FULL JOINs so that an inner
-    FJ's rescan runs before an outer FJ's rescan and can update the
-    outer fj_dups filter through the normal forward chain.
-
-    To visit this linked list, the first element is on fj_first_target
-    and subsequent elements are on fj_next_target (see function
-    alloc_full_join_duplicate_filters).
+    The FULL JOINs whose null complement pass runs at the end of
+    sub_select(this, 0), chained through Full_join_info::next_pass.  This
+    tab is the left-most tab of each one's left side, or the FULL JOIN's
+    own rescan_tab when no left-most tab is found.  Running the pass there
+    makes it take part in the enclosing nested loop and pair its rows with
+    the current rows of any outer scope tables.  Ordered inside out for
+    chained FULL JOINs, so that an inner FULL JOIN's pass runs before an
+    outer one's and can update the outer duplicate filter through the
+    normal forward chain.
   */
-  struct st_join_table *fj_first_target;
-
-  /*
-    Next pointer for the fj_first_target list.  Not NULL only on FULL
-    JOIN right side JOIN_TABs that share a left-most JOIN_TAB with
-    another FULL JOIN right side JOIN_TAB (like in the case of chained
-    FULL JOINs).  Put another way, one FULL JOIN's left-most JOIN_TAB
-    may be another's right JOIN_TAB.
-  */
-  struct st_join_table *fj_next_target;
+  Full_join_info *fj_passes;
 
   TABLE         *table;        /**< pointer to table cursor */
   TABLE_LIST    *tab_list;     /**< pointer to query table, e.g. `t1` */
@@ -1074,6 +1105,17 @@ typedef struct st_join_table {
   */
   bool is_full_join_nest() const
   { return bush_children.kind == JOIN_TAB_RANGE_FULL_JOIN; }
+
+  /*
+    The tables of the nest whose rows a FULL JOIN run produces.  The run
+    stands for all of them wherever the join order asks which tables an
+    entry covers.
+  */
+  table_map full_join_nest_map() const
+  {
+    DBUG_ASSERT(is_full_join_nest());
+    return bush_children.nest->nested_join->used_tables;
+  }
 
   /*
     If this join_tab reads a non-merged semi-join (also called jtbm), return
@@ -1770,6 +1812,22 @@ public:
   */
   table_map full_join_nest_tables;
 
+  /*
+    Sets of tables that must each occupy an unbroken span of the join
+    order.  All of full_join_nest_tables is one such set, which is what
+    keeps a FULL JOIN's two operands beside each other, and every join
+    nest that is an operand of a FULL JOIN is another, which is what
+    keeps such a nest from being interleaved with the tables of the
+    operand it is joined to.  The sets come from the join tree, so any
+    two of them are either disjoint or one contains the other, and a
+    join order satisfying all of them therefore exists.
+  */
+  table_map *full_join_groups;
+  uint       full_join_group_count;
+
+  /* The FULL JOINs that simplify_joins did not rewrite. */
+  List<Full_join_info> full_joins;
+
   ha_rows  send_records,found_records, accepted_rows;
 
   /*
@@ -2077,6 +2135,12 @@ public:
   List<TABLE> sj_tmp_tables;
   /* SJM nests that are executed with SJ-Materialization strategy */
   List<SJ_MATERIALIZATION_INFO> sjm_info_list;
+  /*
+    The FULL JOIN operand nests whose rows are computed into a temporary
+    table.  The tables themselves go on sj_tmp_tables, which is where the
+    executor frees the temporary tables it made for the join's internals.
+  */
+  List<Full_join_mat_info> full_join_mat_list;
 
   /** Exec time only: TRUE <=> current group has been sent */
   bool group_sent;
@@ -2301,7 +2365,7 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool optimize_upper_rownum_func();
-  void calc_allowed_top_level_tables(SELECT_LEX *lex);
+  bool calc_allowed_top_level_tables(SELECT_LEX *lex);
   table_map get_allowed_nj_tables(uint idx);
   bool propagate_dependencies(JOIN_TAB *stat);
   void update_key_dependencies();

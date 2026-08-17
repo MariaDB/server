@@ -41,8 +41,6 @@
 
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
-extern bool check_full_join_base_tables(List<TABLE_LIST> *);
-
 static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
                                TABLE_LIST *view, enum_view_create_mode mode,
                                char *backup_file_name);
@@ -571,20 +569,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     */
     res= TRUE;
     goto err;
-  }
-
-  /*
-    Reject VIEW definitions that put a FULL JOIN on the right side of a
-    LEFT or RIGHT JOIN.  CREATE VIEW only prepares the body (doesn't optimize),
-    so the same check that runs in JOIN::optimize_inner doesn't run here.
-  */
-  for (sl= select_lex; sl; sl= sl->next_select())
-  {
-    if (check_full_join_base_tables(&sl->top_join_list))
-    {
-      res= TRUE;
-      goto err;
-    }
   }
 
   /* view list (list of view fields names) */

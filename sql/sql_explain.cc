@@ -1119,6 +1119,19 @@ int Explain_basic_join::print_explain(Explain_query *query,
                                     FALSE /*using filesort*/))
       return 1;
   }
+
+  /*
+    A run held by one of these tables is reported after them, the way a
+    run held by a table of the join's own plan is reported after that
+    plan.  A run can hold a further run, so this reaches every depth.
+  */
+  for (uint i=0; i< n_join_tabs; i++)
+  {
+    Explain_basic_join *nest= join_tabs[i]->sjm_nest;
+
+    if (nest && nest->print_explain(query, output, explain_flags, is_analyze))
+      return 1;
+  }
   return 0;
 }
 
