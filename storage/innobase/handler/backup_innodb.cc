@@ -72,13 +72,12 @@ inline void buf_page_t::write_unfix_try() noexcept
 */
 static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
                                              uint32_t space_id,
-                                             uint32_t end_page)
-  noexcept
+                                             uint32_t end_page) noexcept
 {
   const page_id_t start
     {space_id, end_page & ~(fil_space_t::BACKUP_BATCH_SIZE - 1)};
   ut_ad(end_page - 1 > start.page_no());
-  for (page_id_t id{space_id, end_page};; --id)
+  for (page_id_t id{space_id, end_page}; id != start; --id)
   {
     auto &chain= buf_pool.page_hash.cell_get(id.fold());
     page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
@@ -101,21 +100,21 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
       state= b->write_fix_try(state + 1);
       if (UNIV_LIKELY(!b->is_io_fixed(state)))
       {
-        if (b->is_freed(state))
-          /*
-            Freed blocks will not be written back to the file system.
-            As noted in fil_space_t::flush_freed(), we do allow
-            concurrent FALLOC_FL_PUNCH_HOLE of PAGE_COMPRESSED pages
-            and NUL writes by immediate_scrub_data_uncompressed=ON
-            while the data is being backed up. This should be fine,
-            because those operations are only overwriting freed
-            (garbage) data.
-          */
-        safe:
-          b->unfix();
-        else
+        if (UNIV_LIKELY(!b->is_freed(state)))
+        {
           /* Schedule a call of b->write_unfix_try() and b->unfix(). */
           end++;
+          continue;
+        }
+        /*
+          Freed blocks will not be written back to the file system.
+          As noted in fil_space_t::flush_freed(), we do allow
+          concurrent FALLOC_FL_PUNCH_HOLE of PAGE_COMPRESSED pages
+          and NUL writes by immediate_scrub_data_uncompressed=ON
+          while the data is being backed up. This should be fine,
+          because those operations are only overwriting freed
+          (garbage) data.
+        */
       }
       else if (!b->is_write_fixed(state))
         /*
@@ -128,14 +127,10 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
           which will hold up any further writes until
           fil_space_t::backup_stop() is invoked by
           InnoDB_backup::backup_batch_stop().
-        */
-        goto safe;
+        */;
       else
       {
-        /*
-          Wait for buf_page_t::flush() to be concluded by
-          buf_page_t::write_complete().
-        */
+        /* Wait for buf_page_t::write_complete() */
         b->lock.u_lock();
         ut_ad(!b->is_io_fixed());
         b->lock.u_unlock();
@@ -146,14 +141,12 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
           further writes until fil_space_t::backup_stop() is invoked
           by InnoDB_backup::backup_batch_stop().
         */
-        goto safe;
       }
+
+      b->unfix();
     }
     else
       hash_lock.unlock_shared();
-
-    if (id == start)
-      break;
   }
   return end;
 }
