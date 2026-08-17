@@ -1,0 +1,6 @@
+#
+# suite.pm disables non-matching. used for rdiffs
+#
+[wolfssl]
+
+[openssl]

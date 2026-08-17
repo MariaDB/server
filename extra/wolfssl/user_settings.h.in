@@ -37,9 +37,7 @@
 #define HAVE_POLY1305
 #define HAVE_THREAD_LS
 #define WOLFSSL_AES_COUNTER
-#define NO_WOLFSSL_STUB
-// #define OPENSSL_ALL
-#define OPENSSL_EXTRA
+#define OPENSSL_ALL
 #define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
 #define HAVE_SECURE_RENEGOTIATION
@@ -59,6 +57,8 @@
 #define HAVE_SUPPORTED_CURVES
 #define HAVE_FFDHE_2048
 #define WC_RSA_PSS
+#define HAVE_SESSION_TICKET
+#define KEEP_PEER_CERT
 /* End of TLSv1.3 defines */
 
 /* Features we exclude */

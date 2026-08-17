@@ -25,5 +25,6 @@ eval set @hits=($status 'Ssl_session_cache_hits'),
 --echo openssl s_client -ign_eof $tls_opt -sess_in tls_session.pem
 --exec printf '\001\000\000\001\000' | $s_client -sess_in $tls_session 2>/dev/null | grep -q '^Reused' && echo RESUMED || echo FULL
 
+# Counters are all 0's for WolfSSL, but RESUMED/FULL still should be correct
 eval select ($status 'Ssl_session_cache_hits') - @hits as 'hits increase',
             ($status 'Ssl_used_session_cache_entries') - @stored as 'stored on the server';

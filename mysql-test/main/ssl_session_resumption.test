@@ -5,6 +5,7 @@
 --source include/not_embedded.inc
 --source include/not_windows.inc
 --source include/have_openssl_binary.inc
+--source include/ssl_library.inc
 
 # Driven by openssl s_client rather than by a MariaDB client, to verify the
 # server against an independent TLS implementation.
