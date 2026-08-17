@@ -20677,6 +20677,189 @@ static void rewrite_full_to_right(TABLE_LIST *left_table,
 
 
 /**
+  What the WHERE clause allows a FULL JOIN to become.
+*/
+
+enum Full_join_outcome
+{
+  /*
+    The WHERE clause rejects NULLs on the right operand, so no row that
+    is null complemented on that side reaches the result.  Unmatched
+    left rows are therefore dead and the FULL JOIN means the same thing
+    as a RIGHT JOIN.  RIGHT JOIN does not exist at execution, so the
+    operands are swapped afterwards and a LEFT JOIN remains.
+  */
+  FULL_JOIN_TO_RIGHT,
+  /*
+    The WHERE clause rejects NULLs on the left operand, so unmatched
+    right rows are dead and the FULL JOIN means the same thing as a
+    LEFT JOIN.  The operands keep their positions.
+  */
+  FULL_JOIN_TO_LEFT,
+  /*
+    Neither operand is covered by a null rejecting predicate, or the
+    rewrite the WHERE clause would otherwise allow is unsafe.  The FULL
+    JOIN stays a FULL JOIN and the null complement pass produces its
+    unmatched rows at execution.
+  */
+  FULL_JOIN_SURVIVES
+};
+
+
+/**
+  Decide what a FULL JOIN can become, given the tables the WHERE clause
+  rejects NULLs for.
+
+  This is the only place the decision to rewrite a FULL JOIN is made.
+  Everything the caller does afterwards either carries out that decision
+  or is bookkeeping that runs whatever the decision was.
+
+  @param left_used_tables    tables of the left operand
+  @param right_used_tables   tables of the right operand
+  @param not_null_tables     tables the WHERE clause rejects NULLs for
+  @param left_conds_hoisted  true <=> descending into the left operand
+                             moved conditions into the WHERE clause
+
+  @return the outcome the WHERE clause permits
+*/
+
+static Full_join_outcome
+classify_full_join(table_map left_used_tables,
+                   table_map right_used_tables,
+                   table_map not_null_tables,
+                   bool left_conds_hoisted)
+{
+  /*
+    A rewrite to a RIGHT JOIN puts the left operand on the inner side.
+    A condition that moved out of the left operand into the WHERE
+    clause filters that operand's rows only while it stays on the outer
+    side.  Once it is the inner side, the condition would reject its
+    null complemented rows and lose them, so no rewrite happens.
+  */
+  if ((right_used_tables & not_null_tables) && !left_conds_hoisted)
+    return FULL_JOIN_TO_RIGHT;
+
+  if (left_used_tables & not_null_tables)
+    return FULL_JOIN_TO_LEFT;
+
+  return FULL_JOIN_SURVIVES;
+}
+
+
+/**
+  Descend into the left operand of a FULL JOIN.
+
+  simplify_joins skips the left operand of a FULL JOIN when the join
+  list iteration reaches it, so this is the only descent into it.  It
+  runs whether or not the FULL JOIN is rewritten afterwards, as the
+  nest's used_tables and the ON expressions inside it are needed in
+  either case.
+
+  @param join       reference to the query info
+  @param conds      conditions to add on expressions for converted joins
+  @param in_sj      TRUE <=> processing semi-join nest's children
+  @param left_table the left operand
+  @param right_not_null_tables not_null_tables computed for the right
+                               operand
+  @param left_used_tables      OUT tables of the left operand
+  @param left_not_null_tables  OUT tables the left operand rejects
+                               NULLs for
+  @param conds_hoisted         OUT true <=> the descent moved
+                               conditions into conds
+
+  @return the new condition, or nullptr on error
+*/
+
+static COND *simplify_full_join_left_operand(JOIN *join, COND *conds,
+                                             bool in_sj,
+                                             TABLE_LIST *left_table,
+                                             table_map right_not_null_tables,
+                                             table_map *left_used_tables,
+                                             table_map *left_not_null_tables,
+                                             bool *conds_hoisted)
+{
+  COND *conds_before= conds;
+
+  if (left_table->nested_join)
+  {
+    conds= simplify_nested_join(join, left_table, conds, in_sj,
+                                left_used_tables, left_not_null_tables);
+    if (!conds && join->thd->is_error())
+      return nullptr;
+  }
+  else
+  {
+    *left_used_tables= left_table->get_map();
+    *left_not_null_tables= right_not_null_tables;
+  }
+
+  /*
+    Every condition that moves into conds reassigns it (see and_conds),
+    so comparing the pointer afterward detects that a move happened.
+  */
+  *conds_hoisted= (conds != conds_before);
+  return conds;
+}
+
+
+/**
+  Do the bookkeeping for a FULL JOIN that stays a FULL JOIN.
+
+  Neither of the two things that happen here is an optimization.  The
+  operands may be swapped so the FULL|RIGHT bits land on a leaf, which
+  the null complement pass requires, and not_null_tables may be cleared
+  so the caller does not go on to convert the FULL JOIN to an inner
+  join.
+
+  @param left_table  the left operand
+  @param right_table IN/OUT the right operand, and after a swap the new
+                     right operand
+  @param li          IN/OUT the iterator into the join list
+  @param left_used_tables     tables of the left operand
+  @param left_not_null_tables tables the left operand rejects NULLs for
+  @param used_tables          IN/OUT used_tables from simplify_joins
+  @param not_null_tables      IN/OUT not_null_tables from simplify_joins
+*/
+
+static void keep_full_join(TABLE_LIST *left_table,
+                           TABLE_LIST **right_table,
+                           List_iterator<TABLE_LIST> *li,
+                           table_map left_used_tables,
+                           table_map left_not_null_tables,
+                           table_map *used_tables,
+                           table_map *not_null_tables)
+{
+  if (!left_table->nested_join && (*right_table)->nested_join &&
+      (*right_table)->contains_full_join())
+  {
+    /*
+      The FULL JOIN survives simplification with a leaf on the left
+      and a nested join on the right, so the FULL|RIGHT bits sit on
+      a nest, which is never a JOIN_TAB, and the null complement
+      pass has no JOIN_TAB to attach an fj_dups filter to.  Swap so
+      the leaf carries those bits; see swap_full_join_sides.
+    */
+    swap_full_join_sides(left_table, *right_table);
+    *used_tables= left_used_tables;
+    *right_table= li->swap_next();
+  }
+  else if (*used_tables & *not_null_tables)
+  {
+    /*
+      The WHERE clause rejects NULLs on the right side, yet no rewrite
+      happened.  Zero not_null_tables so the caller does not go on to
+      convert this FULL JOIN table to an inner join, which would drop
+      the null complemented rows the FULL JOIN still has to produce.
+    */
+    *not_null_tables= 0;
+    return;
+  }
+
+  *not_null_tables= left_not_null_tables;
+}
+
+
+/**
   Attempt to rewrite [NATURAL] FULL JOIN to LEFT, RIGHT, or INNER JOIN,
   depending on the WHERE clause and whether it rejects NULLs.  For example,
   the following queries are equivalent:
@@ -20744,33 +20927,17 @@ static COND *rewrite_full_outer_joins(JOIN *join,
   TABLE_LIST *left_table= li->peek();
   table_map left_used_tables= 0;
   table_map left_not_null_tables= 0;
+  bool left_conds_hoisted= false;
   DBUG_ASSERT(test_all_bits(left_table->outer_join,
                             JOIN_TYPE_FULL | JOIN_TYPE_LEFT));
 
-  /*
-    The recursion below can move conditions out of the nest into
-    conds, e.g., the ON condition of an inner join between base
-    tables.  In conds such a condition keeps filtering the nest's
-    rows only while the nest stays on the outer side, so the rewrite
-    to a RIGHT JOIN further down, which makes the nest the inner side
-    of the resulting LEFT JOIN, must not run when a condition moved.
-    Every move reassigns conds (see and_conds), so comparing the
-    pointer afterward detects it.
-  */
-  COND *conds_before= conds;
-  if (left_table->nested_join)
-  {
-    conds= simplify_nested_join(join, left_table, conds, in_sj,
-                                &left_used_tables, &left_not_null_tables);
-    if (!conds && join->thd->is_error())
-      DBUG_RETURN(nullptr);
-  }
-  else
-  {
-    left_used_tables= left_table->get_map();
-    left_not_null_tables= *not_null_tables;
-  }
-  bool left_conds_hoisted= (conds != conds_before);
+  conds= simplify_full_join_left_operand(join, conds, in_sj, left_table,
+                                         *not_null_tables,
+                                         &left_used_tables,
+                                         &left_not_null_tables,
+                                         &left_conds_hoisted);
+  if (!conds && join->thd->is_error())
+    DBUG_RETURN(nullptr);
 
   /*
     When left_table is a nested join with an unrewritten FULL JOIN
@@ -20785,15 +20952,10 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     DBUG_RETURN(conds);
   }
 
-  /*
-    If the right hand table is not NULL under the WHERE clause then we can
-    rewrite it as a RIGHT JOIN, mutating the data structures to make it
-    appear as though the user wrote the query as a RIGHT JOIN originally.
-    The rewrite is skipped when the recursion into the left nest moved
-    conditions into conds; see the surviving branch below.
-  */
-  if ((*used_tables & *not_null_tables) && !left_conds_hoisted)
+  switch (classify_full_join(left_used_tables, *used_tables,
+                             *not_null_tables, left_conds_hoisted))
   {
+  case FULL_JOIN_TO_RIGHT:
     /*
       RIGHT JOINs don't actually exist in MariaDB!  This will do what
       the grammar does and convert_right_join together do when given a
@@ -20812,50 +20974,18 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     */
     *right_table= li->swap_next();
     --join->thd->lex->full_join_count;
-  }
-  else
-  {
-    /*
-      If the left table, be it a nested join or not, rejects nulls for
-      the WHERE condition, then rewrite.
-    */
-    if (left_used_tables & *not_null_tables)
-    {
-      rewrite_full_to_left(left_table, *right_table);
-      --join->thd->lex->full_join_count;
-    }
-    else if (!left_table->nested_join && (*right_table)->nested_join &&
-             (*right_table)->contains_full_join())
-    {
-      /*
-        The FULL JOIN survives simplification with a leaf on the left
-        and a nested join on the right, so the FULL|RIGHT bits sit on
-        a nest, which is never a JOIN_TAB, and the null complement
-        pass has no JOIN_TAB to attach an fj_dups filter to.  Swap so
-        the leaf carries those bits; see swap_full_join_sides.
-      */
-      swap_full_join_sides(left_table, *right_table);
-      *used_tables= left_used_tables;
-      *right_table= li->swap_next();
-    }
-    else if (*used_tables & *not_null_tables)
-    {
-      /*
-        The WHERE clause rejects NULLs on the right side, but the
-        recursion into the left nest moved conditions into conds.
-        After the rewrite to a RIGHT JOIN those conditions would apply
-        to the null complemented rows of the nest, now the inner side,
-        and reject them, losing rows.  Let the FULL JOIN survive
-        instead.  Zero not_null_tables, as the contains_full_join
-        return above does, so the caller does not convert this FULL
-        JOIN table to an inner join.
-      */
-      DBUG_ASSERT(left_conds_hoisted);
-      *not_null_tables= 0;
-      DBUG_RETURN(conds);
-    }
+    break;
+
+  case FULL_JOIN_TO_LEFT:
+    rewrite_full_to_left(left_table, *right_table);
+    --join->thd->lex->full_join_count;
     *not_null_tables= left_not_null_tables;
-    // else the FULL JOIN cannot be rewritten, pass it along.
+    break;
+
+  case FULL_JOIN_SURVIVES:
+    keep_full_join(left_table, right_table, li, left_used_tables,
+                   left_not_null_tables, used_tables, not_null_tables);
+    break;
   }
 
   DBUG_RETURN(conds);
