@@ -483,12 +483,69 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
 
 class JOIN_CACHE;
 class SJ_TMP_TABLE;
-class JOIN_TAB_RANGE;
 class AGGR_OP;
 class Filesort;
 struct SplM_plan_info;
 class SplM_opt_info;
 class full_join_duplicate_filter;
+
+/*
+  What a contiguous run of JOIN_TABs holds.  A join's plan is one run of
+  JOIN_TABs in join order, and a table that stands for the result of
+  several other tables owns a further run holding those tables.  The
+  value says which of those a run is, and stays fixed once the plan is
+  turned into JOIN_TABs.
+*/
+
+enum Join_tab_range_type
+{
+  /*
+    No run at all.  A JOIN_TAB reads one table and therefore stands for
+    nothing beyond itself, which is the case for every JOIN_TAB that is
+    not the result of a materialization.
+  */
+  JOIN_TAB_RANGE_UNUSED= 0,
+
+  /*
+    The join's own plan, in join order, held by the JOIN rather than by
+    any JOIN_TAB.  This is the run that top_join_tab_count counts and
+    the one EXPLAIN reports under the query block's own select id.
+  */
+  JOIN_TAB_RANGE_TOP_LEVEL,
+
+  /*
+    The inner tables of a semi join that was materialized into a
+    temporary table.  The owning JOIN_TAB reads that temporary table and
+    appears in EXPLAIN as <subqueryN>, while the tables in the run
+    appear under select id N with select_type MATERIALIZED.
+  */
+  JOIN_TAB_RANGE_SJM,
+
+  /*
+    The tables of a join nest that is an operand of a FULL JOIN and was
+    materialized into a temporary table.  An enclosing join's condition
+    has to see the nest's rows complete, including the rows the nest
+    produced by null complementing, which it cannot do while the nest is
+    only a set of tables in the join order.  Materializing the nest gives
+    it one JOIN_TAB that carries the FULL JOIN's own marks, which is what
+    lets the null complement pass run for it.
+
+    A run of this kind can hold a run of either other kind, since a FULL
+    JOIN can appear inside a materialized semi join and a nest can hold a
+    further FULL JOIN.
+  */
+  JOIN_TAB_RANGE_FULL_JOIN
+};
+
+
+class JOIN_TAB_RANGE: public Sql_alloc
+{
+public:
+  JOIN_TAB *start;
+  JOIN_TAB *end;
+  Join_tab_range_type kind;
+};
+
 
 typedef struct st_join_table {
   /*
@@ -577,11 +634,12 @@ typedef struct st_join_table {
   bool          last_leaf_in_bush;
   
   /*
-    ptr  - this is a bush, and ptr points to description of child join_tab
-           range
-    NULL - this join tab has no bush children
+    The run of JOIN_TABs this one stands for, when it reads a temporary
+    table holding the result of several other tables.  Its kind is
+    JOIN_TAB_RANGE_UNUSED when there is no such run, which is what
+    zeroing a JOIN_TAB leaves behind.
   */
-  JOIN_TAB_RANGE *bush_children;
+  JOIN_TAB_RANGE bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
@@ -997,8 +1055,26 @@ typedef struct st_join_table {
 
   bool pfs_batch_update();
 
-  bool is_sjm_nest() { return MY_TEST(bush_children); }
-  
+  /* True when this JOIN_TAB stands for a run of other JOIN_TABs. */
+  bool has_bush_children() const
+  { return bush_children.kind != JOIN_TAB_RANGE_UNUSED; }
+
+  /*
+    True when the run this JOIN_TAB stands for holds the inner tables of
+    a materialized semi join, which is what lets a caller reach the
+    semi join nest through the run's first JOIN_TAB.
+  */
+  bool is_sjm_nest() const
+  { return bush_children.kind == JOIN_TAB_RANGE_SJM; }
+
+  /*
+    True when the run this JOIN_TAB stands for holds the tables of a
+    materialized join nest that is an operand of a FULL JOIN.  Such a
+    JOIN_TAB reads a temporary table and has no semi join to reach.
+  */
+  bool is_full_join_nest() const
+  { return bush_children.kind == JOIN_TAB_RANGE_FULL_JOIN; }
+
   /*
     If this join_tab reads a non-merged semi-join (also called jtbm), return
     the select's number.  Otherwise, return 0.
@@ -1434,13 +1510,6 @@ typedef struct st_rollup
   List<Item> *fields;
 } ROLLUP;
 
-
-class JOIN_TAB_RANGE: public Sql_alloc
-{
-public:
-  JOIN_TAB *start;
-  JOIN_TAB *end;
-};
 
 class Pushdown_query;
 

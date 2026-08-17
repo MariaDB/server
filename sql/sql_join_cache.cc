@@ -175,7 +175,7 @@ void JOIN_CACHE::calc_record_fields()
         The join buffer should store the values of it1.*, it2.*, ..
         It should not store values of ot1.*.
       */
-      tab= join_tab->bush_root_tab->bush_children->start;
+      tab= join_tab->bush_root_tab->bush_children.start;
     }
     else
     {
@@ -198,11 +198,11 @@ void JOIN_CACHE::calc_record_fields()
         materialized table, we move to its bush_children:
       */
       tab= join->join_tab + join->const_tables;
-      if (tab->bush_children)
-        tab= tab->bush_children->start;
+      if (tab->has_bush_children())
+        tab= tab->bush_children.start;
     }
   }
-  DBUG_ASSERT(!tab->bush_children);
+  DBUG_ASSERT(!tab->has_bush_children());
 
   start_tab= tab;
   fields= 0;
@@ -3574,15 +3574,15 @@ int JOIN_TAB_SCAN::next()
 static void save_or_restore_used_tabs(JOIN_TAB *join_tab, bool save)
 {
   JOIN_TAB *first= join_tab->bush_root_tab?
-                     join_tab->bush_root_tab->bush_children->start :
+                     join_tab->bush_root_tab->bush_children.start :
                      join_tab->join->join_tab + join_tab->join->const_tables;
 
   for (JOIN_TAB *tab= join_tab-1; tab != first && !tab->cache; tab--)
   {
-    if (tab->bush_children)
+    if (tab->has_bush_children())
     {
-      for (JOIN_TAB *child= tab->bush_children->start;
-           child != tab->bush_children->end;
+      for (JOIN_TAB *child= tab->bush_children.start;
+           child != tab->bush_children.end;
            child++)
       {
         if (save)

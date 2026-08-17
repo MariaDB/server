@@ -4386,7 +4386,8 @@ uint get_number_of_tables_at_top_level(JOIN *join)
 
 bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
 {
-  JOIN_TAB *tab= sjm_tab->bush_children->start;
+  DBUG_ASSERT(sjm_tab->is_sjm_nest());
+  JOIN_TAB *tab= sjm_tab->bush_children.start;
   TABLE_LIST *emb_sj_nest= tab->table->pos_in_table_list->embedding;
   SJ_MATERIALIZATION_INFO *sjm;
   THD *thd;
@@ -4461,7 +4462,8 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
 bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
 {
   DBUG_ENTER("setup_sj_materialization_part2");
-  JOIN_TAB *tab= sjm_tab->bush_children->start;
+  DBUG_ASSERT(sjm_tab->is_sjm_nest());
+  JOIN_TAB *tab= sjm_tab->bush_children.start;
   TABLE_LIST *emb_sj_nest= tab->table->pos_in_table_list->embedding;
   /* Walk out of outer join nests until we reach the semi-join nest we're in */
   while (!emb_sj_nest->sj_mat_info)
@@ -4655,7 +4657,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     sjm_tab->read_record.read_record_func= read_record_func_for_rr_and_unpack;
   }
 
-  sjm_tab->bush_children->end[-1].next_select= end_sj_materialize;
+  sjm_tab->bush_children.end[-1].next_select= end_sj_materialize;
 
   DBUG_RETURN(FALSE);
 }
@@ -5998,16 +6000,16 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
         DBUG_RETURN(NESTED_LOOP_ERROR);
     }
   }
-  else if (tab->bush_children)
+  else if (tab->is_sjm_nest())
   {
     /* It's a merged SJM nest */
     enum_nested_loop_state rc;
-    SJ_MATERIALIZATION_INFO *sjm= tab->bush_children->start->emb_sj_nest->sj_mat_info;
+    SJ_MATERIALIZATION_INFO *sjm= tab->bush_children.start->emb_sj_nest->sj_mat_info;
 
     if (!sjm->materialized)
     {
       JOIN *join= tab->join;
-      JOIN_TAB *join_tab= tab->bush_children->start;
+      JOIN_TAB *join_tab= tab->bush_children.start;
       JOIN_TAB *save_return_tab= join->return_tab;
       /*
         Now run the join for the inner tables. The first call is to run the

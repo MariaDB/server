@@ -12864,7 +12864,8 @@ table_factor:
         | table_primary_derived_opt_parens { $$= $1; }
         | join_table_parens
           { 
-            $1->nested_join->nest_type= 0;
+            $1->nested_join->nest_type= NESTED_JOIN_PLAIN;
+            $1->nested_join->rebalanced= false;
             $$= $1;
           }
         | table_reference_list_parens { $$= $1; }

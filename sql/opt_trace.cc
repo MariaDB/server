@@ -578,9 +578,9 @@ void get_table_name_for_trace(const JOIN_TAB *tab, String *out)
                             tab->table->derived_select_number);
     out->copy(table_name_buffer, len, &my_charset_bin);
   }
-  else if (tab->bush_children)
+  else if (tab->is_sjm_nest())
   {
-    JOIN_TAB *ctab= tab->bush_children->start;
+    JOIN_TAB *ctab= tab->bush_children.start;
     size_t len= my_snprintf(table_name_buffer,
                             sizeof(table_name_buffer)-1,
                             "<subquery%d>",
