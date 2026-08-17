@@ -1,0 +1,181 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# UPDATE..RETURNING..INTO into an array
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF NUMBER INDEX BY INTEGER;
+a0 assoc0_t;
+BEGIN
+UPDATE t1 SET a=2 RETURNING a INTO a0;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF NUMBER INDEX BY INTEGER;
+a0 assoc0_t;
+BEGIN
+UPDATE t1 SET a=2 RETURNING a,a+1 INTO a0;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO into a scalar element
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+UPDATE t1 SET a=5 WHERE a=4 RETURNING a INTO marks(200);
+SELECT marks(200);
+END;
+$$
+marks(200)
+5
+DROP TABLE t1;
+#
+# UPDATE..INTO..RETURNING into a non-scalar element
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+UPDATE t1 SET a=30,b='b30' WHERE a=20 RETURNING a,b INTO a0(30);
+SELECT a0(30).a, a0(30).b;
+END;
+$$
+CALL p1();
+a0(30).a	a0(30).b
+30	b30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..INTO..RETURNING into a field of a non-scalar element
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+CREATE PROCEDURE p1(create_element BOOL, select_element BOOL) AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+IF (create_element) THEN
+a0(20):= rec0_t(20,'b20');
+END IF;
+UPDATE t1 SET a=a+1,b='b21' WHERE a>=20 RETURNING a,b INTO a0(20).a,a0(20).b;
+IF (select_element) THEN
+SELECT a0(20).a, a0(20).b;
+END IF;
+END;
+$$
+CALL p1(TRUE,TRUE);
+a0(20).a	a0(20).b
+21	b21
+CALL p1(FALSE,FALSE);
+ERROR HY000: Element not found with key '20'
+CALL p1(FALSE,TRUE);
+ERROR HY000: Element not found with key '20'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO assoc_array_of_scalars('key').field
+# Fails during the CREATE time.
+#
+CREATE TABLE t1 (a VARCHAR(20));
+CREATE PROCEDURE p1 IS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY INT;
+assoc assoc_t;
+BEGIN
+UPDATE t1 SET a= 'a10' RETURNING a INTO assoc(10).last_name;
+END;
+$$
+ERROR HY000: Illegal parameter data type varchar for operation '`assoc`(..).`last_name`'
+DROP TABLE t1;
+#
+# SELECT scalar INTO non-existent variable with key
+#
+CREATE TABLE t1 (a VARCHAR(10));
+DECLARE
+BEGIN
+UPDATE t1 SET a='Mike' RETURNING a INTO missing_var('Serg').first_name;
+END;
+$$
+ERROR 42000: Undeclared variable: missing_var
+DROP TABLE t1;
+#
+# UPDATE..INTO..RETURNING: field on scalar element
+#
+CREATE TABLE t1 (a INT);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(200):= 88;
+UPDATE t1 SET a=201 RETURNING a INTO marks(200).non_exist;
+END;
+$$
+ERROR HY000: Illegal parameter data type double for operation '`marks`(..).`non_exist`'
+DROP TABLE t1;
+#
+# UPDATE..INTO..RETURNING into a non-existent field of a non-scalar element
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+CREATE PROCEDURE p1() AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+UPDATE t1 SET a=a+1,b='b21' WHERE a>=20 RETURNING a,b INTO a0(20).xa,a0(20).xb;
+END;
+$$
+ERROR 42S22: Unknown column 'xa' in 'a0'
+DROP TABLE t1;
+#
+# Add tests with assoc array here when we add support for
+# {INSERT|REPLACE|DELETE}..RETURNING..INTO
+#
+CREATE PROCEDURE p1() AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+INSERT INTO t1 VALUES (10) RETURNING a INTO a0;
+END;
+$$
+ERROR HY000: 'RETURNING..INTO' is not allowed in this context
+CREATE PROCEDURE p1() AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+REPLACE INTO t1 SET a=10 RETURNING a INTO a0;
+END;
+$$
+ERROR HY000: 'RETURNING..INTO' is not allowed in this context
+CREATE PROCEDURE p1() AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+a0 assoc0_t;
+BEGIN
+DELETE FROM t1 RETURNING a INTO a0;
+END;
+$$
+ERROR HY000: 'RETURNING..INTO' is not allowed in this context
+# End of 13.1 tests
