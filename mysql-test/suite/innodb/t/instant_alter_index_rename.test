@@ -190,10 +190,11 @@ drop table rename_column_and_index;
 --echo # MDEV-19189: ASAN memcpy-param-overlap in fill_alter_inplace_info upon adding indexes
 --echo #
 
-CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
-ALTER TABLE t1 ADD FOREIGN KEY f (f2) REFERENCES xx(f2);
-ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t1(f2), ADD KEY (f3), ADD KEY (f1);
-DROP TABLE t1;
+create table t1 (f1 int, f2 int, f3 int);
+create table t2 (f2 int primary key);
+alter table t1 add foreign key f (f2) references t2(f2);
+alter table t1 add foreign key (f2) references t1(f2), add key (f3), add key (f1);
+drop tables t1, t2;
 
 --echo #
 --echo # MDEV-21669 InnoDB: Table ... contains <n> indexes inside InnoDB, which is different from the number of indexes <n> defined in the MariaDB
