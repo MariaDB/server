@@ -10226,8 +10226,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       TABLE_LIST tl;
       tl.init_one_table(&t.table.db, &t.table.name, NULL, TL_IGNORE);
-      Share_acquire sa(thd, tl);
-      if (sa.fk_error(thd, t.fail))
+      Share_acquire sa(thd, tl, 0, t.fail);
+      if (sa.error)
         goto err;
       if (!sa.share)
         continue; // skip non-existing referenced shares, allow ALTER
@@ -14566,7 +14566,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, NULL, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
-    if (ref_sa.fk_error(thd))
+    if (ref_sa.error)
       return true;
     if (!ref_sa.share)
       continue; // skip non-existing referenced shares, allow CREATE
@@ -15484,7 +15484,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const Lex_ident_db *new_d
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, &ref.name, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
-    if (ref_sa.fk_error(thd, true))
+    if (ref_sa.error)
       return true;
     else if (ref_sa.share)
     {
