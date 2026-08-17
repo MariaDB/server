@@ -694,6 +694,20 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
 }
 
 
+int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
+                                            const Lex_ident_sys_st &field_name,
+                                            Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_row_field");
+  DBUG_ASSERT(value);
+  uint field_idx= 0;
+  if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
+    DBUG_RETURN(true);
+  Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
+  DBUG_RETURN(thd->sp_eval_expr(vtable->field[field_idx], value));
+}
+
+
 int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
