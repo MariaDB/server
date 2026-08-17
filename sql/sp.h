@@ -551,6 +551,7 @@ inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
 #define SP_BAD_IDENTIFIER    -9
 #define SP_BODY_TOO_LONG    -10
 #define SP_FLD_STORE_FAILED -11
+/* extend SP_ERROR_STRING in sp.cc if appending here */
 
 /* DB storage of Stored PROCEDUREs and FUNCTIONs */
 enum
