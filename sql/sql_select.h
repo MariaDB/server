@@ -2358,6 +2358,84 @@ private:
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
 enum enum_with_const_tables { WITH_CONST_TABLES, WITHOUT_CONST_TABLES};
 
+/*
+  A JOIN_TAB that stands for a run of other JOIN_TABs reads a temporary
+  table rather than a table of the query, and the first JOIN_TAB of that
+  run may stand for a run of its own.  Return the first JOIN_TAB reached
+  by entering runs until one reads a table of the query.
+*/
+
+inline JOIN_TAB *enter_bushes(JOIN_TAB *tab)
+{
+  while (tab->has_bush_children())
+    tab= tab->bush_children.start;
+  return tab;
+}
+
+
+/*
+  A run can end at the same JOIN_TAB as the run that holds it, so standing
+  on the last JOIN_TAB of a run can mean standing at the end of several.
+  Return the JOIN_TAB reached by leaving every run that ends here, which
+  is the JOIN_TAB whose own run may still have more to visit.
+*/
+
+inline JOIN_TAB *leave_ended_bushes(JOIN_TAB *tab)
+{
+  while (tab->bush_root_tab && tab->last_leaf_in_bush)
+    tab= tab->bush_root_tab;
+  return tab;
+}
+
+
+/*
+  One past the last JOIN_TAB of the run that holds tab.  top_end serves
+  for a JOIN_TAB in the join's own plan, which no JOIN_TAB owns.
+*/
+
+inline JOIN_TAB *bush_end(JOIN_TAB *tab, JOIN_TAB *top_end)
+{
+  return tab->bush_root_tab ? tab->bush_root_tab->bush_children.end : top_end;
+}
+
+
+/*
+  The first JOIN_TAB of the run that holds tab.  top_start serves for a
+  JOIN_TAB in the join's own plan, which no JOIN_TAB owns.
+*/
+
+inline JOIN_TAB *bush_start(JOIN_TAB *tab, JOIN_TAB *top_start)
+{
+  return tab->bush_root_tab ? tab->bush_root_tab->bush_children.start
+                            : top_start;
+}
+
+
+/*
+  True when tab is the last JOIN_TAB of the run that holds it.  A run other
+  than the join's own plan marks its last JOIN_TAB, so only a JOIN_TAB of
+  that plan is recognised by its position.
+*/
+
+inline bool is_last_in_bush(JOIN_TAB *tab, JOIN_TAB *top_end)
+{
+  return tab->bush_root_tab ? tab->last_leaf_in_bush : tab + 1 >= top_end;
+}
+
+
+/*
+  How many runs hold tab, counting outwards.  A JOIN_TAB of the join's own
+  plan is at 0.
+*/
+
+inline uint bush_depth(JOIN_TAB *tab)
+{
+  uint depth= 0;
+  for (JOIN_TAB *root= tab->bush_root_tab; root; root= root->bush_root_tab)
+    depth++;
+  return depth;
+}
+
 JOIN_TAB *first_linear_tab(JOIN *join,
                            enum enum_with_bush_roots include_bush_roots,
                            enum enum_with_const_tables const_tbls);

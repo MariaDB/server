@@ -13398,6 +13398,17 @@ end:
 
 /*
   Enumerate join tabs in breadth-first fashion, including const tables.
+
+  Every JOIN_TAB of a run comes before the runs that the run's JOIN_TABs
+  stand for, so for this plan
+
+    ot1--ot2--sjm1------------ot3
+               |
+              it1--it2--sjm2
+                          |
+                         it3--it4
+
+  the order is ot1 ot2 sjm1 ot3, then it1 it2 sjm2, then it3 it4.
 */
 
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
@@ -13411,44 +13422,38 @@ static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
   DBUG_ASSERT(tab->join || current_thd->is_error());
   if (tab->join)
     n_top_tabs_count += tab->join->aggr_tables;
-  if (!tab->bush_root_tab)
-  {
-    /* We're at top level. Get the next top-level tab */
-    tab++;
-    if (tab < first_top_tab + n_top_tabs_count)
-      return tab;
 
-    /* No more top-level tabs. Switch to enumerating SJM nest children */
-    tab= first_top_tab;
-  }
-  else
-  {
-    /* We're inside of an SJM nest */
-    if (!tab->last_leaf_in_bush)
-    {
-      /* There's one more table in the nest, return it. */
-      return ++tab;
-    }
-    else
-    {
-      /* 
-        There are no more tables in this nest. Get out of it and then we'll
-        proceed to the next nest.
-      */
-      tab= tab->bush_root_tab + 1;
-    }
-  }
-   
-  /* 
-    Ok, "tab" points to a top-level table, and we need to find the next SJM
-    nest and enter it.
+  JOIN_TAB *top_end= first_top_tab + n_top_tabs_count;
+
+  /* There's one more JOIN_TAB in the run we're in, return it. */
+  if (!is_last_in_bush(tab, top_end))
+    return tab + 1;
+
+  /*
+    The run we're in is exhausted, so enter the runs its JOIN_TABs stand
+    for, in the order those JOIN_TABs sit.  Once a run has none left to
+    enter, carry on from just past the JOIN_TAB the run itself hangs from,
+    which is what moves the walk on to the next run beside it.
   */
-  for (; tab < first_top_tab + n_top_tabs_count; tab++)
+  JOIN_TAB *scan_from= bush_start(tab, first_top_tab);
+
+  for (;;)
   {
-    if (tab->has_bush_children())
-      return tab->bush_children.start;
+    JOIN_TAB *scan_end= bush_end(tab, top_end);
+
+    for (; scan_from < scan_end; scan_from++)
+    {
+      if (scan_from->has_bush_children())
+        return scan_from->bush_children.start;
+    }
+
+    /* The join's own plan hangs from no JOIN_TAB, so the walk ends here. */
+    if (!tab->bush_root_tab)
+      return NULL;
+
+    tab= tab->bush_root_tab;
+    scan_from= tab + 1;
   }
-  return NULL;
 }
 
 
@@ -13465,7 +13470,7 @@ JOIN_TAB *first_explain_order_tab(JOIN* join)
   tab= join->join_tab;
   if (!tab)
     return NULL; /* Can happen when the tables were optimized away */
-  return tab->has_bush_children() ? tab->bush_children.start : tab;
+  return enter_bushes(tab);
 }
 
 
@@ -13474,17 +13479,21 @@ JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab)
   /* If we're inside SJM nest and have reached its end, get out */
   if (tab->last_leaf_in_bush)
     return tab->bush_root_tab;
-  
+
+  /*
+    The end of a run other than the join's own plan is the JOIN_TAB marked
+    as its last, so only a JOIN_TAB of that plan needs the bound tested.
+    Test it before stepping, since one past the plan may not be readable.
+  */
+  bool in_top_level_plan= !tab->bush_root_tab;
+
   /* Move to next tab in the array we're traversing */
   tab++;
-  
-  if (tab == join->join_tab + join->top_join_tab_count)
+
+  if (in_top_level_plan && tab == join->join_tab + join->top_join_tab_count)
     return NULL; /* Outside SJM nest and reached EOF */
 
-  if (tab->has_bush_children())
-    return tab->bush_children.start;
-
-  return tab;
+  return enter_bushes(tab);
 }
 
 
@@ -13530,7 +13539,7 @@ JOIN_TAB *first_linear_tab(JOIN *join,
   if (first->has_bush_children() && include_bush_roots == WITHOUT_BUSH_ROOTS)
   {
     /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    return first->bush_children.start;
+    return enter_bushes(first);
   }
 
   return first;
@@ -13576,23 +13585,25 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
 
   DBUG_ASSERT(!tab->last_leaf_in_bush || tab->bush_root_tab);
 
-  if (tab->bush_root_tab)       /* Are we inside an SJM nest */
-  {
-    /* Inside SJM nest */
-    if (!tab->last_leaf_in_bush)
-      return tab+1;              /* Return next in nest */
-    /* Continue from the sjm on the top level */
-    tab= tab->bush_root_tab;
-  }
+  /*
+    Leave every run whose last JOIN_TAB this is, which lands on the
+    JOIN_TAB that stood for the outermost of them.  Stepping then advances
+    within the run that JOIN_TAB belongs to.
+  */
+  tab= leave_ended_bushes(tab);
 
-  /* If no more JOIN_TAB's on the top level */
-  if (++tab >= join->join_tab + join->exec_join_tab_cnt() + join->aggr_tables)
+  JOIN_TAB *range_end= bush_end(tab, join->join_tab +
+                                    join->exec_join_tab_cnt() +
+                                    join->aggr_tables);
+
+  /* If no more JOIN_TAB's in the run we ended up in */
+  if (++tab >= range_end)
     return NULL;
 
   if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->has_bush_children())
   {
     /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    tab= tab->bush_children.start;
+    tab= enter_bushes(tab);
   }
   return tab;
 }
@@ -13612,7 +13623,7 @@ JOIN_TAB *first_depth_first_tab(JOIN* join)
 
   tab= join->join_tab + join->const_tables;
 
-  return tab->has_bush_children() ? tab->bush_children.start : tab;
+  return enter_bushes(tab);
 }
 
 
@@ -13639,17 +13650,21 @@ JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab)
   /* If we're inside SJM nest and have reached its end, get out */
   if (tab->last_leaf_in_bush)
     return tab->bush_root_tab;
-  
+
+  /*
+    The end of a run other than the join's own plan is the JOIN_TAB marked
+    as its last, so only a JOIN_TAB of that plan needs the bound tested.
+    Test it before stepping, since one past the plan may not be readable.
+  */
+  bool in_top_level_plan= !tab->bush_root_tab;
+
   /* Move to next tab in the array we're traversing */
   tab++;
-  
-  if (tab == join->join_tab +join->top_join_tab_count)
+
+  if (in_top_level_plan && tab == join->join_tab + join->top_join_tab_count)
     return NULL; /* Outside SJM nest and reached EOF */
 
-  if (tab->has_bush_children())
-    return tab->bush_children.start;
-
-  return tab;
+  return enter_bushes(tab);
 }
 
 
@@ -19649,19 +19664,23 @@ static int compare_fields_by_table_order(Item *field1,
   JOIN_TAB *tab1= idx[f1->field->table->tablenr];
   JOIN_TAB *tab2= idx[f2->field->table->tablenr];
   
-  /* 
-    if one of the table is inside a merged SJM nest and another one isn't,
-    compare SJM bush roots of the tables.
+  /*
+    Only JOIN_TABs of one run can be ordered by their position in it, so
+    when the two are in different runs, replace each by the JOIN_TAB that
+    stands for its run until both belong to the same one.
   */
-  if (tab1->bush_root_tab != tab2->bush_root_tab)
+  uint depth1= bush_depth(tab1);
+  uint depth2= bush_depth(tab2);
+  for (; depth1 > depth2; depth1--)
+    tab1= tab1->bush_root_tab;
+  for (; depth2 > depth1; depth2--)
+    tab2= tab2->bush_root_tab;
+  while (tab1->bush_root_tab != tab2->bush_root_tab)
   {
-    if (tab1->bush_root_tab)
-      tab1= tab1->bush_root_tab;
-
-    if (tab2->bush_root_tab)
-      tab2= tab2->bush_root_tab;
+    tab1= tab1->bush_root_tab;
+    tab2= tab2->bush_root_tab;
   }
-  
+
   cmp= (int)(tab1 - tab2);
 
   if (!cmp)
