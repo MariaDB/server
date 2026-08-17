@@ -3562,45 +3562,54 @@ int JOIN_TAB_SCAN::next()
 
 
 /*
+  Take a copy of table->status for one JOIN_TAB, or put the copy back.  A
+  JOIN_TAB that stands for a run of other JOIN_TABs is dealt with together
+  with every JOIN_TAB of that run, however deeply those runs nest, because
+  the scan buffers the columns of the tables in the run and not those of
+  the temporary table the run was materialized into.
+
+  A JOIN_TAB keeps the copy in its own status member.
+*/
+
+static void save_or_restore_tab_status(JOIN_TAB *tab, bool save)
+{
+  if (tab->has_bush_children())
+  {
+    for (JOIN_TAB *child= tab->bush_children.start;
+         child != tab->bush_children.end;
+         child++)
+      save_or_restore_tab_status(child, save);
+  }
+
+  if (save)
+    tab->table->status= tab->status;
+  else
+  {
+    tab->status= tab->table->status;
+    tab->table->status= 0;
+  }
+}
+
+
+/*
   Walk back in join order from join_tab until we encounter a join tab with
   tab->cache!=NULL, and save/restore tab->table->status along the way.
 
-  @param save TRUE   save 
-              FALSE  restore
+  Note that the argument reads the opposite way round from the two things
+  the function does.
+
+  @param save FALSE  take the copy and clear table->status, which is what
+                     a scan wants as it opens
+              TRUE   put the copy back, which is what it wants as it closes
 */
 
 static void save_or_restore_used_tabs(JOIN_TAB *join_tab, bool save)
 {
-  JOIN_TAB *first= join_tab->bush_root_tab?
-                     join_tab->bush_root_tab->bush_children.start :
-                     join_tab->join->join_tab + join_tab->join->const_tables;
+  JOIN_TAB *first= bush_start(join_tab, join_tab->join->join_tab +
+                                        join_tab->join->const_tables);
 
   for (JOIN_TAB *tab= join_tab-1; tab != first && !tab->cache; tab--)
-  {
-    if (tab->has_bush_children())
-    {
-      for (JOIN_TAB *child= tab->bush_children.start;
-           child != tab->bush_children.end;
-           child++)
-      {
-        if (save)
-          child->table->status= child->status;
-        else
-        {
-          tab->status= tab->table->status;
-          tab->table->status= 0;
-        }
-      }
-    }
-
-    if (save)
-      tab->table->status= tab->status;
-    else
-    {
-      tab->status= tab->table->status;
-      tab->table->status= 0;
-    }
-  }
+    save_or_restore_tab_status(tab, save);
 }
 
 
