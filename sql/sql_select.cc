@@ -20677,6 +20677,28 @@ static void rewrite_full_to_right(TABLE_LIST *left_table,
 
 
 /**
+  Decide whether one of the transformations simplify_joins performs is
+  turned on.
+
+  Each transformation has its own switch, and optimizer_switch=
+  simplify_joins is an umbrella that has to be on as well.  Turning the
+  umbrella off leaves the join tree the way the parser built it without
+  disturbing the annotation the same pass produces.
+
+  @param thd          current thread, for the optimizer switch
+  @param switch_flag  the switch belonging to the transformation
+
+  @return true if the transformation may be performed
+*/
+
+static bool join_transform_enabled(THD *thd, ulonglong switch_flag)
+{
+  return optimizer_flag(thd, OPTIMIZER_SWITCH_SIMPLIFY_JOINS) &&
+         optimizer_flag(thd, switch_flag);
+}
+
+
+/**
   What the WHERE clause allows a FULL JOIN to become.
 */
 
@@ -20712,8 +20734,11 @@ enum Full_join_outcome
 
   This is the only place the decision to rewrite a FULL JOIN is made.
   Everything the caller does afterwards either carries out that decision
-  or is bookkeeping that runs whatever the decision was.
+  or is bookkeeping that runs whatever the decision was.  It is also
+  where optimizer_switch=full_join_rewrite takes effect, subject to the
+  simplify_joins umbrella.
 
+  @param thd                 current thread, for the optimizer switch
   @param left_used_tables    tables of the left operand
   @param right_used_tables   tables of the right operand
   @param not_null_tables     tables the WHERE clause rejects NULLs for
@@ -20724,11 +20749,15 @@ enum Full_join_outcome
 */
 
 static Full_join_outcome
-classify_full_join(table_map left_used_tables,
+classify_full_join(THD *thd,
+                   table_map left_used_tables,
                    table_map right_used_tables,
                    table_map not_null_tables,
                    bool left_conds_hoisted)
 {
+  if (!join_transform_enabled(thd, OPTIMIZER_SWITCH_FULL_JOIN_REWRITE))
+    return FULL_JOIN_SURVIVES;
+
   /*
     A rewrite to a RIGHT JOIN puts the left operand on the inner side.
     A condition that moved out of the left operand into the WHERE
@@ -20952,7 +20981,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     DBUG_RETURN(conds);
   }
 
-  switch (classify_full_join(left_used_tables, *used_tables,
+  switch (classify_full_join(join->thd, left_used_tables, *used_tables,
                              *not_null_tables, left_conds_hoisted))
   {
   case FULL_JOIN_TO_RIGHT:
@@ -21059,6 +21088,86 @@ check_full_join_base_tables(List<TABLE_LIST> *join_list)
 
 
 /**
+  What a join list entry turns out to be once the WHERE clause and the
+  enclosing ON expressions have been taken into account.
+*/
+
+enum Outer_join_outcome
+{
+  /*
+    The entry is an inner join or a plain table, so there is no outer
+    join to convert.  Its ON expression, if it has one, still has to
+    move into the WHERE clause, since the rest of the optimizer takes
+    a surviving ON expression as proof of an outer join.  Any outer
+    join marks it still carries are dropped for the same reason.
+  */
+  JOIN_ALREADY_INNER,
+  /*
+    The entry is an outer join and a conjunctive predicate rejects
+    NULLs for one of its inner tables, so no null complemented row can
+    reach the result.  The outer join means the same thing as an inner
+    join and is converted.
+  */
+  JOIN_TO_INNER,
+  /*
+    The entry is an outer join that no null rejecting predicate covers,
+    or the conversion is turned off.  It keeps its outer join marks and
+    its ON expression.
+  */
+  JOIN_STAYS_OUTER
+};
+
+
+/**
+  Decide whether a join list entry is an outer join that can be
+  converted to an inner join.
+
+  This is the only place that decision is made, and it is where
+  optimizer_switch=outer_join_to_inner takes effect, subject to the
+  simplify_joins umbrella.
+
+  @param thd             current thread, for the optimizer switch
+  @param table           the join list entry
+  @param used_tables     tables of the entry
+  @param not_null_tables tables a conjunctive predicate rejects NULLs
+                         for
+
+  @return what the entry turns out to be
+*/
+
+static Outer_join_outcome
+classify_outer_join(THD *thd, TABLE_LIST *table,
+                    table_map used_tables, table_map not_null_tables)
+{
+  if (!(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)))
+    return JOIN_ALREADY_INNER;
+
+  if ((used_tables & not_null_tables) &&
+      join_transform_enabled(thd, OPTIMIZER_SWITCH_OUTER_JOIN_TO_INNER))
+    return JOIN_TO_INNER;
+
+  return JOIN_STAYS_OUTER;
+}
+
+
+/**
+  Drop the outer join marks from an entry being converted to an inner
+  join.
+
+  @param table the join list entry
+*/
+
+static void mark_join_as_inner(TABLE_LIST *table)
+{
+  DBUG_ASSERT(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT));
+
+  if (!table->embedding && table->table)
+    table->table->maybe_null= FALSE;
+  table->outer_join= 0;
+}
+
+
+/**
   Re-check FULL JOIN shapes after simplify_joins has run.
 
   check_full_join_base_tables runs before simplify_joins and rejects the
@@ -21105,6 +21214,197 @@ check_full_join_after_simplify(List<TABLE_LIST> *join_list)
   }
 
   return false;
+}
+
+
+/**
+  Drop the outer join marks from an entry that is not an outer join.
+
+  An entry with neither JOIN_TYPE_LEFT nor JOIN_TYPE_RIGHT set can
+  still carry JOIN_TYPE_OUTER, which every table in the specification
+  of a derived table receives when the derived table sits on the inner
+  side of an outer join.  Code downstream reads outer_join as a plain
+  flag and would take such an entry for an outer join, so the marks
+  are dropped here.  This is not a conversion and no optimizer switch
+  controls it.
+
+  @param table the join list entry
+*/
+
+static void clear_residual_outer_join_marks(TABLE_LIST *table)
+{
+  if (!table->outer_join)
+    return;
+
+  DBUG_ASSERT(!(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)));
+
+  if (!table->embedding && table->table)
+    table->table->maybe_null= FALSE;
+  table->outer_join= 0;
+}
+
+
+/**
+  Give an entry that is now an inner join the dependencies of the
+  nearest enclosing nest whose first member is an outer join.
+
+  This runs for an entry that was already an inner join as well as for
+  one just converted, as an inner table of an enclosing outer join has
+  to keep that outer join's ordering constraint either way.  A
+  STRAIGHT_JOIN keeps the dependencies the join order asked for.
+
+  @param table         the join list entry
+  @param straight_join true <=> the whole query is a STRAIGHT_JOIN
+*/
+
+static void reset_dep_tables(TABLE_LIST *table, bool straight_join)
+{
+  if (straight_join || table->straight)
+    return;
+
+  table->dep_tables= 0;
+  for (TABLE_LIST *embedding= table->embedding; embedding;
+       embedding= embedding->embedding)
+  {
+    if (embedding->nested_join->join_list.head()->outer_join)
+    {
+      if (!embedding->sj_subq_pred)
+        table->dep_tables= embedding->dep_tables;
+      break;
+    }
+  }
+}
+
+
+/**
+  Move an entry's ON expression into the WHERE clause, or into the ON
+  expression of the enclosing outer join.
+
+  Only the inner tables of an outer join that survived conversion may
+  keep an ON expression.  Everything downstream reads a surviving ON
+  expression as proof of an outer join, so an inner join's ON
+  expression has to move here whatever the conversion decided.
+
+  @param join  reference to the query info
+  @param table the join list entry
+  @param conds the conditions to move the ON expression into
+
+  @return the new condition
+*/
+
+static COND *hoist_on_expr_to_conds(JOIN *join, TABLE_LIST *table,
+                                    COND *conds)
+{
+  if (!table->on_expr)
+    return conds;
+
+  if (conds)
+  {
+    conds= and_conds(join->thd, conds, table->on_expr);
+    conds->top_level_item();
+    /* conds is always a new item as both cond and on_expr existed */
+    DBUG_ASSERT(!conds->fixed());
+    conds->fix_fields(join->thd, &conds);
+  }
+  else
+    conds= table->on_expr;
+
+  table->prep_on_expr= table->on_expr= 0;
+  return conds;
+}
+
+
+/**
+  Put a semi-join nest on the list the semi-join machinery reads.
+
+  This is the only producer of select_lex->sj_nests, so it runs
+  whatever the optimizer switches say.  A nest already on the list is
+  left alone, as the same nest can be reached more than once.
+
+  @param join  reference to the query info
+  @param table the semi-join nest
+*/
+
+static void register_semijoin_nest(JOIN *join, TABLE_LIST *table)
+{
+  DBUG_ASSERT(table->nested_join);
+
+  List_iterator_fast<TABLE_LIST> sj_it(join->select_lex->sj_nests);
+  TABLE_LIST *sj_nest;
+  while ((sj_nest= sj_it++))
+  {
+    if (table == sj_nest)
+      return;
+  }
+  join->select_lex->sj_nests.push_back(table, join->thd->mem_root);
+
+  /*
+    Walk through semi-join children and mark those that are now
+    top-level
+  */
+  TABLE_LIST *tbl;
+  List_iterator<TABLE_LIST> it(table->nested_join->join_list);
+  while ((tbl= it++))
+  {
+    if (!tbl->on_expr && tbl->table)
+      tbl->table->maybe_null= FALSE;
+  }
+}
+
+
+/**
+  Decide whether a nest's children can replace the nest in the join
+  list.
+
+  @param table     the join list entry
+  @param join_list the list the entry belongs to
+
+  @return true if the nest can be flattened
+*/
+
+static bool nest_can_be_flattened(TABLE_LIST *table,
+                                  List<TABLE_LIST> *join_list)
+{
+  if (!table->nested_join || table->on_expr)
+    return false;
+
+  /*
+    In general, perform flattening when the nest isn't a FULL JOIN
+    and doesn't contain a FULL JOIN.  Exception: the top-level has
+    no sibling tables that could get interleaved into a FULL JOIN
+    nest (such as a FULL JOIN of two base tables).
+  */
+  if (table->outer_join & JOIN_TYPE_FULL)
+    return false;
+
+  return !table->contains_full_join() || join_list->elements <= 1;
+}
+
+
+/**
+  Replace a nest in the join list with its children.
+
+  @param join  reference to the query info
+  @param table the nest
+  @param li    IN/OUT the iterator positioned on the nest
+*/
+
+static void flatten_nest(JOIN *join, TABLE_LIST *table,
+                         List_iterator<TABLE_LIST> *li)
+{
+  TABLE_LIST *tbl;
+  List_iterator<TABLE_LIST> it(table->nested_join->join_list);
+  List<TABLE_LIST> repl_list;
+  while ((tbl= it++))
+  {
+    tbl->embedding= table->embedding;
+    if (!tbl->embedding && !tbl->on_expr && tbl->table)
+      tbl->table->maybe_null= FALSE;
+    tbl->join_list= table->join_list;
+    repl_list.push_back(tbl, join->thd->mem_root);
+    tbl->dep_tables|= table->dep_tables;
+  }
+  li->replace(repl_list);
 }
 
 
@@ -21352,46 +21652,18 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       table->embedding->nested_join->not_null_tables|= not_null_tables;
     }
 
-    if (!(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)) ||
-        (used_tables & not_null_tables))
+    Outer_join_outcome outcome= classify_outer_join(join->thd, table,
+                                                    used_tables,
+                                                    not_null_tables);
+    if (outcome == JOIN_TO_INNER)
+      mark_join_as_inner(table);
+    else if (outcome == JOIN_ALREADY_INNER)
+      clear_residual_outer_join_marks(table);
+
+    if (outcome != JOIN_STAYS_OUTER)
     {
-      /* 
-        For some of the inner tables there are conjunctive predicates
-        that reject nulls => the outer join can be replaced by an inner join.
-      */
-      if (table->outer_join && !table->embedding && table->table)
-        table->table->maybe_null= FALSE;
-      table->outer_join= 0;
-      if (!(straight_join || table->straight))
-      {
-        table->dep_tables= 0;
-        TABLE_LIST *embedding= table->embedding;
-        while (embedding)
-        {
-          if (embedding->nested_join->join_list.head()->outer_join)
-          {
-            if (!embedding->sj_subq_pred)
-              table->dep_tables= embedding->dep_tables;
-            break;
-          }
-          embedding= embedding->embedding;
-        }
-      }
-      if (table->on_expr)
-      {
-        /* Add ON expression to the WHERE or upper-level ON condition. */
-        if (conds)
-        {
-          conds= and_conds(join->thd, conds, table->on_expr);
-          conds->top_level_item();
-          /* conds is always a new item as both cond and on_expr existed */
-          DBUG_ASSERT(!conds->fixed());
-          conds->fix_fields(join->thd, &conds);
-        }
-        else
-          conds= table->on_expr; 
-        table->prep_on_expr= table->on_expr= 0;
-      }
+      reset_dep_tables(table, straight_join);
+      conds= hoist_on_expr_to_conds(join, table, conds);
     }
 
     /* 
@@ -21518,73 +21790,28 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
     prev_table= table;
   }
     
-  /* 
-    Flatten nested joins that can be flattened.
-    no ON expression and not a semi-join => can be flattened.
+  /*
+    Register the semi-join nests, and flatten the nests that can be
+    flattened.
   */
+  bool flatten= join_transform_enabled(join->thd,
+                                       OPTIMIZER_SWITCH_FLATTEN_JOIN_NESTS);
   li.rewind();
   while ((table= li++))
   {
-    nested_join= table->nested_join;
+    /*
+      A semi-join that is not contained within another semi-join is
+      left intact.  One that is contained in another is flattened by
+      the code below.
+    */
     if (table->sj_on_expr && !in_sj)
     {
-      /*
-        If this is a semi-join that is not contained within another semi-join
-        leave it intact (otherwise it is flattened)
-      */
-      /*
-        Make sure that any semi-join appear in
-        the join->select_lex->sj_nests list only once
-      */
-      List_iterator_fast<TABLE_LIST> sj_it(join->select_lex->sj_nests);
-      TABLE_LIST *sj_nest;
-      while ((sj_nest= sj_it++))
-      {
-        if (table == sj_nest)
-          break;
-      }
-      if (sj_nest)
-        continue;
-      join->select_lex->sj_nests.push_back(table, join->thd->mem_root);
-
-      /*
-        Also, walk through semi-join children and mark those that are now
-        top-level
-      */
-      TABLE_LIST *tbl;
-      List_iterator<TABLE_LIST> it(nested_join->join_list);
-      while ((tbl= it++))
-      {
-        if (!tbl->on_expr && tbl->table)
-          tbl->table->maybe_null= FALSE;
-      }
+      register_semijoin_nest(join, table);
+      continue;
     }
-    else if (nested_join && !table->on_expr &&
-             !(table->outer_join & JOIN_TYPE_FULL) &&
-             (!table->contains_full_join() ||
-              join_list->elements <= 1))
-    {
-      /*
-        In general, perform flattening when the nest isn't a FULL JOIN
-        and doesn't contain a FULL JOIN.  Exception: the top-level has
-        no sibling tables that could get interleaved into a FULL JOIN
-        nest (such as a FULL JOIN of two base tables).
-       */
 
-      TABLE_LIST *tbl;
-      List_iterator<TABLE_LIST> it(nested_join->join_list);
-      List<TABLE_LIST> repl_list;
-      while ((tbl= it++))
-      {
-        tbl->embedding= table->embedding;
-        if (!tbl->embedding && !tbl->on_expr && tbl->table)
-          tbl->table->maybe_null= FALSE;
-        tbl->join_list= table->join_list;
-        repl_list.push_back(tbl, join->thd->mem_root);
-        tbl->dep_tables|= table->dep_tables;
-      }
-      li.replace(repl_list);
-    }
+    if (flatten && nest_can_be_flattened(table, join_list))
+      flatten_nest(join, table, &li);
   }
   DBUG_RETURN(conds);
 }
