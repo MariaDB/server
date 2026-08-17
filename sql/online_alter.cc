@@ -44,6 +44,7 @@ static transaction_participant online_alter_tp=
   online_alter_commit_by_xid,
   online_alter_rollback_by_xid,
   NULL, NULL,
+  NULL,
   NULL, NULL, NULL, NULL, NULL /* snapshot, *_ordered, checkpoint, versioned*/
 };
 

@@ -728,6 +728,7 @@ struct transaction_participant MHNSW_Trx::tp=
   MHNSW_Trx::do_commit, MHNSW_Trx::do_rollback,
   MHNSW_Trx::do_prepare,          /* prepare */
   nullptr,                        /* recover */
+  nullptr,
   nullptr, nullptr,               /* commit/rollback_by_xid */
   nullptr, nullptr,               /* recover_rollback_by_xid/recovery_done */
   nullptr, nullptr, nullptr,      /* snapshot, commit/prepare_ordered */
