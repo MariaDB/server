@@ -8385,7 +8385,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   DBUG_ENTER("nest_last_join");
 
   TABLE_LIST *head= join_list->head();
-  if (head->nested_join && (head->nested_join->nest_type & REBALANCED_NEST))
+  if (head->nested_join && head->nested_join->rebalanced)
   {
     head= join_list->pop();
     DBUG_RETURN(head);
@@ -8403,7 +8403,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   ptr->alias.length= sizeof("(nest_last_join)")-1;
   embedded_list= &nested_join->join_list;
   embedded_list->empty();
-  nested_join->nest_type= JOIN_OP_NEST;
+  nested_join->nest_type= NESTED_JOIN_OPERAND;
 
   for (uint i=0; i < 2; i++)
   {
@@ -8612,7 +8612,7 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
   DBUG_ENTER("add_cross_joined_table");
   THD *thd= parent_lex->thd;
   if (!(right_op->nested_join &&
-	(right_op->nested_join->nest_type & JOIN_OP_NEST)))
+	right_op->nested_join->nest_type == NESTED_JOIN_OPERAND))
   {
     /*
       This handles the cases when the right operand is not a nested join.
@@ -8640,7 +8640,7 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     DBUG_RETURN(true);
   cj_nest->nested_join=
     ((NESTED_JOIN*) ((uchar*) cj_nest + ALIGN_SIZE(sizeof(TABLE_LIST))));
-  cj_nest->nested_join->nest_type= JOIN_OP_NEST;
+  cj_nest->nested_join->nest_type= NESTED_JOIN_OPERAND;
   List<TABLE_LIST> *cjl=  &cj_nest->nested_join->join_list;
   cjl->empty();
 
@@ -8669,7 +8669,7 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
       tbl= li++;
     }
     if (tbl->nested_join &&
-        tbl->nested_join->nest_type & JOIN_OP_NEST)
+        tbl->nested_join->nest_type == NESTED_JOIN_OPERAND)
     {
       jl= &tbl->nested_join->join_list;
       continue;
@@ -8729,7 +8729,7 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     Mark right_op as a rebalanced nested join in order not to
     create a new top level nested join node.
   */
-  right_op->nested_join->nest_type|= REBALANCED_NEST;
+  right_op->nested_join->rebalanced= true;
   if (unlikely(right_op_jl->push_front(right_op)))
     DBUG_RETURN(true);
   DBUG_RETURN(false);

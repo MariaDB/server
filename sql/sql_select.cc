@@ -11456,7 +11456,8 @@ void JOIN::get_partial_cost_and_fanout(int end_tab_idx,
     else
     {
       /* This is a SJ-Materialization nest. Check all of its tables */
-      TABLE *first_child= tab->bush_children->start->table;
+      DBUG_ASSERT(tab->is_sjm_nest());
+      TABLE *first_child= tab->bush_children.start->table;
       TABLE_LIST *sjm_nest= first_child->pos_in_table_list->embedding;
       cur_table_map= sjm_nest->nested_join->used_tables;
     }
@@ -13456,8 +13457,8 @@ static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
   */
   for (; tab < first_top_tab + n_top_tabs_count; tab++)
   {
-    if (tab->bush_children)
-      return tab->bush_children->start;
+    if (tab->has_bush_children())
+      return tab->bush_children.start;
   }
   return NULL;
 }
@@ -13476,7 +13477,7 @@ JOIN_TAB *first_explain_order_tab(JOIN* join)
   tab= join->join_tab;
   if (!tab)
     return NULL; /* Can happen when the tables were optimized away */
-  return (tab->bush_children) ? tab->bush_children->start : tab;
+  return tab->has_bush_children() ? tab->bush_children.start : tab;
 }
 
 
@@ -13492,8 +13493,8 @@ JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab)
   if (tab == join->join_tab + join->top_join_tab_count)
     return NULL; /* Outside SJM nest and reached EOF */
 
-  if (tab->bush_children)
-    return tab->bush_children->start;
+  if (tab->has_bush_children())
+    return tab->bush_children.start;
 
   return tab;
 }
@@ -13538,10 +13539,10 @@ JOIN_TAB *first_linear_tab(JOIN *join,
   if (first >= join->join_tab + join->top_join_tab_count)
     return NULL; /* All are const tables */
 
-  if (first->bush_children && include_bush_roots == WITHOUT_BUSH_ROOTS)
+  if (first->has_bush_children() && include_bush_roots == WITHOUT_BUSH_ROOTS)
   {
     /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    return first->bush_children->start;
+    return first->bush_children.start;
   }
 
   return first;
@@ -13579,10 +13580,10 @@ JOIN_TAB *first_linear_tab(JOIN *join,
 JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab, 
                           enum enum_with_bush_roots include_bush_roots)
 {
-  if (include_bush_roots == WITH_BUSH_ROOTS && tab->bush_children)
+  if (include_bush_roots == WITH_BUSH_ROOTS && tab->has_bush_children())
   {
     /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    return tab->bush_children->start;
+    return tab->bush_children.start;
   }
 
   DBUG_ASSERT(!tab->last_leaf_in_bush || tab->bush_root_tab);
@@ -13600,10 +13601,10 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
   if (++tab >= join->join_tab + join->exec_join_tab_cnt() + join->aggr_tables)
     return NULL;
 
-  if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->bush_children)
+  if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->has_bush_children())
   {
     /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    tab= tab->bush_children->start;
+    tab= tab->bush_children.start;
   }
   return tab;
 }
@@ -13623,7 +13624,7 @@ JOIN_TAB *first_depth_first_tab(JOIN* join)
 
   tab= join->join_tab + join->const_tables;
 
-  return (tab->bush_children) ? tab->bush_children->start : tab;
+  return tab->has_bush_children() ? tab->bush_children.start : tab;
 }
 
 
@@ -13657,8 +13658,8 @@ JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab)
   if (tab == join->join_tab +join->top_join_tab_count)
     return NULL; /* Outside SJM nest and reached EOF */
 
-  if (tab->bush_children)
-    return tab->bush_children->start;
+  if (tab->has_bush_children())
+    return tab->bush_children.start;
 
   return tab;
 }
@@ -13802,6 +13803,7 @@ bool JOIN::get_best_combination()
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
     goto error;
    root_range->start= join_tab;
+  root_range->kind= JOIN_TAB_RANGE_TOP_LEVEL;
   /* root_range->end will be set later */
   join_tab_ranges.empty();
 
@@ -13841,14 +13843,12 @@ bool JOIN::get_best_combination()
       j->join_read_time= 0.0; /* Not saved currently */
       j->join_loops= 0.0;
       JOIN_TAB *jt;
-      JOIN_TAB_RANGE *jt_range;
-      if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)) ||
-          !(jt_range= new JOIN_TAB_RANGE))
+      if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)))
         goto error;
-      jt_range->start= jt;
-      jt_range->end= jt + sjm->tables;
-      join_tab_ranges.push_back(jt_range, thd->mem_root);
-      j->bush_children= jt_range;
+      j->bush_children.start= jt;
+      j->bush_children.end= jt + sjm->tables;
+      j->bush_children.kind= JOIN_TAB_RANGE_SJM;
+      join_tab_ranges.push_back(&j->bush_children, thd->mem_root);
       sjm_nest_end= jt + sjm->tables;
       sjm_nest_root= j;
 
@@ -13928,8 +13928,8 @@ bool JOIN::get_best_combination()
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
-    if (j->bush_children)
-      j= j->bush_children->start;
+    if (j->has_bush_children())
+      j= j->bush_children.start;
 
     used_tables|= j->table->map;
     if (j->type != JT_CONST && j->type != JT_SYSTEM)
@@ -14100,6 +14100,7 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
       jtab is inside execution join nest. We may not refer to outside tables,
       except the const tables.
     */
+    DBUG_ASSERT(jtab->bush_root_tab->is_sjm_nest());
     table_map local_tables= jtab->emb_sj_nest->nested_join->used_tables |
                             jtab->join->const_table_map |
                             OUTER_REF_TABLE_BIT;
@@ -14637,7 +14638,7 @@ make_outerjoin_info(JOIN *join)
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
-    if (tab->bush_children)
+    if (tab->is_sjm_nest())
     {
       if (setup_sj_materialization_part1(tab))
         DBUG_RETURN(TRUE);
@@ -15083,7 +15084,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     uint i;
     for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
     {
-      if (!join->join_tab[i].bush_children)
+      if (!join->join_tab[i].has_bush_children())
         break;
     }
     uint last_top_base_tab_idx= i;
@@ -15106,10 +15107,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       JOIN_TAB *first_inner_tab= tab->first_inner;
       COND *tmp;
 
-      if (!tab->bush_children)
+      if (!tab->has_bush_children())
         current_map= tab->table->map;
       else
-        current_map= tab->bush_children->start->emb_sj_nest->sj_inner_tables;
+      {
+        DBUG_ASSERT(tab->is_sjm_nest());
+        current_map= tab->bush_children.start->emb_sj_nest->sj_inner_tables;
+      }
 
       /* 
         Tables that are within SJ-Materialization nests cannot have their
@@ -15194,7 +15198,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       if (cond)
       {
-        if (tab->bush_children)
+        if (tab->is_sjm_nest())
         {
           // Reached the materialization tab
           tmp= make_cond_after_sjm(thd, cond, cond, save_used_tables,
@@ -15557,10 +15561,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
          - if we start inside a nest, stay within that nest.
       */
       JOIN_TAB *start_from= tab->bush_root_tab? 
-                               tab->bush_root_tab->bush_children->start : 
+                               tab->bush_root_tab->bush_children.start : 
                                join->join_tab + join->const_tables;
       JOIN_TAB *end_with= tab->bush_root_tab? 
-                               tab->bush_root_tab->bush_children->end : 
+                               tab->bush_root_tab->bush_children.end : 
                                join->join_tab + join->top_join_tab_count;
       for (JOIN_TAB *join_tab= start_from;
            join_tab != end_with;
@@ -15615,7 +15619,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                  OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
 
         start_from= tab->bush_root_tab? 
-                      tab->bush_root_tab->bush_children->start : 
+                      tab->bush_root_tab->bush_children.start : 
                       join->join_tab + join->const_tables;
         for (JOIN_TAB *inner_tab= start_from;
              inner_tab <= last_tab;
@@ -15652,7 +15656,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               DBUG_RETURN(1);
           }
           bool is_sjm_lookup_tab= FALSE;
-          if (inner_tab->bush_children)
+          if (inner_tab->is_sjm_nest())
           {
             /*
               'inner_tab' is an SJ-Materialization tab, i.e. we have a join
@@ -15676,7 +15680,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               would be true anyway.
             */
             SJ_MATERIALIZATION_INFO *sjm=
-              inner_tab->bush_children->start->emb_sj_nest->sj_mat_info;
+              inner_tab->bush_children.start->emb_sj_nest->sj_mat_info;
             if (sjm->is_used && !sjm->is_sj_scan)
               is_sjm_lookup_tab= TRUE;
           }
@@ -15734,7 +15738,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           DBUG_RETURN(1);
         first_inner_tab= first_inner_tab->first_upper;
       }
-      if (!tab->bush_children)
+      if (!tab->has_bush_children())
         i++;
     }
 
@@ -16641,7 +16645,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   /*
     TODO: BNL join buffer should be perfectly ok with tab->bush_children.
   */
-  if (tab->loosescan_match_tab || tab->bush_children)
+  if (tab->loosescan_match_tab || tab->has_bush_children())
     goto no_join_cache;
 
   /*
@@ -16849,7 +16853,7 @@ restart:
     */
     prev_tab= tab - 1;
     if (tab == join->join_tab + join->const_tables ||
-        (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab))
+        (tab->bush_root_tab && tab->bush_root_tab->bush_children.start == tab))
       prev_tab= NULL;
 
     switch (tab->type) {
@@ -16880,7 +16884,7 @@ restart:
     default:
       tab->used_join_cache_level= 0;
     }
-    if (!tab->bush_children)
+    if (!tab->has_bush_children())
       idx++;
   }
 }
@@ -17026,15 +17030,15 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       Later it should be improved.
     */
 
-    if (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab)
+    if (tab->bush_root_tab && tab->bush_root_tab->bush_children.start == tab)
       prev_tab= NULL;
-    DBUG_ASSERT(tab->bush_children ||
+    DBUG_ASSERT(tab->has_bush_children() ||
                 tab->table == join->best_positions[i].table->table);
 
     tab->partial_join_cardinality= join->best_positions[i].records_read *
                                    (prev_tab ?
                                     prev_tab->partial_join_cardinality : 1);
-    if (!tab->bush_children)
+    if (!tab->has_bush_children())
       i++;
   }
  
@@ -17046,7 +17050,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
-    if (tab->bush_children)
+    if (tab->is_sjm_nest())
     {
       if (setup_sj_materialization_part2(tab))
         return TRUE;
@@ -17067,7 +17071,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       end_sj_materialize.
     */
     if (!(tab->bush_root_tab && 
-          tab->bush_root_tab->bush_children->end == tab + 1))
+          tab->bush_root_tab->bush_children.end == tab + 1))
       tab->next_select= sub_select;		/* normal select */
 
     if (tab->loosescan_match_tab)
@@ -17165,7 +17169,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       else
       {
-        if (!tab->bush_children)
+        if (!tab->has_bush_children())
           tab->read_first_record= join_init_read_record;
 	if (tab == first_tab)
 	{
@@ -25531,7 +25535,7 @@ static JOIN_TAB *find_left_most_join_tab(JOIN *join, JOIN_TAB *right_tab)
   if (right_tab->bush_root_tab)
   {
     // Setup walk from right_tab back to the start of the bush children.
-    join_tab= right_tab->bush_root_tab->bush_children->start;
+    join_tab= right_tab->bush_root_tab->bush_children.start;
     stopping_point= 0;
   }
   else
@@ -25624,10 +25628,10 @@ static bool alloc_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
       (well, so at least the right sides of any FULL JOINs get them, see
       down below).
     */
-    if (start_tab[i].bush_children)
+    if (start_tab[i].has_bush_children())
     {
-      JOIN_TAB *bush_start= start_tab[i].bush_children->start;
-      uint bush_count= (uint)(start_tab[i].bush_children->end - bush_start);
+      JOIN_TAB *bush_start= start_tab[i].bush_children.start;
+      uint bush_count= (uint)(start_tab[i].bush_children.end - bush_start);
       if (alloc_full_join_duplicate_filters(join, bush_start, bush_count))
       {
         free_full_join_duplicate_filters(join, start_tab, count);
@@ -25703,10 +25707,10 @@ static void free_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
       Mirror alloc's descent into a materialized semijoin so filters
       set up inside the bush are released, too.
     */
-    if (start_tab[i].bush_children)
+    if (start_tab[i].has_bush_children())
     {
-      JOIN_TAB *bush_start= start_tab[i].bush_children->start;
-      uint bush_count= (uint)(start_tab[i].bush_children->end - bush_start);
+      JOIN_TAB *bush_start= start_tab[i].bush_children.start;
+      uint bush_count= (uint)(start_tab[i].bush_children.end - bush_start);
       free_full_join_duplicate_filters(join, bush_start, bush_count);
     }
 
@@ -27289,9 +27293,9 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
     The following is needed when one makes ref (or eq_ref) access from row
     comparisons: one must call row->bring_value() to get the new values.
   */
-  if (tab && tab->bush_children)
+  if (tab && tab->is_sjm_nest())
   {
-    TABLE_LIST *emb_sj_nest= tab->bush_children->start->emb_sj_nest;
+    TABLE_LIST *emb_sj_nest= tab->bush_children.start->emb_sj_nest;
     emb_sj_nest->sj_subq_pred->left_exp()->bring_value();
   }
 
@@ -33042,9 +33046,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                          table->derived_select_number);
     eta->table_name.copy(table_name_buffer, len, cs);
   }
-  else if (bush_children)
+  else if (is_sjm_nest())
   {
-    JOIN_TAB *ctab= bush_children->start;
+    JOIN_TAB *ctab= bush_children.start;
     /* table */
     size_t len= my_snprintf(table_name_buffer,
                          sizeof(table_name_buffer)-1,
@@ -33671,7 +33675,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
                 new (output->mem_root) Explain_basic_join(output->mem_root)))
             DBUG_RETURN(1);
 
-          JOIN_TAB *first_child= tab->bush_root_tab->bush_children->start;
+          DBUG_ASSERT(tab->bush_root_tab->is_sjm_nest());
+          JOIN_TAB *first_child= tab->bush_root_tab->bush_children.start;
           cur_parent->select_id=
             first_child->emb_sj_nest->sj_subq_pred->get_identifier();
         }
@@ -33681,7 +33686,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
             We've just left an SJ-Materialization nest. We are at the join tab
             that 'embeds the nest'
           */
-          DBUG_ASSERT(tab->bush_children);
+          DBUG_ASSERT(tab->has_bush_children());
           eta->sjm_nest= cur_parent;
           cur_parent= xpl_sel;
         }

@@ -1298,7 +1298,7 @@ multi_delete::initialize_tables(JOIN *join)
        tab;
        tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
-    if (!tab->bush_children && tab->table->map & tables_to_delete_from)
+    if (!tab->has_bush_children() && tab->table->map & tables_to_delete_from)
     {
       /* We are going to delete from this table */
       TABLE *tbl=walk->table=tab->table;
