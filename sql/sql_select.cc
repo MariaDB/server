@@ -15096,13 +15096,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       Step #2: Extract WHERE/ON parts
     */
 
+    /*
+      The last top level table that is not the entry standing for a run of
+      other tables.  A top level that holds nothing but such entries has no
+      such table, and the count is then a position that no table has.
+    */
     uint i;
-    for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
+    uint last_top_base_tab_idx= join->top_join_tab_count;
+    for (i= join->top_join_tab_count; i > join->const_tables; i--)
     {
-      if (!join->join_tab[i].has_bush_children())
+      if (!join->join_tab[i - 1].has_bush_children())
+      {
+        last_top_base_tab_idx= i - 1;
         break;
+      }
     }
-    uint last_top_base_tab_idx= i;
 
     table_map save_used_tables= 0;
     used_tables=((select->const_tables=join->const_table_map) |
