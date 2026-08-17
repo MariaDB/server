@@ -1410,10 +1410,11 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
 
   @return  length of the parsed row image if succeeds, otherwise 0 is returned.
  */
-size_t Rows_log_event::calc_row_event_length(table_def *td,
-                                             MY_BITMAP *cols_bitmap,
-                                             const uchar *value,
-                                             Field_info *fields)
+size_t
+Rows_log_event::calc_row_event_length(table_def *td,
+                                      MY_BITMAP *cols_bitmap,
+                                      const uchar *value,
+                                      Field_info *fields)
 {
   const uchar *value0= value;
   const uchar *null_bits= value;
