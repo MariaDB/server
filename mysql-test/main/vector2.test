@@ -482,6 +482,12 @@ DROP TABLE tt;
 CREATE TABLE tt AS
   SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
 
+CREATE TABLE t1 (v VECTOR(2));
+INSERT INTO t1 VALUES (VEC_FROMTEXT(CONCAT('[1.', REPEAT('0',70000), ',2]')));
+DROP TABLE t1;
+
+SELECT VEC_FROMTEXT('😀😀😀');
+
 --echo ## "Zero-dimensional" argument, no change in behaviour after fix
 SELECT VEC_FROMTEXT('[]') as f;
 --error ER_TRUNCATED_WRONG_VALUE
