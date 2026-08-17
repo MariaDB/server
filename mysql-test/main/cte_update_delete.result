@@ -1374,5 +1374,6 @@ a
 15
 20
 25
+drop view v1;
 drop table t1;
 # End of 12.2 tests
