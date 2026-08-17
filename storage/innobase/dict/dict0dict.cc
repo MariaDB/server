@@ -1646,6 +1646,40 @@ dict_table_rename_in_cache(
 	ut_a(table->foreign_set.empty());
 	table->foreign_set.swap(fk_set);
 
+	if (table->name.is_create_or_replace()) {
+		/* CREATE OR REPLACE TABLE renamed the table to the
+		#sql-create- backup name and is going to create the new
+		table under the original name. The constraints of other
+		tables that are referencing this table were intentionally
+		not renamed in SYS_FOREIGN (see row_rename_table_for_mysql())
+		because they will be inherited by the newly created table.
+		Detach them from the backup table; they will be attached
+		again by dict_load_foreigns() when the new table is created,
+		or when this table is renamed back in case the CREATE OR
+		REPLACE fails. Self-referencing constraints belong to this
+		table and follow the new name. */
+		for (dict_foreign_set::iterator it
+			= table->referenced_set.begin();
+		     it != table->referenced_set.end(); ) {
+			foreign = *it;
+
+			if (foreign->foreign_table == table) {
+				foreign->referenced_table_name =
+					mem_heap_strdup(foreign->heap,
+							table->name.m_name);
+				foreign->referenced_table_name_lookup_set();
+				++it;
+				continue;
+			}
+
+			foreign->referenced_table = NULL;
+			foreign->referenced_index = NULL;
+			it = table->referenced_set.erase(it);
+		}
+
+		return DB_SUCCESS;
+	}
+
 	for (dict_foreign_set::iterator it = table->referenced_set.begin();
 	     it != table->referenced_set.end();
 	     ++it) {

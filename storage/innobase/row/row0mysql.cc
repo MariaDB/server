@@ -2677,7 +2677,13 @@ row_rename_table_for_mysql(
 		// Assume the caller guarantees destination name doesn't exist.
 		ut_ad(err != DB_DUPLICATE_KEY);
 	} else if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
-		/* Rename all constraints. */
+		/* Rename the constraints that are owned by this table
+		(SYS_FOREIGN.ID, SYS_FOREIGN.FOR_NAME and
+		SYS_FOREIGN_COLS.ID). This must be done also when the
+		table is being renamed to the CREATE OR REPLACE backup
+		name, so that the constraint identifiers of the table
+		that is being created under the original name will not
+		conflict with the ones of the backup table. */
 		info = pars_info_create();
 
 		pars_info_add_str_literal(info, "new_name", new_name);
@@ -2703,16 +2709,47 @@ row_rename_table_for_mysql(
 			"                SUBSTR(old,p,LENGTH(old)-1));\n"
 			"    UPDATE SYS_FOREIGN\n"
 			"    SET ID=new, FOR_NAME=:new_name WHERE ID=old;\n"
+			"    UPDATE SYS_FOREIGN SET REF_NAME=:new_name\n"
+			"    WHERE ID=new AND REF_NAME=:old_name\n"
+			"    AND TO_BINARY(REF_NAME)=TO_BINARY(:old_name);\n"
 			"    UPDATE SYS_FOREIGN_COLS\n"
 			"    SET ID=new WHERE ID=old;\n"
 			"  END IF;\n"
 			"END LOOP;\n"
-			"UPDATE SYS_FOREIGN SET REF_NAME = :new_name\n"
-			"WHERE REF_NAME = :old_name\n"
-			"AND TO_BINARY(REF_NAME)=TO_BINARY(:old_name);\n"
 			"END;\n", trx);
 		if (err == DB_DUPLICATE_KEY) {
 			err = DB_FOREIGN_DUPLICATE_KEY;
+		}
+
+		/* Rename the constraints of other tables that are
+		referencing this table. Self-referencing constraints were
+		already updated above, together with their FOR_NAME.
+
+		CREATE OR REPLACE TABLE is renaming the original table to
+		a #sql-create- backup name and creating the new table under
+		the original name. The constraints of the child tables must
+		keep referencing the original name, so that they will be
+		inherited by the newly created table (and rejected if the
+		new definition is not compatible with them), instead of
+		following the backup table that is going to be dropped. */
+		if (err == DB_SUCCESS
+		    && !dict_table_t::is_create_or_replace_name(new_name)) {
+			info = pars_info_create();
+
+			pars_info_add_str_literal(info, "new_name", new_name);
+			pars_info_add_str_literal(info, "old_name", old_name);
+
+			err = que_eval_sql(
+				info,
+				"PROCEDURE RENAME_REF_NAMES () IS\n"
+				"BEGIN\n"
+				"UPDATE SYS_FOREIGN SET REF_NAME = :new_name\n"
+				"WHERE REF_NAME = :old_name\n"
+				"AND TO_BINARY(REF_NAME)=TO_BINARY(:old_name);\n"
+				"END;\n", trx);
+			if (err == DB_DUPLICATE_KEY) {
+				err = DB_FOREIGN_DUPLICATE_KEY;
+			}
 		}
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */

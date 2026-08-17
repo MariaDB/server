@@ -49,3 +49,134 @@ select * from t1;
 a	b	c
 1	1	1
 drop table t1;
+#
+# CREATE OR REPLACE of a table that is referenced by another table
+#
+create table t1 (f1 int primary key, f2 int) engine=InnoDB;
+create table t2 (f1 int primary key, f2 int,
+constraint fk1 foreign key (f2) references t1 (f1)) engine=InnoDB;
+insert into t1 values (1,10),(2,20);
+insert into t2 values (1,1),(2,2);
+create or replace table t1 (f1 int primary key, f2 int) engine=InnoDB;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `fk1` (`f2`),
+  CONSTRAINT `fk1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+fk1	test/t2	test/t1
+insert into t2 values (5,99);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+# The dictionary cache and SYS_FOREIGN must agree about this
+# restart
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `fk1` (`f2`),
+  CONSTRAINT `fk1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+fk1	test/t2	test/t1
+insert into t2 values (5,99);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+#
+# A replacement that does not fit the inherited constraint is rejected
+#
+create or replace table t1 (f3 int) engine=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+f1	f2
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+fk1	test/t2	test/t1
+#
+# Revert of a failed CREATE OR REPLACE of a referenced table
+#
+create or replace table t1 (f1 int primary key, f2 int) engine=InnoDB
+select 1 as f1, 1 as f2 union all select 1,2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+f1	f2
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+fk1	test/t2	test/t1
+alter table t2 drop foreign key fk1;
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+drop table t2, t1;
+#
+# A self-referencing constraint follows the #sql-create- backup copy
+#
+create table t1 (f1 int primary key, f2 int,
+constraint d foreign key (f2) references t1 (f1)) engine=InnoDB;
+insert into t1 values (1,1);
+create or replace table t1 (f1 varchar(10) primary key, f2 varchar(10),
+constraint d foreign key (f2) references t1 (f1)) engine=InnoDB;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` varchar(10) NOT NULL,
+  `f2` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `d` (`f2`),
+  CONSTRAINT `d` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+d	test/t1	test/t1
+insert into t1 values ('x','y');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `d` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+drop table t1;
+#
+# Unnamed constraint identifiers are restored when CREATE OR REPLACE fails
+#
+create table t1 (f1 int primary key) engine=InnoDB;
+create table t2 (f1 int primary key, f2 int,
+foreign key (f2) references t1 (f1)) engine=InnoDB;
+insert into t1 values (1);
+insert into t2 values (1,1);
+create or replace table t2 (f1 int primary key, f2 int,
+foreign key (f2) references t1 (f1)) engine=InnoDB
+select 1 as f1, 1 as f2 union all select 1,1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `f2` (`f2`),
+  CONSTRAINT `1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t2;
+f1	f2
+1	1
+select id, for_name, ref_name from information_schema.innodb_sys_foreign;
+id	for_name	ref_name
+1	test/t2	test/t1
+insert into t2 values (2,7);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+drop table t2, t1;
