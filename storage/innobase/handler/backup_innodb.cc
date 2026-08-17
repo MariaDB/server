@@ -408,6 +408,7 @@ public:
           fil_node_t::read_page0() cannot assign it from
           FIL_PAGE_LSN because that would not reflect the file
           creation but for example allocating or freeing a page.
+          Perhaps we can read it from page 1 (change buffer bitmap)?
 
           The easy parts of initializing space->create_lsn are
           as follows:
