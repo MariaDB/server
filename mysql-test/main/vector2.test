@@ -560,4 +560,14 @@ execute p1 using '[]';
 execute p1 using '';
 deallocate prepare p1;
 
+--echo #
+--echo # MDEV-40751 CREATE ... SELECT VEC_FROMTEXT(...) may create VECTOR columns that reject every value
+--echo #
+
+CREATE TABLE t1 (a CHAR(4));
+create table t2 select vec_fromtext(a) from t1;
+show create table t2;
+insert into t2 values (vec_fromtext('[1]'));
+DROP TABLE t1, t2;
+
 --echo # End of 11.8 tests
