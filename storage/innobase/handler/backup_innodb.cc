@@ -156,6 +156,13 @@ namespace
 /** Backup state; protected by log_sys.latch */
 class InnoDB_backup
 {
+public:
+#ifdef SUX_LOCK_GENERIC
+  InnoDB_backup() { mutex.init(); }
+#endif
+  ~InnoDB_backup() { mutex.destroy(); }
+
+private:
   /** Backup context */
   struct context
   {
