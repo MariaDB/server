@@ -469,6 +469,7 @@ typedef enum_nested_loop_state
 Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
+TABLE_LIST *embedding_materialized_nest(Field *field);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
@@ -538,12 +539,44 @@ enum Join_tab_range_type
 };
 
 
+/*
+  What a FULL JOIN operand nest needs in order to have its rows computed
+  into a temporary table and read back as one table of the enclosing
+  join.
+*/
+
+class Full_join_mat_info: public Sql_alloc
+{
+public:
+  TMP_TABLE_PARAM table_param;
+  /* One Item_field per column of the nest's tables that is read. */
+  List<Item> table_cols;
+  TABLE *table;
+  /*
+    Copies each column of a row read back from the table into the field
+    of the nest table it came from, one per entry of table_cols.
+  */
+  Copy_field *copy_field;
+  /* True once the nest's rows have been written for this execution. */
+  bool materialized;
+};
+
+
 class JOIN_TAB_RANGE: public Sql_alloc
 {
 public:
   JOIN_TAB *start;
   JOIN_TAB *end;
   Join_tab_range_type kind;
+  /*
+    The join nest whose tables the run holds, for a run of kind
+    JOIN_TAB_RANGE_FULL_JOIN.  A materialized semi join run reaches its
+    nest through the semi join predicate carried by its tables instead,
+    and leaves this NULL.
+  */
+  TABLE_LIST *nest;
+  /* The temporary table the nest's rows go into, and how to fill it. */
+  Full_join_mat_info *mat;
 };
 
 
@@ -1076,6 +1109,17 @@ typedef struct st_join_table {
   { return bush_children.kind == JOIN_TAB_RANGE_FULL_JOIN; }
 
   /*
+    The tables of the nest whose rows a FULL JOIN run produces.  The run
+    stands for all of them wherever the join order asks which tables an
+    entry covers.
+  */
+  table_map full_join_nest_map() const
+  {
+    DBUG_ASSERT(is_full_join_nest());
+    return bush_children.nest->nested_join->used_tables;
+  }
+
+  /*
     If this join_tab reads a non-merged semi-join (also called jtbm), return
     the select's number.  Otherwise, return 0.
   */
@@ -1564,6 +1608,24 @@ private:
 };
 
 
+/*
+  A join nest that is an operand of a FULL JOIN, together with the span
+  of the picked join order that its tables occupy.  Such a nest is
+  computed on its own and its rows are then joined as a unit, which is
+  what lets an enclosing condition see a complete nest row, so its
+  tables have to sit together in the order.
+*/
+
+struct Full_join_nest_span
+{
+  TABLE_LIST *nest;
+  /* Index into JOIN::best_positions where the span starts. */
+  uint first;
+  /* How many positions the span covers. */
+  uint count;
+};
+
+
 class JOIN :public Sql_alloc
 {
 private:
@@ -1769,6 +1831,30 @@ public:
     Tables in nests that contain FULL JOINs, along with their nest siblings.
   */
   table_map full_join_nest_tables;
+
+  /*
+    Sets of tables that must each occupy an unbroken span of the join
+    order.  All of full_join_nest_tables is one such set, which is what
+    keeps a FULL JOIN's two operands beside each other, and every join
+    nest that is an operand of a FULL JOIN is another, which is what
+    keeps such a nest from being interleaved with the tables of the
+    operand it is joined to.  The sets come from the join tree, so any
+    two of them are either disjoint or one contains the other, and a
+    join order satisfying all of them therefore exists.
+  */
+  table_map *full_join_groups;
+  uint       full_join_group_count;
+
+  /*
+    Where each FULL JOIN operand nest lands in the picked join order,
+    recorded outermost first so that a walk over the order meets a nest
+    before the nests inside it.  A nest of a single table is left out,
+    since a run of one table is the table itself, and so is a nest whose
+    span the order broke, which leaves it joined table by table as
+    before.  Valid from get_best_combination onwards.
+  */
+  Full_join_nest_span *fj_nest_spans;
+  uint                 fj_nest_span_count;
 
   ha_rows  send_records,found_records, accepted_rows;
 
@@ -2077,6 +2163,12 @@ public:
   List<TABLE> sj_tmp_tables;
   /* SJM nests that are executed with SJ-Materialization strategy */
   List<SJ_MATERIALIZATION_INFO> sjm_info_list;
+  /*
+    The FULL JOIN operand nests whose rows are computed into a temporary
+    table.  The tables themselves go on sj_tmp_tables, which is where the
+    executor frees the temporary tables it made for the join's internals.
+  */
+  List<Full_join_mat_info> full_join_mat_list;
 
   /** Exec time only: TRUE <=> current group has been sent */
   bool group_sent;
@@ -2228,6 +2320,22 @@ public:
   }
   void drop_unused_derived_keys();
   bool get_best_combination();
+  bool record_full_join_nest_spans();
+  /*
+    The outermost FULL JOIN operand nest whose span starts at the given
+    position of the picked join order, otherwise NULL.  The spans are
+    recorded outermost first, so the first one that starts here encloses
+    any others that do.
+  */
+  const Full_join_nest_span *fj_nest_span_at(uint pos) const
+  {
+    for (uint i= 0; i < fj_nest_span_count; i++)
+    {
+      if (fj_nest_spans[i].first == pos)
+        return &fj_nest_spans[i];
+    }
+    return NULL;
+  }
   bool add_sorting_to_table(JOIN_TAB *tab, ORDER *order);
   inline void eval_select_list_used_tables();
   /* 
@@ -2301,7 +2409,7 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool optimize_upper_rownum_func();
-  void calc_allowed_top_level_tables(SELECT_LEX *lex);
+  bool calc_allowed_top_level_tables(SELECT_LEX *lex);
   table_map get_allowed_nj_tables(uint idx);
   bool propagate_dependencies(JOIN_TAB *stat);
   void update_key_dependencies();

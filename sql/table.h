@@ -3280,6 +3280,7 @@ struct TABLE_LIST
     return view != NULL ? view_name : table_name;
   }
   bool is_active_sjm();
+  bool is_materialized_full_join();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   bool is_pure_alias() const;
@@ -3338,6 +3339,18 @@ struct TABLE_LIST
     Reset and recomputed each optimization.  NULL otherwise.
   */
   COND *fj_left_cond{nullptr};
+
+  /*
+    For the right side of a surviving FULL JOIN that the chosen join
+    order computes into a temporary table, the WHERE conjuncts that
+    reference nothing but that side, taken out of the WHERE once the
+    join order is known.  Left in the WHERE they would be placed on a
+    table inside the nest and decide which rows the nest holds.
+    make_join_select attaches them to the tab that stands for the whole
+    nest instead.  Reset and recomputed each optimization.  NULL
+    otherwise.
+  */
+  COND *fj_nest_where{nullptr};
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);
@@ -3527,7 +3540,25 @@ typedef struct st_nested_join
     it.  Only a NESTED_JOIN_OPERAND nest is ever rebalanced.
   */
   bool              rebalanced;
-  /* 
+  /*
+    True when this nest is an operand of a FULL JOIN whose tables the
+    chosen join order gathers into a run computed into a temporary table.
+    Decided again for every optimization, since it follows from the join
+    order and not from the query.
+  */
+  bool              materialized_full_join;
+  /*
+    The ON expressions of the inner joins inside this nest, which is only
+    collected when the nest is an operand of a FULL JOIN.  Simplifying the
+    join tree moves such an expression into the enclosing FULL JOIN's ON,
+    where it is checked once that join has positioned the whole nest.  A
+    nest computed into a temporary table is computed before that, so it
+    needs its own join condition here to not produce the cross product of
+    its tables.  Collected again for every optimization, since the
+    expressions are restored from prep_on_expr each time.
+  */
+  Item              *fj_inner_cond;
+  /*
     Bitmap of tables within this nested join (including those embedded within
     its children), including tables removed by table elimination.
   */

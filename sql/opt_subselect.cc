@@ -4341,6 +4341,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
     The number of tables in the JOIN currently include all the inner tables of the
     mergeable semi-joins. The function would make sure that we only count the semi-join
     nest and not the inner tables of teh semi-join nest.
+
+    A FULL JOIN operand nest that is gathered into a run of its own
+    counts as one table for the same reason.
 */
 
 uint get_number_of_tables_at_top_level(JOIN *join)
@@ -4349,9 +4352,12 @@ uint get_number_of_tables_at_top_level(JOIN *join)
   while(j < join->table_count)
   {
     POSITION *cur_pos= &join->best_positions[j];
+    const Full_join_nest_span *span= join->fj_nest_span_at(j);
     tables++;
-    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE ||
-        cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
+    if (span)
+      j= j + span->count;
+    else if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE ||
+             cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
       j= j + sjm->tables;
@@ -4387,7 +4393,12 @@ uint get_number_of_tables_at_top_level(JOIN *join)
 bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
 {
   DBUG_ASSERT(sjm_tab->is_sjm_nest());
-  JOIN_TAB *tab= sjm_tab->bush_children.start;
+  /*
+    The first entry of the run can stand for a run of its own, which
+    reads a temporary table rather than a table of the query, so the nest
+    is reached from the first entry that does read a table of the query.
+  */
+  JOIN_TAB *tab= enter_bushes(sjm_tab->bush_children.start);
   TABLE_LIST *emb_sj_nest= tab->table->pos_in_table_list->embedding;
   SJ_MATERIALIZATION_INFO *sjm;
   THD *thd;
@@ -4453,6 +4464,34 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   DBUG_RETURN(FALSE);
 }
 
+
+/*
+  Remove the injected semi-join IN-equalities from the conditions of every
+  JOIN_TAB of a run and of every run below it.
+
+  A JOIN_TAB that stands for a run of its own reads a temporary table
+  rather than a table of the query, and the tables of that run are
+  semi-join inner tables as well, so their conditions can hold an injected
+  IN-equality too.  Counting JOIN_TABs of the run gives the wrong bound
+  because such a JOIN_TAB stands for more than one table.
+*/
+
+static bool remove_sj_conds_in_run(THD *thd, JOIN_TAB *start, JOIN_TAB *end)
+{
+  for (JOIN_TAB *tab= start; tab < end; tab++)
+  {
+    if (tab->has_bush_children() &&
+        remove_sj_conds_in_run(thd, tab->bush_children.start,
+                               tab->bush_children.end))
+      return TRUE;
+    if (remove_sj_conds(thd, &tab->select_cond) ||
+        (tab->select && remove_sj_conds(thd, &tab->select->cond)))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
 /**
    @retval
    FALSE ok
@@ -4463,7 +4502,12 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
 {
   DBUG_ENTER("setup_sj_materialization_part2");
   DBUG_ASSERT(sjm_tab->is_sjm_nest());
-  JOIN_TAB *tab= sjm_tab->bush_children.start;
+  /*
+    The first entry of the run can stand for a run of its own, which
+    reads a temporary table rather than a table of the query, so the nest
+    is reached from the first entry that does read a table of the query.
+  */
+  JOIN_TAB *tab= enter_bushes(sjm_tab->bush_children.start);
   TABLE_LIST *emb_sj_nest= tab->table->pos_in_table_list->embedding;
   /* Walk out of outer join nests until we reach the semi-join nest we're in */
   while (!emb_sj_nest->sj_mat_info)
@@ -4543,12 +4587,9 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
       sj-inner tables which are not available after the materialization
       has been finished.
     */
-    for (i= 0; i < sjm->tables; i++)
-    {
-      if (remove_sj_conds(thd, &tab[i].select_cond) ||
-          (tab[i].select && remove_sj_conds(thd, &tab[i].select->cond)))
-        DBUG_RETURN(TRUE);
-    }
+    if (remove_sj_conds_in_run(thd, sjm_tab->bush_children.start,
+                               sjm_tab->bush_children.end))
+      DBUG_RETURN(TRUE);
     if (!(sjm->in_equality= create_subq_in_equalities(thd, sjm,
                                                       emb_sj_nest->sj_subq_pred)))
       DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -5584,6 +5625,15 @@ void destroy_sj_tmp_tables(JOIN *join)
   }
   join->sj_tmp_tables.empty();
   join->sjm_info_list.empty();
+
+  Full_join_mat_info *mat;
+  List_iterator<Full_join_mat_info> it2(join->full_join_mat_list);
+  while ((mat= it2++))
+  {
+    delete [] mat->copy_field;
+    mat->copy_field= NULL;
+  }
+  join->full_join_mat_list.empty();
 }
 
 
@@ -5615,6 +5665,13 @@ int clear_sj_tmp_tables(JOIN *join)
   while ((sjm= it2++))
   {
     sjm->materialized= FALSE;
+  }
+
+  Full_join_mat_info *mat;
+  List_iterator<Full_join_mat_info> it3(join->full_join_mat_list);
+  while ((mat= it3++))
+  {
+    mat->materialized= FALSE;
   }
   return 0;
 }
@@ -6004,7 +6061,8 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
   {
     /* It's a merged SJM nest */
     enum_nested_loop_state rc;
-    SJ_MATERIALIZATION_INFO *sjm= tab->bush_children.start->emb_sj_nest->sj_mat_info;
+    SJ_MATERIALIZATION_INFO *sjm=
+      enter_bushes(tab->bush_children.start)->emb_sj_nest->sj_mat_info;
 
     if (!sjm->materialized)
     {
@@ -6024,6 +6082,31 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       }
       join->return_tab= save_return_tab;
       sjm->materialized= TRUE;
+    }
+  }
+  else if (tab->is_full_join_nest())
+  {
+    Full_join_mat_info *mat= tab->bush_children.mat;
+
+    if (!mat->materialized)
+    {
+      enum_nested_loop_state rc;
+      JOIN *join= tab->join;
+      JOIN_TAB *join_tab= tab->bush_children.start;
+      JOIN_TAB *save_return_tab= join->return_tab;
+      /*
+        Compute the nest on its own.  The first call runs the join over
+        the nest's tables, the second signals that no rows are left, which
+        a join strategy that buffers rows needs in order to flush them.
+      */
+      if ((rc= sub_select(join, join_tab, FALSE)) < 0 ||
+          (rc= sub_select(join, join_tab, TRUE)) < 0)
+      {
+        join->return_tab= save_return_tab;
+        DBUG_RETURN(rc);
+      }
+      join->return_tab= save_return_tab;
+      mat->materialized= TRUE;
     }
   }
 

@@ -21,13 +21,19 @@ use mysqltest_nfj;
 create table t1 (a int, b int);
 create table t2 (a int, c int);
 create table t3 (a int, d int);
+create table t4 (a int, e int);
+create table t5 (a int, f int);
 insert into t1 values (1,10),(2,20);
 insert into t2 values (2,200),(3,300);
 insert into t3 values (2,2000),(9,9000);
+insert into t4 values (2,20000),(4,40000);
+insert into t5 values (2,200000),(5,500000);
 create user nfj_user@localhost;
 grant select (a,b) on mysqltest_nfj.t1 to nfj_user@localhost;
 grant select (c)   on mysqltest_nfj.t2 to nfj_user@localhost;
 grant select (d)   on mysqltest_nfj.t3 to nfj_user@localhost;
+grant select (e)   on mysqltest_nfj.t4 to nfj_user@localhost;
+grant select (f)   on mysqltest_nfj.t5 to nfj_user@localhost;
 
 connect (nfj_con, localhost, nfj_user,, mysqltest_nfj);
 
@@ -62,14 +68,43 @@ connection nfj_con;
 --sorted_result
 select a from (t1 natural full join t2) natural full join t3;
 
+--echo # The chained join above puts the nested join on the left of the
+--echo # outer NATURAL FULL JOIN.  The two below put it on the right and
+--echo # then on both sides, so the walk has to descend into an operand
+--echo # from either direction.
+
+--echo # Nested join on the right; t4.a is not granted.
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from t1 natural full join (t2 natural full join t4);
+
+connection default;
+grant select (a) on mysqltest_nfj.t4 to nfj_user@localhost;
+connection nfj_con;
+
+--echo # With t4.a granted the read works.
+--sorted_result
+select a from t1 natural full join (t2 natural full join t4);
+
+--echo # Nested joins on both sides; t5.a is not granted.
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from (t1 natural full join t2)
+              natural full join (t4 natural full join t5);
+
+connection default;
+grant select (a) on mysqltest_nfj.t5 to nfj_user@localhost;
+connection nfj_con;
+
+--echo # With t5.a granted the read works.
+--sorted_result
+select a from (t1 natural full join t2)
+              natural full join (t4 natural full join t5);
+
 connection default;
 disconnect nfj_con;
 
---echo # The same check covers views, and across view kinds.  A view on the
---echo # right side of a FULL JOIN is rejected as a non-base table, so the
---echo # executable shape is a view on the left.  Reading the coalesced
---echo # column then requires the column grant on the view, however the view
---echo # is materialized.
+--echo # The same check covers views, and across view kinds.  Reading the
+--echo # coalesced column requires the column grant on the view, however the
+--echo # view is materialized.
 --echo #
 --echo # v_merge  mergeable view
 --echo # v_tmp    temptable (materialized) view
@@ -82,8 +117,8 @@ create view v_expr as select a + 0 as a, b from t1;
 create view v_over as select a, b from v_merge;
 create view v_union as select a, b from t1 union select a, b from t1;
 
---echo # A view on the right side is rejected (run as the table owner).
---error ER_FULL_JOIN_BASE_TABLES_ONLY
+--echo # A view on the right side runs (run as the table owner).
+--sorted_result
 select a from t2 natural full join v_merge;
 
 create user nfj_vuser@localhost;
