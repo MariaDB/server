@@ -1,0 +1,30 @@
+--source include/have_binlog_format_mixed_or_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+--sync_slave_with_master
+
+--connection master
+DELIMITER $$;
+--error ER_TOO_MANY_ROWS
+BEGIN NOT ATOMIC
+  DECLARE va INT;
+  UPDATE t1 SET a=a+1 RETURNING a INTO va;
+END;
+$$
+DELIMITER ;$$
+SELECT * FROM t1;
+--sync_slave_with_master
+SELECT * FROM t1;
+
+--connection master
+DROP TABLE t1;
+
+--echo # End of 13.1 tests
+
+--source include/rpl_end.inc

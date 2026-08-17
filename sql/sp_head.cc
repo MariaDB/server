@@ -327,32 +327,23 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_UNINSTALL_PLUGIN:
     flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
-  case SQLCOM_DELETE:
-  case SQLCOM_DELETE_MULTI:
   case SQLCOM_INSERT:
   case SQLCOM_REPLACE:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_INSERT_SELECT:
   {
-    /* 
-      DELETE normally doesn't return resultset, but there are 3 exceptions:
-       - DELETE ... RETURNING
-       - EXPLAIN DELETE ...
-       - ANALYZE DELETE ...
-    */
-    if (!lex->has_returning() && !lex->describe && !lex->analyze_stmt)
-      flags= 0;
-    else
-      flags= sp_head::MULTI_RESULTS; 
+    flags= Sql_cmd_dml::returns_result_set_generic(lex) ?
+           sp_head::MULTI_RESULTS : 0;
     break;
   }
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
   {
-    if (!lex->has_returning() && !lex->describe && !lex->analyze_stmt)
-      flags= 0;
-    else
-      flags= sp_head::MULTI_RESULTS; 
+    Sql_cmd_dml *cmd= dynamic_cast<Sql_cmd_dml*>(lex->m_sql_cmd);
+    DBUG_ASSERT(cmd);
+    flags= cmd->returns_result_set() ? sp_head::MULTI_RESULTS : 0;
     break;
   }
   default:

@@ -1,0 +1,227 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO into an array
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  a0 assoc0_t;
+BEGIN
+  UPDATE t1 SET a=2 RETURNING a INTO a0;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  a0 assoc0_t;
+BEGIN
+  UPDATE t1 SET a=2 RETURNING a,a+1 INTO a0;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO into a scalar element
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  UPDATE t1 SET a=5 WHERE a=4 RETURNING a INTO marks(200);
+  SELECT marks(200);
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..INTO..RETURNING into a non-scalar element
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  UPDATE t1 SET a=30,b='b30' WHERE a=20 RETURNING a,b INTO a0(30);
+  SELECT a0(30).a, a0(30).b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..INTO..RETURNING into a field of a non-scalar element
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+DELIMITER $$;
+CREATE PROCEDURE p1(create_element BOOL, select_element BOOL) AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  IF (create_element) THEN
+    a0(20):= rec0_t(20,'b20');
+  END IF;
+  UPDATE t1 SET a=a+1,b='b21' WHERE a>=20 RETURNING a,b INTO a0(20).a,a0(20).b;
+  IF (select_element) THEN
+    SELECT a0(20).a, a0(20).b;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL p1(TRUE,TRUE);
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+CALL p1(FALSE,FALSE);
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+CALL p1(FALSE,TRUE);
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO assoc_array_of_scalars('key').field
+--echo # Fails during the CREATE time.
+--echo #
+CREATE TABLE t1 (a VARCHAR(20));
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 IS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY INT;
+  assoc assoc_t;
+BEGIN
+  UPDATE t1 SET a= 'a10' RETURNING a INTO assoc(10).last_name;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT scalar INTO non-existent variable with key
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10));
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+DECLARE
+BEGIN
+  UPDATE t1 SET a='Mike' RETURNING a INTO missing_var('Serg').first_name;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..INTO..RETURNING: field on scalar element
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(200):= 88;
+  UPDATE t1 SET a=201 RETURNING a INTO marks(200).non_exist;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..INTO..RETURNING into a non-existent field of a non-scalar element
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+CREATE PROCEDURE p1() AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  UPDATE t1 SET a=a+1,b='b21' WHERE a>=20 RETURNING a,b INTO a0(20).xa,a0(20).xb;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # Add tests with assoc array here when we add support for
+--echo # {INSERT|REPLACE|DELETE}..RETURNING..INTO
+--echo #
+
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1() AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  INSERT INTO t1 VALUES (10) RETURNING a INTO a0;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1() AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  REPLACE INTO t1 SET a=10 RETURNING a INTO a0;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE PROCEDURE p1() AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  a0 assoc0_t;
+BEGIN
+  DELETE FROM t1 RETURNING a INTO a0;
+END;
+$$
+DELIMITER ;$$
+
+--echo # End of 13.1 tests
