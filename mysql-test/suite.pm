@@ -108,6 +108,8 @@ sub skip_combinations {
   $skip{'main/chained_ssl_certificates.test'} = 'Skip if on Windows without OpenSSL'
     unless !IS_WINDOWS || $openssl_ver;
 
+  $skip{'main/ssl_session_resumption.combinations'} = [ $openssl_ver ? 'wolfssl' : 'openssl' ];
+
   %skip;
 }
 
