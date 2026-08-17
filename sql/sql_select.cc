@@ -26914,14 +26914,16 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
 /*
   Recursively mark all base tables within a TABLE_LIST as null rows.
-  Handles both single tables and nested joins (where table is NULL
-  but nested_join contains child TABLE_LISTs).
+  A plain table carries table alone and a nest carries nested_join
+  alone, but a merged derived table or view carries both, its own
+  placeholder and the tables it was merged into.  The query reads the
+  fields of those tables, so the walk cannot stop at the placeholder.
 */
 static void mark_table_list_as_null_row(TABLE_LIST *tl)
 {
   if (tl->table)
     mark_as_null_row(tl->table);
-  else if (tl->nested_join)
+  if (tl->nested_join)
   {
     List_iterator<TABLE_LIST> li(tl->nested_join->join_list);
     TABLE_LIST *child;
@@ -26936,7 +26938,7 @@ static void unmark_table_list_as_null_row(TABLE_LIST *tl)
 {
   if (tl->table)
     unmark_as_null_row(tl->table);
-  else if (tl->nested_join)
+  if (tl->nested_join)
   {
     List_iterator<TABLE_LIST> li(tl->nested_join->join_list);
     TABLE_LIST *child;
