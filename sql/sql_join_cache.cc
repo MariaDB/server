@@ -197,9 +197,7 @@ void JOIN_CACHE::calc_record_fields()
         themselves. Because of that, if the first non-const top-level table is a
         materialized table, we move to its bush_children:
       */
-      tab= join->join_tab + join->const_tables;
-      if (tab->has_bush_children())
-        tab= tab->bush_children.start;
+      tab= enter_bushes(join->join_tab + join->const_tables);
     }
   }
   DBUG_ASSERT(!tab->has_bush_children());
