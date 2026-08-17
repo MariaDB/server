@@ -160,7 +160,7 @@ drop table t;
 # MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
 #
 create table t1 (v vector(64) not null);
-insert into t1 select vec_fromtext(cast(concat('[',group_concat(1),']') as char(130))) from seq_1_to_64;
+insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -571,11 +571,11 @@ set sql_mode=@old_sql_mode;
 ## Original testcase
 CREATE TABLE t (a TEXT) AS SELECT '[1]' AS a;
 CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
-ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+ERROR 22007: Incorrect vector value: '\x00\x00\x80?' for column `test`.`tt`.`f` at row 1
 DROP TABLE t;
 CREATE TABLE t (a LONGBLOB) AS SELECT '[1]' AS a;
 CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
-ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+ERROR 22007: Incorrect vector value: '\x00\x00\x80?' for column `test`.`tt`.`f` at row 1
 DROP TABLE t;
 ## Another case, which would have failed with ERROR 1292
 ## without the fix
@@ -592,7 +592,15 @@ SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16382), ']')) AS f;
 DROP TABLE tt;
 CREATE TABLE tt AS
 SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
-ERROR 42000: Column length too big for column 'f' (max = 16383); use BLOB or TEXT instead
+ERROR 22007: Truncated incorrect vector value: '[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,...'
+CREATE TABLE t1 (v VECTOR(2));
+INSERT INTO t1 VALUES (VEC_FROMTEXT(CONCAT('[1.', REPEAT('0',70000), ',2]')));
+DROP TABLE t1;
+SELECT VEC_FROMTEXT('😀😀😀');
+VEC_FROMTEXT('😀😀😀')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'VEC_FromText' at position 1
 ## "Zero-dimensional" argument, no change in behaviour after fix
 SELECT VEC_FROMTEXT('[]') as f;
 f
@@ -625,9 +633,10 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t1, t2;
 CREATE TABLE t3 (f VECTOR(0));
 ERROR 42000: Incorrect column specifier for column 'f'
-## Fails because concat('[',group_concat(1),']') is mediumblob
 create view v1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
-ERROR 42000: Column length too big for column 'vec_fromtext(concat('[',group_concat(1),']'))' (max = 16383); use BLOB or TEXT instead
+DROP view v1;
+create table t1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+ERROR 22007: Incorrect vector value: '\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00\x80?\x00\x00...' for column `test`.`t1`.`vec_fromtext(concat('[',group_concat(1),']'))` at row 65
 ## NULLs
 select vec_fromtext(NULL);
 vec_fromtext(NULL)
