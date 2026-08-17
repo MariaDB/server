@@ -27020,6 +27020,49 @@ evaluate_fj_null_complement_row(JOIN *join, JOIN_TAB *join_tab,
 }
 
 
+/*
+  Record the rowid of a FULL JOIN right side row whose match condition
+  holds, while the found-match guard of that FULL JOIN is already open.
+
+  The condition attached to the right side tab holds the match condition
+  together with predicates that are no part of it, the WHERE predicates
+  over the join's result and any condition deferred here from an
+  enclosing outer join.  Those are wrapped in this outer join's own
+  found-match guard, which is closed until the first match of the current
+  left side row.  While it is closed the condition evaluates the match
+  alone, which is why the caller records the rowid whatever the WHERE
+  then makes of the row.  Once the guard is open, one of the wrapped
+  predicates can reject a later row of the same left side row before its
+  match is recorded, and the null complement pass would emit that row as
+  a row that matched nothing.
+
+  Closing the guard again gives the residual match condition.  A part of
+  the match that a ref or range access already applied is not in the
+  condition, and the ON expression carries no guard for this join's own
+  scope, so what the closed guard leaves is exactly what decides the
+  match.
+
+  Returns true on error.
+*/
+
+static bool record_full_join_right_match(JOIN *join, JOIN_TAB *join_tab,
+                                         COND *select_cond)
+{
+  JOIN_TAB *fj_inner= join_tab->first_inner;
+  bool matched;
+
+  fj_inner->found= 0;
+  matched= !select_cond || MY_TEST(select_cond->val_bool());
+  fj_inner->found= 1;
+
+  if (unlikely(join->thd->is_error()))
+    return true;
+  if (matched && join_tab->fj_dups->remember_rowids(join->thd))
+    return true;
+  return false;
+}
+
+
 /**
   @brief Process one row of the nested loop join.
 
@@ -27043,6 +27086,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
   ha_rows found_records=join->found_records;
   COND *select_cond= join_tab->select_cond;
   bool select_cond_result= TRUE;
+  bool fj_match_recorded= FALSE;
   DBUG_ENTER("evaluate_join_record");
   DBUG_PRINT("enter",
              ("evaluate_join_record join: %p  join_tab: %p  "
@@ -27064,6 +27108,14 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(evaluate_fj_null_complement_row(join, join_tab, select_cond));
 
   join_tab->tracker->r_rows++;
+
+  if (join_tab->fj_dups && join_tab->first_inner &&
+      join_tab->first_inner->found)
+  {
+    if (record_full_join_right_match(join, join_tab, select_cond))
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+    fj_match_recorded= TRUE;
+  }
 
   if (select_cond)
   {
@@ -27196,12 +27248,15 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
                           (ulonglong) join->thd->m_examined_row_count, (int) found));
 
     /*
-      For FULL JOIN: reaching this point means the ON condition matched
-      (because when 'found' is still 0, the WHERE trigcond is disabled).
-      Remember the right-side rowid so the null-complement pass skips
-      it, even if the WHERE later rejects the row and clears found.
+      For FULL JOIN: reaching this point with the found-match guard still
+      closed means the match condition holds, since the guard withholds
+      everything that is no part of the match.  Remember the right side
+      rowid so the null complement pass skips the row, even if the WHERE
+      then rejects it and clears found.  With the guard already open the
+      rowid was recorded before the condition was evaluated at all.
     */
-    if (join_tab->fj_dups && !join_tab->writing_null_complements)
+    if (join_tab->fj_dups && !join_tab->writing_null_complements &&
+        !fj_match_recorded)
     {
       if (join_tab->fj_dups->remember_rowids(join->thd))
         DBUG_RETURN(NESTED_LOOP_ERROR);

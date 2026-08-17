@@ -3861,4 +3861,73 @@ set optimizer_switch=default;
 
 drop table t1, t2, t3;
 
+--echo # ====================================================================
+--echo # Section 23: Every match on the right side of a FULL JOIN is recorded
+--echo # ====================================================================
+--echo #
+--echo # A FULL JOIN runs as a LEFT JOIN of its left side over its right side,
+--echo # then a pass emits the right side rows that matched no left row.  The
+--echo # pass reads a record of which right side rows matched, and that record
+--echo # has to hold every row whose ON expression was satisfied, whatever the
+--echo # WHERE then makes of the row.  The WHERE predicates on the right side
+--echo # are held back by a guard that is closed only until the first match of
+--echo # the current left side row, so a second or later matching row is where
+--echo # a predicate can reject the row before its match is recorded.  The
+--echo # pass would then emit it as a row that matched nothing.
+
+create table t1 (a int, b int);
+insert into t1 values (1,10);
+create table t2 (a int, c int);
+insert into t2 values (1,100),(1,50),(9,900);
+create table t3 (a int, d int);
+insert into t3 values (1,1000),(9,9000);
+
+--echo # The t1 row matches both t2 a = 1 rows.  The second one is rejected by
+--echo # the WHERE, and a predicate that accepts a NULL left side must not
+--echo # then let it back in as a row that matched nothing.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a where t2.c > 150 or t1.a is null;
+
+--echo # Both matching rows rejected by the WHERE.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a where t2.c > 150000 or t1.a is null;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+  where t2.c > 150000 or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a
+  where t2.c > 150000 or t1.a is null;
+
+--echo # The predicate reads the left side only.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null
+union
+select * from t1 right join t2 on t1.a = t2.a where t1.b > 50 or t1.b is null;
+
+--echo # The left side is a nest, so the FULL JOIN's right side is reached
+--echo # after more than one table has been read.
+--sorted_result
+select * from (t3 join t1 on t3.a = t1.a) full join t2 on t1.a = t2.a
+  where t2.c > 150 or t1.a is null;
+--sorted_result
+select * from (t3 join t1 on t3.a = t1.a) left join t2 on t1.a = t2.a
+  where t2.c > 150 or t1.a is null
+union
+select * from (t3 join t1 on t3.a = t1.a) right join t2 on t1.a = t2.a
+  where t2.c > 150 or t1.a is null;
+
+--echo # Chained FULL JOINs, where one join's right side is the next one's
+--echo # left side.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a full join t3 on t2.a = t3.a
+  where t2.c > 150 or t1.a is null;
+
+drop table t1, t2, t3;
+
 --echo # End of 12.3 tests
