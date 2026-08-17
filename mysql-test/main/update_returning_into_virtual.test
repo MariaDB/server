@@ -1,0 +1,77 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # Virtual and persistent columns in UPDATE .. RETURNING .. INTO
+--echo #
+
+--let $n= 1
+while ($n <= 2)
+{
+  if ($n == 1)
+  {
+    --let $engine= InnoDB
+  }
+  if ($n == 2)
+  {
+    --let $engine= MyISAM
+  }
+  --echo # Engine: $engine
+
+  --eval CREATE TABLE t1 (a INT, b INT, v INT AS (b*10) VIRTUAL, p INT AS (b+1) PERSISTENT) ENGINE=$engine
+  INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+
+  --echo # Virtual and persistent columns are returned with the new values
+  SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+  UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+  SELECT @a, @v, @p;
+
+  --echo # No change: no rows to process, the targets are not changed
+  SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+  UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+  SELECT @a, @v, @p;
+
+  --echo # An expression on virtual and persistent columns
+  SET @a= 'unchanged';
+  UPDATE t1 SET b=b+1 WHERE a=2 RETURNING v+p INTO @a;
+  SELECT @a;
+
+  --echo # Two rows change, ER_TOO_MANY_ROWS
+  --error ER_TOO_MANY_ROWS
+  UPDATE t1 SET b=b+1 RETURNING v INTO @v;
+
+  --echo # Plain RETURNING for comparison
+  UPDATE t1 SET b=b+1 RETURNING a, v, p;
+
+  DROP TABLE t1;
+  --inc $n
+}
+
+--echo #
+--echo # Non-deterministic virtual column that is not stored by the engine.
+--echo # The result depends on the engine: compare_record() ignores virtual
+--echo # columns for InnoDB, so no row needs an update; MyISAM compares whole
+--echo # records, so every row looks changed (when the column is used).
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, v DOUBLE AS (RAND()) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+UPDATE t1 SET b=b RETURNING a,v>=0;
+SET @a= 'unchanged';
+UPDATE t1 SET b=b RETURNING a, v>=0 INTO @a, @v;
+SELECT @a;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, v DOUBLE AS (RAND()) VIRTUAL) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+UPDATE t1 SET b=b RETURNING a,v>=0;
+SET @a= 'unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b RETURNING a, v>=0 INTO @a, @v;
+SELECT @a;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

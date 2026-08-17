@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # MDEV-42212 UPDATE ... RETURNING ... INTO raises ER_TOO_MANY_ROWS on InnoDB when the second found row needs no update
+--echo #
+
+--echo #
+--echo # The second row is found, but its new values are the same as the old
+--echo # values, so it is not changed. Plain RETURNING returns only the first
+--echo # row, and RETURNING .. INTO assigns it (no ER_TOO_MANY_ROWS).
+--echo # The updated column is not read by the statement, so InnoDB does not
+--echo # return it, and the server reads it for the comparison.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_same_row.combinations).
+--echo #
+
+--echo #
+--echo # The new value of the second row is the old value
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,5);
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a;
+SELECT * FROM t1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,5);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # The second value is truncated to the old value
+--echo #
+
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+SET @a='unchanged';
+UPDATE IGNORE t1 SET v=IF(a=1,'ab','xyzxyz') RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # The second value is clipped to the old value
+--echo #
+
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,127);
+SET @a='unchanged';
+UPDATE IGNORE t1 SET t=IF(a=1,100,300) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

@@ -1,0 +1,131 @@
+--- main/update_returning_into_many_rows.result
++++ main/update_returning_into_many_rows.reject
+@@ -73,7 +73,7 @@
+ SELECT * FROM t1;
+ a	b
+ 1	11
+-2	21
++2	20
+ 3	30
+ SET @a=NULL;
+ DROP TABLE t1;
+@@ -111,7 +111,7 @@
+ 11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ SET sql_mode=DEFAULT;
+@@ -120,10 +120,10 @@
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a;
+ @a
+-12
++11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ SET @a=123;
+@@ -131,10 +131,10 @@
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a;
+ @a
+-13
++11
+ SELECT * FROM t1;
+ a
+-13
++10
+ 20
+ 30
+ SET @a=NULL;
+@@ -163,7 +163,7 @@
+ 11	11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ CALL p1();
+@@ -171,10 +171,10 @@
+ Still here
+ SELECT @a,@b;
+ @a	@b
+-12	12
++11	11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ CALL p1();
+@@ -182,10 +182,10 @@
+ Still here
+ SELECT @a,@b;
+ @a	@b
+-13	13
++11	11
+ SELECT * FROM t1;
+ a
+-13
++10
+ 20
+ 30
+ SET @a=NULL, @b=NULL;
+@@ -215,27 +215,27 @@
+ 11	11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ CALL p1();
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a,@b;
+ @a	@b
+-12	12
++11	11
+ SELECT * FROM t1;
+ a
+-12
++10
+ 20
+ 30
+ CALL p1();
+ ERROR 42000: Result consisted of more than one row
+ SELECT @a,@b;
+ @a	@b
+-13	13
++11	11
+ SELECT * FROM t1;
+ a
+-13
++10
+ 20
+ 30
+ SET @a=NULL, @b=NULL;
+@@ -289,7 +289,7 @@
+ 11
+ SELECT * FROM t1;
+ a
+-11
++10
+ 20
+ 30
+ SET @a=NULL;
+@@ -322,7 +322,6 @@
+ 1
+ SELECT * FROM log;
+ a
+-1
+ DELETE FROM log;
+ # Rows are found but not changed
+ SET @a=123;

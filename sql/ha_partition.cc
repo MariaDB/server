@@ -11954,6 +11954,17 @@ void ha_partition::cond_pop()
 }
 
 
+bool ha_partition::update_may_be_deferred() const
+{
+  for (handler **file= m_file; *file; file++)
+  {
+    if ((*file)->update_may_be_deferred())
+      return true;
+  }
+  return false;
+}
+
+
 /**
   Perform bulk update preparation on each partition.
 

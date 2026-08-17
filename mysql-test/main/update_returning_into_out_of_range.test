@@ -1,0 +1,228 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # Numeric values that do not fit into the column and numeric values that
+--echo # fit into the column but do not fit into the INTO variable.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_out_of_range.combinations).
+--echo #
+
+--echo #
+--echo # The new value does not fit into the column
+--echo #
+
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+
+--echo # Strict mode: error before the row is updated, the target is not changed
+SET @a='unchanged';
+--error ER_WARN_DATA_OUT_OF_RANGE
+UPDATE t1 SET t=200 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # IGNORE: the value is clipped, the row is not skipped
+UPDATE IGNORE t1 SET t=200 WHERE a=2 RETURNING a, t INTO @a, @t;
+SELECT @a, @t;
+SELECT * FROM t1;
+
+--echo # IGNORE: the value is clipped to the current value, no change
+SET @a='unchanged';
+UPDATE IGNORE t1 SET t=300 WHERE a=2 RETURNING a INTO @a;
+SELECT @a;
+
+--echo # IGNORE: two rows are changed, ER_TOO_MANY_ROWS
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET t=-200 RETURNING a INTO @a;
+SHOW WARNINGS;
+
+--echo # Not strict mode: the value is clipped
+SET sql_mode='';
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+UPDATE t1 SET t=-200 WHERE a=1 RETURNING a, t INTO @a, @t;
+SELECT @a, @t;
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # The first value fits into the column, the second value does not
+--echo #
+
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+
+--echo # Strict mode: the data error for the second row, not ER_TOO_MANY_ROWS
+SET @a='unchanged';
+--error ER_WARN_DATA_OUT_OF_RANGE
+UPDATE t1 SET t=IF(a=1,100,200) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # IGNORE: the second value is clipped and changes the row
+--echo # (ER_TOO_MANY_ROWS)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+SET @a='unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET t=IF(a=1,100,200) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # The value fits into the column but does not fit into the variable
+--echo #
+
+CREATE TABLE t1 (a INT, i INT);
+INSERT INTO t1 VALUES (1,10);
+
+--echo # A user variable has no range limit
+UPDATE t1 SET i=1000 RETURNING i INTO @i;
+SELECT @i;
+
+--echo # A stored routine variable in strict mode: ER_WARN_DATA_OUT_OF_RANGE
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vt TINYINT DEFAULT 5;
+  UPDATE t1 SET i=2000 RETURNING i INTO vt;
+  SELECT vt;
+END;
+$$
+DELIMITER ;$$
+--error ER_WARN_DATA_OUT_OF_RANGE
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo # The same procedure created in the not strict mode: the value is
+--echo # clipped with a warning (a routine runs with the sql_mode it was
+--echo # created with)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vt TINYINT DEFAULT 5;
+  UPDATE t1 SET i=2000 RETURNING i INTO vt;
+  SELECT vt;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+
+--echo # A ROW variable field in strict mode: ER_WARN_DATA_OUT_OF_RANGE
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT, t TINYINT);
+  UPDATE t1 SET i=3000 RETURNING a, i INTO r;
+  SELECT r.a, r.t;
+END;
+$$
+DELIMITER ;$$
+--error ER_WARN_DATA_OUT_OF_RANGE
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo # A ROW variable field in the not strict mode: clipped with a warning
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT, t TINYINT);
+  UPDATE t1 SET i=3000 RETURNING a, i INTO r;
+  SELECT r.a, r.t;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two rows: the first value fits into the variable, the second does not
+--echo #
+
+CREATE TABLE t1 (a INT, i INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vt TINYINT DEFAULT 5;
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET i=IF(a=1,100,2000) RETURNING i INTO vt;
+  SELECT vt;
+END;
+$$
+DELIMITER ;$$
+--echo # Strict mode: ER_TOO_MANY_ROWS is raised before the second row is
+--echo # assigned, so there is no range error
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Two rows: the first value does not fit into the variable,
+--echo # the second does
+--echo #
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vt TINYINT DEFAULT 5;
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET i=IF(a=1,2000,100) RETURNING i INTO vt;
+  SELECT vt;
+END;
+$$
+DELIMITER ;$$
+--echo # Strict mode: the range error for the first row, ER_TOO_MANY_ROWS
+--echo # is not reached
+--error ER_WARN_DATA_OUT_OF_RANGE
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo # Not strict mode: the first value is clipped, then ER_TOO_MANY_ROWS
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vt TINYINT DEFAULT 5;
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET i=IF(a=1,2000,100) RETURNING i INTO vt;
+  SELECT vt;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

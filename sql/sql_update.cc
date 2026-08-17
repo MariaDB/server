@@ -342,6 +342,124 @@ int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
+
+/**
+  Data needed to update a row back.
+
+  UPDATE IGNORE .. RETURNING .. INTO accepts only one changed row.
+  If the engine rejects a row (e.g. because of a duplicate key) and IGNORE
+  ignores this, the row is not changed, so it must not count as a changed row.
+  This is known only after ha_update_row(), so the check for the second changed
+  row is done after it. A table without transactions cannot roll the update
+  back, so the row is updated back before ER_TOO_MANY_ROWS is raised.
+*/
+class Update_undo
+{
+  TABLE *m_table;
+  uchar *m_ref;                 // Position of the row
+  String *m_blobs;              // Old values of the BLOB fields
+  uint m_blob_count;
+
+public:
+  Update_undo()
+   :m_table(nullptr), m_ref(nullptr), m_blobs(nullptr), m_blob_count(0)
+  { }
+
+  ~Update_undo()
+  {
+    for (uint i= 0; i < m_blob_count; i++)
+      m_blobs[i].free();
+  }
+
+  /**
+    Allocate the memory needed by save() and revert().
+    @returns true on error
+  */
+  bool init(THD *thd, TABLE *table)
+  {
+    m_table= table;
+    if (!(m_ref= (uchar*) thd->alloc(table->file->ref_length)))
+      return true;
+    if (table->s->blob_fields)
+    {
+      if (!(m_blobs= new (thd->mem_root) String[table->s->blob_fields]))
+        return true;
+      m_blob_count= table->s->blob_fields;
+    }
+    return false;
+  }
+
+  /**
+    Remember the row that is going to be updated.
+    The old row is in record[1].
+    @returns true on error
+  */
+  bool save()
+  {
+    m_table->file->position(m_table->record[1]);
+    memcpy(m_ref, m_table->file->ref, m_table->file->ref_length);
+    /*
+      The old values of BLOB fields point into a buffer of the engine,
+      which can be reused by ha_update_row(). Make a copy.
+    */
+    for (uint i= 0; i < m_table->s->blob_fields; i++)
+    {
+      Field_blob *blob= (Field_blob*) m_table->field[m_table->s->blob_field[i]];
+      const uchar *ptr= blob->ptr_in_record(m_table->record[1]);
+      if (m_blobs[i].copy((const char*) blob->get_ptr(ptr),
+                          blob->get_length(ptr), &my_charset_bin))
+        return true;
+    }
+    return false;
+  }
+
+  /**
+    Update the row, which was updated after save(), back to the old values.
+    The new row is in record[0], the old row is in record[1].
+    On error, the error is sent to the client.
+    @returns true on error
+  */
+  bool revert(THD *thd)
+  {
+    TABLE *table= m_table;
+    const uint rec_length= table->s->rec_buff_length;
+    uchar *tmp_rec= (uchar*) thd->alloc(rec_length * 2);
+    if (!tmp_rec)
+      return true;
+    uchar *reread_rec= tmp_rec + rec_length;
+
+    /* ha_update_row() needs the old row in record[1], the new in record[0] */
+    memcpy(tmp_rec, table->record[0], rec_length);
+    memcpy(table->record[0], table->record[1], rec_length);
+    memcpy(table->record[1], tmp_rec, rec_length);
+    for (uint i= 0; i < table->s->blob_fields; i++)
+    {
+      Field_blob *blob= (Field_blob*) table->field[table->s->blob_field[i]];
+      blob->set_ptr(m_blobs[i].length(), (uchar*) m_blobs[i].ptr());
+    }
+
+    /*
+      Some engines (e.g. Aria) cannot update a row for the second time
+      unless it is read again. The statement fails after this, so it is
+      fine to stop the scan.
+    */
+    int error= table->file->ha_index_or_rnd_end();
+    if (!error)
+      error= table->file->ha_rnd_init(false);
+    if (!error)
+      error= table->file->ha_rnd_pos(reread_rec, m_ref);
+    if (!error)
+      error= table->file->ha_update_row(table->record[1], table->record[0]);
+    if (unlikely(error))
+    {
+      table->file->print_error(error, MYF(0));
+      return true;
+    }
+    return false;
+  }
+};
+
+
 /**
   @brief Special handling of single-table updates after prepare phase
 
@@ -367,6 +485,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
   bool		can_compare_record;
+  Update_undo   undo;
+  bool          use_undo= false;
   bool          binlogged= 0;
   int           res;
   int		error, loc_error;
@@ -397,7 +517,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
-  bool record_was_same, need_update, trg_skip_row;
+  bool record_was_same, need_update, trg_skip_row, second_row;
 
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
@@ -424,6 +544,18 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     DBUG_RETURN(1);
   }
   
+  if (ignore && with_returning_into() && table->file->update_may_be_deferred())
+  {
+    /*
+      A row rejected by the engine (e.g. because of a duplicate key) is not
+      known right after ha_update_row(). It is not possible to tell if
+      the statement has a second changed row.
+    */
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "UPDATE IGNORE .. RETURNING .. INTO on this storage engine");
+    DBUG_RETURN(1);
+  }
+
   table->opt_range_keys.clear_all();
 
   query_plan.select_lex= thd->lex->first_select_lex();
@@ -511,8 +643,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       thd->lex->current_select->first_cond_optimization= 0;
     }
 
-    my_ok(thd);				// No matching records
-    DBUG_RETURN(0);
+    DBUG_RETURN(send_ok_no_matching_records(thd));
   }
 #endif
   /* Update the table->file->stats.records number */
@@ -555,8 +686,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       thd->lex->current_select->first_cond_optimization= 0;
     }
 
-    my_ok(thd);				// No matching records
-    DBUG_RETURN(0);
+    DBUG_RETURN(send_ok_no_matching_records(thd));
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
@@ -972,6 +1102,12 @@ update_begin:
     the table handler is returning all columns OR if
     if all updated columns are read
   */
+  if (with_returning_into() &&
+      (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ))
+  {
+    bitmap_union(table->read_set, table->write_set);
+    table->file->column_bitmaps_signal(true);
+  }
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
@@ -988,6 +1124,18 @@ update_begin:
                             thd->lex->returning()->returning_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
       goto error;
+  }
+
+  if (ignore && with_returning_into() && !will_batch &&
+      !table->file->has_transactions_and_rollback())
+  {
+    /* Needed to update the second changed row back, see Update_undo */
+    if (undo.init(thd, table))
+    {
+      error= 1;
+      goto err;
+    }
+    use_undo= true;
   }
 
   while (!(error=info.read_record()) && !thd->killed)
@@ -1042,6 +1190,28 @@ update_begin:
             break;
           }
         }
+        /*
+          RETURNING .. INTO accepts only one changed row.
+          UPDATE IGNORE ignores the rows rejected by the engine, so for it
+          the second changed row is known only after ha_update_row().
+        */
+        second_row= updated == 1 && lex->has_returning() &&
+                    returning_result->accepts_only_one_row();
+        if (second_row && (!ignore || will_batch))
+        {
+          /*
+            A second record has been found.
+            Raise the error and break without updating the second record.
+          */
+          error= 1;
+          my_error(ER_TOO_MANY_ROWS, MYF(0));
+          break;
+        }
+        if (second_row && use_undo && undo.save())
+        {
+          error= 1;
+          break;
+        }
         if (will_batch)
         {
           /*
@@ -1082,6 +1252,17 @@ update_begin:
           /* Non-batched update */
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
+          if (second_row && ignore && !error)
+          {
+            /*
+              The second record has been really changed, see above.
+              A table with transactions is rolled back after the error.
+            */
+            error= 1;
+            if (!use_undo || !undo.revert(thd))
+              my_error(ER_TOO_MANY_ROWS, MYF(0));
+            break;
+          }
         }
 
         if (likely(!error) && thd->lex->has_returning() &&
@@ -1360,7 +1541,14 @@ update_end:
             (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated);
 
     if (thd->lex->has_returning())
+    {
+      /*
+        RETURNING..INTO with no rows to process raises a warning
+        (and not an error), even in the strict mode.
+      */
+      thd->abort_on_warning= 0;
       returning_result->send_eof();
+    }
     else
       my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                   found : updated, id, buff);
@@ -1423,6 +1611,26 @@ produce_explain_and_leave:
   delete select;
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((thd->is_error()) ? 1 : 0);
+}
+
+
+/**
+  @brief Send OK for a single-table update that has no rows to process
+         (e.g. no partitions used, an impossible WHERE, an empty table)
+  @returns true on error, false on success
+*/
+bool Sql_cmd_update::send_ok_no_matching_records(THD *thd)
+{
+  if (with_returning_into())
+  {
+    /*
+      UPDATE..RETURNING..INTO with no rows to process: the INTO targets
+      are not changed. send_eof() raises a warning ("No data") and sends OK.
+    */
+    return returning_result->send_eof();
+  }
+  my_ok(thd);
+  return false;
 }
 
 
@@ -3043,6 +3251,53 @@ bool multi_update::send_eof()
 
 
 /**
+  @brief Check if the statement has RETURNING with INTO
+*/
+bool Sql_cmd_update::with_returning_into() const
+{
+  return dynamic_cast<select_dumpvar*>(returning_result) != nullptr;
+}
+
+
+/**
+  @brief    Set the RETURNING..INTO target list
+  @returns  true on error, false on success
+*/
+bool Sql_cmd_update::set_returning_into_result(select_dumpvar *res)
+{
+  /*
+    Due to the implementation, OLD_VALUE() would return the new value
+    into the INTO target (not the old value). Disallow it.
+  */
+  if (m_with_old_value_items)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "OLD_VALUE(..)", "RETURNING..INTO");
+    return true;
+  }
+  returning_result= res;
+  return false;
+}
+
+
+/*
+  @brief Check if this UPDATE statement returns a result set
+*/
+bool Sql_cmd_update::returns_result_set() const
+{
+  DBUG_ASSERT(lex->m_sql_cmd == this);
+  if (lex->describe || lex->analyze_stmt)
+    return true; // E.g. EXPLAIN UPDATE t1 SET a=a+1;
+
+  if (!lex->has_returning())
+    return false; // e.g. UPDATE t1 SET a=a+1;
+
+  if (with_returning_into())
+    return false; // e.g. UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+
+  return true; // e.g. UPDATE t1 SET a=a+1 RETURNING a;
+}
+
+/**
   @brief Check whether conversion to multi-table update is prohibited
 
   @param thd  global context the processed statement
@@ -3286,6 +3541,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  bool set_returning_result_to_null= false;
   Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   if (!multitable)
@@ -3295,23 +3551,74 @@ bool Sql_cmd_update::execute_inner(THD *thd)
       /* This is UPDATE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)
       {
+        /*
+          Queries with INTO clause like:
+            ANALYZE UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+          Should have been rejected earlier.
+        */
+        DBUG_ASSERT(!returning_result);
         if (!(returning_result= new (thd->mem_root) select_send_analyze(thd)))
         {
           return true;
         }
+        set_returning_result_to_null= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
+        // select_send_analyze::prepare() cannot fail
+        (void) returning_result->prepare(thd->lex->returning()->returning_list,
+                                         NULL);
       }
       else
       {
-        if (!(returning_result= new
-                        (thd->mem_root) select_send(thd)))
+        if (!returning_result)
         {
-          return true;
+          // UPDATE t1 SET a=a+1 RETURNING a;
+          if (!(returning_result= new (thd->mem_root) select_send(thd)))
+            return true;
+          set_returning_result_to_null= true;
+          // select_send::prepare() cannot fail
+          (void) returning_result->prepare(
+                                         thd->lex->returning()->returning_list,
+                                         NULL);
+        }
+        else
+        {
+          // UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+          // UPDATE t1 SET a=a+1 RETURNING a INTO spvar;
+          DBUG_ASSERT(with_returning_into());
+          DBUG_ASSERT(!lex->describe); // EXPLAIN - rejected earlier
+          /*
+            To replicate a statement like:
+              UPDATE t1 SET a=a+1 RETURNING a INTO spvar; -- notice SP variable
+            we would need to cut the 'INTO spvar' part.
+            Let's disallow BINLOG_FORMAT_STMT for now for simplicity.
+          */
+          if (!thd->is_current_stmt_binlog_disabled() &&
+              thd->variables.binlog_format == BINLOG_FORMAT_STMT)
+          {
+            my_error(ER_WRONG_USAGE, MYF(0), "--binlog-format=statement",
+                     "RETURNING INTO");
+            return true;
+          }
+          /*
+            The below call can fail e.g. in case of a mismatch between the
+            number of columns (i.e. N!=M) in:
+              UPDATE..RETURNING <N expressions> INTO <M targets>
+          */
+          if (returning_result->prepare(thd->lex->returning()->returning_list,
+                                        NULL))
+            return true;
         }
       }
-      if (thd->lex->has_returning())
-        (void) returning_result->prepare(thd->lex->returning()->returning_list, NULL);
+    }
+  }
+  else
+  {
+    // RETURNING INTO is not supported for multi-table UPDATEs
+    if (with_returning_into())
+    {
+      my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "RETURNING..INTO");
+      return true;
     }
   }
 
@@ -3344,6 +3651,18 @@ bool Sql_cmd_update::execute_inner(THD *thd)
       bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
       res= thd->lex->explain->send_explain(thd, extended);
     }
+  }
+
+  if (set_returning_result_to_null)
+  {
+    /*
+      returning_result could be assigned to a select_send or
+      select_send_analyze instance above.
+      Let's set it to null again, to have a new
+      select_send/select_send_analyze instance created on the second
+      and further executions.
+    */
+    returning_result= nullptr;
   }
 
   if (result)

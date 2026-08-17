@@ -1,0 +1,169 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+#
+#
+# UPDATE IGNORE .. RETURNING .. INTO: a row that is rejected by the
+# engine (and ignored by IGNORE) is not changed, so it is not counted as
+# a changed row. Plain RETURNING and RETURNING .. INTO work the same way.
+# The test is run for several storage engines
+# (see update_returning_into_ignore.combinations).
+# After ER_TOO_MANY_ROWS, transactional engines roll back the statement,
+# non-transactional engines update the second row back.
+#
+#
+# Duplicate key: the second row is rejected
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE IGNORE t1 SET a=5 RETURNING b;
+b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=5 RETURNING b INTO @b;
+SELECT @b;
+@b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+DROP TABLE t1;
+#
+# Duplicate key: the first row is rejected, the second row is changed
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(5,5);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=IF(b=1,5,IF(b=2,12,a)) RETURNING b INTO @b;
+SELECT @b;
+@b
+2
+SELECT * FROM t1 ORDER BY b;
+a	b
+1	1
+12	2
+5	5
+DROP TABLE t1;
+#
+# Duplicate key: the second row is rejected, the third row is changed
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3),(5,5);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=IF(b=2,5,a+10) RETURNING b INTO @b;
+ERROR 42000: Result consisted of more than one row
+SELECT @b;
+@b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+11	1
+2	2
+3	3
+5	5
+DROP TABLE t1;
+#
+# Two rows are changed
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET b=b+10 RETURNING b INTO @b;
+ERROR 42000: Result consisted of more than one row
+SELECT @b;
+@b
+11
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	11
+2	2
+3	3
+DROP TABLE t1;
+#
+# No partition for the new value: the second row is rejected
+#
+CREATE TABLE t1 (a INT, b INT)
+PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (10));
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE IGNORE t1 SET a=IF(b=1,5,100) RETURNING b;
+b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=IF(b=1,5,100) RETURNING b INTO @b;
+SELECT @b;
+@b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+DROP TABLE t1;
+#
+# The new row does not belong to the partitions named in the statement
+#
+CREATE TABLE t1 (a INT, b INT)
+PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @b='unchanged';
+UPDATE IGNORE t1 PARTITION (p0) SET a=IF(b=1,5,15) RETURNING b INTO @b;
+SELECT @b;
+@b
+1
+SELECT * FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+DROP TABLE t1;
+#
+# System versioned table
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=5 RETURNING b INTO @b;
+SELECT @b;
+@b
+1
+SELECT a, b FROM t1 ORDER BY b;
+a	b
+5	1
+2	2
+SELECT a, b FROM t1 FOR SYSTEM_TIME ALL ORDER BY b, row_end;
+a	b
+1	1
+5	1
+2	2
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE IGNORE t1 SET b=b+10 RETURNING b INTO @b;
+ERROR 42000: Result consisted of more than one row
+SELECT a, b FROM t1 ORDER BY b;
+a	b
+2	2
+1	11
+SELECT a, b FROM t1 FOR SYSTEM_TIME ALL ORDER BY b, row_end;
+a	b
+1	1
+5	1
+1	1
+2	2
+2	2
+1	11
+DROP TABLE t1;
+# End of 13.1 tests

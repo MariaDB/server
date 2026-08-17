@@ -1,0 +1,37 @@
+--- main/update_returning_into_ignore.result
++++ main/update_returning_into_ignore.reject
+@@ -66,7 +66,7 @@
+ 1
+ SELECT * FROM t1 ORDER BY b;
+ a	b
+-11	1
++1	1
+ 2	2
+ 3	3
+ 5	5
+@@ -84,7 +84,7 @@
+ 11
+ SELECT * FROM t1 ORDER BY a;
+ a	b
+-1	11
++1	1
+ 2	2
+ 3	3
+ DROP TABLE t1;
+@@ -155,8 +155,8 @@
+ ERROR 42000: Result consisted of more than one row
+ SELECT a, b FROM t1 ORDER BY b;
+ a	b
++1	1
+ 2	2
+-1	11
+ SELECT a, b FROM t1 FOR SYSTEM_TIME ALL ORDER BY b, row_end;
+ a	b
+ 1	1
+@@ -164,6 +164,5 @@
+ 1	1
+ 2	2
+ 2	2
+-1	11
+ DROP TABLE t1;
+ # End of 13.1 tests

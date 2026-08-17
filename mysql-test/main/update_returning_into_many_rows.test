@@ -1,0 +1,263 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO when several rows match the WHERE condition.
+--echo # The test is run for several storage engines
+--echo # (see update_returning_into_many_rows.combinations).
+--echo # The results differ between the engines only in how the table looks
+--echo # after ER_TOO_MANY_ROWS: transactional engines roll back the statement,
+--echo # non-transactional engines keep the rows updated before the error.
+--echo #
+
+--echo #
+--echo # Several rows match, but none of them needs an update:
+--echo # only a warning, no ER_TOO_MANY_ROWS
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+SET @a=123;
+UPDATE t1 SET b=b RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+SET @a=123;
+UPDATE t1 SET b=b WHERE a<3 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+SET @a=123;
+UPDATE t1 SET b=b+0 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # Several rows match, only one of them needs an update
+SET @a=123;
+UPDATE t1 SET b=IF(a=1,11,b) RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # Several rows match, two of them need an update
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b+1 WHERE a>1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Several rows match, none of them needs an update + NOT FOUND handler
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT 123;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+  UPDATE t1 SET b=b RETURNING a INTO v;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows updated for various sql_mode values
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+SET sql_mode='';
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET sql_mode=DEFAULT;
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows + CONTINUE HANDLER
+--echo #
+
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET @b=@a;
+  END;
+  UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+  SELECT 'Still here' AS comment;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows + EXIT HANDLER
+--echo #
+
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET @b=@a;
+    RESIGNAL;
+  END;
+  UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+  SELECT 'Still here' AS comment;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Normal case
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE a>=30 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Normal case with LIMIT
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 ORDER BY a LIMIT 1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows inside a transaction
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+START TRANSACTION;
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+COMMIT;
+DROP TABLE t1;
+
+
+--echo #
+--echo # AFTER UPDATE trigger: it is fired for the rows that are processed.
+--echo # The second changed row is not updated, so its trigger is not fired.
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE log (a INT);
+CREATE TRIGGER tr1 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (NEW.a);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+
+--echo # One row is changed
+SET @a=123;
+UPDATE t1 SET b=b+1 WHERE a=1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM log;
+DELETE FROM log;
+
+--echo # Two rows are changed
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM log;
+DELETE FROM log;
+
+--echo # Rows are found but not changed
+SET @a=123;
+UPDATE t1 SET b=b RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM log;
+
+DROP TABLE t1, log;
+
+
+--echo # End of 13.1 tests

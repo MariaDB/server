@@ -412,3 +412,32 @@ insert into t1 values (1,2),(2,4) returning a,b;
 insert into t1 select seq,seq from seq_10_to_13 returning a,b;
 show status like "Rows_sent";
 drop table t1;
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN INSERT INTO t1 VALUES (10) RETURNING a INTO @a;
+
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

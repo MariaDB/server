@@ -1,0 +1,52 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+--echo #
+
+--echo #
+--echo # UPDATE IGNORE .. RETURNING .. INTO for a table with BLOB columns.
+--echo # If the second changed row is updated back, its BLOB values are
+--echo # restored. The test is run for MyISAM, Aria and InnoDB
+--echo # (see update_returning_into_ignore_blob.combinations).
+--echo #
+
+--echo #
+--echo # Duplicate key: the second row is rejected
+--echo #
+
+CREATE TABLE t1 (a INT UNIQUE, b INT, c LONGTEXT, d TEXT);
+INSERT INTO t1 VALUES (1,1,REPEAT('x',70000),'dd1'),
+                      (2,2,REPEAT('y',70000),'dd2');
+SET @b='unchanged';
+UPDATE IGNORE t1 SET a=5, c=CONCAT(c,'z'), d=CONCAT(d,'q')
+  RETURNING b INTO @b;
+SELECT @b;
+SELECT a, b, LENGTH(c), RIGHT(c,2), d FROM t1 ORDER BY b;
+DROP TABLE t1;
+
+--echo #
+--echo # Two rows are changed: the BLOB values of the second row are restored
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c LONGTEXT, d TEXT);
+INSERT INTO t1 VALUES (1,1,REPEAT('x',70000),'dd1'),
+                      (2,2,REPEAT('y',70000),'dd2');
+CREATE TEMPORARY TABLE t2 AS SELECT a, MD5(c) AS mc, MD5(d) AS md FROM t1;
+SET @b='unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET c=CONCAT(c,'z'), d=CONCAT(d,'q'), b=b+1
+  RETURNING b INTO @b;
+SELECT @b;
+SELECT t1.a, t1.b, LENGTH(t1.c), MD5(t1.c)=t2.mc AS c_same,
+       t1.d, MD5(t1.d)=t2.md AS d_same
+FROM t1 JOIN t2 USING (a) ORDER BY a;
+CHECK TABLE t1;
+DROP TEMPORARY TABLE t2;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

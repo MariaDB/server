@@ -180,6 +180,7 @@ protected:
 
 struct LEX;
 class select_result;
+class select_dumpvar;
 class Prelocking_strategy;
 class DML_prelocking_strategy;
 class Protocol;
@@ -212,10 +213,28 @@ class Sql_cmd_dml : public Sql_cmd
 public:
 
   /**
+    @brief Check if the statement returns a result set in a general case
+  */
+  static bool returns_result_set_generic(const LEX *lex);
+
+  /**
     @brief Check whether the statement changes the contents of used tables
     @return true if this is data change statement, false otherwise
   */
   virtual bool is_data_change_stmt() const { return true; }
+
+  /**
+    @brief Set the RETURNING INTO result
+    @return true on error, false on success
+  */
+  virtual bool set_returning_into_result(select_dumpvar *res);
+
+  enum_sql_command sql_command_code() const override;
+
+  /**
+    @brief Check if the statement returns a result set
+  */
+  virtual bool returns_result_set() const= 0;
 
   /**
     @brief Perform context analysis of the statement
@@ -238,8 +257,8 @@ public:
   ha_rows get_scanned_rows() { return scanned_rows; }
 
 protected:
-  Sql_cmd_dml()
-      : Sql_cmd(), lex(nullptr), result(nullptr),
+  Sql_cmd_dml(LEX *lex_arg)
+      : Sql_cmd(), lex(lex_arg), result(nullptr),
         m_empty_query(false), scanned_rows(0)
   {}
 

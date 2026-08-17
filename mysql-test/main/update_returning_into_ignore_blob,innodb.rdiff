@@ -1,0 +1,11 @@
+--- main/update_returning_into_ignore_blob.result
++++ main/update_returning_into_ignore_blob.reject
+@@ -45,7 +45,7 @@
+ t1.d, MD5(t1.d)=t2.md AS d_same
+ FROM t1 JOIN t2 USING (a) ORDER BY a;
+ a	b	LENGTH(t1.c)	c_same	d	d_same
+-1	2	70001	0	dd1q	0
++1	1	70000	1	dd1	1
+ 2	2	70000	1	dd2	1
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text

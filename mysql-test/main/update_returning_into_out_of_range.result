@@ -1,0 +1,258 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# Numeric values that do not fit into the column and numeric values that
+# fit into the column but do not fit into the INTO variable.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_out_of_range.combinations).
+#
+#
+# The new value does not fit into the column
+#
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+# Strict mode: error before the row is updated, the target is not changed
+SET @a='unchanged';
+UPDATE t1 SET t=200 RETURNING a INTO @a;
+ERROR 22003: Out of range value for column 't' at row 1
+SELECT @a;
+@a
+unchanged
+SELECT * FROM t1;
+a	t
+1	10
+2	20
+# IGNORE: the value is clipped, the row is not skipped
+UPDATE IGNORE t1 SET t=200 WHERE a=2 RETURNING a, t INTO @a, @t;
+Warnings:
+Warning	1264	Out of range value for column 't' at row 2
+SELECT @a, @t;
+@a	@t
+2	127
+SELECT * FROM t1;
+a	t
+1	10
+2	127
+# IGNORE: the value is clipped to the current value, no change
+SET @a='unchanged';
+UPDATE IGNORE t1 SET t=300 WHERE a=2 RETURNING a INTO @a;
+Warnings:
+Warning	1264	Out of range value for column 't' at row 2
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+unchanged
+# IGNORE: two rows are changed, ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET t=-200 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1264	Out of range value for column 't' at row 1
+Warning	1264	Out of range value for column 't' at row 2
+Error	1172	Result consisted of more than one row
+# Not strict mode: the value is clipped
+SET sql_mode='';
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+UPDATE t1 SET t=-200 WHERE a=1 RETURNING a, t INTO @a, @t;
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+SELECT @a, @t;
+@a	@t
+1	-128
+SELECT * FROM t1;
+a	t
+1	-128
+2	20
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# The first value fits into the column, the second value does not
+#
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+# Strict mode: the data error for the second row, not ER_TOO_MANY_ROWS
+SET @a='unchanged';
+UPDATE t1 SET t=IF(a=1,100,200) RETURNING a INTO @a;
+ERROR 22003: Out of range value for column 't' at row 2
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	t
+1	100
+2	20
+# IGNORE: the second value is clipped and changes the row
+# (ER_TOO_MANY_ROWS)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+SET @a='unchanged';
+UPDATE IGNORE t1 SET t=IF(a=1,100,200) RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	t
+1	100
+2	20
+DROP TABLE t1;
+#
+# The value fits into the column but does not fit into the variable
+#
+CREATE TABLE t1 (a INT, i INT);
+INSERT INTO t1 VALUES (1,10);
+# A user variable has no range limit
+UPDATE t1 SET i=1000 RETURNING i INTO @i;
+SELECT @i;
+@i
+1000
+# A stored routine variable in strict mode: ER_WARN_DATA_OUT_OF_RANGE
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vt TINYINT DEFAULT 5;
+UPDATE t1 SET i=2000 RETURNING i INTO vt;
+SELECT vt;
+END;
+$$
+CALL p1();
+ERROR 22003: Out of range value for column 'vt' at row 1
+SELECT * FROM t1;
+a	i
+1	2000
+DROP PROCEDURE p1;
+# The same procedure created in the not strict mode: the value is
+# clipped with a warning (a routine runs with the sql_mode it was
+# created with)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+SET sql_mode='';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vt TINYINT DEFAULT 5;
+UPDATE t1 SET i=2000 RETURNING i INTO vt;
+SELECT vt;
+END;
+$$
+CALL p1();
+vt
+127
+Warnings:
+Warning	1264	Out of range value for column 'vt' at row 1
+SELECT * FROM t1;
+a	i
+1	2000
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+# A ROW variable field in strict mode: ER_WARN_DATA_OUT_OF_RANGE
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT, t TINYINT);
+UPDATE t1 SET i=3000 RETURNING a, i INTO r;
+SELECT r.a, r.t;
+END;
+$$
+CALL p1();
+ERROR 22003: Out of range value for column 't' at row 1
+SELECT * FROM t1;
+a	i
+1	3000
+DROP PROCEDURE p1;
+# A ROW variable field in the not strict mode: clipped with a warning
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10);
+SET sql_mode='';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT, t TINYINT);
+UPDATE t1 SET i=3000 RETURNING a, i INTO r;
+SELECT r.a, r.t;
+END;
+$$
+CALL p1();
+r.a	r.t
+1	127
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+SELECT * FROM t1;
+a	i
+1	3000
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Two rows: the first value fits into the variable, the second does not
+#
+CREATE TABLE t1 (a INT, i INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vt TINYINT DEFAULT 5;
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET i=IF(a=1,100,2000) RETURNING i INTO vt;
+SELECT vt;
+END;
+$$
+# Strict mode: ER_TOO_MANY_ROWS is raised before the second row is
+# assigned, so there is no range error
+CALL p1();
+ER_TOO_MANY_ROWS
+ER_TOO_MANY_ROWS
+vt
+100
+SELECT * FROM t1;
+a	i
+1	100
+2	20
+DROP PROCEDURE p1;
+#
+# Two rows: the first value does not fit into the variable,
+# the second does
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vt TINYINT DEFAULT 5;
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET i=IF(a=1,2000,100) RETURNING i INTO vt;
+SELECT vt;
+END;
+$$
+# Strict mode: the range error for the first row, ER_TOO_MANY_ROWS
+# is not reached
+CALL p1();
+ERROR 22003: Out of range value for column 'vt' at row 1
+SELECT * FROM t1;
+a	i
+1	2000
+2	20
+DROP PROCEDURE p1;
+# Not strict mode: the first value is clipped, then ER_TOO_MANY_ROWS
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,10),(2,20);
+SET sql_mode='';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vt TINYINT DEFAULT 5;
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET i=IF(a=1,2000,100) RETURNING i INTO vt;
+SELECT vt;
+END;
+$$
+CALL p1();
+ER_TOO_MANY_ROWS
+ER_TOO_MANY_ROWS
+vt
+127
+SELECT * FROM t1;
+a	i
+1	2000
+2	20
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 13.1 tests

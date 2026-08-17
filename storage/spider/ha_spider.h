@@ -419,6 +419,7 @@ public:
     bool hs_request
   );
   bool start_bulk_update() override;
+  bool update_may_be_deferred() const override { return true; }
   int exec_bulk_update(ha_rows *dup_key_found) override;
   int end_bulk_update() override;
   int bulk_update_row(

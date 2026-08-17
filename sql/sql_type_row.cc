@@ -126,7 +126,7 @@ public:
                            bool *assign_as_row) const override
   {
     *assign_as_row= false;
-    return select_list.elements == 1;
+    return select_list.elements != 1;
   }
   bool set(THD *thd, Item *item) override
   {
@@ -152,7 +152,7 @@ public:
                            bool *assign_as_row) const override
   {
     *assign_as_row= false;
-    return select_list.elements == 1;
+    return select_list.elements != 1;
   }
   bool set(THD *thd, Item *item) override
   {

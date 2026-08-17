@@ -1,0 +1,65 @@
+--- main/update_returning_into_out_of_range.result
++++ main/update_returning_into_out_of_range.reject
+@@ -81,7 +81,7 @@
+ 1
+ SELECT * FROM t1;
+ a	t
+-1	100
++1	10
+ 2	20
+ # IGNORE: the second value is clipped and changes the row
+ # (ER_TOO_MANY_ROWS)
+@@ -95,7 +95,7 @@
+ 1
+ SELECT * FROM t1;
+ a	t
+-1	100
++1	10
+ 2	20
+ DROP TABLE t1;
+ #
+@@ -120,7 +120,7 @@
+ ERROR 22003: Out of range value for column 'vt' at row 1
+ SELECT * FROM t1;
+ a	i
+-1	2000
++1	1000
+ DROP PROCEDURE p1;
+ # The same procedure created in the not strict mode: the value is
+ # clipped with a warning (a routine runs with the sql_mode it was
+@@ -159,7 +159,7 @@
+ ERROR 22003: Out of range value for column 't' at row 1
+ SELECT * FROM t1;
+ a	i
+-1	3000
++1	10
+ DROP PROCEDURE p1;
+ # A ROW variable field in the not strict mode: clipped with a warning
+ TRUNCATE TABLE t1;
+@@ -205,7 +205,7 @@
+ 100
+ SELECT * FROM t1;
+ a	i
+-1	100
++1	10
+ 2	20
+ DROP PROCEDURE p1;
+ #
+@@ -228,7 +228,7 @@
+ ERROR 22003: Out of range value for column 'vt' at row 1
+ SELECT * FROM t1;
+ a	i
+-1	2000
++1	10
+ 2	20
+ DROP PROCEDURE p1;
+ # Not strict mode: the first value is clipped, then ER_TOO_MANY_ROWS
+@@ -250,7 +250,7 @@
+ 127
+ SELECT * FROM t1;
+ a	i
+-1	2000
++1	10
+ 2	20
+ SET sql_mode=DEFAULT;
+ DROP PROCEDURE p1;

@@ -65,6 +65,7 @@ public:
   select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() = default;
+  virtual bool accepts_only_one_row() const { return false; }
   /**
     Change wrapped select_result.
 

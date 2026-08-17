@@ -1,0 +1,25 @@
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+
+PREPARE stmt FROM 'UPDATE t1 SET a=a+1 RETURNING a INTO @a1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+--echo # End of 13.1 tests

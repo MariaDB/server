@@ -1,0 +1,508 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# UPDATE..RETURNING..INTO a ROW variable (and its field) with no rows
+# to process raises a warning (not an error) and does not change
+# the target. The behavior must not depend on the storage engine
+# (see update_returning_into_no_rows_row.combinations).
+#
+#
+# UPDATE..RETURNING..INTO ROW (a INT, b INT)
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+CREATE PROCEDURE p1()
+BEGIN
+
+DECLARE r ROW (a INT, b INT);
+SELECT 'WHERE matches no rows, no index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'WHERE matches no rows, index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'Impossible WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'LIMIT 0' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=b)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=100)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+
+DECLARE r ROW (a INT, b INT);
+SELECT 'Empty table, no WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a INTO r.a;
+SELECT r.a, r.b;
+
+END;
+$$
+# Empty table
+CALL p2;
+scenario
+Empty table, no WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+INSERT INTO t1 VALUES (10,100),(20,200),(30,300);
+# Non-empty table
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+# Nothing was changed
+SELECT * FROM t1;
+a	b
+10	100
+20	200
+30	300
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO ROW TYPE OF t1
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+CREATE PROCEDURE p1()
+BEGIN
+
+DECLARE r ROW TYPE OF t1;
+SELECT 'WHERE matches no rows, no index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'WHERE matches no rows, index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'Impossible WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'LIMIT 0' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=b)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=100)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+
+DECLARE r ROW TYPE OF t1;
+SELECT 'Empty table, no WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a INTO r.a;
+SELECT r.a, r.b;
+
+END;
+$$
+# Empty table
+CALL p2;
+scenario
+Empty table, no WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+INSERT INTO t1 VALUES (10,100),(20,200),(30,300);
+# Non-empty table
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+# Nothing was changed
+SELECT * FROM t1;
+a	b
+10	100
+20	200
+30	300
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+#
+# UPDATE..RETURNING..INTO ROW TYPE OF c1
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1; BEGIN
+DECLARE r ROW TYPE OF c1;
+SELECT 'WHERE matches no rows, no index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE b=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'WHERE matches no rows, index used' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'Impossible WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 WHERE 1=0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'LIMIT 0' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1 LIMIT 0 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=b)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+SELECT 'A row is found but it needs no update (b=100)' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+END;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1; BEGIN
+DECLARE r ROW TYPE OF c1;
+SELECT 'Empty table, no WHERE' AS scenario;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a,b INTO r;
+SELECT r.a, r.b;
+SET r.a=123, r.b=456;
+UPDATE t1 SET b=b+1  RETURNING a INTO r.a;
+SELECT r.a, r.b;
+END;
+END;
+$$
+# Empty table
+CALL p2;
+scenario
+Empty table, no WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+INSERT INTO t1 VALUES (10,100),(20,200),(30,300);
+# Non-empty table
+CALL p1;
+scenario
+WHERE matches no rows, no index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+WHERE matches no rows, index used
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+Impossible WHERE
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+LIMIT 0
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=b)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+scenario
+A row is found but it needs no update (b=100)
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+# Nothing was changed
+SELECT * FROM t1;
+a	b
+10	100
+20	200
+30	300
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# End of 13.1 tests

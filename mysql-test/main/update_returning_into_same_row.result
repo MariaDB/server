@@ -1,0 +1,74 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# MDEV-42212 UPDATE ... RETURNING ... INTO raises ER_TOO_MANY_ROWS on InnoDB when the second found row needs no update
+#
+#
+# The second row is found, but its new values are the same as the old
+# values, so it is not changed. Plain RETURNING returns only the first
+# row, and RETURNING .. INTO assigns it (no ER_TOO_MANY_ROWS).
+# The updated column is not read by the statement, so InnoDB does not
+# return it, and the server reads it for the comparison.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_same_row.combinations).
+#
+#
+# The new value of the second row is the old value
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,5);
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a;
+a
+1
+SELECT * FROM t1;
+a	b
+1	100
+2	5
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,5);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b
+1	100
+2	5
+DROP TABLE t1;
+#
+# The second value is truncated to the old value
+#
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+SET @a='unchanged';
+UPDATE IGNORE t1 SET v=IF(a=1,'ab','xyzxyz') RETURNING a INTO @a;
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 2
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	v
+1	ab
+2	xyz
+DROP TABLE t1;
+#
+# The second value is clipped to the old value
+#
+CREATE TABLE t1 (a INT, t TINYINT);
+INSERT INTO t1 VALUES (1,10),(2,127);
+SET @a='unchanged';
+UPDATE IGNORE t1 SET t=IF(a=1,100,300) RETURNING a INTO @a;
+Warnings:
+Warning	1264	Out of range value for column 't' at row 2
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	t
+1	100
+2	127
+DROP TABLE t1;
+# End of 13.1 tests

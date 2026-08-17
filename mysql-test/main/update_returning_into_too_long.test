@@ -1,0 +1,225 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # Values that do not fit into the column and values that fit into the
+--echo # column but do not fit into the INTO variable.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_too_long.combinations).
+--echo #
+
+--echo #
+--echo # The new value does not fit into the column
+--echo #
+
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+
+--echo # Strict mode: error before the row is updated, the target is not changed
+SET @a='unchanged';
+--error ER_DATA_TOO_LONG
+UPDATE t1 SET v='abcdef' RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # IGNORE: the value is truncated, the row is not skipped
+UPDATE IGNORE t1 SET v='q9999' WHERE a=2 RETURNING a, v INTO @a, @v;
+SELECT @a, @v;
+SELECT * FROM t1;
+
+--echo # IGNORE: the value is truncated to the current value, no change
+SET @a='unchanged';
+UPDATE IGNORE t1 SET v='q9999' WHERE a=2 RETURNING a INTO @a;
+SELECT @a;
+
+--echo # IGNORE: two rows are changed, ER_TOO_MANY_ROWS
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET v=CONCAT(LEFT(v,1),'12345') RETURNING a INTO @a;
+SHOW WARNINGS;
+
+--echo # Not strict mode: the value is truncated
+SET sql_mode='';
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+UPDATE t1 SET v='zzzzzz' WHERE a=1 RETURNING a, v INTO @a, @v;
+SELECT @a, @v;
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # The first value fits into the column, the second value does not
+--echo #
+
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+
+--echo # Strict mode: the data error for the second row, not ER_TOO_MANY_ROWS
+SET @a='unchanged';
+--error ER_DATA_TOO_LONG
+UPDATE t1 SET v=IF(a=1,'ab','abcdef') RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+--echo # IGNORE: the second value is truncated and changes the row
+--echo # (ER_TOO_MANY_ROWS)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+SET @a='unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET v=IF(a=1,'ab','abcdef') RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # The value fits into the column but does not fit into the variable
+--echo #
+
+CREATE TABLE t1 (a INT, v VARCHAR(10));
+INSERT INTO t1 VALUES (1,'abcdef');
+
+--echo # A user variable has no length limit
+UPDATE t1 SET v='ABCDEF' RETURNING v INTO @v;
+SELECT @v;
+
+--echo # A stored routine variable in strict mode: ER_DATA_TOO_LONG
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vv VARCHAR(3) DEFAULT 'unc';
+  UPDATE t1 SET v='123456' RETURNING v INTO vv;
+  SELECT vv;
+END;
+$$
+DELIMITER ;$$
+--error ER_DATA_TOO_LONG
+CALL p1();
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef');
+--echo # The same procedure created in the not strict mode: truncated with a
+--echo # warning (a routine runs with the sql_mode it was created with)
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE vv VARCHAR(3) DEFAULT 'unc';
+  UPDATE t1 SET v='123456' RETURNING v INTO vv;
+  SELECT vv;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+--echo # A ROW variable field in strict mode: ER_DATA_TOO_LONG
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT, v VARCHAR(3));
+  UPDATE t1 SET v='abcdef' RETURNING a, v INTO r;
+  SELECT r.a, r.v;
+END;
+$$
+DELIMITER ;$$
+--error ER_DATA_TOO_LONG
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo # A ROW variable field in the not strict mode: truncated with a warning
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'123456');
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT, v VARCHAR(3));
+  UPDATE t1 SET v='abcdef' RETURNING a, v INTO r;
+  SELECT r.a, r.v;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two rows: the first value fits into the variable, the second does not
+--echo #
+
+CREATE TABLE t1 (a INT, v VARCHAR(10));
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vv VARCHAR(3) DEFAULT 'unc';
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET v=IF(a=1,'ab','abcdefg') RETURNING v INTO vv;
+  SELECT vv;
+END;
+$$
+DELIMITER ;$$
+--echo # Strict mode: ER_TOO_MANY_ROWS is raised before the second row is
+--echo # assigned, so the variable is not truncated and has no error
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Two rows: the first value does not fit into the variable,
+--echo # the second does
+--echo #
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vv VARCHAR(3) DEFAULT 'unc';
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET v=IF(a=1,'abcdefg','ab') RETURNING v INTO vv;
+  SELECT vv;
+END;
+$$
+DELIMITER ;$$
+--echo # Strict mode: the data error for the first row, ER_TOO_MANY_ROWS
+--echo # is not reached
+--error ER_DATA_TOO_LONG
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+
+--echo # Not strict mode: the first value is truncated, then ER_TOO_MANY_ROWS
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+SET sql_mode='';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE vv VARCHAR(3) DEFAULT 'unc';
+  DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+  UPDATE t1 SET v=IF(a=1,'abcdefg','ab') RETURNING v INTO vv;
+  SELECT vv;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

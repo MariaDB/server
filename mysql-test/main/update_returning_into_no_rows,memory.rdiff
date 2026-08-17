@@ -1,0 +1,11 @@
+--- main/update_returning_into_no_rows.result
++++ main/update_returning_into_no_rows.reject
+@@ -11,7 +11,7 @@
+   `a` int(11) DEFAULT NULL,
+   `b` int(11) DEFAULT NULL,
+   KEY `a` (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # Empty table
+ SET @a=123;
+ UPDATE t1 SET b=1 RETURNING a INTO @a;

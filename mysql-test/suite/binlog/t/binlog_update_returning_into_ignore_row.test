@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+--echo #
+
+--echo #
+--echo # A table without transactions: the second changed row is updated back
+--echo # before ER_TOO_MANY_ROWS is raised. Both updates are in the binary log,
+--echo # so a replica ends with the same data.
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1),(2,2);
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET b=b+10 RETURNING b INTO @b;
+SELECT * FROM t1 ORDER BY a;
+
+FLUSH LOGS;
+--let $binlog_dir= `SELECT @@datadir`
+--echo # The row images
+--replace_regex /\s*\/\* .* \*\///
+--exec $MYSQL_BINLOG --base64-output=decode-rows -vv $binlog_dir/master-bin.000001 | grep -E "^###"
+
+--echo #
+--echo # A table with transactions: the statement is rolled back,
+--echo # nothing is written to the binary log
+--echo #
+
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1),(2,2);
+--disable_query_log
+reset master;
+--enable_query_log
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET b=b+10 RETURNING b INTO @b;
+SELECT * FROM t1 ORDER BY a;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

@@ -1,0 +1,407 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# UPDATE..RETURNING..INTO with no rows to process
+# raises a warning (not an error) and does not change the INTO targets.
+# The behavior must not depend on the storage engine
+# (see update_returning_into_no_rows.combinations).
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# Empty table
+SET @a=123;
+UPDATE t1 SET b=1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+INSERT INTO t1 VALUES (10,100),(20,200),(30,300);
+# WHERE matches no rows, no index used
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE b=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# WHERE matches no rows, index used
+SET @a=123;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# Impossible WHERE
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# LIMIT 0
+SET @a=123;
+UPDATE t1 SET a=a+1 LIMIT 0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# A row is found but it needs no update
+SET @a=123;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# A row is found but it needs no update (a constant equal to the old value)
+SET @a=123;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+# Nothing was changed
+SELECT * FROM t1;
+a	b
+10	100
+20	200
+30	300
+# No partitions used
+CREATE TABLE t2 (a INT, b INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100), PARTITION p1 VALUES LESS THAN (200));
+INSERT INTO t2 VALUES (10,100),(110,200);
+SET @a=123;
+UPDATE t2 SET b=b+1 WHERE a>1000 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SELECT * FROM t2;
+a	b
+10	100
+110	200
+DROP TABLE t2;
+# Stored procedure variables are not changed either
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 123;
+DECLARE r ROW (a INT, b INT) DEFAULT ROW(123,456);
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO v;
+SELECT v;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a,b INTO r;
+SELECT r.a, r.b;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO r.a;
+SELECT r.a, r.b;
+END;
+$$
+CALL p1;
+v
+123
+r.a	r.b
+123	456
+r.a	r.b
+123	456
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+# The NOT FOUND handler is activated
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 123;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO v;
+SELECT v;
+END;
+$$
+CALL p1;
+msg
+NOT FOUND
+v
+123
+DROP PROCEDURE p1;
+# The NOT FOUND handler is activated when a row is found
+# but does not need an update
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 123;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO v;
+SELECT v;
+END;
+$$
+CALL p1;
+msg
+NOT FOUND
+v
+123
+DROP PROCEDURE p1;
+# The same, with a constant equal to the old value
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 123;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO v;
+SELECT v;
+END;
+$$
+CALL p1;
+msg
+NOT FOUND
+v
+123
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# No rows with various sql_mode values, with and without IGNORE
+#
+CREATE TABLE t3 (a INT, b INT);
+# Empty table
+SET sql_mode='';
+# sql_mode=''
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode=DEFAULT;
+# sql_mode=DEFAULT
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode='STRICT_ALL_TABLES';
+# sql_mode=STRICT_ALL_TABLES
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode=DEFAULT;
+INSERT INTO t3 VALUES (10,100);
+# A row is found but it needs no update, and WHERE matches no rows
+SET sql_mode='';
+# sql_mode=''
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode=DEFAULT;
+# sql_mode=DEFAULT
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode='STRICT_ALL_TABLES';
+# sql_mode=STRICT_ALL_TABLES
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET sql_mode=DEFAULT;
+SET @a=NULL;
+# Nothing was changed
+SELECT * FROM t3;
+a	b
+10	100
+DROP TABLE t3;
+#
+# MDEV-41448 Update Returning Into expected to produce warning/error
+# for zero-row plan
+#
+CREATE OR REPLACE TABLE t1 (a INT);
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a+1 WHERE a=123 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+UPDATE t1 SET a=a+1 LIMIT 0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP TABLE t1;
+#
+# MDEV-41443 Update Returning into produces error when values don't change
+#
+# Plain UPDATE..RETURNING returns an empty set when no row changes
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a RETURNING a;
+a
+DROP TABLE t1;
+# UPDATE..RETURNING..INTO used to fail with ER_SP_FETCH_NO_DATA.
+# Now it raises a warning, like any other zero-row case.
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+NULL
+DROP TABLE t1;
+# The same with an AFTER UPDATE trigger. The trigger is still fired
+# for the unchanged row, and the statement gives the same warning
+# as without the trigger.
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+NULL
+CREATE TABLE log (i INT);
+CREATE TRIGGER trg AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (1);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+NULL
+SELECT * FROM log;
+i
+1
+DROP TABLE t1, log;
+# End of 13.1 tests

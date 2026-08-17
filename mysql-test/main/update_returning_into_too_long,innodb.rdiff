@@ -1,0 +1,65 @@
+--- main/update_returning_into_too_long.result
++++ main/update_returning_into_too_long.reject
+@@ -81,7 +81,7 @@
+ 1
+ SELECT * FROM t1;
+ a	v
+-1	ab
++1	abc
+ 2	xyz
+ # IGNORE: the second value is truncated and changes the row
+ # (ER_TOO_MANY_ROWS)
+@@ -95,7 +95,7 @@
+ 1
+ SELECT * FROM t1;
+ a	v
+-1	ab
++1	abc
+ 2	xyz
+ DROP TABLE t1;
+ #
+@@ -120,7 +120,7 @@
+ ERROR 22001: Data too long for column 'vv' at row 1
+ SELECT * FROM t1;
+ a	v
+-1	123456
++1	ABCDEF
+ TRUNCATE TABLE t1;
+ INSERT INTO t1 VALUES (1,'abcdef');
+ # The same procedure created in the not strict mode: truncated with a
+@@ -156,7 +156,7 @@
+ ERROR 22001: Data too long for column 'v' at row 1
+ SELECT * FROM t1;
+ a	v
+-1	abcdef
++1	123456
+ DROP PROCEDURE p1;
+ # A ROW variable field in the not strict mode: truncated with a warning
+ TRUNCATE TABLE t1;
+@@ -202,7 +202,7 @@
+ ab
+ SELECT * FROM t1;
+ a	v
+-1	ab
++1	abcdef
+ 2	ghijkl
+ DROP PROCEDURE p1;
+ #
+@@ -225,7 +225,7 @@
+ ERROR 22001: Data too long for column 'vv' at row 1
+ SELECT * FROM t1;
+ a	v
+-1	abcdefg
++1	abcdef
+ 2	ghijkl
+ DROP PROCEDURE p1;
+ # Not strict mode: the first value is truncated, then ER_TOO_MANY_ROWS
+@@ -247,7 +247,7 @@
+ abc
+ SELECT * FROM t1;
+ a	v
+-1	abcdefg
++1	abcdef
+ 2	ghijkl
+ SET sql_mode=DEFAULT;
+ DROP PROCEDURE p1;

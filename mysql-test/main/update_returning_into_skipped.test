@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # Rows that are skipped before the ER_TOO_MANY_ROWS check are not counted
+--echo # as found: two rows match WHERE, but only one is changed.
+--echo # Plain RETURNING returns one row and RETURNING .. INTO assigns it.
+--echo # The test is run for MyISAM and InnoDB
+--echo # (see update_returning_into_skipped.combinations).
+--echo #
+
+--echo #
+--echo # The new values are the same as the old values
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE t1 SET b=IF(a=1,1,b+1) RETURNING a;
+SELECT * FROM t1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE t1 SET b=IF(a=1,1,b+1) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # BEFORE UPDATE trigger skips a row
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF OLD.a=1 THEN
+    SIGNAL SQLSTATE '02TRG';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+UPDATE t1 SET b=b+10 RETURNING a;
+SELECT * FROM t1;
+UPDATE t1 SET b=b-10 WHERE a=2;
+SET @a= 'unchanged';
+UPDATE t1 SET b=b+10 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # CHECK constraint violation with UPDATE IGNORE
+--echo #
+CREATE TABLE t1 (a INT, b INT, CHECK (b < 100));
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE IGNORE t1 SET b=IF(a=1,200,b+1) RETURNING a;
+SELECT * FROM t1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE IGNORE t1 SET b=IF(a=1,200,b+1) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # VIEW with CHECK OPTION and UPDATE IGNORE
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE b < 100 WITH CHECK OPTION;
+UPDATE IGNORE v1 SET b=IF(a=1,200,b+1) RETURNING a;
+SELECT * FROM t1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE IGNORE v1 SET b=IF(a=1,200,b+1) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

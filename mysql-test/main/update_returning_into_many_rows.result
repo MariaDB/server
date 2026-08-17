@@ -1,0 +1,341 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# UPDATE..RETURNING..INTO when several rows match the WHERE condition.
+# The test is run for several storage engines
+# (see update_returning_into_many_rows.combinations).
+# The results differ between the engines only in how the table looks
+# after ER_TOO_MANY_ROWS: transactional engines roll back the statement,
+# non-transactional engines keep the rows updated before the error.
+#
+#
+# Several rows match, but none of them needs an update:
+# only a warning, no ER_TOO_MANY_ROWS
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+SET @a=123;
+UPDATE t1 SET b=b RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE t1 SET b=b WHERE a<3 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SET @a=123;
+UPDATE t1 SET b=b+0 RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SELECT * FROM t1;
+a	b
+1	10
+2	20
+3	30
+# Several rows match, only one of them needs an update
+SET @a=123;
+UPDATE t1 SET b=IF(a=1,11,b) RETURNING a INTO @a;
+SHOW WARNINGS;
+Level	Code	Message
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b
+1	11
+2	20
+3	30
+# Several rows match, two of them need an update
+SET @a=123;
+UPDATE t1 SET b=b+1 WHERE a>1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a	b
+1	11
+2	21
+3	30
+SET @a=NULL;
+DROP TABLE t1;
+#
+# Several rows match, none of them needs an update + NOT FOUND handler
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 123;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+UPDATE t1 SET b=b RETURNING a INTO v;
+SELECT v;
+END;
+$$
+CALL p1;
+msg
+NOT FOUND
+v
+123
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Too many rows updated for various sql_mode values
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SET sql_mode='';
+SET @a=123;
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+11
+SELECT * FROM t1;
+a
+11
+20
+30
+SET sql_mode=DEFAULT;
+SET @a=123;
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+12
+SELECT * FROM t1;
+a
+12
+20
+30
+SET @a=123;
+UPDATE IGNORE t1 SET a=a+1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+13
+SELECT * FROM t1;
+a
+13
+20
+30
+SET @a=NULL;
+DROP TABLE t1;
+#
+# Too many rows + CONTINUE HANDLER
+#
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+SET @b=@a;
+END;
+UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+SELECT 'Still here' AS comment;
+END;
+$$
+CALL p1();
+comment
+Still here
+SELECT @a,@b;
+@a	@b
+11	11
+SELECT * FROM t1;
+a
+11
+20
+30
+CALL p1();
+comment
+Still here
+SELECT @a,@b;
+@a	@b
+12	12
+SELECT * FROM t1;
+a
+12
+20
+30
+CALL p1();
+comment
+Still here
+SELECT @a,@b;
+@a	@b
+13	13
+SELECT * FROM t1;
+a
+13
+20
+30
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Too many rows + EXIT HANDLER
+#
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+SET @b=@a;
+RESIGNAL;
+END;
+UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+SELECT 'Still here' AS comment;
+END;
+$$
+CALL p1();
+ERROR 42000: Result consisted of more than one row
+SELECT @a,@b;
+@a	@b
+11	11
+SELECT * FROM t1;
+a
+11
+20
+30
+CALL p1();
+ERROR 42000: Result consisted of more than one row
+SELECT @a,@b;
+@a	@b
+12	12
+SELECT * FROM t1;
+a
+12
+20
+30
+CALL p1();
+ERROR 42000: Result consisted of more than one row
+SELECT @a,@b;
+@a	@b
+13	13
+SELECT * FROM t1;
+a
+13
+20
+30
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Normal case
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE a>=30 RETURNING a INTO @a;
+SELECT @a;
+@a
+31
+SELECT * FROM t1;
+a
+10
+20
+31
+SET @a=NULL;
+DROP TABLE t1;
+#
+# Normal case with LIMIT
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 ORDER BY a LIMIT 1 RETURNING a INTO @a;
+SELECT @a;
+@a
+11
+SELECT * FROM t1;
+a
+11
+20
+30
+SET @a=NULL;
+DROP TABLE t1;
+#
+# Too many rows inside a transaction
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+START TRANSACTION;
+SET @a=123;
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+11
+SELECT * FROM t1;
+a
+11
+20
+30
+SET @a=NULL;
+COMMIT;
+DROP TABLE t1;
+#
+# AFTER UPDATE trigger: it is fired for the rows that are processed.
+# The second changed row is not updated, so its trigger is not fired.
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE log (a INT);
+CREATE TRIGGER tr1 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (NEW.a);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+# One row is changed
+SET @a=123;
+UPDATE t1 SET b=b+1 WHERE a=1 RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM log;
+a
+1
+DELETE FROM log;
+# Two rows are changed
+SET @a=123;
+UPDATE t1 SET b=b+1 RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+1
+SELECT * FROM log;
+a
+1
+DELETE FROM log;
+# Rows are found but not changed
+SET @a=123;
+UPDATE t1 SET b=b RETURNING a INTO @a;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+123
+SELECT * FROM log;
+a
+1
+2
+3
+DROP TABLE t1, log;
+# End of 13.1 tests

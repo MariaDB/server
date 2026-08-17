@@ -741,6 +741,7 @@ public:
   */
   int write_row(const uchar * buf) override;
   bool start_bulk_update() override;
+  bool update_may_be_deferred() const override;
   int exec_bulk_update(ha_rows *dup_key_found) override;
   int end_bulk_update() override;
   int bulk_update_row(const uchar *old_data, const uchar *new_data,

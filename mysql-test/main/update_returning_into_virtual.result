@@ -1,0 +1,102 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# Virtual and persistent columns in UPDATE .. RETURNING .. INTO
+#
+# Engine: InnoDB
+CREATE TABLE t1 (a INT, b INT, v INT AS (b*10) VIRTUAL, p INT AS (b+1) PERSISTENT) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+# Virtual and persistent columns are returned with the new values
+SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+SELECT @a, @v, @p;
+@a	@v	@p
+1	1000	101
+# No change: no rows to process, the targets are not changed
+SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a, @v, @p;
+@a	@v	@p
+unchanged	unchanged	unchanged
+# An expression on virtual and persistent columns
+SET @a= 'unchanged';
+UPDATE t1 SET b=b+1 WHERE a=2 RETURNING v+p INTO @a;
+SELECT @a;
+@a
+34
+# Two rows change, ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b+1 RETURNING v INTO @v;
+ERROR 42000: Result consisted of more than one row
+# Plain RETURNING for comparison
+UPDATE t1 SET b=b+1 RETURNING a, v, p;
+a	v	p
+1	1010	102
+2	40	5
+DROP TABLE t1;
+# Engine: MyISAM
+CREATE TABLE t1 (a INT, b INT, v INT AS (b*10) VIRTUAL, p INT AS (b+1) PERSISTENT) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+# Virtual and persistent columns are returned with the new values
+SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+SELECT @a, @v, @p;
+@a	@v	@p
+1	1000	101
+# No change: no rows to process, the targets are not changed
+SET @a= 'unchanged', @v= 'unchanged', @p= 'unchanged';
+UPDATE t1 SET b=100 WHERE a=1 RETURNING a, v, p INTO @a, @v, @p;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a, @v, @p;
+@a	@v	@p
+unchanged	unchanged	unchanged
+# An expression on virtual and persistent columns
+SET @a= 'unchanged';
+UPDATE t1 SET b=b+1 WHERE a=2 RETURNING v+p INTO @a;
+SELECT @a;
+@a
+34
+# Two rows change, ER_TOO_MANY_ROWS
+UPDATE t1 SET b=b+1 RETURNING v INTO @v;
+ERROR 42000: Result consisted of more than one row
+# Plain RETURNING for comparison
+UPDATE t1 SET b=b+1 RETURNING a, v, p;
+a	v	p
+1	1020	103
+2	40	5
+DROP TABLE t1;
+#
+# Non-deterministic virtual column that is not stored by the engine.
+# The result depends on the engine: compare_record() ignores virtual
+# columns for InnoDB, so no row needs an update; MyISAM compares whole
+# records, so every row looks changed (when the column is used).
+#
+CREATE TABLE t1 (a INT, b INT, v DOUBLE AS (RAND()) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+UPDATE t1 SET b=b RETURNING a,v>=0;
+a	v>=0
+SET @a= 'unchanged';
+UPDATE t1 SET b=b RETURNING a, v>=0 INTO @a, @v;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+unchanged
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, v DOUBLE AS (RAND()) VIRTUAL) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2);
+UPDATE t1 SET b=b RETURNING a,v>=0;
+a	v>=0
+1	1
+2	1
+SET @a= 'unchanged';
+UPDATE t1 SET b=b RETURNING a, v>=0 INTO @a, @v;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+1
+DROP TABLE t1;
+# End of 13.1 tests

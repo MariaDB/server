@@ -137,4 +137,85 @@ CALL p1;
 ERROR HY000: Row variable 'r0' does not have a field 'b1_non_existing'
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-41265 SELECT/ UPDATE RETURNING INTO a single row-field fails with ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT, even though the column count matches
+#
+# One scalar column into one field of an explicit ROW variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+SELECT a INTO r0.a FROM t1;
+SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+SELECT a,b INTO r0.a FROM t1;
+END;
+$$
+CALL p1;
+r0.a
+1
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# One scalar column into one field of a `ROW TYPE OF table1` variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+SELECT a INTO r0.a FROM t1;
+SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+SELECT a,b INTO r0.a FROM t1;
+END;
+$$
+CALL p1;
+r0.a
+1
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# One scalar column into one field of a `ROW TYPE OF cursor1` variable
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+SELECT a INTO r0.a FROM t1;
+SELECT r0.a;
+END;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+SELECT a,b INTO r0.a FROM t1;
+END;
+END;
+$$
+CALL p1;
+r0.a
+1
+CALL p2;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
 # End of 12.3 tests

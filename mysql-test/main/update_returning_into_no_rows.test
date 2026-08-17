@@ -1,0 +1,274 @@
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO with no rows to process
+--echo # raises a warning (not an error) and does not change the INTO targets.
+--echo # The behavior must not depend on the storage engine
+--echo # (see update_returning_into_no_rows.combinations).
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+SHOW CREATE TABLE t1;
+
+--echo # Empty table
+SET @a=123;
+UPDATE t1 SET b=1 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+INSERT INTO t1 VALUES (10,100),(20,200),(30,300);
+
+--echo # WHERE matches no rows, no index used
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE b=999 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # WHERE matches no rows, index used
+SET @a=123;
+UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # Impossible WHERE
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # LIMIT 0
+SET @a=123;
+UPDATE t1 SET a=a+1 LIMIT 0 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # A row is found but it needs no update
+SET @a=123;
+UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # A row is found but it needs no update (a constant equal to the old value)
+SET @a=123;
+UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+
+--echo # Nothing was changed
+SELECT * FROM t1;
+
+--echo # No partitions used
+CREATE TABLE t2 (a INT, b INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100), PARTITION p1 VALUES LESS THAN (200));
+INSERT INTO t2 VALUES (10,100),(110,200);
+SET @a=123;
+UPDATE t2 SET b=b+1 WHERE a>1000 RETURNING a INTO @a;
+SHOW WARNINGS;
+SELECT @a;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+--echo # Stored procedure variables are not changed either
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT 123;
+  DECLARE r ROW (a INT, b INT) DEFAULT ROW(123,456);
+  UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO v;
+  SELECT v;
+  UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a,b INTO r;
+  SELECT r.a, r.b;
+  UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO r.a;
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # The NOT FOUND handler is activated
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT 123;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+  UPDATE t1 SET b=b+1 WHERE a=999 RETURNING a INTO v;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # The NOT FOUND handler is activated when a row is found
+--echo # but does not need an update
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT 123;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+  UPDATE t1 SET b=b WHERE a=10 RETURNING a INTO v;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # The same, with a constant equal to the old value
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT 123;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SELECT 'NOT FOUND' AS msg;
+  UPDATE t1 SET b=100 WHERE a=10 RETURNING a INTO v;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # No rows with various sql_mode values, with and without IGNORE
+--echo #
+
+CREATE TABLE t3 (a INT, b INT);
+
+--echo # Empty table
+SET sql_mode='';
+--echo # sql_mode=''
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode=DEFAULT;
+--echo # sql_mode=DEFAULT
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode='STRICT_ALL_TABLES';
+--echo # sql_mode=STRICT_ALL_TABLES
+SET @a=123;
+UPDATE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode=DEFAULT;
+
+INSERT INTO t3 VALUES (10,100);
+
+--echo # A row is found but it needs no update, and WHERE matches no rows
+SET sql_mode='';
+--echo # sql_mode=''
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode=DEFAULT;
+--echo # sql_mode=DEFAULT
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode='STRICT_ALL_TABLES';
+--echo # sql_mode=STRICT_ALL_TABLES
+SET @a=123;
+UPDATE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=100 WHERE a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET @a=123;
+UPDATE IGNORE t3 SET b=b+1 WHERE a=999 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode=DEFAULT;
+SET @a=NULL;
+
+--echo # Nothing was changed
+SELECT * FROM t3;
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-41448 Update Returning Into expected to produce warning/error
+--echo # for zero-row plan
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a INT);
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a+1 WHERE a=123 RETURNING a INTO @a;
+UPDATE t1 SET a=a+1 WHERE 1=0 RETURNING a INTO @a;
+UPDATE t1 SET a=a+1 LIMIT 0 RETURNING a INTO @a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41443 Update Returning into produces error when values don't change
+--echo #
+
+--echo # Plain UPDATE..RETURNING returns an empty set when no row changes
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a RETURNING a;
+DROP TABLE t1;
+
+--echo # UPDATE..RETURNING..INTO used to fail with ER_SP_FETCH_NO_DATA.
+--echo # Now it raises a warning, like any other zero-row case.
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+SELECT @a;
+DROP TABLE t1;
+
+--echo # The same with an AFTER UPDATE trigger. The trigger is still fired
+--echo # for the unchanged row, and the statement gives the same warning
+--echo # as without the trigger.
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+SELECT @a;
+
+CREATE TABLE log (i INT);
+CREATE TRIGGER trg AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (1);
+UPDATE t1 SET a=a RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM log;
+DROP TABLE t1, log;
+
+--echo # End of 13.1 tests

@@ -1,0 +1,39 @@
+for master_1
+for child2
+for child3
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+#
+#
+# Spider can buffer the updates and send them later, so it is not known
+# after an update if the remote table has rejected the row (e.g. because
+# of a duplicate key). UPDATE IGNORE .. RETURNING .. INTO is not
+# supported for such storage engines.
+#
+set spider_same_server_link= on;
+set global spider_same_server_link= on;
+create database auto_test_local;
+create table auto_test_local.t1 (a int unique, b int) engine=InnoDB;
+create table t1 (a int unique, b int) engine=Spider
+comment='wrapper "mysql", srv "s_1", table "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into auto_test_local.t1 values (1,1),(2,2);
+update ignore t1 set a=5 returning b into @b;
+ERROR 42000: This version of MariaDB doesn't yet support 'UPDATE IGNORE .. RETURNING .. INTO on this storage engine'
+select * from auto_test_local.t1 order by b;
+a	b
+1	1
+2	2
+# The error does not depend on the number of matching rows
+update ignore t1 set a=5 where a=100 returning b into @b;
+ERROR 42000: This version of MariaDB doesn't yet support 'UPDATE IGNORE .. RETURNING .. INTO on this storage engine'
+drop table t1;
+drop database auto_test_local;
+# End of 13.1 tests
+for master_1
+for child2
+for child3

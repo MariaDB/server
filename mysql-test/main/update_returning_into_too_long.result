@@ -1,0 +1,255 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# Values that do not fit into the column and values that fit into the
+# column but do not fit into the INTO variable.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_too_long.combinations).
+#
+#
+# The new value does not fit into the column
+#
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+# Strict mode: error before the row is updated, the target is not changed
+SET @a='unchanged';
+UPDATE t1 SET v='abcdef' RETURNING a INTO @a;
+ERROR 22001: Data too long for column 'v' at row 1
+SELECT @a;
+@a
+unchanged
+SELECT * FROM t1;
+a	v
+1	abc
+2	xyz
+# IGNORE: the value is truncated, the row is not skipped
+UPDATE IGNORE t1 SET v='q9999' WHERE a=2 RETURNING a, v INTO @a, @v;
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 2
+SELECT @a, @v;
+@a	@v
+2	q99
+SELECT * FROM t1;
+a	v
+1	abc
+2	q99
+# IGNORE: the value is truncated to the current value, no change
+SET @a='unchanged';
+UPDATE IGNORE t1 SET v='q9999' WHERE a=2 RETURNING a INTO @a;
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 2
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT @a;
+@a
+unchanged
+# IGNORE: two rows are changed, ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET v=CONCAT(LEFT(v,1),'12345') RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1265	Data truncated for column 'v' at row 1
+Warning	1265	Data truncated for column 'v' at row 2
+Error	1172	Result consisted of more than one row
+# Not strict mode: the value is truncated
+SET sql_mode='';
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+UPDATE t1 SET v='zzzzzz' WHERE a=1 RETURNING a, v INTO @a, @v;
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+SELECT @a, @v;
+@a	@v
+1	zzz
+SELECT * FROM t1;
+a	v
+1	zzz
+2	xyz
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# The first value fits into the column, the second value does not
+#
+CREATE TABLE t1 (a INT, v VARCHAR(3));
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+# Strict mode: the data error for the second row, not ER_TOO_MANY_ROWS
+SET @a='unchanged';
+UPDATE t1 SET v=IF(a=1,'ab','abcdef') RETURNING a INTO @a;
+ERROR 22001: Data too long for column 'v' at row 2
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	v
+1	ab
+2	xyz
+# IGNORE: the second value is truncated and changes the row
+# (ER_TOO_MANY_ROWS)
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abc'),(2,'xyz');
+SET @a='unchanged';
+UPDATE IGNORE t1 SET v=IF(a=1,'ab','abcdef') RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	v
+1	ab
+2	xyz
+DROP TABLE t1;
+#
+# The value fits into the column but does not fit into the variable
+#
+CREATE TABLE t1 (a INT, v VARCHAR(10));
+INSERT INTO t1 VALUES (1,'abcdef');
+# A user variable has no length limit
+UPDATE t1 SET v='ABCDEF' RETURNING v INTO @v;
+SELECT @v;
+@v
+ABCDEF
+# A stored routine variable in strict mode: ER_DATA_TOO_LONG
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vv VARCHAR(3) DEFAULT 'unc';
+UPDATE t1 SET v='123456' RETURNING v INTO vv;
+SELECT vv;
+END;
+$$
+CALL p1();
+ERROR 22001: Data too long for column 'vv' at row 1
+SELECT * FROM t1;
+a	v
+1	123456
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef');
+# The same procedure created in the not strict mode: truncated with a
+# warning (a routine runs with the sql_mode it was created with)
+SET sql_mode='';
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE vv VARCHAR(3) DEFAULT 'unc';
+UPDATE t1 SET v='123456' RETURNING v INTO vv;
+SELECT vv;
+END;
+$$
+CALL p2();
+vv
+123
+Warnings:
+Warning	1265	Data truncated for column 'vv' at row 1
+SELECT * FROM t1;
+a	v
+1	123456
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+# A ROW variable field in strict mode: ER_DATA_TOO_LONG
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT, v VARCHAR(3));
+UPDATE t1 SET v='abcdef' RETURNING a, v INTO r;
+SELECT r.a, r.v;
+END;
+$$
+CALL p1();
+ERROR 22001: Data too long for column 'v' at row 1
+SELECT * FROM t1;
+a	v
+1	abcdef
+DROP PROCEDURE p1;
+# A ROW variable field in the not strict mode: truncated with a warning
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'123456');
+SET sql_mode='';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT, v VARCHAR(3));
+UPDATE t1 SET v='abcdef' RETURNING a, v INTO r;
+SELECT r.a, r.v;
+END;
+$$
+CALL p1();
+r.a	r.v
+1	abc
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+SELECT * FROM t1;
+a	v
+1	abcdef
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Two rows: the first value fits into the variable, the second does not
+#
+CREATE TABLE t1 (a INT, v VARCHAR(10));
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vv VARCHAR(3) DEFAULT 'unc';
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET v=IF(a=1,'ab','abcdefg') RETURNING v INTO vv;
+SELECT vv;
+END;
+$$
+# Strict mode: ER_TOO_MANY_ROWS is raised before the second row is
+# assigned, so the variable is not truncated and has no error
+CALL p1();
+ER_TOO_MANY_ROWS
+ER_TOO_MANY_ROWS
+vv
+ab
+SELECT * FROM t1;
+a	v
+1	ab
+2	ghijkl
+DROP PROCEDURE p1;
+#
+# Two rows: the first value does not fit into the variable,
+# the second does
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vv VARCHAR(3) DEFAULT 'unc';
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET v=IF(a=1,'abcdefg','ab') RETURNING v INTO vv;
+SELECT vv;
+END;
+$$
+# Strict mode: the data error for the first row, ER_TOO_MANY_ROWS
+# is not reached
+CALL p1();
+ERROR 22001: Data too long for column 'vv' at row 1
+SELECT * FROM t1;
+a	v
+1	abcdefg
+2	ghijkl
+DROP PROCEDURE p1;
+# Not strict mode: the first value is truncated, then ER_TOO_MANY_ROWS
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1,'abcdef'),(2,'ghijkl');
+SET sql_mode='';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE vv VARCHAR(3) DEFAULT 'unc';
+DECLARE CONTINUE HANDLER FOR 1172 SELECT 'ER_TOO_MANY_ROWS';
+UPDATE t1 SET v=IF(a=1,'abcdefg','ab') RETURNING v INTO vv;
+SELECT vv;
+END;
+$$
+CALL p1();
+ER_TOO_MANY_ROWS
+ER_TOO_MANY_ROWS
+vv
+abc
+SELECT * FROM t1;
+a	v
+1	abcdefg
+2	ghijkl
+SET sql_mode=DEFAULT;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 13.1 tests

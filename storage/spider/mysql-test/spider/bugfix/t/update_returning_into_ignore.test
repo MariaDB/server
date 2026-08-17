@@ -1,0 +1,49 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+--echo #
+
+--echo #
+--echo # Spider can buffer the updates and send them later, so it is not known
+--echo # after an update if the remote table has rejected the row (e.g. because
+--echo # of a duplicate key). UPDATE IGNORE .. RETURNING .. INTO is not
+--echo # supported for such storage engines.
+--echo #
+
+set spider_same_server_link= on;
+set global spider_same_server_link= on;
+create database auto_test_local;
+create table auto_test_local.t1 (a int unique, b int) engine=InnoDB;
+create table t1 (a int unique, b int) engine=Spider
+comment='wrapper "mysql", srv "s_1", table "t1"';
+insert into auto_test_local.t1 values (1,1),(2,2);
+
+--error ER_NOT_SUPPORTED_YET
+update ignore t1 set a=5 returning b into @b;
+select * from auto_test_local.t1 order by b;
+
+--echo # The error does not depend on the number of matching rows
+--error ER_NOT_SUPPORTED_YET
+update ignore t1 set a=5 where a=100 returning b into @b;
+
+drop table t1;
+drop database auto_test_local;
+
+--echo # End of 13.1 tests
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings

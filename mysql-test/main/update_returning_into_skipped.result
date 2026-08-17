@@ -1,0 +1,129 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# Rows that are skipped before the ER_TOO_MANY_ROWS check are not counted
+# as found: two rows match WHERE, but only one is changed.
+# Plain RETURNING returns one row and RETURNING .. INTO assigns it.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_skipped.combinations).
+#
+#
+# The new values are the same as the old values
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE t1 SET b=IF(a=1,1,b+1) RETURNING a;
+a
+2
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE t1 SET b=IF(a=1,1,b+1) RETURNING a INTO @a;
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DROP TABLE t1;
+#
+# BEFORE UPDATE trigger skips a row
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+IF OLD.a=1 THEN
+SIGNAL SQLSTATE '02TRG';
+END IF;
+END;
+$$
+UPDATE t1 SET b=b+10 RETURNING a;
+a
+2
+Warnings:
+Error	4208	The row is skipped by a trigger implementation
+Note	4094	At line 4 in test.tr1
+SELECT * FROM t1;
+a	b
+1	1
+2	12
+UPDATE t1 SET b=b-10 WHERE a=2;
+SET @a= 'unchanged';
+UPDATE t1 SET b=b+10 RETURNING a INTO @a;
+Warnings:
+Error	4208	The row is skipped by a trigger implementation
+Note	4094	At line 4 in test.tr1
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a	b
+1	1
+2	12
+DROP TABLE t1;
+#
+# CHECK constraint violation with UPDATE IGNORE
+#
+CREATE TABLE t1 (a INT, b INT, CHECK (b < 100));
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE IGNORE t1 SET b=IF(a=1,200,b+1) RETURNING a;
+a
+2
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE IGNORE t1 SET b=IF(a=1,200,b+1) RETURNING a INTO @a;
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DROP TABLE t1;
+#
+# VIEW with CHECK OPTION and UPDATE IGNORE
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE b < 100 WITH CHECK OPTION;
+UPDATE IGNORE v1 SET b=IF(a=1,200,b+1) RETURNING a;
+a
+2
+Warnings:
+Warning	1369	CHECK OPTION failed `test`.`v1`
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @a= 'unchanged';
+UPDATE IGNORE v1 SET b=IF(a=1,200,b+1) RETURNING a INTO @a;
+Warnings:
+Warning	1369	CHECK OPTION failed `test`.`v1`
+SELECT @a;
+@a
+2
+SELECT * FROM t1;
+a	b
+1	1
+2	3
+DROP VIEW v1;
+DROP TABLE t1;
+# End of 13.1 tests

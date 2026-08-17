@@ -1,0 +1,51 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+--echo #
+
+--echo #
+--echo # UPDATE IGNORE .. RETURNING .. INTO: a row that violates a foreign key
+--echo # is rejected by InnoDB and ignored by IGNORE, so it is not changed.
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT, b INT, FOREIGN KEY (a) REFERENCES t1 (a))
+  ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,1),(1,2);
+
+--echo # The second row is rejected
+UPDATE IGNORE t2 SET a=IF(b=1,2,100) RETURNING b;
+SELECT * FROM t2 ORDER BY b;
+DELETE FROM t2;
+INSERT INTO t2 VALUES (1,1),(1,2);
+SET @b='unchanged';
+UPDATE IGNORE t2 SET a=IF(b=1,2,100) RETURNING b INTO @b;
+SELECT @b;
+SELECT * FROM t2 ORDER BY b;
+
+--echo # The first row is rejected, the second row is changed
+DELETE FROM t2;
+INSERT INTO t2 VALUES (1,1),(1,2);
+SET @b='unchanged';
+UPDATE IGNORE t2 SET a=IF(b=1,100,2) RETURNING b INTO @b;
+SELECT @b;
+SELECT * FROM t2 ORDER BY b;
+
+--echo # Two rows are changed: the statement is rolled back
+DELETE FROM t2;
+INSERT INTO t2 VALUES (1,1),(1,2);
+SET @b='unchanged';
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t2 SET a=2 RETURNING b INTO @b;
+SELECT @b;
+SELECT * FROM t2 ORDER BY b;
+
+DROP TABLE t2, t1;
+
+--echo # End of 13.1 tests

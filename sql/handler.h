@@ -4264,6 +4264,16 @@ public:
   */
   virtual bool start_bulk_update() { return 1; }
   /**
+    Check if ha_update_row() can return success for a row that is rejected
+    by the engine later, e.g. when the engine buffers the updates and sends
+    them in a batch. UPDATE IGNORE .. RETURNING .. INTO cannot tell if a row
+    was really changed for such an engine.
+    @retval  true   ha_update_row() can return success for a row that is
+                    not changed later
+    @retval  false  The result of ha_update_row() is final
+  */
+  virtual bool update_may_be_deferred() const { return false; }
+  /**
     @retval  0   Bulk delete used by handler
     @retval  1   Bulk delete not used, normal operation used
   */
