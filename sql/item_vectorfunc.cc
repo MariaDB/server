@@ -196,12 +196,7 @@ bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
   else
     maxlen= (maxlen - 1) * 2;
   fix_length_and_charset(maxlen, &my_charset_bin);
-  if (max_length > MAX_FIELD_VARCHARLENGTH)
-  {
-    my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), name.str,
-             static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / sizeof(float)));
-    return true;
-  }
+  set_if_smaller(max_length, MAX_FIELD_VARCHARLENGTH);
   set_maybe_null();
   return false;
 }
@@ -213,6 +208,9 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   String *value = args[0]->val_json(&tmp_js);
 
   if ((null_value= !value))
+    return nullptr;
+
+  if (value->length() > max_length)
     return nullptr;
 
   buf->length(0);
