@@ -183,3 +183,32 @@ flush status;
 delete from t1 where a between 1 and 3 returning a,b;
 show status like "Rows_sent";
 drop table t1;
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+DELETE FROM t1 RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE DELETE FROM t1 RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN DELETE FROM t1 RETURNING a INTO @a;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+DELETE FROM t1 RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE DELETE FROM t1 RETURNING a INTO @a;
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN DELETE FROM t1 RETURNING a INTO @a;
+
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

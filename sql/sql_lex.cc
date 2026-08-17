@@ -14280,6 +14280,24 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
+bool LEX::set_returning_into_result(select_dumpvar *res)
+{
+  if (!analyze_stmt && !describe)
+  {
+    DBUG_ASSERT(res);
+    // The order of rows is not predicable, like in SELECT..LIMIT
+    set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+
+    if (Sql_cmd_dml *dml= dynamic_cast<Sql_cmd_dml*>(m_sql_cmd))
+      return dml->set_returning_into_result(res); // UPDATE, DELETE
+    // REPLACE, INSERT have no Sql_cmd_xxx yet
+  }
+
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "RETURNING..INTO");
+  return true;
+}
+
+
 /*
   @brief
     After we've finished parsing a SELECT, handle its hints.

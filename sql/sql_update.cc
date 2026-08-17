@@ -1026,6 +1026,17 @@ update_begin:
 
       if (need_update)
       {
+        if (updated == 1 && lex->has_returning() &&
+            returning_result->accepts_only_one_row())
+        {
+          /*
+            A second record has been found.
+            Raise the error and break without updating the second record.
+          */
+          error= 1;
+          my_error(ER_TOO_MANY_ROWS, MYF(0));
+          break;
+        }
         if (table->versioned(VERS_TIMESTAMP) &&
             thd->lex->sql_command == SQLCOM_DELETE)
           table->vers_update_end();
@@ -3043,6 +3054,53 @@ bool multi_update::send_eof()
 
 
 /**
+  @brief Check is the statement has RETURNING with INTO
+*/
+bool Sql_cmd_update::with_returning_into() const
+{
+  return dynamic_cast<select_dumpvar*>(returning_result) != nullptr;
+}
+
+
+/**
+  @brief    Set the RETURNING..INTO target list
+  @returns  true on error, false on success
+*/
+bool Sql_cmd_update::set_returning_into_result(select_dumpvar *res)
+{
+  /*
+    Due to the implementation, OLD_VALUE() would return the new value
+    into the INTO target (not the old value). Disallow it.
+  */
+  if (m_with_old_value_items)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "OLD_VALUE(..)", "RETURNING..INTO");
+    return true;
+  }
+  returning_result= res;
+  return false;
+}
+
+
+/*
+  @brief Check if this UPDATE statement returns a result set
+*/
+bool Sql_cmd_update::returns_result_set() const
+{
+  DBUG_ASSERT(lex->m_sql_cmd == this);
+  if (lex->describe || lex->analyze_stmt)
+    return true; // E.g. EXPLAIN UPDATE t1 SET a=a+1;
+
+  if (!lex->has_returning())
+    return false; // e.g. UPDATE t1 SET a=a+1;
+
+  if (with_returning_into())
+    return false; // e.g. UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+
+  return true; // e.g. UPDATE t1 SET a=a+1 RETURNING a;
+}
+
+/**
   @brief Check whether conversion to multi-table update is prohibited
 
   @param thd  global context the processed statement
@@ -3286,6 +3344,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  bool set_returning_result_to_null= false;
   Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   if (!multitable)
@@ -3295,23 +3354,74 @@ bool Sql_cmd_update::execute_inner(THD *thd)
       /* This is UPDATE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)
       {
+        /*
+          Queries with INTO clause like:
+            ANALYZE UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+          Should have been rejected earlier.
+        */
+        DBUG_ASSERT(!returning_result);
         if (!(returning_result= new (thd->mem_root) select_send_analyze(thd)))
         {
           return true;
         }
+        set_returning_result_to_null= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
+        // select_send_analyze::prepare() cannot fail
+        (void) returning_result->prepare(thd->lex->returning()->returning_list,
+                                         NULL);
       }
       else
       {
-        if (!(returning_result= new
-                        (thd->mem_root) select_send(thd)))
+        if (!returning_result)
         {
-          return true;
+          // UPDATE t1 SET a=a+1 RETURNING a;
+          if (!(returning_result= new (thd->mem_root) select_send(thd)))
+            return true;
+          set_returning_result_to_null= true;
+          // select_send::prepare() cannot fail
+          (void) returning_result->prepare(
+                                         thd->lex->returning()->returning_list,
+                                         NULL);
+        }
+        else
+        {
+          // UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+          // UPDATE t1 SET a=a+1 RETURNING a INTO spvar;
+          DBUG_ASSERT(with_returning_into());
+          DBUG_ASSERT(!lex->describe); // EXPLAIN - rejected earlier
+          /*
+            To replicate a statement like:
+              UPDATE t1 SET a=a+1 RETURNING a INTO spvar; -- notice SP variable
+            we would need to cut the 'INTO spvar' part.
+            Let's disallow BINLOG_FORMAT_STMT for now for simplicity.
+          */
+          if (!thd->is_current_stmt_binlog_disabled() &&
+              thd->variables.binlog_format == BINLOG_FORMAT_STMT)
+          {
+            my_error(ER_WRONG_USAGE, MYF(0), "--binlog-format=statement",
+                     "RETURNING INTO");
+            return true;
+          }
+          /*
+            The below call can fail e.g. in case of a mismatch between the
+            number of columns (i.e. N!=M) in:
+              UPDATE..RETURNING <N expressssions> INTO <M targets>
+          */
+          if (returning_result->prepare(thd->lex->returning()->returning_list,
+                                        NULL))
+            return true;
         }
       }
-      if (thd->lex->has_returning())
-        (void) returning_result->prepare(thd->lex->returning()->returning_list, NULL);
+    }
+  }
+  else
+  {
+    // RETURNING INTO is not supported for multi-table UPDATEs
+    if (with_returning_into())
+    {
+      my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "RETURNING..INTO");
+      return true;
     }
   }
 
@@ -3344,6 +3454,18 @@ bool Sql_cmd_update::execute_inner(THD *thd)
       bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
       res= thd->lex->explain->send_explain(thd, extended);
     }
+  }
+
+  if (set_returning_result_to_null)
+  {
+    /*
+      returning_result could be assigned to a select_send or
+      select_send_analyze instance above.
+      Let's set it to null again, to have a new
+      select_send/select_send_analyze instance created on the second
+      and further executions.
+    */
+    returning_result= nullptr;
   }
 
   if (result)

@@ -1,0 +1,195 @@
+--echo #
+--echo # Degenerated plans do not raise errors
+--echo #
+
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+SET @a=123;
+UPDATE t1 SET a=11 WHERE 1=0 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+UPDATE t1 SET a=11 LIMIT 0 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A row that matches WHERE but does not get changed
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10');
+SET @a=123;
+--error ER_SP_FETCH_NO_DATA
+UPDATE t1 SET a=10 WHERE a<20 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # No rows updated for various sql_mode values
+--echo #
+
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+SET @a=123;
+SET sql_mode='';
+UPDATE t1 SET a=10 RETURNING a INTO @a;
+SELECT @a;
+SET sql_mode=DEFAULT;
+--error ER_SP_FETCH_NO_DATA
+UPDATE t1 SET a=10 RETURNING a INTO @a;
+SELECT @a;
+UPDATE IGNORE t1 SET a=10 RETURNING a INTO @a;
+SELECT @a;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows updated for various sql_mode values
+--echo #
+
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20),(30);
+
+SET sql_mode='';
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET sql_mode=DEFAULT;
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE IGNORE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows + CONTINUE HANDLER
+--echo #
+
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET @b=@a;
+  END;
+  UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+  SELECT 'Still here' AS comment;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows + EXIT HANDLER
+--echo #
+
+SET @a=100, @b=200;
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET @b=@a;
+    RESIGNAL;
+  END;
+  UPDATE t1 SET a=a+1 ORDER BY a RETURNING a INTO @a;
+  SELECT 'Still here' AS comment;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1();
+SELECT @a,@b;
+SELECT * FROM t1;
+
+SET @a=NULL, @b=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Normal case
+--echo #
+
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 WHERE a>=30 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Normal case with LIMIT
+--echo #
+
+CREATE TABLE t1 (a INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20),(30);
+SET @a=123;
+UPDATE t1 SET a=a+1 ORDER BY a LIMIT 1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
