@@ -3930,4 +3930,28 @@ select * from t1 full join t2 on t1.a = t2.a full join t3 on t2.a = t3.a
 
 drop table t1, t2, t3;
 
+--echo # ====================================================================
+--echo # Section 24: A rowid filter on the right table of a FULL JOIN
+--echo # ====================================================================
+--echo #
+--echo # The pass that emits the right side rows which never matched reads the
+--echo # right table with a plain sequential scan rather than the key lookup
+--echo # the plan chose.  A rowid filter belongs to that lookup because it
+--echo # holds the primary keys the lookup was allowed to return, and an
+--echo # engine is entitled to assume it never sees one outside an index read.
+--echo # InnoDB asserts when it does.
+
+create table t1 (a int, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_20;
+create table t2 (a int, c int, d int, key(a), key(c)) engine=innodb;
+insert into t2 select seq/10, seq, seq from seq_1_to_2000;
+analyze table t1, t2 persistent for all;
+--replace_column 9 #
+explain select count(*) from t1 full join t2 on t1.a = t2.a
+  and t2.c between 1 and 100;
+select count(*) from t1 full join t2 on t1.a = t2.a
+  and t2.c between 1 and 100;
+
+drop table t1, t2;
+
 --echo # End of 12.3 tests

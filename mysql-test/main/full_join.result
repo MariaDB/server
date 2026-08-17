@@ -6310,4 +6310,34 @@ where t2.c > 150 or t1.a is null;
 a	b	a	c	a	d
 NULL	NULL	9	900	9	9000
 drop table t1, t2, t3;
+# ====================================================================
+# Section 24: A rowid filter on the right table of a FULL JOIN
+# ====================================================================
+#
+# The pass that emits the right side rows which never matched reads the
+# right table with a plain sequential scan rather than the key lookup
+# the plan chose.  A rowid filter belongs to that lookup because it
+# holds the primary keys the lookup was allowed to return, and an
+# engine is entitled to assume it never sees one outside an index read.
+# InnoDB asserts when it does.
+create table t1 (a int, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_20;
+create table t2 (a int, c int, d int, key(a), key(c)) engine=innodb;
+insert into t2 select seq/10, seq, seq from seq_1_to_2000;
+analyze table t1, t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+explain select count(*) from t1 full join t2 on t1.a = t2.a
+and t2.c between 1 and 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t2	ref|filter	a,c	a|c	5|5	test.t1.a	#	Using where; Using rowid filter
+select count(*) from t1 full join t2 on t1.a = t2.a
+and t2.c between 1 and 100;
+count(*)
+2010
+drop table t1, t2;
 # End of 12.3 tests

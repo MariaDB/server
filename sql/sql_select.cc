@@ -26637,9 +26637,15 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   The rescan is forced to a plain sequential scan (not the original
   JT_REF / JT_EQ_REF access method, which would look up keys derived
   from the now-nullified left side and return zero rows).  The pushed
-  SQL_SELECT and on_precond are cleared for the rescan and restored
-  afterwards so that subsequent executions (prepared statement
-  re-execution, correlated subquery iterations) see the originals.
+  SQL_SELECT, the on_precond and the pushed rowid filter are cleared
+  for the rescan and restored afterwards so that subsequent executions
+  (prepared statement re-execution, correlated subquery iterations) see
+  the originals.
+
+  A rowid filter belongs to the ref access this rescan replaces.  It
+  holds the primary keys the ref lookup would have been allowed to
+  return, so a sequential scan has no use for it and an engine is
+  entitled to assume it will never see one outside an index read.
 */
 
 static enum_nested_loop_state
@@ -26666,6 +26672,8 @@ run_fj_null_complement_pass(JOIN *join, JOIN_TAB *join_tab)
   SQL_SELECT *saved_select= join_tab->select;
   join_tab->read_first_record= join_init_read_record;
   join_tab->select= nullptr;
+  if (join_tab->rowid_filter)
+    join_tab->table->file->disable_pushed_rowid_filter();
 
   // full scan of right table and null-complement generation
   enum_nested_loop_state nls= sub_select(join, join_tab, 0);
@@ -26687,6 +26695,12 @@ run_fj_null_complement_pass(JOIN *join, JOIN_TAB *join_tab)
   if (join_tab->table->file->inited)
     join_tab->table->file->ha_index_or_rnd_end();
   join_tab->table->file->ha_restart_keyread(saved_keyread);
+  /*
+    Put the rowid filter back only once the sequential scan is closed,
+    so that no read that must not use it can still be in progress.
+  */
+  if (join_tab->rowid_filter)
+    join_tab->table->file->enable_pushed_rowid_filter();
 
   if (nls == NESTED_LOOP_NO_MORE_ROWS)
     nls= NESTED_LOOP_OK;
