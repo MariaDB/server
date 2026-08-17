@@ -46,15 +46,16 @@ class Sql_cmd_update final : public Sql_cmd_dml
 {
 public:
   ha_rows found{0}, updated{0};
-  Sql_cmd_update(bool multitable_arg)
-    : orig_multitable(multitable_arg), multitable(multitable_arg),
+  Sql_cmd_update(LEX *lex, bool multitable_arg)
+    :Sql_cmd_dml(lex),
+     multitable(multitable_arg),
+     m_with_old_value_items(false),
      returning_result(nullptr), save_protocol(nullptr)
   {}
 
-  enum_sql_command sql_command_code() const override
-  {
-    return orig_multitable ? SQLCOM_UPDATE_MULTI : SQLCOM_UPDATE;
-  }
+  bool returns_result_set() const override;
+
+  bool set_returning_into_result(select_dumpvar *res) override;
 
   DML_prelocking_strategy *get_dml_prelocking_strategy() override
   {
@@ -67,12 +68,16 @@ public:
 
   void set_as_multitable() { multitable= true; }
 
+  void set_with_old_value_items() { m_with_old_value_items= true; }
+
   void get_dml_stat (ha_rows &found, ha_rows &changed) override
   {
 
      found= this->found;
      changed= this->updated;
   }
+
+  bool with_returning_into() const;
 
 protected:
   /**
@@ -97,15 +102,15 @@ private:
   */
   bool update_single_table(THD *thd);
 
-  /* Original value of the 'multitable' flag set by constructor */
-  const bool orig_multitable;
-
   /*
     True if the statement is a multi-table update or converted to such.
     For a single-table update this flag is set to true if the statement
     is supposed to be converted to multi-table update.
   */
   bool multitable;
+
+  bool m_with_old_value_items; // Has OLD_VALUE(col)
+
   select_result *returning_result;
 
   /* The prelocking strategy used when opening the used tables */
