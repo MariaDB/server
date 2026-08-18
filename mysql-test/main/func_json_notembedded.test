@@ -39,6 +39,7 @@ select json_merge_patch(@obj, @obj);
 select json_merge_preserve(@obj, @arr);
 select json_normalize(@obj);
 select json_overlaps(@obj, @arr);
+select json_object_filter_keys(@obj, @arr);
 select json_remove(@obj,'$.foo');
 select json_replace(@obj,'$.foo',1);
 select json_schema_valid(@obj, '{"type":"object"}');
