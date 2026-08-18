@@ -2301,7 +2301,6 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
 {
   int res;
   LEX *lex= stmt->lex;
-  TABLE_LIST *first_local_table;
 
   if (tables->table)
   {
@@ -2313,15 +2312,13 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
     return 1;
 
   /* store it, because mysql_insert_select_prepare_tester change it */
-  first_local_table= lex->first_select_lex()->table_list.first;
-  DBUG_ASSERT(first_local_table != 0);
+  lex->prepare_insert_table1= lex->first_select_lex()->table_list.first;
+  DBUG_ASSERT(lex->prepare_insert_table1 != 0);
 
   res=
     select_like_stmt_test_with_open(stmt, tables,
                                     &mysql_insert_select_prepare_tester,
                                     OPTION_SETUP_TABLES_DONE);
-  /* revert changes  made by mysql_insert_select_prepare_tester */
-  lex->first_select_lex()->table_list.first= first_local_table;
   return res;
 }
 
@@ -2477,6 +2474,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   TABLE_LIST *tables;
   enum enum_sql_command sql_command= lex->sql_command;
   int res= 0;
+  bool returning= false;
   DBUG_ENTER("check_prepared_statement");
   DBUG_PRINT("enter",("command: %d  param_count: %u",
                       sql_command, stmt->param_count));
@@ -2528,6 +2526,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                            lex->many_values,
                            lex->update_list, lex->value_list,
                            lex->duplicates, lex->ignore);
+    returning= lex->has_returning();
     break;
 
   case SQLCOM_LOAD:
@@ -2549,6 +2548,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   case SQLCOM_DELETE:
     res= mysql_test_delete(stmt, tables);
+    returning= lex->has_returning();
     break;
   /* The following allow WHERE clause, so they must be tested like SELECT */
   case SQLCOM_SHOW_DATABASES:
@@ -2693,6 +2693,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
     res= mysql_test_insert_select(stmt, tables);
+    returning= lex->has_returning();
     break;
 
   case SQLCOM_HA_READ:
@@ -2772,7 +2773,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                                                     Protocol::SEND_EOF);
        }
        else
-         res= send_prep_stmt(stmt, 0);
+       {
+         if (returning)
+         {
+           select_send result(thd);
+           List<Item> &field_list= lex->returning()->item_list;
+           res= send_prep_stmt(stmt, field_list.elements) ||
+                result.send_result_set_metadata(field_list, Protocol::SEND_EOF);
+         }
+         else
+           res= send_prep_stmt(stmt, 0);
+       }
        if (!res)
          thd->protocol->flush();
     }

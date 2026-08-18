@@ -1236,6 +1236,7 @@ void LEX::start(THD *thd_arg)
   with_persistent_for_clause= FALSE;
   column_list= NULL;
   index_list= NULL;
+  prepare_insert_table1= NULL;
   prepared_stmt.lex_start();
   auxiliary_table_list.empty();
   unit.next= unit.master= unit.link_next= unit.return_to= 0;

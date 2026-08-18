@@ -4110,12 +4110,27 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
                                  &select_lex->where, TRUE, &cache_insert_values)))
     DBUG_RETURN(res);
 
+
+  if (lex->prepare_insert_table1)
+  {
+    lex->first_select_lex()->table_list.first
+      = thd->lex->first_select_lex()->context.table_list
+      = thd->lex->first_select_lex()->context.first_name_resolution_table
+      = lex->prepare_insert_table1;
+    lex->prepare_insert_table1= nullptr;
+  }
   /*
-    If sel_res is not empty, it means we have items in returing_list.
+    If sel_res is not empty, it means we have items in returning_list.
     So we prepare the list now
   */
   if (sel_res)
+  {
     sel_res->prepare(lex->returning()->item_list, NULL);
+  }
+  /* prepared statement with returning? */
+  else if (lex->has_returning() &&
+           (res= setup_returning_fields(thd, lex->query_tables)))
+      DBUG_RETURN(res);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
