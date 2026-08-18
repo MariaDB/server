@@ -1,0 +1,16 @@
+#
+# Verify Ssl_server_cert_types global status shows all three types
+#
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+Variable_name	Value
+Ssl_server_cert_types	RSA, ECDSA, EdDSA
+#
+# TLS 1.3 connection should use one of the loaded cert types
+#
+connect  tls13_con,localhost,root,,,,,SSL;
+Ssl_server_cert_type is valid: OK
+SHOW STATUS LIKE 'Ssl_version';
+Variable_name	Value
+Ssl_version	TLSv1.3
+disconnect tls13_con;
+connection default;
