@@ -650,6 +650,9 @@ IF(NOT WITHOUT_SERVER)
   IF(WIN32)
     ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
+  IF(UNIX)
+    ADD_DEPENDENCIES(minbuild resolveip)
+  ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
