@@ -88,7 +88,7 @@ extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
 extern void create_new_thread(CONNECT *connect);
 
-extern void ssl_acceptor_stats_update(int sslaccept_ret);
+extern void ssl_acceptor_stats_update(struct st_vio *vio);
 extern int reinit_ssl();
 
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;

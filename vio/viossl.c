@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@
 */
 
 #include "vio_priv.h"
+#include <ssl_compat.h>
 
 #ifdef HAVE_OPENSSL
 
@@ -173,7 +175,6 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 		       (int)mysql_socket_getfd(vio->mysql_socket), buf, size,
                        vio->ssl_arg));
 
-
   while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
   {
     if (handle_ssl_io_error(vio, ret))
@@ -194,6 +195,27 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
   DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
                        (int)mysql_socket_getfd(vio->mysql_socket),
                        buf, size));
+
+  if (!SSL_is_init_finished(ssl))
+  {
+    size_t written;
+    while (!SSL_write_early_data(ssl, buf, size, &written))
+      if (handle_ssl_io_error(vio, 0))
+        DBUG_RETURN(-1);
+
+    /* now let's finish the handshake */
+    while(!SSL_is_init_finished(ssl))
+    {
+      size_t nread;
+      uchar discard[256];
+      ret= SSL_read_early_data(ssl, discard, sizeof(discard), &nread);
+      if (ret < SSL_READ_EARLY_DATA_SUCCESS && handle_ssl_io_error(vio, 0))
+        DBUG_RETURN(-1);
+    }
+
+    DBUG_RETURN(written);
+  }
+
   while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
   {
     if (handle_ssl_io_error(vio,ret))
@@ -293,22 +315,20 @@ static int ssl_handshake_loop(Vio *vio, SSL *ssl, ssl_handshake_func_t func)
 }
 
 
-static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
-                  ssl_handshake_func_t func, unsigned long *errptr)
+static SSL *ssl_prepare(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
+                        unsigned long *errptr)
 {
-  int r;
   SSL *ssl;
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
-  DBUG_ENTER("ssl_do");
+  DBUG_ENTER("ssl_prepare");
   DBUG_PRINT("enter", ("ptr: %p, sd: %d  ctx: %p",
                        ptr, (int)sd, ptr->ssl_context));
-
 
   if (!(ssl= SSL_new(ptr->ssl_context)))
   {
     DBUG_PRINT("error", ("SSL_new failure"));
     *errptr= ERR_get_error();
-    DBUG_RETURN(1);
+    DBUG_RETURN(NULL);
   }
   DBUG_PRINT("info", ("ssl: %p timeout: %ld", ssl, timeout));
   SSL_clear(ssl);
@@ -324,6 +344,15 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
 #if defined(SSL_OP_NO_COMPRESSION)
   SSL_set_options(ssl, SSL_OP_NO_COMPRESSION);
 #endif
+  DBUG_RETURN(ssl);
+}
+
+
+static int ssl_do(Vio *vio, SSL *ssl, ssl_handshake_func_t func,
+                  unsigned long *errptr)
+{
+  int r;
+  DBUG_ENTER("ssl_do");
 
   if ((r= ssl_handshake_loop(vio, ssl, func)) < 1)
   {
@@ -377,17 +406,53 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
 }
 
 
-int sslaccept(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *errptr)
+/**
+  Accepts SSL connection, initiated by the client.
+  Optionally reads TLS 1.3 early data into the specified buffer.
+*/
+ulong sslaccept(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *errptr,
+                uchar *buf, ulong bufsize)
 {
+  SSL *ssl= ssl_prepare(ptr, vio, timeout, errptr);
   DBUG_ENTER("sslaccept");
-  DBUG_RETURN(ssl_do(ptr, vio, timeout, SSL_accept, errptr));
+
+  if (!ssl)
+    DBUG_RETURN(packet_error);
+
+  if (buf)
+  {
+    vio->ssl_arg= ssl; /* for handle_ssl_io_error() to work */
+    set_if_smaller(bufsize, MAX_EARLY_DATA);
+    for (;;)
+    {
+      size_t nread;
+      int ret= SSL_read_early_data(ssl, buf, bufsize, &nread);
+      if (ret >= SSL_READ_EARLY_DATA_SUCCESS)
+      {
+        if (nread)
+          DBUG_RETURN(vio_reset(vio, VIO_TYPE_SSL, SSL_get_fd(ssl), ssl, 0)
+                      ? packet_error : (ulong)nread);
+        break;
+      }
+      if (handle_ssl_io_error(vio, 0))
+      {
+        vio->ssl_arg= 0;
+        DBUG_RETURN(packet_error);
+      }
+    }
+  }
+
+  DBUG_RETURN(ssl_do(vio, ssl, SSL_accept, errptr) ? packet_error : 0);
 }
 
 
 int sslconnect(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *errptr)
 {
+  SSL *ssl= ssl_prepare(ptr, vio, timeout, errptr);
   DBUG_ENTER("sslconnect");
-  DBUG_RETURN(ssl_do(ptr, vio, timeout, SSL_connect, errptr));
+  if (!ssl)
+    DBUG_RETURN(1);
+  DBUG_RETURN(ssl_do(vio, ssl, SSL_connect, errptr));
 }
 
 

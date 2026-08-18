@@ -4734,11 +4734,15 @@ struct SSL_ACCEPTOR_STATS
   long verify_mode;
   long verify_depth;
   long zero;
+  long early_data_accepted;
+  long early_data_rejected;
+  long early_data_replies;
   const char *session_cache_mode;
   uchar fprint[256/8];
 
   SSL_ACCEPTOR_STATS():
     accept(),accept_good(),cache_size(),verify_mode(),verify_depth(),zero(),
+    early_data_accepted(),early_data_rejected(),early_data_replies(),
     session_cache_mode("NONE")
   {
   }
@@ -4750,6 +4754,7 @@ struct SSL_ACCEPTOR_STATS
     SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
     accept= 0;
     accept_good= 0;
+    early_data_accepted= early_data_rejected= early_data_replies= 0;
     verify_mode= SSL_CTX_get_verify_mode(ctx);
     verify_depth= SSL_CTX_get_verify_depth(ctx);
     cache_size= SSL_CTX_sess_get_cache_size(ctx);
@@ -4777,11 +4782,25 @@ struct SSL_ACCEPTOR_STATS
 };
 
 static SSL_ACCEPTOR_STATS ssl_acceptor_stats;
-void ssl_acceptor_stats_update(int sslaccept_ret)
+void ssl_acceptor_stats_update(Vio *vio)
 {
   statistic_increment(ssl_acceptor_stats.accept, &LOCK_status);
-  if (!sslaccept_ret)
+  if (SSL *ssl= (SSL*)vio->ssl_arg)
+  {
     statistic_increment(ssl_acceptor_stats.accept_good,&LOCK_status);
+    switch (SSL_get_early_data_status(ssl)) {
+    case SSL_EARLY_DATA_ACCEPTED:
+      statistic_increment(ssl_acceptor_stats.early_data_accepted, &LOCK_status);
+      break;
+    case SSL_EARLY_DATA_REJECTED:
+      statistic_increment(ssl_acceptor_stats.early_data_rejected, &LOCK_status);
+      break;
+    default:
+      break;
+    }
+    if (!SSL_is_init_finished(ssl))
+      statistic_increment(ssl_acceptor_stats.early_data_replies, &LOCK_status);
+  }
 }
 
 static int show_ssl_ctx_stats(THD *, SHOW_VAR *var, void *buff,
@@ -8132,6 +8151,9 @@ SHOW_VAR status_vars[]= {
   {"Ssl_ctx_verify_depth",     (char*) &ssl_acceptor_stats.verify_depth, SHOW_LONG},
   {"Ssl_ctx_verify_mode",      (char*) &ssl_acceptor_stats.verify_mode, SHOW_LONG},
   {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_SIMPLE_FUNC},
+  {"Ssl_early_data_accepted",  (char*) &ssl_acceptor_stats.early_data_accepted, SHOW_LONG},
+  {"Ssl_early_data_rejected",  (char*) &ssl_acceptor_stats.early_data_rejected, SHOW_LONG},
+  {"Ssl_early_data_replies",   (char*) &ssl_acceptor_stats.early_data_replies, SHOW_LONG},
   {"Ssl_finished_accepts",     (char*) &ssl_acceptor_stats.accept_good, SHOW_LONG},
   {"Ssl_finished_connects",    (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},

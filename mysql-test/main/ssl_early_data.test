@@ -1,0 +1,34 @@
+--echo #
+--echo # TLS 1.3 early data (0-RTT)
+--echo #
+
+--source include/not_embedded.inc
+
+--echo try without a password or with unsecure plugin
+
+# Need a user with a password and secure plugin
+
+create user u1 identified by 'pw';
+
+# first connect: nothing to resume
+connect ssl1,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+show status like 'ssl_sessions_reused';
+disconnect ssl1;
+
+# this one resumes and uses 0-RTT
+connect ssl2,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+show status like 'ssl_sessions_reused';
+disconnect ssl2;
+
+# so does this one
+connect ssl3,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+show status like 'ssl_sessions_reused'; # this is a session flag, not a counter
+disconnect ssl3;
+
+connection default;
+drop user u1;
+
+--echo # End of 13.2 tests

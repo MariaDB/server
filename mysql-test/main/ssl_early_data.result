@@ -1,0 +1,38 @@
+#
+# TLS 1.3 early data (0-RTT)
+#
+try without a password or with unsecure plugin
+create user u1 identified by 'pw';
+connect ssl1,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+Variable_name	Value
+Ssl_early_data_accepted	0
+Ssl_early_data_rejected	0
+Ssl_early_data_replies	0
+show status like 'ssl_sessions_reused';
+Variable_name	Value
+Ssl_sessions_reused	0
+disconnect ssl1;
+connect ssl2,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+Variable_name	Value
+Ssl_early_data_accepted	1
+Ssl_early_data_rejected	0
+Ssl_early_data_replies	1
+show status like 'ssl_sessions_reused';
+Variable_name	Value
+Ssl_sessions_reused	1
+disconnect ssl2;
+connect ssl3,localhost,u1,pw,,,,SSL;
+show status like 'ssl_early_data%';
+Variable_name	Value
+Ssl_early_data_accepted	2
+Ssl_early_data_rejected	0
+Ssl_early_data_replies	2
+show status like 'ssl_sessions_reused';
+Variable_name	Value
+Ssl_sessions_reused	1
+disconnect ssl3;
+connection default;
+drop user u1;
+# End of 13.2 tests
