@@ -1,0 +1,299 @@
+--echo # MDEV-31342: Test I_S fast path optimization
+#
+# On Windows (lower_case_table_names=1) EXPLAIN may print `tables`
+# instead of `TABLES`. replace_regex applies only to the next
+# statement (cleared after --echo etc), so repeat it before each EXPLAIN.
+#
+--echo #
+--echo # Test 1: Simple SELECT - should use fast path
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+
+--echo #
+--echo # Test 2: WHERE filter
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES';
+SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES';
+
+--echo #
+--echo # Test 3: Scalar subquery - should trigger single row early exit
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT (
+  SELECT TABLE_NAME
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user'
+) AS result;
+SELECT (
+  SELECT TABLE_NAME
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user'
+) AS result;
+
+--echo #
+--echo # Test 4: LIMIT 1 - should trigger early exit
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT COUNT(*) > 0 FROM (
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql'
+  LIMIT 1
+) t;
+SELECT COUNT(*) > 0 FROM (
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql'
+  LIMIT 1
+) t;
+
+--echo #
+--echo # Test 5: Fallback path - ORDER BY should still work correctly
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME
+LIMIT 3;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME
+LIMIT 3;
+
+--echo #
+--echo # Test 6: Fallback path - GROUP BY should still work
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_SCHEMA, COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+GROUP BY TABLE_SCHEMA;
+SELECT TABLE_SCHEMA, COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+GROUP BY TABLE_SCHEMA;
+
+--echo #
+--echo # Test 7: Fallback path - DISTINCT should still work
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT DISTINCT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+SELECT DISTINCT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+
+--echo #
+--echo # Test 8: HAVING clause - should use fallback path
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+HAVING TABLE_NAME = 'user';
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+HAVING TABLE_NAME = 'user';
+
+--echo #
+--echo # Test 9: WHERE TABLE_SCHEMA and TABLE_CATALOG mismatch - no rows
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_CATALOG = 'nope';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_CATALOG = 'nope';
+
+--echo #
+--echo # Test 10: LIMIT n > 1 without ORDER BY - not the single-row early-exit
+--echo # case, so is_simple_is_query() rejects it -> fallback path
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 3;
+SELECT COUNT(*) FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 3
+) t;
+
+--echo # Test 11: LIMIT 1 OFFSET 1 - offset_limit set -> fallback path
+--echo # (regression coverage: fast path must not skip the offset row)
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1 OFFSET 1;
+SELECT COUNT(*) FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1 OFFSET 1
+) t;
+
+--echo # Test 12: SQL_CALC_FOUND_ROWS - OPTION_FOUND_ROWS set -> fallback path
+--echo # (regression coverage: fast path must not short-circuit the full scan
+--echo # needed for an accurate FOUND_ROWS() count)
+--echo #
+--disable_ps_protocol
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT SQL_CALC_FOUND_ROWS TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+--disable_result_log
+SELECT SQL_CALC_FOUND_ROWS TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+--enable_result_log
+SELECT FOUND_ROWS();
+--enable_ps_protocol
+
+--echo #
+--echo # Test 13: SELECT * - non-field item shape rejected -> fallback path
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT * FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SELECT * FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+
+--echo #
+--echo # Verify: simple query temp table behavior
+--echo #
+--disable_ps_protocol
+FLUSH STATUS;
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+
+--echo #
+--echo # Verify: ORDER BY uses fallback
+--echo #
+FLUSH STATUS;
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME LIMIT 3;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME LIMIT 3;
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
+
+--echo #
+--echo # EXPLAIN shows no filesort for fast-path query
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+
+--echo #
+--echo # EXPLAIN shows filesort for fallback query (ORDER BY)
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' ORDER BY TABLE_NAME LIMIT 3;
+
+--echo #
+--echo # Test: Prepared statements - fast path re-execution correctness
+--echo #
+PREPARE stmt FROM 'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+SET @db = 'mysql', @tbl = 'user';
+EXECUTE stmt USING @db, @tbl;
+EXECUTE stmt USING @db, @tbl;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Test: Prepared statement with LIMIT 1
+--echo #
+PREPARE stmt2 FROM 'SELECT COUNT(*) > 0 FROM (SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? LIMIT 1) t';
+SET @db = 'mysql';
+EXECUTE stmt2 USING @db;
+EXECUTE stmt2 USING @db;
+DEALLOCATE PREPARE stmt2;
+
+--echo #
+--echo # Test: I_S query inside stored procedure
+--echo #
+DELIMITER //;
+CREATE PROCEDURE test_is_proc()
+BEGIN
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+END//
+DELIMITER ;//
+CALL test_is_proc();
+CALL test_is_proc();
+DROP PROCEDURE test_is_proc;
+
+--echo #
+--echo # Test: I_S query inside a merged view - still eligible for fast path
+--echo #
+CREATE VIEW test_is_view AS
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql';
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM test_is_view WHERE TABLE_NAME = 'user';
+SELECT TABLE_NAME FROM test_is_view WHERE TABLE_NAME = 'user';
+DROP VIEW test_is_view;
+
+--echo #
+--echo # Test: WHERE with multiple conditions
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME LIKE 'user%'
+LIMIT 1;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME LIKE 'user%'
+LIMIT 1;
+
+--echo #
+--echo # Test: I_S query inside trigger
+--echo #
+CREATE TABLE test_mdev31342 (id INT);
+DELIMITER //;
+CREATE TRIGGER test_is_trigger BEFORE INSERT ON test_mdev31342
+FOR EACH ROW
+BEGIN
+  SET NEW.id = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'mysql');
+END//
+DELIMITER ;//
+INSERT INTO test_mdev31342 VALUES (0);
+SELECT id > 0 AS has_tables FROM test_mdev31342;
+DROP TRIGGER test_is_trigger;
+DROP TABLE test_mdev31342;
+
+--echo # End of 13.1 tests
+
+--echo #
+--echo # Test: Query cache - ensure results are not served from cache
+--echo #
+SET SESSION query_cache_type = 0;
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SET SESSION query_cache_type = DEFAULT;
+
+--echo #
+--echo # Test: Prepared statement with ? placeholders - second execution
+--echo #
+PREPARE stmt3 FROM
+  'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+   WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+SET @s1= 'mysql', @t1= 'user';
+EXECUTE stmt3 USING @s1, @t1;
+SET @s1= 'information_schema', @t1= 'TABLES';
+EXECUTE stmt3 USING @s1, @t1;
+DEALLOCATE PREPARE stmt3;
+
+--echo #
+--echo # Test: Verify fast path via EXPLAIN (no filesort = fast path engaged)
+--echo #
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
