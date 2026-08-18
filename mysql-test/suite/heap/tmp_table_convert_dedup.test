@@ -1,0 +1,134 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # create_internal_tmp_table_from_heap() must check the row that
+--echo # overflowed the in-memory table against the unique constraint of the
+--echo # table it converts to.
+--echo #
+--echo # That row has not been stored anywhere yet, so the conversion writes
+--echo # it to the new table itself. If it is written while the new handler
+--echo # still holds its indexes disabled for the bulk copy, its duplicate is
+--echo # not detected, and a duplicate row survives in a table whose only
+--echo # purpose is to remove duplicates.
+--echo #
+--echo # The on-disk temporary engine only disables its indexes for tables of
+--echo # at least a hundred rows, so the in-memory table has to hold that many
+--echo # rows when it overflows. blob_big.inc uses fifty distinct values and
+--echo # therefore never reaches that path.
+--echo #
+
+# SHOW STATUS output differs across protocol variants; disable them globally.
+--disable_cursor_protocol
+--disable_ps_protocol
+--disable_ps2_protocol
+
+--echo #
+--echo # Setup: 1000 distinct pairs of ~1 KB values, each pair present twice,
+--echo # with the two copies of a pair adjacent, so that the write which
+--echo # overflows a deduplicating temporary table is always a duplicate of a
+--echo # row the conversion has already copied.
+--echo #
+--echo # The columns are wide enough that the deduplicating key does not fit
+--echo # into a key of the on-disk temporary engine, so deduplication goes
+--echo # through a unique constraint rather than through a unique index.
+--echo #
+
+set @save_tmp_memory_table_size=@@tmp_memory_table_size;
+set @save_max_heap_table_size=@@max_heap_table_size;
+
+CREATE TABLE t1 (id INT, v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+INSERT INTO t1
+SELECT (seq+1) DIV 2,
+       CONCAT('v', LPAD((seq+1) DIV 2, 6, '0')),
+       CONCAT('w', LPAD((seq+1) DIV 2, 6, '0'))
+FROM seq_1_to_2000;
+
+SELECT COUNT(*), COUNT(DISTINCT v, w) FROM t1;
+
+--echo #
+--echo # ================================================================
+--echo # Run 1: the temporary tables overflow and are converted
+--echo # ================================================================
+--echo #
+
+set @@tmp_memory_table_size=1024*1024*2;
+set @@max_heap_table_size=1024*1024*2;
+
+--echo # --- SELECT DISTINCT (end_write path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t1) dt;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # --- SELECT DISTINCT with ORDER BY ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # --- GROUP BY (end_update path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # --- UNION DISTINCT (select_unit::write_record path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # --- INSERT SELECT DISTINCT: the duplicate reaches a user table ---
+FLUSH STATUS;
+CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM t2;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+DROP TABLE t2;
+
+--echo #
+--echo # ================================================================
+--echo # Run 2: the same statements with enough memory to stay in HEAP
+--echo # ================================================================
+--echo #
+
+set @@tmp_memory_table_size=1024*1024*512;
+set @@max_heap_table_size=1024*1024*512;
+
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t1) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
+CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM t2;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # Clean up
+
+set @@tmp_memory_table_size=@save_tmp_memory_table_size;
+set @@max_heap_table_size=@save_max_heap_table_size;
+DROP TABLE t1, t2;
+
+--enable_ps2_protocol
+--enable_ps_protocol
+--enable_cursor_protocol
