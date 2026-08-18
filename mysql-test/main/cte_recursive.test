@@ -4257,3 +4257,180 @@ WITH RECURSIVE x AS (
   SELECT 1 FROM x;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # Recursive CTE loses a row when the increment table is converted
+--echo # into an on-disk temporary table
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (n INT, pad CHAR(255) CHARACTER SET utf8mb4);
+INSERT INTO t1 SELECT seq, REPEAT('x',255) FROM seq_1_to_64;
+
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+--echo # Each query below is run twice. The first run leaves the increment
+--echo # table in memory, the second forces it to be converted to an on-disk
+--echo # table while it is being filled. Both runs must return the same rows.
+
+--echo #
+--echo # The increment table overflows while the anchor part fills it
+--echo #
+let $q=
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, pad FROM t1
+     UNION ALL
+   SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM r GROUP BY lvl ORDER BY lvl;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+FLUSH STATUS;
+eval $q;
+--echo # 0 = no temporary table was converted
+SELECT VARIABLE_VALUE > 0 AS converted FROM information_schema.SESSION_STATUS
+  WHERE VARIABLE_NAME = 'Created_tmp_disk_tables';
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+FLUSH STATUS;
+eval $q;
+--echo # 1 = a temporary table was converted
+SELECT VARIABLE_VALUE > 0 AS converted FROM information_schema.SESSION_STATUS
+  WHERE VARIABLE_NAME = 'Created_tmp_disk_tables';
+
+--echo #
+--echo # The increment table overflows during a recursive step
+--echo #
+let $q=
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, pad FROM t1 WHERE n = 1
+     UNION ALL
+   SELECT r.lvl+1, t1.pad FROM r, t1 WHERE r.lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads
+  FROM r GROUP BY lvl ORDER BY lvl;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+--echo #
+--echo # The same, for a CTE that eliminates duplicates
+--echo #
+let $q=
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, pad FROM t1
+     UNION
+   SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM r GROUP BY lvl ORDER BY lvl;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+--echo #
+--echo # The same, when the result table's key does not fit an on-disk table
+--echo # and is replaced by a unique constraint. The result table's record
+--echo # then carries a trailing hash field that the increment table's record
+--echo # does not have, so the two records are of different length.
+--echo #
+CREATE TABLE t2 (n INT,
+                 p1 CHAR(200) CHARACTER SET utf8mb4,
+                 p2 CHAR(200) CHARACTER SET utf8mb4,
+                 p3 CHAR(200) CHARACTER SET utf8mb4);
+INSERT INTO t2
+  SELECT seq, REPEAT('a',200), REPEAT('b',200), REPEAT('c',200) FROM seq_1_to_64;
+
+let $q=
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, p1, p2, p3 FROM t2
+     UNION
+   SELECT lvl+1, n, p1, p2, p3 FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(p3) AS pads, SUM(n) AS sum_n
+  FROM r GROUP BY lvl ORDER BY lvl;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+DROP TABLE t2;
+
+--echo #
+--echo # A prepared statement re-executed after its increment table was
+--echo # converted on an earlier execution
+--echo #
+PREPARE s FROM "
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, pad FROM t1
+     UNION ALL
+   SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM r GROUP BY lvl ORDER BY lvl";
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+EXECUTE s;
+EXECUTE s;
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+EXECUTE s;
+DROP PREPARE s;
+
+--echo #
+--echo # Mutually recursive CTEs
+--echo #
+let $q=
+WITH RECURSIVE
+  a AS (SELECT 1 AS lvl, n, pad FROM t1
+          UNION ALL
+        SELECT lvl+1, n, pad FROM b WHERE lvl < 4),
+  b AS (SELECT lvl, n, pad FROM a)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM a GROUP BY lvl ORDER BY lvl;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+--echo #
+--echo # INSERT ... SELECT, which takes a different warning-handling path
+--echo # when the increment table is filled
+--echo #
+CREATE TABLE t3 (lvl INT, n INT, pad CHAR(255) CHARACTER SET utf8mb4);
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+INSERT INTO t3
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, pad FROM t1
+     UNION ALL
+   SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, n, pad FROM r;
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM t3 GROUP BY lvl ORDER BY lvl;
+DROP TABLE t3;
+
+SET SESSION tmp_memory_table_size= @save_tmp_memory_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests
