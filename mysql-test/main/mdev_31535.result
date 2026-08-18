@@ -1,0 +1,290 @@
+#
+# MDEV-31535: Optimize directory listing for SHOW DATABASES /
+# INFORMATION_SCHEMA.SCHEMATA by using a privilege-based lookup
+# (get_acl_databases_for_user) instead of a full filesystem scan,
+# for users without global database-listing privileges.
+#
+drop database if exists mdev31535a;
+drop database if exists mdev31535b;
+drop database if exists mdev31535pub;
+drop database if exists mdev31535roledb;
+drop database if exists mdev31535_wild_a;
+drop database if exists mdev31535_wild_b;
+create database mdev31535a;
+create database mdev31535b;
+create table mdev31535b.t1 (a int);
+create database mdev31535_wild_a;
+create database mdev31535_wild_b;
+#
+# Case 1: user with an explicit mysql.db grant on exactly one database
+# (no wildcard metacharacter in the name) is resolved by the fast path
+# and sees only that database plus information_schema.
+#
+create user mdev31535_u1@localhost;
+grant select on mdev31535a.* to mdev31535_u1@localhost;
+connect  con1,localhost,mdev31535_u1,,;
+connection con1;
+show databases;
+Database
+information_schema
+mdev31535a
+select schema_name from information_schema.schemata order by schema_name;
+schema_name
+information_schema
+mdev31535a
+# EXPLAIN FORMAT=JSON should report acl_database_list for the fast path
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "acl_database_list": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# Re-run the query and EXPLAIN: I_S is not query-cached; fast path again
+select schema_name from information_schema.schemata order by schema_name;
+schema_name
+information_schema
+mdev31535a
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "acl_database_list": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+connection default;
+disconnect con1;
+#
+# Case 2: user with only a table-level grant (no mysql.db row) still
+# sees that database, via the column_priv_hash pass of the fast path.
+#
+create user mdev31535_u2@localhost;
+grant select on mdev31535b.t1 to mdev31535_u2@localhost;
+connect  con2,localhost,mdev31535_u2,,;
+connection con2;
+show databases;
+Database
+information_schema
+mdev31535b
+select schema_name from information_schema.schemata order by schema_name;
+schema_name
+information_schema
+mdev31535b
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "acl_database_list": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+connection default;
+disconnect con2;
+#
+# Case 3: user whose db grant contains an SQL wildcard ('_' or '%') can
+# match an unknown set of on-disk databases, so the fast path declines
+# and falls back to the legacy find_files() scan.
+#
+create user mdev31535_u3@localhost;
+grant select on `mdev31535\_wild_%`.* to mdev31535_u3@localhost;
+connect  con3,localhost,mdev31535_u3,,;
+connection con3;
+show databases;
+Database
+information_schema
+mdev31535_wild_a
+mdev31535_wild_b
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "scanned_databases": "all"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+connection default;
+disconnect con3;
+#
+# Case 4: a database granted to a role that is the user's default role
+# must be visible, alongside the user's own database. This mirrors
+# acl_get_all3()/check_grant_db(), which also consider the active role.
+#
+create role mdev31535role;
+create database mdev31535roledb;
+grant select on mdev31535roledb.* to mdev31535role;
+create user mdev31535_u4@localhost;
+grant select on mdev31535a.* to mdev31535_u4@localhost;
+grant mdev31535role to mdev31535_u4@localhost;
+set default role mdev31535role for mdev31535_u4@localhost;
+connect  con4,localhost,mdev31535_u4,,;
+connection con4;
+select current_role;
+current_role
+mdev31535role
+show databases;
+Database
+information_schema
+mdev31535a
+mdev31535roledb
+select schema_name from information_schema.schemata order by schema_name;
+schema_name
+information_schema
+mdev31535a
+mdev31535roledb
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "acl_database_list": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+connection default;
+disconnect con4;
+#
+# Case 5: a database granted via the PUBLIC role must be visible to any
+# user through the fast path, exactly as the legacy per-database ACL
+# filter (acl_get_all3) would admit it. Before this fix the fast path
+# ignored PUBLIC grants and hid such databases.
+#
+create user mdev31535_u5@localhost;
+create database mdev31535pub;
+grant select on mdev31535a.* to mdev31535_u5@localhost;
+grant select on mdev31535pub.* to public;
+connect  con5,localhost,mdev31535_u5,,;
+connection con5;
+show databases;
+Database
+information_schema
+mdev31535a
+select schema_name from information_schema.schemata order by schema_name;
+schema_name
+information_schema
+mdev31535a
+EXPLAIN FORMAT=JSON SELECT schema_name FROM information_schema.schemata ORDER BY schema_name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.07878404,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.schemata.`SCHEMA_NAME`",
+            "table": {
+              "table_name": "schemata",
+              "access_type": "ALL",
+              "loops": 1,
+              "cost": 0.01423506,
+              "acl_database_list": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+connection default;
+disconnect con5;
+revoke select on mdev31535pub.* from public;
+drop role mdev31535role;
+drop user mdev31535_u1@localhost;
+drop user mdev31535_u2@localhost;
+drop user mdev31535_u3@localhost;
+drop user mdev31535_u4@localhost;
+drop user mdev31535_u5@localhost;
+drop database mdev31535a;
+drop database mdev31535b;
+drop database mdev31535pub;
+drop database mdev31535roledb;
+drop database mdev31535_wild_a;
+drop database mdev31535_wild_b;
+# Granting to PUBLIC auto-creates the PUBLIC role row in mysql.global_priv
+# on the minimal test datadir; DROP ROLE PUBLIC is not permitted, so
+# remove the leftover role directly to keep server state unchanged.
+delete from mysql.global_priv where User='PUBLIC' and Host='';
+flush privileges;
+# End of MDEV-31535 tests

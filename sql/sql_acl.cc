@@ -6516,6 +6516,127 @@ public:
   }
 };
 
+static inline bool same_acl_user_name(const char *grant_user,
+                                      const char *session_user)
+{
+  /*
+    ACL user names are not always NUL-terminated in memory; compare only
+    up to USERNAME_LENGTH characters like other grant-matching code paths.
+  */
+  return strncmp(grant_user, session_user, USERNAME_LENGTH) == 0;
+}
+
+static bool append_acl_db_name(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
+                               const char *db)
+{
+  /* Skip duplicates: the same database can appear via db- and table-level grants. */
+  LEX_CSTRING *db_name= (LEX_CSTRING*) thd->alloc(sizeof(LEX_CSTRING));
+  if (!db_name)
+    return true;
+  db_name->length= strlen(db);
+  db_name->str= thd->strmake(db, db_name->length);
+  for (size_t j= 0; j < files->elements(); j++)
+  {
+    if (!strncmp(files->at(j)->str, db_name->str, db_name->length) &&
+        files->at(j)->str[db_name->length] == '\0')
+      return false;
+  }
+  return files->append_val(db_name);
+}
+
+static bool acl_db_level_grant_applies(ACL_DB *acl_db, Security_context *sctx)
+{
+  /*
+    Match grantees the same way as acl_get_all3()/check_grant_db(): the
+    connected user, active role, and PUBLIC.
+  */
+  if (same_acl_user_name(acl_db->user, sctx->priv_user))
+    return compare_hostname(&acl_db->host, sctx->host, sctx->ip);
+  if (sctx->priv_role[0] &&
+      same_acl_user_name(acl_db->user, sctx->priv_role))
+    return true;
+  if (acl_public && is_public(acl_db->user))
+    return true;
+  return false;
+}
+
+static bool acl_table_level_grant_applies(GRANT_TABLE *grant,
+                                          Security_context *sctx)
+{
+  /*
+    Table/column grants inherit db visibility from mysql.tables_priv rows;
+    consider the connected user and active role (PUBLIC has no table-level rows).
+  */
+  if (same_acl_user_name(grant->user, sctx->priv_user))
+    return compare_hostname(&grant->host, sctx->host, sctx->ip);
+  if (sctx->priv_role[0] &&
+      same_acl_user_name(grant->user, sctx->priv_role))
+    return true;
+  return false;
+}
+
+/*
+  Collect, from the in-memory privilege tables, the exact database names the
+  current user is allowed to see in SHOW DATABASES / I_S.SCHEMATA.
+
+  Return false when the fast path succeeds (exact db names collected).
+  Return true to signal fallback to find_files().
+*/
+bool get_acl_databases_for_user(THD *thd, Dynamic_array<LEX_CSTRING*> *files)
+{
+  Security_context *sctx= thd->security_ctx;
+  const size_t base= files->elements();
+
+  mysql_mutex_lock(&acl_cache->lock);
+
+  for (size_t i= 0; i < acl_dbs.elements(); i++)
+  {
+    ACL_DB *acl_db= &acl_dbs.at(i);
+    if (acl_db->access.is_empty() || !acl_db_level_grant_applies(acl_db, sctx))
+      continue;
+
+    /*
+      Wildcard db names can match an unknown set of on-disk directories,
+      so bail out and let find_files() apply the legacy per-db ACL filter.
+    */
+    if (acl_db->db && strpbrk(acl_db->db, "%_"))
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      files->elements(base);
+      return true;
+    }
+    if (acl_db->db && append_acl_db_name(thd, files, acl_db->db))
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      files->elements(base);
+      return true;
+    }
+  }
+
+  /*
+    Also pick up databases reachable through table/column grants when there
+    is no mysql.db row for that database.
+  */
+  for (uint i= 0; i < column_priv_hash.records; i++)
+  {
+    GRANT_TABLE *grant= (GRANT_TABLE*) my_hash_element(&column_priv_hash, i);
+    if (grant->privs.is_empty() && grant->cols == NO_ACL)
+      continue;
+    if (!acl_table_level_grant_applies(grant, sctx))
+      continue;
+
+    if (grant->db && append_acl_db_name(thd, files, grant->db))
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      files->elements(base);
+      return true;
+    }
+  }
+
+  mysql_mutex_unlock(&acl_cache->lock);
+  return false;
+}
+
 
 access_t GRANT_INFO::all_privilege()
 {

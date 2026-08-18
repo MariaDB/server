@@ -92,6 +92,9 @@ bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+bool get_acl_databases_for_user(THD *thd, Dynamic_array<LEX_CSTRING*> *files);
+#endif
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx,
                  const LEX_CSTRING &user, const LEX_CSTRING &host,
