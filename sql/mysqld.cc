@@ -5158,6 +5158,37 @@ static int init_server_components()
   }
 
 
+  /*
+    Print notice about AppArmor on Debian/Ubuntu systems to help users diagnose
+    permission issues that may be caused by AppArmor denials on systems where
+    the AppArmor profile is active.
+  */
+  if (!opt_help && !opt_bootstrap)
+  {
+    FILE *fp = fopen("/sys/kernel/security/apparmor/profiles", "r");
+    if (fp)
+    {
+      char line[256];
+      bool mariadb_profile_active = false;
+      while (fgets(line, sizeof(line), fp))
+      {
+        if (strstr(line, "mariadbd"))
+        {
+          mariadb_profile_active = true;
+          break;
+        }
+      }
+      fclose(fp);
+
+      if (mariadb_profile_active)
+      {
+        sql_print_information(
+          "AppArmor profile 'mariadbd' is active. For troubleshooting tips "
+          "see https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/what-to-do-if-mariadb-doesnt-start#apparmor");
+      }
+    }
+  }
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     Parsing the performance schema command line option may have reported
