@@ -1374,20 +1374,31 @@ Share_acquire::~Share_acquire()
 
 
 void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags,
-                            bool use_check_foreign)
+                            inexistent_t inexistent_check)
 {
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info tmp_wi(thd->query_id, false, true);
   No_such_table_error_handler no_such_table;
   /*
-    Two independent conditions gate FK enforcement. use_check_foreign is the
-    caller's per-acquisition policy: whether a missing referenced table matters
-    for this particular operation (e.g. FK_table_to_lock::fail). check_foreign()
-    is the user's foreign_key_checks session switch. A missing table is an error
-    only when both hold; with foreign_key_checks=0 the user explicitly permits
-    dangling foreign keys, so we tolerate it regardless of the caller's policy.
+    Resolve the missing-table policy (see Share_acquire::inexistent_t). Only
+    INEXISTENT_RESPECT consults check_foreign() (the foreign_key_checks session
+    switch). When suppressing the error we install No_such_table_error_handler
+    below so the ER_NO_SUCH_TABLE family is swallowed and acquisition just yields
+    no share; otherwise the error is left in place for the caller to handle.
   */
-  bool ignore_missing= !(use_check_foreign && thd->variables.check_foreign());
+  bool ignore_missing;
+  switch (inexistent_check)
+  {
+  case INEXISTENT_IGNORE:
+    ignore_missing= true;
+    break;
+  case INEXISTENT_RESPECT:
+    ignore_missing= !thd->variables.check_foreign();
+    break;
+  case INEXISTENT_ALWAYS:
+    ignore_missing= false;
+    break;
+  }
 
   da->push_warning_info(&tmp_wi);
   if (ignore_missing)

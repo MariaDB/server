@@ -138,8 +138,8 @@ static bool
 write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
                                    bool &partial_alter, bool if_exists);
 static
-bool fk_handle_drop(THD* thd, TABLE_LIST* table, mbd::vector<FK_ddl_backup>& shares,
-                    bool drop_db);
+bool fk_handle_drop(THD* thd, TABLE_LIST* table, TABLE_SHARE *share,
+                    mbd::vector<FK_ddl_backup>& shares, bool drop_db);
 
 static
 bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
@@ -1643,7 +1643,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     Dummy_error_handler err_handler;
     thd->push_internal_handler(&err_handler);
-    if (TABLE_SHARE *share= tdc_acquire_share(thd, table, GTS_TABLE))
+    Share_acquire sa(thd, *table, GTS_TABLE, Share_acquire::INEXISTENT_ALWAYS);
+    TABLE_SHARE *share= sa.share;
+    if (share)
     {
       table_type= share->table_type;
       hton= plugin_hton(plugin_lock(thd, share->db_plugin));
@@ -1652,7 +1654,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         partition_engine_name= thd->strmake_lex_cstring(*plugin_name(pp));
       drop_index_from= share->keys;
       drop_index_to= share->total_keys;
-      tdc_release_share(share);
     }
     else
     {
@@ -1713,6 +1714,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       */
       wrong_drop_sequence= drop_sequence && hton;
       error= table_type == TABLE_TYPE_UNKNOWN ? ENOENT : -1;
+      sa.release();  // drop our ref: tdc_remove_table waits for the share to be unused
+      share= NULL;
       tdc_remove_table(thd, db.str, table_name.str);
       if (wrong_drop_sequence)
         goto report_error;
@@ -1736,8 +1739,12 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
       bool enoent_warning;
       mbd::vector<FK_ddl_backup> shares;
-      if ((error= fk_handle_drop(thd, table, shares, drop_db)))
-        goto fk_error;
+      if (share)
+      {
+        if ((error= fk_handle_drop(thd, table, share, shares, drop_db)))
+          goto fk_error;
+        sa.release();
+      }
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -15231,21 +15238,13 @@ bool Alter_table_ctx::fk_install_frms(THD *thd)
 /* Used in DROP TABLE: remove table from referenced_keys of referenced tables,
    prohibit if foreign_keys is not empty. */
 static
-bool fk_handle_drop(THD *thd, TABLE_LIST *table, mbd::vector<FK_ddl_backup> &shares,
-                    bool drop_db)
+bool fk_handle_drop(THD *thd, TABLE_LIST *table, TABLE_SHARE *share,
+                    mbd::vector<FK_ddl_backup> &shares, bool drop_db)
 {
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
                                              table->table_name.str,
                                              MDL_INTENTION_EXCLUSIVE));
   DBUG_ASSERT(!table->view);
-  Share_acquire sa(thd, *table, GTS_FK_SHALLOW_HINTS);
-  if (!sa.share)
-  {
-    // We drop the table even if we can't read it (main.show_check)
-    thd->clear_error();
-    return false;
-  }
-  TABLE_SHARE *share= sa.share;
   if (thd->variables.check_foreign())
   {
     for (const FK_info &rk: share->referenced_keys)

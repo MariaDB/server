@@ -121,12 +121,37 @@ public:
   TABLE_SHARE *share;
   bool error= false;  // set by acquire(): non-suppressed acquisition error
 
+  /*
+    Inexistent table error suppression policy (ER_NO_SUCH_TABLE,
+    ER_NO_SUCH_TABLE_IN_ENGINE) while acquiring the share:
+
+    INEXISTENT_IGNORE  - always suppress the error and leave share NULL. Used
+                         when the caller knows the table may legally be gone
+                         (e.g. resolving a referenced table that was already
+                         dropped).
+    INEXISTENT_RESPECT - suppress the error only under foreign_key_checks=0,
+                         where the user explicitly permits dangling foreign
+                         keys; otherwise the missing table is a genuine error.
+    INEXISTENT_ALWAYS  - never suppress the error: let it propagate regardless of
+                         foreign_key_checks, so the caller's own handler sees it
+                         (e.g. DROP TABLE inspects got_error() to tell apart
+                         missing frm / wrong object / corrupt frm).
+  */
+  typedef enum inexistent_enum
+  {
+    INEXISTENT_IGNORE,
+    INEXISTENT_RESPECT,
+    INEXISTENT_ALWAYS
+  }
+  inexistent_t;
+
   Share_acquire() : flush_unused(false), share(NULL) {}
   template <class TABLE_NAME>
   Share_acquire(THD *thd, TABLE_NAME &tn, uint flags= 0,
-                bool use_check_foreign= true) : flush_unused(false)
+                inexistent_t inexistent_check= INEXISTENT_RESPECT) :
+  flush_unused(false)
   {
-    acquire(thd, tn, flags, use_check_foreign);
+    acquire(thd, tn, flags, inexistent_check);
   }
   Share_acquire(const Share_acquire &src)= delete;
 
@@ -136,15 +161,20 @@ public:
   {
     src.share= NULL;
   }
+  template <class TABLE_NAME>
+  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags,
+                bool use_check_foreign) :
+  Share_acquire(thd, tn, flags, use_check_foreign ? INEXISTENT_RESPECT : INEXISTENT_IGNORE)
+  {}
   ~Share_acquire();
   void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0,
-               bool use_check_foreign= true);
+               inexistent_t inexistent_check= INEXISTENT_RESPECT);
   void acquire(THD *thd, Table_name &tn, uint flags= 0,
-               bool use_check_foreign= true)
+               inexistent_t inexistent_check= INEXISTENT_RESPECT)
   {
     TABLE_LIST tl;
     tl.init_one_table(&tn.db, &tn.name, NULL, TL_IGNORE);
-    return acquire(thd, tl, flags, use_check_foreign);
+    return acquire(thd, tl, flags, inexistent_check);
   }
   void release()
   {
