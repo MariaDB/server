@@ -33042,9 +33042,9 @@ void JOIN::init_join_cache_and_keyread()
           depends on are automatically added to the read_set - because they're
           needed to calculate the vcol.
           But if we're doing keyread, vcol is taken
-          from the index, not calculated, and base columns do not need to  be
-          in the read set. To ensure this we try to set the read_set to only
-          the key-parts of the indexes.
+          from the index, not calculated. The below call adds the key-parts
+          to the read_set, and for virtual columns also adds any base columns
+          they depend on.
 
           Another side effect of this is
             Lets say you have a query
@@ -33056,7 +33056,7 @@ void JOIN::init_join_cache_and_keyread()
           tuple.
       */
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
-        table->mark_index_columns(table->file->keyread, table->read_set);
+        table->mark_index_columns_for_read(table->file->keyread);
     }
     bool init_for_explain= false;
 
