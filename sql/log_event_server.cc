@@ -7734,9 +7734,21 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
     error= update_sequence();
   else
   {
+    int ret_err;
     error= m_write_record->write_record();
+    /*
+      error != 0 can combine with non-set m_write_record->last_errno() that
+      after-trigger failures demonstrate, so HA_ERR_GENERIC is returned.
+      Note the optimistic parallel retry remains the option as long as
+      in the caller
+         convert_handler_error(HA_ERR_GENERIC,..)
+      returns early to retain the gained sql-level error.
+    */
+    ret_err= error ?
+	     (m_write_record->last_errno() ?
+	      m_write_record->last_errno() : HA_ERR_GENERIC): 0;
 
-    DBUG_RETURN(error ? m_write_record->last_errno() : 0);
+    DBUG_RETURN(ret_err);
   }
 
   if (invoke_triggers && !trg_skip_row &&
