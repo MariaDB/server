@@ -3781,6 +3781,9 @@ public:
                    enum enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                    uchar *flags2, const Format_description_log_event *fdev);
+#ifdef HAVE_REPLICATION
+  bool is_part_of_group() override { return true; }
+#endif
 #endif
 };
 
