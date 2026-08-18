@@ -2855,6 +2855,14 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
+  bool is_supertype(Item *item) const
+  {
+    return type_handler()->is_supertype(*this /*Type_std_attributes*/,
+                                        type_extra_attributes(),
+                                        item->type_handler(),
+                                        *item /*Type_std_attributes*/,
+                                        item->type_extra_attributes());
+  }
 
 protected:
   /*
