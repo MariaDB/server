@@ -7779,9 +7779,27 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
     error= update_sequence();
   else
   {
+    int ret_err;
     error= m_write_record->write_record();
+    /*
+      A failure during after-trigger can result in an error being returned
+      without m_write_record->last_errno() set. Our return value functions
+      both as a true/false error indication and as an error code, so we return
+      HA_ERR_GENERIC in this case.
 
-    DBUG_RETURN(error ? m_write_record->last_errno() : 0);
+      To the code return style, here a suggestion from knielsen to how
+      to improve:
+         It would be better if write_row() would return just a boolean
+         error indication, and then output the actual error code (if
+         any) in some output variable. Then this check and conversion
+         to HA_ERR_GENERIC could be put in a central place in
+         Rows_log_event::do_apply_event().
+    */
+    ret_err= error ?
+	     (m_write_record->last_errno() ?
+	      m_write_record->last_errno() : HA_ERR_GENERIC): 0;
+
+    DBUG_RETURN(ret_err);
   }
 
   if (invoke_triggers && !trg_skip_row &&
