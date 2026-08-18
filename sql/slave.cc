@@ -6365,7 +6365,12 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   */
   if (buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT)
   {
-    checksum_alg= get_checksum_alg(buf, event_len);
+    if (unlikely(get_checksum_alg(buf, event_len, &checksum_alg)))
+    {
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      unlock_data_lock= FALSE;
+      goto err;
+    }
   }
   else if (buf[EVENT_TYPE_OFFSET] == START_EVENT_V3)
   {
@@ -6446,6 +6451,17 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     goto err;
   case ROTATE_EVENT:
   {
+    /*
+      This is normally done in Log_event::read_log_event(),
+      but we bypass it here because it's expensive and costs dynamic memory.
+    */
+    if (unlikely(ROTATE_EVENT >
+      mi->rli.relay_log.description_event_for_queue->number_of_event_types))
+    {
+      // The current FDE does not support `ROTATE_EVENT`.
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      goto err;
+    }
     Rotate_log_event rev(buf, checksum_alg != BINLOG_CHECKSUM_ALG_OFF ?
                          event_len - BINLOG_CHECKSUM_LEN : event_len,
                          mi->rli.relay_log.description_event_for_queue);
