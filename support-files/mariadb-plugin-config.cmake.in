@@ -16,6 +16,8 @@
 SET(EXTERNAL_PLUGIN TRUE)
 SET(SERVER_VERSION @SERVER_VERSION@)
 GET_FILENAME_COMPONENT(basedir "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+SET(CMAKE_C_FLAGS "-DDBUG_OFF ${CMAKE_C_FLAGS}")
+SET(CMAKE_CXX_FLAGS "-DDBUG_OFF ${CMAKE_CXX_FLAGS}")
 
 MACRO(DTRACE_INSTRUMENT)
 ENDMACRO()
@@ -88,7 +90,7 @@ MACRO(EXTERNAL_PLUGIN_POST)
     # match autobake-deb.sh naming
     EXECUTE_PROCESS(COMMAND sh -c "echo $(lsb_release -si) $(lsb_release -sr)_$(dpkg --print-architecture)|sed 's/^\\(...\\)[^ ]* /\\L\\1/;s/\\.//g'"
             RESULT_VARIABLE res OUTPUT_VARIABLE O OUTPUT_STRIP_TRAILING_WHITESPACE)
-    IF (res)
+    IF (res OR NOT (O MATCHES "^(deb|ubu)[0-9]+_[a-z0-9_]+$"))
       message(FATAL_ERROR "Cannot get debian version or architecture")
     endif()
     SET(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_NAME}-1:${CPACK_DEBIAN_PACKAGE_VERSION}+maria~${O}.deb")
