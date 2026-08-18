@@ -702,6 +702,11 @@ else # joiner
         SILENT=""
     fi
 
+# these become "path =" directives below, a newline would inject a directive
+for _conf_var in DATA ib_log_dir ib_home_dir ib_undo_dir ar_log_dir; do
+    check_conf_value "$_conf_var"
+done
+
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no

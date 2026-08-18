@@ -38,6 +38,17 @@ safe()
   echo "${!1}"
 }
 
+# A value written into a config file (rsyncd.conf) must not contain a newline:
+# that format has no quoting, so a newline would inject a directive. Only
+# newlines are rejected, every other character is valid in a path.
+check_conf_value()
+{
+    if [[ "${!1}" == *$'\n'* || "${!1}" == *$'\r'* ]]; then
+        wsrep_log_error "Refusing SST: newline character in $1"
+        exit 22
+    fi
+}
+
 commandex()
 {
     if [ -n "$BASH_VERSION" ]; then
