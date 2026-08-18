@@ -56,6 +56,7 @@
 #include "sql_insert.h"
 #endif
 
+#include "my_xid.h"
 #include "rpl_gtid.h"
 
 #include "log_event_data_type.h"
@@ -3155,9 +3156,6 @@ private:
 
   @section Xid_log_event_binary_format Binary Format  
 */
-#ifdef MYSQL_CLIENT
-typedef ulonglong my_xid; // this line is the same as in handler.h
-#endif
 
 class Xid_log_event: public Xid_apply_log_event
 {

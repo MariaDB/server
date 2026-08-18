@@ -2946,15 +2946,6 @@ Rand_log_event::Rand_log_event(const uchar *buf,
   Xid_log_event methods
 **************************************************************************/
 
-/**
-  @note
-  It's ok not to use int8store here,
-  as long as xid_t::set(ulonglong) and
-  xid_t::get_my_xid doesn't do it either.
-  We don't care about actual values of xids as long as
-  identical numbers compare identically
-*/
-
 Xid_log_event::
 Xid_log_event(const uchar *buf,
               const Format_description_log_event *description_event)
@@ -2963,7 +2954,12 @@ Xid_log_event(const uchar *buf,
   /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
     description_event->post_header_len[XID_EVENT-1];
-  memcpy((char*) &xid, buf, sizeof(xid));
+  xid.conn_id= uint8korr(buf);
+#ifdef MYSQL_CLIENT
+  xid.commit_id= server_id;
+#else
+  xid.commit_id= ::server_id;
+#endif
 }
 
 /**************************************************************************

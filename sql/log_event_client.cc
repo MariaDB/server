@@ -2471,10 +2471,10 @@ bool Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   if (!print_event_info->short_form)
   {
     char buf[64];
-    longlong10_to_str(xid, buf, 10);
+    longlong10_to_str(xid.conn_id, buf, 10);
 
     if (print_header(&cache, print_event_info, FALSE) ||
-        my_b_printf(&cache, "\tXid = %s\n", buf))
+        my_b_printf(&cache, "\tXid = %s:%u\n", buf, xid.commit_id))
       goto err;
   }
   if (my_b_printf(&cache, is_flashback ? "START TRANSACTION%s\n" : "COMMIT%s\n",

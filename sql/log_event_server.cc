@@ -4565,7 +4565,9 @@ void Xid_log_event::pack_info(Protocol *protocol)
 {
   char buf[128], *pos;
   pos= strmov(buf, "COMMIT /* xid=");
-  pos= longlong10_to_str(xid, pos, 10);
+  pos= longlong10_to_str(xid.conn_id, pos, 10);
+  pos= strmov(pos, ":");
+  pos= longlong10_to_str(xid.commit_id, pos, 10);
   pos= strmov(pos, " */");
   protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
 }
@@ -4584,8 +4586,10 @@ int Xid_log_event::do_commit()
 bool Xid_log_event::write()
 {
   DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  return write_header(sizeof(xid)) ||
-         write_data((uchar*)&xid, sizeof(xid)) ||
+  uchar buf[8];
+  int8store(buf, xid.conn_id);
+  return write_header(8) ||
+         write_data(buf, 8) ||
          write_footer();
 }
 

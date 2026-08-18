@@ -522,7 +522,7 @@ public:
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
                     ulong *param_ptr_binlog_cache_disk_use)
-    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid({0, 0})
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -2160,7 +2160,7 @@ static inline int
 binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
                                bool all, my_xid xid)
 {
-  DBUG_ASSERT(xid); // replaced former treatment of ONE-PHASE XA
+  DBUG_ASSERT(xid.commit_id); // replaced former treatment of ONE-PHASE XA
 
   Xid_log_event end_evt(thd, xid, TRUE);
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
@@ -2465,7 +2465,8 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
       {
         error=
           mysql_bin_log.unlog(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
-                                                 cache_mngr->delayed_error), 1);
+                                                 cache_mngr->delayed_error),
+                              {0, 1} /* Fake but non-empty my_xid */);
         cache_mngr->need_unlog= false;
       }
   }
@@ -8665,7 +8666,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     we need to mark it as not needed for recovery (unlog() is not called
     for a transaction if log_xid() fails).
   */
-  if (entry->cache_mngr->using_xa && entry->cache_mngr->xa_xid &&
+  if (entry->cache_mngr->using_xa && entry->cache_mngr->xa_xid.commit_id &&
       entry->cache_mngr->need_unlog)
     mark_xid_done(entry->cache_mngr->binlog_id, true);
 
@@ -8784,7 +8785,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
       commit_offset= my_b_write_tell(&log_file);
       cache_mngr->last_commit_pos_offset= commit_offset;
-      if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
+      if ((cache_mngr->using_xa && cache_mngr->xa_xid.commit_id) ||
+          current->need_unlog)
       {
         /*
           If all storage engines support commit_checkpoint_request(), then we
@@ -9880,7 +9882,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     return 0;
 
   cookie= 0;
-  if (xid)
+  if (xid.commit_id)
     cookie= log_one_transaction(xid);
 
   if (need_commit_ordered)
@@ -10248,7 +10250,7 @@ int TC_LOG_MMAP::log_one_transaction(my_xid xid)
   */
 
   /* searching for an empty slot */
-  while (*p->ptr)
+  while (p->ptr->commit_id)
   {
     p->ptr++;
     DBUG_ASSERT(p->ptr < p->end);               // because p->free > 0
@@ -10438,7 +10440,7 @@ int TC_LOG_MMAP::delete_entry(ulong cookie)
   DBUG_ASSERT(x < p->end);
 
   mysql_mutex_lock(&p->lock);
-  *x=0;
+  x->commit_id= 0;
   p->free++;
   DBUG_ASSERT(p->free <= p->size);
   set_if_smaller(p->ptr, x);
@@ -10515,13 +10517,14 @@ int TC_LOG_MMAP::recover()
   }
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &xids, &my_charset_bin,
-                   tc_log_page_size/3, 0, sizeof(my_xid), 0, 0, MYF(0)))
+                   tc_log_page_size/3, 0, sizeof(my_xid), my_xid_get_key, 0,
+                   MYF(0)))
     goto err1;
 
   for ( ; p < end_p ; p++)
   {
     for (my_xid *x=p->start; x < p->end; x++)
-      if (*x && my_hash_insert(&xids, (uchar *)x))
+      if (x->commit_id && my_hash_insert(&xids, (uchar *)x))
         goto err2; // OOM
   }
 
@@ -10795,7 +10798,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
     If using explicit user XA, we will not have XID. We must still return a
     non-zero cookie (as zero cookie signals error).
   */
-  if (!xid || !need_unlog)
+  if (!xid.commit_id || !need_unlog)
     DBUG_RETURN(BINLOG_COOKIE_DUMMY(cache_mngr->delayed_error));
 
   DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
@@ -10954,7 +10957,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
 int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
 {
   DBUG_ENTER("TC_LOG_BINLOG::unlog");
-  if (!xid)
+  if (!xid.commit_id)
     DBUG_RETURN(0);
 
   if (!BINLOG_COOKIE_IS_DUMMY(cookie))
@@ -11005,7 +11008,7 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
   cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
   cache_mngr->need_unlog= false;
 
-  return unlog(cookie, 1);
+  return unlog(cookie, {0, 1} /* Fake but non-empty xid */);
 }
 
 
@@ -11759,10 +11762,10 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   if (! fdle->is_valid() ||
       (my_hash_init(key_memory_binlog_recover_exec, &xids,
                     &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                    sizeof(my_xid), 0, 0, MYF(0))) ||
+                    sizeof(my_xid), my_xid_get_key, 0, MYF(0))) ||
       (my_hash_init(key_memory_binlog_recover_exec, &ddl_log_ids,
                     &my_charset_bin, 64, 0,
-                    sizeof(my_xid), 0, 0, MYF(0))))
+                    sizeof(ulonglong), 0, 0, MYF(0))))
     goto err1;
 
   init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
@@ -11796,10 +11799,11 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       case XID_EVENT:
       if (do_xa)
       {
+        size_t key_len= 0;
+        const uchar *key_ptr=
+          my_xid_get_key(&static_cast<Xid_log_event*>(ev)->xid, &key_len, 1);
         xid_recovery_member *member=
-          (xid_recovery_member*)
-          my_hash_search(&xids, (uchar*) &static_cast<Xid_log_event*>(ev)->xid,
-                         sizeof(my_xid));
+          (xid_recovery_member*) my_hash_search(&xids, key_ptr, key_len);
 #ifndef HAVE_REPLICATION
         {
           if (member)
@@ -11817,7 +11821,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         if (query_ev->xid)
         {
           DBUG_PRINT("QQ", ("xid: %llu xid", query_ev->xid));
-          DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
+          DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid::conn_id));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,
                                           sizeof(query_ev->xid));

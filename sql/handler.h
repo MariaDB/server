@@ -36,6 +36,7 @@
 #include "mdl.h"
 #include "vers_string.h"
 #include "ha_handler_stats.h"
+#include "my_xid.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -866,11 +867,10 @@ struct st_system_tablename
 };
 
 
-typedef ulonglong my_xid; // this line is the same as in log_event.h
 #define MYSQL_XID_PREFIX "MySQLXid"
 #define MYSQL_XID_PREFIX_LEN 8 // must be a multiple of 8
 #define MYSQL_XID_OFFSET (MYSQL_XID_PREFIX_LEN+sizeof(server_id))
-#define MYSQL_XID_GTRID_LEN (MYSQL_XID_OFFSET+sizeof(my_xid))
+#define MYSQL_XID_GTRID_LEN (MYSQL_XID_OFFSET+sizeof(my_xid::conn_id))
 
 #define XIDDATASIZE MYSQL_XIDDATASIZE
 #define MAXGTRIDSIZE 64
@@ -911,13 +911,16 @@ struct xid_t {
   // Populate server_id if it's specified, otherwise use the current server_id
   void set(ulonglong xid, decltype(::server_id) trx_server_id= server_id)
   {
-    my_xid tmp;
     formatID= 1;
     set(MYSQL_XID_PREFIX_LEN, 0, MYSQL_XID_PREFIX);
-    memcpy(data+MYSQL_XID_PREFIX_LEN, &trx_server_id, sizeof(trx_server_id));
-    tmp= xid;
-    memcpy(data+MYSQL_XID_OFFSET, &tmp, sizeof(tmp));
+    memset(data+MYSQL_XID_PREFIX_LEN, 0, sizeof(trx_server_id));
+    int4store(data+MYSQL_XID_PREFIX_LEN, (uint32)trx_server_id);
+    int8store(data+MYSQL_XID_OFFSET, xid);
     gtrid_length=MYSQL_XID_GTRID_LEN;
+  }
+  void set(my_xid xid)
+  {
+    set(xid.conn_id, xid.commit_id);
   }
   void set(long g, long b, const char *d)
   {
@@ -931,14 +934,16 @@ struct xid_t {
   my_xid quick_get_my_xid()
   {
     my_xid tmp;
-    memcpy(&tmp, data+MYSQL_XID_OFFSET, sizeof(tmp));
+    tmp.conn_id= uint8korr(data+MYSQL_XID_OFFSET);
+    tmp.commit_id= uint4korr(data+MYSQL_XID_PREFIX_LEN);
     return tmp;
   }
   my_xid get_my_xid()
   {
+    static const my_xid empty_xid= {0, 0};
     return gtrid_length == MYSQL_XID_GTRID_LEN && bqual_length == 0 &&
            !memcmp(data, MYSQL_XID_PREFIX, MYSQL_XID_PREFIX_LEN) ?
-           quick_get_my_xid() : 0;
+           quick_get_my_xid() : empty_xid;
   }
   decltype(::server_id) get_trx_server_id()
   {
@@ -994,14 +999,13 @@ struct xid_recovery_member
   */
   Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
-  decltype(::server_id) server_id;         // server id of orginal server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
+                      XID *full_xid_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
       decided_to_commit(decided_arg),
       binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
-      full_xid(full_xid_arg), server_id(server_id_arg) {};
+      full_xid(full_xid_arg) {};
 };
 
 /* for recover() handlerton call */
