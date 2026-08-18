@@ -953,24 +953,24 @@ static int sst_append_env_var(wsp::env&   env,
 #define IS_REQ_ESCAPING(c) (c == '""' || c == '%')
 #else
 /*
-  Space, single quote, ampersand, backquote, and I/O redirection
+  Space, single quote, ampersand, semicolon and I/O redirection
   characters require text to be enclosed in double quotes. The
-  semicolon is used to separate shell commands, so it must be
-  enclosed in double quotes as well:
+  backquote is escaped instead (see IS_REQ_ESCAPING), since double
+  quotes do not stop command substitution:
 */
 #define IS_SPECIAL(c) \
-  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+  (isspace(c) || c == '\'' || c == '&' || c == '|' || \
                  c ==  '>' || c == '<' || c == ';')
 /*
   Inside values, characters are interpreted as in parameter names:
 */
 #define IS_SPECIAL_V(c) IS_SPECIAL(c)
 /*
-  Double quotation mark and backslash characters require
-  backslash prefixing, the dollar symbol is used to substitute
-  a variable value, therefore it also requires escaping:
+  Double quotation mark and backslash require backslash prefixing.
+  The dollar symbol and the backquote substitute a value or a
+  command, so they require escaping as well:
 */
-#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$')
+#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$' || c == '`')
 #endif
 
 static size_t estimate_cmd_len (bool* extra_args)
