@@ -980,12 +980,13 @@ bool Item_field::check_field_expression_processor(void *arg)
 bool Item_field::update_vcol_processor(void *arg)
 {
   MY_BITMAP *map= (MY_BITMAP *) arg;
-  if (field->vcol_info &&
-      !bitmap_fast_test_and_set(map, field->field_index))
+
+  if (!bitmap_fast_test_and_set(map, field->field_index) && field->vcol_info)
   {
     field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
     field->vcol_info->expr->save_in_field(field, 0);
   }
+
   return 0;
 }
 

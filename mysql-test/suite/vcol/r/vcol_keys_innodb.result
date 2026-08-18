@@ -303,3 +303,31 @@ IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
 GOOD
 alter table t1 drop column va;
 drop table t1;
+#
+# MDEV-36896 Assertion `marked_for_read()' failed in virtual String *Field_varstring::val_str(String *, String *)
+#
+SET @old_isolation_level= @@session.tx_isolation;
+SET @@session.tx_isolation= 'READ-UNCOMMITTED';
+CREATE TABLE t (a VARCHAR(10),b INT,c CHAR(10) GENERATED ALWAYS AS (a) VIRTUAL,KEY(b,c)) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES ('A');
+SELECT * FROM t WHERE b IS NULL ORDER BY a;
+a	b	c
+A	NULL	A
+DROP TABLE t;
+CREATE TABLE t (
+a VARCHAR(10),
+b INT,
+c CHAR(10) GENERATED ALWAYS AS (a) VIRTUAL,
+d INT GENERATED ALWAYS AS (IF(a = c, 1, 0)) VIRTUAL,
+KEY(b, c)
+) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES ('A');
+INSERT INTO t (a, b) VALUES ('B', 1);
+SELECT * FROM t WHERE b IS NULL ORDER BY a;
+a	b	c	d
+A	NULL	A	1
+DROP TABLE t;
+SET @@session.tx_isolation= @old_isolation_level;
+#
+# End of 10.11 tests
+#
