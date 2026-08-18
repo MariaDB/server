@@ -8168,10 +8168,23 @@ public:
       ? MODE_NO_AUTO_VALUE_ON_ZERO    affect UPDATEs
       + MODE_NO_BACKSLASH_ESCAPES     affect expression parsing
       + MODE_EMPTY_STRING_IS_NULL     affect expression parsing
+      + MODE_STRICT_TRANS_TABLES      affect stored default/expr validation
+      + MODE_STRICT_ALL_TABLES        affect stored default/expr validation
+      + MODE_NO_ZERO_DATE             affect stored default/expr validation
+      + MODE_NO_ZERO_IN_DATE          affect stored default/expr validation
+
+      The last four affect execution, not parsing, but must also be switched
+      off here: re-evaluating already-validated FRM defaults/CHECK expressions
+      when reopening a table (e.g. after a failed ALTER) must not turn a stored
+      zero DATE/TIMESTAMP into ER_WRONG_VALUE. Strictness applies only to newly
+      written values.
     */
     thd->variables.sql_mode&= ~(MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
                                 MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
-                                MODE_ORACLE | MODE_EMPTY_STRING_IS_NULL);
+                                MODE_ORACLE | MODE_EMPTY_STRING_IS_NULL |
+                                MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES |
+                                MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE);
+
   };
 
   ~Sql_mode_save_for_frm_handling()
