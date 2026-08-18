@@ -4799,6 +4799,29 @@ c1	c2
 2	2
 DROP TABLE t1;
 #
+# MDEV-39351: ROUND(AVG()) produces different results via window
+#             function path vs scalar subquery path
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, p INT, v INT);
+INSERT INTO t1 VALUES
+(1,1,-99),(2,1,-93),(3,1,43),(4,1,-30),(5,1,46),
+(6,1,-23),(7,1,87),(8,1,-55),(9,1,-1),(10,1,8),
+(11,1,30),(12,1,32),(13,1,6),
+(14,2,-29),(15,2,-35),(16,2,96),(17,2,42),(18,2,17),
+(19,2,-46),(20,2,88),(21,2,41),(22,2,-33),(23,2,77),(24,2,1);
+# Should return Empty set (both AVG computations are identical)
+SELECT id, p, wf_avg, scalar_avg
+FROM (
+SELECT id, p, v,
+ROUND(AVG(v) OVER (PARTITION BY p), 6) AS wf_avg,
+ROUND((SELECT AVG(t2.v) FROM t1 t2
+WHERE t2.p <=> t1.p), 6) AS scalar_avg
+FROM t1
+) sub
+WHERE wf_avg <> scalar_avg;
+id	p	wf_avg	scalar_avg
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
 #
