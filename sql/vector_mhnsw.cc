@@ -1347,6 +1347,20 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
       if (res == 0xff)
         continue;
 
+#if defined(__GNUC__)
+      // A node and its vector share one allocation. Prefetch unseen nodes before
+      // computing distances so later loads can overlap with work on earlier ones.
+      for (size_t i= 0; i < 8; i++)
+      {
+        FVectorNode *link= links[i];
+        if (!(res & (1 << i)) && link)
+        {
+          __builtin_prefetch(link, 0, 3);
+          __builtin_prefetch(reinterpret_cast<const char*>(link) + 64, 0, 3);
+        }
+      }
+#endif
+
       for (size_t i= 0; i < 8; i++)
       {
         if (res & (1 << i))
