@@ -79,8 +79,6 @@ endif
 	# As packages does not have major version any more in package name there is no
 	# way as it not set by dpkg to use this on postinst script. Use sed to
 	# determine major version instead.
-	# @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
-	# instead of the legacy /var/lib/debian-XX.X.flag file
 	sed -i 's/__MARIADB_MAJOR_VER__/$(DEB_VERSION_MAJOR)/g' debian/mariadb-server.post* debian/mariadb-server.preinst
 
 	# Don't build ColumnStore as part of the native build as it does not meet the

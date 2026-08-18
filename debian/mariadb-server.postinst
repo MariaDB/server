@@ -61,10 +61,29 @@ case "$1" in
     fi
 
     mariadb_statedir=/usr/share/mariadb
-    mariadb_datadir=/var/lib/mysql
+    mariadb_datadir=/var/lib/mariadb
+    legacy_mariadb_datadir=/var/lib/mysql
     mariadb_logdir=/var/log/mysql
     mariadb_cfgdir=/etc/mysql
     mariadb_upgradedir=/var/lib/mysql-upgrade
+
+    # If new mariadb data directory does not exist, assume we are continuing
+    # to use the legacy directory. Add a config entry to override datadir's
+    # value back to the original.
+    if [ ! -d "$mariadb_datadir" ]
+    then
+      mariadb_datadir="$legacy_mariadb_datadir"
+
+      mkdir -p /etc/mysql/mariadb.conf.d
+
+      {
+        echo "# Override the data directory config to continue using the legacy directory."
+        echo "[mariadbd]"
+        echo "datadir = $legacy_mariadb_datadir"
+      } > /etc/mysql/mariadb.conf.d/99-legacy-datadir.cnf
+
+      echo "Created /etc/mysql/mariadb.conf.d/99-legacy-datadir.cnf for MariaDB to continue using /var/lib/mysql on upgrade."
+    fi
 
     # If the following symlink exists, it is a preserved copy the old data dir
     # created by the preinst script during a upgrade that would have otherwise
@@ -181,12 +200,8 @@ EOF
     # data directory and then somehow gets purged by the admin.
     db_set mariadb-server/postrm_remove_database false || true
 
-    # Clean up old flags before setting new one
+    # Clean up old debian version flag files
     rm -f $mariadb_datadir/debian-*.flag
-    # Flag data dir to avoid downgrades
-    # @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
-    # instead of the legacy /var/lib/debian-XX.X.flag file
-    touch "$mariadb_datadir/debian-__MARIADB_MAJOR_VER__.flag"
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
@@ -198,6 +213,7 @@ EOF
     # working with libpam-tmpdir (by setting TMPDIR to empty value).
     set +e
     TMPDIR='' bash /usr/bin/mariadb-install-db \
+      --datadir="$mariadb_datadir" \
       --rpm --cross-bootstrap \
       --user=mysql --disable-log-bin \
       --skip-test-db 2>&1 | \
