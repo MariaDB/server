@@ -1123,6 +1123,8 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
       (to_cs == from_cs) ||
       my_charset_same(from_cs, to_cs))
   {
+    /* hit this assertion and should be simplifing at higher level */
+    DBUG_ASSERT(from_length);
     m_cannot_convert_error_pos= NULL;
     return (uint) to_cs->copy_fix(to, to_length, from, from_length,
                                   nchars, this);

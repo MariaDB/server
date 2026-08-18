@@ -15406,3 +15406,13 @@ SET join_cache_level=DEFAULT;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-40234 String_copier::well_formed_copy inefficient for appending 0
+#
+SELECT CHARSET(CONVERT(_utf8"" USING ucs2)) as c;
+c
+ucs2
+SELECT CHARSET(CONVERT(_ucs2"" USING utf8mb4)) as c;
+c
+utf8mb4
+# End of 10.11 tests
