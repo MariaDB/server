@@ -3790,11 +3790,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       case Key::VECTOR:
         if (sql_field->check_vcol_for_key(thd))
           DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
-        {
-          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "VECTOR");
-          DBUG_RETURN(TRUE);
-        }
         if (create_info->tmp_table())
         {
           my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0), "VECTOR",

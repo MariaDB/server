@@ -837,9 +837,7 @@ ERROR HY000: Incorrect arguments to VECTOR INDEX
 alter table t1 change column v v int;
 ERROR HY000: Incorrect arguments to VECTOR INDEX
 alter table t1 modify column v vector(5);
-ERROR 42000: All parts of a VECTOR index must be NOT NULL
 alter table t1 change column v v vector(6);
-ERROR 42000: All parts of a VECTOR index must be NOT NULL
 alter table t1 modify column v vector(7) not null;
 db.opt
 t1#i#01.ibd
@@ -910,4 +908,61 @@ from information_schema.tables
 where table_schema = database() and table_name = 't1';
 has_index_length
 1
+drop table t1;
+#
+# MDEV-35283 - support nullable indexed vector columns
+#
+# Create table with nullable vector column and vector index
+create table t1 (id int auto_increment primary key, v vector(3), vector index (v));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# Insert rows with NULL and non-NULL vector values
+insert into t1 (v) values (vec_fromtext('[1, 0, 0]'));
+insert into t1 (v) values (NULL);
+insert into t1 (v) values (vec_fromtext('[0, 1, 0]'));
+insert into t1 (v) values (NULL);
+insert into t1 (v) values (vec_fromtext('[0, 0, 1]'));
+# Vector index maintenance should handle rows with NULL vectors
+select id, vec_totext(v) from t1 where v is not null order by vec_distance_euclidean(v, vec_fromtext('[1, 0.2, 0.1]')) limit 5;
+id	vec_totext(v)
+1	[1,0,0]
+3	[0,1,0]
+5	[0,0,1]
+# UPDATE: NULL -> non-NULL
+update t1 set v = vec_fromtext('[1, 1, 0]') where id = 2;
+select id, vec_totext(v) from t1 where v is not null order by vec_distance_euclidean(v, vec_fromtext('[1, 0.9, 0.1]')) limit 5;
+id	vec_totext(v)
+2	[1,1,0]
+1	[1,0,0]
+3	[0,1,0]
+5	[0,0,1]
+# UPDATE: non-NULL -> NULL
+update t1 set v = NULL where id = 1;
+select id, vec_totext(v) from t1 where v is not null order by vec_distance_euclidean(v, vec_fromtext('[0, 0, 1]')) limit 5;
+id	vec_totext(v)
+5	[0,0,1]
+3	[0,1,0]
+2	[1,1,0]
+# UPDATE: NULL -> NULL (no-op)
+update t1 set v = NULL where id = 4;
+# DELETE row with NULL vector
+delete from t1 where id = 4;
+# DELETE row with non-NULL vector
+delete from t1 where id = 5;
+select id, vec_totext(v) from t1 where v is not null order by vec_distance_euclidean(v, vec_fromtext('[0, 1, 0]')) limit 5;
+id	vec_totext(v)
+3	[0,1,0]
+2	[1,1,0]
+# Verify vec_distance returns NULL when one argument is NULL
+select id, vec_distance_euclidean(v, vec_fromtext('[1, 0, 0]')) as dist from t1 order by id;
+id	dist
+1	NULL
+2	1
+3	1.4142135623730951
 drop table t1;

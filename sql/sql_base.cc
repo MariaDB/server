@@ -10242,13 +10242,12 @@ int TABLE::hlindexes_on_update()
   DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
   {
-    int err;
-    // mark deleted node invalid and insert node for new row
-    if ((err= mhnsw_invalidate(this, record[1], key_info + s->keys)) ||
-        (err= mhnsw_insert(this, key_info + s->keys)))
+    KEY *keyinfo= key_info + s->keys;
+    if (int err= mhnsw_invalidate(this, record[1], keyinfo))
+      return err;
+    if (int err= mhnsw_insert(this, keyinfo))
       return err;
   }
-
   return 0;
 }
 

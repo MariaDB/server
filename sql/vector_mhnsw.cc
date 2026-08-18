@@ -1408,9 +1408,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   Field *vec_field= keyinfo->key_part->field;
-  String buf, *res= vec_field->val_str(&buf);
   MHNSW_Share *ctx;
 
   /* metadata are checked on open */
@@ -1419,7 +1417,12 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
   DBUG_ASSERT(vec_field->binary());
   DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
-  DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
+  if (vec_field->is_null_in_record(table->record[0]))
+    return 0;
+
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+  String buf, *res= vec_field->val_str(&buf);
+  DBUG_ASSERT(res);
   DBUG_ASSERT(table->file->ref_length <= graph->field[FIELD_TREF]->field_length);
   DBUG_ASSERT(res->length() > 0 && res->length() % 4 == 0);
 
@@ -1665,6 +1668,10 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   handler *h= table->file;
   MHNSW_Share *ctx;
 
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
+  if (keyinfo->key_part->field->is_null_in_record(rec))
+    return 0;
+
   int err= MHNSW_Share::acquire(&ctx, table, true);
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
   if (err)
@@ -1672,7 +1679,6 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
-  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
   DBUG_ASSERT(h->ref_length <= graph->field[FIELD_TREF]->field_length);
 
