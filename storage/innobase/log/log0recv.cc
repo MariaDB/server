@@ -642,6 +642,9 @@ struct file_name_t {
 	/** Log sequence number of a FILE_CREATE record, or 0 */
 	lsn_t		create_lsn = 0;
 
+	/** Last FSP_SIZE or FSP_SPACE_FLAGS change, or 0 */
+	lsn_t		page0_lsn = 0;
+
 	/** FSP_SIZE of tablespace */
 	uint32_t	size = 0;
 
@@ -3098,12 +3101,19 @@ void recv_sys_t::parse_page0(const page_id_t id, const byte *b,
     f{flags ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + b)
       : file_name_t::initial_flags};
   recv_spaces_t::iterator it= recv_spaces.find(space_id);
-  if (it != recv_spaces.end() && !it->second.space)
+  if (it != recv_spaces.end())
   {
-    if (size)
-      it->second.size= s;
-    if (flags)
-      it->second.flags= f;
+    if (it->second.page0_lsn > lsn)
+      return;
+    it->second.page0_lsn= lsn;
+
+    if (!it->second.space)
+    {
+      if (size)
+        it->second.size= s;
+      if (flags)
+        it->second.flags= f;
+    }
   }
   fil_space_set_recv_size_and_flags(space_id, s, f);
 }
