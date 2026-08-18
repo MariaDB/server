@@ -23875,8 +23875,13 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (table->file->indexes_are_disabled())
     new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
+  DBUG_EXECUTE_IF("heap_conversion_rnd_init_error",
+                  {
+                    table->file->print_error(HA_ERR_TABLE_DEF_CHANGED, MYF(0));
+                    goto err_drop;
+                  });
   if (table->file->ha_rnd_init_with_error(1))
-    DBUG_RETURN(1);
+    goto err_drop;
   if (new_table.no_rows)
     new_table.file->extra(HA_EXTRA_NO_ROWS);
   else
@@ -23962,6 +23967,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   table->file->print_error(write_err, MYF(0));
 err_killed:
   (void) table->file->ha_rnd_end();
+err_drop:
   (void) new_table.file->drop_table(new_table.s->path.str);
  err2:
   delete new_table.file;
