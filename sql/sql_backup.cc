@@ -599,8 +599,13 @@ bool Sql_cmd_backup::execute(THD *thd)
   delete tp;
 
   if (command)
+  {
+    int pfail{0};
     for (int t= threads; t--; )
-      my_pclose(target_phase[t].stream);
+      pfail|= my_pclose(target_phase[t].stream);
+    if (!fail && (fail= !!pfail))
+      my_error(ER_NET_ERROR_ON_WRITE, MYF(0));
+  }
 #ifndef _WIN32
   else
     std::ignore= close(target_phase->target.fd);
@@ -839,26 +844,43 @@ extern "C" int backup_stream_append(IF_WIN(const native_file_handle&,int) src,
                                     uint64_t start, uint64_t end)
 {
   assert(stream != backup_sink::NO_STREAM);
-  ssize_t ret;
-#ifndef _WIN32
-  if ((ret= mmap_copy<true>(src, stream, start, end)) == 1)
-#endif
-    ret= pread_write<true>(src, stream, start, end);
-  return int(ret);
+  /*
+    It is not safe to send from an mmap(2) on src, because we cannot
+    guarantee that the receiving end of the pipe has consumed
+    everything before our caller re-enables writes to this src region.
+
+    On Linux, even for MAP_PRIVATE, the following has been documented:
+    It is unspecified whether changes made to the file after the
+    mmap() call are visible in the mapped region.
+  */
+  return int(pread_write<true>(src, stream, start, end));
 }
 
-#ifdef __linux__
-# include <sys/sendfile.h>
+#ifdef _WIN32
+extern "C" int backup_stream_append_plain(HANDLE src, HANDLE stream,
+                                          uint64_t start, uint64_t end)
+{
+  return backup_stream_append(src, stream, start, end);
+}
+#else
+# ifdef __linux__
+#  include <sys/sendfile.h>
 /** Copy a file to a stream or to a regular file. */
 static inline ssize_t
 send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 {
   return sendfile(out_fd, in_fd, offset, count);
 }
+# endif
 
 /**
-   Append an immutable snippet of a file to the stream,
-   allowing Linux sendfile(2) to be invoked.
+   Zero-copy append an immutable file snippet to a stream.
+
+   The caller guarantees that this section of the file will remain
+   intact until the stream is closed. This guarantee is needed
+   because the receiving end of the stream pipe might delay consuming
+   the data, and the operating system might point the pipe buffer
+   to the block cache for a long time.
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
    512 bytes, backup_stream_write() must be invoked to zero-pad the output.
@@ -873,14 +895,13 @@ extern "C" int backup_stream_append_async(int src, int stream,
                                           uint64_t start, uint64_t end)
 {
   assert(stream != backup_sink::NO_STREAM);
+# ifdef __linux__
   return int(copy<send_step,true>(src, stream, off_t(start), off_t(end)));
-}
-#endif
-
-#ifdef _WIN32
-extern "C" int backup_stream_append_plain(HANDLE src, HANDLE stream,
-                                          uint64_t start, uint64_t end)
-{
-  return backup_stream_append(src, stream, start, end);
+# else
+  ssize_t ret;
+  if ((ret= mmap_copy<true>(src, stream, start, end)) == 1)
+    ret= pread_write<true>(src, stream, start, end);
+  return int(ret);
+# endif
 }
 #endif

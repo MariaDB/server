@@ -142,13 +142,26 @@ int backup_stream_append(IF_WIN(const native_file_handle&,int) src,
                          IF_WIN(HANDLE, int) stream,
                          uint64_t start, uint64_t end);
 
-#ifdef __linux__
+#ifdef _WIN32
+# define backup_stream_append_async backup_stream_append_plain
+# ifdef __cplusplus
+extern "C"
+# endif
+int backup_stream_append_plain(HANDLE src, HANDLE stream,
+                               uint64_t start, uint64_t end);
+#else
+# define backup_stream_append_plain backup_stream_append
 # ifdef __cplusplus
 extern "C"
 # endif
 /**
-   Append an immutable snippet of a file to the stream,
-   allowing Linux sendfile(2) to be invoked.
+   Zero-copy append an immutable file snippet to a stream.
+
+   The caller guarantees that this section of the file will remain
+   intact until the stream is closed. This guarantee is needed
+   because the receiving end of the stream pipe might delay consuming
+   the data, and the operating system might point the pipe buffer
+   to the block cache for a long time.
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
    512 bytes, backup_stream_write() must be invoked to zero-pad the output.
@@ -161,18 +174,4 @@ extern "C"
 */
 int backup_stream_append_async(int src, int stream,
                                uint64_t start, uint64_t end);
-#elif defined _WIN32
-# define backup_stream_append_async backup_stream_append_plain
-#else
-# define backup_stream_append_async backup_stream_append
-#endif
-
-#ifdef _WIN32
-# ifdef __cplusplus
-extern "C"
-# endif
-int backup_stream_append_plain(HANDLE src, HANDLE stream,
-                               uint64_t start, uint64_t end);
-#else
-# define backup_stream_append_plain backup_stream_append
 #endif
