@@ -2692,15 +2692,29 @@ class Tmp_table_row_copier
 public:
   virtual ~Tmp_table_row_copier() = default;
   /*
-    Copy all rows of 'from' into 'to', including the pending record[0] that
-    did not fit into 'from'.
+    Copy the rows stored in 'from' into 'to'. Runs inside the bulk insert
+    of 'to', which the on-disk tmp engine may serve with its indexes
+    disabled (@see ha_maria::start_bulk_insert()): the rows of 'from'
+    already satisfy every unique constraint of the table, so they need no
+    checking against each other.
 
     @retval 0   all rows copied
     @retval -1  failed, the error has been reported
     @retval >0  failed with this handler error, which the caller reports
   */
   virtual int copy_rows(TABLE *from, TABLE *to)= 0;
-  /* Set by copy_rows() when the pending record[0] was an ignored duplicate */
+  /*
+    Write the pending record[0], which overflowed 'from' and is therefore
+    stored nowhere yet, into 'to'. Called after the bulk insert has ended,
+    so that the write is checked against the indexes of 'to' and a
+    duplicate of an already copied row is detected. Does nothing for a
+    copier that has to write the pending row within copy_rows().
+
+    @retval 0   written, or an ignored duplicate
+    @retval >0  failed with this handler error, which the caller reports
+  */
+  virtual int write_pending_row(TABLE *from, TABLE *to) { return 0; }
+  /* Set when the pending record[0] was an ignored duplicate */
   bool duplicate_row_error= false;
 };
 
@@ -2739,6 +2753,15 @@ public:
   point into the handler's shared blob reassembly buffer
   (@see hp_read_blobs()), which reading the other rows overwrites, so they
   are first given memory of their own.
+
+  That row is written in its own place in the sequence, and not from
+  write_pending_row() after the bulk insert as the default copier writes
+  its pending row, because its new position is only known once the rows
+  before it have been written. Nothing is lost by writing it with the
+  indexes of the new table still disabled: it replaces a row that is
+  already in the table rather than adding one, and an update of a window
+  function value can not collide with another row, as the columns a
+  deduplicating key of the table is built on are not the ones it changes.
 */
 
 class Window_rowid_remapper : public Tmp_table_row_copier
