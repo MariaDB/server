@@ -201,16 +201,10 @@ extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
   if (errno == EOPNOTSUPP || errno == EXDEV)
 #  endif
 # endif
-# ifdef __linux__ // starting with Linux 2.6.33, we can rely on sendfile(2)
-    return (start != 0 && off_t(start) != lseek(dst, start, SEEK_SET))
-      ? -1
-      : backup_stream_append_async(src, dst, start, end);
-# else
-#  ifndef _WIN32
+# ifndef _WIN32
   if ((ret= mmap_copy<false>(src, dst, start, end)) == 1)
-#  endif
-    ret= pread_write<false>(src, dst, start, end);
 # endif
+    ret= pread_write<false>(src, dst, start, end);
   assert(ret <= 0);
   return int(ret);
 }
