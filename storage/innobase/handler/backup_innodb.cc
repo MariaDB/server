@@ -116,33 +116,20 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
           (garbage) data.
         */
       }
-      else if (!b->is_write_fixed(state))
-        /*
-          The block is read-fixed. It is fine to have two concurrent
-          reads from the data file: one to the buffer pool and another
-          by the backup.
-
-          Any subsequent write will be gated by acquiring
-          buf_pool.mutex and checking fil_space_t::backup_page_end(),
-          which will hold up any further writes until
-          fil_space_t::backup_stop() is invoked by
-          InnoDB_backup::backup_batch_stop().
-        */;
-      else
+      else if (b->is_write_fixed(state))
       {
         /* Wait for buf_page_t::write_complete() */
         b->lock.u_lock();
         ut_ad(!b->is_io_fixed());
         b->lock.u_unlock();
-        /*
-          The pending write was completed. Any subsequent write will
-          be gated by acquiring buf_pool.mutex and checking
-          fil_space_t::backup_page_end(), which will hold up any
-          further writes until fil_space_t::backup_stop() is invoked
-          by InnoDB_backup::backup_batch_stop().
-        */
       }
 
+      /*
+        Any subsequent write to this page will be held up by
+        fil_space_t::backup_page_end() until
+        fil_space_t::backup_stop() is invoked by
+        InnoDB_backup::backup_batch_stop().
+      */
       b->unfix();
     }
     else
@@ -690,15 +677,10 @@ private:
                                          fil_space_t *space, uint32_t end_page)
     noexcept
   {
-#if 1 // FIXME: remove this
-    if (!end_page)
-      return end;
-#endif
     ut_ad(end_page);
-    /* buf_pool.mutex synchronizes with fil_space_t::backup_page_end() */
-    mysql_mutex_lock(&buf_pool.mutex);
     space->backup_start(end_page);
-    mysql_mutex_unlock(&buf_pool.mutex);
+    /* Block any writes that might be posted after checking
+    fil_space_t::backup_page_end(). */
     return innodb_backup_batch_wait(end, space->id, end_page - 1);
   }
   /**
