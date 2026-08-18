@@ -1951,20 +1951,30 @@ rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
   return p;
 }
 
-rpl_gtid *
-rpl_binlog_state::find_most_recent(uint32 domain_id)
+
+/* Returns TRUE if GTID found in given domain, false if not. */
+bool
+rpl_binlog_state::find_most_recent(uint32 domain_id, rpl_gtid *out_gtid)
 {
   element *elem;
-  rpl_gtid *gtid= NULL;
+  bool found;
 
   mysql_mutex_lock(&LOCK_binlog_state);
   elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
                                   sizeof(domain_id));
   if (elem && elem->last_gtid)
-    gtid= elem->last_gtid;
+  {
+    *out_gtid= *elem->last_gtid;
+    found= true;
+  }
+  else
+  {
+    *out_gtid= {0, 0, 0};
+    found= false;
+  }
   mysql_mutex_unlock(&LOCK_binlog_state);
 
-  return gtid;
+  return found;
 }
 
 

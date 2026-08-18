@@ -6932,15 +6932,7 @@ bool
 MYSQL_BIN_LOG::lookup_domain_in_binlog_state(uint32 domain_id,
                                              rpl_gtid *out_gtid)
 {
-  rpl_gtid *found_gtid;
-
-  if ((found_gtid= rpl_global_gtid_binlog_state.find_most_recent(domain_id)))
-  {
-    *out_gtid= *found_gtid;
-    return true;
-  }
-
-  return false;
+  return rpl_global_gtid_binlog_state.find_most_recent(domain_id, out_gtid);
 }
 
 
@@ -12067,8 +12059,9 @@ static void wsrep_seed_binlog_gtid_state()
   eng_gtid.server_id= eng.server_id;
   eng_gtid.seq_no=    eng.seqno;
 
-  rpl_gtid *cur= rpl_global_gtid_binlog_state.find_most_recent(eng_gtid.domain_id);
-  if (cur && cur->seq_no >= eng_gtid.seq_no)
+  rpl_gtid cur;
+  if (rpl_global_gtid_binlog_state.find_most_recent(eng_gtid.domain_id, &cur) &&
+      cur.seq_no >= eng_gtid.seq_no)
     return;        /* binlog state already at or ahead of the checkpoint */
 
   sql_print_information("WSREP: seeding binlog GTID state to %u-%u-%llu "

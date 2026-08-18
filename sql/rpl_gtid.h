@@ -344,7 +344,7 @@ struct rpl_binlog_state
   bool append_state(String *str);
   rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
-  rpl_gtid *find_most_recent(uint32 domain_id);
+  bool find_most_recent(uint32 domain_id, rpl_gtid *out_gtid);
   const char* drop_domain(DYNAMIC_ARRAY *ids, Gtid_list_log_event *glev,
                           char*, size_t errbuf_size);
 };
