@@ -1,0 +1,60 @@
+#
+# A duplicate on the row that overflowed the in-memory temporary table
+# of COUNT(DISTINCT <blob>) must be reported back to the aggregate as
+# "value already seen", not as a fatal write error.
+#
+# Which write is the one that overflows the table, and so whether the
+# row the conversion has left to write is a duplicate of a row it has
+# already copied, depends on the order in which the in-memory engine
+# happens to allocate record slots and blob values. That order is not
+# stable across platforms, so the duplicate is injected here instead:
+# the write of the pending row reports one whatever the row holds. The
+# aggregate has to answer with the number of distinct values either way.
+#
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET @save_debug_dbug= @@debug_dbug;
+SET @small_heap= 65536;
+#
+# 1000 distinct values, each present twice. The injected duplicate
+# discards the pending row, and whichever of the two copies that was,
+# the other one is still written, so the answer is the same either way.
+#
+# The values are wide enough that the table is certain to overflow.
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, v TEXT, w TEXT) ENGINE=MyISAM;
+INSERT INTO t1
+SELECT seq,
+LPAD((seq+1) DIV 2, 200, 'x'),
+LPAD((seq+1) DIV 2, 300, 'y')
+FROM seq_1_to_2000;
+SET @@tmp_memory_table_size= @small_heap;
+SET @@max_heap_table_size= @small_heap;
+# --- one blob argument ---
+FLUSH STATUS;
+SET @@debug_dbug= '+d,dup_pending_tmp_table_row';
+SELECT COUNT(DISTINCT v) AS distinct_values FROM t1;
+distinct_values
+1000
+SET @@debug_dbug= @save_debug_dbug;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
+# --- two blob arguments: the unique constraint spans both ---
+FLUSH STATUS;
+SET @@debug_dbug= '+d,dup_pending_tmp_table_row';
+SELECT COUNT(DISTINCT v, w) AS distinct_values FROM t1;
+distinct_values
+1000
+SET @@debug_dbug= @save_debug_dbug;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
+# Clean up
+SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
+SET @@max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
