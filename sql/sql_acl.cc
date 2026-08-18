@@ -16119,18 +16119,14 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
     DBUG_PRINT("info", ("IO layer change in progress..."));
     mysql_rwlock_rdlock(&LOCK_ssl_refresh);
-    int ssl_ret = sslaccept(ssl_acceptor_fd, net->vio, net->read_timeout, &errptr);
+    pkt_len= sslaccept(ssl_acceptor_fd, net->vio, net->read_timeout, &errptr,
+                       net->read_pos= net->buff, net->max_packet);
     mysql_rwlock_unlock(&LOCK_ssl_refresh);
-    ssl_acceptor_stats_update(ssl_ret);
-
-    if(ssl_ret)
-    {
-      DBUG_PRINT("error", ("Failed to accept new SSL connection"));
-      return packet_error;
-    }
+    ssl_acceptor_stats_update(net->vio);
 
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
-    pkt_len= my_net_read(net);
+    if (!pkt_len)
+      pkt_len= my_net_read(net);
     if (unlikely(pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE))
     {
       DBUG_PRINT("error", ("Failed to read user information (pkt_len= %lu)",

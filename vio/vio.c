@@ -213,10 +213,6 @@ my_bool vio_reset(Vio* vio, enum enum_vio_type type,
   /* Preserve perfschema info for this connection */
   vio->mysql_socket.m_psi= old_vio.mysql_socket.m_psi;
 
-#ifdef HAVE_OPENSSL
-  vio->ssl_arg= ssl;
-#endif
-
   /*
     Propagate the timeout values. Necessary to also propagate
     the underlying proprieties associated with the timeout,
@@ -230,6 +226,11 @@ my_bool vio_reset(Vio* vio, enum enum_vio_type type,
 
   if (old_vio.write_timeout >= 0)
     ret|= vio_timeout(vio, 1, old_vio.write_timeout / 1000);
+
+#ifdef HAVE_OPENSSL
+  if (!ret)
+    vio->ssl_arg= ssl;
+#endif
 
   DBUG_RETURN(MY_TEST(ret));
 }

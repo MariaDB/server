@@ -651,6 +651,19 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
   /* Set max number of cached sessions, returns the previous size */
   SSL_CTX_sess_set_cache_size(ssl_fd->ssl_context, 128);
 
+  /*
+    Enable support for TLS 1.3 early data (0-RTT, TLS in zero round-trips).
+    Don't enable TLS server anti-replay feature (SSL_OP_NO_ANTI_REPLAY) - may
+    be it's needed for HTTP, but it's expensive and our auth protocol doesn't
+    allow replays already.
+  */
+#ifdef TLS1_3_VERSION
+  SSL_CTX_set_max_early_data(ssl_fd->ssl_context, MAX_EARLY_DATA);
+#ifdef SSL_OP_NO_ANTI_REPLAY
+  SSL_CTX_set_options(ssl_fd->ssl_context, SSL_OP_NO_ANTI_REPLAY);
+#endif
+#endif
+
   SSL_CTX_set_verify(ssl_fd->ssl_context, verify, NULL);
 
   /*

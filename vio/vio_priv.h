@@ -49,6 +49,13 @@ int	vio_socket_timeout(Vio *vio, uint which, my_bool old_mode);
 #ifdef HAVE_OPENSSL
 #include "my_net.h"			/* needed because of struct in_addr */
 
+/*
+  How much TLS 1.3 early data the server is willing to take. One client
+  handshake response has to fit, and this is also what OpenSSL defaults
+  recv_max_early_data to.
+*/
+#define MAX_EARLY_DATA 16384
+
 size_t	vio_ssl_read(Vio *vio,uchar* buf,	size_t size);
 size_t	vio_ssl_write(Vio *vio,const uchar* buf, size_t size);
 

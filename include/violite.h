@@ -171,7 +171,8 @@ struct st_VioSSLFd
   SSL_CTX *ssl_context;
 };
 
-int sslaccept(struct st_VioSSLFd*, Vio *, long timeout, unsigned long *errptr);
+unsigned long sslaccept(struct st_VioSSLFd*, Vio *, long timeout,
+                      unsigned long *errptr, uchar *buf, unsigned long bufsize);
 int sslconnect(struct st_VioSSLFd*, Vio *, long timeout, unsigned long *errptr);
 
 void vio_check_ssl_init();

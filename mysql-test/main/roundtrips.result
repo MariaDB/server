@@ -14,7 +14,7 @@ connection default;
 set password for u@'%' = password('pwd3');
 connect u,127.0.0.1,u,pwd3,,$port,,SSL;
 disconnect u;
-# Round-trips: 3
+# Round-trips: 2
 connection default;
 #  4. nossl parsec
 flush privileges;
@@ -33,12 +33,12 @@ connection default;
 create or replace user u@'%' identified with parsec using password('pwd5');
 connect u,127.0.0.1,u,pwd5,,$port,,SSL;
 disconnect u;
-# Round-trips: 5
+# Round-trips: 4
 connection default;
 #  6. ssl parsec repeated
 connect u,127.0.0.1,u,pwd5,,$port,,SSL;
 disconnect u;
-# Round-trips: 5
+# Round-trips: 4
 connection default;
 #  7. native->native change user
 create or replace user u@'%' identified with mysql_native_password using password('pwd7');
