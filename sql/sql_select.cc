@@ -23829,6 +23829,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
+  bool psi_batch_mode= false;
   String tmp_alias;
   DBUG_ENTER("create_internal_tmp_table_from_heap");
   if (is_duplicate)
@@ -23919,6 +23920,16 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 
   /* remove heap table and change to use myisam table */
   (void) table->file->ha_rnd_end();
+  /*
+    A reader of this table may have put its handler into PFS batch mode, see
+    JOIN_TAB::pfs_batch_update(). The reader ends the batch on the handler
+    that table->file points to at that time, which is the new handler, so the
+    batch has to be moved over to it. Ending it here without starting it again
+    would leave that call without a matching start_psi_batch_mode().
+  */
+  psi_batch_mode= table->file->is_in_psi_batch_mode();
+  if (psi_batch_mode)
+    table->file->end_psi_batch_mode();
   (void) table->file->ha_close();          // This deletes the table !
   delete table->file;
   table->file=0;
@@ -23939,6 +23950,8 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 
   table->file->change_table_ptr(table, table->s);
   table->use_all_columns();
+  if (psi_batch_mode)
+    table->file->start_psi_batch_mode();
   if (save_proc_info)
     thd_proc_info(thd, (!strcmp(save_proc_info,"Copying to tmp table") ?
                   "Copying to tmp table on disk" : save_proc_info));

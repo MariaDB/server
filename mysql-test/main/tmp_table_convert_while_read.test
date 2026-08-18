@@ -1,0 +1,65 @@
+#
+# An internal temporary table can be converted from the in-memory engine to
+# the on-disk engine while a reader of that same table is already in progress.
+# The reader keeps state on the handler of the table, so the conversion, which
+# replaces that handler, has to carry the state over to the new one.
+#
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (v VARCHAR(1024));
+INSERT INTO t1 SELECT CONCAT('v', LPAD(seq, 6, '0')) FROM seq_1_to_100;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1),(2);
+
+SET @save_tmp_table_size= @@tmp_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+# Small enough that the temporary tables below do not fit in memory. Set
+# explicitly so that the test does not depend on the server defaults.
+SET SESSION tmp_table_size= 262144;
+SET SESSION max_heap_table_size= 262144;
+
+# Created_tmp_disk_tables is checked after every query so that a future change
+# of the sizes above cannot silently leave these queries without a conversion.
+--disable_ps2_protocol
+--disable_cursor_protocol
+
+--echo # Derived table with DISTINCT
+FLUSH STATUS;
+SELECT COUNT(*) FROM t1 a JOIN (SELECT DISTINCT v FROM t1) d ON a.v = d.v;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+--echo # Derived table with GROUP BY
+FLUSH STATUS;
+SELECT COUNT(*) FROM t1 a JOIN (SELECT v FROM t1 GROUP BY v) d ON a.v = d.v;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+SET SESSION optimizer_switch='derived_merge=off';
+
+--echo # Derived table that is not merged into the outer query
+FLUSH STATUS;
+SELECT COUNT(*) FROM t2, (SELECT v FROM t1) AS sq;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+--echo # Derived table filled by a UNION
+FLUSH STATUS;
+SELECT COUNT(*) FROM t2, (SELECT v FROM t1 UNION SELECT v FROM t1) AS sq;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+SET SESSION optimizer_switch=DEFAULT;
+
+--echo # View materialized into a temporary table
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+FLUSH STATUS;
+SELECT COUNT(*) FROM v1, t2 WHERE a = 1;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+DROP VIEW v1;
+
+--enable_cursor_protocol
+--enable_ps2_protocol
+
+SET SESSION tmp_table_size= @save_tmp_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+
+DROP TABLE t1, t2;
