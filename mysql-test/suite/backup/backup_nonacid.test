@@ -1,0 +1,47 @@
+--source include/have_csv.inc
+--source include/have_archive.inc
+
+CREATE TABLE t_archive (id int unsigned) ENGINE=ARCHIVE;
+INSERT INTO t_archive VALUES (2), (3), (5), (7), (11);
+
+CREATE DATABASE d;
+CREATE TABLE d.t_csv (id int unsigned NOT NULL) ENGINE=CSV;
+INSERT INTO d.t_csv VALUES (4), (26), (41), (60), (83), (109);
+
+CREATE TABLE t_myisam1 (id int unsigned) ENGINE=MyISAM;
+INSERT INTO t_myisam1 VALUES (1), (1), (2), (3), (5), (8);
+
+CREATE TABLE t_myisam2 (id int unsigned) ENGINE=MyISAM;
+INSERT INTO t_myisam2 VALUES (13), (21), (34), (55), (89), (144);
+
+CREATE TABLE t_mrg (id int unsigned) ENGINE=MRG_MyISAM UNION=(t_myisam1, t_myisam2);
+
+--let $target_directory=$MYSQLTEST_VARDIR/some_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+evalp BACKUP SERVER TO '$target_directory';
+
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+SELECT * FROM t_archive ORDER BY id;
+SELECT * FROM d.t_csv ORDER BY id;
+SELECT * FROM t_myisam1 ORDER BY id;
+SELECT * FROM t_mrg ORDER BY id;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP TABLE t_archive;
+DROP TABLE d.t_csv;
+DROP TABLE t_myisam1;
+DROP TABLE t_myisam2;
+DROP TABLE t_mrg;
+DROP DATABASE d;
+
+--rmdir $target_directory
+
+--echo # End of 13.2 test

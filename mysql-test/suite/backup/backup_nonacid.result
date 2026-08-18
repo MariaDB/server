@@ -1,0 +1,57 @@
+CREATE TABLE t_archive (id int unsigned) ENGINE=ARCHIVE;
+INSERT INTO t_archive VALUES (2), (3), (5), (7), (11);
+CREATE DATABASE d;
+CREATE TABLE d.t_csv (id int unsigned NOT NULL) ENGINE=CSV;
+INSERT INTO d.t_csv VALUES (4), (26), (41), (60), (83), (109);
+CREATE TABLE t_myisam1 (id int unsigned) ENGINE=MyISAM;
+INSERT INTO t_myisam1 VALUES (1), (1), (2), (3), (5), (8);
+CREATE TABLE t_myisam2 (id int unsigned) ENGINE=MyISAM;
+INSERT INTO t_myisam2 VALUES (13), (21), (34), (55), (89), (144);
+CREATE TABLE t_mrg (id int unsigned) ENGINE=MRG_MyISAM UNION=(t_myisam1, t_myisam2);
+BACKUP SERVER TO '$target_directory';
+# restart: --datadir=MYSQLTEST_VARDIR/some_directory
+SELECT * FROM t_archive ORDER BY id;
+id
+2
+3
+5
+7
+11
+SELECT * FROM d.t_csv ORDER BY id;
+id
+4
+26
+41
+60
+83
+109
+SELECT * FROM t_myisam1 ORDER BY id;
+id
+1
+1
+2
+3
+5
+8
+SELECT * FROM t_mrg ORDER BY id;
+id
+1
+1
+2
+3
+5
+8
+13
+21
+34
+55
+89
+144
+# restart
+DROP TABLE t_archive;
+DROP TABLE d.t_csv;
+DROP TABLE t_myisam1;
+DROP TABLE t_myisam2;
+DROP TABLE t_mrg;
+DROP DATABASE d;
+# End of 13.2 test

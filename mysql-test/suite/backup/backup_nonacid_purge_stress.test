@@ -1,0 +1,98 @@
+--source include/big_test.inc
+--source include/have_archive.inc
+--source include/have_aria.inc
+
+#
+# Stress version of backup_nonacid_purge_open: rather than holding the tables
+# open for one long window, several readers open and close them as fast as
+# they can while backups run back to back. This exercises the arrival of a
+# reader at every point of the purge, including the moments a single-window
+# test cannot reach -- a share acquired while the TDC is already being walked,
+# or released just as the backup starts to wait for it.
+#
+# Marked big_test: it is timing dependent and takes a few seconds. It can only
+# fail by finding a real bug, never spuriously, but a passing run is not by
+# itself evidence that the window was hit.
+#
+
+CREATE TABLE t_myisam (a INT) ENGINE=MyISAM;
+INSERT INTO t_myisam VALUES (1), (2), (3);
+
+CREATE TABLE t_aria (a INT) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO t_aria VALUES (1), (2), (3);
+
+CREATE TABLE t_arch (a INT) ENGINE=ARCHIVE;
+INSERT INTO t_arch VALUES (1), (2), (3);
+
+# Each iteration opens all three tables, holds them for a few milliseconds and
+# closes them again, so the readers cycle through open and closed states many
+# times over the course of a backup.
+DELIMITER |;
+CREATE PROCEDURE churn(IN iterations INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < iterations DO
+    SELECT SLEEP(0.002) INTO @discard
+      FROM t_myisam, t_aria, t_arch LIMIT 1;
+    SET i = i + 1;
+  END WHILE;
+END|
+DELIMITER ;|
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_nonacid_purge_stress
+--error 0,1
+--rmdir $target_directory
+
+--connect (r1,localhost,root,,)
+--send CALL churn(400)
+--connect (r2,localhost,root,,)
+--send CALL churn(400)
+--connect (r3,localhost,root,,)
+--send CALL churn(400)
+--connect (r4,localhost,root,,)
+--send CALL churn(400)
+
+--connection default
+--let $i= 6
+while ($i)
+{
+  --error 0,1
+  --rmdir $target_directory
+  --disable_query_log
+  --eval BACKUP SERVER TO '$target_directory'
+  --enable_query_log
+  dec $i;
+}
+
+--connection r1
+--reap
+--connection r2
+--reap
+--connection r3
+--reap
+--connection r4
+--reap
+
+--connection default
+--disconnect r1
+--disconnect r2
+--disconnect r3
+--disconnect r4
+
+# The last backup was taken with the readers still running, so it is only
+# complete if every table was closed before its files were copied.
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+SELECT * FROM t_myisam ORDER BY a;
+SELECT * FROM t_aria ORDER BY a;
+SELECT * FROM t_arch ORDER BY a;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP PROCEDURE churn;
+DROP TABLE t_myisam, t_aria, t_arch;
+--rmdir $target_directory
+
+--echo # End of 13.2 test

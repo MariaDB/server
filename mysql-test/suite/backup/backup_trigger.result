@@ -1,0 +1,15 @@
+CREATE TABLE t1(id int unsigned);
+CREATE TABLE t2(id int unsigned);
+CREATE TRIGGER copy_id AFTER INSERT ON t1
+FOR EACH ROW
+INSERT INTO t2 (id) VALUES (NEW.id);
+BACKUP SERVER TO '$target_directory';
+# restart: --datadir=MYSQLTEST_VARDIR/some_directory
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t2;
+id
+123
+# restart
+DROP TABLE t1;
+DROP TABLE t2;
+# End of 13.2 test

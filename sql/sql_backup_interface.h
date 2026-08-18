@@ -13,7 +13,17 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <mysqld_error.h>
+#include <my_dir.h>
+#include <string.h>
+
+#ifdef __cplusplus
+# include "span.h"
+# include <string>
+#endif
+
 struct backup_target;
+struct backup_sink;
 
 /** A payload chunk in a sparse file that is being streamed */
 struct backup_chunk
@@ -25,14 +35,65 @@ struct backup_chunk
 };
 
 #ifdef _WIN32
-/* Use CopyFileEx() to copy entire files */
+/** Copy entire file.
+ @param src_path  path file file to copy
+ @param dst_path  path of file to copy to
+ @param target    backup target
+ @param sink      worker context
+ @return error code (non-positive)
+ @retval 0      on success
+ @note Wrapper for CopyFileExA, will report error using my_error  */
+# ifdef __cplusplus
+extern "C"
+# endif
+int copy_entire_file(const char *src_path,
+                     const char *dst_path,
+                     const struct backup_target *target,
+                     const struct backup_sink *sink);
+
+/** Copy entire file from data directory target, preserving path.
+@param path    relative path of file
+@param target  backup target
+@param sink    worker context
+@return error code
+@retval 0      on success
+@note   The file will be copied to the same path relative to
+        target directory. Any intermediate directories must
+        already exist in the target. */
+# ifdef __cplusplus
+extern "C"
+# endif
+int copy_datafile_to_target(const char *path,
+                            const struct backup_target *target,
+                            const struct backup_sink *sink);
+
 struct native_file_handle;
-#elif defined __APPLE__
+#else
+
+/** Copy entire file from data directory target, preserving path.
+@param datadir_fd  file descriptor of source directory
+@param path        relative path of file
+@param target      backup target
+@param sink        worker context
+@return error code
+@retval 0      on success
+@note   The file will be copied to the same path relative to
+        target directory. Any intermediate directories must
+        already exist in the target. */
+# ifdef __cplusplus
+extern "C"
+# endif
+int copy_datafile_to_target(int datadir_fd,
+                            const char *path,
+                            const struct backup_target *target,
+                            const struct backup_sink *sink);
+
+# if defined __APPLE__
 /* You should invoke fclonefileat(2) manually before attempting
 copy_entire_file() or copy_file() */
-# include <sys/attr.h>
-# include <sys/clonefile.h>
-# include <copyfile.h>
+#  include <sys/attr.h>
+#  include <sys/clonefile.h>
+#  include <copyfile.h>
 /** Copy an entire file.
 @param src  source file descriptor
 @param dst  target to append src to
@@ -42,20 +103,51 @@ inline int copy_entire_file(int src, int dst)
 {
   return fcopyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE);
 }
-#else
-# ifdef __cplusplus
+# else
+#  ifdef __cplusplus
 extern "C"
-# endif
+#  endif
 /** Copy an entire file.
 @param src  source file descriptor
 @param dst  target to append src to
 @return error code (non-positive)
 @retval 0   on success */
 int copy_entire_file(int src, int dst);
+# endif
+
+/** Obtain file descriptor to source directory.
+@return  File descriptor or -1 on error
+#note  Should be called when BACKUP SERVER is in progress.
+       Call is thread-safe and may incur synchronization cost.
+       Value may be stored safely for the duration of backup.
+       Lifetime is managed by SQL layer. Error is reported by my_error.
+*/
+# ifdef __cplusplus
+extern "C"
+# endif
+int get_datadir_fd();
+
+/** Copy an entire file to target.
+@param src_fd  source file descriptor
+@param target  backup target
+@param path    target file path
+@param sink    worker context
+@return error code (non-positive)
+@retval 0   on success
+@note   Any intermediate directories must already exist in the target. */
+# ifdef __cplusplus
+extern "C"
+# endif
+int copy_fd_to_target(int src_fd,
+                      const struct backup_target *target,
+                      const char *path,
+                      const struct backup_sink *sink);
+
 #endif
 
 #ifdef __cplusplus
 extern "C"
+{
 #endif
 /** Copy a portion of a file.
 @param src   source file descriptor
@@ -68,9 +160,16 @@ int copy_file(IF_WIN(const native_file_handle&,int) src,
               IF_WIN(const native_file_handle&,int) dst,
               uint64_t start, uint64_t end);
 
-#ifdef __cplusplus
-extern "C"
-#endif
+/** Ensure a file can be copied to a subdirectory in target.
+May create the subdirectory.
+@param target  backup target
+@param name    subdirectory name
+@return error code (non-positive)
+@retval 0      on success
+@note   If the directory is created, the directory containing it must
+        already exist: nested directory creation is not supported. */
+int ensure_target_subdir(const struct backup_target *target, const char* name);
+
 /** Append to the configuration file.
 @param target   backup target directory
 @param config   the configuration file snippet to append
@@ -80,9 +179,7 @@ extern "C"
 int backup_config_append(IF_WIN(const char*, int) target,
                          const char *config, size_t size);
 
-#ifdef __cplusplus
-extern "C"
-#endif
+
 /** Append to the configuration file.
 @param target   backup stream
 @param config   the configuration file snippet to append
@@ -92,9 +189,6 @@ extern "C"
 int backup_stream_config(IF_WIN(HANDLE, int) stream,
                          const char *config, size_t size);
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /** Start streaming a file.
 @param target   backup target
 @param name     file name
@@ -108,9 +202,6 @@ int backup_stream_start(IF_WIN(HANDLE, int) stream,
                         const char *name, mode_t mode, uint64_t size,
                         const struct backup_chunk *chunks, size_t n_chunks);
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /**
    Write data to a stream.
    @param stream  backup stream
@@ -122,9 +213,6 @@ extern "C"
 int backup_stream_write(IF_WIN(HANDLE, int) stream, const void *buf,
                         size_t size);
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /**
    Append a file snippet to the stream,
    after a corresponding call to backup_stream_start().
@@ -143,9 +231,6 @@ int backup_stream_append(IF_WIN(const native_file_handle&,int) src,
                          uint64_t start, uint64_t end);
 
 #ifdef __linux__
-# ifdef __cplusplus
-extern "C"
-# endif
 /**
    Append an immutable snippet of a file to the stream,
    allowing Linux sendfile(2) to be invoked.
@@ -168,11 +253,49 @@ int backup_stream_append_async(int src, int stream,
 #endif
 
 #ifdef _WIN32
-# ifdef __cplusplus
-extern "C"
-# endif
 int backup_stream_append_plain(HANDLE src, HANDLE stream,
                                uint64_t start, uint64_t end);
 #else
 # define backup_stream_append_plain backup_stream_append
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
+
+ /* RAII wrapper for my_dir() */
+class Dir_scan
+{
+public:
+  Dir_scan() = default;
+  bool initialize(const char* path, myf flags) noexcept
+  {
+    dir_info= my_dir(path, flags);
+    if (!dir_info)
+    {
+      my_error(ER_CANT_READ_DIR, MYF(0), path, my_errno);
+      return true;
+    }
+    return false;
+  }
+
+  ~Dir_scan() noexcept
+  {
+    my_dirend(dir_info);
+  }
+
+  Dir_scan(const Dir_scan&) = delete;
+  Dir_scan& operator=(const Dir_scan&) = delete;
+
+  st_::span<const fileinfo> contents() const
+  {
+    assert(dir_info);
+    return {dir_info->dir_entry, dir_info->number_of_files};
+  }
+
+private:
+  MY_DIR *dir_info {nullptr};
+};
+
+std::string make_path(const char *base_path, const char *filename) noexcept;
+
 #endif

@@ -1,0 +1,54 @@
+# restart: --aria-log-dir-path=MYSQLTEST_VARDIR/log_directory
+CREATE TABLE t (
+id INT PRIMARY KEY,
+str_val VARCHAR(255),
+blob_val BLOB,
+INDEX idx_str (str_val)
+) ENGINE=Aria TRANSACTIONAL=1;
+CREATE PROCEDURE populate_data(IN num_rows INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < num_rows DO
+SET @str = CONCAT('_row_', i);
+SET @blb = REPEAT(CHAR(97 + (i % 26)), 1500);
+INSERT INTO t (id, str_val, blob_val) VALUES (i, @str, @blb);
+SET i = i + 1;
+END WHILE;
+END//
+CALL populate_data(10000);
+SELECT COUNT(*) from t;
+COUNT(*)
+10000
+SELECT SUM(id) FROM t;
+SUM(id)
+49995000
+SELECT SUM(LENGTH(str_val)) FROM t;
+SUM(LENGTH(str_val))
+88890
+SELECT SUM(LENGTH(blob_val)) FROM t;
+SUM(LENGTH(blob_val))
+15000000
+Back up the database
+BACKUP SERVER TO '$target_directory';
+Restore the database
+# restart: --datadir=MYSQLTEST_VARDIR/some_directory
+Check contents after restore
+SELECT COUNT(*) from t;
+COUNT(*)
+10000
+SELECT SUM(id) FROM t;
+SUM(id)
+49995000
+SELECT SUM(LENGTH(str_val)) FROM t;
+SUM(LENGTH(str_val))
+88890
+SELECT SUM(LENGTH(blob_val)) FROM t;
+SUM(LENGTH(blob_val))
+15000000
+Restart database in original log and data directories
+# restart: --aria-log-dir-path=MYSQLTEST_VARDIR/log_directory
+Clean up
+DROP PROCEDURE populate_data;
+DROP TABLE t;
+# restart
+# End of 13.2 test

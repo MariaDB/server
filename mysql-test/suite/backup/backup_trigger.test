@@ -1,0 +1,32 @@
+# When performing a backup. confirm that database triggers are copied over
+
+CREATE TABLE t1(id int unsigned);
+CREATE TABLE t2(id int unsigned);
+
+CREATE TRIGGER copy_id AFTER INSERT ON t1
+FOR EACH ROW
+  INSERT INTO t2 (id) VALUES (NEW.id);
+
+--let $target_directory=$MYSQLTEST_VARDIR/some_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+evalp BACKUP SERVER TO '$target_directory';
+
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t2;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--rmdir $target_directory
+
+--echo # End of 13.2 test

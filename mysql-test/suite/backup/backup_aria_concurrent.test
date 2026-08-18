@@ -1,0 +1,145 @@
+
+--source include/have_aria.inc
+
+--disable_query_log
+
+
+DELIMITER //;
+CREATE PROCEDURE populate_data(IN t_name VARCHAR(64), IN num_rows INT)
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @query = CONCAT('INSERT INTO ', t_name, ' (id, str_val, blob_val) VALUES (?, ?, ?)');
+  PREPARE stmt FROM @query;
+
+  WHILE i <= num_rows DO
+    SET @str = CONCAT('_row_', i);
+    # Generate a predictable but repeating blob based on the row index
+    SET @blb = REPEAT(CHAR(97 + (i % 26)), 1500);
+    EXECUTE stmt USING i, @str, @blb;
+    SET i = i + 1;
+  END WHILE;
+
+  DEALLOCATE PREPARE stmt;
+END//
+DELIMITER ;//
+
+# Create this many tables transactional and non-transactional each
+let $tab_num= 200;
+let $num_rows= 5;
+
+let $i = 1;
+while ($i <= $tab_num) {
+
+  let $tr=0;
+  while ($tr <= 1) {
+
+    let $suff= _$i;
+    let $table_name= ta_tr$tr$suff;
+
+    eval CREATE TABLE $table_name (
+      id INT PRIMARY KEY,
+      str_val VARCHAR(255),
+      blob_val BLOB,
+      INDEX idx_str (str_val)
+    ) ENGINE=Aria TRANSACTIONAL=$tr;
+
+    eval CALL populate_data('$table_name', $num_rows);
+
+    inc $tr;
+  }
+
+  inc $i;
+}
+
+--enable_query_log
+
+# All tables have the same data, so we query only one  for reference
+
+let $sum_id= `SELECT SUM(id) FROM ta_tr0_1`;
+let $str_len= `SELECT SUM(LENGTH(str_val)) FROM ta_tr0_1`;
+let $blob_len= `SELECT SUM(LENGTH(blob_val)) FROM ta_tr0_1`;
+
+echo $sum_id $str_len $blob_len;
+
+--let $target_directory=$MYSQLTEST_VARDIR/some_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+--echo Back up the database
+evalp BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+
+--echo Restore the database
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+--echo Check contents after restore
+
+--disable_query_log
+CREATE TEMPORARY TABLE table_checks (
+  tbl_name VARCHAR(64),
+  sum_id INT,
+  str_len INT,
+  blob_len INT,
+  num_rows INT
+) ENGINE=MEMORY;
+
+let $i = 1;
+while ($i <= $tab_num) {
+  let $tr=0;
+  while ($tr <= 1) {
+
+    let $suff= _$i;
+    let $table_name= ta_tr$tr$suff;
+
+    let $r_sum_id= `SELECT SUM(id) FROM $table_name`;
+    let $r_str_len= `SELECT SUM(LENGTH(str_val)) FROM $table_name`;
+    let $r_blob_len= `SELECT SUM(LENGTH(blob_val)) FROM $table_name`;
+    let $r_num_rows= `SELECT COUNT(*) FROM $table_name`;
+
+    eval INSERT INTO table_checks VALUES ('$table_name', $r_sum_id, $r_str_len, $r_blob_len, $r_num_rows);
+
+    inc $tr;
+  }
+  inc $i;
+}
+
+--enable_query_log
+
+SELECT COUNT(*) FROM table_checks;
+
+# We expect results in the table to always match the results captured before the BACKUP
+# Returned rowsets should be empty
+eval SELECT * FROM table_checks WHERE sum_id <> $sum_id;
+eval SELECT * FROM table_checks WHERE str_len <> $str_len;
+eval SELECT * FROM table_checks WHERE blob_len <> $blob_len;
+eval SELECT * FROM table_checks WHERE num_rows <> $num_rows;
+
+--echo Restart database in original data directory
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo Clean up
+
+--disable_query_log
+
+let $i = 1;
+while ($i <= $tab_num) {
+  let $tr=0;
+  while ($tr <= 1) {
+    let $suff= _$i;
+    let $table_name= ta_tr$tr$suff;
+    eval DROP TABLE $table_name;
+    inc $tr;
+  }
+  inc $i;
+}
+
+DROP PROCEDURE populate_data;
+
+--enable_query_log
+
+--rmdir $target_directory
+
+--echo # End of 13.2 test
