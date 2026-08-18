@@ -1012,11 +1012,18 @@ bool Aggregator_distinct::add()
         converts it to an on-disk engine and copies all rows plus the
         overflow row (record[0]).  For any other error it reports a
         fatal error and returns 1.
+
+        The overflow row has not been checked against the unique
+        constraint of the converted table yet, and it may well be a
+        duplicate of a row that was copied there before it.  That is the
+        same condition the write above returns FALSE for, so ignore it
+        here as well; the value it holds is already counted, which is
+        why *is_duplicate is not read afterwards.
       */
       if (create_internal_tmp_table_from_heap(table->in_use, table,
                                               tmp_table_param->start_recinfo,
                                               &tmp_table_param->recinfo,
-                                              error, 0, &is_duplicate, NULL))
+                                              error, 1, &is_duplicate, NULL))
         return TRUE;
     }
     return FALSE;
