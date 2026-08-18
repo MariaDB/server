@@ -1,0 +1,136 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # COUNT(DISTINCT <blob>) must not fail with a unique constraint error
+--echo # when its in-memory temporary table overflows.
+--echo #
+--echo # The aggregate collects the distinct values in a temporary table with
+--echo # a unique constraint over its arguments and treats a duplicate key
+--echo # error from the write as "value already seen", not as a failure. For a
+--echo # blob argument the record holds only a pointer to the value, so the
+--echo # values cannot be compared as raw record bytes and the in-memory tree
+--echo # that normally does the deduplication is not used; every value goes
+--echo # through the write instead.
+--echo #
+--echo # When such a write overflows the in-memory table, the row it carried
+--echo # is handed to the conversion to the on-disk engine, which writes it to
+--echo # the converted table once all the stored rows have been copied. If
+--echo # that row is a duplicate of one of them, the conversion has to report
+--echo # a duplicate back to the aggregate, exactly as the write itself does,
+--echo # rather than a fatal write error.
+--echo #
+
+set @save_tmp_memory_table_size=@@tmp_memory_table_size;
+set @save_max_heap_table_size=@@max_heap_table_size;
+set @small_heap=65536;
+
+--echo #
+--echo # Setup: 1000 distinct values, each present twice, with the two copies
+--echo # adjacent.
+--echo #
+--echo # A write that is rejected as a duplicate returns the record it had
+--echo # allocated to the free list and never gets as far as allocating space
+--echo # for the blob value, so only the first copy of a value makes the
+--echo # in-memory table grow. The write that finds the table full is
+--echo # therefore the second copy of the value stored last, a duplicate of a
+--echo # row the conversion has already copied.
+--echo #
+--echo # That holds only while a record slot is what the table runs out of
+--echo # first. Blob values come out of the same space, and only a write that
+--echo # is not a duplicate ever allocates one. When a blob allocation is the
+--echo # one that hits the limit, the pending row is not a duplicate and these
+--echo # cases no longer cover the conversion's handling of one.
+--echo #
+--echo # Which of the two allocations hits the limit first follows from how
+--echo # records and blob values pack together, not from any threshold on the
+--echo # value width. The widths used here were measured to overflow on a
+--echo # record slot; they were not derived from a rule, and neighbouring
+--echo # widths do not all behave the same way. The handling of a duplicate
+--echo # pending row is covered on its own, without depending on any of this,
+--echo # in count_distinct_blob_convert_debug.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, v TEXT, w TEXT, s VARCHAR(64))
+ENGINE=MyISAM;
+INSERT INTO t1
+SELECT seq,
+       LPAD((seq+1) DIV 2, 6, 'x'),
+       LPAD((seq+1) DIV 2, 10, 'y'),
+       LPAD((seq+1) DIV 2, 6, 'z')
+FROM seq_1_to_2000;
+
+SELECT COUNT(*) AS rows_stored FROM t1;
+
+--echo #
+--echo # ================================================================
+--echo # Run 1: the temporary table overflows and is converted
+--echo # ================================================================
+--echo #
+
+set @@tmp_memory_table_size=@small_heap;
+set @@max_heap_table_size=@small_heap;
+
+--echo # --- one blob argument ---
+FLUSH STATUS;
+SELECT COUNT(DISTINCT v) AS distinct_values FROM t1;
+--source count_distinct_converted.inc
+
+--echo # --- one blob argument of a different width ---
+FLUSH STATUS;
+SELECT COUNT(DISTINCT w) AS distinct_values FROM t1;
+--source count_distinct_converted.inc
+
+--echo # --- two blob arguments: the unique constraint spans both ---
+FLUSH STATUS;
+SELECT COUNT(DISTINCT v, w) AS distinct_values FROM t1;
+--source count_distinct_converted.inc
+
+--echo # --- a blob and a non-blob argument ---
+FLUSH STATUS;
+SELECT COUNT(DISTINCT v, s) AS distinct_values FROM t1;
+--source count_distinct_converted.inc
+
+--echo # --- control: no blob argument, deduplicated by the in-memory tree ---
+FLUSH STATUS;
+SELECT COUNT(DISTINCT s) AS distinct_values FROM t1;
+--source count_distinct_converted.inc
+
+--echo # --- grouped: one temporary table, reused for every group ---
+--echo #
+--echo # There is one aggregate, and it keeps one temporary table that is
+--echo # emptied between groups rather than created again. Once an earlier
+--echo # group has converted it, the later groups go on using the converted
+--echo # table, so this covers the aggregate reading a table it did not
+--echo # create in memory.
+--echo #
+FLUSH STATUS;
+SELECT id MOD 2 AS g, COUNT(DISTINCT v) AS distinct_values
+FROM t1 GROUP BY g ORDER BY g;
+--source count_distinct_converted.inc
+
+--echo #
+--echo # ================================================================
+--echo # Run 2: the same aggregates with enough memory to stay in memory
+--echo # ================================================================
+--echo #
+
+set @@tmp_memory_table_size=1024*1024*512;
+set @@max_heap_table_size=1024*1024*512;
+
+FLUSH STATUS;
+SELECT COUNT(DISTINCT v) AS distinct_values FROM t1;
+SELECT COUNT(DISTINCT w) AS distinct_values FROM t1;
+SELECT COUNT(DISTINCT v, w) AS distinct_values FROM t1;
+SELECT COUNT(DISTINCT v, s) AS distinct_values FROM t1;
+SELECT COUNT(DISTINCT s) AS distinct_values FROM t1;
+SELECT id MOD 2 AS g, COUNT(DISTINCT v) AS distinct_values
+FROM t1 GROUP BY g ORDER BY g;
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo # Clean up
+
+set @@tmp_memory_table_size=@save_tmp_memory_table_size;
+set @@max_heap_table_size=@save_max_heap_table_size;
+DROP TABLE t1;

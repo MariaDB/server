@@ -24054,7 +24054,10 @@ int Tmp_table_default_copier::write_pending_row(TABLE *from, TABLE *to)
   DBUG_ENTER("Tmp_table_default_copier::write_pending_row");
 
   /* copy row that filled HEAP table */
-  if (unlikely((write_err= to->file->ha_write_tmp_row(from->record[0]))))
+  write_err= to->file->ha_write_tmp_row(from->record[0]);
+  DBUG_EXECUTE_IF("dup_pending_tmp_table_row",
+                  write_err= HA_ERR_FOUND_DUPP_UNIQUE ;);
+  if (unlikely(write_err))
   {
     if (to->file->is_fatal_error(write_err, HA_CHECK_DUP) ||
         !ignore_last_dupp_key_error)
