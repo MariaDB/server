@@ -764,6 +764,13 @@ bool PFS_status_variable_cache::filter_show_var(const SHOW_VAR *show_var, bool s
   return false;
 }
 
+extern HASH status_vars_hash; // move to top
+
+static int pfs_show_var_cmp(const void *a, const void *b)
+{
+  return strcasecmp(((const SHOW_VAR *) a)->name,
+                    ((const SHOW_VAR *) b)->name);
+}
 
 /**
   Build an array of SHOW_VARs from the global status array. Expand nested
@@ -799,6 +806,27 @@ bool PFS_status_variable_cache::init_show_var_array(enum_var_type scope, bool st
       show_var.name= make_show_var_name(NULL, show_var.name);
       m_show_var_array.push(show_var);
     }
+  }
+
+  for (uint i= 0; i < status_vars_hash.records; i++)
+  {
+    SHOW_VAR *show_var_ptr= (SHOW_VAR *) my_hash_element(&status_vars_hash, i);
+    if (!show_var_ptr || !show_var_ptr->name)
+      continue;
+
+    SHOW_VAR show_var= *show_var_ptr;
+
+    if (filter_show_var(&show_var, strict))
+      continue;
+
+    show_var.name= make_show_var_name(NULL, show_var.name);
+    m_show_var_array.push(show_var);
+  }
+
+  if (m_show_var_array.elements() > 0)
+  {
+    my_qsort(&m_show_var_array.at(0), m_show_var_array.elements(),
+             sizeof(SHOW_VAR), pfs_show_var_cmp);
   }
 
   /* Last element is NULL. */
