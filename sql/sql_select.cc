@@ -23999,6 +23999,13 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
   Default row copier of create_internal_tmp_table_from_heap(): copy the
   rows in table scan order, then append the pending record[0], whose write
   filled the in-memory table, as a new row.
+
+  The pending row is appended from write_pending_row(), after the bulk
+  insert of the copy has ended, because the on-disk tmp engine serves a
+  bulk insert into an internal table with the indexes of that table
+  disabled (@see ha_maria::start_bulk_insert()). The pending row is the
+  only row of the conversion that can be a duplicate, so it is also the
+  only one whose write must be checked.
 */
 
 class Tmp_table_default_copier: public Tmp_table_row_copier
@@ -24008,6 +24015,7 @@ public:
     : ignore_last_dupp_key_error(ignore_last_dupp_key_error_arg) {}
 
   int copy_rows(TABLE *from, TABLE *to) override;
+  int write_pending_row(TABLE *from, TABLE *to) override;
 
 private:
   bool ignore_last_dupp_key_error;
@@ -24035,6 +24043,15 @@ int Tmp_table_default_copier::copy_rows(TABLE *from, TABLE *to)
     if (unlikely(thd->check_killed()))
       DBUG_RETURN(-1);                          // The error is already reported
   }
+
+  DBUG_RETURN(0);
+}
+
+
+int Tmp_table_default_copier::write_pending_row(TABLE *from, TABLE *to)
+{
+  int write_err;
+  DBUG_ENTER("Tmp_table_default_copier::write_pending_row");
 
   /* copy row that filled HEAP table */
   if (unlikely((write_err= to->file->ha_write_tmp_row(from->record[0]))))
@@ -24288,6 +24305,16 @@ err:
                                 already in the table and must not be
                                 appended as an extra row.
 
+  DESCRIPTION OF THE COPY
+    The rows already stored in the HEAP table are copied by
+    Tmp_table_row_copier::copy_rows() within a bulk insert into the new
+    table, which the on-disk tmp engine may serve with the indexes of
+    that table disabled.  Those rows already satisfy every unique
+    constraint of the table, so they need no checking.  The pending row
+    does not, so it is written afterwards, by
+    Tmp_table_row_copier::write_pending_row(), once the bulk insert has
+    ended and the indexes are back in place.
+
   DESCRIPTION
     Creates a new internal temporary table using the on-disk tmp engine
     (MyISAM or Aria) and copies all rows of the full HEAP table into it
@@ -24383,6 +24410,13 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     if (end_err && !write_err)
       write_err= end_err;
   }
+  /*
+    Only now, with the indexes of the new table in place, can a write be
+    checked against them, so this is where the pending row goes.
+  */
+  if (!write_err)
+    write_err= copier->write_pending_row(table, &new_table);
+
   if (write_err)
   {
     if (write_err < 0)
