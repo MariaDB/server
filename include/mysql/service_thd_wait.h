@@ -20,37 +20,20 @@
   @file include/mysql/service_thd_wait.h
   This service provides functions for plugins and storage engines to report
   when they are going to sleep/stall.
-  
-  SYNOPSIS
-  thd_wait_begin() - call just before a wait begins
-  thd                     Thread object
-                          Use NULL if the thd is NOT known.
-  wait_type               Type of wait
-                          1 -- short wait (e.g. for mutex)
-                          2 -- medium wait (e.g. for disk io)
-                          3 -- large wait (e.g. for locked row/table)
-  NOTES
-    This is used by the threadpool to have better knowledge of which
-    threads that currently are actively running on CPUs. When a thread
-    reports that it's going to sleep/stall, the threadpool scheduler is
-    free to start another thread in the pool most likely. The expected wait
-    time is simply an indication of how long the wait is expected to
-    become, the real wait time could be very different.
-
-  thd_wait_end() called immediately after the wait is complete
-
-  thd_wait_end() MUST be called if thd_wait_begin() was called.
-
-  Using thd_wait_...() service is optional but recommended.  Using it will
-  improve performance as the thread pool will be more active at managing the
-  thread workload.
 */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**
+  @defgroup plugin_api_service_thd_wait THD Wait service
+  @ingroup plugin_api_services
 
-/*
+  This service provides functions for plugins and storage engines to report
+  when they are going to sleep/stall.
+  
+
+  Using @ref thd_wait_begin() / @ref thd_wait_end() service is optional
+  but recommended. Using it will improve performance as the thread pool
+  will be more active at managing the thread workload.
+
   One should only report wait events that could potentially block for a
   long time. A mutex wait is too short of an event to report. The reason
   is that an event which is reported leads to a new thread starts
@@ -62,11 +45,18 @@ extern "C" {
   that could easily be for many milliseconds or even seconds and the same
   holds true for global read locks, table locks and other meta data locks.
   Another event of interest is going to sleep for an extended time.
+
+  @{
 */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum _thd_wait_type_e {
-  THD_WAIT_SLEEP= 1,
-  THD_WAIT_DISKIO= 2,
-  THD_WAIT_ROW_LOCK= 3,
+  THD_WAIT_SLEEP= 1, /**< Short wait (e.g. for mutex) */
+  THD_WAIT_DISKIO= 2, /**< Medium wait (e.g. for disk io) */
+  THD_WAIT_ROW_LOCK= 3, /**< Large wait (e.g. for locked row/table) */
   THD_WAIT_GLOBAL_LOCK= 4,
   THD_WAIT_META_DATA_LOCK= 5,
   THD_WAIT_TABLE_LOCK= 6,
@@ -85,20 +75,34 @@ extern struct thd_wait_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
-#define thd_wait_begin(_THD, _WAIT_TYPE) \
-  thd_wait_service->thd_wait_begin_func(_THD, _WAIT_TYPE)
-#define thd_wait_end(_THD) thd_wait_service->thd_wait_end_func(_THD)
-
+/**
+  Call just before a wait begins
+  @param thd              Thread object. Use NULL if the thd is NOT known.
+  @param wait_type        Type of wait: one of @ref thd_wait_type
+                          
+  This is used by the threadpool to have better knowledge of which
+  threads that currently are actively running on CPUs. When a thread
+  reports that it's going to sleep/stall, the threadpool scheduler is
+  free to start another thread in the pool most likely. The expected wait
+  time is simply an indication of how long the wait is expected to
+  become, the real wait time could be very different.
+ */
+#define thd_wait_begin(thd, wait_type) \
+  thd_wait_service->thd_wait_begin_func(thd, wait_type)
+/**
+  Call just after a wait ends
+  @param thd              Thread object. Use NULL if the thd is NOT known.
+*/
+#define thd_wait_end(thd) thd_wait_service->thd_wait_end_func(thd)
 #else
-
 void thd_wait_begin(MYSQL_THD thd, int wait_type);
 void thd_wait_end(MYSQL_THD thd);
-
 #endif
 
 #ifdef __cplusplus
 }
 #endif
 
+/** @} */
 #endif
 

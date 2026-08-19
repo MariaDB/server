@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_THD_STMT_DA_INCLUDED
 /* Copyright (C) 2013 MariaDB Foundation.
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_THD_ERROR_CONTEXT_INCLUDED
+#define MYSQL_SERVICE_THD_ERROR_CONTEXT_INCLUDED
+
 /**
   @file
   This service provides access to the statement diagnostics area:
@@ -21,7 +23,17 @@
   - error number
   - row for warning (e.g. for multi-row INSERT statements)
 */
+/**
+  @defgroup plugin_api_service_thd_error_context THD error context service
+  @ingroup plugin_api_services
+  Error context service to access the statement diagnostics area.
 
+  This service provides access to the statement diagnostics area:
+  - error message
+  - error number
+  - row for warning (e.g. for multi-row INSERT statements)
+  @{
+  */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,47 +51,47 @@ extern struct thd_error_context_service_st {
 } *thd_error_context_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-#define thd_get_error_message(thd) \
-  (thd_error_context_service->thd_get_error_message_func((thd)))
-#define thd_get_error_number(thd) \
-  (thd_error_context_service->thd_get_error_number_func((thd)))
-#define thd_get_error_row(thd) \
-  (thd_error_context_service->thd_get_error_row_func((thd)))
-#define thd_inc_error_row(thd) \
-  (thd_error_context_service->thd_inc_error_row_func((thd)))
-#define thd_get_error_context_description(thd, buffer, length, max_query_len) \
-  (thd_error_context_service->thd_get_error_context_description_func((thd), \
-                                                                (buffer), \
-                                                                (length), \
-                                                                (max_query_len)))
-#else
 /**
   Return error message
   @param thd   user thread connection handle
   @return      error text
 */
-const char *thd_get_error_message(const MYSQL_THD thd);
+#define thd_get_error_message(thd) \
+  (thd_error_context_service->thd_get_error_message_func((thd)))
 /**
   Return error number
   @param thd   user thread connection handle
   @return      error number
 */
-unsigned int thd_get_error_number(const MYSQL_THD thd);
+#define thd_get_error_number(thd) \
+  (thd_error_context_service->thd_get_error_number_func((thd)))
 /**
   Return the current row number (i.e. in a multiple INSERT statement)
   @param thd   user thread connection handle
   @return      row number
 */
-unsigned long thd_get_error_row(const MYSQL_THD thd);
+#define thd_get_error_row(thd) \
+  (thd_error_context_service->thd_get_error_row_func((thd)))
 /**
   Increment the current row number
   @param thd   user thread connection handle
 */
-void thd_inc_error_row(MYSQL_THD thd);
+#define thd_inc_error_row(thd) \
+  (thd_error_context_service->thd_inc_error_row_func((thd)))
 /**
   Return a text description of a thread, its security context (user,host)
   and the current query.
 */
+#define thd_get_error_context_description(thd, buffer, length, max_query_length) \
+  (thd_error_context_service->thd_get_error_context_description_func((thd), \
+                                                                (buffer), \
+                                                                (length), \
+                                                                (max_query_length)))
+#else
+const char *thd_get_error_message(const MYSQL_THD thd);
+unsigned int thd_get_error_number(const MYSQL_THD thd);
+unsigned long thd_get_error_row(const MYSQL_THD thd);
+void thd_inc_error_row(MYSQL_THD thd);
 char *thd_get_error_context_description(MYSQL_THD thd,
                                         char *buffer, unsigned int length,
                                         unsigned int max_query_length);
@@ -89,5 +101,6 @@ char *thd_get_error_context_description(MYSQL_THD thd,
 }
 #endif
 
-#define MYSQL_SERVICE_THD_STMT_DA_INCLUDED
-#endif
+/** @} */
+
+#endif /* MYSQL_SERVICE_THD_ERROR_CONTEXT_INCLUDED */

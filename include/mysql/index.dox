@@ -1,11 +1,150 @@
 /**
   @mainpage Plugin API Documentation
 
-  The MariaDB plugin API allows development of plugins that can extend the basic server functionality.
+  MariaDB Server Plugin API is a C-based extensibility framework
+  (largely compatible with MySQL’s but extended) that allows dynamic or
+  static loading of modules to add or modify server behavior without
+  recompiling the core server.
 
-   - Concepts
+   - @subpage concepts
    - Get started: Building a plugin
    - Plugin types
    - Plugin services
    - [API reference](api.md#)
 */
+
+/**
+  @page concepts Plugin API Concepts
+
+  @section concept_big_picture The Big Picture: The server, Plugins and Interfaces
+
+  The server does, at certain stages of its execution, call plugin APIs when it
+  needs certain operation performed: e.g. authenticate a user, log a message,
+  read and write from/to a database table etc.
+
+  These API are like written functionality contracts.
+  They allow separating the server functionality from the actual API
+  implementations themselves. And, since the API implementions are a dynamic set,
+  adding new implementations extends the server functionality
+  (e.g. adds new ways a user can be authenticated or message be logged)
+  without having to re-compile and even re-start the server itself.
+
+  The MariaDB plugin infrastructure uses the following logical terms:
+
+  @subsection concept_plugin_api Plugin API
+
+  A well defined, versioned and stable interface specification.
+  It's also abstract, as it's not tied to any one specific implementation.
+
+  @subsection concept_plugin Plugin
+
+  A named and versioned implementation of a specific @ref concept_plugin_api. 
+
+  @subsection concept_plugin_library Plugin Library
+  
+  (habitually abbreviated as a plugin)
+  An executable binary that contains one or more @ref concept_plugin that can
+  be accessed by the server when it needs to call plugin API implementations.
+
+
+  @sa @ref implementation on how the above concepts are implemented.
+*/
+
+/**
+  @page implementation Plugin API Implementation
+
+  This is how the individual abstract concepts are implemented and
+  interact with each other.
+
+  @section impl_server The Server Plugin API implementation
+
+  The server is the bedrock of the plugin infrastructure and contains the
+  base implementation to make use of it.
+  Plugins can theoretically be loaded into other binaries, but chances are
+  that they won't operate all that well (if at all) in this case since they
+  heavily depend on server's infrastructure.
+
+  Here's what the server implements to support plugins:
+
+  @subsection impl_server_global_plugin_list The global plugin list
+
+  The server maintains a global in-memory list of all available plugins (plugin_array), mirrored into a set of hash tables (plugin_hash) and guarded by LOCK_plugin.
+  
+  The plugin libraries containing the available plugins can be:
+   - statically linked into the server binary
+   - dynamically loaded at startup via the --plugin-load... command line arguments
+   - dynamically loaded just prior to the server's commencement of normal operations from the mysql.plugins table.
+   - dynamically loaded at runtime via the INSTALL PLUGIN SQL command.
+   - unloaded at runtime via the UNINSTALL PLUGIN SQL command
+   - unloaded at server shutdown 
+
+  The server implements all of the above possibilities in its code.
+
+  It also implements and provides a list of interfaces the plugins can use to call back and interact with the server.
+  These are called @ref impl_server_plugin_services.
+
+  @subsection impl_server_plugin_services Plugin Services Implementation
+
+  The server maintains a global named list of plugin service API implementations.
+  Every time a @ref concept_plugin_library is initialized, the server gets its global
+  service API implementation list and sets pointers to each individual API slot into
+  the empty pointer block provided by the @ref concept_plugin_library.
+  The library code compiled to call these API pointers can now access
+  the actual server implementations of these services API.
+
+  @sa @ref plugin_api_services for a list of the services provided by the server.
+
+  @subsection impl_server_plugin_api_call How the server calls a plugin API.
+
+  At certain opportune stages of server's normal operation the server might decide
+  to "reach out" to a plugin by calling a plugin API. Since the plugins are named it
+  can call any individual plugin by name. E.g. when executing `CREATE TABLE engine=foo`, 
+  the server will:
+
+  - look "foo" into the cache of plugin "references" (plugin_ref) for that plugin type, if available.
+  - If no cached reference is found:
+      - Take LOCK_plugin
+      - Look "foo" up into the global plugin_array for implementations of the specific plugin API (storage engine in this case)
+      - If found, create a reference (plugin_ref) to the plugin.
+  - call API "method" (function pointers) through the plugin_ref, if found.
+  - when done, either store the plugin_ref into a cache for reuse or release it.
+
+  @section impl_plugin_library The Plugin library Implementation
+
+  A @ref concept_plugin_library is executable code, either a part of
+  the server itself or bundled as a shared library.
+
+  @subsection impl_plugin_library_static Statically linked plugin libraries.
+
+  Plugins linked statically to the server are collected into a global
+  server "plugin library" and "installed" (and initialized) at server startup.
+
+  @subsection impl_plugin_library_dynamic Dynamic plugin libraries
+
+  A @ref concept_plugin_library is usually compiled as OS dynamic library:
+   DLLs on MS Windows, .so on Unixes. 
+  What differentiates a @ref concept_plugin_library from a regular OS
+  shared library is that it exposes a specific public symbol
+  _maria_plugin_declarations_ that the server recognizes. 
+  In fact it also exposes _maria_plugin_interface_version_ and
+  _maria_sizeof_struct_st_plugin_, but these are auxilary.
+
+  _maria_plugin_declarations_ is an array of @ref st_maria_plugin structures,
+  each describing a @ref concept_plugin this @ref concept_plugin_library provides.
+
+  When the @ref concept_plugin_library is loaded into the server:
+   * the library is version and maturity checked
+   * for each @ref concept_plugin contained
+     * plugin API version check is performed
+     * the plugin is initialized
+     * the plugin system and status variables are added to the variable global lists
+     * the plugin is added into the global plugin_array.
+
+  At unload time the effect of plugin library load above is reversed.  
+
+  @section impl_plugin Plugin implementation
+
+  A MariaDB plugin is a logical, versioned implementation of exactly two interfaces:
+   - The base @ref st_maria_plugin plugin management interface
+   - A specific plugin interface, one of @ref plugin_types.
+ */

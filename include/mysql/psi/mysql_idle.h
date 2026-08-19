@@ -27,6 +27,10 @@
 /**
   @file mysql/psi/mysql_idle.h
   Instrumentation helpers for idle waits.
+
+  @defgroup Idle_instrumentation Idle Instrumentation
+  @ingroup Instrumentation_interface
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -34,12 +38,6 @@
 #ifndef PSI_IDLE_CALL
 #define PSI_IDLE_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Idle_instrumentation Idle Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def MYSQL_START_IDLE_WAIT

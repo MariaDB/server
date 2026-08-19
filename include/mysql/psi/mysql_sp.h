@@ -26,6 +26,13 @@
 /**
   @file mysql/psi/mysql_sp.h
   Instrumentation helpers for stored programs.
+
+  @defgroup Stored_programs_instrumentation Stored Programs Instrumentation
+  @ingroup Instrumentation_interface
+
+  Instrumentation helpers for stored programs.
+
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -100,5 +107,7 @@ inline_mysql_get_sp_share(uint sp_type,
                                    object_name, object_name_length);
 }
 #endif
+
+/** @} */
 
 #endif

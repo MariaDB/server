@@ -26,6 +26,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 #ifndef MYSQL_SOCKET_H
 #define MYSQL_SOCKET_H
 
+/**
+  @file mysql/psi/mysql_socket.h
+[...]
+*/
+
+/**
+  @defgroup Socket_instrumentation Socket Instrumentation
+  @ingroup Instrumentation_interface
+  @{
+*/
+
+
 /* For MY_STAT */
 #include <my_dir.h>
 /* For my_chsize */
@@ -40,22 +52,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
   #include <netinet/in.h>
   #define SOCKBUF_T void
 #endif
-/**
-  @file mysql/psi/mysql_socket.h
-[...]
-*/
 
 #include "mysql/psi/psi.h"
 
 #ifndef PSI_SOCKET_CALL
 #define PSI_SOCKET_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Socket_instrumentation Socket Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def mysql_socket_register(P1, P2, P3)

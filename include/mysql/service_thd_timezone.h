@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_THD_TIMEZONE_INCLUDED
 /* Copyright (C) 2013 MariaDB Foundation.
 
    This program is free software; you can redistribute it and/or modify
@@ -14,20 +13,32 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_THD_TIMEZONE_INCLUDED
+#define MYSQL_SERVICE_THD_TIMEZONE_INCLUDED
+
 /**
   @file
+  THD timezone handling for plugin(s)
+*/
+
+/**
+  @defgroup plugin_api_service_thd_timezone THD Timezone service
+  @ingroup plugin_api_services
+  THD timezone handling for plugin(s)
+
   This service provides functions to convert between my_time_t and
-  MYSQL_TIME taking into account the current value of the time_zone
+  MYSQL_TIME taking into account the current value of the `time_zone`
   session variable.
 
   The values of the my_time_t type are in Unix timestamp format,
-  i.e. the number of seconds since "1970-01-01 00:00:00 UTC".
+  i.e. the number of seconds since `1970-01-01 00:00:00 UTC`.
 
   The values of the MYSQL_TIME type are in the current time zone,
-  according to thd->variables.time_zone.
+  according to `thd->variables.time_zone`.
 
-  If the MYSQL_THD parameter is NULL, then global_system_variables.time_zone
+  If the @ref MYSQL_THD parameter is NULL, then `global_system_variables.time_zone`
   is used for conversion.
+  @{
 */
 
 #ifndef MYSQL_ABI_CHECK
@@ -74,5 +85,6 @@ void thd_TIME_to_str(MYSQL_THD thd, const MYSQL_TIME *ltime, const char *format,
 }
 #endif
 
-#define MYSQL_SERVICE_THD_TIMEZONE_INCLUDED
+/** @} */
+
 #endif

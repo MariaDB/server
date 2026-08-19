@@ -27,22 +27,29 @@
 
 #include <mysql/plugin.h>
 
-/*
-  API for data type plugins. (MariaDB_DATA_TYPE_PLUGIN)
+/**
+   @defgroup data_type_plugin Data Type Plugin
+   @ingroup plugin_types
+   API for data type plugins. (@ref MariaDB_DATA_TYPE_PLUGIN)
+   @{
+*/
+
+/**
+  Data type plugin descriptor
 */
 #define MariaDB_DATA_TYPE_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
 
+/**
+  Data type plugin descriptor
+*/
 struct st_mariadb_data_type
 {
   int interface_version;
   class Type_handler *type_handler;
 };
 
-
-/**
-  Data type plugin descriptor
-*/
+/** @} */
 
 #endif /* __cplusplus */
 
