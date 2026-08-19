@@ -164,3 +164,18 @@ BINLOG '123';
 BINLOG '-2079193929';
 --error ER_BASE64_DECODE_ERROR
 BINLOG 'xç↓%~∙D╒ƒ╡';
+
+
+--echo #
+--echo # MDEV-27952 Improve error log messages with descriptive text already present in the code
+--echo #
+
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 0 of table");
+CREATE TABLE t1(a CHAR);
+BINLOG ' O1ZVRw8BAAAAZgAAAGoAAAAAAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAA7VlVHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC ';  # Table_map
+--error ER_SLAVE_CONVERSION_FAILED
+BINLOG 'wlZOTxMBAAAAKgAAADwCAAAAACkAAAAAAAEABHRlc3QAAnQxAAIDAwAC wlZOTxcBAAAAJgAAAGICAAAAACkAAAAAAAEAAv/8AgAAAAgAAAA=';  # Format description
+
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
