@@ -4107,9 +4107,12 @@ int handler::ha_index_init(uint idx, bool sorted)
       Do not allow reads from UNIQUE HASH indexes.
       (1) MyRocks sometimes uses hidden indexes that SQL layer isn't aware of,
           skip the check for such cases
+      (2) HEAP hash indexes natively support blob key lookups, so
+          HA_UNIQUE_HASH keys are readable for HEAP
     */
     DBUG_ASSERT(active_index >= table->s->keys ||  // (1)
-                !(table->key_info[active_index].flags & HA_UNIQUE_HASH));
+                !(table->key_info[active_index].flags & HA_UNIQUE_HASH) ||
+                table->s->db_type() == heap_hton);  // (2)
   }
 
   DBUG_RETURN(result);

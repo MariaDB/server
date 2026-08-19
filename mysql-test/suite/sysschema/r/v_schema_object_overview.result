@@ -1,6 +1,6 @@
 DESC sys.schema_object_overview;
 Field	Type	Null	Key	Default	Extra
-db	varchar(64)	NO	UNI		
-object_type	varchar(64)	YES	UNI	NULL	
+db	longtext	NO	UNI	NULL	
+object_type	longtext	YES	UNI	NULL	
 count	bigint(21)	NO	UNI	0	
 SELECT * FROM sys.schema_object_overview;

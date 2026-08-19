@@ -9643,25 +9643,23 @@ void Field_blob_key::set_key_image(const uchar *data, uint length)
 
 int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
-/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
-#ifdef NOT_YET_USED
+  uchar *blob1;
   uint32 blob_length= get_length(ptr);
   memcpy(&blob1, ptr + packlength, sizeof(char*));
-  return Field_blob_key::cmp(blob1, (uint32) blob_length,
-                             key_ptr + 4, uint4korr(key_ptr));
-#else
-  abort();
-#endif /* NOT_YET_USED */
+  /* Key format: [4B length][8B pointer_to_data] */
+  const uchar *key_data;
+  memcpy(&key_data, key_ptr + 4, sizeof(char*));
+  return Field_blob_key::cmp(blob1, blob_length,
+                             key_data, uint4korr(key_ptr));
 }
 
 int Field_blob_key::key_cmp(const uchar *a, const uchar *b) const
 {
-/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
-#ifdef NOT_YET_USED
-  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
-#else
-  abort();
-#endif /* NOT_YET_USED */
+  /* Both keys: [4B length][8B pointer_to_data] */
+  const uchar *a_data, *b_data;
+  memcpy(&a_data, a + 4, sizeof(char*));
+  memcpy(&b_data, b + 4, sizeof(char*));
+  return Field_blob_key::cmp(a_data, uint4korr(a), b_data, uint4korr(b));
 }
 
 

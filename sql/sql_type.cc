@@ -1414,7 +1414,9 @@ Type_handler::varstring_type_handler(const Item *item,
 {
   if (!item->max_length)
     return &type_handler_string;
-  if (item->too_big_for_varchar())
+  if ((param && param->is_heap_engine() &&
+       item->max_length > HEAP_CONVERT_IF_BIGGER_TO_BLOB) ||
+      item->too_big_for_varchar())
     return blob_type_handler(item->max_length, param);
   return &type_handler_varchar;
 }
@@ -1424,7 +1426,7 @@ const Type_handler *
 Type_handler::blob_type_handler(uint max_octet_length,
                                 const Tmp_field_param *param)
 {
-  if (param && param->part_of_unique_key())
+  if (param && (param->part_of_unique_key() || param->is_heap_engine()))
     return &type_handler_blob_key;
   if (max_octet_length <= 255)
     return &type_handler_tiny_blob;
@@ -7566,7 +7568,7 @@ const Type_handler *Type_handler_blob_common::
 type_handler_for_tmp_table(const Item *item, const Tmp_field_param *param)
   const
 {
-  return (param->part_of_unique_key() ?
+  return ((param->part_of_unique_key() || param->is_heap_engine()) ?
           blob_key_type_handler() :
           blob_type_handler(item, 0));
 }
