@@ -277,14 +277,14 @@ private:
 #endif
       if (!f)
       {
-        const uint64_t sparse= (hl == first_lsn && checkpoint > hl)
-          ? log_sys.START_OFFSET + (checkpoint - hl)
-          : 0;
+        /* FIXME: we may have checkpoint < hl */
+        const uint64_t begin= log_sys.START_OFFSET +
+          (hl == first_lsn) * (checkpoint - hl);
 #ifdef copy_file_shortcut
-        if (1 == (f= copy_file_shortcut(s, d, sparse, end)))
+        if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
-        f= copy_file(s, d, sparse, end);
-        if (!f && sparse)
+        f= copy_file(s, d, begin, end);
+        if (!f && hl == first_lsn)
         {
           uint64_t cp_buf[8]{};
           write_checkpoint_buf(cp_buf,
