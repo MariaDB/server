@@ -27,7 +27,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (0.5)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	User var	#	#	
+master-bin.000001	#	User var	#	#	NULL
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (@a)
 master-bin.000001	#	Query	#	#	COMMIT
 set @@session.debug_dbug= "";

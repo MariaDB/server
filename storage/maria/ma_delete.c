@@ -1333,6 +1333,9 @@ err:
   @retval #  How many chars was removed
 */
 
+#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930 && _MSC_VER < 1951
+#pragma optimize("g", off)
+#endif
 static uint remove_key(MARIA_KEYDEF *keyinfo, uint page_flag, uint nod_flag,
 		       uchar *keypos, uchar *lastkey,
 		       uchar *page_end, my_off_t *next_block,
@@ -1473,6 +1476,9 @@ static uint remove_key(MARIA_KEYDEF *keyinfo, uint page_flag, uint nod_flag,
   DBUG_RETURN((uint) s_length);
 } /* remove_key */
 
+#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930 && _MSC_VER < 1951
+#pragma optimize("", on)
+#endif
 
 /****************************************************************************
   Logging of redos

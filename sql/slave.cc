@@ -3393,10 +3393,13 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store(mi->connection_name.str, mi->connection_name.length,
                       &my_charset_bin);
 
-    mysql_mutex_lock(&mi->run_lock);
+    mysql_mutex_lock(&mi->rli.run_lock);
     THD *sql_thd= mi->rli.sql_driver_thd;
+    DEBUG_SYNC(thd, "hold_sss_with_run_lock");
     const char *slave_sql_running_state=
       sql_thd ? sql_thd->get_proc_info() : "";
+    mysql_mutex_unlock(&mi->rli.run_lock);
+    mysql_mutex_lock(&mi->run_lock);
     THD *io_thd= mi->io_thd;
     const char *slave_io_running_state= io_thd ? io_thd->get_proc_info() : "";
     mysql_mutex_unlock(&mi->run_lock);
