@@ -1543,11 +1543,9 @@ SET NAMES latin1;
 #
 connect u,localhost,root;
 set group_concat_max_len=2*1024*1024*1024;
-Warnings:
-Warning	1292	Truncated incorrect group_concat_max_len value: '2147483648'
 select @@group_concat_max_len;
 @@group_concat_max_len
-1073741824
+2147483648
 select length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1))) from dual;
 length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1)))
 16777216

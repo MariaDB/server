@@ -391,8 +391,10 @@ The following specify which files/extra groups are read (specified before remain
  prefixes
  (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
- The maximum length of the result of function
- GROUP_CONCAT()
+ The maximum memory used for calculating the result for
+ GROUP_CONCAT(). The max length in bytes for a single
+ GROUP_CONCAT() result is limited by
+ min(group_concat_max_len, max_allowed_packet)
  --gtid-cleanup-batch-size=# 
  Normally does not need tuning. How many old rows must
  accumulate in the mysql.gtid_slave_pos table before a

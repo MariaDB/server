@@ -1,0 +1,137 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # GROUP_CONCAT() must report the cut value warning exactly once
+--echo # per group and per aggregate, no matter how many things were cut
+--echo # and how many times val_str() is called for the group.
+--echo #
+--echo # Note that row_count is only reset in cleanup(), not in clear(),
+--echo # so the row number in the message counts all rows the aggregate
+--echo # has dumped, over all groups.
+--echo #
+
+CREATE TABLE t1 (grp INT, a VARCHAR(50), t TEXT);
+INSERT INTO t1
+SELECT seq MOD 3, REPEAT(CHAR(64 + seq MOD 3), 40), REPEAT('x', 200)
+FROM seq_1_to_30;
+
+--echo #
+--echo # 1) Only the result is cut, by group_concat_max_len.
+--echo #    3 groups must give exactly 3 warnings.
+--echo #
+SET SESSION group_concat_max_len= 100;
+--disable_result_log
+SELECT grp, GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY grp;
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # 2) The individual TEXT values are cut in
+--echo #    Field_blob::handle_group_concat() *and* the result is cut in
+--echo #    dump_leaf_key(). Both used to be able to report, which is what
+--echo #    the removed blob_storage->set_truncated_value(false) hack was
+--echo #    guarding against. Must be 3 warnings, not 6.
+--echo #
+--disable_result_log
+SELECT grp, GROUP_CONCAT(t ORDER BY t) FROM t1 GROUP BY grp;
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # 3) Writing GROUP_CONCAT() out again in HAVING creates a *second*
+--echo #    aggregate, with its own tmp table, blob_storage and row_count.
+--echo #    Both are cut, so 6 warnings is the correct result here. The
+--echo #    row numbers come in pairs because the two aggregates count
+--echo #    their dumped rows independently but in lockstep.
+--echo #
+--disable_result_log
+SELECT grp, GROUP_CONCAT(t ORDER BY t) FROM t1
+GROUP BY grp HAVING GROUP_CONCAT(t ORDER BY t) <> '';
+--enable_result_log
+SHOW WARNINGS;
+
+--echo #
+--echo # 4) Referring to the select list alias in HAVING resolves to the
+--echo #    same item, so val_str() is called twice for the same group.
+--echo #    Before, the second call reported the blob truncation again,
+--echo #    as blob_storage was still marked as truncated. Must be 3.
+--echo #
+--disable_result_log
+SELECT grp, GROUP_CONCAT(t ORDER BY t) AS g FROM t1
+GROUP BY grp HAVING g <> '';
+--enable_result_log
+SHOW WARNINGS;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_1000;
+
+--echo #
+--echo # 5) The tree has to be repacked because of the memory limit.
+--echo #    tmp_table_size=0 puts ram_limitation() at its 8160 floor and
+--echo #    group_concat_max_len is kept below that, so max_tree_size is
+--echo #    8160: the repack starts at 5440 bytes and copies to 2720.
+--echo #    The rows that fit in 2720 bytes produce only a few hundred
+--echo #    bytes of result, well below group_concat_max_len, so
+--echo #    dump_leaf_key() never notices that anything was lost and only
+--echo #    result_cut reports it. One group, so exactly one warning.
+--echo #
+--echo #    The exact result depends on sizeof(TREE_ELEMENT) and the
+--echo #    reclength, so only check that the result came out short.
+--echo #
+SET SESSION group_concat_max_len= 1024;
+SET SESSION tmp_table_size= 0;
+SELECT LENGTH(GROUP_CONCAT(a ORDER BY a)) < 1024 AS cut_by_memory FROM t2;
+SHOW COUNT(*) WARNINGS;
+
+--echo #
+--echo # 6) Control: same query with memory available and a result that
+--echo #    fits in group_concat_max_len. Nothing is repacked and nothing
+--echo #    is cut, so there must be no warning at all. This catches a
+--echo #    result_cut that is set for every repack instead of only for
+--echo #    the ones that lost rows.
+--echo #
+SET SESSION tmp_table_size= DEFAULT;
+SET SESSION group_concat_max_len= 1048576;
+--disable_result_log
+SELECT GROUP_CONCAT(a ORDER BY a) FROM t2;
+--enable_result_log
+SHOW COUNT(*) WARNINGS;
+
+SET SESSION group_concat_max_len= DEFAULT;
+SET SESSION tmp_table_size= DEFAULT;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Check warnings from group_concat
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(20));
+INSERT INTO t1 SELECT LPAD(seq, 6, '0') FROM seq_1_to_200;
+
+--echo #
+--echo # The whole group, with room to build it
+--echo #
+SET @@group_concat_max_len= 1000000;
+SELECT GROUP_CONCAT(a ORDER BY a) INTO @gc_full FROM t1;
+SELECT JSON_ARRAYAGG(a ORDER BY a) INTO @ja_full FROM t1;
+SELECT LENGTH(@gc_full) AS gc_len, JSON_LENGTH(@ja_full) AS ja_elements;
+
+--echo #
+--echo # The same group with the sort tree squeezed. Both aggregates come
+--echo # back short, so both have to raise a warning.
+--echo #
+SET @@group_concat_max_len= 400, @@tmp_memory_table_size= 0;
+
+--disable_warnings
+SELECT LENGTH(GROUP_CONCAT(a ORDER BY a)) < LENGTH(@gc_full) AS gc_was_cut FROM t1;
+--enable_warnings
+SELECT @@warning_count > 0 AS gc_warned;
+
+--disable_warnings
+SELECT JSON_LENGTH(JSON_ARRAYAGG(a ORDER BY a)) < JSON_LENGTH(@ja_full)
+       AS ja_was_cut FROM t1;
+--enable_warnings
+SELECT @@warning_count > 0 AS ja_warned;
+
+SET @@group_concat_max_len= DEFAULT, @@tmp_memory_table_size= DEFAULT;
+DROP TABLE t1;
