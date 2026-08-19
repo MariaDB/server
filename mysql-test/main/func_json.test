@@ -2104,6 +2104,61 @@ SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
 SELECT JSON_EQUALS('[]', JSON_ARRAY_INSERT(NULL,'$[0]',1)) AS x;
 SELECT JSON_OVERLAPS(JSON_ARRAY_INSERT(NULL,'$[0]',1), '[]') AS x;
 
+--echo #
+--echo # MDEV-32331 JSON path functions with no charset on path crash server
+--echo #
+
+SELECT 1 FROM
+  (SELECT CASE WHEN x * x THEN x END as a
+    FROM ( SELECT json_array_append ( 'x' , ( 'x' % 'x' ) , 1 , 'x' , 1 ) as x ) dt2
+  ) dt
+  WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_array_append ( 'x' , ( 'x' % 'x' ) , 1 , 'x' , 1 ) as x ) dt2 ) dt WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_array_insert ( '[1]' , ( 'x' % 'x' ) , 1 , '$[0]' , 9 ) as x ) dt2 ) dt WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_insert ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_remove ( '[1,2]' , ( 'x' % 'x' ) , '$[0]' ) as x ) dt2 ) dt WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_replace ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+SELECT 1 FROM (SELECT CASE WHEN x * x THEN x END as a FROM ( SELECT json_set ( '1' , ( 'x' % 'x' ) , 1 , '$.a' , 2 ) as x ) dt2 ) dt WHERE a;
+
+SELECT x FROM (SELECT 1 AS x UNION SELECT 2) AS t WHERE x IN (  SELECT JSON_REPLACE('1', UPPER(CAST(NULL AS CHAR)), 100));
+SELECT ( WITH RECURSIVE x ( x ) AS (WITH RECURSIVE x ( x ) AS ( SELECT 1 UNION SELECT x + 1 FROM x ) SELECT json_array_append ( '[[], [], []]' , NOT ( NULL LIKE 'ABC%' ) , 315 ))  SELECT x FROM x WHERE  x > 10 AND  x < 1) AS x;
+SELECT 1 FROM (SELECT JSON_REMOVE(46, DATE(NULL)) AS x EXCEPT SELECT 1) AS d WHERE NOT(NOT(x > 10)) AND (x < 1 OR x > 1);
+
+--echo #
+--echo # MDEV-40572 SIGSEGV in JSON_OVERLAPS() on a truncated nested JSON object with different character sets/collations
+--echo #
+
+SET @col=@@collation_connection;
+SET @char=@@character_set_connection;
+
+SET collation_connection=ucs2_general_ci;
+SELECT JSON_OVERLAPS ('{"B":{}}', '{"B":{') AS exp_ucs2;
+SET character_set_connection=utf16;
+SELECT JSON_OVERLAPS ('{"B":{}}', '{"B":{') AS exp_utf16;
+
+SET @@collation_connection=@col;
+SET @@character_set_connection=@char;
+
+--echo #
+--echo # MDEV-40165 JSON_EQUAL/JSON_NORMALIZE/JSON_CONTAINS error handling
+--echo #
+
+CREATE TABLE t(c1 JSON, c2 JSON);
+INSERT INTO t VALUES ('{"a":1,"b":2}', '{"b":2E0, "a":1E0}'),
+                     (NULL, '["a", "b"]'),
+                     ('{"r": 1}', NULL),
+                     ('[{"a": 3}, {"d": [1, 2, 3]}]', '[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]');
+
+SELECT c1, JSON_EQUALS(c1, '{"r": 1E0}') AS je_c1_const FROM t;
+SELECT c1, c2, JSON_EQUALS(c1, c2) AS je_c1_c2 FROM t;
+
+SELECT c1, JSON_CONTAINS(c1, '{"r": 1E0}') AS jc_c1_const FROM t;
+SELECT c1, c2, JSON_CONTAINS(c1, c2) AS jc_c1_c2 FROM t;
+
+SELECT c1, JSON_OVERLAPS(c1, '{"r": 1E0}') AS jo_c1_const FROM t;
+SELECT c1, c2, JSON_OVERLAPS(c1, c2) AS jo_c1_c2 FROM t;
+DROP TABLE t;
+
 --echo # End of 10.11 Test
 
 --echo #

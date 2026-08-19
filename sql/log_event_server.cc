@@ -2417,9 +2417,14 @@ bool Format_description_log_event::write(Log_event_writer *writer)
     We don't call Start_log_event_v::write() because this would make 2
     my_b_safe_write().
   */
-  uchar buff[START_V3_HEADER_LEN+1];
-  size_t rec_size= sizeof(buff) + BINLOG_CHECKSUM_ALG_DESC_LEN +
-                   number_of_event_types;
+  uchar buff[ST_POST_HEADER_LEN_OFFSET];
+  const size_t buff_size= DBUG_IF("truncate_fde_common_header_len") ?
+    ST_COMMON_HEADER_LEN_OFFSET : sizeof(buff);
+  size_t rec_size= buff_size;
+  if (!DBUG_IF("truncate_fde_post_header_len"))
+    rec_size += number_of_event_types;
+  if (!DBUG_IF("truncate_fde_used_checksum_alg"))
+    rec_size += BINLOG_CHECKSUM_ALG_DESC_LEN;
   int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
   memcpy((char*) buff + ST_SERVER_VER_OFFSET,server_version,ST_SERVER_VER_LEN);
   if (!dont_set_created)
@@ -2454,9 +2459,11 @@ bool Format_description_log_event::write(Log_event_writer *writer)
   uint orig_checksum_len= writer->checksum_len;
   writer->checksum_len= BINLOG_CHECKSUM_LEN;
   ret= write_header(writer, rec_size) ||
-       write_data(writer, buff, sizeof(buff)) ||
-       write_data(writer, post_header_len, number_of_event_types) ||
-       write_data(writer, &checksum_byte, sizeof(checksum_byte)) ||
+       write_data(writer, buff, buff_size) ||
+       (!DBUG_IF("truncate_fde_post_header_len") &&
+         write_data(writer, post_header_len, number_of_event_types)) ||
+       (!DBUG_IF("truncate_fde_used_checksum_alg") &&
+         write_data(writer, &checksum_byte, sizeof(checksum_byte))) ||
        write_footer(writer);
   writer->checksum_len= orig_checksum_len;
   return ret;
@@ -3938,6 +3945,15 @@ void User_var_log_event::pack_info(Protocol* protocol)
       char buf2[DECIMAL_MAX_STR_LENGTH+1];
       String str(buf2, sizeof(buf2), &my_charset_bin);
       buf.length(0);
+      decimal_digits_t precision= (uchar)val[0];
+      decimal_digits_t scale= (uchar)val[1];
+      /* Values were intentionally corrupted in User_var_log_event::write */
+      DBUG_EXECUTE_IF("corrupt_user_var_decimal_precision",
+                      precision = 2; scale= 1;);
+
+      if (precision == 0 || scale > precision ||
+          val_len < decimal_bin_size(precision, scale) + 2)
+        return;
       my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
       if (user_var_append_name_part(protocol->thd, &buf, name, name_len,
                                     m_data_type_name) ||
@@ -4033,6 +4049,9 @@ bool User_var_log_event::write(Log_event_writer *writer)
       buf2[1]= (char)dec->frac;
       decimal2bin((decimal_t*)val, buf2+2, buf2[0], buf2[1]);
       val_len= decimal_bin_size(buf2[0], buf2[1]) + 2;
+      /* Leave val_len honest and lie about the metadata. */
+      DBUG_EXECUTE_IF("corrupt_user_var_decimal_precision",
+                      buf2[0]= 65; buf2[1]= 0;);
       break;
     }
     case STRING_RESULT:
@@ -4120,7 +4139,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       float8get(real_val, val);
       it= new (thd->mem_root) Item_float(thd, real_val, 0);
@@ -4133,7 +4152,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       int_val= (longlong) uint8korr(val);
       it= new (thd->mem_root) Item_int(thd, int_val);
@@ -4142,12 +4161,15 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       break;
     case DECIMAL_RESULT:
     {
-      if (val_len < 3)
+      decimal_digits_t precision= (uchar)val[0];
+      decimal_digits_t scale= (uchar)val[1];
+      if (precision == 0 || scale > precision ||
+          val_len < decimal_bin_size(precision, scale) + 2)
       {
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
-        return 1;
+        DBUG_RETURN(1);
       }
       Item_decimal *dec= new (thd->mem_root) Item_decimal(thd, (uchar*) val+2, val[0], val[1]);
       it= dec;
@@ -8120,20 +8142,34 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
                     const Format_description_log_event* description_event)
-  :Log_event(buf, description_event)
+  :Log_event(buf, description_event), ident_len(0), log_ident(NULL)
 {
-  uint8 header_size= description_event->common_header_len;
+  uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;
+  uint all_headers_len= description_event->common_header_len + sub_header_len;
+
+  /*
+    The comparison is <= rather than <, so an event whose length stops exactly
+    at the headers is rejected along with a shorter one.
+
+      * A shorter event must be rejected out of necessity. ident_len is
+        unsigned, so the subtraction below would wrap and the caller would
+        read the log file name from far past the event.
+      * An event of exactly the header length must be rejected as policy. It
+        carries no log file name, and a heartbeat that names no binary log
+        file tells the replica nothing it can compare its own coordinates
+        against.
+
+    Leaving log_ident at NULL is what reports both to the caller, through
+    is_valid().
+  */
+  if (event_len <= all_headers_len)
+    return;
+
   if (log_pos == 0)
-  {
-    log_pos= uint8korr(buf + header_size);
-    log_ident= buf + header_size + HB_SUB_HEADER_LEN;
-    ident_len= event_len - (header_size + HB_SUB_HEADER_LEN);
-  }
-  else
-  {
-    log_ident= buf + header_size;
-    ident_len = event_len - header_size;
-  }
+    log_pos= uint8korr(buf + description_event->common_header_len);
+
+  log_ident= buf + all_headers_len;
+  ident_len= event_len - all_headers_len;
 }
 #endif
 

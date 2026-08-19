@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
    Copyright (c) 2010, 2011, Monty Program Ab
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -56,7 +57,7 @@ pthread_mutexattr_t my_errorcheck_mutexattr;
 static pthread_mutex_t THR_LOCK_mutex;
 static ulong safe_mutex_count= 0;		/* Number of mutexes created */
 static ulong safe_mutex_id= 0;
-my_bool safe_mutex_deadlock_detector= 1;        /* On by default */
+READ_ONLY_SYSVAR my_bool safe_mutex_deadlock_detector= 1;   /* On by default */
 
 #ifdef SAFE_MUTEX_DETECT_DESTROY
 static struct st_safe_mutex_create_info_t *safe_mutex_create_root= NULL;

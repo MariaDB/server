@@ -332,7 +332,6 @@ static int dtype_sql_name(unsigned mtype, unsigned prtype, unsigned len,
     return snprintf(name, name_sz, "%s%s%s", Main, Unsigned, Not_null);
 }
 
-static bool innodb_table_stats_not_found;
 static bool innodb_index_stats_not_found;
 static bool innodb_table_stats_not_found_reported;
 static bool innodb_index_stats_not_found_reported;
@@ -363,7 +362,6 @@ dict_table_schema_check(
 			if (innodb_table_stats_not_found_reported) {
 				return DB_STATS_DO_NOT_EXIST;
 			}
-			innodb_table_stats_not_found = true;
 			innodb_table_stats_not_found_reported = true;
 		} else {
 			ut_ad(req_schema == &index_stats_schema);

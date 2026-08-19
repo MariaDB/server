@@ -61,9 +61,6 @@ ALTER TABLE t1 ADD UNIQUE KEY b3(b);
 connection node_2b;
 SET SESSION wsrep_sync_wait=0;
 connection node_2a;
-select * from t1;
-a	b
-5	2
 commit;
 connection node_2;
 disconnect node_2a;
@@ -77,6 +74,6 @@ connection node_2;
 select * from t1;
 a	b
 5	2
-disconnect node_2a;
 connection node_1;
+disconnect node_2a;
 drop table t1;

@@ -6,12 +6,17 @@ INSERT INTO t1 VALUES ("one"),("two"),("three"),("four"),("five");
 SHOW VARIABLES LIKE 'secure_file_priv';
 Variable_name	Value
 secure_file_priv	
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/../bug50373.txt' FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/../bug50373.txt' INTO TABLE t1;
+SELECT * FROM t1;
 c1
 one
 two
 three
 four
 five
+SELECT load_file('$MYSQLTEST_VARDIR/../bug50373.txt') AS loaded_file;
 loaded_file
 one
 two
@@ -20,3 +25,11 @@ four
 five
 
 DROP TABLE t1;
+#
+# MDEV-40589 default exclude list for secure-file-priv
+#
+CREATE TABLE t1 (c1 VARCHAR(50));
+LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+DROP TABLE t1;
+# End of 10.6 tests

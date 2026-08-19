@@ -87,6 +87,12 @@ public:
   {
     return static_cast<enum_field_types>(m_type[index]);
   }
+
+  /*
+    Number of field-metadata bytes a column of the given binlog type occupies
+    in a Table_map event.
+  */
+  static uint field_metadata_length(uint binlog_type);
   /*
     Return a representation of the type data for one field.
 

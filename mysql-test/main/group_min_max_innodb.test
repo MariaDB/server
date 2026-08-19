@@ -360,3 +360,93 @@ drop table t1;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;
+
+--echo #
+--echo # Begin 10.11 tests
+--echo #
+
+# Default client connection to the database.
+CREATE TABLE t1 (pk INT, a INT, b INT, PRIMARY KEY (pk), KEY (a,b)) ENGINE=InnoDB;
+INSERT INTO t1 (pk,a) VALUES (1,11),(2,12),(3,13),(4,14);
+
+# Start a new, separate client connection to the database called 'con1'.
+--connect (con1,localhost,root,,)
+--send
+DELETE FROM t1 WHERE pk <= 3;
+
+# On the default connection, insert a value into the table.
+--connection default
+INSERT INTO t1 (pk) VALUES (5);
+
+# On 'con1', insert a value within a transaction and hold the transaction while
+# on the default connection try to compute an aggregate.
+--connection con1
+--reap
+
+START TRANSACTION;
+INSERT INTO t1 (pk) VALUES (6);
+
+--connection default
+SET @save_innodb_lock_wait_timeout= @@innodb_lock_wait_timeout;
+SET innodb_lock_wait_timeout= 1;
+# SELECT ... FOR UPDATE locks the rows for write operations and prevents other transactions
+# from modifying or reading the selected rows until the transaction ends.
+# This should lead to the error, not a crash.
+--replace_column 9 #
+EXPLAIN SELECT MIN(b), MAX(b), a FROM t1 GROUP BY a FOR UPDATE;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT MIN(b), MAX(b), a FROM t1 GROUP BY a FOR UPDATE;
+SET innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+
+# Cleanup, commit the 'con1' transaction.
+--connection con1
+COMMIT;
+DROP TABLE t1;
+--disconnect con1
+
+# This scenario passes with or without the patch.  The query requests only a
+# MIN, so the max branch never runs.  The scenario is kept for coverage, to
+# execute the early return, which the patch adds in the min branch for symmetry
+# with the max branch and to honor the convention that no further reads follow
+# a fatal handler error.
+--connection default
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, a INT, b INT, c INT,
+                 KEY (a,b,c)) ENGINE=InnoDB;
+
+# Two groups over key part a.  Each group has rows with b=1 and rows with
+# b=2, with enough rows overall that the optimizer chooses the loose
+# index scan ("Using index for group-by") over a full index scan.
+INSERT INTO t1 (a,b,c) VALUES
+  (1,1,10),(1,1,11),(1,2,20),(1,2,21),
+  (2,1,10),(2,1,11),(2,2,20),(2,2,21);
+INSERT INTO t1 (a,b,c) SELECT a,b,c FROM t1;
+INSERT INTO t1 (a,b,c) SELECT a,b,c FROM t1;
+INSERT INTO t1 (a,b,c) SELECT a,b,c FROM t1;
+
+--connect (con1,localhost,root,,)
+START TRANSACTION;
+# This uncommitted row becomes the first row of the a=1, b=2 prefix because its
+# c is smaller than every committed c in that subgroup.  The MIN read seeks
+# exactly this position, so it waits for con1.
+INSERT INTO t1 (a,b,c) VALUES (1,2,0);
+
+--connection default
+SET @save_innodb_lock_wait_timeout= @@innodb_lock_wait_timeout;
+SET innodb_lock_wait_timeout= 1;
+# The MIN read inside the loose index scan lands on the row locked by con1.
+--replace_column 9 #
+EXPLAIN SELECT MIN(c) FROM t1 WHERE b = 2 GROUP BY a FOR UPDATE;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT MIN(c) FROM t1 WHERE b = 2 GROUP BY a FOR UPDATE;
+SET innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+
+# Cleanup, commit the 'con1' transaction.
+--connection con1
+COMMIT;
+DROP TABLE t1;
+--disconnect con1
+--connection default
+
+--echo #
+--echo # End 10.11 tests
+--echo #

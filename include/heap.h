@@ -30,7 +30,6 @@ extern "C" {
 #include <my_pthread.h>
 #include <thr_lock.h>
 
-#include "my_compare.h"
 #include "my_tree.h"
 
 	/* defines used by heap-functions */
@@ -109,6 +108,7 @@ typedef struct st_heap_block
 } HP_BLOCK;
 
 struct st_heap_info;			/* For reference */
+struct st_HA_KEYSEG;
 
 typedef struct st_hp_keydef		/* Key definition with open */
 {
@@ -116,7 +116,7 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint keysegs;				/* Number of key-segment */
   uint length;				/* Length of key (automatic) */
   uint8 algorithm;			/* HASH / BTREE */
-  HA_KEYSEG *seg;
+  struct st_HA_KEYSEG *seg;
   HP_BLOCK block;			/* Where keys are saved */
   /*
     Number of buckets used in hash table. Used only to provide

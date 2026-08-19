@@ -904,7 +904,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   */
   thd->create_tmp_table_for_derived= TRUE;
   distinct= (unit->first_select()->next_select() ?
-             unit->union_distinct && !unit->union_distinct->next_select() :
+             unit->check_distinct_in_union() :
              unit->distinct);
 
   if (!(derived->table) &&

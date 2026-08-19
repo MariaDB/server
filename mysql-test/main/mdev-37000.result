@@ -1,0 +1,8 @@
+#
+# MDEV-37000 Deleting a row from Aria table results to 'Index is corrupt'
+#
+CREATE OR REPLACE TABLE t (a INT, b CHAR(8) NOT NULL, KEY(b)) ENGINE=Aria DEFAULT CHARSET=utf8;
+INSERT INTO t VALUES (1,'20070101'), (2,'20070101');
+DELETE FROM t LIMIT 2;
+DROP TABLE t;
+# End of 10.6 tests

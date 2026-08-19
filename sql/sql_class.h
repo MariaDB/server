@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1762,7 +1762,7 @@ public:
   void
   restore_security_context(THD *thd, Security_context *backup);
 #endif
-  bool user_matches(Security_context *);
+  bool priv_user_matches(const Security_context *) const;
   /**
     Check global access
     @param want_access The required privileges
@@ -1771,7 +1771,7 @@ public:
     @return True if the security context fulfills the access requirements.
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
-  bool is_priv_user(const char *user, const char *host);
+  bool is_priv_user(const char *user, const char *host) const;
   bool is_user_defined() const
     { return user && user != delayed_user && user != slave_user && user != wsrep_user; };
 };
@@ -5545,6 +5545,7 @@ public:
 
   void mark_transaction_to_rollback(bool all);
   bool internal_transaction() { return transaction != &default_transaction; }
+  MEM_ROOT *user_vars_root() { return &user_vars_memroot; }
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -5566,6 +5567,10 @@ private:
     tree itself is reused between executions and thus is stored elsewhere.
   */
   MEM_ROOT main_mem_root;
+  /**
+    Memory root the user_var_entry objects and their names are allocated on.
+  */
+  MEM_ROOT user_vars_memroot;
   Diagnostics_area main_da;
   Diagnostics_area *m_stmt_da;
 
