@@ -27,7 +27,7 @@ MACRO(MYSQL_INSTALL_TARGETS)
   INSTALL(TARGETS ${ARGV})
 ENDMACRO()
 MACRO(SET_PLUGIN_DEB_VERSION plugin ver)
-  SET(CPACK_DEBIAN_PACKAGE_VERSION ${ver})
+  SET(CPACK_DEBIAN_PACKAGE_VERSION "1:${ver}+maria~${DEBIAN_ABBR}")
 ENDMACRO()
 
 ADD_CUSTOM_TARGET(GenError)
@@ -80,23 +80,25 @@ MACRO(EXTERNAL_PLUGIN_PRE)
 
   SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_AUTHOR}")
   SET(CPACK_COMPONENTS_ALL TRUE) # for version-fiddling IF in plugin.cmake
-ENDMACRO()
+  IF (DEB)
+    # match autobake-deb.sh naming
+    EXECUTE_PROCESS(COMMAND sh -c "echo $(lsb_release -si) $(lsb_release -sr)|sed 's/^\\(...\\)[^ ]* /\\L\\1/;s/\\.//g'"
+	    RESULT_VARIABLE res OUTPUT_VARIABLE DEBIAN_ABBR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    EXECUTE_PROCESS(COMMAND sh -c "dpkg --print-architecture"
+	    RESULT_VARIABLE res OUTPUT_VARIABLE DEBIAN_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+    IF (NOT ("${DEBIAN_ABBR}_${DEBIAN_ARCH}" MATCHES "^(deb|ubu)[0-9]+_[a-z0-9_]+$"))
+      message(FATAL_ERROR "Cannot get debian version (${DEBIAN_ABBR}) or architecture (${DEBIAN_ARCH})")
+    endif()
+    SET(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_NAME}-1:${CPACK_DEBIAN_PACKAGE_VERSION}+maria~${DEBIAN_ABBR}_${DEBIAN_ARCH}.deb")
+  ENDIF()
+ENDMACRO(EXTERNAL_PLUGIN_PRE)
 
 # Run at the end of MARIADB_ADD_PLUGIN
 MACRO(EXTERNAL_PLUGIN_POST)
   SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION})
   SET(CPACK_RPM_PACKAGE_REQUIRES  ${CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES})
-  IF (DEB)
-    # match autobake-deb.sh naming
-    EXECUTE_PROCESS(COMMAND sh -c "echo $(lsb_release -si) $(lsb_release -sr)_$(dpkg --print-architecture)|sed 's/^\\(...\\)[^ ]* /\\L\\1/;s/\\.//g'"
-            RESULT_VARIABLE res OUTPUT_VARIABLE O OUTPUT_STRIP_TRAILING_WHITESPACE)
-    IF (res OR NOT (O MATCHES "^(deb|ubu)[0-9]+_[a-z0-9_]+$"))
-      message(FATAL_ERROR "Cannot get debian version or architecture")
-    endif()
-    SET(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_NAME}-1:${CPACK_DEBIAN_PACKAGE_VERSION}+maria~${O}.deb")
-  ENDIF()
   INCLUDE(CPack)
-ENDMACRO()
+ENDMACRO(EXTERNAL_PLUGIN_POST)
 
 @install_layout.cmake@
 

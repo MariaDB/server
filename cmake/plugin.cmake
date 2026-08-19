@@ -315,7 +315,7 @@ MACRO(MARIADB_ADD_PLUGIN)
             STRING(REPLACE "-" "_" ver ${SERVER_VERSION})
             SET(ver " = ${ver}-%{release}")
           ELSE() # DEB
-            SET(ver " (= ${SERVER_VERSION})")
+	    SET(ver " (= 1:${SERVER_VERSION}+maria~${DEBIAN_ABBR})")
           ENDIF()
         ELSE()
           SET(ver "")
