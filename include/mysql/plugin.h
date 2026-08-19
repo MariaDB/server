@@ -23,6 +23,12 @@
 #ifndef MYSQL_PLUGIN_INCLUDED
 #define MYSQL_PLUGIN_INCLUDED
 
+/** 
+  @defgroup plugin_api Plugin API
+  The Plugin API is a set of interfaces for handling plugins.
+  @{
+*/
+
 /*
   On Windows, exports from DLL need to be declared
   Also, plugin needs to be declared as extern "C" because MSVC 
@@ -86,8 +92,10 @@ typedef struct st_mysql_xid MYSQL_XID;
 /** MariaDB plugin interface version */
 #define MARIA_PLUGIN_INTERFACE_VERSION 0x0110
 
-/*
+/**
   The allowable types of plugins
+  @defgroup plugin_types Plugin Types
+  @{
 */
 #define MYSQL_UDF_PLUGIN             0  /**< not implemented            */
 #define MYSQL_STORAGE_ENGINE_PLUGIN  1
@@ -108,6 +116,8 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MariaDB_DATA_TYPE_PLUGIN  10
 /**< Plugins for new native SQL functions */
 #define MariaDB_FUNCTION_PLUGIN 11
+
+/** @} */
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
@@ -814,5 +824,6 @@ void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
 }
 #endif
 
+/** @} */
 #endif
 
