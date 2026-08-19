@@ -1029,7 +1029,18 @@ Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
   case FORMAT_DESCRIPTION_EVENT:
     // If event is FD the descriptor is in it.
     if (unlikely(get_checksum_alg(buf, event_len, &alg)))
-      goto exit;
+    {
+#ifdef MYSQL_CLIENT
+      if (force_opt)
+      {
+        event_len-= BINLOG_CHECKSUM_LEN;
+        ev= new Unknown_log_event(buf, fdle);
+        goto exit;
+      }
+#endif
+      *error= "Found invalid event in binary log";
+      DBUG_RETURN(nullptr);
+    }
     break;
   case START_EVENT_V3:
   // all following START events in the current file are without checksum
@@ -1127,15 +1138,15 @@ Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
     ev= Log_event::read_log_event_no_checksum(buf, event_len, error, fdle);
   }
 
+#ifdef MYSQL_CLIENT
 exit:
   if (ev)
   {
-#ifdef MYSQL_CLIENT
     ev->read_checksum_alg= alg;
     if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
       ev->read_checksum_value= uint4korr(buf + (event_len));
-#endif
   }
+#endif
 
   DBUG_RETURN(ev);
 }
@@ -2547,7 +2558,7 @@ bool get_checksum_alg(const uchar *buf, size_t len,
       len >= POST_HEADER_LEN_OFFSET >
       BINLOG_CHECKSUM_LEN + BINLOG_CHECKSUM_ALG_DESC_LEN
     */
-    ulong checksum_alg_offset=
+    size_t checksum_alg_offset=
       len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN;
     if (unlikely(checksum_alg_offset < POST_HEADER_LEN_OFFSET))
       DBUG_RETURN(true);
