@@ -946,8 +946,7 @@ dberr_t
 page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
-	buf_block_t*	block,		/*!< in: index page of rec */
-	rec_t*		rec,		/*!< in: record on page */
+	const rec_t*	rec,		/*!< in: record to copy from onward */
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr);		/*!< in: mtr */
 /*************************************************************//**

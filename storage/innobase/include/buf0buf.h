@@ -420,6 +420,8 @@ class buf_tmp_buffer_t
 {
   /** whether this slot is reserved */
   std::atomic<bool> reserved;
+  /** whether this slot was reserved since the last test_and_clear_used() */
+  std::atomic<bool> used;
 public:
   /** For encryption, the data needs to be copied to a separate buffer
   before it's encrypted&written. The buffer block itself can be replaced
@@ -432,20 +434,65 @@ public:
   byte *out_buf;
 
   /** Release the slot */
-  void release() noexcept { reserved.store(false, std::memory_order_relaxed); }
+  void release() noexcept
+  {
+    if (crypt_buf)
+      MEM_UNDEFINED(crypt_buf, srv_page_size);
+    reserved.store(false, std::memory_order_release);
+  }
 
-  /** Acquire the slot
+  /** Acquire the slot.
+  The plain read comes first, so that a caller that scans an array of slots
+  does not write to the slots that it finds reserved.
+  A read-modify-write would acquire every such cache line in exclusive state.
   @return whether the slot was acquired */
   bool acquire() noexcept
-  { return !reserved.exchange(true, std::memory_order_relaxed);}
+  {
+    return !reserved.load(std::memory_order_relaxed) &&
+      !reserved.exchange(true, std::memory_order_acquire);
+  }
 
   /** Allocate a buffer for encryption, decryption or decompression. */
   void allocate() noexcept
   {
     if (!crypt_buf)
+    {
       crypt_buf= static_cast<byte*>
-      (aligned_malloc(srv_page_size, srv_page_size));
+        (aligned_malloc(srv_page_size, srv_page_size));
+      ut_a(crypt_buf);
+    }
   }
+
+  /** Free the page frame, which allocate() will allocate again if the slot
+  is reserved again. */
+  void free_frame() noexcept
+  {
+    /* Only scratch buffer slots are freed this way. */
+    ut_ad(!comp_buf);
+    ut_ad(!out_buf);
+
+    aligned_free(crypt_buf);
+    crypt_buf= nullptr;
+  }
+
+  /** Page frame accessor.
+  @return pointer to the allocated page frame */
+  byte* frame() const noexcept { return crypt_buf; }
+
+  /** Note that the slot is being used. */
+  void mark_used() noexcept { used.store(true, std::memory_order_relaxed); }
+
+  /** Clear the used bit.
+  @return whether the slot was reserved since the previous call */
+  bool test_and_clear_used() noexcept
+  { return used.exchange(false, std::memory_order_relaxed); }
+
+#ifdef UNIV_DEBUG
+  /** Test if the slot is reserved.
+  @return whether the slot is reserved */
+  bool is_reserved() const noexcept
+  { return reserved.load(std::memory_order_relaxed); }
+#endif
 };
 
 /** The common buffer control block structure
@@ -1709,6 +1756,15 @@ public:
   buf_tmp_buffer_t *io_buf_reserve(bool wait_for_reads) noexcept
   { return io_buf.reserve(wait_for_reads); }
 
+  /** Reserve a scratch buffer, with its page frame allocated. */
+  buf_tmp_buffer_t *scratch_buf_reserve() noexcept
+  { return scratch_buf.reserve(); }
+
+  /** Free the page frames of the scratch buffer slots that are neither
+  in use nor recently used. */
+  ATTRIBUTE_COLD void scratch_buf_shrink() noexcept
+  { scratch_buf.shrink(false); }
+
   /** Try to allocate a block.
   @return a buffer block
   @retval nullptr if no blocks are available */
@@ -1755,9 +1811,105 @@ private:
 
     void close() noexcept;
 
-    /** Reserve a buffer */
+    /** Reserve a slot without waiting.
+    @return the reserved slot
+    @retval nullptr if all slots are in use */
+    buf_tmp_buffer_t *acquire() noexcept
+    {
+      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+        if (s->acquire())
+          return s;
+      return nullptr;
+    }
+
+    /** Reserve a slot, waiting for pending I/O writes and optionally reads
+    to complete if needed.
+    @param wait_for_reads whether to wait for pending reads too
+    @return the reserved slot; never nullptr */
     buf_tmp_buffer_t *reserve(bool wait_for_reads) noexcept;
   } io_buf;
+
+  /** Temporary memory for page reorganization.
+
+  A thread holds at most one slot at a time, and it holds a page latch while
+  doing so, therefore reserving a slot must not wait for anything, except
+  in grow().
+  Instead of being sized in advance for a number of threads that is not known
+  and that changes while the server is running, the pool grows on demand.
+
+  Growing appends a chunk. A chunk is never moved or freed before close(), so
+  a thread may keep using the slot and the page frame that it reserved while
+  another thread appends the next chunk.
+
+  Shrinking is implemented by releasing the page frames of unreserved slots
+  and is done both periodically respecting the buf_tmp_buffer_t::used bit,
+  and forcefully on memory pressure events. Chunks and their slots are not
+  released as part of shrinking. */
+  struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) scratch_buffer
+  {
+    /** Slots, link to the next chunk and the counter of allocated frames. */
+    struct chunk : io_buf_t
+    {
+      /** The next, larger chunk, or nullptr;
+      published only after the chunk is ready for use.
+      Writes are protected by scratch_buffer::mutex. */
+      std::atomic<chunk*> next;
+      /** The number of slots whose page frame is allocated, so that
+      shrink() can skip a chunk that has nothing to free. */
+      std::atomic<size_t> n_frames;
+
+#ifdef UNIV_DEBUG
+      /** @return whether n_frames matches the slots that hold a page frame */
+      bool n_frames_valid() const noexcept
+      {
+        size_t n= 0;
+        for (const buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+          n+= s->frame() != nullptr;
+        return n == n_frames.load(std::memory_order_relaxed);
+      }
+#endif
+
+    private:
+      /** Not applicable here. */
+      using io_buf_t::reserve;
+    };
+
+    /** The smallest chunk; created by create() and never replaced. */
+    chunk first;
+    /** Serializes grow(), protecting writes to chunk::next. */
+    srw_mutex mutex;
+
+    /** Create the scratch buffer with first chunk containing the specified
+    number of slots.
+    @param n_slots the number of slots of the first chunk */
+    void create(size_t n_slots) noexcept;
+
+    /** Close the scratch buffer, destroying all the chunks. */
+    void close() noexcept;
+
+    /** Reserve a slot and its page frame, appending a chunk if all slots
+    are in use.
+    @return the reserved, allocated and use-marked buffer; never nullptr */
+    buf_tmp_buffer_t *reserve() noexcept;
+
+    /** Free the page frames of the slots that are not in use. The slots and
+    the chunks are kept, because a slot costs 32 bytes while a page frame
+    costs srv_page_size, and because a thread may be walking the chunks.
+    A slot that is in use cannot be acquired here, and its used flag is left
+    set, so that it will be given another chance.
+    A frame that was used survives one call with all=false, because that call
+    only clears the used flag. Only one thread may call this with all=false,
+    or else two calls in a row would halve that grace period.
+    @param all whether to free also the frames that were used recently */
+    ATTRIBUTE_COLD void shrink(bool all) noexcept;
+
+  private:
+    /** Append a chunk that holds twice the slots of c, unless another thread
+    appended one already.
+    @param c the last chunk
+    @return the chunk that follows c */
+    ATTRIBUTE_COLD chunk *grow(chunk *c) noexcept;
+  } scratch_buf;
 };
 
 /** The InnoDB buffer pool */
