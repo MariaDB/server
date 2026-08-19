@@ -2767,13 +2767,18 @@ TMPTABLE_COSTS
 get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                     bool add_copy_cost)
 {
+  /*
+    We should not use ram_limitation hear as we are calculating memory used
+    internally by temporary tables
+  */
+  size_t tmp_buffer_size= MY_MIN(thd->variables.tmp_memory_table_size,
+                                 thd->variables.max_heap_table_size);
   TMPTABLE_COSTS cost;
   /* From heap_prepare_hp_create_info(), assuming one hash key used */
   row_size+= sizeof(char*)*2;
   row_size= MY_ALIGN(MY_MAX(row_size, sizeof(char*)) + 1, sizeof(char*));
 
-  if (row_count > thd->variables.max_heap_table_size / (double) row_size ||
-      blobs_used)
+  if (row_count > tmp_buffer_size / (double) row_size || blobs_used)
   {
     double row_copy_cost= (add_copy_cost ?
                            tmp_table_optimizer_costs.row_copy_cost :

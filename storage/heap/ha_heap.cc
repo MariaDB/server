@@ -936,7 +936,8 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   hp_create_info->auto_key_type= auto_key_type;
   hp_create_info->max_table_size=
     MY_MAX((internal_table ?
-            current_thd->variables.tmp_memory_table_size :
+            MY_MIN(current_thd->variables.tmp_memory_table_size,
+                   current_thd->variables.max_heap_table_size) :
             current_thd->variables.max_heap_table_size),
            sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
