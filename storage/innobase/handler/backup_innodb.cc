@@ -731,25 +731,25 @@ private:
      @param limit        the size of the file before the doublewrite buffer
      @param page_size    node->space->physical_size()
      @param final_limit  the size of the file at init(), or 0 if no dblwr
+     @param blocks       descriptor array of fil_space_t::BACKUP_BATCH_SIZE
      @return error code (non-positive)
      @retval 0 on success
   */
   static int copy_file_shortcut_try(int dst, fil_node_t *node,
                                     uint32_t start, uint32_t limit,
-                                    uint32_t page_size, uint32_t final_limit)
+                                    uint32_t page_size, uint32_t final_limit,
+                                    buf_page_t **blocks)
     noexcept
   {
 # if 0
     return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
-    uint32_t page{0};
-    buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end;
-
-    for (;;)
+    for (uint32_t page{0};;)
+    {
       while (page < limit)
       {
         start+= fil_space_t::BACKUP_BATCH_SIZE;
-        end= backup_batch_start(blocks, node->space, start);
+        buf_page_t **end= backup_batch_start(blocks, node->space, start);
         const uint64_t o{uint64_t{page} * page_size};
         page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
         /* TODO: avoid copying freed page ranges, or pages that were
@@ -759,15 +759,17 @@ private:
         backup_batch_stop(node->space, blocks, end);
         if (err)
           return err;
-        if (page == buf_dblwr.begin() && final_limit)
-        {
-          /* Copy the rest after the doublewrite buffer. */
-          limit= final_limit;
-          page+= buf_dblwr.size();
-        }
-        else
-          return 0;
       }
+
+      if (final_limit != 0 && page == buf_dblwr.begin())
+      {
+        /* Copy the rest after the doublewrite buffer. */
+        limit= final_limit;
+        page+= buf_dblwr.size();
+      }
+      else
+        return 0;
+    }
   }
 #endif
 
@@ -894,25 +896,24 @@ private:
       if (final_limit)
         limit= buf_dblwr.begin();
 
+      buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE];
 #ifdef copy_file_shortcut
       err= copy_file_shortcut_try(f, node, start, limit,
-                                  page_size, final_limit);
+                                  page_size, final_limit, blocks);
       if (err == 1)
 #endif
       {
-        uint32_t page{0};
-        buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end;
 #ifdef copy_file_mmap
         const size_t c{size_t{final_limit ? final_limit : limit} * page_size};
         void *p= mmap(nullptr, c, PROT_READ, MAP_SHARED, node->handle, 0);
         if (p != MAP_FAILED)
         {
-          for (;;)
+          for (uint32_t page{0};;)
           {
             while (page < limit)
             {
               start+= fil_space_t::BACKUP_BATCH_SIZE;
-              end= backup_batch_start(blocks, node->space, start);
+              buf_page_t **end= backup_batch_start(blocks, node->space, start);
               const uint64_t o{uint64_t{page} * page_size};
               page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
               /* TODO: avoid copying freed page ranges, or pages that were
@@ -923,7 +924,7 @@ private:
                 break;
             }
 
-            if (page == buf_dblwr.begin() && final_limit && !err)
+            if (final_limit != 0 && !err && page == buf_dblwr.begin())
             {
               /* Copy the rest after the doublewrite buffer. */
               limit= final_limit;
@@ -936,12 +937,12 @@ private:
         }
         else
 #endif
-          for (;;)
+          for (uint32_t page{0};;)
           {
             while (page < limit)
             {
               start+= fil_space_t::BACKUP_BATCH_SIZE;
-              end= backup_batch_start(blocks, node->space, start);
+              buf_page_t **end= backup_batch_start(blocks, node->space, start);
               const uint64_t o{uint64_t{page} * page_size};
               page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
               /* TODO: avoid copying freed page ranges, or pages that were
@@ -952,7 +953,7 @@ private:
                 break;
             }
 
-            if (page == buf_dblwr.begin() && final_limit && !err)
+            if (final_limit != 0 && !err && page == buf_dblwr.begin())
             {
               /* Copy the rest after the doublewrite buffer. */
               limit= final_limit;
