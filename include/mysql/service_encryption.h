@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_ENCRYPTION_INCLUDED
 /* Copyright (c) 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -14,14 +13,19 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/**
-  @file
-  encryption service
+#ifndef MYSQL_SERVICE_ENCRYPTION_INCLUDED
+#define MYSQL_SERVICE_ENCRYPTION_INCLUDED
 
+/**
+  @defgroup plugin_api_service_encryption Encryption service
+  @ingroup plugin_api_services
+  
   Functions to support data encryption and encryption key management.
+  
   They are normally implemented in an encryption plugin, so this service
   connects encryption *consumers* (e.g. storage engines) to the encryption
   *provider* (encryption plugin).
+  @{
 */
 
 #ifndef MYSQL_ABI_CHECK
@@ -141,6 +145,6 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
 #ifdef __cplusplus
 }
 #endif
-
-#define MYSQL_SERVICE_ENCRYPTION_INCLUDED
 #endif
+
+/** @} */

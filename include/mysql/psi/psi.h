@@ -22,6 +22,11 @@
 
 #ifndef MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
 #define MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
+/**
+  @defgroup Instrumentation_interface Instrumentation Interface
+  @ingroup plugin_api_services_for_plugins
+  @{
+*/
 
 #ifndef MY_GLOBAL_INCLUDED
 /*
@@ -102,9 +107,6 @@ struct sql_digest_storage;
 /**
   @file mysql/psi/psi.h
   Performance schema instrumentation interface.
-
-  @defgroup Instrumentation_interface Instrumentation Interface
-  @{
 */
 
 /**
