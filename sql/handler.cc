@@ -1415,7 +1415,24 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
 
   /* Set implicit xid even if there's explicit XA, it will be ignored anyway. */
   if (thd->transaction->implicit_xid.is_null())
-    thd->transaction->implicit_xid.set(thd->query_id);
+  {
+    /*
+      ToDO: Here, we should set always the MDEV-40729 transaction ID that is
+      shared between the client and the server and which allows the client to
+      later query the binlog if the transaction was committed. This should
+      then be available always in the server (even when client isn't using
+      or needing it).
+
+      In this proof-of-concept patch, we fall back to the old format (where
+      connection_id is taken from the query id, and commit_id is set to the
+      server_id).
+    */
+    if (thd->variables.xact_commit_id > 0)
+      thd->transaction->implicit_xid.set(thd->variables.xact_connect_id,
+                                         thd->variables.xact_commit_id);
+    else
+      thd->transaction->implicit_xid.set(thd->query_id, ::server_id);
+  }
 
 /*
   Register transaction start in performance schema if not done already.

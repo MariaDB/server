@@ -4561,6 +4561,26 @@ Xid_apply_log_event::do_shall_skip(rpl_group_info *rgi)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION)
+int
+Xid_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  /*
+    Set the transaction id / my_xid for the current transaction from
+    the event.
+  */
+  THD *thd= rgi->thd;
+  thd->variables.xact_connect_id= xid.conn_id;
+  thd->variables.xact_commit_id= xid.commit_id;
+  if (likely(!thd->transaction->implicit_xid.is_null()))
+  {
+    thd->transaction->implicit_xid.set(thd->variables.xact_connect_id,
+                                       thd->variables.xact_commit_id);
+  }
+
+  return Xid_apply_log_event::do_apply_event(rgi);
+}
+
+
 void Xid_log_event::pack_info(Protocol *protocol)
 {
   char buf[128], *pos;
@@ -4586,10 +4606,13 @@ int Xid_log_event::do_commit()
 bool Xid_log_event::write()
 {
   DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  uchar buf[8];
+  uchar buf[8 + 1 + 4];
+  static const size_t event_data_len= 8 + 1 + 4;
   int8store(buf, xid.conn_id);
-  return write_header(8) ||
-         write_data(buf, 8) ||
+  buf[8]= FL_MY_XID_V2;
+  int4store(buf+9, xid.commit_id);
+  return write_header(event_data_len) ||
+         write_data(buf, event_data_len) ||
          write_footer();
 }
 

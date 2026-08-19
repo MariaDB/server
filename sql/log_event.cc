@@ -1195,7 +1195,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       ev= new Intvar_log_event(buf, fdle);
       break;
     case XID_EVENT:
-      ev= new Xid_log_event(buf, fdle);
+      ev= new Xid_log_event(buf, event_len, fdle);
       break;
     case XA_PREPARE_LOG_EVENT:
       ev= new XA_prepare_log_event(buf, fdle);
@@ -2947,19 +2947,43 @@ Rand_log_event::Rand_log_event(const uchar *buf,
 **************************************************************************/
 
 Xid_log_event::
-Xid_log_event(const uchar *buf,
+Xid_log_event(const uchar *buf, uint event_len,
               const Format_description_log_event *description_event)
   :Xid_apply_log_event(buf, description_event)
 {
+  xid= {0, 0};  /* Start with invalid (commit_id==0). */
   /* The Post-Header is empty. The Variable Data part begins immediately. */
-  buf+= description_event->common_header_len +
-    description_event->post_header_len[XID_EVENT-1];
+  DBUG_ASSERT(description_event->post_header_len[XID_EVENT-1] == 0);
+  uint header_len= description_event->common_header_len;
+  if (unlikely(event_len < header_len + 8))
+    return;   /* Invalid event, too short. */
+  buf+= header_len;
   xid.conn_id= uint8korr(buf);
+  if (event_len >= header_len + (8 + 1 + 4))
+  {
+    /*
+      New format XID event.
+      There is a flag byte (for future expansion, always FL_MY_XID_V2 for
+      now). And the commit_id is included in the event data.
+    */
+    buf+= 8;
+    if (unlikely(!buf[0] && FL_MY_XID_V2))
+      return;   /* Unrecognised or invalid event type. */
+    buf++;
+    xid.commit_id= uint4korr(buf);
+  }
+  else
+  {
+    /*
+      Backwards compatibility with old event format.
+      The commit_id is the server_id.
+    */
 #ifdef MYSQL_CLIENT
-  xid.commit_id= server_id;
+    xid.commit_id= server_id;
 #else
-  xid.commit_id= ::server_id;
+    xid.commit_id= ::server_id;
 #endif
+  }
 }
 
 /**************************************************************************

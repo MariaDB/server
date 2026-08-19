@@ -4698,8 +4698,7 @@ xact_search_in_file(const char *binlog_name, uint64 xact_connect_id,
           goto err;
         }
       }
-
-      if (ev->get_type_code() == GTID_EVENT)
+      else if (ev->get_type_code() == GTID_EVENT)
       {
         Gtid_log_event *gtid_ev= (Gtid_log_event *)ev;
         if (start_gtid &&
@@ -4707,9 +4706,12 @@ xact_search_in_file(const char *binlog_name, uint64 xact_connect_id,
             start_gtid->server_id == gtid_ev->server_id &&
             start_gtid->seq_no == gtid_ev->seq_no)
           gtid_seen= true;
-        if (gtid_ev->flags_extra & Gtid_log_event::FL_CLIENT_XACT_ID &&
-            xact_connect_id == gtid_ev->xact_connect_id &&
-            xact_commit_id == gtid_ev->xact_commit_id)
+      }
+      else if (ev->get_type_code() == XID_EVENT)
+      {
+        Xid_log_event *xid_event= (Xid_log_event *)ev;
+        if (xact_connect_id == xid_event->xid.conn_id &&
+            xact_commit_id == xid_event->xid.commit_id)
           xact_seen= true;
       }
       delete ev;

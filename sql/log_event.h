@@ -3139,11 +3139,12 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_commit()= 0;
-  int do_apply_event(rpl_group_info *rgi) override;
   int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
                      void **out_hton, bool force_err= false);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi) override;
   virtual const char* get_query()= 0;
+protected:
+  int do_apply_event(rpl_group_info *rgi) override;
 #endif
 };
 
@@ -3160,6 +3161,13 @@ private:
 class Xid_log_event: public Xid_apply_log_event
 {
 public:
+  /*
+    Extended XID_EVENT. The event includes both components of the my_xid:
+    connection_id (corresponding to former ulonglong my_xid data) and
+    commit_id (corresponding to former server_id).
+  */
+  static const uchar FL_MY_XID_V2= 1;
+
   my_xid xid;
 
 #ifdef MYSQL_SERVER
@@ -3180,9 +3188,10 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Xid_log_event(const uchar *buf,
+  Xid_log_event(const uchar *buf, uint event_len,
                 const Format_description_log_event *description_event);
   ~Xid_log_event() = default;
+  bool is_valid() const override { return xid.commit_id != 0; }
   Log_event_type get_type_code() override { return XID_EVENT;}
   int get_data_size() override { return sizeof(xid); }
 #ifdef MYSQL_SERVER
@@ -3192,6 +3201,7 @@ public:
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   int do_commit() override;
+  int do_apply_event(rpl_group_info *rgi) override;
 #endif
 };
 
