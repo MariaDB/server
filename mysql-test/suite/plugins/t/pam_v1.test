@@ -1,4 +1,7 @@
 let $PAM_PLUGIN_VERSION= $AUTH_PAM_V1_SO;
+if (!$DIALOG_SO) {
+  skip No dialog client plugin;
+}
 --source pam_init.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
@@ -23,6 +26,11 @@ EOF
 --echo # note that current_user() differs from user()
 --echo #
 --exec $MYSQL_TEST -u test_pam < $MYSQLTEST_VARDIR/tmp/pam_good.txt
+
+--echo #
+--echo # MDEV-40141 PAM authentication fails when started with --default-auth=dialog
+--echo #
+--exec echo 106 | $MYSQL --default-auth=dialog -u test_pam -psecret -e "select user(), current_user()" test
 
 --echo #
 --echo # athentication is unsuccessful

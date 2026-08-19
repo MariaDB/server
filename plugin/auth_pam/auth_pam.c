@@ -158,7 +158,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
         if ((buf_len= read_string(c_to_p[0], (char *) buf, sizeof(buf))) < 0)
           goto error_ret;
 
-        if (!pkt || !*pkt || (buf[0] >> 1) != 2)
+        if (!pkt || pkt_len <= 0 || !*pkt || (buf[0] >> 1) != 2)
         {
           PAM_DEBUG((stderr, "PAM: sending CONV string.\n"));
           if (vio->write_packet(vio, buf, buf_len))
