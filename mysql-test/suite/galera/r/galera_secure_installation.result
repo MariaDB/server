@@ -1,0 +1,28 @@
+#
+# MDEV-10112: mysql_secure_installation should use DDL (GRANT, REVOKE, etc)
+#             instead of DML for Galera compatibility
+#
+#
+# Setup remote root account to be removed
+#
+CREATE USER 'root'@'remote_host' IDENTIFIED BY 'pass';
+GRANT ALL ON *.* TO 'root'@'remote_host';
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+user	host
+root	remote_host
+SHOW DATABASES LIKE 'test';
+Database (test)
+test
+# Verify on node_1: remote root is gone
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+user	host
+# Verify on node_1: test database is gone
+SHOW DATABASES LIKE 'test';
+Database (test)
+# Now verify on node_2 (replication check)
+# Verify on node_2: remote root is gone (replicated)
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+user	host
+# Verify on node_2: test database is gone (replicated)
+SHOW DATABASES LIKE 'test';
+Database (test)
