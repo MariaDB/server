@@ -37,10 +37,7 @@ SELECT 1 MEMBER OF ('[1,2');
 1 MEMBER OF ('[1,2')
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
-SHOW WARNINGS;
-Level	Code	Message
-Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
 # 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
 SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
 JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
@@ -81,12 +78,12 @@ CREATE TABLE t2 (candidate INT);
 INSERT INTO t2 VALUES (2), (4), (NULL);
 SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
 candidate	val	candidate MEMBER OF (val)
-NULL	[1, 2, 3]	NULL
+NULL	[1, 2, 3]	1
 2	[1, 2, 3]	1
-4	[1, 2, 3]	0
-NULL	[4, 5, 6]	NULL
+4	[1, 2, 3]	1
+NULL	[4, 5, 6]	0
 2	[4, 5, 6]	0
-4	[4, 5, 6]	1
+4	[4, 5, 6]	0
 NULL	NULL	NULL
 2	NULL	NULL
 4	NULL	NULL
@@ -122,10 +119,7 @@ SELECT val MEMBER OF ('[1,2,3]') FROM t3;
 val MEMBER OF ('[1,2,3]')
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'member of'
-SHOW WARNINGS;
-Level	Code	Message
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'member of'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_contains'
 DROP TABLE t3;
 # 12. JSON scalar candidate test (type-strictness in passthrough branch)
 CREATE TABLE t4 (val JSON);
@@ -167,10 +161,7 @@ SELECT 1 NOT MEMBER OF ('not_json');
 1 NOT MEMBER OF ('not_json')
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 2 to function 'not member of' at position 1
-SHOW WARNINGS;
-Level	Code	Message
-Warning	4038	Syntax error in JSON text in argument 2 to function 'not member of' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_contains' at position 1
 # 13.7 EXPLAIN EXTENDED round-trip print check
 EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

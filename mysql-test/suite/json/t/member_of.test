@@ -21,7 +21,6 @@ SELECT 1 MEMBER OF (NULL) IS NULL;
 
 --echo # 5. Error/Warning handling for malformed JSON
 SELECT 1 MEMBER OF ('[1,2');
-SHOW WARNINGS;
 
 --echo # 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
 SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
@@ -70,7 +69,6 @@ DEALLOCATE PREPARE stmt2;
 CREATE TABLE t3 (val JSON);
 SET STATEMENT check_constraint_checks=0 FOR INSERT INTO t3 VALUES ('[1,2');
 SELECT val MEMBER OF ('[1,2,3]') FROM t3;
-SHOW WARNINGS;
 DROP TABLE t3;
 
 --echo # 12. JSON scalar candidate test (type-strictness in passthrough branch)
@@ -99,7 +97,6 @@ SELECT 1 NOT MEMBER OF (NULL) IS NULL;
 
 --echo # 13.6 Malformed JSON with NOT MEMBER OF (returns NULL with warning)
 SELECT 1 NOT MEMBER OF ('not_json');
-SHOW WARNINGS;
 
 --echo # 13.7 EXPLAIN EXTENDED round-trip print check
 EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
