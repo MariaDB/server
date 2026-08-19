@@ -27,18 +27,25 @@ SELECT trx_status();
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT trx_status(1, 2, 3, 4);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
-SELECT trx_status(42, 1, 42);
+SELECT trx_status("42:1", 42);
 --error ER_INCORRECT_GTID_STATE
-SELECT trx_status(42, 1, 'hulubulu!!?!');
+SELECT trx_status("42:1", 'hulubulu!!?!');
+--error ER_WRONG_ARGUMENTS
+SELECT trx_status("42:-1");
+--error ER_WRONG_ARGUMENTS
+SELECT trx_status("42:18446744073709551616");
+--error ER_WRONG_ARGUMENTS
+SELECT trx_status("18446744073709551616:42");
 
-SELECT trx_status(42, 1, @gtid1);
-SELECT trx_status(42, 1);
-SELECT trx_status(42, 1, @gtid2);
+SELECT trx_status("42:18446744073709551615");
+SELECT trx_status("42:1", @gtid1);
+SELECT trx_status("42:1");
+SELECT trx_status("42:1", @gtid2);
 
 # Not existing trx_id.
-SELECT trx_status(42, 12345);
-SELECT trx_status(42, 12345, @gtid1);
-SELECT trx_status(42, 12345, '1000-1000-1000');
+SELECT trx_status("42:12345");
+SELECT trx_status("42:12345", @gtid1);
+SELECT trx_status("42:2345", '1000-1000-1000');
 
 
 # Test some more transactions spread out over multiple binlog files,
@@ -87,32 +94,32 @@ PURGE BINARY LOGS TO 'master-bin.000002';
 --source include/show_binary_logs.inc
 
 --echo ### trx_id has been committed but purged.
-SELECT trx_status(42, 4);
-SELECT trx_status(42, 4, @gtid2);
+SELECT trx_status("42:4");
+SELECT trx_status("42:4", @gtid2);
 
 --echo ### trx_id has been committed and purged, but too late start_gtid.
-SELECT trx_status(42, 4, @gtid4);
+SELECT trx_status("42:4", @gtid4);
 
 --echo ### trx_id is present in earlier binlog file.
-SELECT trx_status(42, 7);
-SELECT trx_status(42, 7, @gtid3);
-SELECT trx_status(42, 7, @gtid4);
+SELECT trx_status("42:7");
+SELECT trx_status("42:7", @gtid3);
+SELECT trx_status("42:7", @gtid4);
 
 --echo ### trx_id is present, but too late start_gtid.
-SELECT trx_status(42, 7, @gtid5);
-SELECT trx_status(42, 7, @gtid6);
+SELECT trx_status("42:7", @gtid5);
+SELECT trx_status("42:7", @gtid6);
 
 --echo ### trx_id is present in last of multiple binlog files.
-SELECT trx_status(42, 9);
-SELECT trx_status(42, 9, @gtid1);
-SELECT trx_status(42, 9, @gtid5);
-SELECT trx_status(42, 9, @gtid6);
+SELECT trx_status("42:9");
+SELECT trx_status("42:9", @gtid1);
+SELECT trx_status("42:9", @gtid5);
+SELECT trx_status("42:9", @gtid6);
 
 --echo ### Multiple binlog files, trx_id not present.
-SELECT trx_status(100, 200);
-SELECT trx_status(100, 200, @gtid1);
-SELECT trx_status(100, 200, @gtid4);
-SELECT trx_status(100, 200, @gtid6);
+SELECT trx_status("100:200");
+SELECT trx_status("100:200", @gtid1);
+SELECT trx_status("100:200", @gtid4);
+SELECT trx_status("100:200", @gtid6);
 
 --connection slave
 --echo ### The trx_id should be replicated to the slave.
@@ -120,11 +127,11 @@ SELECT trx_status(100, 200, @gtid6);
 --let $MYSQLD_DATADIR2= `select @@datadir`
 #--exec $MYSQL_BINLOG $MYSQLD_DATADIR2/slave-bin.000001
 
-SELECT trx_status(42, 1);
-SELECT trx_status(42, 12345);
-SELECT trx_status(42, 12345, '1000-1000-1000');
-SELECT trx_status(42, 7);
-SELECT trx_status(42, 9);
+SELECT trx_status("42:1");
+SELECT trx_status("42:12345");
+SELECT trx_status("42:12345", '1000-1000-1000');
+SELECT trx_status("42:7");
+SELECT trx_status("42:9");
 
 
 # Clean up.

@@ -13410,6 +13410,9 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
 
   if (opt_using_transactions)
     thd->client_capabilities|= CLIENT_TRANSACTIONS;
+  if (global_system_variables.transaction_verification &&
+      mysql_bin_log.is_open())
+    thd->client_capabilities|= MARIADB_CLIENT_TRANSACTION_VERIFY;
 
   thd->client_capabilities|= CAN_CLIENT_COMPRESS;
 

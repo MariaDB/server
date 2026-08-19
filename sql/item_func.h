@@ -3521,16 +3521,16 @@ class Item_trx_status :public Item_long_func
 {
   bool check_arguments() const override
   {
-    return args[0]->check_type_can_return_int(func_name_cstring()) ||
-      args[1]->check_type_can_return_int(func_name_cstring()) ||
-      (arg_count > 2 && args[2]->check_type_general_purpose_string(func_name_cstring()));
+    return(args[0]->check_type_general_purpose_string(func_name_cstring()) ||
+           (arg_count == 2 &&
+            args[1]->check_type_general_purpose_string(func_name_cstring())));
   }
   String value;
 public:
+  Item_trx_status(THD *thd, Item *a)
+   :Item_long_func(thd, a) {}
   Item_trx_status(THD *thd, Item *a, Item *b)
    :Item_long_func(thd, a, b) {}
-  Item_trx_status(THD *thd, Item *a, Item *b, Item *c)
-   :Item_long_func(thd, a, b, c) {}
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {

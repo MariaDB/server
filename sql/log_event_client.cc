@@ -3964,9 +3964,9 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
     if (flags_extra & FL_CLIENT_TRX_ID)
     {
-      longlong10_to_str(trx_connect_id, buf1, 10);
+      longlong10_to_str(trx_connect_id, buf, 10);
       longlong10_to_str(trx_commit_id,  buf2, 10);
-      if (my_b_printf(&cache, " trx_id=%s:%s", buf1, buf2))
+      if (my_b_printf(&cache, " trx_id=%s:%s", buf, buf2))
         goto err;
     }
     if (my_b_printf(&cache, "\n"))

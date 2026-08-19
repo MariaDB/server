@@ -4054,7 +4054,7 @@ err:
 longlong Item_master_gtid_wait::val_int()
 {
   DBUG_ASSERT(fixed());
-  longlong result= 0;
+  longlong result;
   String *gtid_pos __attribute__((unused)) = args[0]->val_str(&value);
   DBUG_ENTER("Item_master_gtid_wait::val_int");
 
@@ -4064,7 +4064,7 @@ longlong Item_master_gtid_wait::val_int()
     DBUG_RETURN(0);
   }
 
-  null_value=0;
+  null_value= 0;
 #ifdef HAVE_REPLICATION
   THD* thd= current_thd;
   longlong timeout_us;
@@ -4076,35 +4076,80 @@ longlong Item_master_gtid_wait::val_int()
 
   result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
 #else
+  result= 0;
   null_value= 0;
 #endif /* REPLICATION */
   DBUG_RETURN(result);
 }
 
 
+/*
+  Get Connect id and commit id from an trx_id
+
+  return 0  ; ok
+  return 1  ; error given
+*/
+
+bool get_connect_and_commit_id(const char *trx_id, size_t length,
+                               LEX_CSTRING function_name,
+                               uint64 *xact_connect_id,
+                               uint64 *xact_commit_id)
+{
+  char *no_end, *end_ptr;
+  int error;
+
+  no_end= end_ptr= (char*) trx_id + length;
+  *xact_connect_id= my_strtoll10(trx_id, &no_end, &error);
+  if (!error)
+  {
+    if (likely(no_end != end_ptr && no_end[0] == ':'))
+    {
+      trx_id= no_end+1;
+      no_end= end_ptr;
+      *xact_commit_id= my_strtoll10(trx_id, &no_end, &error);
+      if (!error && no_end == end_ptr)
+        return 0;                               // No gargage on end
+    }
+  }
+
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), function_name.str);
+  return 1;
+}
+
+
 longlong Item_trx_status::val_int()
 {
   DBUG_ASSERT(fixed());
-  longlong result= 0;
+  longlong result;
   DBUG_ENTER("Item_trx_status::val_int");
 
-  if (args[0]->null_value || args[1]->null_value)
+  null_value= 0;
+#ifdef HAVE_REPLICATION
+  rpl_gtid start_gtid;
+  rpl_gtid *start_gtid_ptr= nullptr;
+  String *trx_id= args[0]->val_str(&value);
+  uint64 trx_connect_id, trx_commit_id;
+
+  if (args[0]->null_value)
   {
     null_value= 1;
     DBUG_RETURN(0);
   }
 
-  null_value=0;
-#ifdef HAVE_REPLICATION
-  rpl_gtid start_gtid;
-  rpl_gtid *start_gtid_ptr= nullptr;
-  longlong trx_connect_id= args[0]->val_int();
-  longlong trx_commit_id= args[1]->val_int();
+  if (get_connect_and_commit_id(trx_id->ptr(), trx_id->length(),
+                                func_name_cstring(),
+                                &trx_connect_id, &trx_commit_id))
+    DBUG_RETURN(-1);
 
-  if (arg_count == 3 && !args[2]->null_value)
+  if (arg_count == 2)
   {
-    String *start_gtid_str= args[2]->val_str(&value);
-    const char *p= start_gtid_str->c_ptr_safe();
+    String *start_gtid_str= args[1]->val_str(&value);
+    if (args[1]->null_value)
+    {
+      null_value= 1;
+      DBUG_RETURN(0);
+    }
+    const char *p= start_gtid_str->ptr();
     start_gtid_ptr= &start_gtid;
     if (gtid_parser_helper(&p, p + start_gtid_str->length(), start_gtid_ptr))
     {

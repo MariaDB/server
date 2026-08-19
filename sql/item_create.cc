@@ -5092,7 +5092,7 @@ Create_func_trx_status::create_native(THD *thd, const LEX_CSTRING *name,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  if (unlikely(arg_count < 2 || arg_count > 3))
+  if (unlikely(arg_count < 1 || arg_count > 2))
   {
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     return NULL;
@@ -5101,19 +5101,12 @@ Create_func_trx_status::create_native(THD *thd, const LEX_CSTRING *name,
   thd->lex->safe_to_cache_query= 0;
 
   Item *param_1= item_list->pop();
-  Item *param_2= item_list->pop();
-  switch (arg_count) {
-  case 2:
+  if (arg_count == 1)
+    func= new (thd->mem_root) Item_trx_status(thd, param_1);
+  else
   {
+    Item *param_2= item_list->pop();
     func= new (thd->mem_root) Item_trx_status(thd, param_1, param_2);
-    break;
-  }
-  case 3:
-  {
-    Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_trx_status(thd, param_1, param_2, param_3);
-    break;
-  }
   }
 
   return func;

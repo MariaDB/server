@@ -309,6 +309,13 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* permit sending unit result-set for BULK commands */
+#define MARIADB_CLIENT_BULK_UNIT_RESULTS (1ULL << 37)
+
+/* Support automatic transaction commit verifier */
+#define MARIADB_CLIENT_TRANSACTION_VERIFY (1ULL << 38)
+
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -349,14 +356,16 @@ enum enum_indicator_type
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
+                           MARIADB_CLIENT_TRANSACTION_VERIFY | \
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched
   on before sending to the client during the connection handshake.
 */
-#define CLIENT_BASIC_FLAGS ((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
-                                               & ~CLIENT_COMPRESS)
+#define CLIENT_BASIC_FLAGS (CLIENT_ALL_FLAGS & \
+                            ~(CLIENT_SSL | CLIENT_COMPRESS | \
+                              MARIADB_CLIENT_TRANSACTION_VERIFY))
 
 enum mariadb_field_attr_t
 {
