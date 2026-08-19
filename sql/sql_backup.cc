@@ -937,7 +937,7 @@ extern "C" int backup_stream_append_async(int src, int stream,
   void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
   if (p != MAP_FAILED)
   {
-    ssize_t ret= mmap_copy<true>(src, stream, start, end);
+    ssize_t ret= mmap_copy<true>(p, stream, start, end);
     munmap(p, size_t{end});
     return int(ret);
   }
