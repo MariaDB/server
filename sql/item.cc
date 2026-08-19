@@ -6108,7 +6108,9 @@ static inline bool inner_refs_check(THD *thd,
                              enum_parsing_place place,
                              Item **reference)
 {
+#ifndef DBUG_OFF
   Item::Type ref_type= (*reference)->type();
+#endif
   if (!last_checked_context->select_lex->having_fix_field &&
       select->group_list.elements &&
       (place == SELECT_LIST || place == IN_HAVING))

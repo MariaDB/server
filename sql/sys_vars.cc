@@ -3651,9 +3651,9 @@ static Sys_var_mybool Sys_require_secure_transport(
 static Sys_var_charptr_fscs Sys_secure_file_priv(
   "secure_file_priv",
   "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
-  "within specified directory."
+  "within specified directory"
 #ifndef _WIN32
-  " Empty value means no limits except /proc"
+  ". Empty value means no limits except /proc"
 #endif
   ,
   PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),

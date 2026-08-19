@@ -24,6 +24,8 @@ CREATE TABLE t3(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=innodb;
 # Save baseline commit count (CREATE TABLEs cause autocommits)
 --let $base_commit = query_get_value(SHOW STATUS LIKE 'Duckdb_commit', Value, 1)
 
+SHOW STATUS LIKE 'Duckdb_version';
+
 --echo #
 --echo # 1) INSERT: rows_insert increments per row (dml_in_batch=OFF)
 --echo #

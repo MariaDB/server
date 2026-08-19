@@ -1,0 +1,147 @@
+#
+#   This test verifies that a replica rejects a heartbeat event that is
+# too short to carry the log file name it must hold. Two lengths are
+# covered. An event that reaches the heartbeat parser but leaves no room
+# for a file name must stop the IO thread with an error reporting an
+# empty file name. An event shorter than the common header must be
+# rejected before any parser reads that header. Replication must be able
+# to resume after each.
+#
+#   The debug injections send heartbeats of 17 and 13 bytes. MDEV-40643
+# reported that the 17-byte case underflowed the replica's computed name
+# length and crashed the replica.
+#
+#   Note rpl_heartbeat_log_event_underflow-master.opt sets
+# binlog_checksum=CRC32 on the master for Test Case 1. That is, those four
+# checksum bytes carry the 17-byte heartbeat over queue_event()'s 19-byte
+# minimum length.
+#
+# References:
+#   * MDEV-40643: Corrupt Heartbeat Log Event can Crash Slave
+#   * Bug#39377010: Improve malformed heartbeat handling
+#
+
+--source include/have_debug.inc
+# Test is format independent
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Unexpected master's heartbeat data");
+call mtr.add_suppression("Event from master is shorter than its common header");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+
+--echo #
+--echo # Initialize test data
+--echo #
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+# Both cases need a heartbeat to arrive promptly. The default period is
+# slave_net_timeout/2. The CHANGE MASTER that rpl_end.inc runs on every
+# server restores it.
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= 2;
+--source include/start_slave.inc
+
+--connection master
+set @saved_dbug= @@global.debug_dbug;
+
+--echo #
+--echo # Test Case 1: a heartbeat that leaves no room for a file name
+--echo #
+
+# The dump thread reads the injection when the replica reconnects below.
+--connection master
+set @@global.debug_dbug= "+d,binlog_sender_truncated_heartbeat";
+
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--echo # Waiting for the IO thread to reject the truncated heartbeat
+# queue_event() reports 1623, then handle_slave_io() overwrites it with 1595
+--let $slave_io_errno= 1595
+--let $show_slave_io_error= 1
+--source include/wait_for_slave_io_error.inc
+
+--echo # Ensure heartbeat validation rejected the event
+--let $assert_text= The IO thread reported an inconsistent heartbeat event
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Unexpected master.s heartbeat data: inconsistent heartbeat event content
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+# An empty log_file_name shows ident_len was bounded. Reaching this assertion
+# at all is the other half of the evidence.
+--let $assert_text= The heartbeat error should report an empty log_file_name
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= heartbeat event content;the event.s data: log_file_name  log_pos [0-9]+
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Test Case 2: a heartbeat shorter than the common header
+--echo #
+--connection master
+set @@global.debug_dbug= "+d,binlog_sender_undersized_heartbeat";
+
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--echo # Waiting for the IO thread to reject the undersized heartbeat
+--let $slave_io_errno= 1595
+--let $show_slave_io_error= 1
+--source include/wait_for_slave_io_error.inc
+
+--echo # Ensure the event was rejected before its header was read
+--let $assert_text= The IO thread reported an event shorter than the common header
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Event from master is shorter than its common header; the event.s length: [0-9]+
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+
+--connection slave
+--source include/stop_slave_sql.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Ensure replication works after the invalid heartbeat events
+--echo #
+--connection master
+insert into t1 values (2);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_heartbeat_log_event_underflow.test

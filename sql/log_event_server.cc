@@ -2459,7 +2459,12 @@ Format_description_log_event::to_packet(String *packet)
 {
   uchar *p;
   uint32 needed_length=
-    packet->length() + START_V3_HEADER_LEN + 1 + number_of_event_types + 1;
+    packet->length() + DBUG_IF("truncate_fde_common_header_len") ?
+      ST_COMMON_HEADER_LEN_OFFSET : ST_POST_HEADER_LEN_OFFSET;
+  if (!DBUG_IF("truncate_fde_post_header_len"))
+    needed_length += number_of_event_types;
+  if (!DBUG_IF("truncate_fde_used_checksum_alg"))
+    needed_length += BINLOG_CHECKSUM_ALG_DESC_LEN;
   if (packet->reserve(needed_length))
     return true;
   p= (uchar *)packet->ptr() + packet->length();;
@@ -2472,9 +2477,13 @@ Format_description_log_event::to_packet(String *packet)
     created= get_time();
   int4store(p, created);
   p+= 4;
-  *p++= common_header_len;
-  memcpy(p, post_header_len, number_of_event_types);
-  p+= number_of_event_types;
+  if (!DBUG_IF("truncate_fde_common_header_len"))
+    *p++= common_header_len;
+  if (!DBUG_IF("truncate_fde_post_header_len"))
+  {
+    memcpy(p, post_header_len, number_of_event_types);
+    p+= number_of_event_types;
+  }
 
   /*
     if checksum is requested
@@ -2500,7 +2509,8 @@ Format_description_log_event::to_packet(String *packet)
      (A), (V) presence in FD of the checksum-aware server makes the event
      1 + 4 bytes bigger comparing to the former FD.
   */
-  *p++= checksum_byte;
+  if (!DBUG_IF("truncate_fde_used_checksum_alg"))
+    *p++= checksum_byte;
 
   return false;
 }
@@ -2519,7 +2529,7 @@ bool Format_description_log_event::write(Log_event_writer *writer)
   if (to_packet(&packet))
     return true;
   size_t rec_size= packet.length();
-  DBUG_ASSERT(needed == rec_size);
+  DBUG_ASSERT(needed >= rec_size);
 
   uint orig_checksum_len= writer->checksum_len;
   writer->checksum_len= BINLOG_CHECKSUM_LEN;
@@ -8958,20 +8968,34 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
                     const Format_description_log_event* description_event)
-  :Log_event(buf, description_event)
+  :Log_event(buf, description_event), ident_len(0), log_ident(NULL)
 {
-  uint8 header_size= description_event->common_header_len;
+  uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;
+  uint all_headers_len= description_event->common_header_len + sub_header_len;
+
+  /*
+    The comparison is <= rather than <, so an event whose length stops exactly
+    at the headers is rejected along with a shorter one.
+
+      * A shorter event must be rejected out of necessity. ident_len is
+        unsigned, so the subtraction below would wrap and the caller would
+        read the log file name from far past the event.
+      * An event of exactly the header length must be rejected as policy. It
+        carries no log file name, and a heartbeat that names no binary log
+        file tells the replica nothing it can compare its own coordinates
+        against.
+
+    Leaving log_ident at NULL is what reports both to the caller, through
+    is_valid().
+  */
+  if (event_len <= all_headers_len)
+    return;
+
   if (log_pos == 0)
-  {
-    log_pos= uint8korr(buf + header_size);
-    log_ident= buf + header_size + HB_SUB_HEADER_LEN;
-    ident_len= event_len - (header_size + HB_SUB_HEADER_LEN);
-  }
-  else
-  {
-    log_ident= buf + header_size;
-    ident_len = event_len - header_size;
-  }
+    log_pos= uint8korr(buf + description_event->common_header_len);
+
+  log_ident= buf + all_headers_len;
+  ident_len= event_len - all_headers_len;
 }
 #endif
 
