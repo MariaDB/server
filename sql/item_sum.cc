@@ -4296,6 +4296,60 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 }
 
 
+/*
+  Insert one row into the ORDER BY tree, repacking it first if it has
+  grown past the memory we are allowed to use.
+
+  'key' is a temporary table record in the format produced by
+  get_record_pointer(). table->field[0] of that record holds the length
+  the row adds to the result, which is what repack_tree() adds up to
+  decide where to cut.
+
+  @return FALSE  row inserted
+  @return TRUE   out of memory
+*/
+
+bool Item_func_group_concat::insert_to_order_tree(uchar *key)
+{
+  DBUG_ASSERT(tree);
+  THD *thd= table->in_use;
+  /*
+    Repack when GCONCAT_TREE_REPACK_PARTS of the memory we may use is
+    gone. The rest is needed for the new tree that repack_tree()
+    allocates while the old one is still around.
+  */
+  if (tree->allocated >
+      max_tree_size / GCONCAT_TREE_PARTS * GCONCAT_TREE_REPACK_PARTS &&
+      tree->elements_in_tree > 1)
+    if (repack_tree(thd))
+      return TRUE;
+  /* check if there was enough memory to insert the row */
+  return !tree_insert(tree, key, 0, tree->custom_arg);
+}
+
+
+/*
+  Insert one deduplicated row into the ORDER BY tree.
+
+  Callback for Unique::walk(). The walk merges what unique_filter spilled
+  to disk back with what it still holds in memory, so it is the first
+  point at which the whole set of distinct rows is known. Every row it
+  visits belongs in the result.
+
+  @return 0  row inserted
+  @return 1  out of memory, which stops the walk
+*/
+
+int Item_func_group_concat::dump_leaf_key_to_tree(void *key_arg,
+                                                  element_count count
+                                                  __attribute__((unused)),
+                                                  void *item_arg)
+{
+  auto item= static_cast<Item_func_group_concat *>(item_arg);
+  return item->insert_to_order_tree(static_cast<uchar *>(key_arg));
+}
+
+
 bool Item_func_group_concat::add(bool exclude_nulls)
 {
   if (always_null && exclude_nulls)
@@ -4337,7 +4391,15 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   null_value= FALSE;
   bool row_eligible= TRUE;
 
-  if (distinct) 
+  /*
+    Store how much this row adds to the result in the record itself. With
+    DISTINCT the row does not reach the ORDER BY tree until val_str(), and
+    the record kept by unique_filter is all that is left of it by then.
+  */
+  if (tree)
+    table->field[0]->store(row_str_len, FALSE);
+
+  if (distinct)
   {
     /* Filter out duplicate rows. */
     uint count= unique_filter->elements_in_tree();
@@ -4346,26 +4408,16 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       row_eligible= FALSE;
   }
 
-  TREE_ELEMENT *el= 0;                          // Only for safety
-  if (row_eligible && tree)
-  {
-    THD *thd= table->in_use;
-    table->field[0]->store(row_str_len, FALSE);
-    /*
-      Repack when GCONCAT_TREE_REPACK_PARTS of the memory we may use is
-      gone. The rest is needed for the new tree that repack_tree()
-      allocates while the old one is still around.
-    */
-    if (tree->allocated >
-        max_tree_size / GCONCAT_TREE_PARTS * GCONCAT_TREE_REPACK_PARTS &&
-        tree->elements_in_tree > 1)
-      if (repack_tree(thd))
-        return 1;
-    el= tree_insert(tree, get_record_pointer(), 0, tree->custom_arg);
-    /* check if there was enough memory to insert the row */
-    if (!el)
-      return 1;
-  }
+  /*
+    With DISTINCT the ORDER BY tree is not filled here. row_eligible only
+    reflects the part of unique_filter that is currently in memory, so as
+    soon as unique_filter starts flushing to disk it stops telling us
+    whether a row is a duplicate. val_str() fills the tree instead, from
+    the unique_filter walk that merges everything back together.
+  */
+  if (!distinct && row_eligible && tree &&
+      insert_to_order_tree(get_record_pointer()))
+    return 1;
 
   /*
     In case of GROUP_CONCAT with DISTINCT or ORDER BY (or both) don't dump the
@@ -4595,7 +4647,25 @@ String* Item_func_group_concat::val_str(String* str)
 
   if (!result_finalized) // Result yet to be written.
   {
-    if (tree != NULL) // order by
+    if (tree && distinct) // distinct and order by
+    {
+      /*
+        Sort the distinct rows now. add() could not do it, as a row is
+        only known not to be a duplicate once unique_filter has merged
+        everything it flushed to disk, which the walk below does.
+      */
+      if (unique_filter->walk(table, &dump_leaf_key_to_tree, this))
+      {
+        /*
+          Out of memory; mysys has reported it. The tree holds only part
+          of the group, so tell the user that the result was cut instead
+          of returning a short one silently.
+        */
+        result_cut= TRUE;
+      }
+      tree_walk(tree, &dump_leaf_key, this, left_root_right);
+    }
+    else if (tree != NULL) // order by
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
       unique_filter->walk(table, &dump_leaf_key, this);
