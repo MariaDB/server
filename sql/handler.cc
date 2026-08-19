@@ -49,6 +49,7 @@
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
 #include "vector_mhnsw.h"
+#include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -7268,6 +7269,16 @@ static const char *create_err_msg=
 static int ha_can_be_renamed_to_backup(THD *thd, TABLE *table)
 {
   int res;
+  /*
+    We cannot by default use create or replace for a table with foreign keys
+    as there will be dangling references when the table is created.
+    We cannot even allow that when foreign_key_checks are off as
+    the foreign key definition will still point to the renamed table
+    after rename of the orignal table to temporary name.
+   */
+  if (fk_truncate_illegal_if_parent(thd, table))
+    return 1;
+
   if ((res= table->file->can_be_renamed_to_backup()))
   {
     bool save_abort_on_warning= thd->abort_on_warning;

@@ -9010,10 +9010,10 @@ ER_GRANT_PLUGIN_USER_EXISTS
         sw "GRANT yenye IDENTIFIED WITH ni kinyume cha sheria kwa sababu mtumiaji %-.*s tayari yupo"
 
 ER_TRUNCATE_ILLEGAL_FK 42000
-        chi "无法截断外键约束中引用的表（%.192s）"
-        eng "Cannot truncate a table referenced in a foreign key constraint (%.192s)"
-        spa "No puedo truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
-        sw "Haiwezi kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
+        chi "无法删除或截断外键约束中引用的表（%.192s）"
+        eng "Cannot drop or truncate a table referenced in a foreign key constraint (%.192s)"
+        spa "No puedo eliminar o truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
+        sw "Haiwezi kuondoa au kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
 
 ER_PLUGIN_IS_PERMANENT
         chi "插件'%s'是force_plus_permanent，无法卸载"

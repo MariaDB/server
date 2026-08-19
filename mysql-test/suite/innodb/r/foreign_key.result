@@ -1073,7 +1073,7 @@ INSERT INTO child SET a=1;
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
 connection default;
 TRUNCATE TABLE parent;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ERROR 42000: Cannot drop or truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
 DROP TABLE parent;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 SET innodb_lock_wait_timeout=0;
@@ -1104,7 +1104,7 @@ ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 SET foreign_key_checks=ON;
 TRUNCATE TABLE parent;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ERROR 42000: Cannot drop or truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 RENAME TABLE parent TO transparent;

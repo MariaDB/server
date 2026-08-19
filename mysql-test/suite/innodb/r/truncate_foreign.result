@@ -5,7 +5,7 @@ ON UPDATE CASCADE)
 ENGINE=InnoDB;
 INSERT INTO child SET a=1;
 TRUNCATE TABLE parent;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ERROR 42000: Cannot drop or truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
 TRUNCATE TABLE child;
 INSERT INTO child SET a=1;
 UPDATE parent SET a=2;

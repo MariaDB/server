@@ -684,9 +684,12 @@ drop prepare stmt;
 --list_files $MYSQLD_DATADIR/test *sql*
 create table t1 (x int primary key, y int) engine innodb;
 create table t2 (x int references t1(x)) engine innodb;
+--error ER_TRUNCATE_ILLEGAL_FK
 create or replace table t1 (x int primary key);
 create table t3 (x int);
+--error ER_TRUNCATE_ILLEGAL_FK
 create or replace table t1 like t3;
+--error ER_TRUNCATE_ILLEGAL_FK
 create or replace table t1 select * from t3;
 show create table t1;
 drop tables t3, t2, t1;

@@ -116,8 +116,7 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
                  error was emitted.
 */
 
-static bool
-fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
+bool fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
 {
   FOREIGN_KEY_INFO *fk_info;
   List<FOREIGN_KEY_INFO> fk_list;

@@ -68,4 +68,6 @@ protected:
   bool truncate_table(THD *, TABLE_LIST *);
 };
 
+extern bool fk_truncate_illegal_if_parent(THD *thd, TABLE *table);
+
 #endif
