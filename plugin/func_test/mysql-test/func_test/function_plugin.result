@@ -159,45 +159,5 @@ test_plugin_count(DISTINCT value)
 SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
 test_plugin_first(DISTINCT value) IS NOT NULL
 1
-INSTALL SONAME 'type_test';
-PREPARE type_stmt FROM
-'SELECT test_plugin_first(CAST(1 AS test_int8))';
-UNINSTALL PLUGIN test_double;
-UNINSTALL PLUGIN test_int8;
-EXECUTE type_stmt;
-test_plugin_first(CAST(1 AS test_int8))
-1
-DEALLOCATE PREPARE type_stmt;
-INSTALL SONAME 'type_test';
-UNINSTALL SONAME 'type_test';
 DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
-SELECT GET_LOCK('function_plugin_lock', 10);
-GET_LOCK('function_plugin_lock', 10)
-1
-connect  con1,localhost,root,,;
-connection con1;
-SELECT test_plugin_count(IF(GET_LOCK('function_plugin_lock', 10), a, a)) FROM t1;
-connection default;
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-SELECT RELEASE_LOCK('function_plugin_lock');
-RELEASE_LOCK('function_plugin_lock')
-1
-connection con1;
-test_plugin_count(IF(GET_LOCK('function_plugin_lock', 10), a, a))
-3
-disconnect con1;
-connection default;
-INSTALL SONAME 'func_test';
-PREPARE function_stmt FROM
-'SELECT test_plugin_count(a) FROM t1';
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-EXECUTE function_stmt;
-test_plugin_count(a)
-3
-DEALLOCATE PREPARE function_stmt;
-INSTALL SONAME 'func_test';
 DROP TABLE t1;

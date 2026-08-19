@@ -33,11 +33,10 @@ public:
     return src;
   }
 
-  Create_func *find_native_function_builder(
-    THD *thd, const LEX_CSTRING &name,
-    plugin_ref *plugin= NULL) const override
+  Create_func *find_native_function_builder(THD *thd, const LEX_CSTRING &name)
+                                                                         const override
   {
-    return native_functions_hash_oracle.find(thd, name, plugin);
+    return native_functions_hash_oracle.find(thd, name);
   }
 
   Item *make_item_func_replace(THD *thd,
@@ -97,10 +96,9 @@ Schema *Schema::find_implied(THD *thd)
 
 
 Create_func *
-Schema::find_native_function_builder(
-  THD *thd, const LEX_CSTRING &name, plugin_ref *plugin) const
+Schema::find_native_function_builder(THD *thd, const LEX_CSTRING &name) const
 {
-  return native_functions_hash.find(thd, name, plugin);
+  return native_functions_hash.find(thd, name);
 }
 
 

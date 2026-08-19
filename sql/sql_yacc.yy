@@ -11443,7 +11443,6 @@ function_call_generic:
             sp_variable *spv= NULL;
             bool allow_field_accessor= false;
             bool native_item= false;
-            plugin_ref function_plugin= NULL;
 
             if ($<generic_function>3.aggregate)
               Select->in_sum_expr--;
@@ -11474,8 +11473,7 @@ function_call_generic:
               if (!item || Lex->mark_item_ident_for_ora_join(thd, item))
                 MYSQL_YYABORT;
             } else if ((builder= Schema::find_implied(thd)->
-                        find_native_function_builder(thd, ident,
-                                                     &function_plugin)))
+                        find_native_function_builder(thd, ident)))
             {
               item= builder->create_func(thd, &ident, $5);
               native_item= true;
@@ -11523,27 +11521,6 @@ function_call_generic:
             }
 
             Item_sum *sum_item= item ? dynamic_cast<Item_sum *>(item) : NULL;
-            if (function_plugin && sum_item)
-            {
-              Item_sum_plugin *plugin_item=
-                dynamic_cast<Item_sum_plugin *>(sum_item);
-              if (!plugin_item)
-              {
-                plugin_unlock(NULL, function_plugin);
-                my_error(ER_INTERNAL_ERROR, MYF(0),
-                         "Aggregate function plugin did not return Item_sum_plugin");
-                MYSQL_YYABORT;
-              }
-              if (plugin_item->set_function_plugin(function_plugin))
-              {
-                plugin_unlock(NULL, function_plugin);
-                my_error(ER_OUT_OF_RESOURCES, MYF(0));
-                MYSQL_YYABORT;
-              }
-              function_plugin= NULL;
-            }
-            if (function_plugin)
-              plugin_unlock(NULL, function_plugin);
             if ($4)
             {
               if (!native_item || !sum_item)

@@ -37,10 +37,6 @@ class Create_func;
   aggregation_arg() to read values, including values replayed by DISTINCT. They
   can implement supports_removal() and remove() for moving window frames, and
   val_native() to preserve a pluggable result type.
-
-  The server keeps the function plugin and data type plugins referenced by an
-  Item_sum_plugin loaded for the lifetime of the prepared Item tree and its
-  execution copies.
 */
 #define MariaDB_FUNCTION_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 

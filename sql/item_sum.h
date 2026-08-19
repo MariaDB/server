@@ -621,23 +621,16 @@ public:
   aggregation_arg() must be used instead of args[] while consuming rows, so
   DISTINCT replay can substitute values from its internal temporary storage.
   Implement supports_removal() and remove() when the state is invertible.
-  Plugin references are retained until the original Item and all copies are
-  destroyed; cleanup() does not release them because prepared Items are reused.
 */
 class Item_sum_plugin : public Item_sum
 {
-  void *m_plugin_lifetime;
-
-  bool lock_type_plugins(THD *thd);
-  void retain_plugin_lifetime(const Item_sum_plugin *item);
 public:
-  Item_sum_plugin(THD *thd, Item *item);
-  Item_sum_plugin(THD *thd, Item_sum_plugin *item);
-  Item_sum_plugin(const Item_sum_plugin &item);
-  ~Item_sum_plugin() override;
+  Item_sum_plugin(THD *thd, Item *item): Item_sum(thd, item)
+  { quick_group= false; }
+  Item_sum_plugin(THD *thd, Item_sum_plugin *item): Item_sum(thd, item)
+  { quick_group= false; }
   enum Sumfunctype sum_func() const override { return PLUGIN_SUM_FUNC; }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool set_function_plugin(void *plugin);
   Item *aggregation_arg(uint i) { return aggr->arg_item(i); }
   void reset_field() override { DBUG_ASSERT(0); }
   void update_field() override { DBUG_ASSERT(0); }

@@ -58,7 +58,7 @@ SELECT test_plugin_count(DISTINCT v) FROM t1;
 test_plugin_count(DISTINCT v)
 2
 #
-# Invalid pluggable data type values and missing type plugin
+# Invalid pluggable data type values
 #
 SET @save_sql_mode= @@sql_mode;
 SET sql_mode= 'STRICT_ALL_TABLES';
@@ -73,37 +73,6 @@ SHOW WARNINGS;
 Level	Code	Message
 Warning	1292	Incorrect uuid value: 'not-a-uuid'
 SET sql_mode= @save_sql_mode;
-INSTALL SONAME 'type_test';
-UNINSTALL SONAME 'type_test';
-PREPARE missing_type_stmt FROM
-'SELECT test_plugin_first(CAST(1 AS test_int8))';
-ERROR HY000: Unknown data type: 'test_int8'
-SELECT test_plugin_count(v) FROM t1;
-test_plugin_count(v)
-2
-#
-# Function plugin unavailable and marked for deferred unload
-#
-UNINSTALL SONAME 'func_test';
-SELECT test_plugin_count(v) FROM t1;
-ERROR 42000: FUNCTION test.test_plugin_count does not exist
-INSTALL SONAME 'func_test';
-PREPARE deleted_stmt FROM
-'SELECT test_plugin_count(v) FROM t1';
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-PREPARE deleted_stmt2 FROM
-'SELECT test_plugin_count(v) FROM t1';
-EXECUTE deleted_stmt;
-test_plugin_count(v)
-2
-EXECUTE deleted_stmt2;
-test_plugin_count(v)
-2
-DEALLOCATE PREPARE deleted_stmt;
-DEALLOCATE PREPARE deleted_stmt2;
-INSTALL SONAME 'func_test';
 #
 # Errors while storing aggregate results
 #
@@ -121,35 +90,6 @@ SELECT test_plugin_count(v) FROM t1;
 test_plugin_count(v)
 2
 #
-# Statement timeout releases execution references
-#
-SET STATEMENT max_statement_time=0.01 FOR
-SELECT test_plugin_count(IF(SLEEP(0.1), v, v)) FROM t1;
-ERROR 70100: Query was interrupted: execution time limit 0.01 sec exceeded
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-#
-# KILL QUERY during aggregate execution and deferred unload
-#
-SELECT GET_LOCK('function_plugin_negative_lock', 10);
-GET_LOCK('function_plugin_negative_lock', 10)
-1
-connect  kill_con,localhost,root,,;
-connection kill_con;
-SELECT test_plugin_count(IF(GET_LOCK('function_plugin_negative_lock', 10), v, v)) FROM t1;
-connection default;
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-SELECT RELEASE_LOCK('function_plugin_negative_lock');
-RELEASE_LOCK('function_plugin_negative_lock')
-1
-connection kill_con;
-ERROR 70100: Query execution was interrupted
-disconnect kill_con;
-connection default;
-INSTALL SONAME 'func_test';
-#
 # Failed automatic reprepare
 #
 PREPARE reprepare_drop FROM
@@ -158,51 +98,7 @@ ALTER TABLE t1 DROP COLUMN v;
 EXECUTE reprepare_drop;
 ERROR 42S22: Unknown column 'v' in 'SELECT'
 DEALLOCATE PREPARE reprepare_drop;
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
 ALTER TABLE t1 ADD COLUMN v INT;
-#
-# Stored objects after plugin unload
-#
-CREATE VIEW aggregate_view AS
-SELECT test_plugin_count(v) AS c FROM t1;
-UNINSTALL SONAME 'func_test';
-SELECT * FROM aggregate_view;
-ERROR HY000: View 'test.aggregate_view' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-INSTALL SONAME 'func_test';
-DROP VIEW aggregate_view;
-CREATE PROCEDURE aggregate_proc()
-BEGIN
-SELECT test_plugin_count(v) FROM t1;
-END|
-UNINSTALL SONAME 'func_test';
-CALL aggregate_proc();
-ERROR 42000: FUNCTION test.test_plugin_count does not exist
-INSTALL SONAME 'func_test';
-DROP PROCEDURE aggregate_proc;
-CREATE TRIGGER aggregate_trigger BEFORE INSERT ON t1
-FOR EACH ROW SET NEW.v= test_plugin_count(NEW.v);
-UNINSTALL SONAME 'func_test';
-INSERT INTO t1 (id, g, v, u) VALUES (4, 2, 40, NULL);
-ERROR 42000: FUNCTION test.test_plugin_count does not exist
-INSTALL SONAME 'func_test';
-DROP TRIGGER aggregate_trigger;
-#
-# Privilege errors do not change plugin state
-#
-CREATE USER plugin_user@localhost;
-connect  priv_con,localhost,plugin_user,,;
-connection priv_con;
-INSTALL SONAME 'func_test';
-ERROR 42000: INSERT command denied to user 'plugin_user'@'localhost' for table `mysql`.`plugin`
-UNINSTALL SONAME 'func_test';
-ERROR 42000: DELETE command denied to user 'plugin_user'@'localhost' for table `mysql`.`plugin`
-disconnect priv_con;
-connection default;
-DROP USER plugin_user@localhost;
-SELECT test_plugin_count(v) FROM t1;
-test_plugin_count(v)
-0
 #
 # Repeated result access and cleanup
 #

@@ -1,14 +1,5 @@
 --source include/have_udf.inc
 
---disable_query_log
-if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
-    WHERE PLUGIN_NAME='test_plugin_count'`)
-{
-  UNINSTALL SONAME 'func_test';
-}
-INSTALL SONAME 'func_test';
---enable_query_log
-
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT test_plugin_count();
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -171,34 +162,4 @@ ALTER TABLE t_group ADD COLUMN extra INT;
 EXECUTE reprepare_stmt;
 DEALLOCATE PREPARE reprepare_stmt;
 
---error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
-PREPARE bad_stmt FROM 'SELECT test_plugin_count()';
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-
-PREPARE s1 FROM 'SELECT test_plugin_count(v) FROM t_group';
-PREPARE s2 FROM 'SELECT test_plugin_first(v) FROM t_group';
-UNINSTALL SONAME 'func_test';
-EXECUTE s1;
-EXECUTE s2;
-DEALLOCATE PREPARE s1;
-EXECUTE s2;
-DEALLOCATE PREPARE s2;
-INSTALL SONAME 'func_test';
-
---connect (con1,localhost,root,,)
---connection con1
-PREPARE close_stmt FROM
-  'SELECT test_plugin_count(v) FROM t_group';
---connection default
-UNINSTALL SONAME 'func_test';
---disconnect con1
---connection default
-INSTALL SONAME 'func_test';
-
 DROP TABLE window_uuid_result, t_window, uuid_union, t_uuid, t_blob, t_group;
---disable_query_log
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-DELETE FROM mysql.plugin WHERE dl='func_test.so';
---enable_query_log

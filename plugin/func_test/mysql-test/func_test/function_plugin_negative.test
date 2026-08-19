@@ -1,14 +1,5 @@
 --source include/have_udf.inc
 
---disable_query_log
-if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
-    WHERE PLUGIN_NAME='test_plugin_count'`)
-{
-  UNINSTALL SONAME 'func_test';
-}
-INSTALL SONAME 'func_test';
---enable_query_log
-
 --echo #
 --echo # Setup
 --echo #
@@ -65,7 +56,7 @@ SELECT sysconst_test(DISTINCT 1);
 SELECT test_plugin_count(DISTINCT v) FROM t1;
 
 --echo #
---echo # Invalid pluggable data type values and missing type plugin
+--echo # Invalid pluggable data type values
 --echo #
 SET @save_sql_mode= @@sql_mode;
 SET sql_mode= 'STRICT_ALL_TABLES';
@@ -74,30 +65,6 @@ INSERT INTO t1 VALUES (4, 2, 40, 'not-a-uuid');
 SELECT test_plugin_first(CAST('not-a-uuid' AS UUID)) IS NULL;
 SHOW WARNINGS;
 SET sql_mode= @save_sql_mode;
-INSTALL SONAME 'type_test';
-UNINSTALL SONAME 'type_test';
---error ER_UNKNOWN_DATA_TYPE
-PREPARE missing_type_stmt FROM
-  'SELECT test_plugin_first(CAST(1 AS test_int8))';
-SELECT test_plugin_count(v) FROM t1;
-
---echo #
---echo # Function plugin unavailable and marked for deferred unload
---echo #
-UNINSTALL SONAME 'func_test';
---error ER_SP_DOES_NOT_EXIST
-SELECT test_plugin_count(v) FROM t1;
-INSTALL SONAME 'func_test';
-PREPARE deleted_stmt FROM
-  'SELECT test_plugin_count(v) FROM t1';
-UNINSTALL SONAME 'func_test';
-PREPARE deleted_stmt2 FROM
-  'SELECT test_plugin_count(v) FROM t1';
-EXECUTE deleted_stmt;
-EXECUTE deleted_stmt2;
-DEALLOCATE PREPARE deleted_stmt;
-DEALLOCATE PREPARE deleted_stmt2;
-INSTALL SONAME 'func_test';
 
 --echo #
 --echo # Errors while storing aggregate results
@@ -115,42 +82,6 @@ INSERT INTO not_null_dst
 SELECT test_plugin_count(v) FROM t1;
 
 --echo #
---echo # Statement timeout releases execution references
---echo #
---error ER_STATEMENT_TIMEOUT
-SET STATEMENT max_statement_time=0.01 FOR
-  SELECT test_plugin_count(IF(SLEEP(0.1), v, v)) FROM t1;
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-
---echo #
---echo # KILL QUERY during aggregate execution and deferred unload
---echo #
-SELECT GET_LOCK('function_plugin_negative_lock', 10);
---connect (kill_con,localhost,root,,)
---connection kill_con
---send SELECT test_plugin_count(IF(GET_LOCK('function_plugin_negative_lock', 10), v, v)) FROM t1
---connection default
-let $wait_condition=
-  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE STATE = 'User lock' AND INFO LIKE 'SELECT test_plugin_count%';
---source include/wait_condition.inc
-UNINSTALL SONAME 'func_test';
-let $kill_id= query_get_value(
-  SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE STATE = 'User lock' AND INFO LIKE 'SELECT test_plugin_count%', ID, 1);
---disable_query_log
-eval KILL QUERY $kill_id;
---enable_query_log
-SELECT RELEASE_LOCK('function_plugin_negative_lock');
---connection kill_con
---error ER_QUERY_INTERRUPTED
---reap
---disconnect kill_con
---connection default
-INSTALL SONAME 'func_test';
-
---echo #
 --echo # Failed automatic reprepare
 --echo #
 PREPARE reprepare_drop FROM
@@ -159,53 +90,7 @@ ALTER TABLE t1 DROP COLUMN v;
 --error ER_BAD_FIELD_ERROR
 EXECUTE reprepare_drop;
 DEALLOCATE PREPARE reprepare_drop;
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
 ALTER TABLE t1 ADD COLUMN v INT;
-
---echo #
---echo # Stored objects after plugin unload
---echo #
-CREATE VIEW aggregate_view AS
-  SELECT test_plugin_count(v) AS c FROM t1;
-UNINSTALL SONAME 'func_test';
---error ER_VIEW_INVALID
-SELECT * FROM aggregate_view;
-INSTALL SONAME 'func_test';
-DROP VIEW aggregate_view;
-DELIMITER |;
-CREATE PROCEDURE aggregate_proc()
-BEGIN
-  SELECT test_plugin_count(v) FROM t1;
-END|
-DELIMITER ;|
-UNINSTALL SONAME 'func_test';
---error ER_SP_DOES_NOT_EXIST
-CALL aggregate_proc();
-INSTALL SONAME 'func_test';
-DROP PROCEDURE aggregate_proc;
-CREATE TRIGGER aggregate_trigger BEFORE INSERT ON t1
-FOR EACH ROW SET NEW.v= test_plugin_count(NEW.v);
-UNINSTALL SONAME 'func_test';
---error ER_SP_DOES_NOT_EXIST
-INSERT INTO t1 (id, g, v, u) VALUES (4, 2, 40, NULL);
-INSTALL SONAME 'func_test';
-DROP TRIGGER aggregate_trigger;
-
---echo #
---echo # Privilege errors do not change plugin state
---echo #
-CREATE USER plugin_user@localhost;
---connect (priv_con,localhost,plugin_user,,)
---connection priv_con
---error ER_TABLEACCESS_DENIED_ERROR
-INSTALL SONAME 'func_test';
---error ER_TABLEACCESS_DENIED_ERROR
-UNINSTALL SONAME 'func_test';
---disconnect priv_con
---connection default
-DROP USER plugin_user@localhost;
-SELECT test_plugin_count(v) FROM t1;
 
 --echo #
 --echo # Repeated result access and cleanup
@@ -221,8 +106,3 @@ FROM t1 HAVING c > 0 ORDER BY c;
 --echo # Cleanup
 --echo #
 DROP TABLE not_null_dst, uuid_dst, t1;
---disable_query_log
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-DELETE FROM mysql.plugin WHERE dl='func_test.so';
---enable_query_log

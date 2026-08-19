@@ -31,7 +31,6 @@
 #include "sql_parse.h"
 #include "sp_head.h"
 #include "item_sum.h"
-#include "sql_plugin.h"
 #include "sql_type_geom.h"
 
 /**
@@ -514,110 +513,6 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
 }
 
 
-struct Item_sum_plugin_lifetime
-{
-  uint ref_count;
-  plugin_ref function_plugin;
-  plugin_ref *type_plugins;
-  uint type_plugin_count;
-
-  Item_sum_plugin_lifetime(plugin_ref plugin)
-   :ref_count(1), function_plugin(plugin), type_plugins(NULL),
-    type_plugin_count(0)
-  { }
-
-  ~Item_sum_plugin_lifetime()
-  {
-    plugin_unlock_list(NULL, type_plugins, type_plugin_count);
-    my_free(type_plugins);
-    plugin_unlock(NULL, function_plugin);
-  }
-};
-
-
-Item_sum_plugin::Item_sum_plugin(THD *thd, Item *item)
- :Item_sum(thd, item), m_plugin_lifetime(NULL)
-{
-  quick_group= false;
-}
-
-
-Item_sum_plugin::Item_sum_plugin(THD *thd, Item_sum_plugin *item)
- :Item_sum(thd, item), m_plugin_lifetime(NULL)
-{
-  quick_group= false;
-  retain_plugin_lifetime(item);
-}
-
-
-Item_sum_plugin::Item_sum_plugin(const Item_sum_plugin &item)
- :Item_sum(item), m_plugin_lifetime(NULL)
-{
-  retain_plugin_lifetime(&item);
-}
-
-
-Item_sum_plugin::~Item_sum_plugin()
-{
-  Item_sum_plugin_lifetime *lifetime=
-    static_cast<Item_sum_plugin_lifetime *>(m_plugin_lifetime);
-  if (lifetime && !--lifetime->ref_count)
-    delete lifetime;
-}
-
-
-void Item_sum_plugin::retain_plugin_lifetime(const Item_sum_plugin *item)
-{
-  m_plugin_lifetime= item->m_plugin_lifetime;
-  if (m_plugin_lifetime)
-    static_cast<Item_sum_plugin_lifetime *>(m_plugin_lifetime)->ref_count++;
-}
-
-
-bool Item_sum_plugin::set_function_plugin(void *plugin)
-{
-  DBUG_ASSERT(!m_plugin_lifetime);
-  m_plugin_lifetime=
-    new Item_sum_plugin_lifetime(static_cast<plugin_ref>(plugin));
-  return !m_plugin_lifetime;
-}
-
-
-bool Item_sum_plugin::lock_type_plugins(THD *thd)
-{
-  Item_sum_plugin_lifetime *lifetime=
-    static_cast<Item_sum_plugin_lifetime *>(m_plugin_lifetime);
-  if (!lifetime || lifetime->type_plugins)
-    return false;
-
-  uint count= arg_count + 1;
-  plugin_ref *plugins= static_cast<plugin_ref *>(
-    my_malloc(PSI_NOT_INSTRUMENTED, sizeof(plugin_ref) * count, MYF(MY_WME)));
-  if (!plugins)
-    return true;
-
-  count= 0;
-  for (uint i= 0; i <= arg_count; i++)
-  {
-    const Type_handler *handler= i < arg_count ? args[i]->type_handler() :
-                                                  type_handler();
-    const LEX_CSTRING name= handler->name().lex_cstring();
-    plugin_ref plugin= plugin_lock_by_name(NULL, &name,
-                                           MariaDB_DATA_TYPE_PLUGIN);
-    if (plugin)
-      plugins[count++]= plugin;
-  }
-  if (!count)
-  {
-    my_free(plugins);
-    return false;
-  }
-  lifetime->type_plugins= plugins;
-  lifetime->type_plugin_count= count;
-  return false;
-}
-
-
 bool Item_sum_plugin::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
@@ -632,8 +527,7 @@ bool Item_sum_plugin::fix_fields(THD *thd, Item **ref)
     with_flags|= args[i]->with_flags & ~item_with_t::FIELD;
   }
   result_field= NULL;
-  if (fix_length_and_dec(thd) || lock_type_plugins(thd) ||
-      check_sum_func(thd, ref))
+  if (fix_length_and_dec(thd) || check_sum_func(thd, ref))
     return true;
 
   if (arg_count)

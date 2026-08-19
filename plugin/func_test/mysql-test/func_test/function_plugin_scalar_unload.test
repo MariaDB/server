@@ -1,0 +1,69 @@
+--source include/have_udf.inc
+
+#
+# Demonstrates the HIGH severity issue found in the review of
+# MDEV-40672: for a *scalar* function plugin the plugin reference is
+# released already at parse time, so nothing keeps the shared object
+# loaded while the Item is executed. A concurrent UNINSTALL therefore
+# unloads func_test.so immediately (ref_count == 0) and the still
+# running query calls a virtual method (Item_func_strnxfrm::val_str)
+# whose vtable lives in the now unmapped .so -> server crash / UAF.
+#
+# For comparison, an aggregate plugin function (Item_sum_plugin) keeps
+# the plugin loaded for the lifetime of the Item tree, so the same
+# scenario there reports "Plugin is busy and will be uninstalled on
+# shutdown" and the query completes (see function_plugin.test).
+#
+# Expected behaviour on a FIXED server: the scalar case behaves like
+# the aggregate one - UNINSTALL is deferred with a "Plugin is busy"
+# warning and the blocked query returns its result.
+# On the current server this test crashes instead.
+#
+
+--disable_query_log
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
+    WHERE PLUGIN_NAME='strnxfrm'`)
+{
+  UNINSTALL SONAME 'func_test';
+}
+INSTALL SONAME 'func_test';
+--enable_query_log
+
+CREATE TABLE t1 (a VARCHAR(16));
+INSERT INTO t1 VALUES ('a'), ('b'), ('c');
+
+SELECT GET_LOCK('function_plugin_scalar_lock', 10);
+
+--connect (con1,localhost,root,,)
+--connection con1
+# The scalar plugin function strnxfrm() is fixed at parse time and then
+# evaluated per row. GET_LOCK() in the WHERE clause blocks execution
+# after parsing (and after the plugin reference has been released),
+# while the plugin item is still about to be evaluated.
+--send SELECT strnxfrm(a, 8, 1, 0) FROM t1 WHERE GET_LOCK('function_plugin_scalar_lock', 10)
+
+--connection default
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE = 'User lock' AND INFO LIKE 'SELECT strnxfrm%';
+--source include/wait_condition.inc
+
+# No reference is held for the scalar plugin, so this unloads the .so
+# right away instead of deferring like the aggregate case does.
+UNINSTALL SONAME 'func_test';
+SELECT RELEASE_LOCK('function_plugin_scalar_lock');
+
+--connection con1
+# On a fixed server this returns the transformed strings; on the current
+# server the resumed query dereferences a vtable in the unloaded plugin.
+--reap
+--disconnect con1
+
+--connection default
+INSTALL SONAME 'func_test';
+DROP TABLE t1;
+--disable_query_log
+UNINSTALL SONAME 'func_test';
+INSTALL SONAME 'func_test';
+DELETE FROM mysql.plugin WHERE dl='func_test.so';
+--enable_query_log

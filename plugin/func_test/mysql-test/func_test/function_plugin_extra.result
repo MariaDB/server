@@ -246,37 +246,4 @@ EXECUTE reprepare_stmt;
 test_plugin_count(v)
 3
 DEALLOCATE PREPARE reprepare_stmt;
-PREPARE bad_stmt FROM 'SELECT test_plugin_count()';
-ERROR 42000: Incorrect parameter count in the call to native function 'test_plugin_count'
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-PREPARE s1 FROM 'SELECT test_plugin_count(v) FROM t_group';
-PREPARE s2 FROM 'SELECT test_plugin_first(v) FROM t_group';
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-EXECUTE s1;
-test_plugin_count(v)
-3
-EXECUTE s2;
-test_plugin_first(v)
-10
-DEALLOCATE PREPARE s1;
-EXECUTE s2;
-test_plugin_first(v)
-10
-DEALLOCATE PREPARE s2;
-INSTALL SONAME 'func_test';
-connect  con1,localhost,root,,;
-connection con1;
-PREPARE close_stmt FROM
-'SELECT test_plugin_count(v) FROM t_group';
-connection default;
-UNINSTALL SONAME 'func_test';
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown
-disconnect con1;
-connection default;
-INSTALL SONAME 'func_test';
 DROP TABLE window_uuid_result, t_window, uuid_union, t_uuid, t_blob, t_group;

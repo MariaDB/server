@@ -1,14 +1,5 @@
 --source include/have_udf.inc
 
---disable_query_log
-if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS
-    WHERE PLUGIN_NAME='test_plugin_count'`)
-{
-  UNINSTALL SONAME 'func_test';
-}
-INSTALL SONAME 'func_test';
---enable_query_log
-
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1, 1), (2, 1), (NULL, 1), (3, 2);
 
@@ -109,43 +100,5 @@ INSERT INTO t_blob VALUES ('a'), ('a'), ('b'), (NULL);
 SELECT test_plugin_count(DISTINCT value) FROM t_blob;
 SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
 
-INSTALL SONAME 'type_test';
-PREPARE type_stmt FROM
-  'SELECT test_plugin_first(CAST(1 AS test_int8))';
-UNINSTALL PLUGIN test_double;
-UNINSTALL PLUGIN test_int8;
-EXECUTE type_stmt;
-DEALLOCATE PREPARE type_stmt;
-INSTALL SONAME 'type_test';
-UNINSTALL SONAME 'type_test';
-
 DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
-SELECT GET_LOCK('function_plugin_lock', 10);
---connect (con1,localhost,root,,)
---connection con1
---send SELECT test_plugin_count(IF(GET_LOCK('function_plugin_lock', 10), a, a)) FROM t1
---connection default
-let $wait_condition=
-  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE STATE = 'User lock' AND INFO LIKE 'SELECT test_plugin_count%';
---source include/wait_condition.inc
-UNINSTALL SONAME 'func_test';
-SELECT RELEASE_LOCK('function_plugin_lock');
---connection con1
---reap
---disconnect con1
---connection default
-INSTALL SONAME 'func_test';
-
-PREPARE function_stmt FROM
-  'SELECT test_plugin_count(a) FROM t1';
-UNINSTALL SONAME 'func_test';
-EXECUTE function_stmt;
-DEALLOCATE PREPARE function_stmt;
-INSTALL SONAME 'func_test';
 DROP TABLE t1;
---disable_query_log
-UNINSTALL SONAME 'func_test';
-INSTALL SONAME 'func_test';
-DELETE FROM mysql.plugin WHERE dl='func_test.so';
---enable_query_log
