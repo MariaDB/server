@@ -57,16 +57,56 @@ int copy_entire_file(int src, int dst);
 #ifdef __cplusplus
 extern "C"
 #endif
-/** Copy a portion of a file.
-@param src   source file descriptor
-@param dst   target to append src to
-@param start first offset to copy
-@param end   last offset to copy (exclusive)
-@return error code (non-positive)
-@retval 0   on success */
+/**
+   Copy a portion of a file.
+   @param src   source file descriptor
+   @param dst   target to append src to
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+*/
 int copy_file(IF_WIN(const native_file_handle&,int) src,
               IF_WIN(const native_file_handle&,int) dst,
               uint64_t start, uint64_t end);
+#if defined _WIN32 || defined __FreeBSD__
+/* There is no special variant of copy_file(). */
+#else
+# if SIZEOF_SIZE_T > 4
+#  ifdef __cplusplus
+extern "C"
+#  endif
+/**
+   Copy from a memory mapping to a file.
+   @param map   source file mapping
+   @param dst   target to append map to
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end);
+#  define copy_file_mmap copy_mmap
+# endif
+
+# ifdef __linux__
+#  ifdef __cplusplus
+extern "C"
+#  endif
+/**
+   Try to copy a portion of a file via copy_file_range(2).
+   @param src   source file descriptor
+   @param dst   target to append src to
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+   @retval 1   if a fallback to copy_mmap() or copy_file() is needed
+*/
+int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end);
+#  define copy_file_shortcut copy_file_range_try
+# endif
+#endif
 
 #ifdef __cplusplus
 extern "C"

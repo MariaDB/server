@@ -722,12 +722,61 @@ private:
     queue.clear();
   }
 
+#ifdef copy_file_shortcut
+  /**
+     Try copy_file_shortcut() to back up a persistent InnoDB data file.
+     @param dst          target file handle
+     @param node         InnoDB data file
+     @param start        the page number at the start of the file
+     @param limit        the size of the file before the doublewrite buffer
+     @param page_size    node->space->physical_size()
+     @param final_limit  the size of the file at init(), or 0 if no dblwr
+     @return error code (non-positive)
+     @retval 0 on success
+  */
+  static int copy_file_shortcut_try(int dst, fil_node_t *node,
+                                    uint32_t start, uint32_t limit,
+                                    uint32_t page_size, uint32_t final_limit)
+    noexcept
+  {
+# if 0
+    return 1; // work around https://github.com/rr-debugger/rr/issues/4059
+# endif
+    uint32_t page{0};
+    buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end;
+
+    for (;;)
+      while (page < limit)
+      {
+        start+= fil_space_t::BACKUP_BATCH_SIZE;
+        end= backup_batch_start(blocks, node->space, start);
+        const uint64_t o{uint64_t{page} * page_size};
+        page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+        /* TODO: avoid copying freed page ranges, or pages that were
+        allocated after the backup started */
+        int err{copy_file_shortcut(node->handle, dst,
+                                   o, uint64_t{page} * page_size)};
+        backup_batch_stop(node->space, blocks, end);
+        if (err)
+          return err;
+        if (page == buf_dblwr.begin() && final_limit)
+        {
+          /* Copy the rest after the doublewrite buffer. */
+          limit= final_limit;
+          page+= buf_dblwr.size();
+        }
+        else
+          return 0;
+      }
+  }
+#endif
+
   /**
      Back up a persistent InnoDB data file.
      @param target backup target directory
      @param node   InnoDB data file
      @param start  the page number at the start of the file
-     @param limit  the size of the file at the start of backup
+     @param limit  the size of the file at init()
      @return error code (non-positive)
      @retval 0 on success
   */
@@ -812,7 +861,7 @@ private:
       if (node->size < limit)
         limit= node->size;
       /*
-        For the system tablespace, there is a minimum size has been configured
+        For the system tablespace, a minimum size has been configured
         which may be larger than the currently used size. Preserve the
         original size.
 
@@ -838,40 +887,80 @@ private:
       }
 
       const uint32_t final_limit=
-        node->space->id == 0 &&
+        node == fil_system.sys_space->chain.start &&
         buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
         limit > buf_dblwr.end()
         ? limit : 0;
       if (final_limit)
         limit= buf_dblwr.begin();
 
-      uint32_t page{0};
-    loop:
-      while (page < limit)
+#ifdef copy_file_shortcut
+      err= copy_file_shortcut_try(f, node, start, limit,
+                                  page_size, final_limit);
+      if (err == 1)
+#endif
       {
-        buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end= blocks;
+        uint32_t page{0};
+        buf_page_t *blocks[fil_space_t::BACKUP_BATCH_SIZE], **end;
+#ifdef copy_file_mmap
+        const size_t c{size_t{final_limit ? final_limit : limit} * page_size};
+        void *p= mmap(nullptr, c, PROT_READ, MAP_SHARED, node->handle, 0);
+        if (p != MAP_FAILED)
         {
-          const uint32_t end_page{start + fil_space_t::BACKUP_BATCH_SIZE};
-          end= backup_batch_start(end, node->space, end_page);
-          start= end_page;
-        }
-        uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
-        /* TODO: avoid copying freed page ranges, or pages that were
-        allocated after the backup started */
-        err= copy_file(node->handle, f, uint64_t{page} * page_size,
-                       uint64_t{last} * page_size);
-        page= last;
-        backup_batch_stop(node->space, blocks, end);
-        if (err)
-          break;
-      }
+          for (;;)
+          {
+            while (page < limit)
+            {
+              start+= fil_space_t::BACKUP_BATCH_SIZE;
+              end= backup_batch_start(blocks, node->space, start);
+              const uint64_t o{uint64_t{page} * page_size};
+              page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+              /* TODO: avoid copying freed page ranges, or pages that were
+              allocated after the backup started */
+              err= copy_file_mmap(p, f, o, uint64_t{page} * page_size);
+              backup_batch_stop(node->space, blocks, end);
+              if (err)
+                break;
+            }
 
-      if (page == buf_dblwr.begin() && final_limit && !err)
-      {
-        /* Copy the rest after the doublewrite buffer. */
-        limit= final_limit;
-        page+= buf_dblwr.size();
-        goto loop;
+            if (page == buf_dblwr.begin() && final_limit && !err)
+            {
+              /* Copy the rest after the doublewrite buffer. */
+              limit= final_limit;
+              page+= buf_dblwr.size();
+            }
+            else
+              break;
+          }
+          munmap(p, c);
+        }
+        else
+#endif
+          for (;;)
+          {
+            while (page < limit)
+            {
+              start+= fil_space_t::BACKUP_BATCH_SIZE;
+              end= backup_batch_start(blocks, node->space, start);
+              const uint64_t o{uint64_t{page} * page_size};
+              page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+              /* TODO: avoid copying freed page ranges, or pages that were
+              allocated after the backup started */
+              err= copy_file(node->handle, f, o, uint64_t{page} * page_size);
+              backup_batch_stop(node->space, blocks, end);
+              if (err)
+                break;
+            }
+
+            if (page == buf_dblwr.begin() && final_limit && !err)
+            {
+              /* Copy the rest after the doublewrite buffer. */
+              limit= final_limit;
+              page+= buf_dblwr.size();
+            }
+            else
+              break;
+          }
       }
 
       if (IF_WIN(!CloseHandle(f), close(f)) | err)
@@ -889,7 +978,7 @@ private:
      @param stream backup target stream
      @param node   InnoDB data file
      @param start  the page number at the start of the file
-     @param limit  the size of the file at the start of backup
+     @param limit  the size of the file at init()
      @return error code (non-positive)
      @retval 0 on success
   */
@@ -913,7 +1002,7 @@ private:
       chunk[1].length= chunk[2].offset;
     }
 
-    if (node->space->id == 0 &&
+    if (node == fil_system.sys_space->chain.start &&
         buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
         limit > buf_dblwr.end())
     {

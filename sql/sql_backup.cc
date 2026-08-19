@@ -46,15 +46,13 @@ static ssize_t copy(int in_fd, int out_fd, off_t offset, off_t end) noexcept
   }
 }
 
-# if 1 // disable to work around https://github.com/rr-debugger/rr/issues/4059
 /* Copy between files in a single (type of) file system */
 static inline ssize_t
 copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 {
   return copy_file_range(in_fd, offset, out_fd, offset, count, 0);
 }
-#  define cfr(src,dst,start,end) copy<copy_step,false>(src, dst, start, end)
-# endif
+# define cfr(src,dst,start,end) copy<copy_step,false>(src, dst, start, end)
 #endif
 
 #ifdef _WIN32
@@ -65,7 +63,7 @@ using tpool::pwrite;
 /**
    Copy a file using a memory mapping.
    @tparam stream true=write to a stream, false=pwrite to a file
-   @param in_fd   source file
+   @param p       map to source file
    @param out_fd  destination
    @param o       start offset
    @param end     last offset (exclusive)
@@ -74,19 +72,12 @@ using tpool::pwrite;
    @retval 1  if a memory mapping failed
 */
 template<bool stream>
-static ssize_t mmap_copy(int in_fd, int out_fd, uint64_t o, uint64_t end)
+static ssize_t mmap_copy(const void *p, int out_fd, uint64_t o, uint64_t end)
 {
-# if SIZEOF_SIZE_T < 8
-  if (end != size_t(end))
-    return 1;
-# endif
-  const size_t count= size_t(end - o);
-  void *p= mmap(nullptr, count, PROT_READ, MAP_SHARED, in_fd, off_t(o));
-  if (p == MAP_FAILED)
-    return 1;
+  size_t c= size_t(end - o);
   ssize_t ret;
-  size_t c{count};
-  for (const char *b= static_cast<const char*>(p);; b+= ret, o+= uint64_t(ret))
+  for (const char *b= static_cast<const char*>(p) + o;;
+       b+= ret, o+= uint64_t(ret))
   {
     const size_t size{std::min(c, size_t(INT_MAX >> 20 << 20))};
     if (stream)
@@ -107,7 +98,6 @@ static ssize_t mmap_copy(int in_fd, int out_fd, uint64_t o, uint64_t end)
       break;
     }
   }
-  munmap(p, c);
   return ret;
 }
 #endif
@@ -177,7 +167,24 @@ static ssize_t pread_write(IF_WIN(const native_file_handle&,int) in_fd,
 @retval 0   on success */
 extern "C" int copy_entire_file(int src, int dst)
 {
-  return copy_file(src, dst, 0, lseek(src, 0, SEEK_END));
+  uint64_t end(lseek(src, 0, SEEK_END));
+# ifdef copy_file_shortcut
+  {
+    int ret(copy_file_shortcut(src, dst, 0, end));
+    if (ret != 1)
+      return ret;
+  }
+# endif
+# ifdef copy_file_mmap
+  void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
+  if (p != MAP_FAILED)
+  {
+    int ret(copy_file_mmap(p, dst, 0, end));
+    munmap(p, size_t{end});
+    return int(ret);
+  }
+# endif
+  return copy_file(src, dst, 0, end);
 }
 #endif
 
@@ -193,21 +200,55 @@ extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
                          uint64_t start, uint64_t end)
 {
   assert(end >= start);
-  ssize_t ret;
-# ifdef cfr
-  if (!(ret= cfr(src, dst, off_t(start), off_t(end))))
-    return int(ret);
-#  ifdef __linux__
-  if (errno == EOPNOTSUPP || errno == EXDEV)
-#  endif
-# endif
-# ifndef _WIN32
-  if ((ret= mmap_copy<false>(src, dst, start, end)) == 1)
-# endif
-    ret= pread_write<false>(src, dst, start, end);
+#ifdef __FreeBSD__
+  /* On FreeBSD, copy_file_range() without flags just works */
+  return int(cfr(src, dst, off_t(start), off_t(end)));
+#else
+  ssize_t ret{pread_write<false>(src, dst, start, end)};
   assert(ret <= 0);
   return int(ret);
+#endif
 }
+
+#ifdef __linux__
+/**
+   Try to copy a portion of a file via copy_file_range(2).
+   @param src   source file descriptor
+   @param dst   target to append src to
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+   @retval 1   if a fallback to copy_mmap() or copy_file() is needed
+*/
+extern "C"
+int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
+{
+  assert(end >= start);
+  ssize_t ret{cfr(src, dst, off_t(start), off_t(end))};
+  assert(ret <= 0);
+  if (ret && (errno == EOPNOTSUPP || errno == EXDEV))
+    return 1;
+  return int(ret);
+}
+#endif
+
+#ifdef copy_file_mmap
+/**
+   Copy from a memory mapping to a file.
+   @param map   source file mapping
+   @param dst   target to append map to
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+extern "C" int
+copy_mmap(const void *map, int dst, uint64_t start, uint64_t end)
+{
+  return int(mmap_copy<false>(map, dst, start, end));
+}
+#endif
 
 /** Append to the configuration file.
 @param target   backup target directory
@@ -892,10 +933,16 @@ extern "C" int backup_stream_append_async(int src, int stream,
 # ifdef __linux__
   return int(copy<send_step,true>(src, stream, off_t(start), off_t(end)));
 # else
-  ssize_t ret;
-  if ((ret= mmap_copy<true>(src, stream, start, end)) == 1)
-    ret= pread_write<true>(src, stream, start, end);
-  return int(ret);
+#  if SIZEOF_SIZE_T > 4
+  void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
+  if (p != MAP_FAILED)
+  {
+    ssize_t ret= mmap_copy<true>(src, stream, start, end);
+    munmap(p, size_t{end});
+    return int(ret);
+  }
+#  endif
+  return int(pread_write<true>(src, stream, start, end));
 # endif
 }
 #endif
