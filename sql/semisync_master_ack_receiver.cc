@@ -16,6 +16,7 @@
 #include <my_global.h>
 #include "semisync_master.h"
 #include "semisync_master_ack_receiver.h"
+#include <mysql/psi/mysql_thread.h>
 
 #ifdef HAVE_PSI_MUTEX_INTERFACE
 extern PSI_mutex_key key_LOCK_ack_receiver;
@@ -26,6 +27,48 @@ extern PSI_thread_key key_thread_ack_receiver;
 #endif
 
 my_socket global_ack_signal_fd= -1;
+
+namespace {
+
+/*
+  The ACK receiver reads from the replication connection's real VIO. The dump
+  thread uses the same connection for writes. It needs a short read
+  timeout, but must restore the connection's normal timeout after polling.
+
+  The old code used a private VIO copy whose PFS socket handle was cleared.
+  With a shared VIO, clearing that handle would also affect the dump thread.
+  Suppress PFS attribution for the ACK receiver thread instead. Keep both
+  temporary changes in one scope so every exit path restores them.
+*/
+class vio_read_scope
+{
+  Vio *m_vio;
+  int m_saved_read_timeout;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_thread *m_saved_psi_thread;
+#endif
+
+public:
+  vio_read_scope(Vio *vio, int read_timeout_ms)
+    : m_vio(vio), m_saved_read_timeout(vio_get_timeout_ms(vio, 0))
+  {
+    vio_timeout_ms(m_vio, 0, read_timeout_ms);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    m_saved_psi_thread= PSI_CALL_get_thread();
+    PSI_CALL_set_thread(nullptr);
+#endif
+  }
+
+  ~vio_read_scope()
+  {
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_CALL_set_thread(m_saved_psi_thread);
+#endif
+    vio_timeout_ms(m_vio, 0, m_saved_read_timeout);
+  }
+};
+
+} // namespace
 
 /* Callback function of ack receive thread */
 pthread_handler_t ack_receive_handler(void *arg)
@@ -148,9 +191,7 @@ bool Ack_receiver::add_slave(THD *thd)
 
   slave->active= 0;
   slave->thd= thd;
-  slave->vio= *thd->net.vio;
-  slave->vio.mysql_socket.m_psi= NULL;
-  slave->vio.read_timeout= 1;                   // 1 ms
+  slave->vio= thd->net.vio;
 
   mysql_mutex_lock(&m_mutex);
 
@@ -324,14 +365,14 @@ void Ack_receiver::run()
     while ((slave= it++))
     {
       if (slave->active &&
-          ((slave->vio.read_pos < slave->vio.read_end) ||
+          (vio_has_data(slave->vio) ||
            listener.is_socket_active(slave)))
       {
         ulong len;
 
         /* Semi-sync packets will always be sent with pkt_nr == 1 */
         net_clear(&net, 0);
-        net.vio= &slave->vio;
+        net.vio= slave->vio;
         /*
           Set compress flag. This is needed to support
           Slave_compress_protocol flag enabled Slaves
@@ -349,7 +390,10 @@ void Ack_receiver::run()
           continue;
         }
 
-        len= my_net_read(&net);
+        {
+          vio_read_scope read_scope(slave->vio, 1);
+          len= my_net_read(&net);
+        }
         if (likely(len != packet_error))
         {
           int res;

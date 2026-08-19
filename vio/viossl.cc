@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2026, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,10 +22,128 @@
 */
 
 #include "vio_priv.h"
+#include <new>
 
 #ifdef HAVE_OPENSSL
+#include <ssl_compat.h>
 
 #define SSL_errno(X,Y) ERR_get_error()
+
+#ifndef HAVE_WOLFSSL
+
+static int vio_bio_read(BIO *bio, char *buf, int size)
+{
+  Vio *filter;
+#ifdef HAVE_OPENSSL11
+  filter= (Vio *)BIO_get_data(bio);
+#else
+  filter= (Vio *)bio->ptr;
+#endif
+  Vio *underlying= vio_get_underlying(filter);
+  if (!underlying)
+    return -1;
+  ssize_t ret= (ssize_t) vio_read(underlying, (uchar*)buf, size);
+  return ret < 0 ? -1 : (int) ret;
+}
+
+static int vio_bio_write(BIO *bio, const char *buf, int size)
+{
+  Vio *filter;
+#ifdef HAVE_OPENSSL11
+  filter= (Vio *)BIO_get_data(bio);
+#else
+  filter= (Vio *)bio->ptr;
+#endif
+  Vio *underlying= vio_get_underlying(filter);
+  if (!underlying)
+    return -1;
+  ssize_t ret= (ssize_t) vio_write(underlying, (const uchar*)buf, size);
+  return ret < 0 ? -1 : (int) ret;
+}
+
+static long vio_bio_ctrl(BIO *bio __attribute__((unused)), int cmd,
+                         long arg __attribute__((unused)),
+                         void *ptr __attribute__((unused)))
+{
+  return cmd == BIO_CTRL_FLUSH ? 1 : 0;
+}
+
+static int vio_bio_create(BIO *bio)
+{
+#ifdef HAVE_OPENSSL11
+  BIO_set_data(bio, NULL);
+  BIO_set_init(bio, 1);
+#else
+  bio->ptr= NULL;
+  bio->init= 1;
+#endif
+  return 1;
+}
+
+static int vio_bio_destroy(BIO *bio)
+{
+  if (!bio)
+    return 0;
+#ifdef HAVE_OPENSSL11
+  BIO_set_data(bio, NULL);
+  BIO_set_init(bio, 0);
+#else
+  bio->ptr= NULL;
+  bio->init= 0;
+#endif
+  return 1;
+}
+
+#ifdef HAVE_OPENSSL11
+static BIO_METHOD *vio_bio_method_instance;
+static my_pthread_once_t vio_bio_method_once= MY_PTHREAD_ONCE_INIT;
+
+static void vio_bio_method_init(void)
+{
+  BIO_METHOD *method= BIO_meth_new(BIO_TYPE_SOURCE_SINK, "MariaDB VIO");
+  if (method)
+  {
+    BIO_meth_set_read(method, vio_bio_read);
+    BIO_meth_set_write(method, vio_bio_write);
+    BIO_meth_set_ctrl(method, vio_bio_ctrl);
+    BIO_meth_set_create(method, vio_bio_create);
+    BIO_meth_set_destroy(method, vio_bio_destroy);
+  }
+  vio_bio_method_instance= method;
+}
+
+static BIO_METHOD *vio_bio_method(void)
+{
+  my_pthread_once(&vio_bio_method_once, vio_bio_method_init);
+  return vio_bio_method_instance;
+}
+#else
+static BIO_METHOD *vio_bio_method(void)
+{
+  static BIO_METHOD method=
+  {
+    BIO_TYPE_SOURCE_SINK, "MariaDB VIO", vio_bio_write, vio_bio_read,
+    NULL, NULL, vio_bio_ctrl, vio_bio_create, vio_bio_destroy, NULL
+  };
+  return &method;
+}
+#endif
+
+static int ssl_set_vio_bio(SSL *ssl, void *vio)
+{
+  BIO *bio;
+  BIO_METHOD *method= vio_bio_method();
+  if (!method || !(bio= BIO_new(method)))
+    return 1;
+#ifdef HAVE_OPENSSL11
+  BIO_set_data(bio, vio);
+#else
+  bio->ptr= vio;
+#endif
+  SSL_set_bio(ssl, bio, bio);
+  return 0;
+}
+#endif /* !HAVE_WOLFSSL */
 
 /**
   Obtain the equivalent system error status for the last SSL I/O operation.
@@ -77,108 +196,42 @@ static void ssl_set_sys_error(int ssl_error)
 }
 
 
-/**
-  Indicate whether a SSL I/O operation must be retried later.
-
-  @param vio  VIO object representing a SSL connection.
-  @param ret  Value returned by a SSL I/O function.
-  @param event[out] The type of I/O event to wait/retry.
-  @param should_wait[out] whether to wait for 'event'
-
-  @return Whether a SSL I/O operation should be deferred.
-  @retval TRUE    Temporary failure, retry operation.
-  @retval FALSE   Indeterminate failure.
-*/
-
-static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event, my_bool *should_wait)
+static void ssl_set_io_error(SSL *ssl, int ret)
 {
-  int ssl_error;
-  SSL *ssl= vio->ssl_arg;
-  my_bool should_retry= TRUE;
+  int ssl_error= SSL_get_error(ssl, ret);
 
-#if defined(ERR_LIB_X509) && defined(X509_R_CERT_ALREADY_IN_HASH_TABLE)
-  /*
-    Ignore error X509_R_CERT_ALREADY_IN_HASH_TABLE.
-    This is a workaround for an OpenSSL bug in an older (< 1.1.1)
-    OpenSSL version.
-  */
-  unsigned long err = ERR_peek_error();
-  if (ERR_GET_LIB(err) == ERR_LIB_X509 &&
-      ERR_GET_REASON(err) == X509_R_CERT_ALREADY_IN_HASH_TABLE)
-  {
-    ERR_clear_error();
-    *should_wait= FALSE;
-    return TRUE;
-  }
-#endif
-
-  /* Retrieve the result for the SSL I/O operation. */
-  ssl_error= SSL_get_error(ssl, ret);
-
-  /* Retrieve the result for the SSL I/O operation. */
-  switch (ssl_error)
-  {
-  case SSL_ERROR_WANT_READ:
-    *event= VIO_IO_EVENT_READ;
-    *should_wait= TRUE;
-    break;
-  case SSL_ERROR_WANT_WRITE:
-    *event= VIO_IO_EVENT_WRITE;
-    *should_wait= TRUE;
-    break;
-  default:
-    should_retry= FALSE;
-    *should_wait= FALSE;
-    ssl_set_sys_error(ssl_error);
-    ERR_clear_error();
-    break;
-  }
-
-  return should_retry;
+  /* SSL_ERROR_SYSCALL preserves the classification made by the transport. */
+  if (ssl_error != SSL_ERROR_SYSCALL)
+    vio_set_was_timeout(FALSE);
+  ssl_set_sys_error(ssl_error);
+  ERR_clear_error();
 }
 
-
-/**
-  Handle SSL io error.
-
-  @param[in] vio Vio
-  @param[in] ret return from the failed IO operation
-
-  @return  0 - should retry last read/write operation
-           1 - some error has occurred
-*/
-static int handle_ssl_io_error(Vio *vio, int ret)
+Ssl_vio::Ssl_vio(Vio *underlying, void *ssl)
+  : Vio_filter(underlying), m_ssl(ssl)
 {
-  enum enum_vio_io_event event;
-  my_bool should_wait;
-
-  /* Process the SSL I/O error. */
-  if (!ssl_should_retry(vio, ret, &event, &should_wait))
-    return 1;
-
-  if (!should_wait)
-    return 1;
-
-  /* Attempt to wait for an I/O event. */
-  return vio_socket_io_wait(vio, event);
 }
 
+Ssl_vio::~Ssl_vio()
+{
+  if (m_ssl)
+    SSL_free(static_cast<SSL *>(m_ssl));
+}
 
-size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
+size_t Ssl_vio::read(uchar *buf, size_t size)
 {
   int ret;
-  SSL *ssl= vio->ssl_arg;
-  DBUG_ENTER("vio_ssl_read");
+  SSL *ssl= static_cast<SSL *>(m_ssl);
+  DBUG_ENTER("Ssl_vio::read");
   DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu  ssl: %p",
-		       (int)mysql_socket_getfd(vio->mysql_socket), buf, size,
-                       vio->ssl_arg));
+		       (int)m_underlying->fd(), buf, size, m_ssl));
 
 
-  while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
-  {
-    if (handle_ssl_io_error(vio, ret))
-      break;
-  }
+  ret= SSL_read(ssl, buf, (int)size);
+  if (ret < 0)
+    ssl_set_io_error(ssl, ret);
+  else if (!ret)
+    vio_set_was_timeout(FALSE);
 
   DBUG_PRINT("exit", ("%d", ret));
   DBUG_RETURN(ret < 0 ? -1 : ret);
@@ -186,28 +239,28 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 }
 
 
-size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
+size_t Ssl_vio::write(const uchar *buf, size_t size)
 {
   int ret;
-  SSL *ssl= vio->ssl_arg;
-  DBUG_ENTER("vio_ssl_write");
+  SSL *ssl= static_cast<SSL *>(m_ssl);
+  DBUG_ENTER("Ssl_vio::write");
   DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
-                       (int)mysql_socket_getfd(vio->mysql_socket),
+                       (int)m_underlying->fd(),
                        buf, size));
-  while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
-  {
-    if (handle_ssl_io_error(vio,ret))
-      break;
-  }
+  ret= SSL_write(ssl, buf, (int)size);
+  if (ret < 0)
+    ssl_set_io_error(ssl, ret);
+  else if (!ret && size)
+    vio_set_was_timeout(FALSE);
 
   DBUG_RETURN(ret < 0 ? -1 : ret);
 }
 
-int vio_ssl_close(Vio *vio)
+int Ssl_vio::close()
 {
   int r= 0;
-  SSL *ssl= (SSL*)vio->ssl_arg;
-  DBUG_ENTER("vio_ssl_close");
+  SSL *ssl= static_cast<SSL *>(m_ssl);
+  DBUG_ENTER("Ssl_vio::close");
 
   if (ssl)
   {
@@ -238,27 +291,9 @@ int vio_ssl_close(Vio *vio)
       break;
     }
   }
-  DBUG_RETURN(vio_close(vio));
+  (void) m_underlying->close();
+  DBUG_RETURN(r);
 }
-
-
-void vio_ssl_delete(Vio *vio)
-{
-  if (!vio)
-    return; /* It must be safe to delete null pointer */
-
-  if (vio->type == VIO_TYPE_SSL)
-    vio_ssl_close(vio); /* Still open, close connection first */
-
-  if (vio->ssl_arg)
-  {
-    SSL_free((SSL*) vio->ssl_arg);
-    vio->ssl_arg= 0;
-  }
-
-  vio_delete(vio);
-}
-
 
 /** SSL handshake handler. */
 typedef int (*ssl_handshake_func_t)(SSL*);
@@ -267,44 +302,34 @@ typedef int (*ssl_handshake_func_t)(SSL*);
 /**
   Loop and wait until a SSL handshake is completed.
 
-  @param vio    VIO object representing a SSL connection.
   @param ssl    SSL structure for the connection.
   @param func   SSL handshake handler.
 
   @return Return value is 1 on success.
 */
 
-static int ssl_handshake_loop(Vio *vio, SSL *ssl, ssl_handshake_func_t func)
+static int ssl_handshake(SSL *ssl, ssl_handshake_func_t func)
 {
-  int ret;
-
-  vio->ssl_arg= ssl;
-
-  /* Initiate the SSL handshake. */
-  while ((ret= func(ssl)) < 1)
-  {
-    if (handle_ssl_io_error(vio,ret))
-      break;
-  }
-
-  vio->ssl_arg= NULL;
+  int ret= func(ssl);
+  if (ret < 1)
+    ssl_set_io_error(ssl, ret);
 
   return ret;
 }
 
 
-static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
+static int ssl_do(struct st_VioSSLFd *ptr, Vio **vio_ptr, long timeout,
                   ssl_handshake_func_t func, unsigned long *errptr)
 {
   int r;
   SSL *ssl;
-  my_socket sd= mysql_socket_getfd(vio->mysql_socket);
+  Ssl_vio *ssl_vio;
   DBUG_ENTER("ssl_do");
   DBUG_PRINT("enter", ("ptr: %p, sd: %d  ctx: %p",
-                       ptr, (int)sd, ptr->ssl_context));
+                       ptr, (int)(*vio_ptr)->fd(), ptr->ssl_context));
 
 
-  if (!(ssl= SSL_new(ptr->ssl_context)))
+  if (!(ssl= SSL_new(static_cast<SSL_CTX *>(ptr->ssl_context))))
   {
     DBUG_PRINT("error", ("SSL_new failure"));
     *errptr= ERR_get_error();
@@ -313,33 +338,30 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
   DBUG_PRINT("info", ("ssl: %p timeout: %ld", ssl, timeout));
   SSL_clear(ssl);
   SSL_SESSION_set_timeout(SSL_get_session(ssl), timeout);
-  SSL_set_fd(ssl, (int)sd);
+  if (!(ssl_vio= new (std::nothrow) Ssl_vio(*vio_ptr, ssl)))
+  {
+    SSL_free(ssl);
+    DBUG_RETURN(1);
+  }
+  *vio_ptr= ssl_vio;
 
 #ifdef HAVE_WOLFSSL
-  /* Set first argument of the transport functions. */
-  wolfSSL_SetIOReadCtx(ssl, vio);
-  wolfSSL_SetIOWriteCtx(ssl, vio);
+  /* wolfSSL invokes the VIO transport callbacks directly. */
+  wolfSSL_SetIOReadCtx(ssl, ssl_vio);
+  wolfSSL_SetIOWriteCtx(ssl, ssl_vio);
+#else
+  if (ssl_set_vio_bio(ssl, ssl_vio))
+    DBUG_RETURN(1);
 #endif
 
 #if defined(SSL_OP_NO_COMPRESSION)
   SSL_set_options(ssl, SSL_OP_NO_COMPRESSION);
 #endif
 
-  if ((r= ssl_handshake_loop(vio, ssl, func)) < 1)
+  if ((r= ssl_handshake(ssl, func)) < 1)
   {
     DBUG_PRINT("error", ("SSL_connect/accept failure"));
     *errptr= SSL_errno(ssl, r);
-    SSL_free(ssl);
-    DBUG_RETURN(1);
-  }
-
-  /*
-    Connection succeeded. Install new function handlers,
-    change type, set sd to the fd used when connecting
-    and set pointer to the SSL structure
-  */
-  if (vio_reset(vio, VIO_TYPE_SSL, SSL_get_fd(ssl), ssl, 0))
-  {
     DBUG_RETURN(1);
   }
 
@@ -377,33 +399,37 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
 }
 
 
-int sslaccept(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *errptr)
+int sslaccept(struct st_VioSSLFd *ptr, Vio **vio, long timeout,
+              unsigned long *errptr)
 {
   DBUG_ENTER("sslaccept");
   DBUG_RETURN(ssl_do(ptr, vio, timeout, SSL_accept, errptr));
 }
 
 
-int sslconnect(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *errptr)
+int sslconnect(struct st_VioSSLFd *ptr, Vio **vio, long timeout,
+               unsigned long *errptr)
 {
   DBUG_ENTER("sslconnect");
   DBUG_RETURN(ssl_do(ptr, vio, timeout, SSL_connect, errptr));
 }
 
 
-int vio_ssl_blocking(Vio *vio __attribute__((unused)),
-		     my_bool set_blocking_mode,
-		     my_bool *old_mode)
+my_bool Ssl_vio::has_data() const
 {
-  /* Mode is always blocking */
-  *old_mode= 1;
-  /* Return error if we try to change to non_blocking mode */
-  return (set_blocking_mode ? 0 : 1);
+  return SSL_pending(static_cast<SSL *>(m_ssl)) > 0 ||
+         m_underlying->has_data();
 }
 
-my_bool vio_ssl_has_data(Vio *vio)
+ssize_t Ssl_vio::pending()
 {
-  return SSL_pending(vio->ssl_arg) > 0 ? TRUE : FALSE;
+  int bytes= SSL_pending(static_cast<SSL *>(m_ssl));
+  return bytes ? bytes : m_underlying->pending();
+}
+
+void *vio_ssl_handle(Vio *vio)
+{
+  return vio ? vio->ssl_handle() : nullptr;
 }
 
 #endif /* HAVE_OPENSSL */

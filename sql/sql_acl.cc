@@ -57,6 +57,8 @@
 #include "password.h"
 #include "scope.h"
 
+#include <ssl_compat.h>
+
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
 
@@ -16140,7 +16142,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
     DBUG_PRINT("info", ("IO layer change in progress..."));
     mysql_rwlock_rdlock(&LOCK_ssl_refresh);
-    int ssl_ret = sslaccept(ssl_acceptor_fd, net->vio, net->read_timeout, &errptr);
+    int ssl_ret= sslaccept(ssl_acceptor_fd, &net->vio, net->read_timeout, &errptr);
     mysql_rwlock_unlock(&LOCK_ssl_refresh);
     ssl_acceptor_stats_update(ssl_ret);
 
@@ -16548,7 +16550,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
 #ifdef HAVE_OPENSSL
   Vio *vio= thd->net.vio;
-  SSL *ssl= (SSL *) vio->ssl_arg;
+  SSL *ssl= (SSL *) vio_ssl_handle(vio);
   X509 *cert;
 #endif
 
@@ -16564,7 +16566,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
     return 0;
 #ifdef HAVE_OPENSSL
   case SSL_TYPE_ANY:                            // Any kind of SSL is ok
-    return vio_type(vio) != VIO_TYPE_SSL;
+    return !ssl;
   case SSL_TYPE_X509: /* Client should have any valid certificate. */
     /*
       Connections with non-valid certificates are dropped already
@@ -16573,7 +16575,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       We need to check for absence of SSL because without SSL
       we should reject connection.
     */
-    if (vio_type(vio) == VIO_TYPE_SSL &&
+    if (ssl &&
         SSL_get_verify_result(ssl) == X509_V_OK &&
         (cert= SSL_get_peer_certificate(ssl)))
     {
@@ -16583,7 +16585,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
     return 1;
   case SSL_TYPE_SPECIFIED: /* Client should have specified attrib */
     /* If a cipher name is specified, we compare it to actual cipher in use. */
-    if (vio_type(vio) != VIO_TYPE_SSL ||
+    if (!ssl ||
         SSL_get_verify_result(ssl) != X509_V_OK)
       return 1;
     if (acl_user->ssl_cipher)
