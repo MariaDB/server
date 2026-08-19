@@ -200,11 +200,15 @@ bool get_type_attributes_for_tvc(THD *thd,
   List_item *lst;
   li.rewind();
   
+  /*
+    Reset arg_count on each call.  The args[] buffer itself was allocated
+    on stmt_arena when the Type_holder[] array was first set up in
+    table_value_constr::prepare(), so we reuse that buffer across
+    executions of the prepared statement instead of allocating again on
+    every call.
+  */
   for (uint pos= 0; pos < first_list_el_count; pos++)
-  {
-    if (holders[pos].alloc_arguments(thd, count_of_lists))
-      DBUG_RETURN(true);
-  }
+    holders[pos].remove_arguments();
   
   while ((lst= li++))
   {
@@ -269,23 +273,83 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   if (fix_fields_for_tvc(thd, li))
     DBUG_RETURN(true);
 
-  if (!holders)
+  /*
+    type_holders is NULL only on the first call of this function for a
+    given statement and stays set for the rest of that statement's
+    lifetime.  That first call happens at PREPARE for a prepared
+    statement whose TVC comes from the parser.  For a statement of a
+    stored procedure, and for a TVC that the conversion of an IN
+    predicate into an IN subquery creates, it happens instead on the
+    first execution.  The SELECT list of Item_type_holder instances is
+    built on that same first call, so the holder array and that list are
+    either both already set up or both still empty.
+  */
+  const bool first_call= !holders;
+
+  if (first_call)
   {
     DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
                 thd->stmt_arena->is_conventional());
-    holders= type_holders=
+    /*
+      Fill in a local pointer and assign it to type_holders only after
+      every holder's args[] buffer has been allocated.  first_call is
+      computed from type_holders, so type_holders must stay NULL until
+      this block completes.  Were it assigned up front and a later
+      alloc_arguments() then failed, type_holders would be non-NULL
+      while some holders still had no args[] buffer.  The next call
+      would skip this block and let add_argument() store an item through
+      that unallocated args pointer.
+    */
+    Type_holder *new_holders=
       new (thd->active_stmt_arena_to_use()->mem_root) Type_holder[cnt];
-    if (!holders ||
-         join_type_handlers_for_tvc(thd, li, holders, cnt) ||
-         get_type_attributes_for_tvc(thd, li, holders,
-				     lists_of_values.elements, cnt))
+    if (!new_holders)
        DBUG_RETURN(true);
+
+    /*
+      Allocate each Type_holder's args[] buffer on stmt_arena so that
+      we have stable storage that can be refilled in place on every
+      EXECUTE instead of being reallocated each time.
+    */
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    bool args_err= false;
+    for (uint pos= 0; pos < cnt && !args_err; pos++)
+    {
+      if (new_holders[pos].alloc_arguments(thd, lists_of_values.elements))
+        args_err= true;
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    if (args_err)
+      DBUG_RETURN(true);
+
+    holders= type_holders= new_holders;
+  }
+
+  /*
+    Collect the column types from the list of values.  This runs on
+    every call, not just the first, so that a value whose type is not
+    yet known at PREPARE time picks up its actual type once a value is
+    bound at EXECUTE time.
+  */
+  if (join_type_handlers_for_tvc(thd, li, holders, cnt) ||
+      get_type_attributes_for_tvc(thd, li, holders,
+                                  lists_of_values.elements, cnt))
+     DBUG_RETURN(true);
+
+  /*
+    Populate the SELECT list with the Item_type_holder instances that
+    describe the columns of the TVC.  On every later execution these same
+    instances are refreshed in place (see the 'else' case following).
+  */
+  if (first_call)
+  {
+    DBUG_ASSERT(sl->item_list.is_empty());
     List_iterator_fast<Item> it(*first_elem);
     Item *item;
     Query_arena *arena, backup;
     arena=thd->activate_stmt_arena_if_needed(&backup);
 
-    sl->item_list.empty();
     for (uint pos= 0; (item= it++); pos++)
     {
       /* Error's in 'new' will be detected after loop */
@@ -300,6 +364,24 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
 
     if (unlikely(thd->is_fatal_error))
       DBUG_RETURN(true); // out of memory
+  }
+  else
+  {
+    /*
+      Refresh the cached type info on the existing Item_type_holder
+      instances so that the types reported for the TVC reflect the values
+      seen on the current execution.
+    */
+    List_iterator_fast<Item> it(sl->item_list);
+    for (uint pos= 0; pos < cnt; pos++)
+    {
+      Item* elem= it++;
+      DBUG_ASSERT(elem->type() == Item::TYPE_HOLDER);
+      Item_type_holder *ith= static_cast<Item_type_holder*>(elem);
+      ith->refresh(holders[pos].type_handler(),
+                   &holders[pos],
+                   holders[pos].get_maybe_null());
+    }
   }
     
   result= tmp_result;

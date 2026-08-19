@@ -8266,6 +8266,13 @@ public:
   bool aggregate_attributes(THD *thd)
   {
     static LEX_CSTRING union_name= { STRING_WITH_LEN("UNION") };
+    /*
+      m_maybe_null is OR-accumulated and never reset here, so it is
+      sticky across calls.  In a prepared statement context this means
+      that once any EXECUTE has observed a NULL for a given column, that
+      column stays nullable for the rest of the statement's lifetime
+      even if later EXECUTEs only bind non-NULL values.
+    */
     for (uint i= 0; i < arg_count; i++)
       m_maybe_null|= args[i]->maybe_null();
     return
