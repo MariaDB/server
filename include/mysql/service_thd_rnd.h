@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_THD_RND_INCLUDED
 /* Copyright (C) 2017 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_THD_RND_INCLUDED
+#define MYSQL_SERVICE_THD_RND_INCLUDED
+
 /**
   @file
   This service provides access to the thd-local random number generator.
@@ -23,6 +25,16 @@
   to the shared rnd state.
 */
 
+/**
+  @defgroup plugin_api_service_thd_rnd THD RND service
+  @ingroup plugin_api_services
+  Access to the thd-local random number generator.
+
+  It's preferable over the global one, because concurrent threads
+  can generate random numbers without fighting each other over the access
+  to the shared rnd state.
+  @{
+*/
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,12 +49,7 @@ extern struct thd_rnd_service_st {
 } *thd_rnd_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-#define thd_rnd(A) thd_rnd_service->thd_rnd_ptr(A)
-#define thd_create_random_password(A,B,C) thd_rnd_service->thd_c_r_p_ptr(A,B,C)
-#else
-
-double thd_rnd(MYSQL_THD thd);
-
+#define thd_rnd(thd) thd_rnd_service->thd_rnd_ptr(thd)
 /**
   Generate string of printable random characters of requested length.
 
@@ -51,13 +58,16 @@ double thd_rnd(MYSQL_THD thd);
                        long; result string is always null-terminated
   @param[in]  length   How many random characters to put in buffer
 */
+#define thd_create_random_password(thd,to,length) thd_rnd_service->thd_c_r_p_ptr(thd,to,length)
+#else
+double thd_rnd(MYSQL_THD thd);
 void thd_create_random_password(MYSQL_THD thd, char *to, size_t length);
-
 #endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#define MYSQL_SERVICE_THD_RND_INCLUDED
+/** @} */
+
 #endif

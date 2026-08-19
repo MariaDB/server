@@ -1,4 +1,3 @@
-#ifndef MYSQL_CLIENT_PLUGIN_INCLUDED
 /* Copyright (C) 2010 Sergei Golubchik and Monty Program Ab
    Copyright (c) 2010, 2011, Oracle and/or its affiliates.
 
@@ -15,6 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_CLIENT_PLUGIN_INCLUDED
+#define MYSQL_CLIENT_PLUGIN_INCLUDED
 /**
   @file
 
@@ -22,8 +23,12 @@
 
   This file defines the API for plugins that work on the client side
 */
-#define MYSQL_CLIENT_PLUGIN_INCLUDED
 
+/** 
+  @defgroup plugin_client_api Client Plugin API
+  API for plugins that work on the client side
+  @{
+*/
 /*
   On Windows, exports from DLL need to be declared
   Also, plugin needs to be declared as extern "C" because MSVC 
@@ -185,5 +190,7 @@ mysql_client_register_plugin(struct st_mysql *mysql,
 **/
 int mysql_plugin_options(struct st_mysql_client_plugin *plugin,
                          const char *option, const void *value);
+
+/** @} */
 #endif
 
