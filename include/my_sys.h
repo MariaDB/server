@@ -641,6 +641,7 @@ extern int my_mkdir(const char *dir, int Flags, myf MyFlags);
 extern int my_readlink(char *to, const char *filename, myf MyFlags);
 extern int my_is_symlink(const char *filename);
 extern int my_realpath(char *to, const char *filename, myf MyFlags);
+extern size_t my_canonical_case_name(const char *path, char *to, size_t to_size);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
 				   mode_t createflags, int access_flags,
 				   myf MyFlags);
