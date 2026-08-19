@@ -85,7 +85,7 @@ public:
   TP_connection_win(CONNECT*);
   ~TP_connection_win();
   int init() override;
-  void init_vio(st_vio *vio) override;
+  void init_vio(st_vio **vio) override;
   int start_io() override;
   void set_io_timeout(int sec) override;
   void wait_begin(int type) override;
@@ -157,7 +157,7 @@ int TP_connection_win::init()
   return !io  || !timer || !work ;
 }
 
-void TP_connection_win::init_vio(st_vio* vio)
+void TP_connection_win::init_vio(st_vio** vio)
 {
   sock.init(vio);
 }

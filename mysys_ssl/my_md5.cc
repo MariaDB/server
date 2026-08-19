@@ -29,8 +29,8 @@
 
 #if defined(HAVE_WOLFSSL)
 #include <wolfssl/wolfcrypt/md5.h>
-#include <ssl_compat.h>
 typedef wc_Md5 EVP_MD_CTX;
+#define EVP_MD_CTX_SIZE sizeof(wc_Md5)
 static void md5_init(EVP_MD_CTX *context)
 {
   wc_InitMd5(context);;

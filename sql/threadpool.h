@@ -114,7 +114,11 @@ struct TP_connection
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
-  IF_WIN(virtual,) void init_vio(st_vio *){};
+#ifdef _WIN32
+  virtual void init_vio(st_vio **vio)= 0;
+#else
+  void init_vio(st_vio **) { }
+#endif
 };
 
 
