@@ -1260,6 +1260,18 @@ static void srv_master_do_active_tasks(ulonglong counter_time)
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
+
+	/* Release the page frames that page reorganization stopped using. A
+	burst of concurrent reorganizations would otherwise retain one frame
+	per slot until shutdown, and that memory is not covered by
+	innodb_buffer_pool_size. A frame survives two passes, because the
+	first pass only clears the used flag, so the grace period is twice the
+	interval between the passes. Shrink rarely here, so that a loaded
+	server does not free the frames that it is about to need again. */
+	if (!(srv_main_active_loops % 1024)) {
+		srv_main_thread_op_info = "shrinking scratch buffer";
+		buf_pool.scratch_buf_shrink(false);
+	}
 }
 
 /** Perform periodic tasks whenever the server is idle.
@@ -1277,6 +1289,13 @@ static void srv_master_do_idle_tasks(ulonglong counter_time)
 	}
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
+
+	/* The server is idle, so page reorganization is unlikely to need the
+	frames again soon. Shrink far more often than the active task does. */
+	if (!(srv_main_idle_loops % 16)) {
+		srv_main_thread_op_info = "shrinking scratch buffer";
+		buf_pool.scratch_buf_shrink(false);
+	}
 }
 
 /** The periodic master task controlling the server. */

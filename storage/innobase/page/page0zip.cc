@@ -4382,7 +4382,6 @@ page_zip_reorganize(
 	bool		restore)/*!< whether to restore on failure */
 {
 	page_t*		page		= buf_block_get_frame(block);
-	buf_block_t*	temp_block;
 	page_t*		temp_page;
 
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
@@ -4397,9 +4396,9 @@ page_zip_reorganize(
 	/* Disable logging */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-	temp_block = buf_block_alloc();
 	btr_search_drop_page_hash_index(block, nullptr);
-	temp_page = temp_block->page.frame;
+	buf_tmp_buffer_t *tmp_buf= buf_pool.scratch_buf_reserve();
+	temp_page= tmp_buf->frame();
 
 	/* Copy the old page to temporary space */
 	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_page, block->page.frame,
@@ -4421,8 +4420,7 @@ page_zip_reorganize(
 	do not copy the lock bits yet */
 
 	dberr_t err = page_copy_rec_list_end_no_locks(
-		block, temp_block, page_get_infimum_rec(temp_page),
-		index, mtr);
+		block, page_get_infimum_rec(temp_page), index, mtr);
 
 	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
 	memcpy_aligned<8>(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
@@ -4469,10 +4467,10 @@ page_zip_reorganize(
 
 		err = DB_FAIL;
 	} else {
-		lock_move_reorganize_page(block, temp_block);
+		lock_move_reorganize_page(block, temp_page);
 	}
 
-	buf_block_free(temp_block);
+	tmp_buf->release();
 	return err;
 }
 
