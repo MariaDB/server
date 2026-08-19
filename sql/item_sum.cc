@@ -33,19 +33,6 @@
 #include "item_sum.h"
 #include "sql_type_geom.h"
 
-/**
-  Calculate the affordable RAM limit for structures like TREE or Unique
-  used in Item_sum_*
-*/
-
-size_t Item_sum::ram_limitation(THD *thd)
-{
-  return MY_MAX(1024,
-           (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
-                          thd->variables.max_heap_table_size));
-}
-
-
 /*
   Force create_tmp_table() to convert BIT columns to BIGINT.
   This is needed because BIT fields store parts of their data in table's
@@ -861,7 +848,7 @@ bool Aggregator_distinct::setup(THD *thd)
       DBUG_ASSERT(tree == 0);
       tree= (new (thd->mem_root)
              Unique(compare_key, cmp_arg, tree_key_length,
-                    item_sum->ram_limitation(thd)));
+                    thd->ram_limitation()));
       /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
@@ -920,7 +907,7 @@ bool Aggregator_distinct::setup(THD *thd)
     */
     tree= (new (thd->mem_root)
            Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
-                  item_sum->ram_limitation(thd)));
+                  thd->ram_limitation()));
 
     DBUG_RETURN(tree == 0);
   }
@@ -4190,7 +4177,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   if (!tree->offset_to_key)
     size-= sizeof(void*);
 
-  init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
+  init_tree(&st.tree, (size_t) MY_MIN(thd->ram_limitation()/16,
                                       thd->variables.sortbuff_size/16), 0,
             size, get_comparator_function_for_order_by(), NULL,
             (void*) this, MYF(MY_THREAD_SPECIFIC));
@@ -4452,13 +4439,15 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (arg_count_order)
   {
+    size_t tmp_buffer_size= MY_MIN(thd->variables.tmp_memory_table_size,
+                                   thd->variables.max_heap_table_size);
     tree= &tree_base;
     /*
       Create a tree for sorting. The tree is used to sort (according to the
       syntax of this function). If there is no ORDER BY clause, we don't
       create this tree.
     */
-    init_tree(tree, (size_t)MY_MIN(thd->variables.max_heap_table_size,
+    init_tree(tree, (size_t)MY_MIN(thd->ram_limitation()/16,
                                    thd->variables.sortbuff_size/16), 0,
               tree_key_length + get_null_bytes(),
               get_comparator_function_for_order_by(), NULL, (void*) this,
@@ -4471,7 +4460,7 @@ bool Item_func_group_concat::setup(THD *thd)
                     Unique(get_comparator_function_for_distinct(),
                            (void*)this,
                            tree_key_length + get_null_bytes(),
-                           ram_limitation(thd)));
+                           thd->ram_limitation()));
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))
   {

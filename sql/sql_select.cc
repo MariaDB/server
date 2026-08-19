@@ -22765,7 +22765,7 @@ bool Create_tmp_table::finalize(THD *thd,
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
                                  MY_MIN(thd->variables.tmp_memory_table_size,
-                                     thd->variables.max_heap_table_size) :
+                                        thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_disk_table_size) /
                                 MY_ALIGN(share->reclength, sizeof(char*)));
   set_if_bigger(share->max_rows,1);		// For dummy start options

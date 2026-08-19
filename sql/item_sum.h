@@ -389,7 +389,6 @@ protected:
   */
   Item **orig_args, *tmp_orig_args[2];
   
-  static size_t ram_limitation(THD *thd);
 public:
   // Methods used by ColumnStore
   Item **get_orig_args() const { return orig_args; }

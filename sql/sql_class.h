@@ -4780,6 +4780,16 @@ public:
     return variables.sql_mode & MODE_TIME_ROUND_FRACTIONAL ?
            TIME_FRAC_ROUND : TIME_FRAC_TRUNCATE;
   }
+  /*
+    Default allowed max ram usage for creating internal buffers, for
+    TREE, Unique, distinct handling etc.
+  */
+  inline size_t ram_limitation()
+  {
+    return MY_MAX(8192-MALLOC_OVERHEAD,
+                  (size_t)MY_MIN(variables.tmp_memory_table_size,
+                                 variables.max_heap_table_size));
+  }
 
 private:
   struct {
