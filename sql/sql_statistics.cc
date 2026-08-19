@@ -2424,7 +2424,7 @@ alloc_engine_independent_statistics(THD *thd, const TABLE_SHARE *table_share,
 inline
 void Column_statistics_collected::init(THD *thd, Field *table_field)
 {
-  size_t max_heap_table_size= (size_t)thd->variables.max_heap_table_size;
+  size_t ram_limitation= thd->ram_limitation();
   TABLE *table= table_field->table;
   uint pk= table->s->primary_key;
   
@@ -2446,9 +2446,9 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
     count_distinct=
       table_field->type() == MYSQL_TYPE_BIT ?
       new (thd->mem_root) Count_distinct_field_bit(table_field,
-                                                   max_heap_table_size) :
+                                                   ram_limitation) :
       new (thd->mem_root) Count_distinct_field(table_field,
-                                               max_heap_table_size);
+                                               ram_limitation);
     if (count_distinct && !count_distinct->exists())
     {
       /* Allocation failed */
