@@ -47,6 +47,8 @@ extern struct progress_report_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(progress_report, progress_report_service, 0x0100);
+
 #define thd_progress_init(thd,max_stage) (progress_report_service->thd_progress_init_func((thd),(max_stage)))
 #define thd_progress_report(thd, progress, max_progress) (progress_report_service->thd_progress_report_func((thd), (progress), (max_progress)))
 #define thd_progress_next_stage(thd) (progress_report_service->thd_progress_next_stage_func(thd))

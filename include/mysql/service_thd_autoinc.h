@@ -32,6 +32,9 @@ extern struct thd_autoinc_service_st {
 } *thd_autoinc_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_autoinc, thd_autoinc_service, 0x0100);
+
 #define thd_get_autoinc(thd, off, inc) \
   (thd_autoinc_service->thd_get_autoinc_func((thd), (off), (inc)))
 #else

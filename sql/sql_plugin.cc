@@ -741,11 +741,15 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
 {
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
-  size_t plugin_dir_len,i;
+  size_t plugin_dir_len;
   uint dummy_errors;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
+#if defined(__ELF__) && defined(__GNUC__)
+#else
+  size_t i;
   st_ptr_backup tmp_backup[array_elements(list_of_services)];
+#endif
   DBUG_ENTER("plugin_dl_add");
   DBUG_PRINT("enter", ("dl->str: '%s', dl->length: %d",
                        dl->str, (int) dl->length));
@@ -807,6 +811,8 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
       goto ret;
   }
 
+#if defined(__ELF__) && defined(__GNUC__)
+#else
   /* link the services in */
   for (i= 0; i < array_elements(list_of_services); i++)
   {
@@ -828,6 +834,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
       *ptr= list_of_services[i].service;
     }
   }
+#endif
 
   if (plugin_dl.nbackups)
   {
@@ -836,11 +843,17 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
                                                      bytes, MYF(0));
     if (!plugin_dl.ptr_backup)
     {
+#if defined(__ELF__) && defined(__GNUC__)
+#else
       restore_ptr_backup(plugin_dl.nbackups, tmp_backup);
+#endif
       my_error(ER_OUTOFMEMORY, MyFlags, bytes);
       goto ret;
     }
+#if defined(__ELF__) && defined(__GNUC__)
+#else
     memcpy(plugin_dl.ptr_backup, tmp_backup, bytes);
+#endif
   }
 
   /* Duplicate and convert dll name */
@@ -1641,9 +1654,11 @@ int plugin_init(int *argc, char **argv, int flags)
       goto err;
   }
 
+#if 0
   /* prepare debug_sync service */
   DBUG_ASSERT(strcmp(list_of_services[1].name, "debug_sync_service") == 0);
   list_of_services[1].service= *(void**)&debug_sync_C_callback_ptr;
+#endif
 
   /* prepare encryption_keys service */
   finalize_encryption_plugin(0);

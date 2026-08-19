@@ -103,6 +103,8 @@ extern struct wsrep_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(wsrep, wsrep_service, 0x0500);
+
 #define MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED
 #define get_wsrep_recovery() wsrep_service->get_wsrep_recovery_func()
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)

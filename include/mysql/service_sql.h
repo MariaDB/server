@@ -16,6 +16,7 @@
 #ifndef MYSQL_SERVICE_SQL
 #define MYSQL_SERVICE_SQL
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <mysql.h>
 #endif
@@ -77,6 +78,8 @@ extern struct sql_service_st {
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(sql_service, sql_service, 0x0102);
 
 #define mysql_init(M) sql_service->mysql_init_func(M)
 #define mysql_real_connect_local(M) sql_service->mysql_real_connect_local_func(M)

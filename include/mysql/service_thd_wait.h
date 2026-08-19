@@ -17,7 +17,7 @@
 #define MYSQL_SERVICE_THD_WAIT_INCLUDED
 
 /**
-  @file include/mysql/service_thd_wait.h
+  @file include/mysservice_thd_wait.h
   This service provides functions for plugins and storage engines to report
   when they are going to sleep/stall.
   
@@ -84,6 +84,8 @@ extern struct thd_wait_service_st {
 } *thd_wait_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_wait, thd_wait_service, 0x0100);
 
 #define thd_wait_begin(_THD, _WAIT_TYPE) \
   thd_wait_service->thd_wait_begin_func(_THD, _WAIT_TYPE)

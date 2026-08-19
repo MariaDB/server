@@ -318,6 +318,7 @@
   See also http://forge.mysql.com/worklog/task.php?id=4259
 */
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdlib.h>
 #endif
@@ -328,6 +329,7 @@ extern "C" {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 extern void (*debug_sync_service)(MYSQL_THD, const char *, size_t);
+MARIADB_SERVICE_VERSION(debug_sync, debug_sync_service, 0x1000);
 #else
 #define debug_sync_service debug_sync_C_callback_ptr
 extern void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t);

@@ -74,6 +74,8 @@ extern struct my_crypt_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(my_crypt, my_crypt_service, 0x0100);
+
 #define my_aes_crypt_init(A,B,C,D,E,F,G) \
    my_crypt_service->my_aes_crypt_init(A,B,C,D,E,F,G)
 

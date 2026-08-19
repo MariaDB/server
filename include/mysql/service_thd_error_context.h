@@ -39,6 +39,9 @@ extern struct thd_error_context_service_st {
 } *thd_error_context_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_error_context, thd_error_context_service, 0x0200);
+
 #define thd_get_error_message(thd) \
   (thd_error_context_service->thd_get_error_message_func((thd)))
 #define thd_get_error_number(thd) \

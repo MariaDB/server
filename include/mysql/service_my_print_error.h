@@ -17,7 +17,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 #define MYSQL_SERVICE_MY_PRINT_ERROR_INCLUDED
 
 /**
-  @file include/mysql/service_my_print_error.h
+  @file include/mysservice_my_print_error.h
 
   This service provides functions for plugins to report
   errors to client (without client, the errors are written to the error log).
@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 extern "C" {
 #endif
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdarg.h>
 #include <stdlib.h>
@@ -45,6 +46,8 @@ extern struct my_print_error_service_st {
 } *my_print_error_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(my_print_error, my_print_error_service, 0x0100);
 
 #define my_error my_print_error_service->my_error_func
 #define my_printf_error my_print_error_service->my_printf_error_func

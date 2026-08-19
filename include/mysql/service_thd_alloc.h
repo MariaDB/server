@@ -27,6 +27,7 @@
   allocations - they are better served with my_malloc.
 */
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdlib.h>
 #endif
@@ -68,6 +69,8 @@ extern struct thd_alloc_service_st {
 } *thd_alloc_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_alloc, thd_alloc_service, 0x0200);
 
 #define thd_alloc(thd,size) (thd_alloc_service->thd_alloc_func((thd), (size)))
 

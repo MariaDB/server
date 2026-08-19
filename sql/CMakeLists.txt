@@ -325,6 +325,9 @@ ENDIF()
 IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   IF(NOT MSVC)
     SET_TARGET_PROPERTIES(mariadbd PROPERTIES ENABLE_EXPORTS TRUE)
+    TARGET_LINK_OPTIONS(mariadbd PRIVATE
+        "-Wl,--version-script=${MARIADB_VERSION_SCRIPT}"
+    )
   ENDIF()
   GET_TARGET_PROPERTY(mysqld_link_flags mariadbd LINK_FLAGS)
   IF(NOT mysqld_link_flags)

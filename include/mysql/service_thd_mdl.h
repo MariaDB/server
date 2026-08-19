@@ -16,7 +16,7 @@
 #pragma once
 
 /**
-  @file include/mysql/service_thd_mdl.h
+  @file include/mysservice_thd_mdl.h
   This service provides functions for plugins and storage engines to access
   metadata locks.
 */
@@ -31,6 +31,9 @@ extern struct thd_mdl_service_st {
 } *thd_mdl_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_mdl, thd_mdl_service, 0x0100);
+
 # define thd_mdl_context(_THD) thd_mdl_service->thd_mdl_context(_THD)
 #else
 /**

@@ -106,6 +106,8 @@ extern struct encryption_scheme_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(encryption_scheme, encryption_scheme_service, 0x0100);
+
 #define encryption_scheme_encrypt(S,SL,D,DL,SCH,KV,I32,J32,I64) encryption_scheme_service->encryption_scheme_encrypt_func(S,SL,D,DL,SCH,KV,I32,J32,I64)
 #define encryption_scheme_decrypt(S,SL,D,DL,SCH,KV,I32,J32,I64) encryption_scheme_service->encryption_scheme_decrypt_func(S,SL,D,DL,SCH,KV,I32,J32,I64)
 

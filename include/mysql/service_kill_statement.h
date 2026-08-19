@@ -54,6 +54,8 @@ extern struct kill_statement_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(kill_statement, thd_kill_statement_service, 0x1000);
+
 #define thd_kill_level(THD) \
         thd_kill_statement_service->thd_kill_level_func(THD)
 

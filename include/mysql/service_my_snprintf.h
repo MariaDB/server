@@ -79,6 +79,7 @@
 extern "C" {
 #endif
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdarg.h>
 #include <stdlib.h>
@@ -90,6 +91,8 @@ extern struct my_snprintf_service_st {
 } *my_snprintf_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(my_snprintf, my_snprintf_service, 0x0100);
 
 #define my_vsnprintf my_snprintf_service->my_vsnprintf_type
 #define my_snprintf my_snprintf_service->my_snprintf_type

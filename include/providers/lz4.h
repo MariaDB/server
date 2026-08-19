@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdbool.h>
 #include <stddef.h>
@@ -54,6 +55,10 @@ struct provider_service_lz4_st
 };
 
 extern struct provider_service_lz4_st *provider_service_lz4;
+
+#ifdef MYSQL_DYNAMIC_PLUGIN
+MARIADB_SERVICE_VERSION(provider_lz4, provider_service_lz4, 0x0100);
+#endif
 
 #ifdef __cplusplus
 }

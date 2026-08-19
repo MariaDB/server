@@ -16,6 +16,7 @@
 #ifndef MYSQL_SERVICE_LOGGER_INCLUDED
 #define MYSQL_SERVICE_LOGGER_INCLUDED
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdarg.h>
 #endif
@@ -72,6 +73,8 @@ extern struct logger_service_st {
 } *logger_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(logger, logger_service, 0x0100);
 
 #define logger_init_mutexes logger_service->logger_init_mutexes
 #define logger_open(path, size_limit, rotations) \

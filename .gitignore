@@ -80,6 +80,7 @@ include/probes_mysql.d
 include/probes_mysql_dtrace.h
 include/probes_mysql_nodtrace.h
 include/source_revision.h
+include/service_versions.h
 info_macros.cmake
 libmysql*/libmysql*_exports_file.cc
 libmysql*/merge_archives_mysql*.cmake

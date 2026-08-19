@@ -493,6 +493,7 @@ SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
+INCLUDE(cmake/mariadb_services.cmake)
 CONFIGURE_PLUGINS()
 
 ADD_SUBDIRECTORY(include)

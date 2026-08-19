@@ -25,6 +25,7 @@
 extern "C" {
 #endif
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdlib.h>
 #endif
@@ -41,6 +42,8 @@ extern struct my_sha1_service_st {
 } *my_sha1_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(my_sha1, my_sha1_service, 0x0101);
 
 #define my_sha1(A,B,C) my_sha1_service->my_sha1_type(A,B,C)
 #define my_sha1_multi my_sha1_service->my_sha1_multi_type

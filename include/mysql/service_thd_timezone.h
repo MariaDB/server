@@ -30,6 +30,7 @@
   is used for conversion.
 */
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 /*
   This service currently does not depend on any system headers.
@@ -51,6 +52,8 @@ extern struct thd_timezone_service_st {
 } *thd_timezone_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_timezone, thd_timezone_service, 0x0100);
 
 #define thd_TIME_to_gmt_sec(thd, ltime, errcode) \
   (thd_timezone_service->thd_TIME_to_gmt_sec((thd), (ltime), (errcode)))

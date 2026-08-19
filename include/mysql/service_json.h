@@ -82,6 +82,8 @@ extern struct json_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(json, json_service, 0x0100);
+
 #define json_type json_service->json_type
 #define json_get_array_item json_service->json_get_array_item
 #define json_get_object_key json_service->json_get_object_key

@@ -334,7 +334,86 @@ static struct provider_service_lz4_st provider_handler_lz4=
   false // .is_loaded
 };
 struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
+ 
+#if defined(__ELF__) && defined(__GNUC__)
+#if 0
+struct debug_sync_service_st *debug_sync_service =
+    &debug_sync_handler;
+#endif
 
+struct kill_statement_service_st *thd_kill_statement_service =
+    &thd_kill_statement_handler;
+
+struct base64_service_st *base64_service =
+    &base64_handler;
+
+struct encryption_service_st *encryption_service =
+    &encryption_handler;
+
+struct encryption_scheme_service_st *encryption_scheme_service =
+    &encryption_scheme_handler;
+
+struct logger_service_st *logger_service =
+    &logger_service_handler;
+
+struct my_crypt_service_st *my_crypt_service =
+    &crypt_handler;
+
+struct my_md5_service_st *my_md5_service =
+    &my_md5_handler;
+
+struct my_print_error_service_st *my_print_error_service =
+    &my_print_error_handler;
+
+struct my_sha1_service_st *my_sha1_service =
+    &my_sha1_handler;
+
+struct my_sha2_service_st *my_sha2_service =
+    &my_sha2_handler;
+
+struct my_snprintf_service_st *my_snprintf_service =
+    &my_snprintf_handler;
+
+struct progress_report_service_st *progress_report_service =
+    &progress_report_handler;
+
+struct thd_alloc_service_st *thd_alloc_service =
+    &thd_alloc_handler;
+
+struct thd_autoinc_service_st *thd_autoinc_service =
+    &thd_autoinc_handler;
+
+struct thd_error_context_service_st *thd_error_context_service =
+    &thd_error_context_handler;
+
+struct thd_rnd_service_st *thd_rnd_service =
+    &thd_rnd_handler;
+
+struct thd_specifics_service_st *thd_specifics_service =
+    &thd_specifics_handler;
+
+struct thd_timezone_service_st *thd_timezone_service =
+    &thd_timezone_handler;
+
+struct thd_wait_service_st *thd_wait_service =
+    &thd_wait_handler;
+
+struct wsrep_service_st *wsrep_service =
+    &wsrep_handler;
+
+struct json_service_st *json_service =
+    &json_handler;
+
+struct sql_service_st *sql_service =
+    &sql_service_handler;
+
+struct thd_mdl_service_st *thd_mdl_service =
+    &thd_mdl_handler;
+
+struct print_check_msg_service_st *print_check_msg_service =
+    &print_check_msg_handler;
+
+#else
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -368,3 +447,4 @@ static struct st_service_ref list_of_services[]=
   { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
   { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
 };
+#endif

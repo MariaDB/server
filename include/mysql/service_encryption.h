@@ -24,6 +24,7 @@
   *provider* (encryption plugin).
 */
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <my_alloca.h>
 #ifdef _WIN32
@@ -36,6 +37,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <assert.h>
 #endif
@@ -72,6 +74,7 @@ struct encryption_service_st {
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 extern struct encryption_service_st *encryption_service;
+MARIADB_SERVICE_VERSION(encryption, encryption_service, 0x0300);
 
 #define encryption_key_get_latest_version(KI) encryption_service->encryption_key_get_latest_version_func(KI)
 #define encryption_key_get(KI,KV,K,S) encryption_service->encryption_key_get_func((KI),(KV),(K),(S))

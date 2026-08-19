@@ -16,7 +16,7 @@
 #pragma once
 
 /**
-  @file include/mysql/service_print_check_msg.h
+  @file include/mysservice_print_check_msg.h
   This service provides functions to write messages for check or repair
 */
 
@@ -32,6 +32,9 @@ extern struct print_check_msg_service_st {
 } *print_check_msg_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(print_check_msg, print_check_msg_service, 0x0100);
+
 # define print_check_msg_context(_THD) print_check_msg_service->print_check_msg
 #else
 extern void print_check_msg(MYSQL_THD, const char *db_name, const char *table_name,

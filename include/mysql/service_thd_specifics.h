@@ -70,6 +70,8 @@ extern struct thd_specifics_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
+MARIADB_SERVICE_VERSION(thd_specifics, thd_specifics_service, 0x0100);
+
 #define thd_key_create(K) (thd_specifics_service->thd_key_create_func(K))
 #define thd_key_delete(K) (thd_specifics_service->thd_key_delete_func(K))
 #define thd_getspecific(T, K) (thd_specifics_service->thd_getspecific_func(T, K))

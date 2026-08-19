@@ -34,6 +34,9 @@ extern struct thd_log_warnings_service_st {
 } *thd_log_warnings_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(thd_log_warnings, thd_log_warnings_service, 0x0100);
+
 # define thd_log_warnings(THD) thd_log_warnings_service->thd_log_warnings(THD)
 #else
 /**

@@ -25,6 +25,7 @@
 extern "C" {
 #endif
 
+#include "service_versions.h"
 #ifndef MYSQL_ABI_CHECK
 #include <stdlib.h>
 #endif
@@ -43,6 +44,8 @@ extern struct base64_service_st {
 } *base64_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
+
+MARIADB_SERVICE_VERSION(base64, base64_service, 0x0100);
 
 #define my_base64_needed_encoded_length(A) base64_service->base64_needed_encoded_length_ptr(A)
 #define my_base64_encode_max_arg_length() base64_service->base64_encode_max_arg_length_ptr()
