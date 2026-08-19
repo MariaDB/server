@@ -275,15 +275,22 @@ private:
         ftruncate(d, std::max<off_t>(log_sys.FILE_SIZE_MIN,
                                      (end + 4095) & ~4095LL));
 #endif
-      if (!f &&
-          !(f= copy_file(s, d, log_sys.START_OFFSET +
-                         (hl == first_lsn) * (checkpoint - hl), end)) &&
-          hl == first_lsn)
+      if (!f)
       {
-        uint64_t cp_buf[8]{};
-        write_checkpoint_buf(cp_buf,
-                             checkpoint_end_lsn - hl + log_sys.START_OFFSET);
-        f= write_checkpoint(d, cp_buf);
+        const uint64_t sparse= (hl == first_lsn && checkpoint > hl)
+          ? log_sys.START_OFFSET + (checkpoint - hl)
+          : 0;
+#ifdef copy_file_shortcut
+        if (1 == (f= copy_file_shortcut(s, d, sparse, end)))
+#endif
+        f= copy_file(s, d, sparse, end);
+        if (!f && sparse)
+        {
+          uint64_t cp_buf[8]{};
+          write_checkpoint_buf(cp_buf,
+                               checkpoint_end_lsn - hl + log_sys.START_OFFSET);
+          f= write_checkpoint(d, cp_buf);
+        }
       }
       if (IF_WIN(!CloseHandle(d), close(d)) | f)
         goto error_return;
