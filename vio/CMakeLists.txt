@@ -17,7 +17,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
 ${SSL_INCLUDE_DIRS})
 ADD_DEFINITIONS(${SSL_DEFINES})
 
-SET(VIO_SOURCES vio.c viosocket.c viossl.c viopipe.c viosslfactories.c)
+SET(VIO_SOURCES vio.cc vio_wrapper.cc viosocket.cc viossl.cc viosslfactories.c)
+IF(WIN32)
+  SET(VIO_SOURCES ${VIO_SOURCES} viopipe.cc)
+ENDIF()
 ADD_CONVENIENCE_LIBRARY(vio ${VIO_SOURCES})
 TARGET_LINK_LIBRARIES(vio ${LIBSOCKET})
 TARGET_LINK_LIBRARIES(vio ${SSL_LIBRARIES})
