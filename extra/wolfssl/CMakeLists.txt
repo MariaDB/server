@@ -122,8 +122,6 @@ if(WOLFSSL_INTELASM)
       ${WOLFCRYPT_SRCDIR}/sp_x86_64_asm.S
     )
     target_compile_options(wolfssl PRIVATE -maes -msse4.2 -mpclmul)
-    # Workaround 5.5.4 bug (user_settings.h not included into aes_asm.S)
-    set_property(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
   endif()
 endif()
 
