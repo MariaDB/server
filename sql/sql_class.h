@@ -3942,9 +3942,7 @@ public:
 #ifndef _WIN32
   sigset_t signals;
 #endif
-#ifdef SIGNAL_WITH_VIO_CLOSE
   Vio* active_vio;
-#endif
 
   /*
     A permanent memory area of the statement. For conventional
@@ -4660,8 +4658,7 @@ public:
   {
     return opt_trace.is_started();
   }
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  inline void set_active_vio(Vio* vio)
+  inline void set_active_vio(Vio *vio)
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = vio;
@@ -4673,8 +4670,6 @@ public:
     active_vio = 0;
     mysql_mutex_unlock(&LOCK_thd_data);
   }
-  void close_active_vio();
-#endif
   void awake_no_mutex(killed_state state_to_set,
                        int killed_errno_arg= 0,
                        const char *killed_err_msg_arg= 0);
@@ -5941,12 +5936,12 @@ public:
       /* For proxied connections, add the real IP to the warning message */
       if (net.using_proxy_protocol && net.vio)
       {
-        if(net.vio->localhost)
+        if (vio_is_local(net.vio))
           snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
         else
         {
           char buf[INET6_ADDRSTRLEN];
-          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+          if (!vio_getnameinfo((sockaddr *) vio_remote_addr(net.vio), buf,
               sizeof(buf),NULL, 0, NI_NUMERICHOST))
           {
             snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);

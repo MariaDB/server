@@ -27,6 +27,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
+#include "vio.h"
 #include "sql_cache.h"                          // query_cache_abort
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_time.h"                         // date_time_format_copy
@@ -927,9 +928,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                    &variables.wt_timeout_short,
                    &variables.wt_deadlock_search_depth_long,
                    &variables.wt_timeout_long);
-#ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
-#endif
   mysql_mutex_init(key_LOCK_thd_data, &LOCK_thd_data, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
@@ -1865,9 +1864,7 @@ void THD::reset_for_reuse()
 #if defined(ENABLED_PROFILING)
   profiling.reset();
 #endif
-#ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
-#endif
 #ifdef WITH_WSREP
   wsrep_free_status(this);
   wsrep_cs().reset_error();
@@ -2126,13 +2123,11 @@ void THD::awake_no_mutex(killed_state state_to_set,
 
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
-#ifdef SIGNAL_WITH_VIO_CLOSE
     if (this != current_thd && thread_id != shutdown_thread_id)
     {
-      if(active_vio)
+      if (active_vio)
         vio_shutdown(active_vio, SHUT_RDWR);
     }
-#endif
 
     /* Send an event to the scheduler that a thread should be killed. */
     if (!slave_thread)
@@ -2226,25 +2221,20 @@ void THD::abort_current_cond_wait(bool force)
 
 void THD::disconnect()
 {
-  Vio *vio= NULL;
-
   set_killed(KILL_CONNECTION);
 
   mysql_mutex_lock(&LOCK_thd_data);
 
-#ifdef SIGNAL_WITH_VIO_CLOSE
   /*
-    Since a active vio might have not been set yet, in
-    any case save a reference to avoid closing a inexistent
-    one or closing the vio twice if there is a active one.
+    If active_vio belongs to another connection, e.g. replication's
+    MYSQL connection, we do not own it and must not close it here.
+    Just wake it up in case it is stuck in network I/O; the owner
+    will close it later.
   */
-  vio= active_vio;
-  close_active_vio();
-#endif
+  if (active_vio)
+    vio_shutdown(active_vio, SHUT_RDWR);
+  active_vio= 0;
 
-  /* Disconnect even if a active vio is not associated. */
-  if (net.vio != vio)
-    vio_close(net.vio);
   net.thd= 0;                                   // Don't collect statistics
 
   mysql_mutex_unlock(&LOCK_thd_data);
@@ -3140,21 +3130,6 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
 }
 
 
-#ifdef SIGNAL_WITH_VIO_CLOSE
-void THD::close_active_vio()
-{
-  DBUG_ENTER("close_active_vio");
-  mysql_mutex_assert_owner(&LOCK_thd_data);
-#ifndef EMBEDDED_LIBRARY
-  if (active_vio)
-  {
-    vio_close(active_vio);
-    active_vio = 0;
-  }
-#endif
-  DBUG_VOID_RETURN;
-}
-#endif
 
 
 /*

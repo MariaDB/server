@@ -51,6 +51,7 @@ C_MODE_END
 #include "sql_statistics.h"
 #include "strfunc.h"
 
+#include <openssl/evp.h>
 #ifdef HAVE_hkdf
 #include <openssl/kdf.h>
 #endif
