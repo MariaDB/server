@@ -53,9 +53,6 @@ static PAGECACHE_FILE *dfiles, /**< data files to flush in background */
   *dfiles_end; /**< list of data files ends here */
 static PAGECACHE_FILE *kfiles, /**< index files to flush in background */
   *kfiles_end; /**< list of index files ends here */
-/* those two statistics below could serve in SHOW GLOBAL STATUS */
-static uint checkpoints_total= 0, /**< all checkpoint requests made */
-  checkpoints_ok_total= 0; /**< all checkpoints which succeeded */
 
 struct st_filter_param
 {
@@ -314,8 +311,6 @@ end:
     my_free(record_pieces[i].str);
   mysql_mutex_lock(&LOCK_checkpoint);
   checkpoint_in_progress= CHECKPOINT_NONE;
-  checkpoints_total++;
-  checkpoints_ok_total+= !error;
   mysql_mutex_unlock(&LOCK_checkpoint);
   DBUG_RETURN(error);
 }

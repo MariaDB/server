@@ -5281,7 +5281,7 @@ public:
   */
   ulonglong length;
   CHARSET_INFO *charset;
-  uint32 pack_flag;
+  uint32 pack_flag;                /* Bitmap of FIELDFLAG_* flags */
   decimal_digits_t decimals;
   Field::utype unireg_check;
   Column_definition_attributes()
@@ -6008,6 +6008,7 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define FIELDFLAG_GEOM			2048U   // mangled with decimals!
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
+#define FIELDFLAG_FRM_HEX_ENCODED_TYPELIB 4096U // mangled with *_BIT_AS_CHAR
 #define FIELDFLAG_LONG_DECIMAL          8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql

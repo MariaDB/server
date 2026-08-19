@@ -54,6 +54,8 @@ gtid_domain_id=4
 
 
 [sst]
+# SSL mode is disabled for SST unless tests specifically enable it.
+ssl-mode=DISABLED
 sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
 
 [ENV]

@@ -34,6 +34,8 @@ wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
 [sst]
+# SSL mode is disabled for SST unless tests specifically enable it.
+ssl-mode=DISABLED
 sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
 
 [ENV]

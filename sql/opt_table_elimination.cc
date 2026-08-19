@@ -625,6 +625,75 @@ void add_module_expr(Dep_analysis_context *dac, Dep_module_expr **eq_mod,
 
 /*****************************************************************************/
 
+/**
+  @brief
+  Clear the "eliminated" flag on every subquery reachable from the given
+  expression (see Item_subselect::unmark_as_eliminated_processor).
+*/
+
+static inline void unmark_eliminated_subqueries(Item *expr)
+{
+  if (expr)
+    expr->walk(&Item::unmark_as_eliminated_processor, FALSE, NULL);
+}
+
+
+/**
+  @brief
+  Clear the "eliminated" flag on subqueries reachable from ON expressions of
+  outer joins that were NOT eliminated. Such an ON expression is still
+  evaluated at runtime.
+*/
+
+static void unmark_live_on_expr_subqueries(JOIN *join,
+                                           List<TABLE_LIST> *join_list)
+{
+  TABLE_LIST *tbl;
+  List_iterator<TABLE_LIST> it(*join_list);
+  while ((tbl= it++))
+  {
+    if (tbl->nested_join)
+    {
+      unmark_live_on_expr_subqueries(join, &tbl->nested_join->join_list);
+      /* Only sweep this nest's ON expr if some of its tables survived. */
+      if (tbl->nested_join->used_tables & ~join->eliminated_tables)
+        unmark_eliminated_subqueries(tbl->on_expr);
+    }
+    else if (tbl->table && !(tbl->table->map & join->eliminated_tables))
+      unmark_eliminated_subqueries(tbl->on_expr);
+  }
+}
+
+
+/**
+  @brief
+  Equality propagation (build_equal_items()) can inject into the ON
+  expression of an eliminated outer join, a reference to a subquery that
+  actually lives in another (surviving) part of the query.
+  mark_as_eliminated() then flags that subquery as eliminated even though
+  it still has to be executed.
+  Clear the flag on every subquery that is still reachable.
+*/
+
+static void unmark_still_reachable(JOIN *join)
+{
+  unmark_eliminated_subqueries(join->conds);
+  unmark_eliminated_subqueries(join->having);
+
+  List_iterator<Item> live_it(join->fields_list);
+  Item *item;
+  while ((item= live_it++))
+    unmark_eliminated_subqueries(item);
+
+  for (ORDER *ord= join->order; ord; ord= ord->next)
+    unmark_eliminated_subqueries(*(ord->item));
+
+  for (ORDER *ord= join->group_list; ord; ord= ord->next)
+    unmark_eliminated_subqueries(*(ord->item));
+
+  unmark_live_on_expr_subqueries(join, join->join_list);
+}
+
 /*
   Perform table elimination
 
@@ -764,6 +833,7 @@ void eliminate_tables(JOIN *join)
     /* There are some tables that we probably could eliminate. Try it. */
     eliminate_tables_for_list(join, join->join_list, all_tables, NULL,
                               used_tables, &trace_eliminated_tables);
+    unmark_still_reachable(join);
   }
   DBUG_VOID_RETURN;
 }

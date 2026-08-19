@@ -331,6 +331,25 @@ int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len, uint32 *comlen
     dst[1]= uchar(len);
     lenlen= 1;
   }
+
+  /*
+    Write the length of an event no replica can uncompress, so that a
+    replica's handling of one can be tested. Reaching a value this large
+    takes four length bytes, and the encoding above spends four only on
+    content of 16MB or more, so the injection sets the encoding as well
+    as the value. The compressed content still goes where those four
+    bytes place it, leaving the event well formed apart from the length
+    it claims.
+  */
+  DBUG_EXECUTE_IF("binlog_compress_corrupt_len",
+                  {
+                    dst[1]= 0xFF;
+                    dst[2]= 0xFF;
+                    dst[3]= 0xFF;
+                    dst[4]= 0xFC;
+                    lenlen= 4;
+                  });
+
   dst[0]= 0x80 | (lenlen & 0x07);
 
   uLongf tmplen= (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
@@ -353,7 +372,7 @@ int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len, uint32 *comlen
       2) If *is_malloc is retuened as false, then 'dst' reuses the passed-in
          'buf'.
 
-   return zero if successful, non-zero otherwise.
+   return zero if successful, otherwise the error code the caller reports.
 */
 
 int
@@ -368,8 +387,8 @@ query_event_uncompress(const Format_description_log_event *description_event,
   uchar *new_dst;
 
   // bad event
-  if (src_len < len)
-    return 1;
+  if (unlikely(src_len < len))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   DBUG_ASSERT((uchar)src[EVENT_TYPE_OFFSET] == QUERY_COMPRESSED_EVENT);
 
@@ -381,30 +400,33 @@ query_event_uncompress(const Format_description_log_event *description_event,
 
   tmp+= common_header_len;
   // bad event
-  if (end <= tmp)
-    return 1;
+  if (unlikely(end <= tmp))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   uint db_len= (uint)tmp[Q_DB_LEN_OFFSET];
   uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
 
   tmp+= post_header_len + status_vars_len + db_len + 1;
   // bad event
-  if (end <= tmp)
-    return 1;
+  if (unlikely(end <= tmp))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   int32 comp_len= (int32)(len - (tmp - src) -
                           (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
   uint32 un_len=  binlog_get_uncompress_len(tmp);
 
   // bad event 
-  if (comp_len < 0 || un_len == 0)
-    return 1;
+  if (unlikely(comp_len < 0 || un_len == 0))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
+
+  if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+    return ER_TOO_BIG_FOR_UNCOMPRESS;
 
   *newlen= (ulong)(tmp - src) + un_len;
   if (contain_checksum)
     *newlen+= BINLOG_CHECKSUM_LEN;
-  
-  uint32 alloc_size= (uint32)ALIGN_SIZE(*newlen);
+
+  size_t alloc_size= ALIGN_SIZE(*newlen);
   
   if (alloc_size <= buf_size) 
     new_dst= buf;
@@ -412,7 +434,7 @@ query_event_uncompress(const Format_description_log_event *description_event,
   {
     new_dst= (uchar *) my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
     if (!new_dst)
-      return 1;
+      return ER_BINLOG_UNCOMPRESS_ERROR;
     *is_malloc= true;
   }
 
@@ -425,7 +447,7 @@ query_event_uncompress(const Format_description_log_event *description_event,
       *is_malloc= false;
       my_free(new_dst);
     }
-    return 1;
+    return ER_BINLOG_UNCOMPRESS_ERROR;
   }
 
   new_dst[EVENT_TYPE_OFFSET]= QUERY_EVENT;
@@ -452,8 +474,8 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   uchar *new_dst= NULL;
   const uchar *end= tmp + len;
 
-  if (src_len < len)
-    return 1;                                   // bad event
+  if (unlikely(src_len < len))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(type));
 
@@ -468,8 +490,8 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       which includes length bytes
     */
 
-    if (end - tmp <= 2)
-      return 1;                                 // bad event
+    if (unlikely(end - tmp <= 2))
+      return ER_BINLOG_UNCOMPRESS_ERROR;
 
     uint16 var_header_len= uint2korr(tmp);
     DBUG_ASSERT(var_header_len >= 2);
@@ -488,8 +510,8 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
   }
 
-  if (end <= tmp)
-    return 1;                                   //bad event
+  if (unlikely(end <= tmp))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   ulong m_width= net_field_length((uchar **)&tmp);
   tmp+= (m_width + 7) / 8;
@@ -499,17 +521,20 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
     tmp+= (m_width + 7) / 8;
   }
 
-  if (end <= tmp)
-    return 1;                                   //bad event
+  if (unlikely(end <= tmp))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   uint32 un_len= binlog_get_uncompress_len(tmp);
-  if (un_len == 0)
-    return 1;                                   //bad event
+  if (unlikely(un_len == 0))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
+
+  if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+    return ER_TOO_BIG_FOR_UNCOMPRESS;
 
   int32 comp_len= (int32)(len - (tmp - src) -
                           (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
-  if (comp_len <=0)
-    return 1;                                   //bad event
+  if (unlikely(comp_len <= 0))
+    return ER_BINLOG_UNCOMPRESS_ERROR;
 
   *newlen= ulong(tmp - src) + un_len;
   if (contain_checksum)
@@ -526,7 +551,7 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   {
     new_dst= (uchar*) my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
     if (!new_dst)
-      return 1;
+      return ER_BINLOG_UNCOMPRESS_ERROR;
     *is_malloc= true;
   }
 
@@ -538,7 +563,7 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   {
     if (*is_malloc)
       my_free(new_dst);
-    return 1;
+    return ER_BINLOG_UNCOMPRESS_ERROR;
   }
 
   new_dst[EVENT_TYPE_OFFSET]= type;
@@ -980,7 +1005,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      my_bool crc_check,
                                      my_bool print_errors)
 {
-  Log_event* ev;
+  Log_event* ev= nullptr;
   enum_binlog_checksum_alg alg;
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
   DBUG_ASSERT(fdle != 0);
@@ -999,15 +1024,22 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   }
 
   uint event_type= buf[EVENT_TYPE_OFFSET];
+  switch (event_type) {
+  case FORMAT_DESCRIPTION_EVENT:
+    // If event is FD the descriptor is in it.
+    if (unlikely(get_checksum_alg(buf, event_len, &alg)))
+      goto exit;
+    break;
+  case START_EVENT_V3:
   // all following START events in the current file are without checksum
-  if (event_type == START_EVENT_V3)
     (const_cast< Format_description_log_event *>(fdle))->used_checksum_alg=
       BINLOG_CHECKSUM_ALG_OFF;
+    // fall-through
+  default:
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
     The caller has to provide @fdle->checksum_alg to
     be the last seen FD's (A) descriptor.
-    If event is FD the descriptor is in it.
     Notice, FD of the binlog can be only in one instance and therefore
     Show-Binlog-Events executing master side thread needs just to know
     the only FD's (A) value -  whereas RL can contain more.
@@ -1022,11 +1054,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
 
     Notice, a pre-checksum FD version forces alg := BINLOG_CHECKSUM_ALG_UNDEF.
   */
-  alg= (event_type != FORMAT_DESCRIPTION_EVENT) ?
-    fdle->used_checksum_alg : get_checksum_alg(buf, event_len);
+    alg= fdle->used_checksum_alg;
   // Emulate the corruption during reading an event
   DBUG_EXECUTE_IF("corrupt_read_log_event_char",
-    if (event_type != FORMAT_DESCRIPTION_EVENT)
     {
       uchar *debug_event_buf_c= const_cast<uchar*>(buf);
       int debug_cor_pos= rand() % (event_len - BINLOG_CHECKSUM_LEN);
@@ -1035,23 +1065,23 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       DBUG_SET("-d,corrupt_read_log_event_char");
     }
   );                                                 
+  }
   if (crc_check && event_checksum_test(const_cast<uchar*>(buf), event_len, alg))
   {
 #ifdef MYSQL_CLIENT
-    *error= "Event crc check failed! Most likely there is event corruption.";
     if (force_opt)
     {
+      event_len-= BINLOG_CHECKSUM_LEN;
       ev= new Unknown_log_event(buf, fdle);
-      DBUG_RETURN(ev);
+      goto exit;
     }
-    else
-      DBUG_RETURN(NULL);
+    *error= "Event crc check failed! Most likely there is event corruption.";
 #else
     *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
     if (print_errors)
       sql_print_error("%s", *error);
-    DBUG_RETURN(NULL);
 #endif
+    DBUG_RETURN(NULL);
   }
 
   if (event_type > fdle->number_of_event_types &&
@@ -1242,15 +1272,6 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   }
 exit:
 
-  if (ev)
-  {
-#ifdef MYSQL_CLIENT
-    ev->read_checksum_alg= alg;
-    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->read_checksum_value= uint4korr(buf + (event_len));
-#endif
-  }
-
   DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
@@ -1283,6 +1304,15 @@ exit:
     if (!*error)
       *error= "Found invalid event in binary log";
     DBUG_RETURN(0);
+#endif
+  }
+
+  if (ev)
+  {
+#ifdef MYSQL_CLIENT
+    ev->read_checksum_alg= alg;
+    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->read_checksum_value= uint4korr(buf + (event_len));
 #endif
   }
   DBUG_RETURN(ev);  
@@ -1804,7 +1834,7 @@ Query_compressed_log_event::Query_compressed_log_event(const uchar *buf,
   if (query)
   {
     uint32 un_len= binlog_get_uncompress_len((uchar*) query);
-    if (!un_len)
+    if (unlikely(!un_len || un_len > MAX_MAX_ALLOWED_PACKET))
     {
       query= 0;
       return;
@@ -2183,7 +2213,8 @@ Format_description_log_event(const uchar *buf, uint event_len,
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
   used_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
-  if (event_len < LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET)
+  if (unlikely(
+      event_len < LOG_EVENT_MINIMAL_HEADER_LEN + ST_POST_HEADER_LEN_OFFSET))
   {
     server_version[0]= 0;
     DBUG_VOID_RETURN;
@@ -2196,32 +2227,36 @@ Format_description_log_event(const uchar *buf, uint event_len,
   created= uint4korr(buf+ST_CREATED_OFFSET);
   dont_set_created= 1;
 
-  if (server_version[0] == 0)
+  if (unlikely(server_version[0] == 0))
     DBUG_VOID_RETURN; /* sanity check */
-  if ((common_header_len=buf[ST_COMMON_HEADER_LEN_OFFSET]) < LOG_EVENT_MINIMAL_HEADER_LEN)
+  if (unlikely(
+      (common_header_len=buf[ST_COMMON_HEADER_LEN_OFFSET]) < LOG_EVENT_MINIMAL_HEADER_LEN))
     DBUG_VOID_RETURN; /* sanity check */
   number_of_event_types=
-    event_len - (LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET + 1);
+    event_len - (LOG_EVENT_MINIMAL_HEADER_LEN + ST_POST_HEADER_LEN_OFFSET);
   DBUG_PRINT("info", ("common_header_len=%d number_of_event_types=%d",
                       common_header_len, number_of_event_types));
   /* If alloc fails, we'll detect it in is_valid() */
 
-  post_header_len= (uint8*) my_memdup(PSI_INSTRUMENT_ME,
-                                      buf+ST_COMMON_HEADER_LEN_OFFSET+1,
-                                      number_of_event_types*
-                                      sizeof(*post_header_len),
-                                      MYF(0));
   calc_server_version_split();
+  buf+= ST_POST_HEADER_LEN_OFFSET;
   if (!is_version_before_checksum(&server_version_split))
   {
-    /* the last bytes are the checksum alg desc and value (or value's room) */
+    /* the last bytes are the checksum alg desc */
+    if (unlikely(number_of_event_types < BINLOG_CHECKSUM_ALG_DESC_LEN))
+      DBUG_VOID_RETURN; /* sanity check: But there are no last bytes. */
     number_of_event_types -= BINLOG_CHECKSUM_ALG_DESC_LEN;
-    used_checksum_alg= (enum_binlog_checksum_alg)post_header_len[number_of_event_types];
+    used_checksum_alg= (enum_binlog_checksum_alg)buf[number_of_event_types];
   }
   else
   {
     used_checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
   }
+  post_header_len= (uint8*) my_memdup(PSI_INSTRUMENT_ME,
+                                      buf,
+                                      number_of_event_types*
+                                      sizeof(*post_header_len),
+                                      MYF(0));
   deduct_options_written_to_bin_log();
   reset_crypto();
 
@@ -2335,35 +2370,50 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
 }
 
 /**
-   @param buf buffer holding serialized FD event
-   @param len netto (possible checksum is stripped off) length of the event buf
-   
-   @return  the version-safe checksum alg descriptor where zero
+   @param buf buffer holding serialized FD event including the 4-byte checksum
+   @param len length of the event buf
+   @param alg output the version-safe checksum alg descriptor where zero
             designates no checksum, 255 - the orginator is
             checksum-unaware (effectively no checksum) and the actuall
             [1-254] range alg descriptor.
+   @return whether this is an invalid FD event
 */
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+bool get_checksum_alg(const uchar *buf, ulong len,
+                      enum_binlog_checksum_alg *alg)
 {
-  enum_binlog_checksum_alg ret;
+  constexpr ptrdiff_t POST_HEADER_LEN_OFFSET=
+    LOG_EVENT_MINIMAL_HEADER_LEN + ST_POST_HEADER_LEN_OFFSET;
   char version[ST_SERVER_VER_LEN];
 
   DBUG_ENTER("get_checksum_alg");
   DBUG_ASSERT(buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
 
+  if (unlikely(len < POST_HEADER_LEN_OFFSET))
+    DBUG_RETURN(true);
   memcpy(version,
          buf + LOG_EVENT_MINIMAL_HEADER_LEN + ST_SERVER_VER_OFFSET,
          ST_SERVER_VER_LEN);
   version[ST_SERVER_VER_LEN - 1]= 0;
   
   Format_description_log_event::master_version_split version_split(version);
-  ret= Format_description_log_event::is_version_before_checksum(&version_split)
-    ? BINLOG_CHECKSUM_ALG_UNDEF
-    : (enum_binlog_checksum_alg)buf[len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN];
-  DBUG_ASSERT(ret == BINLOG_CHECKSUM_ALG_OFF ||
-              ret == BINLOG_CHECKSUM_ALG_UNDEF ||
-              ret == BINLOG_CHECKSUM_ALG_CRC32);
-  DBUG_RETURN(ret);
+  if (Format_description_log_event::is_version_before_checksum(&version_split))
+    *alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  else
+  {
+    /*
+      len >= POST_HEADER_LEN_OFFSET >
+      BINLOG_CHECKSUM_LEN + BINLOG_CHECKSUM_ALG_DESC_LEN
+    */
+    ulong checksum_alg_offset=
+      len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN;
+    if (unlikely(checksum_alg_offset < POST_HEADER_LEN_OFFSET))
+      DBUG_RETURN(true);
+    *alg= static_cast<enum_binlog_checksum_alg>(buf[checksum_alg_offset]);
+  }
+  DBUG_ASSERT(*alg == BINLOG_CHECKSUM_ALG_OFF ||
+              *alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+              *alg == BINLOG_CHECKSUM_ALG_CRC32);
+  DBUG_RETURN(false);
 }
 
 Start_encryption_log_event::
@@ -3154,9 +3204,17 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
       case RW_V_EXTRAINFO_TAG:
       {
         /* Have an 'extra info' section, read it in */
-        assert((end - pos) >= EXTRA_ROW_INFO_HDR_BYTES);
+        if (unlikely((end - pos) <= EXTRA_ROW_INFO_LEN_OFFSET))
+        {
+          m_cols.bitmap= 0;
+          DBUG_VOID_RETURN;
+        }
         uint8 infoLen= pos[EXTRA_ROW_INFO_LEN_OFFSET];
-        assert((end - pos) >= infoLen);
+        if (unlikely(infoLen < EXTRA_ROW_INFO_HDR_BYTES || (end-pos) < infoLen))
+        {
+          m_cols.bitmap= 0;
+          DBUG_VOID_RETURN;
+        }
         /* Just store/use the first tag of this type, skip others */
         if (likely(!m_extra_row_data))
         {
@@ -3269,8 +3327,12 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 void Rows_log_event::uncompress_buf()
 {
   uint32 un_len= binlog_get_uncompress_len(m_rows_buf);
-  if (!un_len)
+  if (unlikely(!un_len || un_len > MAX_MAX_ALLOWED_PACKET))
+  {
+    /* my_bitmap_free() nulls m_cols.bitmap, which is_valid() rejects. */
+    my_bitmap_free(&m_cols);
     return;
+  }
 
   uchar *new_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, ALIGN_SIZE(un_len),
                                      MYF(MY_WME));
@@ -3293,7 +3355,7 @@ void Rows_log_event::uncompress_buf()
       my_free(new_buf);
     }
   }
-  m_cols.bitmap= 0; // catch it in is_valid
+  my_bitmap_free(&m_cols); // catch it in is_valid
 }
 
 Rows_log_event::~Rows_log_event()
@@ -3496,6 +3558,14 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   VALIDATE_BYTES_READ(ptr_tbllen, buf, event_len);
   m_tbllen= *(uchar*) ptr_tbllen;
 
+  /*
+    If either the database or table name is too long, return before allocating
+    memory for the event, so future validity checks on this event (i.e.
+    is_valid()) return false.
+  */
+  if (unlikely(m_dblen > NAME_LEN || m_tbllen > NAME_LEN))
+    DBUG_VOID_RETURN;
+
   /* Length of table name + counter + terminating null */
   uchar const *const ptr_colcnt= ptr_tbllen + m_tbllen + 2;
   uchar *ptr_after_colcnt= (uchar*) ptr_colcnt;
@@ -3521,6 +3591,13 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     /* Copy the different parts into their memory */
     strncpy(const_cast<char*>(m_dbnam), (const char*)ptr_dblen  + 1, m_dblen + 1);
     strncpy(const_cast<char*>(m_tblnam), (const char*)ptr_tbllen + 1, m_tbllen + 1);
+    /*
+      Future uses of the database and table name require a null-terminating
+      string, but the source string from the above copy may not have one, and
+      strncpy will not add one. So always add it to ensure it exists.
+    */
+    const_cast<char*>(m_dbnam)[m_dblen]= '\0';
+    const_cast<char*>(m_tblnam)[m_tbllen]= '\0';
     if (unlikely(ptr_after_colcnt + m_colcnt > buf + event_len))
     {
       my_free(m_memory);
@@ -3534,6 +3611,22 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
     m_field_metadata_size= net_field_length(&ptr_after_colcnt);
     DBUG_EXECUTE_IF("corrupt_table_map_field_metadata_size_read",
                     m_field_metadata_size= (1 << 20););
+
+    /*
+      Ensure the field metadata block covers the metadata the declared
+      column types consume.
+    */
+    size_t metadata_needed= 0;
+    for (ulong i= 0; i < m_colcnt; i++)
+      metadata_needed+= table_def::field_metadata_length(m_coltype[i]);
+    if (unlikely(m_field_metadata_size < metadata_needed))
+    {
+      m_coltype= NULL;
+      my_free(m_memory);
+      m_memory= NULL;
+      DBUG_VOID_RETURN;
+    }
+
     if (m_field_metadata_size <= (m_colcnt * 2))
     {
       uint num_null_bytes= (m_colcnt + 7) / 8;

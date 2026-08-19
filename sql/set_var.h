@@ -1,7 +1,7 @@
 #ifndef SET_VAR_INCLUDED
 #define SET_VAR_INCLUDED
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,6 +115,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
+  void move_charptr_to_root(MEM_ROOT *root);
   const uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
 
   /**
@@ -137,8 +138,6 @@ public:
     return system_charset_info_for_i_s;
   }
   bool is_readonly() const { return flags & READONLY; }
-  void update_flags(int new_flags) { flags = new_flags; }
-  int get_flags() const { return flags; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name
@@ -270,6 +269,21 @@ protected:
   friend class Session_sysvars_tracker;
   friend class Session_tracker;
 };
+
+/*
+  special assert for sysvars. Tells the name of the variable,
+  and fails even in non-debug builds.
+
+  It is supposed to be used *only* in Sys_var* constructors,
+  and has name_arg hard-coded to prevent incorrect usage.
+*/
+#define SYSVAR_ASSERT(X)                                                \
+    while(!(X))                                                         \
+    {                                                                   \
+      fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
+      DBUG_ASSERT(0);                                                   \
+      exit(255);                                                        \
+    }
 
 #include "sql_plugin.h"                    /* SHOW_HA_ROWS, SHOW_MY_BOOL */
 
@@ -436,6 +450,7 @@ ulong get_system_variable_hash_records(void);
 ulonglong get_system_variable_hash_version(void);
 
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
+void move_allocated_sysvars_to_root(MEM_ROOT *root);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length= 0,

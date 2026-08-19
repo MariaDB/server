@@ -92,7 +92,7 @@ C_MODE_START
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
-#define MY_ROOT_USE_MPROTECT 0x20000U /* init_alloc_root: read only segments */
+#define MY_ROOT_USE_VMEM 0x20000U /* init_alloc_root: use my_virtual_mem_commit */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
 #define MY_TRACK 0x80000U             /* Track tmp usage */

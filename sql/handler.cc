@@ -2602,7 +2602,7 @@ static my_xid wsrep_order_and_check_continuity(XID *list, int len)
     if (!wsrep_is_wsrep_xid(list + i) ||
         wsrep_xid_seqno(list + i) != cur_seqno + 1)
     {
-      WSREP_WARN("Discovered discontinuity in recovered wsrep "
+      WSREP_INFO("Discovered discontinuity in recovered wsrep "
                  "transaction XIDs. Truncating the recovery list to "
                  "%d entries", i);
       break;
@@ -2900,6 +2900,53 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
                        x <= wsrep_limit) && info->dry_run,
                      info->dry_run))
         {
+#ifdef WITH_WSREP
+          /*
+            MDEV-40179: a wsrep transaction still in the prepared state at the
+            final recovery pass (the dry run, commit_list == 0) but they don't
+            have corresponding binlog events because they are no longer part of
+            SST. With log_bin=ON they can't be committed.
+            After recovering from SST without binlogs in place the joiner runs
+            no binlog XA recovery to commit or roll back such transactions, so
+            without binlog events they would abort startup with "Found N prepared
+            transactions!". Roll them back here; the node re-receives them
+            from the donor via IST. Non-wsrep (e.g. user XA) prepared transactions
+            are left untouched and still reported.
+
+            Notice that in the wsrep_emulate_bin_log case below we don't need the
+            binlog events, so these prepared and wsrep-ordered transactions can be
+            safely committed.
+
+            The guard is WSREP_PROVIDER_EXISTS ("a Galera provider is loaded"):
+            a node configured with a provider will rejoin and receive
+            these transactions; a standalone node (no provider) cannot, so
+            there we keep the conservative default and still report them.
+          */
+          if (WSREP_PROVIDER_EXISTS && wsrep_is_wsrep_xid(info->list + i))
+          {
+            int rc= hton->rollback_by_xid(info->list + i);
+            if (rc == 0)
+            {
+              sql_print_warning("Rolled back orphan prepared wsrep "
+                                    "transaction %lld", (longlong) x);
+              continue;
+            }
+            /*
+              A failed rollback is critical: the storage engine is left with
+              a transaction in the prepared state, which blocks purge and will
+              re-surface at the next recovery. We cannot safely continue, so
+              flag the error and abort startup (ha_recover() returns non-zero,
+              which makes the caller unireg_abort()).
+            */
+            sql_print_error("Failed to roll back orphan prepared wsrep "
+                            "transaction %lld during recovery (error %d). "
+                            "The storage engine is left with a transaction in "
+                            "the prepared state; aborting startup.",
+                            (longlong) x, rc);
+            info->error= true;
+            break;
+          }
+#endif /* WITH_WSREP */
           info->found_my_xids++;
           continue;
         }
@@ -2949,7 +2996,7 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
           }
         }
       }
-      if (got < info->len)
+      if (got < info->len || info->error)
         break;
     }
   }

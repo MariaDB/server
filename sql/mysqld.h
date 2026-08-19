@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -83,6 +83,8 @@ void unlink_thd(THD *thd);
 void refresh_status_legacy(THD *thd);
 void refresh_session_status(THD *thd);
 void refresh_global_status();
+void clear_opt_noacl();
+bool var_is_ro_after_init(const char *addr);
 bool is_secure_file_path(char *path);
 extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
@@ -107,15 +109,15 @@ extern CHARSET_INFO *character_set_filesystem;
 void temp_pool_clear_bit(uint bit);
 uint temp_pool_set_next();
 
-extern bool opt_large_files;
-extern bool opt_bin_log, opt_error_log, opt_bin_log_compress;
+extern my_bool opt_bin_log, opt_large_files;
+extern bool opt_error_log, opt_bin_log_compress;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
-extern bool opt_disable_networking, opt_skip_show_db;
-extern bool opt_skip_name_resolve;
-extern bool opt_ignore_builtin_innodb;
+extern my_bool opt_disable_networking, opt_skip_show_db;
+extern my_bool opt_skip_name_resolve;
+extern my_bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern my_bool debug_assert_on_not_freed_memory;
 extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
