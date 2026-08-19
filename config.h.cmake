@@ -385,7 +385,6 @@
 #define DEFAULT_MACHINE "@DEFAULT_MACHINE@"
 #cmakedefine HAVE_DTRACE 1
 
-#cmakedefine SIGNAL_WITH_VIO_CLOSE 1
 
 /* Windows stuff, mostly functions, that have Posix analogs but named differently */
 #ifdef _WIN32
