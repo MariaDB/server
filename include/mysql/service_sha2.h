@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_SHA2_INCLUDED
 /* Copyright (c) 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -14,11 +13,23 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_SHA2_INCLUDED
+#define MYSQL_SERVICE_SHA2_INCLUDED
+
 /**
   @file
   my sha2 service
 
   Functions to calculate SHA2 hash from a memory buffer
+*/
+
+/**
+  @defgroup plugin_api_service_sha2 SHA2 service
+  @ingroup plugin_api_services
+  my sha2 service
+
+  Functions to calculate SHA2 hash from a memory buffer
+  @{
 */
 
 #ifdef __cplusplus
@@ -61,33 +72,33 @@ extern struct my_sha2_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
-#define my_sha224(A,B,C) my_sha2_service->my_sha224_type(A,B,C)
-#define my_sha224_multi my_sha2_service->my_sha224_multi_type
+#define my_sha224(digest, buf, len) my_sha2_service->my_sha224_type(digest, buf, len)
+#define my_sha224_multi(digest, ...) my_sha2_service->my_sha224_multi_type(digest, __VA_ARGS__)
 #define my_sha224_context_size() my_sha2_service->my_sha224_context_size_type()
-#define my_sha224_init(A) my_sha2_service->my_sha224_init_type(A)
-#define my_sha224_input(A,B,C) my_sha2_service->my_sha224_input_type(A,B,C)
-#define my_sha224_result(A,B) my_sha2_service->my_sha224_result_type(A,B)
+#define my_sha224_init(context) my_sha2_service->my_sha224_init_type(context)
+#define my_sha224_input(context, buf, len) my_sha2_service->my_sha224_input_type(context, buf, len)
+#define my_sha224_result(context, digest) my_sha2_service->my_sha224_result_type(context, digest)
 
-#define my_sha256(A,B,C) my_sha2_service->my_sha256_type(A,B,C)
-#define my_sha256_multi my_sha2_service->my_sha256_multi_type
+#define my_sha256(digest, buf, len) my_sha2_service->my_sha256_type(digest, buf, len)
+#define my_sha256_multi(digest, ...) my_sha2_service->my_sha256_multi_type(digest, __VA_ARGS__)
 #define my_sha256_context_size() my_sha2_service->my_sha256_context_size_type()
-#define my_sha256_init(A) my_sha2_service->my_sha256_init_type(A)
-#define my_sha256_input(A,B,C) my_sha2_service->my_sha256_input_type(A,B,C)
-#define my_sha256_result(A,B) my_sha2_service->my_sha256_result_type(A,B)
+#define my_sha256_init(context) my_sha2_service->my_sha256_init_type(context)
+#define my_sha256_input(context, buf, len) my_sha2_service->my_sha256_input_type(context, buf, len)
+#define my_sha256_result(context, digest) my_sha2_service->my_sha256_result_type(context, digest)
 
-#define my_sha384(A,B,C) my_sha2_service->my_sha384_type(A,B,C)
-#define my_sha384_multi my_sha2_service->my_sha384_multi_type
+#define my_sha384(digest, buf, len) my_sha2_service->my_sha384_type(digest, buf, len)
+#define my_sha384_multi(digest, ...) my_sha2_service->my_sha384_multi_type(digest, __VA_ARGS__)
 #define my_sha384_context_size() my_sha2_service->my_sha384_context_size_type()
-#define my_sha384_init(A) my_sha2_service->my_sha384_init_type(A)
-#define my_sha384_input(A,B,C) my_sha2_service->my_sha384_input_type(A,B,C)
-#define my_sha384_result(A,B) my_sha2_service->my_sha384_result_type(A,B)
+#define my_sha384_init(context) my_sha2_service->my_sha384_init_type(context)
+#define my_sha384_input(context, buf, len) my_sha2_service->my_sha384_input_type(context, buf, len)
+#define my_sha384_result(context, digest) my_sha2_service->my_sha384_result_type(context, digest)
 
-#define my_sha512(A,B,C) my_sha2_service->my_sha512_type(A,B,C)
-#define my_sha512_multi my_sha2_service->my_sha512_multi_type
+#define my_sha512(digest, buf, len) my_sha2_service->my_sha512_type(digest, buf, len)
+#define my_sha512_multi(digest, ...) my_sha2_service->my_sha512_multi_type(digest, __VA_ARGS__)
 #define my_sha512_context_size() my_sha2_service->my_sha512_context_size_type()
-#define my_sha512_init(A) my_sha2_service->my_sha512_init_type(A)
-#define my_sha512_input(A,B,C) my_sha2_service->my_sha512_input_type(A,B,C)
-#define my_sha512_result(A,B) my_sha2_service->my_sha512_result_type(A,B)
+#define my_sha512_init(context) my_sha2_service->my_sha512_init_type(context)
+#define my_sha512_input(context, buf, len) my_sha2_service->my_sha512_input_type(context, buf, len)
+#define my_sha512_result(context, digest) my_sha2_service->my_sha512_result_type(context, digest)
 
 #else
 
@@ -125,6 +136,7 @@ void my_sha512_result(void *context, unsigned char *digest);
 }
 #endif
 
-#define MYSQL_SERVICE_SHA2_INCLUDED
+/** @} */
+
 #endif
 

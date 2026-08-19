@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_SHA1_INCLUDED
 /* Copyright (c) 2013, 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -14,11 +13,21 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_SHA1_INCLUDED
+#define MYSQL_SERVICE_SHA1_INCLUDED
+
 /**
   @file
   my sha1 service
+*/
+
+/**
+  @defgroup plugin_api_service_sha1 SHA1 service
+  @ingroup plugin_api_services
+  my sha1 service
 
   Functions to calculate SHA1 hash from a memory buffer
+  @{
 */
 
 #ifdef __cplusplus
@@ -42,12 +51,12 @@ extern struct my_sha1_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
-#define my_sha1(A,B,C) my_sha1_service->my_sha1_type(A,B,C)
-#define my_sha1_multi my_sha1_service->my_sha1_multi_type
+#define my_sha1(digest, buf, len) my_sha1_service->my_sha1_type(digest, buf, len)
+#define my_sha1_multi(digest, ...) my_sha1_service->my_sha1_multi_type(digest, __VA_ARGS__)
 #define my_sha1_context_size() my_sha1_service->my_sha1_context_size_type()
-#define my_sha1_init(A) my_sha1_service->my_sha1_init_type(A)
-#define my_sha1_input(A,B,C) my_sha1_service->my_sha1_input_type(A,B,C)
-#define my_sha1_result(A,B) my_sha1_service->my_sha1_result_type(A,B)
+#define my_sha1_init(context) my_sha1_service->my_sha1_init_type(context)
+#define my_sha1_input(context, buf, len) my_sha1_service->my_sha1_input_type(context, buf, len)
+#define my_sha1_result(context, digest) my_sha1_service->my_sha1_result_type(context, digest)
 
 #else
 
@@ -64,6 +73,5 @@ void my_sha1_result(void *context, unsigned char *digest);
 }
 #endif
 
-#define MYSQL_SERVICE_SHA1_INCLUDED
+/** @} */
 #endif
-

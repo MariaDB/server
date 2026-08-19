@@ -21,6 +21,16 @@
   metadata locks.
 */
 
+/**
+  @defgroup plugin_api_service_thd_mdl THD MDL service
+  @ingroup plugin_api_services
+  Access to the metadata locks.
+
+  This service provides functions for plugins and storage engines to access
+  metadata locks.
+  @{
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,17 +40,19 @@ extern struct thd_mdl_service_st {
   void *(*thd_mdl_context)(MYSQL_THD);
 } *thd_mdl_service;
 
-#ifdef MYSQL_DYNAMIC_PLUGIN
-# define thd_mdl_context(_THD) thd_mdl_service->thd_mdl_context(_THD)
-#else
 /**
   MDL_context accessor
   @param thd   the current session
   @return pointer to thd->mdl_context
 */
+#ifdef MYSQL_DYNAMIC_PLUGIN
+# define thd_mdl_context(thd) thd_mdl_service->thd_mdl_context(thd)
+#else
 void *thd_mdl_context(MYSQL_THD thd);
 #endif
 
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
