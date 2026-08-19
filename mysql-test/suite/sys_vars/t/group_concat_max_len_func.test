@@ -140,17 +140,17 @@ CREATE TABLE t1(val VARCHAR(100) PRIMARY KEY) CHARACTER SET utf8mb4 COLLATE utf8
 INSERT INTO t1 VALUES('bar');
 INSERT INTO t1 VALUES('foo');
 
-SET group_concat_max_len = 1073741823;
+SET group_concat_max_len = 3*1024*1024*1024;
 SHOW VARIABLES LIKE 'group_concat_max_len';
 SELECT GROUP_CONCAT(val) AS simple FROM t1;
 SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
 
-SET group_concat_max_len = 1073741824;
+SET group_concat_max_len = 4*1024*1024*1024-1;
 SHOW VARIABLES LIKE 'group_concat_max_len';
 SELECT GROUP_CONCAT(val) AS simple FROM t1;
 SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
 
-SET group_concat_max_len = 1073741825;
+SET group_concat_max_len = 4*1024*1024*1024;
 SHOW VARIABLES LIKE 'group_concat_max_len';
 SELECT GROUP_CONCAT(val) AS simple FROM t1;
 SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
