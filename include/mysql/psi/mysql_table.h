@@ -27,6 +27,10 @@
 /**
   @file mysql/psi/mysql_table.h
   Instrumentation helpers for table io.
+
+  @defgroup Table_instrumentation Table Instrumentation
+  @ingroup Instrumentation_interface
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -34,12 +38,6 @@
 #ifndef PSI_TABLE_CALL
 #define PSI_TABLE_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Table_instrumentation Table Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 #ifdef HAVE_PSI_TABLE_INTERFACE
 #define MYSQL_UNBIND_TABLE(handler) (handler)->unbind_psi()

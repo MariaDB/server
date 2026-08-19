@@ -25,32 +25,40 @@
   @file
   logger service
 
+*/
+
+/**
+  @defgroup plugin_api_service_logger Logger service
+  @ingroup plugin_api_services
   Log file with rotation implementation.
 
   This service implements logging with possible rotation
   of the log files. Interface intentionally tries to be similar to FILE*
   related functions.
 
-  So that one can open the log with logger_open(), specifying
+  So that one can open the log with @ref logger_open(), specifying
   the limit on the logfile size and the rotations number.
 
   Then it's possible to write messages to the log with
-  logger_printf or logger_vprintf functions.
+  @ref logger_printf() or @ref logger_vprintf() functions.
 
   As the size of the logfile grows over the specified limit,
-  it is renamed to 'logfile.1'. The former 'logfile.1' becomes
-  'logfile.2', etc. The file 'logfile.rotations' is removed.
+  it is renamed to `logfile.1`. The former `logfile.1` becomes
+  `logfile.2`, etc. The file `logfile.rotations` is removed.
+
   That's how the rotation works.
 
-  The rotation can be forced with the logger_rotate() call.
+  The rotation can be forced with the @ref logger_rotate() call.
 
-  Finally the log should be closed with logger_close().
+  Finally the log should be closed with @ref logger_close().
 
-@note
+  @note
   Implementation checks the size of the log file before it starts new
   printf into it. So the size of the file gets over the limit when it rotates.
 
   The access is secured with the mutex, so the log is threadsafe.
+
+  @{
 */
 
 
@@ -122,6 +130,8 @@ extern struct logger_service_st {
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /*MYSQL_SERVICE_LOGGER_INCLUDED*/
 

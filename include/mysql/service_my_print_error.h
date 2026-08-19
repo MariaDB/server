@@ -19,10 +19,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 /**
   @file include/mysql/service_my_print_error.h
 
+*/
+
+/**
+  @defgroup plugin_api_service_my_print_error My Print Error service
+  @ingroup plugin_api_services
+
   This service provides functions for plugins to report
   errors to client (without client, the errors are written to the error log).
-
+  @{
 */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -69,5 +76,6 @@ extern void my_printv_error(unsigned int error, const char *format,
 }
 #endif
 
+/** @} */
 #endif
 

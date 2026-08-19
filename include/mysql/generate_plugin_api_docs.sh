@@ -10,7 +10,33 @@
 #   md/<group>.md - documentation for group <group>
 #   md/<page>.md - documentation for each <page>
 # Note: target_dir is created if not present.
-# Note: requires at least moxygen 2.1.11
+
+# compare version numbers
+# usage: vercmp <versionnr1> <versionnr2>
+#         with format for versions xxx.xxx.xxx
+# returns: 0 if versionnr1 equal or greater
+#          1 if versionnr1 lower
+
+vercmp()
+{
+  local a1 b1 c1 a2 b2 c2
+  v1=$1
+  v2=$2
+  set -- $( echo "$v1" | sed 's/\./ /g' )
+  a1=$1 b1=$2 c1=$3
+  set -- $( echo "$v2" | sed 's/\./ /g' )
+  a2=$1 b2=$2 c2=$3
+  ret=$(( (a1-a2)*1000000+(b1-b2)*1000+c1-c2 ))
+  if [ $ret -lt 0 ] ; then
+    v=-1
+  elif [ $ret -eq 0 ] ; then
+    v=0
+  else
+    v=1
+  fi
+  printf "%d" $v
+  return
+}
 
 set -euo pipefail
 
@@ -23,6 +49,15 @@ fi
 
 # Exit on error, undefined variable, or pipe failure
 set -euo pipefail
+
+#check if moxygen version is good enough
+moxygen_version=$(moxygen --version)
+require_moxygen_version="2.1.16"
+if [ $(vercmp "$moxygen_version" "$require_moxygen_version") -lt 0 ]; then
+    echo "moxygen version $require_moxygen_version or higher is required," \
+         "but $moxygen_version is installed."
+    exit 1
+fi
 
 # Clean up the output directory, if it exists
 rm -rf "$TARGET_DIR/md"
