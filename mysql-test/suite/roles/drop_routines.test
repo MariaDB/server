@@ -34,7 +34,7 @@ delimiter ;|
 grant execute on function mysql.test_func to r2;
 grant execute on procedure mysql.test_proc to r3;
 
---error ER_NONEXISTING_PROC_GRANT
+--error ER_NONEXISTING_PROC_GRANT_ROLE
 revoke execute on procedure mysql.test_proc from r2;
 
 --sorted_result
