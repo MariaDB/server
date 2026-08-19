@@ -3625,8 +3625,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    xact_connect_id(thd_arg->variables.xact_connect_id),
-    xact_commit_id(thd_arg->variables.xact_commit_id),
     flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0)
@@ -3698,8 +3696,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       sa_seq_no= thd->get_binlog_start_alter_seq_no();
     flags2|= FL_DDL;
   }
-  if (thd_arg->variables.xact_commit_id > 0)
-    flags_extra|= FL_CLIENT_XACT_ID;
 
   DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
               (flags2 & FL_DDL) || thd_arg->in_multi_stmt_transaction_mode());
@@ -3750,7 +3746,6 @@ Gtid_log_event::write()
     + 1 // flags_extra:
     + 1 // extra_engines
     + 8 // sa_seq_no
-    + 8 + 8 // xact_connect_id + xact_commit_id
   ];
   size_t write_len= 13;
 
@@ -3805,13 +3800,6 @@ Gtid_log_event::write()
   {
     int8store(buf + write_len, sa_seq_no);
     write_len+= 8;
-  }
-
-  if (flags_extra & FL_CLIENT_XACT_ID)
-  {
-    int8store(buf + write_len, xact_connect_id);
-    int8store(buf + write_len + 8, xact_commit_id);
-    write_len += (8 + 8);
   }
 
   if (write_len < GTID_HEADER_LEN)
@@ -3908,16 +3896,6 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   rgi->gtid_ev_flags_extra= flags_extra;
   rgi->gtid_ev_sa_seq_no= sa_seq_no;
-
-  /*
-    We set the xact_id unconditionally. If the GTID event had them set from
-    the master (FL_CLIENT_XACT_ID), then we will replicate them. And if not
-    set from the master, then our constructor set xact_commit_id to 0, which
-    disables the xact_id on the slave.
-  */
-  thd->variables.xact_connect_id= xact_connect_id;
-  thd->variables.xact_commit_id= xact_commit_id;
-
   thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
