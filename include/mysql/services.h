@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICES_INCLUDED
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
    Copyright (c) 2012, 2017, MariaDB
 
@@ -15,9 +14,20 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICES_INCLUDED
+#define MYSQL_SERVICES_INCLUDED
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+  @defgroup plugin_api_services Plugin Services
+  @ingroup plugin_api_services_for_plugins
+
+  A set of services provided by the server to plugins.
+  @sa @ref impl_server_plugin_services
+*/
 
 #include <mysql/service_base64.h>
 #include <mysql/service_debug_sync.h>
@@ -48,6 +58,5 @@ extern "C" {
 }
 #endif
 
-#define MYSQL_SERVICES_INCLUDED
 #endif
 

@@ -22,6 +22,11 @@
 
 #ifndef MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
 #define MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
+/**
+  @defgroup Instrumentation_interface Instrumentation Interface
+  @ingroup plugin_api_services_for_plugins
+  @{
+*/
 
 #ifndef MY_GLOBAL_INCLUDED
 /*
@@ -102,9 +107,6 @@ struct sql_digest_storage;
 /**
   @file mysql/psi/psi.h
   Performance schema instrumentation interface.
-
-  @defgroup Instrumentation_interface Instrumentation Interface
-  @{
 */
 
 /**
@@ -846,7 +848,7 @@ typedef unsigned int PSI_socket_key;
 #ifdef HAVE_PSI_1
 
 /**
-  @defgroup Group_PSI_v1 Application Binary Interface, version 1
+  @defgroup Group_PSI_v1 Application Binary Interface, Version 1
   @ingroup Instrumentation_interface
   @{
 */
@@ -2756,7 +2758,7 @@ struct PSI_v1
 #ifdef HAVE_PSI_2
 
 /**
-  @defgroup Group_PSI_v2 Application Binary Interface, version 2
+  @defgroup Group_PSI_v2 Application Binary Interface, Version 2
   @ingroup Instrumentation_interface
   @{
 */

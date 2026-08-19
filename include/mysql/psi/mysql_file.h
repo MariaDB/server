@@ -48,15 +48,15 @@
 
 #include "mysql/psi/psi.h"
 
-#ifndef PSI_FILE_CALL
-#define PSI_FILE_CALL(M) PSI_DYNAMIC_CALL(M)
-#endif
-
 /**
   @defgroup File_instrumentation File Instrumentation
   @ingroup Instrumentation_interface
   @{
 */
+
+#ifndef PSI_FILE_CALL
+#define PSI_FILE_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
 
 /**
   @def mysql_file_register(P1, P2, P3)

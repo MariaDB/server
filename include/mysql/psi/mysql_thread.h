@@ -69,6 +69,12 @@
 #endif
 #endif
 
+/**
+  @defgroup Thread_instrumentation Thread Instrumentation
+  @ingroup Instrumentation_interface
+  @{
+*/
+
 #ifndef PSI_MUTEX_CALL
 #define PSI_MUTEX_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
@@ -84,12 +90,6 @@
 #ifndef PSI_THREAD_CALL
 #define PSI_THREAD_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Thread_instrumentation Thread Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
 #define PSI_CALL_delete_current_thread    PSI_THREAD_CALL(delete_current_thread)
