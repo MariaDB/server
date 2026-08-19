@@ -5385,9 +5385,11 @@ static Sys_var_ulong Sys_default_week_format(
 
 static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
-       "The maximum length of the result of function GROUP_CONCAT()",
+       "The maximum memory used for calculating the result for "
+       "GROUP_CONCAT(). The max length in bytes for a single GROUP_CONCAT() "
+       "result is limited by min(group_concat_max_len, max_allowed_packet)",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, MAX_MAX_ALLOWED_PACKET), DEFAULT(1024*1024),
+       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024),
        BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;

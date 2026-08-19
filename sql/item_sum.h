@@ -2060,7 +2060,13 @@ class Item_func_group_concat : public Item_sum_str
   String *separator;
   TREE tree_base;
   TREE *tree;
-  size_t tree_len;
+  /*
+    Max total memory we may use for 'tree', including the second tree
+    that repack_tree() needs while it is running.
+    Note that this does not cover BLOB values, as those are stored in
+    table->blob_storage, which is not freed when the tree is repacked.
+  */
+  size_t max_tree_size;
   Item **ref_pointer_array;
 
   /**
@@ -2081,6 +2087,12 @@ class Item_func_group_concat : public Item_sum_str
   uint row_count;
   bool distinct;
   bool warning_for_row;
+  /*
+    Set if the result is not what the user would have got with unlimited
+    memory and an unlimited group_concat_max_len. val_str() gives one
+    cut value warning for it.
+  */
+  bool result_cut;
   bool always_null;
   bool force_copy_fields;
   /** True if entire result of GROUP_CONCAT has been written to output buffer. */

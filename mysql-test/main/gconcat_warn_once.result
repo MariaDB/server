@@ -1,0 +1,108 @@
+#
+# GROUP_CONCAT() must report the cut value warning exactly once
+# per group and per aggregate, no matter how many things were cut
+# and how many times val_str() is called for the group.
+#
+# Note that row_count is only reset in cleanup(), not in clear(),
+# so the row number in the message counts all rows the aggregate
+# has dumped, over all groups.
+#
+CREATE TABLE t1 (grp INT, a VARCHAR(50), t TEXT);
+INSERT INTO t1
+SELECT seq MOD 3, REPEAT(CHAR(64 + seq MOD 3), 40), REPEAT('x', 200)
+FROM seq_1_to_30;
+#
+# 1) Only the result is cut, by group_concat_max_len.
+#    3 groups must give exactly 3 warnings.
+#
+SET SESSION group_concat_max_len= 100;
+SELECT grp, GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY grp;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
+Warning	1260	Row 9 was cut by group_concat()
+#
+# 2) The individual TEXT values are cut in
+#    Field_blob::handle_group_concat() *and* the result is cut in
+#    dump_leaf_key(). Both used to be able to report, which is what
+#    the removed blob_storage->set_truncated_value(false) hack was
+#    guarding against. Must be 3 warnings, not 6.
+#
+SELECT grp, GROUP_CONCAT(t ORDER BY t) FROM t1 GROUP BY grp;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
+#
+# 3) Writing GROUP_CONCAT() out again in HAVING creates a *second*
+#    aggregate, with its own tmp table, blob_storage and row_count.
+#    Both are cut, so 6 warnings is the correct result here. The
+#    row numbers come in pairs because the two aggregates count
+#    their dumped rows independently but in lockstep.
+#
+SELECT grp, GROUP_CONCAT(t ORDER BY t) FROM t1
+GROUP BY grp HAVING GROUP_CONCAT(t ORDER BY t) <> '';
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
+#
+# 4) Referring to the select list alias in HAVING resolves to the
+#    same item, so val_str() is called twice for the same group.
+#    Before, the second call reported the blob truncation again,
+#    as blob_storage was still marked as truncated. Must be 3.
+#
+SELECT grp, GROUP_CONCAT(t ORDER BY t) AS g FROM t1
+GROUP BY grp HAVING g <> '';
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_1000;
+#
+# 5) The tree has to be repacked because of the memory limit.
+#    tmp_table_size=0 puts ram_limitation() at its 8160 floor and
+#    group_concat_max_len is kept below that, so max_tree_size is
+#    8160: the repack starts at 5440 bytes and copies to 2720.
+#    The rows that fit in 2720 bytes produce only a few hundred
+#    bytes of result, well below group_concat_max_len, so
+#    dump_leaf_key() never notices that anything was lost and only
+#    result_cut reports it. One group, so exactly one warning.
+#
+#    The exact result depends on sizeof(TREE_ELEMENT) and the
+#    reclength, so only check that the result came out short.
+#
+SET SESSION group_concat_max_len= 1024;
+SET SESSION tmp_table_size= 0;
+SELECT LENGTH(GROUP_CONCAT(a ORDER BY a)) < 1024 AS cut_by_memory FROM t2;
+cut_by_memory
+1
+Warnings:
+Warning	1260	Row 88 was cut by group_concat()
+SHOW COUNT(*) WARNINGS;
+@@session.warning_count
+1
+#
+# 6) Control: same query with memory available and a result that
+#    fits in group_concat_max_len. Nothing is repacked and nothing
+#    is cut, so there must be no warning at all. This catches a
+#    result_cut that is set for every repack instead of only for
+#    the ones that lost rows.
+#
+SET SESSION tmp_table_size= DEFAULT;
+SET SESSION group_concat_max_len= 1048576;
+SELECT GROUP_CONCAT(a ORDER BY a) FROM t2;
+SHOW COUNT(*) WARNINGS;
+@@session.warning_count
+0
+SET SESSION group_concat_max_len= DEFAULT;
+SET SESSION tmp_table_size= DEFAULT;
+DROP TABLE t1, t2;

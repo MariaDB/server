@@ -3925,16 +3925,13 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   /* stop if length of result more than max_length */
   if (result->length() > max_length)
   {
-    THD *thd= table->in_use;
     item->cut_max_length(result, old_length, max_length);
     item->warning_for_row= TRUE;
-    report_cut_value_error(thd, item->row_count, item->func_name());
-
-    /**
-       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    /*
+      Only remember that the result was cut. val_str() reports it, so
+      that the user gets one warning even if several things were cut.
     */
-    if (table && table->blob_storage)
-      table->blob_storage->set_truncated_value(false);
+    item->result_cut= true;
     return 1;
   }
   return 0;
@@ -3957,13 +3954,14 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        String *separator_arg, bool limit_clause,
                        Item *row_limit_arg, Item *offset_limit_arg)
   :Item_sum_str(thd), tmp_table_param(0), separator(separator_arg), tree(0),
+   max_tree_size(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
    arg_count_field(select_list->elements),
    row_count(0),
    distinct(distinct_arg),
-   warning_for_row(FALSE), always_null(FALSE),
+   warning_for_row(FALSE), result_cut(FALSE), always_null(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
    copy_offset_limit(0), copy_row_limit(0), original(0)
@@ -4021,7 +4019,7 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   tmp_table_param(item->tmp_table_param),
   separator(item->separator),
   tree(item->tree),
-  tree_len(item->tree_len),
+  max_tree_size(item->max_tree_size),
   unique_filter(item->unique_filter),
   table(item->table),
   context(item->context),
@@ -4030,6 +4028,7 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   row_count(item->row_count),
   distinct(item->distinct),
   warning_for_row(item->warning_for_row),
+  result_cut(item->result_cut),
   always_null(item->always_null),
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
@@ -4129,16 +4128,14 @@ void Item_func_group_concat::clear()
   result.copy();
   null_value= TRUE;
   warning_for_row= FALSE;
+  result_cut= FALSE;
   result_finalized= false;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
   if (row_limit)
     copy_row_limit= row_limit->val_int();
   if (tree)
-  {
     reset_tree(tree);
-    tree_len= 0;
-  }
   if (unique_filter)
     unique_filter->reset();
   if (table && table->blob_storage)
@@ -4146,10 +4143,39 @@ void Item_func_group_concat::clear()
   /* No need to reset the table as we never call write_row */
 }
 
+/*
+  How the memory limit of the GROUP_CONCAT sort tree is split up.
+
+  repack_tree() builds a new tree while the old one is still in memory,
+  so the peak usage is the size at which we start a repack plus the size
+  we copy to. We therefore split the limit into GCONCAT_TREE_PARTS parts,
+  start a repack when GCONCAT_TREE_REPACK_PARTS of them are used and copy
+  to the remaining ones. The parts we do not copy to are also the room
+  the tree has to grow before the next repack is needed, which is what
+  keeps the repacks amortized.
+*/
+#define GCONCAT_TREE_PARTS         3
+#define GCONCAT_TREE_REPACK_PARTS  2
+
+/*
+  The tree memory limit is never set below this many elements.
+  Repacking a tree that can not hold a few rows would drop almost every
+  row and give a result that is much shorter than group_concat_max_len.
+*/
+#define GCONCAT_MIN_TREE_ELEMENTS  16
+
 struct st_repack_tree {
   TREE tree;
   TABLE *table;
   size_t len, maxlen;
+  /* Length of the separator that is added between two rows */
+  size_t sep_len;
+  /* Stop copying when the new tree has allocated this much */
+  size_t max_memory;
+  /* Set if tree_insert() failed */
+  bool oom;
+  /* Set if we stopped because of max_memory, not because of maxlen */
+  bool truncated;
 };
 
 extern "C"
@@ -4164,11 +4190,79 @@ int copy_to_tree(void* key, element_count count __attribute__((unused)),
 
   DBUG_ASSERT(count == 1);
   if (!tree_insert(&st->tree, key, 0, st->tree.custom_arg))
+  {
+    st->oom= true;
     return 1;
+  }
 
-  st->len += len;
+  st->len+= len;
+  if (st->tree.elements_in_tree > 1)
+    st->len+= st->sep_len;             /* No separator before the first row */
+  if (st->tree.allocated > st->max_memory)
+  {
+    /*
+      We can not keep all rows that would fit into the result within
+      the memory we are allowed to use. The result will be shorter than
+      group_concat_max_len and the caller has to report a cut value.
+    */
+    st->truncated= true;
+    return 1;
+  }
   return st->len > st->maxlen;
 }
+
+/*
+  Shrink 'tree' by throwing away the rows that can never be returned.
+
+  'tree' holds every row of the current group in ORDER BY order, but
+  val_str() only walks it until it has produced gconcat_max_len() bytes.
+  Every row after that point can never be part of the result and is just
+  taking up memory.
+
+  Where the last part is cut away:
+    tree_walk() with left_root_right visits the rows in ORDER BY order,
+    that is, in the order val_str() would output them, and copies each
+    visited row into a second tree, st.tree. copy_to_tree() adds up the
+    result length of the rows copied so far and ends with
+
+      return st->len > st->maxlen;
+
+    Returning non-zero from the action stops the walk:
+    tree_walk_left_root_right() only calls the action after the walk of
+    the left subtree returned 0, and only descends into the right
+    subtree after the action returned 0, so a non-zero return unwinds
+    the whole recursion. The rows after that point are therefore never
+    visited and never copied. That return is the only place where we
+    decide what to keep; there is no per row decision anywhere else.
+
+  Why the copy is smaller:
+    Nothing is removed from the old tree. The new tree is smaller
+    because it only ever received the leading rows. The old tree is
+    then thrown away as a whole by delete_tree(), which free_root()s
+    the MEM_ROOT that all of its elements were allocated from, and
+    *tree= st.tree makes the smaller copy the current tree.
+
+    Deleting single rows from the old tree is not an option: it is
+    created without MY_TREE_WITH_DELETE, so its elements come out of
+    the tree's own MEM_ROOT and tree_delete() can not be used at all.
+
+  The copying also stops if the new tree has allocated st.max_memory
+  bytes. We can then not even keep everything that would fit into the
+  result, so the result is cut short. This is remembered in
+  result_cut so that val_str() can report a cut value to the user.
+
+  This second stop is what makes the shrinking guaranteed: add() calls
+  us when the tree has grown to GCONCAT_TREE_REPACK_PARTS of the limit
+  while st.max_memory is only one part, and both trees cost the same
+  per row, so copying every row would always hit st.max_memory. A
+  repack therefore never returns a tree of the size it started with.
+
+  Note that the old and the new tree are both in memory during the walk.
+  See GCONCAT_TREE_PARTS for how the memory limit accounts for that.
+
+  @return 0  ok, 'tree' now holds only the rows we still need
+  @return 1  out of memory, 'tree' is left untouched
+*/
 
 bool Item_func_group_concat::repack_tree(THD *thd)
 {
@@ -4185,28 +4279,22 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   st.table= table;
   st.len= 0;
   st.maxlen= thd->gconcat_max_len();
+  st.sep_len= separator->length();
+  st.max_memory= max_tree_size / GCONCAT_TREE_PARTS;
+  st.oom= st.truncated= false;
   tree_walk(tree, &copy_to_tree, &st, left_root_right);
-  if (st.len <= st.maxlen) // Copying aborted. Must be OOM
+  if (st.oom)
   {
     delete_tree(&st.tree, 0);
     return 1;
   }
   delete_tree(tree, 0);
   *tree= st.tree;
-  tree_len= st.len;
+  if (st.truncated)
+    result_cut= TRUE;
   return 0;
 }
 
-
-/*
-  Repacking the tree is expensive. But it keeps the tree small, and
-  inserting into an unnecessary large tree is also waste of time.
-
-  The following number is best-by-test. Test execution time slowly
-  decreases up to N=10 (that is, factor=1024) and then starts to increase,
-  again, very slowly.
-*/
-#define GCONCAT_REPACK_FACTOR 10
 
 bool Item_func_group_concat::add(bool exclude_nulls)
 {
@@ -4263,15 +4351,20 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   {
     THD *thd= table->in_use;
     table->field[0]->store(row_str_len, FALSE);
-    if ((tree_len >> GCONCAT_REPACK_FACTOR) > thd->gconcat_max_len()
-        && tree->elements_in_tree > 1)
+    /*
+      Repack when GCONCAT_TREE_REPACK_PARTS of the memory we may use is
+      gone. The rest is needed for the new tree that repack_tree()
+      allocates while the old one is still around.
+    */
+    if (tree->allocated >
+        max_tree_size / GCONCAT_TREE_PARTS * GCONCAT_TREE_REPACK_PARTS &&
+        tree->elements_in_tree > 1)
       if (repack_tree(thd))
         return 1;
     el= tree_insert(tree, get_record_pointer(), 0, tree->custom_arg);
     /* check if there was enough memory to insert the row */
     if (!el)
       return 1;
-    tree_len+= row_str_len;
   }
 
   /*
@@ -4439,9 +4532,20 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (arg_count_order)
   {
-    size_t tmp_buffer_size= MY_MIN(thd->variables.tmp_memory_table_size,
-                                   thd->variables.max_heap_table_size);
     tree= &tree_base;
+    /*
+      Limit the memory the tree may use. This does not cover BLOB values,
+      as those are stored in table->blob_storage which is not freed when
+      the tree is repacked, but limiting the tree still gives us some
+      protection compared to no limit at all.
+      A repack only copies to one part of the limit, so the limit has to
+      be big enough to hold GCONCAT_MIN_TREE_ELEMENTS in one part.
+    */
+    max_tree_size= MY_MAX(MY_MAX(thd->ram_limitation(),
+                                 (size_t) thd->gconcat_max_len()),
+                          (sizeof(TREE_ELEMENT) + tree_key_length +
+                           get_null_bytes()) *
+                          GCONCAT_MIN_TREE_ELEMENTS * GCONCAT_TREE_PARTS);
     /*
       Create a tree for sorting. The tree is used to sort (according to the
       syntax of this function). If there is no ORDER BY clause, we don't
@@ -4452,7 +4556,6 @@ bool Item_func_group_concat::setup(THD *thd)
               tree_key_length + get_null_bytes(),
               get_comparator_function_for_order_by(), NULL, (void*) this,
               MYF(MY_THREAD_SPECIFIC));
-    tree_len= 0;
   }
 
   if (distinct)
@@ -4502,11 +4605,19 @@ String* Item_func_group_concat::val_str(String* str)
       DBUG_ASSERT(false); // Can't happen
   }
 
-  if (table && table->blob_storage && 
-      table->blob_storage->is_truncated_value())
+  if (result_cut ||
+      (table && table->blob_storage &&
+       table->blob_storage->is_truncated_value()))
   {
     warning_for_row= true;
     report_cut_value_error(current_thd, row_count, func_name());
+    /*
+      Clear the marks so that we give only one warning per group, even
+      if val_str() is called more than once for this group.
+    */
+    result_cut= false;
+    if (table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
   }
 
   return &result;
