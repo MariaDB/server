@@ -27684,6 +27684,14 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   uint org_fields=all_fields.elements;
 
   thd->where= THD_WHERE::GROUP_STATEMENT;
+
+  // Don't allow markers to remain undefined upon return from setup_group
+  SCOPE_EXIT([order] () {
+    for (ORDER *ord_field= order; ord_field; ord_field= ord_field->next)
+      if ((*ord_field->item)->marker == UNDEF_POS)
+        (*ord_field->item)->marker= 0;
+  });
+
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
