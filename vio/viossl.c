@@ -28,6 +28,26 @@
 
 #define SSL_errno(X,Y) ERR_get_error()
 
+#ifdef HAVE_WOLFSSL
+/*
+  WolfSSL reports "there can be no early data" as an error - it refuses the
+  call unless TLS 1.3 is possible, which for a server that does not offer
+  TLS 1.3 is the normal case. Say that nothing was read instead.
+*/
+#undef SSL_read_early_data
+static int SSL_read_early_data(SSL *ssl, uchar *buf, int size,
+                               early_data_size_t *nread)
+{
+  int ret= wolfSSL_read_early_data(ssl, buf, size, nread);
+  if (ret == BAD_FUNC_ARG)
+  {
+    *nread= 0;
+    ret= SSL_READ_EARLY_DATA_SUCCESS;
+  }
+  return ret;
+}
+#endif
+
 /**
   Obtain the equivalent system error status for the last SSL I/O operation.
 
@@ -198,9 +218,11 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
                        (int)mysql_socket_getfd(vio->mysql_socket),
                        buf, size));
 
+  /* WolfSSL cannot write_early_data() on the server side, return SIDE_ERROR */
+#ifndef HAVE_WOLFSSL
   if (!SSL_is_init_finished(ssl))
   {
-    size_t written;
+    early_data_size_t written;
     while (!SSL_write_early_data(ssl, buf, size, &written))
       if (handle_ssl_io_error(vio, 0))
         DBUG_RETURN(-1);
@@ -212,6 +234,7 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
 
     DBUG_RETURN(written);
   }
+#endif
 
   while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
     if (handle_ssl_io_error(vio,ret))
@@ -420,7 +443,7 @@ ulong sslaccept(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *
     set_if_smaller(bufsize, MAX_EARLY_DATA);
     for (;;)
     {
-      size_t nread;
+      early_data_size_t nread;
       int ret= SSL_read_early_data(ssl, buf, bufsize, &nread);
       if (ret >= SSL_READ_EARLY_DATA_SUCCESS)
       {

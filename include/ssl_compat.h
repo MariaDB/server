@@ -1,5 +1,6 @@
 /*
  Copyright (c) 2016, 2022, MariaDB Corporation.
+ Copyright (c) 2026, MariaDB plc
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -68,6 +69,10 @@
 
 #ifdef HAVE_WOLFSSL
 #define EVP_MD_CTX_SIZE                 sizeof(wc_Md5)
+#define SSL_READ_EARLY_DATA_SUCCESS 0
+#define early_data_size_t int
+#else
+#define early_data_size_t size_t
 #endif
 
 #ifndef HAVE_OPENSSL11
