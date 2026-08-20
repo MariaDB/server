@@ -6311,22 +6311,11 @@ func_exit:
 			&offsets, &offsets_heap, ctx->heap,
 			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
 			thr, trx->id, &mtr);
-		if (err == DB_SUCCESS) {
-			offsets = rec_get_offsets(
-				btr_pcur_get_rec(&pcur), index, offsets,
-				index->n_core_fields, ULINT_UNDEFINED,
-				&offsets_heap);
-		}
-
-		if (big_rec) {
-			if (err == DB_SUCCESS) {
-				err = btr_store_big_rec_extern_fields(
-					&pcur, offsets, big_rec, &mtr,
-					BTR_STORE_UPDATE);
-			}
-
-			dtuple_big_rec_free(big_rec);
-		}
+		/* Any off-page columns of the metadata record were
+		stored by btr_cur_pessimistic_update() before the
+		record itself was updated, so that the record never
+		contains incomplete BLOB pointers. */
+		ut_ad(!big_rec);
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
