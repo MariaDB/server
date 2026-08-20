@@ -886,13 +886,14 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
   const char *error= 0;
   Log_event *res= 0;
 
-  *out_error= 0;
-  switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF,
-                         max_allowed_packet))
+  *out_error= read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF,
+                             max_allowed_packet);
+  switch (*out_error)
   {
     case 0:
       break;
     case LOG_READ_EOF: // no error here; we are at the file's end
+      *out_error= 0;
       goto err;
     case LOG_READ_BOGUS:
       error= "Event invalid";
@@ -926,6 +927,8 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
   if ((res= read_log_event((uchar*) event.ptr(), event.length(),
                            &error, fdle, crc_check, false)))
     res->register_temp_buf((uchar*) event.release(), true);
+  else
+    *out_error= 1;
 
 err:
   if (unlikely(error))
@@ -943,9 +946,7 @@ err:
       enough to stop the SQL thread now ; as we are skipping the current event,
       going on with reading and successfully executing other events can
       only corrupt the slave's databases. So stop.
-    */
-    *out_error= 1;
-    /*
+
       Clear any error that might have been set in the IO_CACHE from a read
       error, while we are still holding the relay log mutex (if reading from
       the hot log). Otherwise the error might interfere unpredictably with
