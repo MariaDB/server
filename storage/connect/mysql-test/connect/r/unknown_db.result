@@ -1,0 +1,28 @@
+#
+# MDEV-39050 ConnectSE: improve table discovery error message when local database doesn't exist
+#
+DROP DATABASE IF EXISTS unknown_connect_db;
+Warnings:
+Note	1008	Can't drop database 'unknown_connect_db'; database doesn't exist
+CREATE TABLE t1 (id INT NOT NULL, name VARCHAR(32));
+INSERT INTO t1 VALUES (1, 'foo'), (2, 'bar');
+#
+# TABLE_TYPE=PROXY with DBNAME pointing to a non-existent database
+# should produce "Unknown database" instead of a generic discovery error
+#
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='unknown_connect_db';
+ERROR HY000: Unknown database 'unknown_connect_db'
+#
+# Once the database and source table exist, discovery should succeed
+#
+CREATE DATABASE unknown_connect_db;
+CREATE TABLE unknown_connect_db.t1 (id INT NOT NULL, name VARCHAR(32));
+INSERT INTO unknown_connect_db.t1 VALUES (3, 'baz');
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='unknown_connect_db';
+SELECT * FROM t2 ORDER BY id;
+id	name
+3	baz
+DROP TABLE t2;
+DROP TABLE t1;
+DROP TABLE unknown_connect_db.t1;
+DROP DATABASE unknown_connect_db;
