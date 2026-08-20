@@ -3,6 +3,7 @@
 # Verify that mariadb-binlog rejects options which are incompatible with
 # --convert-engine-binlog. Option validation happens before the input file is
 # opened, so a placeholder input name is sufficient.
+--source include/have_innodb_binlog.inc
 
 --echo *** --read-from-remote-server is unsupported
 --error 1
