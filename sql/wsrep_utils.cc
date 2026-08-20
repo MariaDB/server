@@ -633,6 +633,18 @@ bool wsrep_names_list(const unsigned char c)
   return wsrep_address_char(c) || wsrep_comma_char(c);
 }
 
+/* return true if character is valid in a path and safe to interpolate
+   into a single-quoted shell string. Allowlist: everything else, including
+   every shell metacharacter, is rejected. UTF-8 bytes are always allowed. */
+bool wsrep_path_char(const unsigned char c)
+{
+  if (c >= 0x80) return true;
+  return wsrep_filename_char(c) ||
+         (c == '/') || (c == '\\') ||   /* POSIX / Windows separators */
+         (c == ':') || (c == ' ') ||    /* Windows drive letter; space */
+         (c == '+') || (c == '=') || (c == ',') || (c == '@') || (c == '%');
+}
+
 bool wsrep_check_request_str(const char* const str,
                              bool (*check) (const unsigned char),
                              bool log_warn)

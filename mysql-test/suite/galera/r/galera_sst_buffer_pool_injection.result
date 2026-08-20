@@ -1,0 +1,18 @@
+connection node_2;
+connection node_1;
+SELECT 1;
+1
+1
+connection node_1;
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+connection node_2;
+buffer-pool injection prevented
+FOUND 1 /Running: .*mariadb-backup --prepare/ in mysqld.2.err
+connection node_2;
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST .* failed');

@@ -38,6 +38,17 @@ safe()
   echo "${!1}"
 }
 
+# A value written into a config file (rsyncd.conf) must not contain a newline:
+# that format has no quoting, so a newline would inject a directive. Only
+# newlines are rejected, every other character is valid in a path.
+check_conf_value()
+{
+    if [[ "${!1}" == *$'\n'* || "${!1}" == *$'\r'* ]]; then
+        wsrep_log_error "Refusing SST: newline character in $1"
+        exit 22
+    fi
+}
+
 commandex()
 {
     if [ -n "$BASH_VERSION" ]; then
@@ -208,6 +219,8 @@ WSREP_SST_OPT_EXTRA_DEFAULTS=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_VALUE=""
 WSREP_SST_OPT_MYSQLD=""
+# Array form: each argument is a literal argv element, never re-parsed.
+WSREP_SST_OPT_MYSQLD_ARR=()
 WSREP_SST_OPT_PORT=""
 WSREP_SST_OPT_ADDR=""
 WSREP_SST_OPT_ADDR_PORT=""
@@ -220,7 +233,8 @@ INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
 INNODB_BUFFER_POOL=""
 INNODB_BUFFER_POOL_SIZE=""
 INNODB_FORCE_RECOVERY=""
-INNOEXTRA=""
+# An array, so that the path values in it stay literal argv elements:
+INNOEXTRA=()
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -435,7 +449,7 @@ case "$1" in
         shift
         ;;
     '--mysqld-args')
-        original_cmd=""
+        WSREP_SST_OPT_MYSQLD_ARR=()
         shift
         cmd_tail=0
         while [ $# -gt 0 ]; do
@@ -444,11 +458,11 @@ case "$1" in
            if [ -z "$lname" ]; then
                shift
                if [ $# -gt 0 ]; then
-                   # copy "--" to the output string:
-                   original_cmd="$original_cmd --"
+                   # copy "--" to the output list:
+                   WSREP_SST_OPT_MYSQLD_ARR+=("--")
                    # All other arguments must be copied unchanged:
                    while [ $# -gt 0 ]; do
-                       original_cmd="$original_cmd '$1'"
+                       WSREP_SST_OPT_MYSQLD_ARR+=("$1")
                        shift
                    done
                fi
@@ -461,7 +475,7 @@ case "$1" in
                # options list, starting with "-":
                options="${1#-}"
                if [ "$options" != "$1" -a -n "$options" ]; then
-                   slist=""
+                   sflags=""
                    while [ -n "$options" ]; do
                        # Let's separate the first character as the current
                        # option name:
@@ -510,48 +524,43 @@ case "$1" in
                            elif [ "$option" != 'u' -a \
                                   "$option" != 'P' ]
                            then
-                               if [ $cmd_tail -ne 0 ]; then
-                                   option="$option --"
-                               fi
+                               # Short option with a value: flush the flags
+                               # collected so far, then push the option and
+                               # its value as separate elements.
                                if [ -z "$value" ]; then
-                                   slist="$slist$option"
-                               elif [ -z "$slist" ]; then
-                                   slist="$option '$value'"
+                                   sflags="$sflags$option"
                                else
-                                   slist="$slist -$option '$value'"
+                                   [ -n "$sflags" ] && { WSREP_SST_OPT_MYSQLD_ARR+=("-$sflags"); sflags=""; }
+                                   WSREP_SST_OPT_MYSQLD_ARR+=("-$option")
+                                   [ $cmd_tail -ne 0 ] && WSREP_SST_OPT_MYSQLD_ARR+=("--")
+                                   WSREP_SST_OPT_MYSQLD_ARR+=("$value")
                                fi
                                break
                            fi
+                           # extracted (h) or dropped (u/P) option:
                            if [ $cmd_tail -ne 0 ]; then
-                               if [ -n "$slist" ]; then
-                                   slist="$slist --"
-                               else
-                                   slist='-'
-                               fi
+                               [ -n "$sflags" ] && { WSREP_SST_OPT_MYSQLD_ARR+=("-$sflags"); sflags=""; }
+                               WSREP_SST_OPT_MYSQLD_ARR+=("--")
                            fi
                            break
                        else
-                           slist="$slist$option"
+                           sflags="$sflags$option"
                        fi
                        options="$value"
                    done
-                   if [ -n "$slist" ]; then
-                       original_cmd="$original_cmd -$slist"
-                   fi
+                   [ -n "$sflags" ] && WSREP_SST_OPT_MYSQLD_ARR+=("-$sflags")
                elif [ -z "$options" ]; then
-                   # We found an minus sign without any characters after it:
-                   original_cmd="$original_cmd -"
+                   # a minus sign without any characters after it:
+                   WSREP_SST_OPT_MYSQLD_ARR+=("-")
                else
-                   # We found a value that does not start with a minus -
-                   # it is a positional argument or the value of previous
-                   # option. Copy it to output string (as is):
-                   original_cmd="$original_cmd '$1'"
+                   # positional argument or value of previous option (as is):
+                   WSREP_SST_OPT_MYSQLD_ARR+=("$1")
                fi
                shift
                if [ $cmd_tail -ne 0 ]; then
                    # All other arguments must be copied unchanged:
                    while [ $# -gt 0 ]; do
-                       original_cmd="$original_cmd '$1'"
+                       WSREP_SST_OPT_MYSQLD_ARR+=("$1")
                        shift
                    done
                    break
@@ -659,12 +668,11 @@ case "$1" in
                        ;;
                esac
                if [ $skip_mysqld_arg -eq 0 ]; then
-                   original_cmd="$original_cmd '$1'"
+                   WSREP_SST_OPT_MYSQLD_ARR+=("$1")
                fi
            fi
            shift
         done
-        WSREP_SST_OPT_MYSQLD="${original_cmd# *}"
         break
         ;;
     *) # Must be command usage
@@ -755,40 +763,44 @@ fi
 # Reconstructing the command line arguments that control the innodb
 # and binlog options:
 if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-    if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
-        WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME' $WSREP_SST_OPT_MYSQLD"
-    else
-        WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME'"
-    fi
+    WSREP_SST_OPT_MYSQLD_ARR=(--log-basename="$WSREP_SST_OPT_LOG_BASENAME" \
+        ${WSREP_SST_OPT_MYSQLD_ARR[@]+"${WSREP_SST_OPT_MYSQLD_ARR[@]}"})
 fi
 if [ -n "$ARIA_LOG_DIR" ]; then
-    INNOEXTRA="$INNOEXTRA --aria-log-dir-path='$ARIA_LOG_DIR'"
+    INNOEXTRA+=(--aria-log-dir-path="$ARIA_LOG_DIR")
 fi
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
-    INNOEXTRA="$INNOEXTRA --innodb-data-home-dir='$INNODB_DATA_HOME_DIR'"
+    INNOEXTRA+=(--innodb-data-home-dir="$INNODB_DATA_HOME_DIR")
 fi
 if [ -n "$INNODB_LOG_GROUP_HOME" ]; then
-    INNOEXTRA="$INNOEXTRA --innodb-log-group-home-dir='$INNODB_LOG_GROUP_HOME'"
+    INNOEXTRA+=(--innodb-log-group-home-dir="$INNODB_LOG_GROUP_HOME")
 fi
 if [ -n "$INNODB_UNDO_DIR" ]; then
-    INNOEXTRA="$INNOEXTRA --innodb-undo-directory='$INNODB_UNDO_DIR'"
+    INNOEXTRA+=(--innodb-undo-directory="$INNODB_UNDO_DIR")
 fi
 if [ -n "$INNODB_BUFFER_POOL" ]; then
-    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
+    INNOEXTRA+=(--innodb-buffer-pool-filename="$INNODB_BUFFER_POOL")
 fi
 if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
-    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-size='$INNODB_BUFFER_POOL_SIZE'"
+    INNOEXTRA+=(--innodb-buffer-pool-size="$INNODB_BUFFER_POOL_SIZE")
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
-    INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
+    INNOEXTRA+=(--log-bin="$WSREP_SST_OPT_BINLOG")
     if [ -n "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-        if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
-            WSREP_SST_OPT_MYSQLD="--log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX' $WSREP_SST_OPT_MYSQLD"
-        else
-            WSREP_SST_OPT_MYSQLD="--log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX'"
-        fi
+        WSREP_SST_OPT_MYSQLD_ARR=(--log-bin-index="$WSREP_SST_OPT_BINLOG_INDEX" \
+            ${WSREP_SST_OPT_MYSQLD_ARR[@]+"${WSREP_SST_OPT_MYSQLD_ARR[@]}"})
     fi
 fi
+
+# Nothing here uses the string form, the array above is what gets executed,
+# but other scripts sourcing this file expect the historical format: every
+# argument single quoted. Embedded quotes are escaped, unlike historically,
+# so that the result survives being evaluated.
+for _mysqld_arg in ${WSREP_SST_OPT_MYSQLD_ARR[@]+"${WSREP_SST_OPT_MYSQLD_ARR[@]}"}
+do
+    WSREP_SST_OPT_MYSQLD="$WSREP_SST_OPT_MYSQLD${WSREP_SST_OPT_MYSQLD:+ }'${_mysqld_arg//\'/\'\\\'\'}'"
+done
+unset _mysqld_arg
 
 readonly INNODB_FORCE_RECOVERY
 readonly WSREP_SST_OPT_MYSQLD
@@ -918,6 +930,16 @@ wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_EXTRA_DEFAULT:+ }$WSREP_SST_OPT_E
 wsrep_defaults="$wsrep_defaults${WSREP_SST_OPT_SUFFIX_DEFAULT:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
 
 readonly WSREP_SST_OPT_CONF_UNQUOTED="${wsrep_defaults:+ }$wsrep_defaults"
+
+# Array form of the above, for callers passing them as literal argv elements.
+# Each value is already a single "--opt=value" token.
+WSREP_SST_OPT_CONF_ARR=()
+[ -n "$WSREP_SST_OPT_DEFAULT" ] && \
+    WSREP_SST_OPT_CONF_ARR+=("$WSREP_SST_OPT_DEFAULT")
+[ -n "$WSREP_SST_OPT_EXTRA_DEFAULT" ] && \
+    WSREP_SST_OPT_CONF_ARR+=("$WSREP_SST_OPT_EXTRA_DEFAULT")
+[ -n "$WSREP_SST_OPT_SUFFIX_DEFAULT" ] && \
+    WSREP_SST_OPT_CONF_ARR+=("$WSREP_SST_OPT_SUFFIX_DEFAULT")
 
 #
 # User can specify mariabackup specific settings that will be used during sst

@@ -477,8 +477,9 @@ EOF
 #         --exclude grastate.txt --exclude '*.pem' \
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
-# New filter - exclude everything except dirs (schemas) and innodb files
-FILTER="-f '- /lost+found'
+# New filter - exclude everything except dirs (schemas) and innodb files.
+# An array, so that the directory values stay literal argv elements:
+FILTER=(-f '- /lost+found'
         -f '- /.zfs'
         -f '- /.fseventsd'
         -f '- /.Trashes'
@@ -486,22 +487,26 @@ FILTER="-f '- /lost+found'
         -f '- /.conf'
         -f '- /.snapshot/'
         -f '+ /wsrep_sst_binlog.tar'
-        -f '- $ib_home_dir/ib_lru_dump'
-        -f '- $ib_home_dir/ibdata*'
-        -f '- $ib_undo_dir/undo*'
-        -f '- $ib_log_dir/ib_logfile[0-9]*'
-        -f '- $ar_log_dir/aria_log_control'
-        -f '- $ar_log_dir/aria_log.*'
+        -f "- $ib_home_dir/ib_lru_dump"
+        -f "- $ib_home_dir/ibdata*"
+        -f "- $ib_undo_dir/undo*"
+        -f "- $ib_log_dir/ib_logfile[0-9]*"
+        -f "- $ar_log_dir/aria_log_control"
+        -f "- $ar_log_dir/aria_log.*"
         -f '+ /*/'
-        -f '- /*'"
+        -f '- /*')
 
         # first, the normal directories, so that we can detect
-        # incompatible protocol:
-        eval rsync ${STUNNEL:+"--rsh='$STUNNEL'"} \
+        # incompatible protocol. Called directly, so the paths stay verbatim:
+        RSH_OPT=()
+        [ -n "$STUNNEL" ] && RSH_OPT=(--rsh="$STUNNEL")
+        # the guard is needed: expanding an empty array under "set -u"
+        # aborts on bash before 4.4
+        rsync ${RSH_OPT[@]+"${RSH_OPT[@]}"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT $FILTER "'$DATA/'" \
-              "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
+              $WHOLE_FILE_OPT "${FILTER[@]}" "$DATA/" \
+              "rsync://$WSREP_SST_OPT_ADDR" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync returned code $RC:"
@@ -701,6 +706,11 @@ else # joiner
     else
         SILENT=""
     fi
+
+# these become "path =" directives below, a newline would inject a directive
+for _conf_var in DATA ib_log_dir ib_home_dir ib_undo_dir ar_log_dir; do
+    check_conf_value "$_conf_var"
+done
 
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
