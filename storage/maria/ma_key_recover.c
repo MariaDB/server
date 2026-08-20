@@ -1142,7 +1142,14 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       log_memcpy_length= uint2korr(header);
       header+= 2;
       log_memcpy_end= header + log_memcpy_length;
-      DBUG_ASSERT(full_length <= max_page_size);
+      if (unlikely(full_length > max_page_size ||
+                   log_memcpy_end > header_end ||
+                   (log_memcpy_length & 3)))
+      {
+        DBUG_ASSERT(!maria_assert_if_crashed_table);
+        result= mark_crashed= 1;
+        goto err;
+      }
       while (header < log_memcpy_end)
       {
         uint to, from;
@@ -1151,7 +1158,12 @@ uint _ma_apply_redo_index(MARIA_HA *info,
         from= uint2korr(header);
         header+= 2;
         /* "from" is a place in the existing page */
-        DBUG_ASSERT(MY_MAX(from, to) < max_page_size);
+        if (unlikely(MY_MAX(from, to) + full_length > max_page_size))
+        {
+          DBUG_ASSERT(!maria_assert_if_crashed_table);
+          result= mark_crashed= 1;
+          goto err;
+        }
         memcpy(buff + to, buff + from, full_length);
       }
       break;

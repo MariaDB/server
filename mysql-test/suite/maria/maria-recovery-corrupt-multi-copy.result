@@ -1,0 +1,23 @@
+call mtr.add_suppression("File '.*aria_log.000.*' not found");
+drop database if exists mysqltest;
+create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
+use mysqltest;
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+create table t1 (line point not null, name varchar(32), spatial key (line))
+transactional=1 row_format=page engine=aria;
+set session debug_dbug="+d,corrupt_multi_copy_to";
+select count(*) from t1;
+count(*)
+450
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+# Recovery must refuse the record, not apply it and notice later.
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40493.err
+NOT FOUND /Table file is corrupted/ in mdev40493.err
+drop database mysqltest;

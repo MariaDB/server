@@ -485,7 +485,10 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
         {
           /* this memcpy() is internal to the page (source in the page) */
           size_t cur_key_with_nod_flag_offs= cur_key_with_nod_flag - page->buff;
-          int2store(log_internal_copy_ptr, to_with_nod_flag_offs);
+          /* Only the logged offset is forged; the split is already done */
+          int2store(log_internal_copy_ptr,
+                    DBUG_IF("corrupt_multi_copy_to") ?
+                    share->max_index_block_size : to_with_nod_flag_offs);
           log_internal_copy_ptr+= 2;
           int2store(log_internal_copy_ptr, cur_key_with_nod_flag_offs);
           log_internal_copy_ptr+= 2;
