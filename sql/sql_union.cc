@@ -2306,7 +2306,7 @@ bool st_select_lex_unit::exec()
 	  }
 	}
       }
-      if (unlikely(saved_error))
+      if (thd->killed != ABORT_QUERY && unlikely(saved_error))
       {
 	DBUG_RETURN(saved_error);
       }
