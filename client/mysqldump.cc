@@ -176,16 +176,19 @@ static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
-/**
-  `true` for 11.6 or above servers, `false` otherwise.
-  @deprecated This and its `false` branches are to be removed after 11.4's EOL.
-*/
 static bool have_info_schema_slave_status;
 static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
 static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
+
+static struct
+{
+  ptrdiff_t connection_name, slave_sql_running,
+            master_host, master_port,
+            relay_master_log_file, exec_master_log_pos;
+} slave_status_indices;
 
 
 #include <sslopt-vars.h>
@@ -1515,7 +1518,7 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
   RETURN VALUES
     0               query sending and (if res!=0) result reading went ok
     1               error
-    -1              Syntax/parse error (for retry code)
+    -1              Syntax/parse or unknown table/column error (for retry code)
 */
 
 static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
@@ -1526,8 +1529,14 @@ static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
   if (mysql_query(mysql_con, query) ||
       (res && !((*res)= mysql_store_result(mysql_con))))
   {
-    if (no_parse_error && mysql_errno(mysql_con) == ER_PARSE_ERROR)
-      return -1;
+    if (no_parse_error)
+      switch (mysql_errno(mysql_con)) {
+        case ER_PARSE_ERROR:
+        case ER_UNKNOWN_TABLE:
+        case ER_BAD_FIELD_ERROR:
+          return -1;
+        default: break;
+      }
     maybe_die(EX_MYSQLERR, "Couldn't execute '%s': %s (%d)",
               query, mysql_error(mysql_con), mysql_errno(mysql_con));
     return 1;
@@ -6531,23 +6540,51 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
   // do_stop_slave_sql() should only be called once
   DBUG_ASSERT(!slave_status_res);
 
-  if (mysql_query_with_error_report(mysql_con, &slave_status_res,
-    have_info_schema_slave_status ?
+  // 11.6 and above
+  switch (mysql_query_with_error_report(mysql_con, &slave_status_res,
       "SELECT Connection_name FROM information_schema.SLAVE_STATUS"
       // If the slave's SQL thread is not running, we don't stop (or start) it.
-      " WHERE Slave_SQL_Running <> 'No'" :
-      "SHOW ALL SLAVES STATUS"
-  ))
-    return(1);
+      " WHERE Slave_SQL_Running <> 'No'", true
+  )) {
+  default: // placing `default` at top and `-1` at bottom for readable chaining
+    return 1;
+  case 0:
+    have_info_schema_slave_status= true;
+    slave_status_indices= {0, /* unused */ -1,
+      // these are actually for the separate query in do_show_slave_status()
+      1, 2, 3, 4};
+    break;
+  case -1:
+    have_info_schema_slave_status= false;
+    // Between 10.0 and 11.5 inclusive
+    switch (mysql_query_with_error_report(mysql_con, &slave_status_res,
+      "SHOW ALL SLAVES STATUS", true
+    )) {
+    default:
+      return 1;
+    case 0:
+      slave_status_indices= {0, 13, 3, 5, 11, 23};
+      break;
+    case -1:
+      // MySQL 8.0.22 and above
+      if (mysql_query_with_error_report(mysql_con, &slave_status_res,
+      "SHOW REPLICA STATUS"
+      ))
+        return 1;
+      slave_status_indices= {55, 11, 1, 3, 9, 21};
+    }
+  }
+
   // Loop over all slaves
   while ((row= mysql_fetch_row(slave_status_res)))
   {
     if ((have_info_schema_slave_status ||
-        strcmp(row[/* Slave_SQL_Running */ 13], "No")))
+        strcmp(row[slave_status_indices.slave_sql_running], "No")))
     {
-      char query[25 + NAME_CHAR_LEN]; // sizeof(snprintf)
-        snprintf(query, sizeof(query), "STOP SLAVE '%.*s' SQL_THREAD",
-          NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+      char query[39 + NAME_CHAR_LEN]; // sizeof(snprintf)
+        snprintf(query, sizeof(query),
+          "STOP REPLICA SQL_THREAD FOR CHANNEL '%.*s'", // 10.7+ or MySQL
+          NAME_CHAR_LEN, row[slave_status_indices.connection_name]);
       if (mysql_query_with_error_report(mysql_con, nullptr, query))
         return 1;
     }
@@ -6573,7 +6610,7 @@ static int add_slave_statements(void)
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con,
+static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                                 int use_gtid, char *set_gtid_pos,
                                 size_t set_gtid_pos_size)
 {
@@ -6583,7 +6620,6 @@ static int do_show_slave_status(MYSQL *mysql_con,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
-  char gtid_pos[MAX_GTID_LENGTH];
   char name_buff[FN_REFLEN*2+3];
 
   if (have_info_schema_slave_status)
@@ -6607,13 +6643,18 @@ static int do_show_slave_status(MYSQL *mysql_con,
     slave= slave_status_res;
   }
 
-  if (get_gtid_pos(gtid_pos, false))
+  if (have_mariadb_gtid)
   {
-    mysql_free_result(slave);
-    return 1;
+    char gtid_pos[MAX_GTID_LENGTH];
+    if (get_gtid_pos(gtid_pos, false))
+    {
+      if (have_info_schema_slave_status)
+        mysql_free_result(slave);
+      return 1;
+    }
+    snprintf(set_gtid_pos, set_gtid_pos_size,
+             fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
   }
-  snprintf(set_gtid_pos, set_gtid_pos_size,
-           fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
 
   print_comment(md_result_file, 0,
     "\n-- The following is the replication SQL position "
@@ -6636,22 +6677,19 @@ static int do_show_slave_status(MYSQL *mysql_con,
     if (use_gtid)
       fprintf(md_result_file,
         "%sCHANGE MASTER %s TO MASTER_USE_GTID=slave_pos;\n",
-        gtid_comment_prefix, quote_for_equal(row[/* Connection_name */ 0],
-                                              name_buff));
+        gtid_comment_prefix,
+        quote_for_equal(row[slave_status_indices.connection_name], name_buff));
     fprintf(md_result_file, "%sCHANGE MASTER %s TO ",
       nogtid_comment_prefix,
-      quote_for_equal(row[/* Connection_name */ 0], name_buff));
+      quote_for_equal(row[slave_status_indices.connection_name], name_buff));
     if (opt_include_master_host_port)
       fprintf(md_result_file, "MASTER_HOST=%s, MASTER_PORT=%llu, ",
-        quote_for_equal(row[have_info_schema_slave_status ? 1
-                             : /* Master_Host */ 3], name_buff),
-        atoll(row[have_info_schema_slave_status ? 2
-                  : /* Master_Port */ 5]));
+        quote_for_equal(row[slave_status_indices.master_host], name_buff),
+        atoll(row[slave_status_indices.master_port]));
     fprintf(md_result_file, "MASTER_LOG_FILE=%s, MASTER_LOG_POS=%llu;\n",
-      quote_for_equal(row[have_info_schema_slave_status ? 3
-                          : /* Relay_Master_Log_File */ 11], name_buff),
-      atoll(row[have_info_schema_slave_status ? 4
-                : /*  Exec_Master_Log_Pos  */ 23]));
+      quote_for_equal(row[slave_status_indices.relay_master_log_file],
+                      name_buff),
+      atoll(row[slave_status_indices.exec_master_log_pos]));
     check_io(md_result_file);
   }
 
@@ -6680,12 +6718,12 @@ static int do_start_slave_sql(MYSQL *mysql_con)
   */
   while ((row= mysql_fetch_row(slave_status_res)))
   {
-    char query[26 + NAME_CHAR_LEN]; // sizeof(snprintf)
+    char query[40 + NAME_CHAR_LEN]; // sizeof(snprintf)
     snprintf(query, sizeof(query),
-                   "START SLAVE '%.*s' SQL_THREAD",
-            NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+      "START REPLICA SQL_THREAD FOR CHANNEL '%.*s'",
+      NAME_CHAR_LEN, row[slave_status_indices.connection_name]);
     if ((have_info_schema_slave_status ||
-         strcmp(row[/* Slave_SQL_Running */ 13], "No")
+         strcmp(row[slave_status_indices.slave_sql_running], "No")
         ) && mysql_query_with_error_report(mysql_con, nullptr, query))
     {
       fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
@@ -7705,12 +7743,7 @@ int main(int argc, char **argv)
     init_connection_pool(opt_parallel);
 
   /* Check if the server support multi source */
-  unsigned long server_version= mysql_get_server_version(mysql);
-  if (server_version >= 100000)
-  {
-    have_info_schema_slave_status= server_version >= 110600;
-    have_mariadb_gtid= 1;
-  }
+  have_mariadb_gtid= mysql_get_server_version(mysql) >= 100000;
 
   if (opt_slave_data && do_stop_slave_sql(mysql))
     goto err;
@@ -7777,6 +7810,7 @@ int main(int argc, char **argv)
                                                sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
+                                             have_mariadb_gtid,
                                              opt_use_gtid,
                                              slave_set_gtid_pos,
                                              sizeof(slave_set_gtid_pos)))
