@@ -1407,7 +1407,7 @@ public:
       ut_ad(chunk[-1].length == ctx.last_lsn - lsn);
       chunk->offset= chunk[-1].length;
     pad_size:
-#ifdef _WIN32
+#ifndef _WIN32
       std::ignore= posix_fadvise(src, chunk[-1].offset, chunk[-1].length,
                                  POSIX_FADV_SEQUENTIAL);
 #endif
