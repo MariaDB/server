@@ -5631,15 +5631,22 @@ inline void log_t::set_recovered() noexcept
   ut_ad(!resize_log.is_opened());
   ut_ad(!resize_buf);
   ut_ad(!resize_flush_buf);
-  /* If innodb_log_archive=ON, we always write the sequence bit as 1.
-  However, at the time set_archive(true) rewrote the header, the existing
-  records may have been written in the innodb_log_archive=OFF format as 0,
-  in case the log file had wrapped around an odd number of times.
-  A subsequent log_t::set_archive(archive=false, ...) must wait for
-  a checkpoint, to guarantee that recovery with innodb_log_archive=OFF
-  will observe all sequence bits as 1. */
-  circular_recovery_from_sequence_bit_0= archive ||
-    !get_sequence_bit(last_checkpoint_lsn);
+  ut_ad(!archive || !recv_sys.log_archive.empty());
+  /*
+    Remember if a subsequent set_archive(false) must wait for a
+    checkpoint, to guarantee that recovery with innodb_log_archive=OFF
+    will observe all sequence bits as 1.
+
+    While innodb_log_archive=ON always writes the sequence bit as 1,
+    some earlier records may have been written in the
+    innodb_log_archive=OFF format as 0 at the time set_archive(true)
+    rewrote the header. It is only possible that the server had been
+    killed between SET GLOBAL innodb_log_archive=ON and a checkpoint
+    if we recovered from a single log file.
+  */
+  circular_recovery_from_sequence_bit_0= archive
+    ? recv_sys.log_archive.size() < 2
+    : !get_sequence_bit(last_checkpoint_lsn);
   ut_ad(write_size >= 512);
   ut_ad(ut_is_2pow(write_size));
 
