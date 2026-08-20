@@ -1226,9 +1226,8 @@ static inline int mem_root_dynamic_array_resize_and_set_val(MEM_ROOT_DYNAMIC_ARR
   {
     if (mem_root_allocate_dynamic(array->mem_root, array, idx))
       return 1;
-    array->elements++;
   }
-
+  array->elements= MY_MAX(array->elements, idx + 1);
   /*
      Ensure the array size has increased and the index is
      now well within the array bounds.

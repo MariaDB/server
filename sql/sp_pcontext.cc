@@ -445,6 +445,20 @@ sp_type_def *sp_pcontext::find_type_def(const LEX_CSTRING &name,
 }
 
 
+bool sp_pcontext::type_defs_add_ref_cursor(THD *thd,
+                                           const Lex_ident_column &name,
+                                           const Type_handler *th,
+                                           const Spvar_definition &return_def,
+                                           bool is_prepared)
+{
+  sp_type_def_ref *tdef= new (thd->mem_root) sp_type_def_ref(name, th,
+                                                      return_def, is_prepared);
+  if (unlikely(!tdef || type_defs_add(thd, tdef)))
+    return true; // EOM
+  return false;
+}
+
+
 sp_condition_value *
 sp_pcontext::find_declared_or_predefined_condition(THD *thd,
                                                    const LEX_CSTRING *name)

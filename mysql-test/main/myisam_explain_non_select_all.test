@@ -13,6 +13,8 @@
 
 #set optimizer_switch='semijoin=on,materialization=on,firstmatch=on,loosescan=on,index_condition_pushdown=on,mrr=on,mrr_cost_based=off';
 
+--disable_replay testfile Need to preserve counters
+
 set @save_storage_engine= @@session.default_storage_engine;
 set session default_storage_engine = MyISAM;
 --let $json = 0

@@ -121,3 +121,27 @@ INSTALL_COMPAT_HEADER(mysql_version.h "
 INSTALL_COMPAT_HEADER(mysql_com.h "
 #include <mariadb_com.h>
 ")
+
+# A utility target to generate the plugin API documentation in markdown format.
+SET(WITH_GENERATED_DOCS OFF CACHE BOOL "Produce the generated docs")
+IF (WITH_GENERATED_DOCS)
+  FIND_PROGRAM(BASH bash)
+  IF(NOT BASH)
+    MESSAGE(FATAL_ERROR "bash not found, cannot generate plugin API documentation")
+  ENDIF()
+  FILE(GLOB_RECURSE PLUGIN_API_DOCS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/mysql/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/mysql/*.dox")
+
+  SET(DOCS_STAMP "${CMAKE_BINARY_DIR}/docs/plugin_api/md/api.md")
+  ADD_CUSTOM_COMMAND(
+     OUTPUT ${DOCS_STAMP}
+     COMMAND ${BASH} generate_plugin_api_docs.sh "${CMAKE_BINARY_DIR}/docs/plugin_api"
+     MAIN_DEPENDENCY mysql/Doxyfile.generated_docs_plugin_api
+     DEPENDS ${PLUGIN_API_DOCS} mysql/generate_plugin_api_docs.sh
+     BYPRODUCTS "${CMAKE_BINARY_DIR}/docs/plugin_api/xml"
+     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/mysql"
+     COMMENT "Generating plugin API documentation")
+  ADD_CUSTOM_TARGET(plugin_api_docs ALL
+    DEPENDS ${DOCS_STAMP})
+ENDIF()

@@ -1,6 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_ucs2.inc
 
+--disable_replay testfile Need to preserve optimizer trace
+
 create or replace table t1 (col1 char(10) character set ucs2, filler char(100), key(col1)) ;
 insert into t1 values ('a', 'a');
 insert into t1 values ('a', 'a');

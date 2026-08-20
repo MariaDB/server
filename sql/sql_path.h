@@ -38,6 +38,10 @@ public:
 
   bool resolve(THD *thd, sp_head *caller, sp_name *name,
                const Sp_handler **sph, Database_qualified_name *pkgname) const;
+
+  bool find_package_spec_type(THD *thd, Lex_ident_db_normalized *db,
+                              const Lex_ident_sys_st &package,
+                              const Lex_ident_sys_st &type);
   /*
     Initialize the path variable with default values
   */

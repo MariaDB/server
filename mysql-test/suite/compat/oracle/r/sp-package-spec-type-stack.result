@@ -1,0 +1,13 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+#
+# MDEV-40597 UBSAN | SIGSEGV in ORAparse | parse_sql | sp_compile | Sp_handler::db_load_routine
+#
+CREATE DATABASE db1;
+USE db1;
+CREATE PACKAGE pkg1500 AS TYPE rec IS RECORD(x INT); END;$$
+ER_STACK_OVERRUN_NEED_MORE reached;
+DROP DATABASE db1;
+USE test;

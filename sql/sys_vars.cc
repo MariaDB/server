@@ -2869,6 +2869,12 @@ static Sys_var_ulong Sys_log_slow_min_examined_row_limit(
        SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_log_slow_max_query_length(
+       "log_slow_max_query_length",
+       "Don't write queries to slow log that are longer than that",
+       SESSION_VAR(log_slow_max_query_length), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1));
+
 #ifdef _WIN32
 static Sys_var_mybool Sys_named_pipe(
        "named_pipe", "Enable the named pipe (NT)",
@@ -3139,12 +3145,20 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
-static Sys_var_mybool Sys_optimizer_record_context(
-    "optimizer_record_context",
-    "Controls storing of optmizer context of all the tables "
-    "that are referenced in a query",
-    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
-    DEFAULT(FALSE));
+static Sys_var_mybool
+    Sys_optimizer_record_context("optimizer_record_context",
+                                 "If set, record the query optimizer context. "
+                                 "Recorded context can be later replayed to "
+                                 "reproduce the query optimizer behavior",
+                                 SESSION_ONLY(optimizer_record_context),
+                                 CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_charptr Sys_optimizer_replay_context(
+    "optimizer_replay_context",
+    "If set, provides optimizer context to replay.  The context should be put "
+    "into a user-defined variable (@var), this variable should contain its "
+    "name (var)",
+    SESSION_ONLY(optimizer_replay_context), NO_CMD_LINE, DEFAULT(""));
 
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",

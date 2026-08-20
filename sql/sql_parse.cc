@@ -94,7 +94,7 @@
 #include "mysql/psi/mysql_sp.h"
 
 #include "my_json_writer.h"
-#include "opt_trace_ddl_info.h"
+#include "opt_context_store_replay.h"
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -2606,6 +2606,9 @@ void log_slow_statement(THD *thd)
     if (slow_filter_masked(thd, thd->query_plan_flags))
       goto end;
 
+    if (thd->query_length() > thd->variables.log_slow_max_query_length)
+      goto end;
+
     THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
@@ -3751,6 +3754,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   /* After SET STATEMENT is done, we can initialize the Optimizer Trace: */
   ots.init(thd, all_tables, lex->sql_command, &lex->var_list, thd->query(),
            thd->query_length(), thd->variables.character_set_client);
+
+  init_optimizer_context_replay_if_needed(thd);
+  init_optimizer_context_recorder_if_needed(thd, all_tables);
 
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;
@@ -5912,7 +5918,13 @@ wsrep_error_label:
 
 finish:
   if (!thd->is_error() && !res)
-    res= store_table_definitions_in_trace(thd);
+    res= store_optimizer_context(thd);
+
+  if (thd->opt_ctx_replay)
+    thd->opt_ctx_replay->restore_modified_table_stats();
+
+  if (res || thd->is_error())
+    clean_captured_ctx(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||

@@ -20,6 +20,7 @@
 
 #include "lex_ident_cli.h"
 #include "sql_alloc.h"
+#include "char_buffer.h"
 
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;
 
@@ -60,14 +61,46 @@ public:
     LEX_CSTRING tmp= {name, length};
     set_valid_utf8(&tmp);
   }
-  Lex_ident_sys(const THD *thd, const LEX_CSTRING *str)
+  explicit Lex_ident_sys(const LEX_CSTRING &str)
   {
-    set_valid_utf8(str);
+    set_valid_utf8(&str);
   }
   Lex_ident_sys & operator=(const Lex_ident_sys_st &name)
   {
     Lex_ident_sys_st::operator=(name);
     return *this;
+  }
+};
+
+
+/*
+  A buffer to print a qualified data type.
+  It does not derive from ErrConv because it does not need lazy calculation yet.
+  Also it's size is defined according to the error message in errmsg-utf8.txt:
+    "Unknown data type: '%-.384s'" in errmsg-utf8.txt
+*/
+#define DATA_TYPE_FORMAT_LENGTH 384
+class QTypeErrBuffer: public CharBuffer<DATA_TYPE_FORMAT_LENGTH>
+{
+public:
+  QTypeErrBuffer(const Lex_ident_sys_st &db, const Lex_ident_sys_st &package,
+                 const Lex_ident_sys_st &type)
+  {
+    DBUG_ASSERT(db.str);
+    DBUG_ASSERT(package.str);
+    DBUG_ASSERT(type.str);
+    my_snprintf(m_buff, sizeof(m_buff), "%.*sQ.%.*sQ.%.*sQ",
+                (int) db.length, db.str,
+                (int) package.length, package.str,
+                (int) type.length, type.str);
+  }
+  QTypeErrBuffer(const Lex_ident_sys_st &package, const Lex_ident_sys_st &type)
+  {
+    DBUG_ASSERT(package.str);
+    DBUG_ASSERT(type.str);
+    my_snprintf(m_buff, sizeof(m_buff), "%.*sQ.%.*sQ",
+                (int) package.length, package.str,
+                (int) type.length, type.str);
   }
 };
 

@@ -5389,7 +5389,7 @@ static int com_status(String *, char *)
     ulong sec;
     /* print label */
     tee_fprintf(stdout, "%.*s\t\t\t", (int) (pos-status_str), status_str);
-    if ((status_str= str2int(pos,10,0,LONG_MAX,(long*) &sec)))
+    if ((status_str= str2int(pos,INT16_MAX, 10, &sec)))
     {
       nice_time((double) sec,buff, sizeof(buff),0);
       tee_puts(buff, stdout);			/* print nice time */

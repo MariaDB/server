@@ -398,6 +398,7 @@ select
     ifnull(h,cast('yet another binary data' as binary))   as h,
     addtime(cast('1:0:0' as time),cast('1:0:0' as time))  as dd
 from t1;
+--disable_replay next_query This is EXPLAIN TABLE.
 explain t2;
 select * from t2;
 drop table t1, t2;

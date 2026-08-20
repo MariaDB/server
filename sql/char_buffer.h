@@ -31,6 +31,7 @@
 template<size_t buff_sz>
 class CharBuffer
 {
+protected:
   char m_buff[buff_sz + 1 /* one extra byte for '\0' */];
   size_t m_length;
   bool is_sane() const

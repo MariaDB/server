@@ -1,0 +1,610 @@
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+SET sql_mode=ORACLE;
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+CREATE USER user1@localhost;
+CREATE USER user2@localhost;
+GRANT CREATE ROUTINE ON test1.* TO user1@localhost;
+GRANT CREATE ROUTINE ON test2.* TO user1@localhost;
+GRANT CREATE ROUTINE ON test1.* TO user2@localhost;
+GRANT CREATE ROUTINE ON test2.* TO user2@localhost;
+connect  conn_user1, localhost, user1,, test1;
+SET sql_mode=ORACLE;
+connect  conn_user2, localhost, user2,, test1;
+SET sql_mode=ORACLE;
+connection conn_user1;
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+connection conn_user1;
+# Start of allowed.inc
+SELECT CURRENT_USER;
+CURRENT_USER
+user1@localhost
+#
+# ACL_NONE + same user + same DB
+#
+USE test1;
+# ACL_NONE + same user + same DB + PACKAGE type in the same PACKAGE BODY
+CREATE PACKAGE BODY pkg1 AS
+r0 pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE BODY pkg1;
+CREATE PACKAGE BODY pkg1 AS
+r0 test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE BODY pkg1;
+# ACL_NONE + same user + same DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_NONE + same user + same DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_NONE + same user + same DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+#
+# ACL_NONE + same user + different DB
+#
+USE test2;
+# ACL_NONE + same user + different DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_NONE + same user + different DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_NONE + same user + different DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+# End of allowed.inc
+connection conn_user2;
+# Start of denied.inc
+SELECT CURRENT_USER;
+CURRENT_USER
+user2@localhost
+#
+# ACL_NONE + different user + same DB
+#
+connection conn_user2;
+USE test1;
+# ACL_NONE + different user + same DB + PACKAGE type in the same PACKAGE BODY
+CREATE PACKAGE BODY pkg1 AS
+r0 pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+CREATE PACKAGE BODY pkg1 AS
+r0 test1.pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+# ACL_NONE + different user + same DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+# ACL_NONE + different user + same DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+DROP PACKAGE pkg2;
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+DROP PACKAGE pkg2;
+# ACL_NONE + different user + same DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+#
+# ACL_NONE + different user + different DB
+#
+USE test2;
+ACL_NONE + different user + different DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+ACL_NONE + different user + different DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+DROP PACKAGE pkg2;
+ACL_NONE + different user + different DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: execute command denied to user 'user2'@'localhost' for routine 'test1.pkg1'
+# End of denied.inc
+connection default;
+GRANT EXECUTE ON PACKAGE test1.pkg1 TO user2@localhost;
+connection conn_user2;
+# Start of allowed.inc
+SELECT CURRENT_USER;
+CURRENT_USER
+user2@localhost
+#
+# ACL_EXEC_test1.pkg1 + different user + same DB
+#
+USE test1;
+# ACL_EXEC_test1.pkg1 + different user + same DB + PACKAGE type in the same PACKAGE BODY
+CREATE PACKAGE BODY pkg1 AS
+r0 pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE BODY pkg1;
+CREATE PACKAGE BODY pkg1 AS
+r0 test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE BODY pkg1;
+# ACL_EXEC_test1.pkg1 + different user + same DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_EXEC_test1.pkg1 + different user + same DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_EXEC_test1.pkg1 + different user + same DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+#
+# ACL_EXEC_test1.pkg1 + different user + different DB
+#
+USE test2;
+# ACL_EXEC_test1.pkg1 + different user + different DB + PACKAGE type in another PACKAGE
+CREATE PACKAGE pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_EXEC_test1.pkg1 + different user + different DB + PACKAGE type in another PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+END;
+$$
+DROP PACKAGE pkg2;
+# ACL_EXEC_test1.pkg1 + different user + different DB + PACKAGE type in a schema routine
+CREATE PROCEDURE p1 AS
+TYPE cur1_t IS REF CURSOR RETURN test1.pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+DROP PROCEDURE p1;
+# End of allowed.inc
+connection default;
+REVOKE EXECUTE ON PACKAGE test1.pkg1 FROM user2@localhost;
+connection default;
+disconnect conn_user1;
+disconnect conn_user2;
+DROP USER user1@localhost;
+DROP USER user2@localhost;
+DROP PACKAGE test1.pkg1;
+DROP DATABASE test1;
+DROP DATABASE test2;
+#
+# MDEV-40136 User without any privileges on the package schema can declare and use the package's record types
+#
+CREATE DATABASE secdb;
+CREATE PACKAGE secdb.pkg AS
+TYPE rec_t IS RECORD (a INT, secret VARCHAR(30));
+FUNCTION f RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY secdb.pkg AS
+FUNCTION f RETURN INT AS
+BEGIN
+RETURN 42;
+END;
+END;
+$$
+CREATE DATABASE appdb;
+CREATE USER u_none@localhost;
+GRANT ALL ON appdb.* TO u_none@localhost;
+connect  cnone, localhost, u_none,, appdb;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE appdb.p AS r secdb.pkg.rec_t;
+BEGIN
+r.a:=1;
+r.secret:='x';
+SELECT r.a;
+END;
+$$
+ERROR 42000: execute command denied to user 'u_none'@'localhost' for routine 'secdb.pkg'
+connection default;
+GRANT EXECUTE ON PACKAGE secdb.pkg TO u_none@localhost;
+connection cnone;
+CREATE PROCEDURE
+appdb.p AS r secdb.pkg.rec_t;
+BEGIN
+r.a:=1;
+r.secret:='x';
+SELECT r.a;
+END;
+$$
+CALL appdb.p;
+r.a
+1
+SELECT secdb.pkg.f();
+ERROR 42000: execute command denied to user 'u_none'@'localhost' for routine 'secdb.pkg'
+connection default;
+GRANT EXECUTE ON PACKAGE BODY secdb.pkg TO u_none@localhost;
+connection cnone;
+SELECT secdb.pkg.f();
+secdb.pkg.f()
+42
+connection default;
+disconnect cnone;
+DROP USER u_none@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;
+#
+# MDEV-40278 Package type is wrongly DENIED when called by a low privilege invoker
+#
+CREATE DATABASE secdb;
+CREATE DATABASE appdb;
+CREATE USER low@localhost;
+GRANT ALL ON appdb.* TO low@localhost;
+CREATE PACKAGE secdb.vault AS
+TYPE creds IS RECORD(username VARCHAR(64), pw VARCHAR(128));
+FUNCTION f RETURN INT;
+END;
+$$
+CREATE DEFINER=root@localhost PROCEDURE appdb.p_definer_root_security_none AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+CREATE PROCEDURE appdb.p_definer_none_security_none AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+CREATE DEFINER=low@localhost PROCEDURE appdb.p_definer_low_security_none AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CREATE DEFINER=root@localhost PROCEDURE appdb.p_definer_root_security_invoker
+SQL SECURITY INVOKER AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+CREATE PROCEDURE appdb.p_definer_none_security_invoker
+SQL SECURITY INVOKER AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+CREATE DEFINER=low@localhost PROCEDURE appdb.p_definer_low_security_invoker
+SQL SECURITY INVOKER AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+SELECT name, definer, security_type FROM mysql.proc
+WHERE db='appdb' AND name LIKE 'p_%'
+ORDER BY definer;
+name	definer	security_type
+p_definer_low_security_invoker	low@localhost	INVOKER
+p_definer_root_security_none	root@localhost	DEFINER
+p_definer_none_security_none	root@localhost	DEFINER
+p_definer_root_security_invoker	root@localhost	INVOKER
+p_definer_none_security_invoker	root@localhost	INVOKER
+connect lowconn, localhost, low,,appdb;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE appdb.p_definer_low1_security_none AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CREATE PROCEDURE appdb.p_definer_low1_security_invoker
+SQL SECURITY INVOKER AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+$$
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CALL appdb.p_definer_root_security_none();
+r.username
+admin
+CALL appdb.p_definer_none_security_none();
+r.username
+admin
+CALL appdb.p_definer_root_security_invoker();
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CALL appdb.p_definer_none_security_invoker();
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1370	execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+connection default;
+disconnect lowconn;
+DROP USER low@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;
+# Using secdb.vault package types in package procedure appdb.xxx.p1
+SET sql_mode=ORACLE;
+CREATE DATABASE secdb;
+CREATE DATABASE appdb;
+CREATE USER low@localhost;
+GRANT ALL ON appdb.* TO low@localhost;
+CREATE PACKAGE secdb.vault AS
+TYPE creds IS RECORD(username VARCHAR(64), pw VARCHAR(128));
+FUNCTION f RETURN INT;
+END;
+$$
+CREATE PACKAGE appdb.pkg_definer_body_root_security_none AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=root@localhost PACKAGE BODY appdb.pkg_definer_body_root_security_none AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+CREATE PACKAGE appdb.pkg_definer_body_none_security_none AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY appdb.pkg_definer_body_none_security_none AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+CREATE PACKAGE appdb.pkg_definer_body_low_security_none AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_none AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+DROP PACKAGE appdb.pkg_definer_body_low_security_none;
+CREATE PACKAGE appdb.pkg_definer_body_root_security_invoker AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=root@localhost PACKAGE BODY appdb.pkg_definer_body_root_security_invoker
+SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+CREATE PACKAGE appdb.pkg_definer_body_none_security_invoker AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY appdb.pkg_definer_body_none_security_invoker
+SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+CREATE PACKAGE appdb.pkg_definer_body_low_security_invoker AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_invoker
+SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+SELECT type, name, definer, security_type FROM mysql.proc
+WHERE db='appdb' AND name LIKE 'pkg_%'
+ORDER BY name, type, definer;
+type	name	definer	security_type
+PACKAGE	pkg_definer_body_low_security_invoker	root@localhost	DEFINER
+PACKAGE BODY	pkg_definer_body_low_security_invoker	low@localhost	INVOKER
+PACKAGE	pkg_definer_body_none_security_invoker	root@localhost	DEFINER
+PACKAGE BODY	pkg_definer_body_none_security_invoker	root@localhost	INVOKER
+PACKAGE	pkg_definer_body_none_security_none	root@localhost	DEFINER
+PACKAGE BODY	pkg_definer_body_none_security_none	root@localhost	DEFINER
+PACKAGE	pkg_definer_body_root_security_invoker	root@localhost	DEFINER
+PACKAGE BODY	pkg_definer_body_root_security_invoker	root@localhost	INVOKER
+PACKAGE	pkg_definer_body_root_security_none	root@localhost	DEFINER
+PACKAGE BODY	pkg_definer_body_root_security_none	root@localhost	DEFINER
+connect lowconn, localhost, low,,appdb;
+SET sql_mode=ORACLE;
+CREATE PACKAGE appdb.pkg_definer_body_low_security_none AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_none AS
+PROCEDURE p1 AS
+r secdb.vault.creds;
+BEGIN
+r.username:='admin';
+SELECT r.username;
+END;
+END;
+$$
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CALL appdb.pkg_definer_body_root_security_none.p1();
+r.username
+admin
+CALL appdb.pkg_definer_body_none_security_none.p1();
+r.username
+admin
+CALL appdb.pkg_definer_body_root_security_invoker.p1();
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+CALL appdb.pkg_definer_body_none_security_invoker.p1();
+ERROR 42000: execute command denied to user 'low'@'localhost' for routine 'secdb.vault'
+connection default;
+disconnect lowconn;
+DROP USER low@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;

@@ -5,6 +5,7 @@
 --source include/have_perfschema.inc
 --source include/have_innodb.inc
 --source include/no_protocol.inc
+--disable_replay testfile performance schema tables context is not captured
 
 #
 # Bug#12790483 OBJECTS_SUMMARY_GLOBAL_BY_TYPE AND RENAME TABLE

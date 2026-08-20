@@ -381,6 +381,7 @@ drop index CountryCapital on Country;
 # to take into account that the subquery predicate is executed #times ~ to the
 # number of groups, not number of rows
 
+--disable_replay next_query Needs to preserve counters
 EXPLAIN
 SELECT City.Name, City.Population
 FROM City JOIN Country ON City.Country = Country.Code
@@ -388,6 +389,7 @@ GROUP BY City.Name
 HAVING City.Name IN (select Name from Country where population < 1000000);
 --source include/last_query_cost.inc
 
+--disable_replay next_query Needs to preserve counters
 EXPLAIN
 SELECT straight_join City.Name, City.Population
 FROM Country JOIN City ON City.Country = Country.Code
@@ -395,6 +397,7 @@ GROUP BY City.Name
 HAVING City.Name IN (select Name from Country where population < 1000000);
 --source include/last_query_cost.inc
 
+--disable_replay next_query Needs to preserve counters
 EXPLAIN
 SELECT City.Name, City.Population
 FROM Country LEFT JOIN City ON City.Country = Country.Code

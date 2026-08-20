@@ -50,7 +50,7 @@
 #endif
 
 /**
-  @defgroup Thread_instrumentation Metadata Instrumentation
+  @defgroup Metadata_instrumentation Metadata Instrumentation
   @ingroup Instrumentation_interface
   @{
 */

@@ -761,9 +761,6 @@ dberr_t AuxRecordReader::default_word_processor(
   const byte* doc_count_data= rec_get_nth_field(rec, offsets, 5, &doc_count_len);
   uint32_t doc_count= mach_read_from_4(doc_count_data);
 
-  ulint ilist_len;
-  const byte* ilist_data= rec_get_nth_field(rec, offsets, 6, &ilist_len);
-
   fts_word_t *word;
   bool is_word_init= false;
 
@@ -800,16 +797,29 @@ dberr_t AuxRecordReader::default_word_processor(
   node->ilist_size_alloc= node->ilist_size= 0;
   node->ilist= nullptr;
 
+  ulint ilist_len;
+  const byte* ilist_data;
+  mem_heap_t* ext_heap= nullptr;
+  if (rec_offs_nth_extern(offsets, 6))
+  {
+    ext_heap= mem_heap_create(FTS_ILIST_MAX_SIZE);
+    ilist_data= btr_rec_copy_externally_stored_field(
+      rec, offsets, index->table->space->zip_size(), 6, &ilist_len,
+      ext_heap);
+  }
+  else
+    ilist_data= rec_get_nth_field(rec, offsets, 6, &ilist_len);
+
   if (ilist_data && ilist_len != UNIV_SQL_NULL && ilist_len > 0)
   {
     node->ilist_size_alloc= node->ilist_size= ilist_len;
-    if (ilist_len)
-    {
-      node->ilist= static_cast<byte*>(ut_malloc_nokey(ilist_len));
-      memcpy(node->ilist, ilist_data, ilist_len);
-    }
-    if (ilist_len == 0) return DB_SUCCESS_LOCKED_REC;
+    node->ilist=
+      static_cast<byte*>(memcpy(ut_malloc_nokey(ilist_len), ilist_data,
+                                ilist_len));
   }
+
+  if (ext_heap)
+    mem_heap_free(ext_heap);
 
   if (this->total_memory)
   {

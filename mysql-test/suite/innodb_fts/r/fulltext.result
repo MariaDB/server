@@ -846,3 +846,18 @@ DROP TABLE t1, t2;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-40621 InnoDB: Failing assertion: doc_id == src_node->last_doc_id
+#
+CREATE TABLE t1 (f1 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+f2 MEDIUMTEXT,
+FULLTEXT KEY ftidx (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) SELECT REPEAT('megaword ', 30) FROM seq_1_to_260;
+DELETE FROM t1 WHERE f1 = 1;
+SET GLOBAL innodb_optimize_fulltext_only = ON;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SET GLOBAL innodb_optimize_fulltext_only = OFF;
+DROP TABLE t1;
+# End of 13.1 tests

@@ -1300,7 +1300,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create table t1 (i int, vc serial as (i));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as (i))' at line 1
 create function fs() returns serial return 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'serial return 1' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'return 1' at line 1
 create table t1 ( id serial );
 show create table t1;
 Table	Create Table

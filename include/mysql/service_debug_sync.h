@@ -223,7 +223,7 @@
 
   There are quite a few places in MySQL, where we use a synchronization
   pattern like this:
-
+@code
   mysql_mutex_lock(&mutex);
   thd->enter_cond(&condition_variable, &mutex, new_message);
   #if defined(ENABLE_DEBUG_SYNC)
@@ -233,7 +233,7 @@
   while (!thd->killed && !end_of_wait_condition)
     mysql_cond_wait(&condition_variable, &mutex);
   thd->exit_cond(old_message);
-
+@endcode
   Here some explanations:
 
   thd->enter_cond() is used to register the condition variable and the

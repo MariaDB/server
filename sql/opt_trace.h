@@ -226,6 +226,8 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp);
 */
 int fill_optimizer_trace_info(THD *thd, TABLE_LIST *tables, Item *);
 
+bool list_has_optimizer_trace_table(const TABLE_LIST *tbl);
+
 #define OPT_TRACE_TRANSFORM(thd, object_level0, object_level1, \
                             select_number, from, to)             \
   Json_writer_object object_level0(thd);                         \

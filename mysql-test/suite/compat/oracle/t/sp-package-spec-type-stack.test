@@ -1,0 +1,35 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo #
+--echo # MDEV-40597 UBSAN | SIGSEGV in ORAparse | parse_sql | sp_compile | Sp_handler::db_load_routine
+--echo #
+
+CREATE DATABASE db1;
+USE db1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg1500 AS TYPE rec IS RECORD(x INT); END;$$
+DELIMITER ;$$
+
+--disable_query_log
+--let $i= 1500
+while ($i)
+{
+  --let $prev= $i
+  --dec $i
+  --error 0,ER_STACK_OVERRUN_NEED_MORE
+  --eval CREATE PACKAGE pkg$i AS TYPE rec IS RECORD(x INT); TYPE cur IS REF CURSOR RETURN pkg$prev.rec; END;
+  if ($mysql_errname == "ER_STACK_OVERRUN_NEED_MORE")
+  {
+    --echo $mysql_errname reached;
+    --let $i= 0;
+  }
+}
+--enable_query_log
+
+DROP DATABASE db1;
+USE test;

@@ -1,0 +1,45 @@
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo # MDEV-40114 Package-wide TYPE variable declarations fail during mariadb-dump restore
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(30));
+END;
+$$
+
+CREATE PROCEDURE p1 AS
+  r pkg1.rec0_t;
+BEGIN
+  r.a:=1;
+  SELECT r.a;
+END;
+$$
+DELIMITER ;$$
+
+--exec $MYSQL_DUMP --skip-comments --routines --databases test > $MYSQLTEST_VARDIR/tmp/b40114.sql
+
+DROP DATABASE test;
+
+CREATE DATABASE test;
+
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/b40114.sql 2>&1
+
+USE test;
+CALL p1;
+
+SELECT routine_type, routine_name
+FROM information_schema.routines
+WHERE routine_schema='test'
+ORDER BY routine_type, routine_name;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/b40114.sql
+
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;

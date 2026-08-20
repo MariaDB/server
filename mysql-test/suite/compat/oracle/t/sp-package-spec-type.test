@@ -1,0 +1,205 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb3;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo # raise_unknown_data_type
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå.
+    åååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååååå;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE,
+CREATE PROCEDURE p1 AS
+  a €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€.
+    €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # PACKAGE gets dropped making an orphan type reference: 2-step
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PACKAGE pkg1;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL p1;
+SHOW WARNINGS;
+DROP PROCEDURE p1;
+
+
+--echo # PACKAGE gets dropped making an orphan type reference: 3-step
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(30));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  r0 test.pkg1.rec0_t;
+BEGIN
+  r0.a:= 10;
+  r0.b:= 'b';
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PACKAGE test.pkg1;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL p1;
+SHOW WARNINGS;
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+
+
+--echo # Too long identifier chain
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  v1 cat1.db1.pkg1.type1;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-40155 Weak REF CURSOR without RETURN is not opened using a dynamic SQL statement
+--echo #
+
+CREATE TABLE t (id INT, name VARCHAR(100));
+INSERT INTO t VALUES (1,'Test');
+
+DELIMITER $$;
+CREATE PACKAGE pc AS TYPE wc IS REF CURSOR; END;
+$$
+
+CREATE PROCEDURE pdyn AS
+  c pc.wc;
+  vi INT;
+  vn VARCHAR(100);
+BEGIN
+  OPEN c FOR 'SELECT id, name FROM t';
+  FETCH c INTO vi, vn;
+  SELECT vi, vn;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+CALL pdyn;
+
+DROP PROCEDURE pdyn;
+DROP PACKAGE pc;
+DROP TABLE t;
+
+
+--echo #
+--echo # MDEV-40153 Assertion `rec->field->head()->charset == nullptr' failed in virtual bool Type_handler_row::Column_definition_prepare_stage1(THD *, MEM_ROOT *, Column_definition *, column_definition_type_t, const Column_derived_attributes *) const
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pk_crash AS
+  TYPE r IS RECORD (b BLOB);
+  FUNCTION f RETURN r;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pk_crash;
+
+DELIMITER $$;
+CREATE PACKAGE pk_crash AS
+  TYPE rec0_t IS RECORD (b BLOB);
+  FUNCTION f(r rec0_t) RETURN INT;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pk_crash;

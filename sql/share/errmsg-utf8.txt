@@ -12135,9 +12135,9 @@ ER_TOO_LONG_DATABASE_COMMENT
         spa "El comentario para la base de datos '%-.64s' es demasiado largo (máx = %u)"
         sw "Maoni kwa hifadhidata '%-.64s' ni ndefu sana (max = %u)"
 ER_UNKNOWN_DATA_TYPE
-        eng "Unknown data type: '%-.64s'"
-        spa "Tipo de datos desconocido: '%-.64s'"
-        sw "Aina ya data isiyojulikana: '%-.64s'"
+        eng "Unknown data type: '%-.384s'"
+        spa "Tipo de datos desconocido: '%-.384s'"
+        sw "Aina ya data isiyojulikana: '%-.384s'"
 ER_UNKNOWN_OPERATOR
         eng "Operator does not exist: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
@@ -12414,3 +12414,7 @@ ER_PARTITION_INTERVAL_MAXVALUE
         eng "MAXVALUE is not allowed in range partitioning with interval"
 ER_RANGE_INTERVAL_PART_FAILED
         eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
+        eng "Failed to parse saved optimizer context: %s at offset %d."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"

@@ -1,0 +1,574 @@
+set optimizer_record_context=ON;
+show variables like 'optimizer_record_context';
+Variable_name	Value
+optimizer_record_context	ON
+set optimizer_record_context=OFF;
+show variables like 'optimizer_record_context';
+Variable_name	Value
+optimizer_record_context	OFF
+create database db1;
+use db1;
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+create table t2 (a int);
+insert into t2 values (1),(2);
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+#
+# disable optimizer_record_context
+# there should be no context
+#
+set optimizer_record_context=OFF;
+select * from t1 where t1.a = 3;
+a	b
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+NULL
+#
+# enable optimizer_record_context
+# The context will be recorded.
+#
+set optimizer_record_context=ON;
+select * from t1 where t1.a = 3;
+a	b
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# disable again optimizer_record_context
+# context result should be empty
+#
+set optimizer_record_context=OFF;
+select * from t1 where t1.a = 3;
+a	b
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+NULL
+#
+# enable optimizer_record_context
+# context result should have 1 ddl statement for table t1
+#
+set optimizer_record_context=ON;
+select * from t1 where t1.a = 3;
+a	b
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# test for view
+# context result should have 3 ddl statements
+#
+set optimizer_record_context=ON;
+select * from view1 where view1.a = 3;
+a	b	c
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
+
+
+#
+# test for temp table
+# context result should have 1 ddl statement for table t1
+#
+create temporary table temp1(col1 int);
+insert into temp1 select * from t2;
+# == Optimizer Context Tables
+name
+db1.t2
+db1.temp1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TEMPORARY TABLE IF NOT EXISTS `temp1` (
+  `col1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# there should be no duplicate ddls
+# there should be only 1 ddl for table t2
+#
+select * from t2 union select * from t2 union select * from t2;
+a
+1
+2
+# == Optimizer Context Tables
+name
+db1.t2
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# there should be no duplicate ddls
+# there should be only 3 ddls for tables t1, t2, and view1
+#
+select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
+a	b	c
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
+
+
+#
+# Test for INSERT. The context will show both tables.
+#
+insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# test for delete
+# context result should have 1 ddl statement for table t1
+#
+delete from t1 where t1.a=3;
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# test for update
+# context result should have 1 ddl statement for table t1
+#
+update t1 set t1.b = t1.a;
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# test for insert as select
+# context result should have 2 ddl statements for tables t1, t2
+#
+insert into t1 (select t2.a as a, t2.a as b from t2);
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+create database db2;
+use db2;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+#
+# use database db1
+# test to select 2 tables with same name from 2 databases
+# context result should have 2 ddl statements for tables db1.t1, db2.t1
+#
+use db1;
+select db1_t1.b
+FROM t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+b
+# == Optimizer Context Tables
+name
+db2.t1
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `db2`.`t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# use database db2
+# test to select 2 tables with same name but from 2 databases
+# context result should have 2 ddl statements for tables db1.t1, db2.t1
+#
+use db2;
+select db1_t1.b
+FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+b
+# == Optimizer Context Tables
+name
+db2.t1
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE DATABASE IF NOT EXISTS db1;
+
+CREATE TABLE IF NOT EXISTS `db1`.`t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# use database db2
+# test to select from 2 tables from 2 different databases,
+# of which one is a mysql table, and other is a db1 table
+# context result should have only 1 ddl
+#
+select t1.b
+FROM db1.t1 AS t1, mysql.db AS t2
+WHERE t1.a >= 3;
+b
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `db1`.`t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+use db1;
+drop table db2.t1;
+drop database db2;
+drop table temp1;
+drop view view1;
+drop table t2;
+#
+# const table test with explain
+#
+insert into t1 select seq, seq from seq_1_to_10;
+create table t2 (a int primary key, b int);
+insert into t2 select seq, seq from seq_1_to_10;
+explain select * from t1, t2 where t2.a=1 and t1.b=t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
+REPLACE INTO db1.t2(a, b) VALUES (1, 1);
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop table t1;
+drop table t2;
+#
+# query failure test
+# context should not contain the failed query result
+# no table definitions for t10, and t11 should be present
+#
+create table t10 (a int, b int);
+insert into t10 select seq, seq from seq_1_to_10;
+create table t11 (a int primary key, b varchar(10));
+insert into t11 values (1, 'one'),(2, 'two');
+select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
+ERROR 42S22: Unknown column 't11.c' in 'WHERE'
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+NULL
+drop table t10;
+drop table t11;
+#
+# partitioned table test
+# context result should have 1 ddl
+#
+create table t1 (
+pk int primary key,
+a int,
+key (a)
+)
+engine=myisam
+partition by range(pk) (
+partition p0 values less than (10),
+partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+explain
+select * from t1 partition (p1) where a=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	49	
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t1` (
+  `pk` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`pk`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM);
+
+
+drop table t1;
+#
+# test with insert delayed
+# test shouldn't fail
+# Also, context result shouldn't have any ddls
+#
+CREATE TABLE t1 (
+a int(11) DEFAULT 1,
+b int(11) DEFAULT (a + 1),
+c int(11) DEFAULT (a + b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+insert into t1 values ();
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,20);
+insert into t1 (a,b,c) values (100,200,400);
+truncate table t1;
+insert delayed into t1 values ();
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+NULL
+drop table t1;
+#
+# test primary, and foreign key tables
+# context result should have the ddls in correct order
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(10)
+);
+CREATE TABLE t2 (
+id INT,
+address VARCHAR(10),
+CONSTRAINT `fk_id` FOREIGN KEY (id) REFERENCES t1 (id)
+);
+insert into t1 values (1, 'abc'), (2, 'xyz');
+insert into t2 values (1, 'address1'), (2, 'address2');
+select t1.name, t2.address
+from t1,t2 where t1.id = t2.id;
+name	address
+abc	address1
+xyz	address2
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `id` int(11) DEFAULT NULL,
+  `address` varchar(10) DEFAULT NULL,
+  KEY `fk_id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop table t1;
+drop table t2;
+#
+# MDEV-37207: test multi delete of 2 tables
+# context result should have the ddls for both the tables
+#
+create table t1(id1 int not null auto_increment primary key);
+create table t2(id2 int not null);
+insert into t1 values (1),(2);
+insert into t2 values (1),(1),(2),(2);
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+# rerun the same delete query
+# Now, context result should have the ddls for all 2 tables,
+# even though no data is deleted
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+# == Optimizer Context Tables
+name
+db1.t2
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop table t1, t2;
+#
+# MDEV-40388: sequence.simple fails on replay
+#
+create sequence s1;
+# context result should have the ddl
+explain select * from s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s1	system	NULL	NULL	NULL	NULL	1	
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1;
+
+SELECT SETVAL(db1.s1, 1);
+
+
+drop table s1;
+# ddls should be captured here
+explain select * from seq_1_to_10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10	index	NULL	PRIMARY	8	NULL	10	Using index
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `seq_1_to_10` (
+  `seq` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`seq`)
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+explain select * from seq_1_to_15_step_2 where seq = 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	const	PRIMARY	PRIMARY	8	const	1	Using index
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `seq_1_to_15_step_2` (
+  `seq` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`seq`)
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+# End of 13.1 tests
+drop database db1;

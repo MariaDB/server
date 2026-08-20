@@ -39,19 +39,21 @@
 
   @note
   The syntax of a format string is generally the same:
+  @verbatim
   %[<flag>][<length>][.<precision>][<size modifier>]<format>[<format extension>]
-  where everything but the <format> is optional.
+  @endverbatim
+  where everything but the \<format\> is optional.
 
-  Two one-character <flags> are recognized:
+  Two one-character \<flags\> are recognized:
     '0' has the standard zero-padding semantics;
     '-' is parsed, but silently ignored;
 
-  Both <length> and <precision> are the same as in the standard.
+  Both \<length\> and \<precision\> are the same as in the standard.
   They can be specified as integers, or as '*' to consume an int argument.
 
-  <size modifier> can be 'l', 'll', or 'z'.
+  \<size modifier\> can be 'l', 'll', or 'z'.
 
-  Supported <format>s are 's' (null pointer is accepted, printed as "(null)"),
+  Supported \<format\>s are 's' (null pointer is accepted, printed as "(null)"),
   'c', 'd', 'i', 'u', 'x', 'X', 'o', 'p' (works as "0x%x"), 'f', and 'g'.
 
   The '$n' syntax for positional arguments is supported.
@@ -60,12 +62,11 @@
 
     Format 'sQ'
       quotes the string with '`' (backtick)s similar to "`%s`",
-      but also "escapes" existing '`'s in the string to '``' as in SQL ''''.
-
+      but also "escapes" existing '`'s in the string to '\`\`' as in SQL ''''.
     Format 'sB'
       treats the argument as a byte sequence. It reads and prints exactly
-      <precision> bytes without terminating on any '\0's in the sequence.
-      The default <precision> when it's unspecified is not defined.
+      \<precision\> bytes without terminating on any '\0's in the sequence.
+      The default \<precision\> when it's unspecified is not defined.
 
     Format 'sT'
       replaces the end of the printed string with "..." if it was truncated.

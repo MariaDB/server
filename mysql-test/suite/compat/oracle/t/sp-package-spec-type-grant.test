@@ -1,0 +1,409 @@
+# Grant tests not performed with embedded server
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+SET sql_mode=ORACLE;
+
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+CREATE USER user1@localhost;
+CREATE USER user2@localhost;
+GRANT CREATE ROUTINE ON test1.* TO user1@localhost;
+GRANT CREATE ROUTINE ON test2.* TO user1@localhost;
+GRANT CREATE ROUTINE ON test1.* TO user2@localhost;
+GRANT CREATE ROUTINE ON test2.* TO user2@localhost;
+
+connect (conn_user1, localhost, user1,, test1);
+SET sql_mode=ORACLE;
+
+connect (conn_user2, localhost, user2,, test1);
+SET sql_mode=ORACLE;
+
+connection conn_user1;
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+END;
+$$
+DELIMITER ;$$
+
+connection conn_user1;
+--let acl=ACL_NONE
+--let user=same user
+--source sp-package-spec-type-grant-allowed.inc
+
+connection conn_user2;
+--let acl=ACL_NONE
+--let user=different user
+--source sp-package-spec-type-grant-denied.inc
+
+connection default;
+GRANT EXECUTE ON PACKAGE test1.pkg1 TO user2@localhost;
+connection conn_user2;
+--let acl=ACL_EXEC_test1.pkg1
+--let user=different user
+--source sp-package-spec-type-grant-allowed.inc
+connection default;
+REVOKE EXECUTE ON PACKAGE test1.pkg1 FROM user2@localhost;
+
+
+connection default;
+disconnect conn_user1;
+disconnect conn_user2;
+DROP USER user1@localhost;
+DROP USER user2@localhost;
+DROP PACKAGE test1.pkg1;
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+
+--echo #
+--echo # MDEV-40136 User without any privileges on the package schema can declare and use the package's record types
+--echo #
+
+CREATE DATABASE secdb;
+DELIMITER $$;
+CREATE PACKAGE secdb.pkg AS
+  TYPE rec_t IS RECORD (a INT, secret VARCHAR(30));
+  FUNCTION f RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY secdb.pkg AS
+  FUNCTION f RETURN INT AS
+  BEGIN
+    RETURN 42;
+  END;
+END;
+$$
+
+DELIMITER ;$$
+CREATE DATABASE appdb;
+CREATE USER u_none@localhost;
+# No privilege on secdb
+GRANT ALL ON appdb.* TO u_none@localhost;
+
+connect (cnone, localhost, u_none,, appdb);
+SET sql_mode=ORACLE;
+
+# The server does not allow a package to be created using a record type
+# defined in a package owned by another schema,
+# as the user u_none has no EXECUTE privilege on the PACKAGE secdb.pkg.
+
+DELIMITER $$;
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE PROCEDURE appdb.p AS r secdb.pkg.rec_t;
+BEGIN
+  r.a:=1;
+  r.secret:='x';
+  SELECT r.a;
+END;
+$$
+DELIMITER ;$$
+
+connection default;
+GRANT EXECUTE ON PACKAGE secdb.pkg TO u_none@localhost;
+connection cnone;
+
+# Now u_none can use the data type secdb.pkg
+DELIMITER $$;
+CREATE PROCEDURE
+  appdb.p AS r secdb.pkg.rec_t;
+BEGIN
+  r.a:=1;
+  r.secret:='x';
+  SELECT r.a;
+END;
+$$
+DELIMITER ;$$
+CALL appdb.p;
+
+# However it cannot execute the routine without the EXECUTE privilege
+# on the PACKAGE BODY secdb.pkg (privileges on a PACKAGE does not
+# automatically give privileges on its PACKAGE BODY)
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT secdb.pkg.f();
+
+# Now grant privileges on PACKAGE BODY and execute a package routine
+
+connection default;
+GRANT EXECUTE ON PACKAGE BODY secdb.pkg TO u_none@localhost;
+connection cnone;
+SELECT secdb.pkg.f();
+
+connection default;
+disconnect cnone;
+DROP USER u_none@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;
+
+
+--echo #
+--echo # MDEV-40278 Package type is wrongly DENIED when called by a low privilege invoker
+--echo #
+
+CREATE DATABASE secdb;
+CREATE DATABASE appdb;
+CREATE USER low@localhost;
+GRANT ALL ON appdb.* TO low@localhost;  # NO privilege on secdb
+
+DELIMITER $$;
+CREATE PACKAGE secdb.vault AS
+  TYPE creds IS RECORD(username VARCHAR(64), pw VARCHAR(128));
+  FUNCTION f RETURN INT;
+END;
+$$
+
+CREATE DEFINER=root@localhost PROCEDURE appdb.p_definer_root_security_none AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+CREATE PROCEDURE appdb.p_definer_none_security_none AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE DEFINER=low@localhost PROCEDURE appdb.p_definer_low_security_none AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+
+# With invoker
+
+CREATE DEFINER=root@localhost PROCEDURE appdb.p_definer_root_security_invoker
+       SQL SECURITY INVOKER AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+CREATE PROCEDURE appdb.p_definer_none_security_invoker
+       SQL SECURITY INVOKER AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+CREATE DEFINER=low@localhost PROCEDURE appdb.p_definer_low_security_invoker
+       SQL SECURITY INVOKER AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+
+DELIMITER ;$$
+
+SELECT name, definer, security_type FROM mysql.proc
+WHERE db='appdb' AND name LIKE 'p_%'
+ORDER BY definer;
+
+connect(lowconn, localhost, low,,appdb);
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE PROCEDURE appdb.p_definer_low1_security_none AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE PROCEDURE appdb.p_definer_low1_security_invoker
+       SQL SECURITY INVOKER AS
+  r secdb.vault.creds;
+BEGIN
+  r.username:='admin';
+  SELECT r.username;
+END;
+$$
+DELIMITER ;$$
+
+
+CALL appdb.p_definer_root_security_none();
+CALL appdb.p_definer_none_security_none();
+--error ER_PROCACCESS_DENIED_ERROR
+CALL appdb.p_definer_root_security_invoker();
+--error ER_PROCACCESS_DENIED_ERROR
+CALL appdb.p_definer_none_security_invoker();
+SHOW WARNINGS;
+
+--connection default
+--disconnect lowconn
+DROP USER low@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;
+
+
+--echo # Using secdb.vault package types in package procedure appdb.xxx.p1
+
+
+SET sql_mode=ORACLE;
+CREATE DATABASE secdb;
+CREATE DATABASE appdb;
+CREATE USER low@localhost;
+GRANT ALL ON appdb.* TO low@localhost;  # NO privilege on secdb
+
+DELIMITER $$;
+CREATE PACKAGE secdb.vault AS
+  TYPE creds IS RECORD(username VARCHAR(64), pw VARCHAR(128));
+  FUNCTION f RETURN INT;
+END;
+$$
+
+CREATE PACKAGE appdb.pkg_definer_body_root_security_none AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=root@localhost PACKAGE BODY appdb.pkg_definer_body_root_security_none AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+
+CREATE PACKAGE appdb.pkg_definer_body_none_security_none AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY appdb.pkg_definer_body_none_security_none AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+
+CREATE PACKAGE appdb.pkg_definer_body_low_security_none AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_none AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE appdb.pkg_definer_body_low_security_none;
+
+DELIMITER $$;
+CREATE PACKAGE appdb.pkg_definer_body_root_security_invoker AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=root@localhost PACKAGE BODY appdb.pkg_definer_body_root_security_invoker
+  SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+
+CREATE PACKAGE appdb.pkg_definer_body_none_security_invoker AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY appdb.pkg_definer_body_none_security_invoker
+  SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+
+CREATE PACKAGE appdb.pkg_definer_body_low_security_invoker AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_invoker
+  SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+
+
+SELECT type, name, definer, security_type FROM mysql.proc
+WHERE db='appdb' AND name LIKE 'pkg_%'
+ORDER BY name, type, definer;
+
+connect(lowconn, localhost, low,,appdb);
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+CREATE PACKAGE appdb.pkg_definer_body_low_security_none AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE DEFINER=low@localhost PACKAGE BODY appdb.pkg_definer_body_low_security_none AS
+  PROCEDURE p1 AS
+    r secdb.vault.creds;
+  BEGIN
+    r.username:='admin';
+    SELECT r.username;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL appdb.pkg_definer_body_root_security_none.p1();
+CALL appdb.pkg_definer_body_none_security_none.p1();
+--error ER_PROCACCESS_DENIED_ERROR
+CALL appdb.pkg_definer_body_root_security_invoker.p1();
+--error ER_PROCACCESS_DENIED_ERROR
+CALL appdb.pkg_definer_body_none_security_invoker.p1();
+
+--connection default
+--disconnect lowconn
+DROP USER low@localhost;
+DROP DATABASE appdb;
+DROP DATABASE secdb;

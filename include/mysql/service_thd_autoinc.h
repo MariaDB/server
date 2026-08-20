@@ -37,9 +37,9 @@ extern struct thd_autoinc_service_st {
 #else
 /**
   Return autoincrement system variables
-  @param  IN  thd   user thread connection handle
-  @param  OUT off   the value of @@SESSION.auto_increment_offset
-  @param  OUT inc   the value of @@SESSION.auto_increment_increment
+  @param[in]  thd   user thread connection handle
+  @param[out] off   the value of @@SESSION.auto_increment_offset
+  @param[out] inc   the value of @@SESSION.auto_increment_increment
 */
 void thd_get_autoinc(const MYSQL_THD thd,
                      unsigned long* off, unsigned long* inc);
