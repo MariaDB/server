@@ -9949,8 +9949,14 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         (is_view() ||
          optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
           !thd->lex->can_not_use_merged() &&
+        /*
+          Allow merged derived optimization for multitable DELETE and
+          UPDATE, but with one exception: if this derived table is
+          itself within a VIEW, then don't allow it to be merged.
+        */
         !((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-           thd->lex->sql_command == SQLCOM_DELETE_MULTI) && !is_view()) &&
+           thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+          !is_view() && belong_to_view) &&
         !is_recursive_with_table())
       set_merged_derived();
     else

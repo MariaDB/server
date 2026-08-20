@@ -4430,3 +4430,97 @@ deallocate prepare stmt;
 drop view v1,v2;
 drop table t1,t2;
 # End of 10.6 tests
+#
+# Beginning of 10.11 tests
+#
+#
+# MDEV-37020: derived table not merged in multi-table DELETE/UPDATE
+#             while equivalent SELECT and view-based form do merge
+#
+create table t1 (a int, b int);
+insert into t1 select seq, seq from seq_1_to_10;
+create table t2 (a int, b int);
+insert into t2 select seq, seq from seq_1_to_10;
+create table t3 (a int, b int);
+insert into t3 select seq, seq from seq_1_to_10;
+# Baseline: equivalent SELECT merges the derived table.
+explain select * from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt
+where t1.b+1=1+dt.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+# Multitable DELETE must merge the derived table.
+explain delete t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a) dt
+where t1.b+1=1+dt.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+# Multitable UPDATE must merge the derived table.
+explain update t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a) dt
+set t1.a=t1.a+1 where t1.b+1=1+dt.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+# VIEW form already merged the derived table before this fix, verify.
+create view v1 as select t2.b as b1 from t2, t3 where t3.a=t2.a;
+select t1.* from t1, v1 where t1.b+1=1+v1.b1;
+a	b
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+explain select t1.* from t1, v1 where t1.b+1=1+v1.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+explain delete t1.* from t1, v1 where t1.b+1=1+v1.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+explain update t1, v1 set t1.a=t1.a+1 where t1.b+1=1+v1.b1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+# Confirm queries still produce the correct results.
+select t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt
+where t1.b+1=1+dt.b1;
+a	b
+1	1
+2	2
+3	3
+4	4
+delete t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt2
+where t1.b=dt2.b1;
+select * from t1 order by a;
+a	b
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+update t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a>7) dt2
+set t1.a=t1.a*100 where t1.b=dt2.b1;
+select * from t1 order by b;
+a	b
+5	5
+6	6
+7	7
+800	8
+900	9
+1000	10
+drop view v1;
+drop table t1, t2, t3;
+# End of 10.11 tests
