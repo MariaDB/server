@@ -6541,24 +6541,42 @@ rec_loop:
       check_latest_version:
         /* In CHECK TABLE...EXTENDED, always check if the secondary
         index record matches the latest clustered index record
-        version, no matter if it is visible in our own read view.
-
-        If the latest clustered index version is delete-marked and
-        purgeable, it is not safe to fetch any BLOBs for column prefix
-        indexes because they may already have been freed. */
-        if (rec_trx_id &&
-            rec_get_deleted_flag(clust_rec,
-                                 prebuilt->table->not_redundant()) &&
-            purge_sys.is_purgeable(rec_trx_id))
-          goto did_not_find;
-
+        version, no matter if it is visible in our own read view. */
         if (!clust_offsets)
           clust_offsets= rec_get_offsets(clust_rec, clust_index, nullptr,
                                          clust_index->n_core_fields,
                                          ULINT_UNDEFINED, &heap);
-        err= row_check_index_match(prebuilt,
-                                   clust_rec, clust_index, clust_offsets,
-                                   rec, index, offsets);
+
+        /* If the latest clustered index version is delete-marked and
+        purgeable, it is not safe to fetch any BLOBs for column prefix
+        indexes because they may already have been freed. Where anything
+        will be dereferenced, freeze purge_sys.view across the test and
+        the fetch, so that purge cannot start freeing in between. */
+        {
+          const bool deleted= rec_trx_id &&
+            rec_get_deleted_flag(clust_rec, prebuilt->table->not_redundant());
+
+          if (!rec_offs_any_extern(clust_offsets))
+          {
+            if (deleted && purge_sys.is_purgeable(rec_trx_id))
+              goto did_not_find;
+
+            err= row_check_index_match(prebuilt,
+                                       clust_rec, clust_index, clust_offsets,
+                                       rec, index, offsets);
+          }
+          else
+          {
+            purge_sys_t::view_guard freeze{purge_sys_t::view_guard::VIEW};
+
+            if (deleted && freeze.view().changes_visible(rec_trx_id))
+              goto did_not_find;
+
+            err= row_check_index_match(prebuilt,
+                                       clust_rec, clust_index, clust_offsets,
+                                       rec, index, offsets);
+          }
+        }
 
         switch (err) {
         default:
@@ -6631,6 +6649,9 @@ rec_loop:
 
         for (;;)
         {
+          /* The writer of clust_rec, whose undo log record rebuilds the next
+          version. Read before clust_rec is replaced by it below. */
+          const trx_id_t version_trx_id= rec_trx_id;
           mem_heap_t *prev_heap= vers_heap;
           vers_heap= mem_heap_create(1024);
           err= trx_undo_prev_version_build(clust_rec,
@@ -6698,10 +6719,30 @@ rec_loop:
 
           if (&view != &prebuilt->trx->read_view)
           {
+            /* Freeze purge_sys.view across the dereference in
+            row_check_index_match() and confirm that purge cannot see the
+            writer of the version clust_rec was rebuilt from. Unlike every
+            other walk over old versions, this one decides reachability from
+            the lagging purge_sys.end_view, so it does reach history that
+            purge is already free to remove; stop there as if the version
+            chain had ended. */
+            purge_sys_t::view_guard freeze{purge_sys_t::view_guard::VIEW};
+
+            if (rec_offs_any_extern(clust_offsets) &&
+                freeze.view().changes_visible(version_trx_id))
+            {
+              mem_heap_free(vers_heap);
+              if (!got_extended_match)
+                goto extended_not_found;
+              goto did_not_find;
+            }
+
+            DEBUG_SYNC_C("row_check_index_extended_match");
+
             /* It is not safe to fetch BLOBs of committed delete-marked
             records that may have been freed in purge. */
             err= clust_rec_deleted && rec_trx_id &&
-              purge_sys.is_purgeable(rec_trx_id)
+              freeze.view().changes_visible(rec_trx_id)
               ? DB_SUCCESS_LOCKED_REC
               : row_check_index_match(prebuilt,
                                       clust_rec, clust_index, clust_offsets,

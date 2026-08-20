@@ -1542,6 +1542,22 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
     trx_purge_close_tables(thd, nullptr, true);
   }
 
+#ifdef UNIV_DEBUG
+  /* Hold the batch open between its last purged record and the advance of
+  purge_sys.head and purge_sys.end_view, which is the window where a reader
+  that goes by end_view can still reach history this batch has removed. That
+  window is not otherwise addressable from a test, because it opens and closes
+  within this function. Capped, so that a keyword left set cannot hang a run. */
+  for (auto i= 100; i--; )
+  {
+    bool hold= false;
+    DBUG_EXECUTE_IF("purge_hold_cleanup", hold= true;);
+    if (!hold)
+      break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+#endif
+
   purge_sys.batch_cleanup(head);
 
   MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);

@@ -255,13 +255,33 @@ not_locked:
 		prev_trx_id = row_get_rec_trx_id(prev_version, clust_index,
 						 clust_offsets);
 
-		/* The stack of versions is locked by mtr.  Thus, it
-		is safe to fetch the prefixes for externally stored
-		columns. */
+		if (!rec_offs_any_extern(clust_offsets)) {
+			/* Nothing to dereference: the stack of versions
+			being locked by mtr is enough. */
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+					prev_version, clust_offsets,
+					NULL, NULL, NULL, &ext, heap);
+		} else {
+			/* Freeze purge_sys.view across the dereference and
+			confirm that purge has not seen trx, which wrote
+			every undo log record this walk applies (the loop
+			only continues while prev_trx_id is trx->id). If it
+			has, trx is committed and holds no implicit lock.
+			Only the dereference needs the freeze: the prefixes
+			end up copied into heap. */
+			purge_sys_t::view_guard freeze{
+				purge_sys_t::view_guard::VIEW};
 
-		row = row_build(ROW_COPY_POINTERS, clust_index, prev_version,
-				clust_offsets,
-				NULL, NULL, NULL, &ext, heap);
+			if (freeze.view().changes_visible(trx->id)) {
+				goto not_locked;
+			}
+
+			DEBUG_SYNC_C("row_vers_impl_x_locked_row_build");
+
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+					prev_version, clust_offsets,
+					NULL, NULL, NULL, &ext, heap);
+		}
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
