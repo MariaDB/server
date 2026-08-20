@@ -286,6 +286,9 @@ private:
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
         f= copy_file(s, d, begin, end);
+#ifndef _WIN32
+        std::ignore= posix_fadvise(s, 0, 0, POSIX_FADV_DONTNEED);
+#endif
         if (!f && hl == first_lsn)
         {
           uint64_t cp_buf[8]{};
@@ -788,6 +791,11 @@ private:
         backup_batch_stop(node->space, blocks, end);
         if (err)
           return err;
+#ifndef _WIN32
+        std::ignore= posix_fadvise(node->handle, o,
+                                   uint64_t{page} * page_size - o,
+                                   POSIX_FADV_DONTNEED);
+#endif
       }
 
       if (final_limit != 0 && page == buf_dblwr.begin())
@@ -955,6 +963,11 @@ private:
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
+#ifndef _WIN32
+              std::ignore= posix_fadvise(node->handle, o,
+                                         uint64_t{page} * page_size - o,
+                                         POSIX_FADV_DONTNEED);
+#endif
             }
 
             if (final_limit != 0 && !err && page == buf_dblwr.begin())
@@ -984,6 +997,11 @@ private:
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
+#ifndef _WIN32
+              std::ignore= posix_fadvise(node->handle, o,
+                                         uint64_t{page} * page_size - o,
+                                         POSIX_FADV_DONTNEED);
+#endif
             }
 
             if (final_limit != 0 && !err && page == buf_dblwr.begin())
@@ -1080,6 +1098,11 @@ private:
       backup_batch_stop(node->space, blocks, end);
       if (err)
         goto fail;
+#ifndef _WIN32
+      std::ignore= posix_fadvise(node->handle, uint64_t{page} * page_size,
+                                 uint64_t{last - page} * page_size,
+                                 POSIX_FADV_DONTNEED);
+#endif
     }
 
     if (limit == buf_dblwr.begin() && n_chunk == 3)

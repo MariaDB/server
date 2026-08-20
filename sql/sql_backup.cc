@@ -169,23 +169,27 @@ extern "C" int copy_entire_file(int src, int dst)
 {
   uint64_t end(lseek(src, 0, SEEK_END));
   std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
+  int ret;
 # ifdef copy_file_shortcut
-  {
-    int ret(copy_file_shortcut(src, dst, 0, end));
-    if (ret != 1)
-      return ret;
-  }
+  ret= int(copy_file_shortcut(src, dst, 0, end));
+  if (ret == 1)
 # endif
+  {
 # ifdef copy_file_mmap
-  void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
-  if (p != MAP_FAILED)
-  {
-    int ret(copy_file_mmap(p, dst, 0, end));
-    munmap(p, size_t{end});
-    return int(ret);
-  }
+    void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
+    if (p != MAP_FAILED)
+    {
+      ret= int(copy_file_mmap(p, dst, 0, end));
+      munmap(p, size_t{end});
+    }
+    else
 # endif
-  return copy_file(src, dst, 0, end);
+    {
+      ret= copy_file(src, dst, 0, end);
+    }
+  }
+  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
+  return ret;
 }
 #endif
 
