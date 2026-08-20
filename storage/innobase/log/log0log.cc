@@ -1538,14 +1538,16 @@ void log_t::archived_mmap_switch_prepare(bool late, bool ex) noexcept
       (l & (WRITE_BACKOFF - 1));
     waits++;
     ut_ad(archive);
-    ut_ad(!resize_buf);
     ut_ad(!resize_in_progress());
     ut_ad(resize_target >= 4U << 20);
     ut_ad(is_latest());
     ut_ad(log.is_opened());
-    ut_ad(!!checkpoint_buf == resize_log.is_opened());
+    ut_ad((checkpoint_buf || resize_buf) == resize_log.is_opened());
 
-    if (UNIV_LIKELY_NULL(checkpoint_buf))
+    if (resize_buf)
+      /* archive_create(..., false) had recently succeeded in another thread */
+      ut_ad(!checkpoint_buf);
+    else if (UNIV_LIKELY_NULL(checkpoint_buf))
       /* Both archived_mmap_switch_prepare() and
       archived_mmap_switch_complete() were invoked by another thread,
       but write_checkpoint() did not clean up yet. */
