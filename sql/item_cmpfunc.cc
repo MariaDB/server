@@ -7047,6 +7047,15 @@ void Item_equal::merge(THD *thd, Item_equal *item)
   if (c)
     item->equal_items.pop();
   equal_items.append(&item->equal_items);
+  /*
+    The members just merged in still point back at 'item', which is now
+    abandoned and left in an invalid state. Repoint their item_equal
+    back-pointers at 'this' so nothing follows them to the orphan.
+  */
+  List_iterator_fast<Item> li(item->equal_items);
+  Item *eq_item;
+  while ((eq_item= li++))
+    eq_item->set_item_equal(this);
   if (c)
   {
     /* 
