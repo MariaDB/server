@@ -480,6 +480,12 @@ struct LEX_MASTER_INFO
   ulong server_id;
   uint port;
   int sql_delay;
+  /**
+    When `true`, transition this connection from an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    `gtid_binlog_pos` into `gtid_slave_pos`.
+  */
   bool is_demotion_opt;
   bool is_until_before_gtids;
   bool show_all_slaves;
