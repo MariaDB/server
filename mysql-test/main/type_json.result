@@ -57,7 +57,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
-  `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+  `t` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t3;
 Table	Create Table
@@ -111,11 +111,14 @@ js1 TEXT CHECK (JSON_VALID(js1)),
 js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
 js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
 ) CHARACTER SET utf8;
+Warnings:
+Warning	4271	CHECK constraint of column 'js2' asks more than JSON_VALID() of it; the column is not a JSON column
+Warning	4269	CHECK constraint of column 'js3' calls JSON_VALID() on something other than 'js3'; the column is not a JSON column
 SELECT * FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	33
 def	test	t1	t1	js1	js1	252 (format=json)	196605	0	Y	16	0	33
-def	test	t1	t1	js2	js2	252 (format=json)	196605	0	Y	16	0	33
+def	test	t1	t1	js2	js2	252	196605	0	Y	16	0	33
 def	test	t1	t1	js3	js3	252	196605	0	Y	16	0	33
 js0	js1	js2	js3
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
@@ -145,8 +148,8 @@ JSON_ARRAYAGG(1)	JSON_ARRAYAGG(a)
 [1]	[{"a":"b"}]
 SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437184	9	Y	0	0	33
-def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582912	15	Y	128	0	33
+def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437190	9	Y	0	0	33
+def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582918	15	Y	128	0	33
 JSON_OBJECTAGG('a','b')	JSON_OBJECTAGG('a',a)
 {"a":"b"}	{"a":{"a":"b"}}
 DROP TABLE t1;
@@ -155,7 +158,7 @@ DROP TABLE t1;
 #
 SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					j	250 (format=json)	9437310	16	Y	0	39	33
+def					j	250 (format=json)	18874494	16	Y	0	39	33
 j
 {"a": {"b":"c"}}
 #

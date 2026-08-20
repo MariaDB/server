@@ -1,0 +1,74 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: JSON_TABLE.
+--echo #
+--echo # JSON_TABLE parses its document itself and presents the pieces as
+--echo # columns of a table that only exists for the duration of the query.
+--echo # This test records what those columns are treated as when they are
+--echo # fed back into JSON functions, what happens when the document comes
+--echo # from a column whose stored bytes are not valid, and what a DEFAULT
+--echo # clause is allowed to put into a column declared JSON.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. A column declared JSON, consumed by JSON functions.  Compare the
+--echo #    embedding decision here with the one a JSON table column gets in
+--echo #    func_json_columns.
+--echo #
+
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('[{"a": {"x":  1}}, {"a":{"y":2}}]');
+--echo # the fragment keeps the spacing it had in the input document
+SELECT jt.frag AS v, HEX(jt.frag) AS h
+  FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+--echo # fed to a constructor it is quoted, not embedded
+SELECT JSON_ARRAY(jt.frag) AS embedded, JSON_VALID(JSON_ARRAY(jt.frag)) AS ok
+  FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+SELECT JSON_OBJECT('k', jt.frag) AS v
+  FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+--echo # but a mutator and JSON_TYPE both take it as a document
+SELECT JSON_SET(jt.frag, '$.z', 3) AS v, JSON_TYPE(jt.frag) AS t
+  FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+--echo # a column declared VARCHAR over the same path
+SELECT JSON_ARRAY(jt.txt) AS quoted
+  FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (txt VARCHAR(50) PATH '$.a' NULL ON ERROR)) jt;
+DROP TABLE t1;
+
+--echo #
+--echo # 2. The document coming from a column whose stored bytes no longer
+--echo #    satisfy its check constraint.
+--echo #
+
+CREATE TABLE tp (id INT PRIMARY KEY, j JSON);
+INSERT INTO tp VALUES (1, '[{"a":1},{"a":2}]');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tp VALUES (2, '[{"a":1},'), (3, CONCAT(REPEAT('[',32),'1',REPEAT(']',32)));
+SET SESSION check_constraint_checks = ON;
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+  WHERE id = 1;
+--error ER_JSON_EOS
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+  WHERE id = 2;
+--error ER_JSON_DEPTH
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+  WHERE id = 3;
+--echo # one bad row aborts the whole statement, it is not skipped
+--error ER_JSON_EOS
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+  ORDER BY id;
+DROP TABLE tp;
+
+--echo #
+--echo # 3. A DEFAULT clause supplying a value for a column declared JSON.
+--echo #    The default is stored as given, without being checked.
+--echo #
+
+SELECT jt.frag AS v, JSON_ARRAY(jt.frag) AS embedded,
+       JSON_VALID(JSON_ARRAY(jt.frag)) AS still_valid
+  FROM JSON_TABLE('[{"b":1}]', '$[*]'
+    COLUMNS (frag JSON PATH '$.a' DEFAULT '{"broken":' ON EMPTY)) jt;
+SELECT * FROM JSON_TABLE('[{"a":1},{"a":2}]', '$'
+    COLUMNS (frag JSON PATH '$[*].a' DEFAULT 'not json' ON ERROR)) jt;

@@ -1,0 +1,91 @@
+#
+# The path JSON_SEARCH returns, in a character set that does not
+# write a character in one byte.
+#
+# A path is built out of punctuation the function writes, keys it copies
+# from the document, and the index of an array step. The punctuation and
+# the keys arrive in the character set of the result. The index does
+# not: it is written as the digits themselves, so in ucs2, utf16 or
+# utf32 it is the one part of the path not formatted the way the rest of
+# it is, and every character after it is read from the wrong place.
+#
+# What is pinned here is that nothing is claimed on that path's behalf.
+# Whether such a path can be read at all is settled differently by
+# different character sets, and by asking it is settled at all - what
+# must not happen is the answer being taken on trust instead.
+#
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # A match under an array index, so the path carries a number.
+--echo # The number goes in as one byte per digit whatever the set, and
+--echo # the bytes below show it standing among characters of two and of
+--echo # four.
+--echo #
+SELECT HEX(JSON_SEARCH(CONVERT('[["V"],["V"]]' USING ucs2), 'all',
+                       CONVERT('V' USING ucs2))) AS ucs2_all;
+SELECT HEX(JSON_SEARCH(CONVERT('[["V"],["V"]]' USING ucs2), 'one',
+                       CONVERT('V' USING ucs2))) AS ucs2_one;
+SELECT HEX(JSON_SEARCH(CONVERT('[["V"],["V"]]' USING utf16), 'all',
+                       CONVERT('V' USING utf16))) AS utf16_all;
+SELECT HEX(JSON_SEARCH(CONVERT('[["V"],["V"]]' USING utf32), 'all',
+                       CONVERT('V' USING utf32))) AS utf32_all;
+
+--echo #
+--echo # Reading such a path back, and splicing it into something being
+--echo # built. Four bytes to the character is the case that shows it:
+--echo # the path does not read, and asking is what finds that out.
+--echo #
+SET @u = CONVERT('[["V"],["V"]]' USING utf32);
+SET @m = CONVERT('V' USING utf32);
+SELECT JSON_VALID(JSON_SEARCH(@u, 'all', @m)) AS utf32_answer_reads;
+SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH(@u, 'all', @m))) AS utf32_spliced;
+SELECT JSON_TYPE(JSON_SEARCH(@u, 'all', @m)) AS utf32_type;
+
+--echo #
+--echo # The same at two bytes to the character.
+--echo #
+SET @d = CONVERT('[["V"],["V"]]' USING ucs2);
+SET @n = CONVERT('V' USING ucs2);
+SELECT JSON_VALID(JSON_SEARCH(@d, 'all', @n)) AS ucs2_answer_reads;
+SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH(@d, 'all', @n))) AS ucs2_spliced;
+SELECT HEX(JSON_MERGE_PRESERVE(CONVERT('[0]' USING ucs2),
+                               JSON_SEARCH(@d, 'all', @n))) AS ucs2_merged;
+
+--echo #
+--echo # A path with no array step in it has no number in it and is
+--echo # encoded all the way through, so it reads and it splices. The
+--echo # two shapes are told apart by what was written into them.
+--echo #
+SET @o = CONVERT('{"a":{"b":"V"}}' USING ucs2);
+SELECT HEX(JSON_SEARCH(@o, 'one', @n)) AS keys_only;
+SELECT JSON_VALID(JSON_SEARCH(@o, 'one', @n)) AS keys_only_reads;
+SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH(@o, 'one', @n))) AS keys_only_spliced;
+
+--echo #
+--echo # A character set that does write a character in one byte is not
+--echo # this case at all, and none of it moves.
+--echo #
+SELECT JSON_SEARCH('[["V"],["V"]]', 'all', 'V') AS utf8_all;
+SELECT JSON_VALID(JSON_SEARCH('[["V"],["V"]]', 'all', 'V')) AS utf8_reads;
+SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH('[["V"],["V"]]', 'all', 'V'))) AS utf8_spliced;
+SELECT JSON_MERGE_PRESERVE('[0]', JSON_SEARCH('[["V"],["V"]]', 'all', 'V')) AS utf8_merged;
+
+SELECT JSON_SEARCH(CONVERT('[["V"],["V"]]' USING latin1), 'all',
+                   CONVERT('V' USING latin1)) AS latin1_all;
+SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH(CONVERT('[["V"],["V"]]' USING latin1),
+                                         'all',
+                                         CONVERT('V' USING latin1)))) AS latin1_spliced;
+
+--echo #
+--echo # Out of a table, so no one statement settles another, and with
+--echo # both shapes of path in the same statement.
+--echo #
+CREATE TABLE t (id INT, d BLOB, n BLOB);
+INSERT INTO t VALUES (1, CONVERT('[["V"],["V"]]' USING utf32), CONVERT('V' USING utf32)),
+                     (2, CONVERT('{"a":{"b":"V"}}' USING utf32), CONVERT('V' USING utf32));
+SELECT id, JSON_VALID(JSON_ARRAY(JSON_SEARCH(CONVERT(d USING utf32), 'all',
+                                             CONVERT(n USING utf32)))) AS spliced
+  FROM t ORDER BY id;
+DROP TABLE t;

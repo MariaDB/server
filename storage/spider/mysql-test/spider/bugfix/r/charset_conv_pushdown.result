@@ -1,0 +1,63 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+# A character-set conversion in a pushed-down condition keeps its
+# conversion.  The data node is told which set to convert into; a
+# condition that arrived there without the USING clause would
+# compare the bytes as they stand and answer a different row.
+
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+txt varchar(16) NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=Spider COMMENT='table "tbl_a", srv "s_2_1"'
+INSERT INTO tbl_a (pkey, txt) VALUES
+(1, 'alpha'),
+(2, 'beta'),
+(3, 'gamma'),
+(4, 'delta');
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT pkey, txt FROM tbl_a WHERE CONVERT(txt USING latin1) = 'beta';
+pkey	txt
+2	beta
+
+# The statement the data node was sent
+connection child2_1;
+SELECT argument FROM mysql.general_log
+WHERE command_type != 'Execute' AND argument LIKE 'select %';
+argument
+select `pkey`,`txt` from `auto_test_remote`.`tbl_a` where ((convert(`txt` using latin1)) = 'beta')
+SELECT argument FROM mysql.general_log
+WHERE command_type != 'Execute' AND argument LIKE 'select %'
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

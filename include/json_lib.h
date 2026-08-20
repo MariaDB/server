@@ -12,7 +12,7 @@ extern "C" {
 
 /*
   When error happens, the c_next of the JSON engine contains the
-  character that caused the error, and the c_str is the position
+  character that caused the error, and the error_pos is the position
   in string where the error occurs.
 */
 enum json_errors {
@@ -41,6 +41,7 @@ typedef struct st_json_string_t
   my_wc_t c_next;        /* UNICODE of the last read character */
   int c_next_len;        /* character lenght of the last read character. */
   int error;             /* error code. */
+  const uchar *error_pos; /* Where in the string that error happened. */
 
   CHARSET_INFO *cs;      /* Character set of the JSON string. */
 
@@ -52,6 +53,43 @@ typedef struct st_json_string_t
 void json_string_set_cs(json_string_t *s, CHARSET_INFO *i_cs);
 void json_string_set_str(json_string_t *s,
                          const uchar *str, const uchar *end);
+
+/*
+  Refuse the string, and remember where the refusing happened.
+
+  The position is taken here rather than read off c_str at the point
+  the refusal is reported, because the scanner does not come to rest
+  where it failed.  A caller is free to go on asking for the next token
+  after being told no - not all of them are obliged to stop, and see
+  where the depth refusals are written for why they cannot be made to -
+  and c_str then walks past the place the refusal happened, so a reading
+  taken later describes somewhere else.
+
+  The first refusal is the one kept, for the same reason: a scan that
+  carries on after failing reaches handlers that refuse it again on
+  their own account, and what the caller is told has to be what stopped
+  the scan rather than whatever it ran into afterwards.
+
+  Returns the code it was given, so the sites written as
+  `return s->error= JE_SYN` keep their shape.  A code of zero refuses
+  nothing, which is what the sites that pass a result along need.
+
+  Everything that a position is reported for is refused through here,
+  so error and error_pos are set together and mean each other.  The
+  geometry reader puts codes of its own into error without coming here;
+  it reports those by name and never asks where, and it means to
+  replace whatever the scanner said, which is why it still assigns.
+*/
+static inline int json_error(json_string_t *s, int code)
+{
+  if (code && !s->error)
+  {
+    s->error= code;
+    s->error_pos= s->c_str;
+  }
+  return code;
+}
+
 #define json_next_char(j) \
   ((j)->c_next_len= (j)->wc((j)->cs, &(j)->c_next, (j)->c_str, (j)->str_end))
 #define json_eos(j) ((j)->c_str >= (j)->str_end)
@@ -234,6 +272,14 @@ typedef struct st_json_engine_t
   volatile const uint32_t *killed_ptr;
 } json_engine_t;
 
+
+#ifndef DBUG_OFF
+/*
+  Told about every reading of a value, when somebody has asked to be.
+  See json_scan_start() for why this is where the telling happens.
+*/
+extern void (*json_scan_start_hook)(void);
+#endif
 
 int json_scan_start(json_engine_t *je,
                         CHARSET_INFO *i_cs, const uchar *str, const uchar *end);

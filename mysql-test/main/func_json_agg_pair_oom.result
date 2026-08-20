@@ -1,0 +1,74 @@
+#
+# A pair that could not be written at all, which is a different
+# thing from one that would not fit.
+#
+# A pair taken off for the length limit leaves an object the brace
+# can still go round, and the group is returned short of it.  A
+# pair the buffer would not take is written in part, and what is
+# left is an object no brace can close, so the group is refused
+# whole instead.
+#
+# Nothing reaches that second outcome by asking the server an
+# ordinary question: the room a pair takes is asked for before it
+# is written, so the writes never run short.  Each of the three a
+# pair is made of is therefore failed on its own here - the
+# separator in front of it, the quote that opens its key, and the
+# colon that closes it.
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (k VARCHAR(16), v INT);
+INSERT INTO t1 VALUES ('a', 1), ('b', 2), ('c', 3);
+#
+# 1. What the group answers with nothing wrong.  More than one
+#    row, so the separator has a pair in front of it to be
+#    written after.
+#
+SELECT JSON_OBJECTAGG(k, v) AS whole FROM t1;
+whole
+{"a":1, "b":2, "c":3}
+#
+# 2. The separator in front of a pair
+#
+SET SESSION debug_dbug = '+d,json_objectagg_separator_out_of_memory';
+SELECT JSON_OBJECTAGG(k, v) AS no_separator FROM t1;
+no_separator
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#
+# 3. The quote that opens the key
+#
+SET SESSION debug_dbug = '+d,json_objectagg_key_out_of_memory';
+SELECT JSON_OBJECTAGG(k, v) AS no_key_quote FROM t1;
+no_key_quote
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#
+# 4. The colon that closes it
+#
+SET SESSION debug_dbug = '+d,json_objectagg_colon_out_of_memory';
+SELECT JSON_OBJECTAGG(k, v) AS no_colon FROM t1;
+no_colon
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#
+# 5. One row, where there is no separator to write, so that the
+#    first of the three is shown not to fire where the group has
+#    nothing in front of the pair
+#
+CREATE TABLE t2 (k VARCHAR(16), v INT);
+INSERT INTO t2 VALUES ('a', 1);
+SET SESSION debug_dbug = '+d,json_objectagg_separator_out_of_memory';
+SELECT JSON_OBJECTAGG(k, v) AS one_pair FROM t2;
+one_pair
+{"a":1}
+SET SESSION debug_dbug = DEFAULT;
+DROP TABLE t2;
+#
+# 6. The group once the room is there again, which is what says
+#    the refusals above are about the writing rather than about
+#    the rows
+#
+SELECT JSON_OBJECTAGG(k, v) AS whole FROM t1;
+whole
+{"a":1, "b":2, "c":3}
+DROP TABLE t1;

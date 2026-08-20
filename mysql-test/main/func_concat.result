@@ -304,3 +304,72 @@ f
 NULL
 DROP TABLE t1;
 # End of 10.5 tests
+# Start of 10.11 tests
+#
+# CONCAT keeps the value of its first argument when that argument
+# answers in the buffer it was handed, pointing at bytes it does
+# not own
+#
+SELECT JSON_TYPE('{"a":1}');
+JSON_TYPE('{"a":1}')
+OBJECT
+SELECT CONCAT(JSON_TYPE('{"a":1}'), 'X');
+CONCAT(JSON_TYPE('{"a":1}'), 'X')
+OBJECTX
+SELECT CONCAT(JSON_TYPE('{"a":1}'), 'A', 'B');
+CONCAT(JSON_TYPE('{"a":1}'), 'A', 'B')
+OBJECTAB
+SELECT CONCAT(JSON_TYPE('{"a":1}'), JSON_TYPE('[1]'));
+CONCAT(JSON_TYPE('{"a":1}'), JSON_TYPE('[1]'))
+OBJECTARRAY
+SELECT CONCAT(JSON_TYPE('{"a":1}'), '');
+CONCAT(JSON_TYPE('{"a":1}'), '')
+OBJECT
+SELECT LENGTH(CONCAT(JSON_TYPE('{"a":1}'), 'X'));
+LENGTH(CONCAT(JSON_TYPE('{"a":1}'), 'X'))
+7
+SELECT GET_FORMAT(DATE, 'USA');
+GET_FORMAT(DATE, 'USA')
+%m.%d.%Y
+SELECT CONCAT(GET_FORMAT(DATE, 'USA'), 'X');
+CONCAT(GET_FORMAT(DATE, 'USA'), 'X')
+%m.%d.%YX
+SELECT CONCAT(GET_FORMAT(DATE, 'USA'), GET_FORMAT(DATE, 'ISO'));
+CONCAT(GET_FORMAT(DATE, 'USA'), GET_FORMAT(DATE, 'ISO'))
+%m.%d.%Y%Y-%m-%d
+# Every other argument position was always right
+SELECT CONCAT('P', JSON_TYPE('{"a":1}'));
+CONCAT('P', JSON_TYPE('{"a":1}'))
+POBJECT
+SELECT CONCAT('P', GET_FORMAT(DATE, 'USA'));
+CONCAT('P', GET_FORMAT(DATE, 'USA'))
+P%m.%d.%Y
+SELECT CONCAT_WS('-', JSON_TYPE('{"a":1}'), 'X');
+CONCAT_WS('-', JSON_TYPE('{"a":1}'), 'X')
+OBJECT-X
+# The same over table data
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a":1}'), ('[1,2]');
+SELECT CONCAT(JSON_TYPE(j), '.') AS c FROM t1;
+c
+OBJECT.
+ARRAY.
+SELECT CONCAT(JSON_TYPE(j), JSON_TYPE(j)) AS c FROM t1;
+c
+OBJECTOBJECT
+ARRAYARRAY
+DROP TABLE t1;
+# The || operator in sql_mode=ORACLE concatenates the same way
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+SELECT JSON_TYPE('{"a":1}') || 'X';
+JSON_TYPE('{"a":1}') || 'X'
+OBJECTX
+SELECT GET_FORMAT(DATE, 'USA') || 'X';
+GET_FORMAT(DATE, 'USA') || 'X'
+%m.%d.%YX
+SELECT 'P' || JSON_TYPE('{"a":1}');
+'P' || JSON_TYPE('{"a":1}')
+POBJECT
+SET sql_mode=@save_sql_mode;
+# End of 10.11 tests

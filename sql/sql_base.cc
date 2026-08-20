@@ -9155,6 +9155,17 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   if (fields.elements)
     table_arg->auto_increment_field_not_null= FALSE;
 
+  /*
+    The marks are about the row image built here and no other.  Clearing
+    them as the image is begun, rather than trusting something later to
+    clear them once it is done with, is what keeps them from being read
+    with the NEXT row: a row whose writing ends before anything reads what
+    was written leaves its marks standing - an update that finds nothing to
+    change never reaches the reading, and a view whose own check refuses
+    the row returns before it.
+  */
+  table_arg->clear_is_valid_json_marks();
+
   while ((fld= f++))
   {
     field= fld->field_for_view_update();
@@ -9186,12 +9197,15 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     {
       if (!skip_sys_field)
       {
-        if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
+        int store_rc= value->save_in_field(rfield, 0);
+        if (store_rc < 0 && !ignore_errors)
         {
           my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
           goto err_unwind_fields;
         }
         rfield->set_has_explicit_value();
+        if (table->has_own_json_valid_check)
+          rfield->set_is_valid_json(value, store_rc);
       }
       /*
         In sql MODE_SIMULTANEOUS_ASSIGNMENT,
@@ -9434,6 +9448,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     only one row.
   */
   table->auto_increment_field_not_null= FALSE;
+
+  /* See the same call in the other fill_record() above. */
+  table->clear_is_valid_json_marks();
+
   while ((field = *ptr++) && ! thd->is_error())
   {
     /* Ensure that all fields are from the same table */
@@ -9469,10 +9487,23 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       continue;
 
     if (use_value)
+    {
+      /*
+        Nothing said how the store went, so nothing can be attested -
+        and there is nothing to take back either.  The marks were cleared
+        where this row image was begun, a few lines above, and this route
+        sets none.
+      */
       value->save_val(field);
+    }
     else
-      if (value->save_in_field(field, 0) < 0)
+    {
+      int store_rc= value->save_in_field(field, 0);
+      if (store_rc < 0)
         goto err;
+      if (table->has_own_json_valid_check)
+        field->set_is_valid_json(value, store_rc);
+    }
     field->set_has_explicit_value();
   }
   /* Update virtual fields if there wasn't any errors */

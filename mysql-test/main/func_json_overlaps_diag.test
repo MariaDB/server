@@ -1,0 +1,92 @@
+--echo #
+--echo # Where JSON_OVERLAPS says a document broke.
+--echo #
+--echo # The comparison walks both arguments together and puts an engine
+--echo # back where it was to try the next candidate.  A refusal met
+--echo # part-way through has to survive being put back, and the place it
+--echo # is reported from has to be where the document broke, not
+--echo # wherever the walk happened to stop afterwards.
+--echo #
+--echo # There is one right attest to each of these documents and it can
+--echo # be had elsewhere: JSON_VALID and JSON_EXTRACT read the same bytes
+--echo # with no comparison around them.  Every case below is recorded
+--echo # beside those two, so the position is pinned to something other
+--echo # than itself.
+--echo #
+
+--echo #
+--echo # 1. What the same bytes are worth to a reader with nothing else
+--echo #    going on.  These are the positions every case below must give.
+--echo #
+
+SELECT JSON_VALID('{"a":1 "b":2}') AS ok;
+--error 0
+SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS v;
+SELECT JSON_EXTRACT('{"a":1, "b":2 "c":3}', '$') AS v;
+SELECT JSON_EXTRACT('{"a":{"p":1 "q":2}}', '$') AS v;
+SELECT JSON_EXTRACT('[{"z":9},{"b":2 "c":3}]', '$') AS v;
+SELECT JSON_EXTRACT('[1,2,3 4]', '$') AS v;
+
+--echo #
+--echo # 2. The break is in argument 2, met after the walk has turned at
+--echo #    least once.
+--echo #
+
+SELECT JSON_OVERLAPS('{"b":9}', '{"a":1 "b":2}') AS v;
+SELECT JSON_OVERLAPS('{"z":0}', '{"a":1, "b":2 "c":3}') AS v;
+
+--echo #
+--echo # 3. The break is below the top level, so the walk is further in
+--echo #    when it meets it.
+--echo #
+
+SELECT JSON_OVERLAPS('{"a":{"p":1}}', '{"a":{"p":1 "q":2}}') AS v;
+
+--echo #
+--echo # 4. The break is in argument 1, and inside an element of it.
+--echo #
+
+SELECT JSON_OVERLAPS('[{"z":9},{"b":2 "c":3}]', '[{"a":1}]') AS v;
+
+--echo #
+--echo # 5. A refusal that is reached only after every candidate has been
+--echo #    tried and put back.  Nothing said so before: the walk ended on
+--echo #    the refusal exactly as it ends on running out of candidates,
+--echo #    and the answer came back with no diagnostic at all.
+--echo #
+
+SELECT JSON_OVERLAPS('[9]', '[1,2,3 4]') AS v;
+SELECT JSON_OVERLAPS('[{"a":1}]', '[{"z":9},{"b":2 "c":3}]') AS v;
+
+--echo #
+--echo # 6. The same documents out of a table, so no one statement
+--echo #    settles another, and both argument orders together.
+--echo #
+
+CREATE TABLE t1 (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES
+  (1, '{"b":9}',       '{"a":1 "b":2}'),
+  (2, '{"a":{"p":1}}', '{"a":{"p":1 "q":2}}'),
+  (3, '[9]',           '[1,2,3 4]'),
+  (4, '{"b":9}',       '{"a":1, "b":2}');
+SELECT id, JSON_OVERLAPS(a, b) AS v FROM t1 ORDER BY id;
+SELECT id, JSON_OVERLAPS(b, a) AS v FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 7. Whole documents beside them, which have nothing to report.
+--echo #
+
+SELECT JSON_OVERLAPS('{"b":9}', '{"a":1, "b":9}') AS v;
+SELECT JSON_OVERLAPS('[1,2]', '[2,3]') AS v;
+SELECT JSON_OVERLAPS('{"a":{"p":1}}', '{"a":{"p":1, "q":2}}') AS v;
+SELECT JSON_OVERLAPS('[9]', '[1,2,3,4]') AS v;
+
+--echo #
+--echo # 8. A document that is refused before the comparison begins is
+--echo #    not this case, and is reported from position 1 as it always
+--echo #    was.
+--echo #
+
+SELECT JSON_OVERLAPS('{', '[1]') AS v;
+SELECT JSON_OVERLAPS('[1]', 'x') AS v;

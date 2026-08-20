@@ -1218,6 +1218,9 @@ public:
     return name;
   }
   table_map not_null_tables() const override { return 0; }
+  /* Any of the arguments can be the one whose value is returned. */
+  bool is_valid_json_static() const override
+  { return args_are_valid_json_static(0, arg_count); }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1305,6 +1308,9 @@ public:
   }
 
   table_map not_null_tables() const override { return 0; }
+  /* Either argument can be the one whose value is returned. */
+  bool is_valid_json_static() const override
+  { return args_are_valid_json_static(0, 2); }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1351,15 +1357,30 @@ public:
   {
     return val_decimal_from_item(find_item(), decimal_value);
   }
+  /*
+    Item::val_str_from_item(), reading the argument through read_arm() so
+    that which argument it was is written down and a caller that asked
+    for a document has its request reach it.
+  */
   String *str_op(String *str) override
   {
-    return val_str_from_item(find_item(), str);
+    DBUG_ASSERT(fixed());
+    Item *arm= find_item();
+    String *res= read_arm(arm, str);
+    if (res)
+      res->set_charset(collation.collation);
+    if ((null_value= arm->null_value))
+      res= NULL;
+    return res;
   }
   bool native_op(THD *thd, Native *to) override
   {
     return val_native_with_conversion_from_item(thd, find_item(), to,
                                                 type_handler());
   }
+  /* args[0] is the switch; the value comes from one of the other two. */
+  bool is_valid_json_static() const override
+  { return args_are_valid_json_static(1, 2); }
 };
 
 
@@ -1489,6 +1510,13 @@ public:
   void update_used_tables() override;
   table_map not_null_tables() const override { return 0; }
   bool is_null() override;
+  /*
+    The value is always the right "a", args[2] - see the comment on the
+    constructor.  The left "a" is only ever compared, and args[1] is only
+    ever compared against.
+  */
+  bool is_valid_json_static() const override
+  { return args_are_valid_json_static(2, 1); }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override
   {
@@ -2392,6 +2420,7 @@ protected:
   DTCollation cmp_collation;
   bool aggregate_then_and_else_arguments(THD *thd, uint count);
   virtual Item **else_expr_addr() const= 0;
+  virtual uint when_count() const= 0;
   virtual Item *find_item()= 0;
   inline void print_when_then_arguments(String *str,
                                         enum_query_type query_type,
@@ -2419,6 +2448,22 @@ public:
   }
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool need_parentheses_in_default() override { return true; }
+  /*
+    The value comes from one of the THEN arguments or from the ELSE, and
+    reorder_args() has put exactly those last: the optional CASE
+    expression comes first, then the WHEN expressions, then the THEN
+    expressions and the ELSE.  So the arguments that can be returned are
+    the last one per WHEN plus the ELSE where there is one.
+
+    Asking the WHEN expressions too would answer no for every CASE ever
+    written - what they return is a condition, and this item never
+    returns it.
+  */
+  bool is_valid_json_static() const override
+  {
+    uint count= when_count() + MY_TEST(else_expr_addr());
+    return args_are_valid_json_static(arg_count - count, count);
+  }
 };
 
 
@@ -2431,7 +2476,7 @@ public:
 */
 class Item_func_case_searched: public Item_func_case
 {
-  uint when_count() const { return arg_count / 2; }
+  uint when_count() const override { return arg_count / 2; }
   bool with_else() const { return arg_count % 2; }
   Item **else_expr_addr() const override
   { return with_else() ? &args[arg_count - 1] : 0; }
@@ -2476,7 +2521,7 @@ class Item_func_case_simple: public Item_func_case,
 {
 protected:
   uint m_found_types;
-  uint when_count() const { return (arg_count - 1) / 2; }
+  uint when_count() const override { return (arg_count - 1) / 2; }
   bool with_else() const { return arg_count % 2 == 0; }
   Item **else_expr_addr() const override
   { return with_else() ? &args[arg_count - 1] : 0; }
@@ -3695,8 +3740,6 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref) override;
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
-    override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;

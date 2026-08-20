@@ -31,6 +31,106 @@ int dbug_json_check_min_stack_requirement()
 
 extern void pause_execution(THD *thd, double timeout);
 
+
+#ifndef DBUG_OFF
+/*
+  Counts a reading of a JSON value.
+
+  What these functions are being taught is not to read a value they have
+  already read, and a value read one time fewer returns exactly what
+  it gave back before - so there is nothing in any answer that says the
+  saving happened.  The count is the only place it shows, which is why
+  it exists at all.
+
+  A scanner started while there is no session to charge is left
+  uncounted rather than refused.
+
+  Written the way json_lib calls it, that being what its address is
+  handed to.
+*/
+extern "C" void json_count_scan()
+{
+  THD *thd= current_thd;
+
+  if (thd)
+    status_var_increment(thd->status_var.json_scans);
+}
+
+
+/*
+  Asks json_lib to say when a value is read.
+
+  The count is taken where the reading begins rather than where it is
+  asked for.  Every way of asking - reading a path, asking whether a
+  value is a document, normalizing one - ends up at json_scan_start(),
+  so a count taken there is a count of readings.  A count taken at the
+  asking would have to name every way of asking, and one such list has
+  already been wrong: normalizing was reading twice and being counted
+  none, because it does its reading from inside json_lib where a list
+  kept here cannot see it.
+
+  What is counted is therefore every reading this session does, and not
+  only the ones these functions ask for by name.
+*/
+static struct Json_scan_count_hook
+{
+  Json_scan_count_hook() { json_scan_start_hook= json_count_scan; }
+} json_scan_count_hook;
+
+
+Json_scans_unbilled::Json_scans_unbilled(THD *thd)
+ :m_thd(thd), m_scans(thd->status_var.json_scans)
+{ }
+
+
+Json_scans_unbilled::~Json_scans_unbilled()
+{
+  m_thd->status_var.json_scans= m_scans;
+}
+#endif
+
+
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  Takes a reading back off the count.
+
+  A value is read back here to check what was claimed about it, and that
+  reading exists only because the assertion checking the claim does.
+  Counting it would put work no released server does into a number kept
+  to watch the work it does, and the number would then move for reasons
+  that have nothing to do with anybody's query.
+
+  Where the count is not kept there is nothing to take anything off:
+  Json_scans belongs to a debug build, while the assertions that make
+  these readings are compiled by one build more than that.
+*/
+static inline void json_uncount_scan()
+{
+#ifndef DBUG_OFF
+  THD *thd= current_thd;
+
+  if (thd)
+    status_var_decrement(thd->status_var.json_scans);
+#endif
+}
+
+
+/*
+  The way to the scanner for a reading that is not the server's work:
+  counted like any other and then taken back off again, so that the one
+  place the counting happens stays the only place it happens.
+*/
+static inline int json_scan_start_unbilled(json_engine_t *je,
+                                           CHARSET_INFO *i_cs,
+                                           const uchar *str, const uchar *end)
+{
+  int rc= json_scan_start(je, i_cs, str, end);
+
+  json_uncount_scan();
+  return rc;
+}
+#endif
+
 /*
   Allocating memory and *also* using it (reading and
   writing from it) because some build instructions cause
@@ -94,6 +194,114 @@ append_simple(String *s, const uchar *a, size_t a_len)
 }
 
 
+static void report_bad_chr_note(const char *fname, int n_arg);
+
+
+/*
+  Says whether a key can go between a pair of quotes without reaching
+  past them.  A quote ends the string where it stands, a backslash begins
+  an escape that may swallow the quote meant to end it, and a character
+  below a space is not allowed inside a string unescaped at all.  A key
+  holding none of the three is just so many characters of a name.
+
+  Nothing is done about a key that holds one.  Whether the document that
+  comes of splicing it can still be read is a property of the WHOLE
+  composition and not of the key: a key of `a":1,"b` closes one member
+  and opens another, and what comes out is a document that has always
+  been given back.  Refusing it here would take that answer away.
+
+  So the one thing this decides is whether the answer can be given
+  without being read back.  A key it turns down is spliced exactly as it
+  always was, and the reading back settles it exactly as it always did.
+
+  The key is read a character at a time rather than a byte at a time,
+  because a byte is not a character in every character set: in ucs2 the
+  letter 'b' is written 00 62, and a reading that went by bytes would
+  take the 00 for a control character and turn down every key there is.
+  A key holding something that is not a character of its own character
+  set at all is turned down, nothing being known about what it holds.
+*/
+static bool json_key_span_is_inert(CHARSET_INFO *cs, const char *key,
+                                   size_t key_len)
+{
+  const uchar *p= (const uchar *) key, *end= p + key_len;
+
+  while (p < end)
+  {
+    my_wc_t wc;
+    int c_len= cs->mb_wc(&wc, p, end);
+
+    if (c_len <= 0 || wc == '"' || wc == '\\' || wc < 0x20)
+      return false;
+
+    p+= c_len;
+  }
+
+  return true;
+}
+
+
+/*
+  Appends the key of a path step to the document being built.
+
+  A path is written in its own character set, which is not necessarily
+  the one of the document, so the key may have to be converted before it
+  can be spliced in.  Only a conversion that lost nothing is taken: a
+  key holding a character the document's character set has no room for
+  goes in as it arrived, which is what was done with every key before
+  any key was converted at all, and a note says so.
+
+  Whether the document that results can still be read is then decided
+  by the document's character set, exactly as it was decided before:
+  one that admits every byte keeps the document, and one that does not
+  refuses it on the way back out.  Deciding it here instead would take
+  away documents that have always been given.
+
+  Nothing else is done to the key: one holding a character that is not
+  allowed unescaped inside a JSON string stays invalid, and is caught
+  where it was caught before.
+
+  'inert' comes back saying whether the key went in as so many characters
+  of a name and nothing more, so that a caller which would rather not
+  read its answer back can tell when it has to.
+*/
+static bool __attribute__((warn_unused_result))
+append_json_path_key(String *s, const json_path_step_t *step,
+                     CHARSET_INFO *path_cs, String *tmp_key,
+                     const char *fname, int n_arg, bool *inert)
+{
+  size_t key_len= (size_t) (step->key_end - step->key);
+  uint errors;
+
+  if (!my_charset_same(path_cs, s->charset()))
+  {
+    if (tmp_key->copy((const char *) step->key, key_len, path_cs,
+                      s->charset(), &errors) ||
+        DBUG_IF("json_path_key_out_of_memory"))
+      return true; /* Out of memory. */
+
+    if (!errors)
+    {
+      *inert= json_key_span_is_inert(s->charset(), tmp_key->ptr(),
+                                     tmp_key->length());
+      return append_simple(s, tmp_key->ptr(), tmp_key->length());
+    }
+
+    report_bad_chr_note(fname, n_arg);
+    /*
+      The key goes in written the way the path was, which is not the way
+      the document is.  What those bytes come to mean once they are being
+      read as the document cannot be told from the key alone.
+    */
+    *inert= false;
+  }
+  else
+    *inert= json_key_span_is_inert(path_cs, (const char *) step->key, key_len);
+
+  return append_simple(s, step->key, key_len);
+}
+
+
 /*
   Appends JSON string to the String object taking charsets in
   consideration.
@@ -135,7 +343,7 @@ bool st_append_json(String *s,
   Appends arbitrary String to the JSON string taking charsets in
   consideration.
 */
-int st_append_escaped(String *s, const String *a)
+json_append_result st_append_escaped(String *s, const String *a)
 {
   /*
     In the worst case one character from the 'a' string
@@ -143,17 +351,19 @@ int st_append_escaped(String *s, const String *a)
   */
   int str_len= a->length() * 12 * s->charset()->mbmaxlen /
                a->charset()->mbminlen;
-  if (!s->reserve(str_len, 1024) &&
-      (str_len=
-         json_escape(a->charset(), (uchar *) a->ptr(), (uchar *)a->end(),
-                     s->charset(),
-                     (uchar *) s->end(), (uchar *)s->end() + str_len)) > 0)
-  {
-    s->length(s->length() + str_len);
-    return 0;
-  }
+  if (s->reserve(str_len, 1024) ||
+      DBUG_IF("json_escape_reserve_out_of_memory"))
+    return JSON_APPEND_OOM;
 
-  return a->length();
+  str_len= json_escape(a->charset(), (uchar *) a->ptr(), (uchar *)a->end(),
+                       s->charset(),
+                       (uchar *) s->end(), (uchar *)s->end() + str_len);
+  if (str_len < 0)
+    return str_len == JSON_ERROR_ILLEGAL_SYMBOL ?
+           JSON_APPEND_BAD_CHR : JSON_APPEND_OOM;
+
+  s->length(s->length() + str_len);
+  return JSON_APPEND_OK;
 }
 
 
@@ -303,11 +513,180 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
 }
 
 
+/*
+  How a document is punctuated in the loose form - this much after a
+  comma, and this much after a key.
+
+  Named here because two different pieces of code have to agree on it.
+  json_nice() writes it when it reads a document back, and the functions
+  that BUILD a document write it themselves and never read anything
+  back; if those two ever drifted apart, a document said to be in the
+  loose form would not be in it.  The compact and detailed forms are
+  shorter and are taken as the first characters of the same two strings,
+  which is what the lengths below select.
+*/
+static const char json_loose_comma[]= ", ";
+static const char json_loose_colon[]= "\": ";
+
+
+/*
+  Whether a document can be written in this character set at all.
+
+  A document is punctuated with characters that most character sets
+  encode the way ASCII does, and a few do not: swe7 puts national letters
+  where the brackets, the braces and the backslash belong, so the bytes
+  that make an array anywhere else make a word there.  A function that
+  writes an array out in such a character set has written something that
+  is not a document and cannot be read as one - which is what the server
+  has always done with it, and is not for this to change.  What it is
+  for is to keep that result from being taken for a document later.
+
+  Only the functions that write their own punctuation have to ask.  One
+  that reads its whole result back afterwards reads it in the character
+  set it is written in, so a document it accepts is one that reads
+  there, and asking would tell it nothing new - which is why the seven
+  that always read back never asked, and why they ask now that they read
+  back only what their arguments left is_valid or is_nice false for.
+
+  A set that cannot encode the punctuation can still hold a document,
+  but only a scalar one: writing a container in it would take the
+  brackets it cannot encode.  So a function that has to write a
+  container to give its answer cannot give one there at all, and a
+  function given a document in such a set was given a scalar.
+
+  What decides it is how narrow a character is, not whether the set is
+  ASCII-compatible.  MY_CS_NONASCII marks two unrelated things: sets that
+  put other characters at the ASCII code points, and sets that are simply
+  too wide to hold ASCII a byte at a time.  Only the first is a problem.
+  String::append(char) converts for a set whose characters are never one
+  byte, so ucs2 gets a real bracket, encoded as 005B; where a character
+  can be a single byte the byte goes in as it stands, and in swe7 that
+  byte is a letter.
+*/
+static inline bool is_json_compatible_charset(CHARSET_INFO *cs)
+{
+  return cs->mbminlen > 1 || !(cs->state & MY_CS_NONASCII);
+}
+
+
+/*
+  Whether a container just composed has to be refused for the character
+  set it was composed in.
+
+  A container is written with punctuation round it, and a set that does
+  not encode that punctuation as itself holds no container: what was
+  composed reads as something else, or as nothing.  A released server
+  returned those bytes.  The functions that read their whole answer back
+  have always returned NULL there instead, the reading being what fails,
+  and the ones that compose their answer say the same thing here, in the
+  same words and at the same position.
+
+  Which is why it is read rather than reckoned.  The question above is
+  not the question this is: a set stops being JSON-compatible as soon as
+  it puts ANY character somewhere other than ASCII does, and a set can do
+  that and still write brackets - sjis moves the backslash and leaves the
+  brackets where they were, so what it composes IS a document and is
+  returned.  A compatible set is not read at all, so the reading is
+  confined to the sets that might have got it wrong.
+*/
+static bool json_container_charset_refused(String *str, const char *fname)
+{
+  json_engine_t je;
+
+  if (is_json_compatible_charset(str->charset()))
+    return false;
+
+  json_scan_start(&je, str->charset(), (const uchar *) str->ptr(),
+                  (const uchar *) str->ptr() + str->length());
+  while (json_scan_next(&je) == 0)
+  {}
+  if (!je.s.error)
+    return false;
+
+  report_json_error_ex(str->ptr(), &je, fname, 0,
+                       Sql_condition::WARN_LEVEL_WARN);
+  return true;
+}
+
+
+/*
+  Whether the document argument leaves a function free to return what
+  it composes, instead of reading the whole answer again at the end to
+  find out what it is.
+
+  Three things at once, and each of them is about the argument rather
+  than about anything composed from it.  The value has to read as a
+  document, which is what the argument is asked.  It has to be written
+  the way this writes, because what is composed keeps the argument's own
+  spacing between the pieces the function writes itself.  And the set it
+  is written in has to be able to encode the punctuation that gets added
+  - nothing composed in a set that cannot is a document, however sound
+  the pieces were.
+
+  Asked once, before anything is composed, because what is written early
+  is written before the later arguments have been looked at, so the
+  answer cannot wait for them.  A later argument that turns out not to
+  be attested to does not come back here; it clears the splice marks
+  instead, and the answer goes through the reading back after all.
+*/
+
+static inline bool document_arg_composes_final(const Item *arg,
+                                               const String *js)
+{
+  return is_json_compatible_charset(js->charset()) &&
+         arg->is_valid_json() && arg->is_nice_json();
+}
+
+
+/*
+  Steps over the space standing at 'str', if one is standing there, and
+  returns where the next character begins.
+
+  Composing writes some of its punctuation and copies the rest out of
+  the document it is working from, and where the two meet one side has
+  to give up the space between them.  Which bytes that is depends on the
+  set the document is written in: a space is one byte in utf8, two in
+  ucs2 (0020), four in utf32 - and in the wide ones the FIRST of those
+  bytes is a zero.  So a byte compared against ' ' answers no in exactly
+  the sets that can encode a document but do not write one character in
+  one byte, and the space is left where it stood, doubled.
+
+  Reading one character and asking what it is answers the question the
+  way it was meant to be asked.
+*/
+static const uchar *json_skip_space(CHARSET_INFO *cs,
+                                    const uchar *str, const uchar *end)
+{
+  my_wc_t wc;
+  int len;
+
+  if (str >= end)
+    return str;
+
+  len= cs->mb_wc(&wc, str, end);
+  return (len > 0 && wc == (my_wc_t) ' ') ? str + len : str;
+}
+
+
+/* Written out below, and named here because the loose form goes to it. */
+static int json_walk_nice_value(json_engine_t *je, String *to,
+                                int &max_level);
+
+
+/*
+  'deepest', where a caller asks for it, comes back holding how many
+  structures the deepest part of what was written nests inside: 0 for a
+  scalar, 1 for an array of scalars, and so on.  The count is free here -
+  the walk keeps it anyway, to know how far to indent - and it is the
+  only place a whole document is measured without being walked twice.
+*/
 static int json_nice(json_engine_t *je, String *nice_js,
-                     Item_func_json_format::formats mode, int tab_size=4)
+                     Item_func_json_format::formats mode,
+                     uint *deepest= NULL, int tab_size=4)
 {
   int depth= 0;
-  static const char *comma= ", ", *colon= "\": ";
+  int reached= 0;
+  static const char *comma= json_loose_comma, *colon= json_loose_colon;
   uint comma_len, colon_len;
   int first_value= 1;
   int value_size = 0;
@@ -320,25 +699,60 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   if (nice_js->alloc(je->s.str_end - je->s.c_str + 32))
     goto error;
-  
+
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
   if (mode == Item_func_json_format::LOOSE)
   {
-    comma_len= 2;
-    colon_len= 3;
+    /*
+      The loose form is written by the walk, which is this loop with the
+      other two modes taken out of it and stopped where the value ends
+      instead of where the document does.  Written out twice they would
+      have to go on agreeing byte for byte, and what says whether they
+      still do is a check that measures a value by writing it through
+      HERE - so the day the two drifted apart, the drift is what would
+      be approved.
+
+      The walk wants the value's head read, and returns where the
+      value ended.  A document is a value with nothing after it, so what
+      is left is read through to find out whether anything is.
+    */
+    if (json_read_value(je) || json_walk_nice_value(je, nice_js, reached))
+    {
+      /*
+        Nothing was read wrong, so what went wrong was the writing:
+        there is no room for the answer and no answer to give.
+      */
+      if (!je->s.error)
+        return 1;
+    }
+    else
+    {
+      while (json_scan_next(je) == 0)
+      {}
+    }
+    goto done;
   }
-  else if (mode == Item_func_json_format::DETAILED)
-  {
-    comma_len= 1;
-    colon_len= 3;
-  }
-  else
-  {
-    comma_len= 1;
-    colon_len= 2;
-  }
+
+  /*
+    The buffer above is a guess, and the indented form can outgrow it:
+    it spends a line and an indent where the compact form spends
+    nothing, so an input with more than sixteen separators in it needs
+    more room than was asked for.  Everything written below therefore
+    may have to grow the buffer, and this is where a test arranges for
+    that growing to fail.  Disarmed at both ways out, so that only the
+    writing done here is affected.
+  */
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("+d,simulate_realloc_out_of_memory"););
+
+  /*
+    What is left is the compact form and the indented one, which put the
+    same comma between values and differ over the space after a colon.
+  */
+  comma_len= 1;
+  colon_len= (mode == Item_func_json_format::DETAILED) ? 3 : 2;
 
   do
   {
@@ -358,25 +772,25 @@ static int json_nice(json_engine_t *je, String *nice_js,
         if (unlikely(je->s.error))
           goto error;
 
-        if (!first_value)
-          nice_js->append(comma, comma_len);
+        if (!first_value && nice_js->append(comma, comma_len))
+          goto error;
 
         if (mode == Item_func_json_format::DETAILED &&
             append_tab(nice_js, depth, tab_size))
           goto error;
 
-        nice_js->append('"');
-        if (append_simple(nice_js, key_start, key_end - key_start))
+        if (nice_js->append('"') ||
+            append_simple(nice_js, key_start, key_end - key_start) ||
+            nice_js->append(colon, colon_len))
           goto error;
-        nice_js->append(colon, colon_len);
       }
       /* now we have key value to handle, so no 'break'. */
       DBUG_ASSERT(je->state == JST_VALUE);
       goto handle_value;
 
     case JST_VALUE:
-      if (!first_value)
-        nice_js->append(comma, comma_len);
+      if (!first_value && nice_js->append(comma, comma_len))
+        goto error;
 
       if (mode == Item_func_json_format::DETAILED &&
           depth > 0 &&
@@ -392,8 +806,9 @@ handle_value:
                           je->value_end - je->value_begin))
           goto error;
         
-        curr_str.copy((const char *)je->value_begin,
-                      je->value_end - je->value_begin, je->s.cs);
+        if (curr_str.copy((const char *)je->value_begin,
+                          je->value_end - je->value_begin, je->s.cs))
+          goto error;
         value_len= je->value_end - je->value_begin;
         first_value= 0;
         if (value_size != -1)
@@ -405,10 +820,14 @@ handle_value:
             depth > 0 && !(curr_state != JST_KEY) &&
             append_tab(nice_js, depth, tab_size))
           goto error;
-        nice_js->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1);
+        if (nice_js->append((je->value_type == JSON_VALUE_OBJECT) ?
+                            "{" : "[", 1))
+          goto error;
         first_value= 1;
         value_size= (je->value_type == JSON_VALUE_OBJECT) ? -1: 0;
         depth++;
+        if (depth > reached)
+          reached= depth;
       }
 
       break;
@@ -426,10 +845,12 @@ handle_value:
         nice_js->length(nice_js->length() - value_len);
         for (auto i = 0; i < (depth + 1) * tab_size + 1; i++)
           nice_js->chop();
-        nice_js->append(curr_str);
+        if (nice_js->append(curr_str))
+          goto error;
       }
-      
-      nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1);
+
+      if (nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1))
+        goto error;
       first_value= 0;
       value_size= -1;
       break;
@@ -439,10 +860,424 @@ handle_value:
     };
   } while (json_scan_next(je) == 0);
 
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("-d,simulate_realloc_out_of_memory"););
+
+done:
+  /*
+    Said only where the walk finished, a count off a walk that stopped
+    early being about the part of the document it got through rather
+    than about the document.
+  */
+  if (deepest && !(je->s.error || *je->killed_ptr))
+    *deepest= (uint) reached;
   return je->s.error || *je->killed_ptr;
 
 error:
+  DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                  DBUG_SET("-d,simulate_realloc_out_of_memory"););
   return 1;
+}
+
+
+/*
+  The room to write in, made to run out for as long as one of these is
+  standing.
+
+  json_nice() arms the failure of its own appends around its own
+  writing, so that a test can see what happens when one of them fails.
+  The writing has moved out of it for the functions that no longer read
+  their result back, and the way of failing it had to move with it -
+  otherwise the checking of these appends would stop being tested by the
+  thing that was testing it, without anybody noticing that it did.
+
+  Disarmed however the writing is left, so that only the writing done
+  while this stands is affected.
+*/
+class Json_room_made_to_run_out
+{
+public:
+  Json_room_made_to_run_out()
+  {
+    DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                    DBUG_SET("+d,simulate_realloc_out_of_memory"););
+  }
+  ~Json_room_made_to_run_out()
+  {
+    DBUG_EXECUTE_IF("json_nice_append_out_of_memory",
+                    DBUG_SET("-d,simulate_realloc_out_of_memory"););
+  }
+};
+
+
+/*
+  Writes the value the scanner is sitting on to the end of 'to', in the
+  loose form, walking the scanner over the value as it goes.
+
+  This is json_nice() taken apart and put back together to be usable
+  during a reading instead of after one.  json_nice() empties its output
+  and reads to the end of the document, which suits a function that has
+  finished and wants its whole result formatted again; it is no use to one
+  that is partway through a document and wants THIS value written into
+  what it has written so far.  The formatting itself is the same, and has
+  to be: the two write the same punctuation from the same constants, so
+  a value put out by either is put out identically.
+
+  The scanner must have read the value's head already - which is where
+  json_get_path_next() leaves it - and is left on the value's last
+  token, so the caller can carry on from there exactly as if it had
+  walked over the value itself.
+
+  A scalar has no punctuation of its own and so is already written the
+  loose way wherever it came from; it is copied across as it stands,
+  which is what json_nice() does with one too.
+
+  'max_level' comes back holding the deepest the walk went, counted the
+  way a plain reading of the same value counts it - which is what a
+  caller that has to say how deep its answer ends up would otherwise
+  have to take a second reading to find out.  It is raised and never
+  lowered, so a caller starting one walk where the last left off gets
+  the deepest of them all.
+
+  Every writing of a value goes through here, which is what makes this
+  the one place the failure of these appends has to be arranged.
+
+  Returns non-zero on a write that failed or a value that did not end.
+*/
+static int json_walk_nice_value(json_engine_t *je, String *to,
+                                int &max_level)
+{
+  Json_room_made_to_run_out room;
+  int depth;
+  int first_value= 1;
+
+  if (je->stack_p > max_level)
+    max_level= je->stack_p;
+
+  if (json_value_scalar(je))
+    return append_simple(to, je->value_begin,
+                         je->value_end - je->value_begin);
+
+  if (to->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1))
+    return 1;
+  depth= 1;
+
+  while (json_scan_next(je) == 0)
+  {
+    if (je->stack_p > max_level)
+      max_level= je->stack_p;
+
+    /*
+      The step above is what a killed query is stopped by here, and it
+      is the same step, taken the same number of times, that the reading
+      back used to be stopped by - so nothing is asked of this loop that
+      the reading it replaces was not already asked.
+
+      A kill arriving before the writing begins is stopped by whichever
+      reading got here, which is the only kill the tests could reach
+      until now.  This arms one that arrives partway through, so that
+      what stops it is the step above and nothing else.
+    */
+    DBUG_EXECUTE_IF("json_kill_while_emitting",
+                    { current_thd->set_killed(KILL_QUERY); });
+
+    switch (je->state)
+    {
+    case JST_KEY:
+      {
+        const uchar *key_start= je->s.c_str;
+        const uchar *key_end;
+
+        do
+        {
+          key_end= je->s.c_str;
+        } while (json_read_keyname_chr(je) == 0);
+
+        if (unlikely(je->s.error))
+          return 1;
+
+        if (!first_value && to->append(json_loose_comma, 2))
+          return 1;
+
+        if (to->append('"') ||
+            append_simple(to, key_start, key_end - key_start) ||
+            to->append(json_loose_colon, 3))
+          return 1;
+      }
+      /* The key's value comes next, so there is no break here. */
+      DBUG_ASSERT(je->state == JST_VALUE);
+      goto handle_value;
+
+    case JST_VALUE:
+      if (!first_value && to->append(json_loose_comma, 2))
+        return 1;
+
+handle_value:
+      if (json_read_value(je))
+        return 1;
+
+      if (je->stack_p > max_level)
+        max_level= je->stack_p;
+
+      if (json_value_scalar(je))
+      {
+        if (append_simple(to, je->value_begin,
+                          je->value_end - je->value_begin))
+          return 1;
+        first_value= 0;
+      }
+      else
+      {
+        if (to->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1))
+          return 1;
+        first_value= 1;
+        depth++;
+      }
+      break;
+
+    case JST_OBJ_END:
+    case JST_ARRAY_END:
+      if (to->append((je->state == JST_OBJ_END) ? "}" : "]", 1))
+        return 1;
+      first_value= 0;
+      if (--depth == 0)
+        return je->s.error != 0;
+      break;
+
+    default:
+      break;
+    }
+  }
+
+  /* The document ended in the middle of the value. */
+  return 1;
+}
+
+
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  Reads a value the way whoever receives it will read it: in the
+  character set the value says it is written in, from one end of it to
+  the other.
+*/
+bool json_value_reads_as_document(const String *str)
+{
+  /*
+    Which is the question json_valid() is, so it is asked rather than
+    asked again here.  The reading it does begins at json_scan_start()
+    like every other, so it is counted like every other and taken back
+    off afterwards - the same two steps json_scan_start_unbilled() makes,
+    in the order the borrowed reading leaves them in.
+  */
+  bool valid= json_valid(str->ptr(), str->length(), str->charset()) != 0;
+
+  json_uncount_scan();
+  return valid;
+}
+
+
+/*
+  A kill is not simulated in a reading this file makes for itself.
+
+  The arming that raises one partway through a walk is aimed at the
+  walks a statement makes on its way to an answer.  A debug build makes
+  one walk MORE than a release build does - the one just below, which
+  writes a value out again to find out whether it was already written
+  that way - and a kill raised in THAT walk would be a debug build
+  ending a statement a release build finishes.  What is checked here is
+  the code, and a check that changes the answer is not one.
+
+  So it is held off for as long as the reading lasts, the way the
+  reading itself is held off the count of readings.
+*/
+class Json_kill_unsimulated
+{
+  bool m_armed;
+public:
+  Json_kill_unsimulated() : m_armed(DBUG_IF("json_kill_while_emitting"))
+  {
+    if (m_armed)
+      DBUG_SET("-d,json_kill_while_emitting");
+  }
+  ~Json_kill_unsimulated()
+  {
+    if (m_armed)
+      DBUG_SET("+d,json_kill_while_emitting");
+  }
+};
+
+
+/*
+  Writes the value out again in the loose form and asks whether that
+  changed anything.  A value already written that way comes back byte
+  for byte; one written any other way does not.
+*/
+bool json_value_is_nice(const String *str)
+{
+  Json_kill_unsimulated unkilled;
+  json_engine_t je;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> nice;
+
+  json_scan_start_unbilled(&je, str->charset(), (const uchar *) str->ptr(),
+                           (const uchar *) str->ptr() + str->length());
+  if (json_nice(&je, &nice, Item_func_json_format::LOOSE))
+    return false;
+
+  return !stringcmp(&nice, str);
+}
+
+
+/*
+  How deep the value actually goes, read off the value itself.  A
+  claimed depth is only ever compared against this one - a claim that
+  is larger than the truth is allowed, that being what an item saying
+  nothing amounts to, and one that is smaller is the failure this
+  exists to catch.
+*/
+uint json_value_depth(const String *str)
+{
+  json_engine_t je;
+  uint deepest= 0;
+
+  json_scan_start_unbilled(&je, str->charset(), (const uchar *) str->ptr(),
+                           (const uchar *) str->ptr() + str->length());
+  while (json_scan_next(&je) == 0)
+  {
+    if ((uint) je.stack_p > deepest)
+      deepest= (uint) je.stack_p;
+  }
+
+  return deepest;
+}
+#endif
+
+
+/*
+  A document being edited is walked once to find the place to edit, and
+  the pieces of it that go into the answer are copied from where that
+  walk left off - so the walk's pointers into it stay live across
+  everything that happens in between.  What happens in between includes
+  working out a path and working out a value, and either can be any
+  expression a caller cares to write.
+
+  Nothing here owns the document.  It can be a table's row, a routine's
+  variable or another statement's user variable, and what an expression
+  writes is not this function's to know.  That the bytes stay put is
+  true today because of the shapes an expression can take and not
+  because anything makes it so, which is exactly the kind of thing that
+  stops being true quietly.  So a debug build holds on to a copy and
+  says whether it still matches.
+
+  A release build keeps nothing and asks nothing, this being a check on
+  the code rather than on the data.
+*/
+class Json_source_watch
+{
+#ifndef DBUG_OFF
+  String m_held;
+  bool m_holding;
+#endif
+public:
+#ifdef DBUG_OFF
+  void take(const String *) {}
+  bool unchanged(const String *) const { return true; }
+#else
+  Json_source_watch() : m_holding(false) {}
+  void take(const String *js)
+  {
+    /*
+      A copy that cannot be made says nothing either way, and must not
+      turn into a complaint: the room to make it is made to run out on
+      purpose by the tests that check what happens when it does.
+
+      A document that is not there says nothing either.  Asking for one
+      is how a function finds out whether there is one, and the watch is
+      taken before anything else can run, so the two orders would
+      otherwise have to be told apart by every caller.
+    */
+    m_holding= js && !m_held.copy(js->ptr(), js->length(), js->charset());
+  }
+  bool unchanged(const String *js) const
+  { return !m_holding || !stringcmp(js, &m_held); }
+#endif
+};
+
+
+/*
+  A mark is a promise about a run of bytes, and the bytes are right
+  here, so a debug build keeps the promise by reading them.
+
+  Nothing else ever will.  The marks appear in no result and change no
+  output, so one of them being wrong shows up nowhere at all until
+  something starts acting on it - and by then the function that made the
+  promise is a long way from the code that believed it.
+*/
+void Json_result_marks::set(const String *str, bool valid, bool nice,
+                            uint depth)
+{
+  /*
+    The loose form is a formatting of a document, so there is no such
+    thing as a value formatted that way which is not one.  Said before the
+    two below because it holds whatever the bytes turn out to be, and
+    because a caller that arrives here with the pair the wrong way round
+    has lost track of which question it was answering.
+  */
+  DBUG_ASSERT(!nice || valid);
+  DBUG_ASSERT(!valid || json_value_reads_as_document(str));
+  DBUG_ASSERT(!nice || json_value_is_nice(str));
+  /*
+    A depth is only about a value that reads as a document, and is only
+    ever wrong in one direction - see json_value_depth().
+  */
+  DBUG_ASSERT(depth == JSON_DEPTH_UNKNOWN || !valid ||
+              json_value_depth(str) <= depth);
+  m_valid= valid;
+  m_nice= nice;
+  m_depth= depth;
+}
+
+
+String *Json_value_arm::read(Item *arm, String *str)
+{
+  m_arm= arm;
+  String *res= m_read_as_json ? arm->val_json(str) : arm->val_str(str);
+  /*
+    An item that passes a value on passes the argument's answers on with
+    it, unread.  This is the one moment both are in hand, so a debug
+    build holds the one against the other here, for the reason given at
+    Json_result_marks::set(): nothing else ever would.
+
+    The reading costs nothing where there is no answer to hold, which is
+    every argument that is not a document.
+  */
+  DBUG_ASSERT(!res || !arm->is_valid_json() ||
+              json_value_reads_as_document(res));
+  DBUG_ASSERT(!res || !arm->is_nice_json() || json_value_is_nice(res));
+  return res;
+}
+
+
+/*
+  The three below are the argument's own answers, passed straight on.
+  An item that has read no argument yet says what an item with nothing
+  to say says.
+*/
+
+bool Json_value_arm::valid() const
+{
+  return m_arm && m_arm->is_valid_json();
+}
+
+
+bool Json_value_arm::nice() const
+{
+  return m_arm && m_arm->is_nice_json();
+}
+
+
+uint Json_value_arm::depth() const
+{
+  return m_arm ? m_arm->last_depth() : JSON_DEPTH_UNKNOWN;
 }
 
 
@@ -455,7 +1290,13 @@ void report_json_error_ex(const char *js, json_engine_t *je,
                           Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (int)((const char *) je->s.c_str - js);
+  /*
+    Where the scanner refused, which is not where it came to rest: it
+    goes on being asked for the next token by callers that are not
+    obliged to stop, so json_error() takes the reading at the refusal
+    and this reports that one.
+  */
+  int position= (int)((const char *) je->s.error_pos - js);
   uint code;
 
   n_param++;
@@ -508,6 +1349,58 @@ void report_json_error_ex(const char *js, json_engine_t *je,
 }
 
 
+/*
+  Says that a character had nowhere to go, in the cases where that is
+  all that is being said: the bytes are passed on unchanged, as they
+  always were, and this note is the only sign that anything was amiss.
+
+  A note and not a warning.  A warning becomes an error inside a
+  statement running under strict mode, and every caller of this is
+  somewhere the released server said nothing at all, so a warning would
+  stop statements that used to finish.
+
+  The argument is numbered the way the caller numbers it in its other
+  diagnostics, and the position is the beginning of it: what is
+  reported here is that the writing stopped, not where it stopped.
+*/
+static void report_bad_chr_note(const char *fname, int n_arg)
+{
+  THD *thd= current_thd;
+
+  if (thd)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_JSON_BAD_CHR,
+                        ER_THD(thd, ER_JSON_BAD_CHR), n_arg, fname, 0);
+}
+
+
+/*
+  The document argument of a call that has no other argument to work
+  out after it.
+
+  Such a call reads the document and is finished with it before
+  anything else can run, so it can be answered with a view rather than
+  with bytes of its own - see Item::val_json_at_once().  A call that
+  does have another argument to work out cannot: working one out runs
+  whatever the caller wrote, and what the caller wrote can take the
+  document away.
+
+  Asked of the argument count rather than written into each function,
+  so that a function which gains an optional argument later goes back
+  to being answered the careful way without anyone having to remember
+  to say so.
+
+  Only for a function that returns nothing of the document: one
+  that passes it straight on, as JSON_UNQUOTE and JSON_COMPACT do when
+  there is nothing to unquote or to rewrite, gives its own caller a
+  view and has to read the document with val_json().
+*/
+
+static inline String *val_json_arg0(Item **args, uint arg_count, String *str)
+{
+  return arg_count == 1 ? args[0]->val_json_at_once(str)
+                        : args[0]->val_json(str);
+}
+
 
 #define NO_WILDCARD_ALLOWED 1
 #define SHOULD_END_WITH_ARRAY 2
@@ -522,7 +1415,7 @@ void report_path_error_ex(const char *ps, json_path_t *p,
                           Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
-  int position= (int)((const char *) p->s.c_str - ps + 1);
+  int position= (int)((const char *) p->s.error_pos - ps + 1);
   uint code;
 
   n_param++;
@@ -581,7 +1474,7 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
     if ((p->types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
                           JSON_PATH_ARRAY_RANGE)) == 0)
       return 0;
-    p->s.error= NO_WILDCARD_ALLOWED;
+    json_error(&p->s, NO_WILDCARD_ALLOWED);
   }
 
   return 1;
@@ -597,12 +1490,26 @@ CHARSET_INFO *def_path_charset(CHARSET_INFO *cs, CHARSET_INFO *alt)
 
 bool Item_func_json_valid::val_bool()
 {
-  String *js= args[0]->val_json(&tmp_value);
+  String *js= val_json_arg0(args, arg_count, &tmp_value);
   THD *thd;
   json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
+
+  /*
+    What this function asks is what a value answers about itself, so
+    where the value has answered there is nothing left to find out.
+
+    It is the same reading the check constraint leaves unrun at the
+    field boundary, left unrun here at the most direct site there is,
+    and the two cannot disagree: a mark says the characters read back
+    as a document, which is exactly what the walk below would go and
+    see.  Nothing is said either way, the answer being true, and the
+    reading is the only thing that could have said anything.
+  */
+  if (args[0]->is_valid_json())
+    return true;
 
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
@@ -632,10 +1539,12 @@ bool Item_func_json_equals::val_bool()
   String a_tmp, b_tmp;
   THD *thd;
   json_engine_t je;
+  Json_source_watch watch;
 
   String *a= args[0]->val_json(&a_tmp);
   if ((null_value= a == nullptr || args[0]->null_value))
     return 1;
+  watch.take(a);
   String *b= args[1]->val_json(&b_tmp);
   if ((null_value= b == nullptr || args[1]->null_value))
     return 1;
@@ -659,6 +1568,7 @@ bool Item_func_json_equals::val_bool()
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
+  DBUG_ASSERT(watch.unchanged(a));
   if (json_normalize_engine(&je, &a_res, a->ptr(), a->length(), a->charset()))
     goto return_null;
 
@@ -699,6 +1609,7 @@ bool Item_func_json_exists::fix_length_and_dec(THD *thd)
 bool Item_func_json_exists::val_bool()
 {
   json_engine_t je;
+  Json_source_watch watch;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   THD *thd= current_thd;
 
@@ -706,6 +1617,7 @@ bool Item_func_json_exists::val_bool()
 
   String *js= args[0]->val_json(&tmp_js);
 
+  watch.take(js);
   if (!path.parsed)
   {
     String *s_p= args[1]->val_str(&tmp_path);
@@ -723,6 +1635,7 @@ bool Item_func_json_exists::val_bool()
   }
 
   null_value= 0;
+  DBUG_ASSERT(watch.unchanged(js));
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
@@ -772,7 +1685,13 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   String *js= item_js->val_json(&tmp_js);
   int error= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
+  Json_source_watch watch;
 
+  /* Taken here rather than where they are used - see m_js_nice. */
+  m_js_nice= item_js->is_nice_json();
+  m_js_depth= item_js->last_depth();
+
+  watch.take(js);
   if (!parsed)
   {
     String *s_p= item_jp->val_str(&tmp_path);
@@ -806,6 +1725,7 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   if (item_js->null_value || item_jp->null_value)
     return true;
 
+  DBUG_ASSERT(watch.unchanged(js));
   Json_engine_scan je(*js);
   str->length(0);
   str->set_charset(cs);
@@ -895,10 +1815,23 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
-    Odd but realistic worst case is when all characters
-    of the argument turn into '\uXXXX\uXXXX', which is 12.
+    Odd but realistic worst case is when every character of the argument
+    has to be escaped, and six is what one of them costs.
+
+    A character is written as the hex of its UTF-16 form, one unit for a
+    character of the first plane and two for any other, each unit taking
+    a `\uXXXX` of its own - so twelve where a pair is needed.  A pair is
+    only ever needed for a character the set being written into cannot
+    carry, and the set here is utf8mb4, which carries every character
+    there is.  So nothing is escaped for want of somewhere to put it and
+    what is left is the handful JSON will not have literally: a quote, a
+    backslash, and the control characters, all of them inside the first
+    plane and none of them costing more than six.
+
+    The two for the quotes around the whole of it are this function's
+    own.
   */
-  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 6 + 2);
   return FALSE;
 }
 
@@ -906,6 +1839,7 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 String *Item_func_json_quote::val_str(String *str)
 {
   String *s= args[0]->val_str(&tmp_s);
+  json_append_result rc;
 
   if ((null_value= (args[0]->null_value ||
                     args[0]->result_type() != STRING_RESULT)))
@@ -914,16 +1848,34 @@ String *Item_func_json_quote::val_str(String *str)
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
+  if (str->append('"') || DBUG_IF("json_quote_open_out_of_memory"))
+    goto error;
+
+  if ((rc= st_append_escaped(str, s)))
   {
-    /* Report an error. */
-    null_value= 1;
-    return 0;
+    /*
+      A character no document can carry stops the writing, and this
+      function has always answered NULL for it.  What it has never done
+      is SAY so: the three other JSON functions that write a value
+      through st_append_escaped() all report the note, and a value moved
+      from one of them to this one lost the only signal there is for the
+      condition.  The optimizer trace calls it as well and reports
+      nothing, a trace not being an answer anybody asked for.  The answer
+      is unchanged - only the silence is.
+    */
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(func_name(), 1);
+    goto error;
   }
 
+  if (str->append('"') || DBUG_IF("json_quote_close_out_of_memory"))
+    goto error;
+
   return str;
+
+error:
+  null_value= 1;
+  return 0;
 }
 
 
@@ -960,6 +1912,83 @@ error:
 }
 
 
+/*
+  Returns the argument unchanged, but in the character set this item
+  declares.  The bytes and the label have to agree: a value encoded one
+  way and labelled another is read wrongly by everything downstream of
+  it, and the character set is settled at fix time, so it is the bytes
+  that have to move.
+
+  An argument that carries no character set at all is read one byte to
+  one character, which is how json_unescape() already reads it when the
+  value turns out to be a string.  Both ways out of the function then
+  say the same thing about the same argument.
+*/
+String *Item_func_json_unquote::return_as_is(String *str, String *js)
+{
+  CHARSET_INFO *from_cs= js->charset();
+  uint errors;
+
+  if (my_charset_same(from_cs, collation.collation))
+    return js;
+
+  if (from_cs == &my_charset_bin)
+  {
+    /*
+      An argument that carries no character set is read one byte to one
+      character, which is the reading json_unescape() gives it on the
+      other way out: my_charset_bin's mb_wc returns the byte itself.
+      Reading it any other way would have the two exits of this function
+      name the same byte as two different characters.  latin1 in
+      particular is NOT that reading - MariaDB's latin1 is cp1252, which
+      differs from it at 27 of the 32 positions in 0x80-0x9F.
+
+      Converted rather than copied, and not through String::copy(),
+      which would not convert: needs_conversion() answers false for a
+      binary source whose length divides the destination's mbminlen, and
+      utf8mb4's is 1, so the bytes would go across untouched and be
+      relabelled - 0x80 would leave here as a lone continuation byte,
+      which is not a character of the set the result says it is in.
+      copy_and_convert() runs the conversion that short-circuit skips.
+    */
+    uint32 room= (uint32) (collation.collation->mbmaxlen * js->length());
+
+    if (str->alloc(room) || DBUG_IF("json_unquote_as_is_out_of_memory"))
+    {
+      null_value= 1;
+      return NULL;
+    }
+    str->length(copy_and_convert((char *) str->ptr(), room,
+                                 collation.collation, js->ptr(),
+                                 js->length(), from_cs, &errors));
+    str->set_charset(collation.collation);
+  }
+  else if (str->copy(js->ptr(), js->length(), from_cs,
+                     collation.collation, &errors) ||
+           DBUG_IF("json_unquote_as_is_out_of_memory"))
+  {
+    null_value= 1;
+    return NULL;
+  }
+
+  /*
+    Only a conversion that lost nothing is worth having.  A character
+    with nowhere to go comes out of the conversion as a substitute for
+    itself, and returning that would answer differently than this
+    call has always answered - the argument would come back altered
+    rather than merely mislabelled.  The label is the lesser of the two
+    wrongs, so the bytes stay as they arrived and the note says why.
+  */
+  if (errors)
+  {
+    report_bad_chr_note("unquote", 0);
+    return js;
+  }
+
+  return str;
+}
+
+
 String *Item_func_json_unquote::val_str(String *str)
 {
   json_engine_t je;
@@ -970,7 +1999,7 @@ String *Item_func_json_unquote::val_str(String *str)
     return NULL;
 
   if (unlikely(je.s.error) || je.value_type != JSON_VALUE_STRING)
-    return js;
+    return return_as_is(str, js);
 
   int buf_len= je.value_len;
   if (js->charset()->cset != my_charset_utf8mb4_bin.cset)
@@ -1006,7 +2035,7 @@ error:
                           ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
                           0, "unquote", 0);
   }
-  return js;
+  return return_as_is(str, js);
 }
 
 
@@ -1149,13 +2178,20 @@ String *Item_func_json_extract::read_json(String *str,
   json_engine_t je, sav_je;
   json_path_t p;
   const uchar *value;
+  uint32 copy_start, copy_len;
   int not_first_value= 0, count_path= 0;
   uint n_arg;
-  size_t v_len;
   int possible_multiple_values;
+  /* How far down the deepest of the values written out goes. */
+  int deepest_value= 0;
+  /* The same, where the answer is read back instead of counted. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
   int array_size_counter[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
   THD *thd;
+  Json_source_watch watch;
+
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1164,6 +2200,7 @@ String *Item_func_json_extract::read_json(String *str,
 
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 1;
@@ -1203,8 +2240,16 @@ String *Item_func_json_extract::read_json(String *str,
       goto error;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
                       (const uchar *) js->ptr() + js->length(), &p);
+  /*
+    This walk is now the only one there is, so it is the one that has to
+    notice being killed.  It used to be worth noticing only over the
+    result, that being read separately afterwards; the reading of the
+    document itself went uninterrupted however long the document was.
+  */
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   while (json_get_path_next(&je, &p) == 0)
   {
@@ -1231,39 +2276,90 @@ String *Item_func_json_extract::read_json(String *str,
       goto return_ok;
     }
 
+    if ((not_first_value && str->append(STRING_WITH_LEN(json_loose_comma))) ||
+        (not_first_value && DBUG_IF("json_extract_comma_out_of_memory")))
+      goto error;
+
+    copy_start= str->length();
+
     if (json_value_scalar(&je))
-      v_len= je.value_end - value;
+    {
+      /*
+        A scalar is punctuated with nothing, so however it is written in
+        the document is how it is written in the loose form as well, and
+        it is copied across as it stands - which is the copy json_nice()
+        used to make of it, made here instead.  Copied and not written,
+        so it must not be converted on the way: it came out of the
+        document, and the document is in the character set the result is
+        being built in.
+      */
+      if (append_simple(str, value, je.value_end - value) ||
+          DBUG_IF("json_extract_scalar_out_of_memory"))
+        goto error;
+    }
     else
     {
+      /*
+        A container is written out rather than copied.  How it looks in
+        the document is not how the loose form looks, and finding that
+        out by writing the whole result and reading it back again is the
+        reading being done away with here.
+
+        The walk over the value is the walk this loop was going to make
+        anyway - json_skip_level() went over exactly these characters
+        without writing anything down.
+      */
       if (possible_multiple_values)
         sav_je= je;
-      if (json_skip_level(&je))
-        goto error;
-      v_len= je.s.c_str - value;
+      /*
+        How far down this value goes, counted from itself rather than
+        from the document it was cut out of.  Reading a container has
+        already put it on the stack, so the level here is the value's
+        own outermost one, and what the walk reaches above that is what
+        it holds.  The bracket written round the whole answer sits one
+        further out again - see where it is closed.
+      */
+      {
+        int base= je.stack_p, reached= je.stack_p;
+
+        if (json_walk_nice_value(&je, str, reached))
+          goto error;
+        if (reached - base + 1 > deepest_value)
+          deepest_value= reached - base + 1;
+      }
       if (possible_multiple_values)
         je= sav_je;
     }
 
-    if ((not_first_value && str->append(", ", 2)))
-      goto error;
-    while(count_path)
+    /*
+      A value that matched more than one of the paths asked for is
+      written once and then repeated from where it was written, rather
+      than being formatted again or held anywhere of its own.  The room is
+      taken first, so that the read below is from a buffer that has
+      already finished moving.
+    */
+    copy_len= str->length() - copy_start;
+    while (--count_path)
     {
-      if (str->append((const char *) value, v_len))
+      if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
+          str->reserve(copy_len))
         goto error;
-      count_path--;
-      if (count_path)
-      {
-        if (str->append(", ", 2))
-          goto error;
-      }
+      str->q_append(str->ptr() + copy_start, copy_len);
     }
 
     not_first_value= 1;
 
     if (!possible_multiple_values)
     {
-      /* Loop to the end of the JSON just to make sure it's valid. */
-      while (json_scan_next(&je) == 0) {}
+      /*
+        The rest of the document is parsed only to check that it is one.
+        Not done at all where the item has already attested that the
+        value is_valid.
+      */
+      if (!args[0]->is_valid_json())
+      {
+        while (json_scan_next(&je) == 0) {}
+      }
       break;
     }
   }
@@ -1280,15 +2376,82 @@ String *Item_func_json_extract::read_json(String *str,
   if (possible_multiple_values && str->append(']'))
     goto error; /* Out of memory. */
 
-  js= str;
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                  (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &thd->killed;
+  /*
+    In a character set that cannot encode the punctuation this function
+    writes - see is_json_compatible_charset() - what has been composed is
+    not a document and no reasoning about it can make it one, the
+    brackets holding the values having come out as national letters.
+    Such a set can still hold a document, so the walk above succeeded
+    and there is nothing else to notice it by.  Reading the result back
+    is what has always noticed it, and where it cannot encode that
+    reading stays exactly where it was.
+  */
+  /*
+    And where the bracket written round the values takes the answer
+    deeper than a document is allowed to go.  That bracket is a level
+    this function adds: every value in it was measured against the
+    document it came out of, where the bracket did not exist.  A
+    released server found this out by reading the answer back and being
+    refused, so being refused by the same reading is what it is owed -
+    working it out here and complaining directly would put the
+    complaint somewhere else in the text.
+  */
+  if (!is_json_compatible_charset(str->charset()) ||
+      (possible_multiple_values && deepest_value + 1 >= JSON_DEPTH_LIMIT))
+  {
+    js= str;
+    json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                    (const uchar *) js->ptr() + js->length());
+    je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_nice(&je, &tmp_js, Item_func_json_format::LOOSE))
-    goto error;
+    if (json_nice(&je, &tmp_js, Item_func_json_format::LOOSE, &read_back_depth))
+      goto error;
+
+    /*
+      Both marks come from the reading back, for the reason given where
+      Item_func_json_insert::val_str() marks the same answer, and so
+      does the depth.
+    */
+    m_marks.set(&tmp_js, true, true, read_back_depth);
+    return &tmp_js;
+  }
+
+  /*
+    Nothing is read back here.  Every value in the result was written
+    out in the loose form while the document was being walked, and the
+    brackets that hold them are written the same way, so the result is
+    already written as reading it back would have written it.  And it is
+    a document because each part of it was read as one on the way in.
+
+    Unlike the six that EDIT a document, this asks nothing of the
+    argument: nothing of it is kept.  What comes back is written here
+    out of values this function itself walked to and read, so the only
+    thing that can be wrong with it is what holds those values
+    together - which is why the one condition above is whether the
+    brackets can be written at all, and why there is no trust predicate
+    here to ask.  m_marks.set() reads it back in a debug build all the
+    same.
+
+    This is also why the result is returned in the caller's own
+    buffer now.  It used to be returned in tmp_js, which is the
+    scratch the argument may have been read into - so the answer was
+    being written over the document it was made from, and only got away
+    with it because the document had been finished with.
+
+    How deep it goes was counted as it was written: each value put in
+    was walked, and the deepest of them is the deepest the answer goes,
+    plus the bracket written round them where there is one.
+  */
+  m_marks.set(str, true, true,
+              (uint) deepest_value + (possible_multiple_values ? 1 : 0));
+  return str;
 
 return_ok:
+  /*
+    A caller that passed no buffer wanted the value picked out, not
+    written out, and reads it through out_val.  What comes back only has
+    to say that something was found.
+  */
   return &tmp_js;
 
 error:
@@ -1581,6 +2744,7 @@ bool Item_func_json_contains::val_bool()
   json_engine_t je, ve;
   int result;
   THD *thd;
+  Json_source_watch watch;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1588,6 +2752,7 @@ bool Item_func_json_contains::val_bool()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   if (!a2_parsed)
   {
     val= args[1]->val_json(&tmp_val);
@@ -1600,6 +2765,7 @@ bool Item_func_json_contains::val_bool()
     return 0;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
@@ -1626,6 +2792,7 @@ bool Item_func_json_contains::val_bool()
       goto return_null;
 
     path.cur_step= path.p.steps;
+    DBUG_ASSERT(watch.unchanged(js));
     if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
     {
       if (je.s.error)
@@ -1822,7 +2989,10 @@ bool Item_func_json_contains_path::val_bool()
   int UNINIT_VAR(n_found);
   int array_sizes[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
+  /* Asked once: the walk below reaches it on every step. */
+  bool js_attested;
   THD *thd;
+  Json_source_watch watch;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1830,6 +3000,7 @@ bool Item_func_json_contains_path::val_bool()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   if (parse_one_or_all(this, args[1], &ooa_parsed, ooa_constant, &mode_one))
     goto null_return;;
 
@@ -1856,6 +3027,7 @@ bool Item_func_json_contains_path::val_bool()
       goto null_return;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
                       (const uchar *) js->ptr() + js->length(), &p);
   je.killed_ptr= (uint32_t *) &thd->killed;
@@ -1867,6 +3039,7 @@ bool Item_func_json_contains_path::val_bool()
   }
 
   result= 0;
+  js_attested= args[0]->is_valid_json();
   while (json_get_path_next(&je, &p) == 0)
   {
     int n_path= arg_count - 2;
@@ -1898,6 +3071,15 @@ bool Item_func_json_contains_path::val_bool()
         p_found[n_path-1]= TRUE;
       }
     }
+
+    /*
+      Nothing left that could unsettle the answer.  The walk goes on past
+      a settled one only so that a fault later in the document can take
+      it back, and a value the item has attested is_valid has no such
+      fault to be found.
+    */
+    if (result && js_attested)
+      break;
   }
 
   if (likely(je.s.error == 0))
@@ -1927,17 +3109,531 @@ bool is_json_type(const Item *item)
   {
     if (Type_handler_json_common::is_json_type_handler(item->type_handler()))
       return true;
-    const Item_func_conv_charset *func;
-    if (!(func= dynamic_cast<const Item_func_conv_charset*>(item->real_item())))
+    /*
+      The wrapper is asked what it is put round rather than made to
+      prove what it is, which is one virtual call where a dynamic_cast
+      walks the base classes of whatever it was handed before it can
+      say no.  Every argument that is not a document reaches here and
+      is told no, and on the arms this is called from those are most of
+      them.
+    */
+    Item *arg= item->real_item()->conv_charset_arg();
+    if (!arg)
       return false;
-    item= func->arguments()[0];
+    item= arg;
   }
   return false;
 }
 
 
-static int append_json_value(String *str, Item *item, String *tmp_val)
+/*
+  What splicing values into a document has left the document able to say
+  about itself.  Starts out saying both and is only ever cleared: one
+  value that cannot be attested to is enough, however many others went
+  in cleanly.
+
+  Named for what holds rather than for what went wrong, and named after
+  the questions an item answers, so that a value's own answer and what
+  became of it here read the same way round.  A document is what the
+  the loose form is a form OF a document, so nothing clears the second
+  without clearing the first.
+
+  Every caller keeps a set, so every value put in is accounted for
+  whether or not the caller ends up believing what they say.  A caller
+  that reads its whole answer back afterwards has a stronger answer than
+  anything collected on the way and takes that instead; it still hands
+  one of these over, there being nowhere else for a value's own answer
+  to go.
+*/
+struct Json_splice_marks
 {
+  bool is_valid;  /* everything that went in read as a document */
+  bool is_nice;   /* everything that went in was written the loose way */
+  /*
+    Set when the two above were cleared because a value goes past the
+    depth limit only once it is in place.  Kept apart from the other
+    reasons, so that a caller which still reads its whole answer back
+    can check the depth it reckoned at the splice against what that
+    reading found: a reading that reached the end is an answer inside
+    the limit, and nothing should have said otherwise.
+
+    Only that check ever reads it, so it is only there where it can be
+    read.  That is not the same set of builds as the debug one: an
+    assertion survives into a build with DBUG_OFF set where it was asked
+    to print rather than to stop, and the expression it is given is
+    compiled there.
+  */
+#ifdef DBUG_ASSERT_EXISTS
+  bool is_deep;
+#endif
+  /*
+    The deepest any value put in reaches, counted from the outside of
+    the document being composed rather than from the value itself.  A
+    caller starts it at the depth of whatever it is writing the values
+    inside, so that it holds for a document with no values in it too,
+    and it is then the depth of the whole composed answer - every other
+    part of that answer being punctuation the caller wrote itself.
+
+    Wrong only ever upwards, like the answers it is made of: a value
+    taken on trust contributes the bound the trusting was done against
+    rather than a measurement, and a bound is not smaller than the
+    truth.
+  */
+  uint deepest;
+
+  Json_splice_marks(uint depth)
+   : is_valid(true), is_nice(true), deepest(depth)
+  {
+#ifdef DBUG_ASSERT_EXISTS
+    is_deep= false;
+#endif
+  }
+};
+
+
+/*
+  Appends a value whose type is JSON, which is spliced into the result
+  as it stands instead of being quoted as a string.  Any complete JSON
+  value counts, a bare number or string as much as an object: what the
+  type buys the value is that its own punctuation is kept rather than
+  escaped away.
+
+  Being typed as JSON is not the same as being JSON.  The type comes
+  from a check constraint, the constraint can be switched off for the
+  duration of a statement, and the bytes it would have rejected stay in
+  the column afterwards.  Nothing on the way from the column to here
+  reads them.
+
+  So the value is parsed as it is copied, and a value that does not
+  parse is copied ALL THE SAME, with a complaint saying so.  Undoing the
+  copy is not this function's to do: the bytes have gone in where the
+  caller asked for them, and how much of a result there is around them
+  is the caller's to know.  What is owed here is to say so, which is
+  what the marks are for, and each caller answers it the way its own
+  result works.  The four that compose a document and return what they
+  composed return NULL rather than bytes no reader will take; the
+  ones that read their whole answer back find out there, exactly as
+  before.
+
+  A value written in another character set is converted first, because
+  the result is read in the character set it is being built in, not in
+  the one the value arrived in.  The quoting arm converts the same way,
+  through json_escape(); a value spliced as JSON cannot go through
+  json_escape() without its punctuation being escaped along with
+  everything else, so it is converted whole and then parsed as whatever
+  it has become.  A character set that cannot hold the value leaves the
+  bytes where they were, again because that is what was done before.
+
+  'depth' is how many structures the value will sit inside once it has
+  been spliced.  Its own nesting adds to that, and it is the total that
+  the scanner's limit applies to.
+
+  'marks' is where the parse goes, the bytes having gone in whatever it
+  found.  See Json_splice_marks.
+
+  'is_valid' and 'is_nice' are what the item handing the value over
+  says about it.  is_valid true is the one case where the parse can be
+  left undone; is_nice false is what the writing out further down is
+  for.  'need_nice' is the caller saying that what it composes is what
+  it returns, so a value that is not is_nice has to be made so.
+
+  'value_depth' is how deep the item says the value goes, or
+  JSON_DEPTH_UNKNOWN where it does not say.  It is only ever read
+  alongside is_valid.
+
+  'lv' is the level to complain at.  A caller that has another
+  complaint to make about the same value - which every caller that
+  reads its whole answer back does, from the reading - leaves this a
+  note, so that the two do not say the same thing twice at the same
+  volume.  The four that compose their answer and return it have no
+  second complaint and no answer either, and pass a warning: it is the
+  only word the statement gets about why it was given NULL, and under
+  strict mode it stops the statement where the value went wrong rather
+  than letting it finish with nothing.
+*/
+static int append_json_typed_value(String *str, const String *sv, uint depth,
+                                   const char *fname, int n_param,
+                                   Json_splice_marks &marks,
+                                   bool caller_reads_back, bool is_valid,
+                                   bool is_nice, bool need_nice,
+                                   uint value_depth,
+                                   Sql_condition::enum_warning_level lv)
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> cnv;
+  const char *ptr= sv->ptr();
+  size_t length= sv->length();
+  json_engine_t je;
+  int max_level= 0;
+  bool reformat;
+  uint32 sav_len;
+  /*
+    Whether the bytes at 'ptr' are written in the character set the
+    result is being built in.  What an item answers about a value is
+    about the characters it holds, so this is what says whether the
+    answer is about the bytes that are going in.
+  */
+  bool in_result_charset= my_charset_same(sv->charset(), str->charset());
+
+  /*
+    Bytes that carry no character set are left where they are, in both
+    directions and for opposite reasons.  Going into a result that is
+    bytes, there is no character set to convert to.  Coming out of a
+    value that is bytes, String::copy() cannot convert at all -
+    needs_conversion() answers false across that boundary, so the copy
+    would relabel the bytes and change nothing else, which is the one
+    thing this must not do.  The scan below still reads whatever gets
+    appended in the character set of the result, so bytes that do not
+    encode a JSON value there are still refused.
+  */
+  if (!in_result_charset &&
+      sv->charset() != &my_charset_bin && str->charset() != &my_charset_bin)
+  {
+    uint errors;
+
+    if (cnv.copy(sv->ptr(), sv->length(), sv->charset(), str->charset(),
+                 &errors) ||
+        DBUG_IF("json_splice_convert_out_of_memory"))
+      return 1; /* Out of memory. */
+
+    /*
+      Only a conversion that lost nothing is worth having.  One that
+      substituted a character has changed the value, and putting a
+      changed value in would be worse than leaving the bytes as they
+      arrived, which is what was always done with them.  The parse
+      below reads them as the result will be read and says so.
+
+      One that lost nothing kept the characters it was given, and being
+      a document is a property of characters, so a value that arrived as
+      one is still one after it - and still formatted the way it was, the
+      loose form's spacing being characters like any other.  So what was
+      answered about it before the conversion is answered about it
+      after, and the shortcut below can have it.
+    */
+    if (!errors)
+    {
+      ptr= cnv.ptr();
+      length= cnv.length();
+      in_result_charset= true;
+    }
+  }
+
+  /*
+    A value somebody has already attested to is copied in without being
+    read, which is the whole of what attesting buys.  Three things
+    have to hold besides.
+
+    It must be written the way the result is going to be written, or the
+    caller must not care.  A value copied in as it stands brings its own
+    spacing with it, so a result that has to come out in the loose form
+    cannot take one that is not in it without reading it - which is what
+    the writing out further down is for.
+
+    It must be going in in the character set the result is read in -
+    either because it arrived in it, or because it was converted into it
+    just above without losing anything.  A lossy conversion, and equally
+    the untouched copy made when there is no conversion to be had, leave
+    bytes that nothing has attested to and fall through to the parse.
+
+    And it must not make the result too deep to read back.  The value's
+    own nesting is what the parse below measures, and the shortcut is not
+    doing that - so it takes the smallest thing it has that the nesting
+    cannot be more than.
+
+    There are two such things and either alone would do.  The item may
+    have worked the depth out while it was writing the value, in which
+    case it says so.  And a value can only nest as deeply as it is long,
+    whatever it holds: every level takes a character to open and one to
+    close, so a value of n characters reaches at most n/2 levels, and
+    there are at most length/mbminlen characters in it.  That second one
+    is exact for the values where being wrong would matter most - a run
+    of nothing but brackets is all opening and closing - and hopeless for
+    a long shallow document, which is what the first one is for.
+
+    Where the smaller of them still leaves the result inside the limit,
+    the parse could not have found a breach to report and skipping it
+    takes nothing away.  Where it does not, the value is read as before:
+    giving up costs a reading and nothing else.
+  */
+  if (is_valid && (is_nice || !need_nice) && in_result_charset)
+  {
+    /* The most levels the value can turn out to have - see above. */
+    uint bound= MY_MIN(value_depth,
+                       (uint) (length / (2 * str->charset()->mbminlen)));
+
+    if (depth + bound < JSON_DEPTH_LIMIT)
+    {
+      if (!is_nice)
+        marks.is_nice= false;
+      /*
+        What the value was let in on, rather than what it turned out to
+        be - nothing measured it.  A bound is not smaller than the
+        truth, which is all a caller composing from these needs of it.
+      */
+      if (depth + bound > marks.deepest)
+        marks.deepest= depth + bound;
+      return append_simple(str, ptr, length);
+    }
+  }
+
+  /*
+    The deepest the value goes is read off the scanner as it runs rather
+    than charged to it in advance.  Starting the scan with stack_p
+    already raised looks like the shorter way to ask the same question,
+    but json_scan_start() marks stack[0] as the end of the document and
+    the scanner stops when it pops back to that mark, so raising the
+    pointer past it leaves unwritten slots underneath and the scan never
+    finishes.
+  */
+  /*
+    A value that is not already written the loose way is written out
+    again as it is read, where the caller has said that what it composes
+    is what it returns.  The reading has to happen either way, and a
+    reading that writes as it goes costs nothing more than one that does
+    not - so the value arrives in the form the result needs instead of
+    the caller reading its whole answer afterwards to put it in that
+    form.
+
+    Where the caller does NOT say that, the value is left exactly as it
+    arrived.  Two quite different callers say nothing here.  One builds
+    an array or an object and returns what it built, so a value put
+    in as it stands is what a released server returns too and writing
+    it out afresh would change an answer.  The other reads its whole
+    result back before answering, and that reading is where the spacing
+    gets settled - and it complains, when it has to, about positions in
+    the text it read, so a value that arrived any longer or shorter than
+    it used to would move them.
+
+    A character set that cannot encode the punctuation cannot be written
+    into at all, and is left alone for the same reason it is everywhere
+    else here.
+  */
+  reformat= need_nice && !is_nice &&
+           is_json_compatible_charset(str->charset());
+  sav_len= str->length();
+
+  json_scan_start(&je, str->charset(), (const uchar *) ptr,
+                  (const uchar *) ptr + length);
+  /*
+    Every reading here has to let go of a killed query, and this one is
+    no different for being over a value rather than over a document.
+    json_scan_start() leaves the scanner deaf to a kill - it points at a
+    word that is always zero - so a reading that is meant to hear one
+    says so on the line after, as every other reading in this file does.
+
+    It matters more here than the size of a value suggests.  A released
+    server does no reading at all at this point: it copies the bytes in
+    and goes on, so a kill arriving while a value is going in is heard
+    at the very next step.  The reading is ours, and an unheard kill
+    would be ours too - a stretch of work, as long as the value, that
+    nothing could interrupt and that nobody had before.
+  */
+  je.killed_ptr= (uint32_t *) &current_thd->killed;
+
+  if (reformat)
+  {
+    if (json_read_value(&je) || json_walk_nice_value(&je, str, max_level))
+    {
+      /*
+        Nothing was read wrong, so what went wrong was the writing:
+        there is no room for the answer and no answer to give.
+      */
+      if (!je.s.error)
+        return 1;
+    }
+    else
+    {
+      /*
+        The walk stops where the value ends, and a value is only a
+        document when nothing follows it.
+      */
+      while (json_scan_next(&je) == 0)
+      {}
+    }
+
+    /*
+      Written out again only if it came out whole and fits where it is
+      going.  Either way the caller is owed what a released server
+      returns, so anything else is taken back off and the bytes go in
+      as they arrived - which is also what leaves the complaint below
+      about the same text it has always been about.
+    */
+    if (je.s.error || max_level + (int) depth >= JSON_DEPTH_LIMIT)
+    {
+      str->length(sav_len);
+      reformat= false;
+    }
+  }
+  else
+  {
+    while (json_scan_next(&je) == 0)
+    {
+      if (je.stack_p > max_level)
+        max_level= je.stack_p;
+    }
+  }
+
+  /*
+    Spliced as it stands, so the document being built is written the
+    loose way only if this value was.  Nothing is measured to find that
+    out - the item was asked, and one that says nothing is taken at its
+    word.
+  */
+  if (!reformat && !is_nice)
+    marks.is_nice= false;
+
+  /*
+    Too deep only once it is in place.  There is nothing wrong with the
+    value itself, so a caller that reads its whole result back says it
+    about the answer rather than about this one value - which is what it
+    has always said, and where it has always said it.
+
+    A caller that does not read back has nobody else to hear it from, so
+    for that one the scanner is put into error and the complaint goes out
+    below at whatever level that caller asked for.  Clearing the mark is
+    what carries it further: a composed answer that reaches past the
+    limit cannot be read back by this server at all, so the caller
+    composing it has nothing to return, and the mark is where it finds
+    that out.
+  */
+  if (je.s.error == 0 && max_level + (int) depth >= JSON_DEPTH_LIMIT)
+  {
+    marks.is_valid= marks.is_nice= false;
+#ifdef DBUG_ASSERT_EXISTS
+    marks.is_deep= true;
+#endif
+    if (!caller_reads_back)
+      json_error(&je.s, JE_DEPTH);
+  }
+  /*
+    Measured rather than reckoned, this being the reading the shortcut
+    above was for going without.  Only where the reading finished: what
+    a walk that stopped early reached is about the part of the value it
+    got through, and there is nothing to compose out of a value that
+    did not read as one anyway.
+  */
+  else if (je.s.error == 0 && depth + (uint) max_level > marks.deepest)
+    marks.deepest= depth + (uint) max_level;
+
+  /*
+    Said here rather than left to the caller: the callers report through
+    the engine they scanned the DOCUMENT with, which knows nothing about
+    what went wrong with a value, and reports nothing at all when that
+    engine is not itself in error.
+
+    At the level the caller asked for, and see there for what picks it.
+  */
+  if (je.s.error)
+  {
+    marks.is_valid= marks.is_nice= false;
+    report_json_error_ex(ptr, &je, fname, n_param, lv);
+  }
+
+  return reformat ? 0 : append_simple(str, ptr, length);
+}
+
+
+/*
+  Writes a value that is not itself a document, as a JSON string when
+  the value is one and bare otherwise.
+
+  A character that cannot be written into a document at all leaves the
+  value part written and stops there, which is what has always happened
+  to it.  The caller is told which of the two failures it was, because
+  only one of them is a reason to give up on the whole result.
+*/
+static json_append_result __attribute__((warn_unused_result))
+append_escaped_value(String *str, const String *sv, bool quoted,
+                     const char *fname, int n_param)
+{
+  json_append_result rc;
+
+  if ((quoted && str->append('"')) ||
+      DBUG_IF("json_value_open_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  if ((rc= st_append_escaped(str, sv)))
+  {
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(fname, n_param + 1);
+    return rc;
+  }
+
+  if ((quoted && str->append('"')) ||
+      DBUG_IF("json_value_close_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  return JSON_APPEND_OK;
+}
+
+
+__attribute__((warn_unused_result))
+/*
+  Appends one value to the document being built.
+
+  'depth' is how many structures the value will end up inside, and it is
+  consulted for EVERY value rather than only for one whose type is JSON:
+  it is recorded before the type is looked at, because a value goes in
+  where the caller says whatever it turns out to be.  The functions that
+  BUILD a document pass 1, the value going directly inside the array or
+  object they are making.  The functions that EDIT one pass the depth
+  the path reached, taken off the scanner as je.stack_p and raised by
+  whatever wrap they are adding - none of them passes 0.
+
+  'fname' and 'n_param' name the function and the argument a complaint
+  is about, and they reach BOTH arms: a value spliced in as a document
+  complains through the trailing-text and depth notes, and one written
+  out as a string complains through the bad-character note.
+*/
+static int append_json_value(String *str, Item *item, String *tmp_val,
+                             uint depth, const char *fname, int n_param,
+                             Json_splice_marks &marks,
+                             bool caller_reads_back, bool need_nice,
+                             Sql_condition::enum_warning_level lv=
+                               Sql_condition::WARN_LEVEL_NOTE)
+{
+  /*
+    Said before anything is looked at, because it holds for whatever the
+    value turns out to be: it is going in where the caller says, so the
+    answer reaches at least that far down.  Only a value that is a
+    document of its own reaches further, and that is the one arm below
+    that has anything to add.
+
+    It is not the caller's own depth restated.  A caller that wraps -
+    putting a new array where a scalar was and the new value beside it -
+    passes a depth one further down than anything it has written,
+    and a value QUOTED at that depth would otherwise be counted nowhere
+    at all.
+  */
+  if (depth > marks.deepest)
+    marks.deepest= depth;
+
+  /*
+    And too deep before anything is looked at either, for the same
+    reason.  A value put where the limit has already been reached is
+    past it whatever it turns out to be: the arms below add whatever
+    nesting the value has of its own and none of them takes any away.
+    Only the arm that READS the value can say how much further down it
+    reaches, so this is the whole of the question for the three that
+    read nothing - a bare word, a null, and a value written out as a
+    string.
+
+    Saying so is all that is owed here.  A value only arrives this deep
+    through a function that EDITS a document, by putting a new array
+    where a value already sat; every one of those returns what it
+    composed only while these marks stand, so taking them away puts it
+    back on the reading that a released server always did, and that
+    reading complains about the answer in the words it has always used.
+    The functions that BUILD a document put their values one level down
+    and cannot get here.
+  */
+  if (depth >= JSON_DEPTH_LIMIT)
+  {
+    marks.is_valid= marks.is_nice= false;
+#ifdef DBUG_ASSERT_EXISTS
+    marks.is_deep= true;
+#endif
+  }
+
   if (item->type_handler()->is_bool_type())
   {
     longlong v_int= item->val_int();
@@ -1962,18 +3658,41 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
   }
   {
     String *sv= item->val_json(tmp_val);
+    int rc;
+
     if (item->null_value)
       goto append_null;
     if (is_json_type(item))
-      return str->append(sv->ptr(), sv->length());
+      return append_json_typed_value(str, sv, depth, fname, n_param, marks,
+                                     caller_reads_back, item->is_valid_json(),
+                                     item->is_nice_json(), need_nice,
+                                     item->last_depth(), lv);
 
-    if (item->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+    /*
+      Being a document is what gets a value spliced rather than quoted,
+      and an item can attest to a value that is still quoted.  A stored
+      program's variable is the case: it is never typed as a document,
+      however it was declared, and it attests to its value all the same
+      - see Item_sp_variable::is_valid_json(), which is answered so that
+      a function handed the value as its DOCUMENT can stop reading what
+      it already knows, and not so that this one splices it.
+
+      Nothing here reads the answer, and quoting a value that is a
+      document is what quoting any other value is: the characters are
+      written out escaped and the quotes go round them.
+    */
+
+    rc= append_escaped_value(str, sv, item->result_type() == STRING_RESULT,
+                             fname, n_param);
+    /*
+      A character that could not be written leaves the value half
+      written and the quote around it unclosed.  A caller that gives up
+      here does not care; one that carries on is building something that
+      no longer reads as a document.
+    */
+    if (rc == JSON_APPEND_BAD_CHR)
+      marks.is_valid= marks.is_nice= false;
+    return rc;
   }
 
 append_null:
@@ -1981,9 +3700,20 @@ append_null:
 }
 
 
+/*
+  The same, reading the value out of a row rather than off an Item.
+  Only JSON_ARRAYAGG reads a row back this way, so the level it
+  complains at is the one that composer asks for everywhere else.
+*/
+__attribute__((warn_unused_result))
 static int append_json_value_from_field(String *str,
-  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val)
+  Item *i, Field *f, const uchar *key, size_t offset, String *tmp_val,
+  uint depth, const char *fname, int n_param, Json_splice_marks &marks)
 {
+  /* Said up front for the reason given in append_json_value(). */
+  if (depth > marks.deepest)
+    marks.deepest= depth;
+
   if (i->type_handler()->is_bool_type())
   {
     longlong v_int= f->val_int(key + offset);
@@ -2008,18 +3738,47 @@ static int append_json_value_from_field(String *str,
   }
   {
     String *sv= f->val_str(tmp_val, key + offset);
+    int rc;
+
     if (f->is_null_in_record(key))
       goto append_null;
     if (is_json_type(i))
-      return str->append(sv->ptr(), sv->length());
+      /*
+        The bytes come out of a record rather than off an item, so there
+        is nobody here to ask about them - but the column they came out
+        of was asked, once for all its rows.  A column of a table the
+        server built for itself can say that its values read as
+        documents, one producer having filled every row of it and every
+        store into it having kept what it was given, and it can say that
+        none of them arrived written any way but the loose one.  A column
+        of any other table says neither, having nowhere to keep a yes.
 
-    if (i->result_type() == STRING_RESULT)
-    {
-      return str->append('"') ||
-             st_append_escaped(str, sv) ||
-             str->append('"');
-    }
-    return st_append_escaped(str, sv);
+        Nothing is written out again here.  The only callers that read a
+        value out of a record are building a document and returning
+        what they built, and a value put in as it stands is what a
+        released server returns.
+
+        It can say how deep they go as well, and that answer is a figure
+        rather than a yes: the deepest any value written into the column
+        has gone, which is at least as deep as this one.  What it saves
+        is the only thing left to read a trusted value for - the reading
+        that is skipped elsewhere is a validating one, and this one
+        counts brackets and nothing else.  Without it the caller falls
+        back on how long the value is, nothing nesting deeper than half
+        its length, which is exact for a run of brackets and says
+        nothing whatever about a long shallow document.
+      */
+      return append_json_typed_value(str, sv, depth, fname, n_param, marks,
+                                     false, f->is_valid_json_static(),
+                                     f->is_nice_json_static(), false,
+                                     f->json_static_depth(),
+                                     Sql_condition::WARN_LEVEL_WARN);
+
+    rc= append_escaped_value(str, sv, i->result_type() == STRING_RESULT,
+                             fname, n_param);
+    if (rc == JSON_APPEND_BAD_CHR)
+      marks.is_valid= marks.is_nice= false;
+    return rc;
   }
 
 append_null:
@@ -2027,18 +3786,107 @@ append_null:
 }
 
 
-static int append_json_keyname(String *str, Item *item, String *tmp_val)
+/*
+  Writes a key, which is a JSON string and nothing else.
+
+  A character that cannot be written into a document at all leaves the
+  key part written and stops there, the same as it does in a value -
+  and the caller is told which of the two failures it was for the same
+  reason.  What the caller then does with a key it could not write is
+  its own business: a constructor gives up on the whole document and an
+  aggregate finishes the pair around what went in, but neither of them
+  can say so without being told, and a key that could not be written is
+  worth as much saying as a value that could not.
+*/
+static json_append_result append_json_keyname(String *str, Item *item,
+                                              String *tmp_val,
+                                              const char *fname, int n_param)
 {
+  json_append_result rc;
   String *sv= item->val_str(tmp_val);
   if (item->null_value)
     goto append_null;
 
-  return str->append('"') ||
-         st_append_escaped(str, sv) ||
-         str->append("\": ", 3);
+  if (str->append('"') || DBUG_IF("json_keyname_quote_out_of_memory"))
+    return JSON_APPEND_OOM;
+
+  if ((rc= st_append_escaped(str, sv)))
+  {
+    if (rc == JSON_APPEND_BAD_CHR)
+      report_bad_chr_note(fname, n_param + 1);
+    return rc;
+  }
+
+  return (str->append(STRING_WITH_LEN(json_loose_colon)) ||
+          DBUG_IF("json_keyname_colon_out_of_memory")) ?
+         JSON_APPEND_OOM : JSON_APPEND_OK;
 
 append_null:
-  return str->append("\"\": ", 4);
+  return (str->append('"') ||
+          str->append(STRING_WITH_LEN(json_loose_colon))) ?
+         JSON_APPEND_OOM : JSON_APPEND_OK;
+}
+
+
+/*
+  How much room a value needs in a document being built, before any
+  value has been seen and so out of what the argument says about itself.
+
+  A value that is already a document goes in as it stands, but it is
+  written out again with the rest and a space arrives after every
+  separator it brought with it, so the room for it covers the writing
+  the same way JSON_REMOVE asks for it to.  One written as text and not
+  a document is written as a JSON string, and twice its characters is
+  what is asked for that.
+
+  Twice does not cover an escaping: a character written out as the hex
+  of its UTF-16 form costs six, and twelve where the character needs a
+  pair of them, so a value escaped throughout is asked for too little
+  and is cut.  What it costs turns on the character set being written
+  into as well as the value's own, neither of them alone, and pricing
+  it properly widens what these functions declare enough to move a
+  result from a memory temporary table onto disk.  That is left to be
+  done together with the work that stops a declared width deciding
+  where a temporary table lives.
+
+  A string carries no separators of its own, so the spacing has nothing
+  to add to it.  A boolean is written as one of the two words 'true' and
+  'false', the longer of which is five characters.  What is left is a
+  number, which is written as itself.  A value that is not there at all
+  is written as 'null', so nothing is ever shorter than four characters.
+
+  The punctuation that goes around it is the caller's to ask for.
+
+  Whether it IS a document has to be the question the writing asks, and
+  not a shorter one that happens to agree most of the time.  Aggregating
+  the arguments into one character set wraps whichever of them has to
+  move, and the wrapper attests to itself when asked for a type handler
+  - so a document that arrived wrapped would be priced as a string and
+  charged for quotes that the writing, which looks through the wrapper,
+  is never going to put round it.  is_json_type() is that same look.
+*/
+static ulonglong json_value_reserve(Item *arg)
+{
+  /*
+    A document is a string: every type handler in the JSON collection is
+    built over a string one.  An argument of any other result type is
+    not one and its own type has said so, so the look through the
+    wrappers round it is only made where it can come back yes.
+  */
+  const bool is_string= arg->result_type() == STRING_RESULT;
+  const bool is_document= is_string && is_json_type(arg);
+  ulonglong length;
+
+  if (is_string && !is_document)
+    length= static_cast<ulonglong>(arg->max_char_length()) * 2 + 2;
+  else if (arg->type_handler()->is_bool_type())
+    length= 5;
+  else if (is_document)
+    length= static_cast<ulonglong>(arg->max_char_length()) * 2;
+  else
+    length= arg->max_char_length();
+
+  return length < 4 ? 4 : length;
 }
 
 
@@ -2063,26 +3911,18 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
     return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
-  {
-    ulonglong arg_length;
-    Item *arg= args[n_arg];
-
-    if (arg->result_type() == STRING_RESULT &&
-        !Type_handler_json_common::is_json_type_handler(arg->type_handler()))
-      arg_length= arg->max_char_length() * 2; /*escaping possible */
-    else if (arg->type_handler()->is_bool_type())
-      arg_length= 5;
-    else
-      arg_length= arg->max_char_length();
-
-    if (arg_length < 4)
-      arg_length= 4; /* can be 'null' */
-
-    char_length+= arg_length + 4;
-  }
+    char_length+= json_value_reserve(args[n_arg]) + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  /*
+    An argument can leave this with no document to return - see
+    val_str() - and that is decided by what the argument holds rather
+    than by whether it was NULL, so an argument that is never NULL does
+    not settle it.  The constructor with no arguments at all is the one
+    that cannot happen to, and it is answered above.
+  */
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2091,18 +3931,47 @@ String *Item_func_json_array::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
+  /*
+    The array written here is one structure of its own, which is where
+    the values go inside - so that is where the reckoning starts, and an
+    array with nothing in it is one deep for the brackets alone.
+  */
+  Json_splice_marks marks(1);
+
+  m_marks.clear();
+  /*
+    Said for this evaluation rather than left where the last one put it:
+    a row refused below would otherwise leave it set for the row after,
+    which composes a document and would be answered NULL for it.
+  */
+  null_value= 0;
 
   str->length(0);
   str->set_charset(collation.collation);
 
-  if (str->append('[') ||
-      ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
+  if (str->append('['))
     goto err_return;
 
-  for (n_arg=1; n_arg < arg_count; n_arg++)
+  for (n_arg=0; n_arg < arg_count; n_arg++)
   {
-    if (str->append(", ", 2) ||
-        append_json_value(str, args[n_arg], &tmp_val))
+    if ((n_arg && str->append(STRING_WITH_LEN(json_loose_comma))) ||
+        append_json_value(str, args[n_arg], &tmp_val, 1, func_name(),
+                          (int) n_arg, marks, false, false,
+                          Sql_condition::WARN_LEVEL_WARN))
+      goto err_return;
+
+    /*
+      A value that is not a document is the whole array not being one,
+      and there is no other answer to compose, so the arguments after it
+      are not evaluated.  The marks ARE the reading a closing pass would
+      have done, taken a value at a time as the values go in, so this is
+      where the question is answered.
+
+      A released server spliced such a value as it stood and returned
+      bytes no reader will take.  The warning naming the argument is
+      raised where it always was, just above.
+    */
+    if (!marks.is_valid)
       goto err_return;
   }
 
@@ -2113,7 +3982,28 @@ String *Item_func_json_array::val_str(String *str)
     result_limit= current_thd->variables.max_allowed_packet;
 
   if (str->length() <= result_limit)
+  {
+    /*
+      Nothing was read back, so what can be said about the array is only
+      what was learned putting it together: the brackets and separators
+      are written here in the loose form, the values that were
+      quoted came out of json_escape() and are documents on their own,
+      and the values that went in as they stand were either read as they
+      went or passed by something that had already read them.
+      Which of the two it was does not matter here - marks.is_valid and
+      marks.is_nice are cleared by whichever of them did not hold, and
+      that is the whole of what this has to go on.
+
+      is_valid is settled above, a value at a time, so only the brackets
+      are left to ask about.
+    */
+    if (json_container_charset_refused(str, func_name()))
+      goto err_return;
+
+    DBUG_ASSERT(marks.is_valid);
+    m_marks.set(str, true, marks.is_nice, marks.deepest);
     return str;
+  }
 
   push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -2135,18 +4025,54 @@ bool Item_func_json_array_append::fix_length_and_dec(THD *thd)
   ulonglong char_length;
 
   collation.set(args[0]->collation);
-  char_length= args[0]->max_char_length();
+  /*
+    The document is written out again around what is added to it, a
+    space arriving after every separator that is copied, so the room for
+    it has to cover the writing and not only the reading - the same
+    allowance JSON_REMOVE asks for, adding the same spacing.
+  */
+  char_length= static_cast<ulonglong>(args[0]->max_char_length()) * 2;
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
-    char_length+=
-        static_cast<ulonglong>(args[n_arg+1]->max_char_length()) + 4;
+    char_length+= json_value_reserve(args[n_arg+1]) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
   set_maybe_null();
   return FALSE;
+}
+
+
+/*
+  Returns the document in 'from' as this function's answer instead of
+  reading it again to find out what it is.
+
+  A caller gets here only where everything that went into the answer is
+  attested to, so what it returns is a document written the loose
+  way and nothing has to look at it to say so.  Which of the two
+  the answer is already sitting in is the one thing the callers differ
+  in, so the copy is made only where it is owed.
+
+  The depth is the caller's to work out - it is the only part of this
+  that depends on what the function did to the document - and 'to' is
+  what comes back, or NULL where the buffer would not grow.  Reporting
+  that is the caller's as well: they do not all report it in the same
+  place, some of them having a document engine to complain through and
+  some not.
+*/
+
+String *Item_json_func::return_json(String *to, const String *from,
+                                       uint depth)
+{
+  if ((from != to && to->copy(from->ptr(), from->length(), from->charset())) ||
+      DBUG_IF("json_return_out_of_memory"))
+    return NULL;
+
+  null_value= 0;
+  m_marks.set(to, true, true, depth);
+  return to;
 }
 
 
@@ -2157,9 +4083,26 @@ String *Item_func_json_array_append::val_str(String *str)
   uint n_arg, n_path;
   size_t str_rest_len;
   const uchar *ar_end;
+  const char *js_end;
   THD *thd;
+  String *const to= str;
+  bool compose_final;
+  uint depth;
+  /* How deep the argument item attested its document to go. */
+  uint js_depth;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
+  Json_source_watch watch;
+  /*
+    Cleared by anything spliced in that leaves is_valid or is_nice
+    false for the answer, the depth a path reaches among it.  See
+    Item_func_json_insert::val_str() for what the fourth of them
+    starts at and why.
+  */
+  Json_splice_marks splice(0);
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2167,10 +4110,27 @@ String *Item_func_json_array_append::val_str(String *str)
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  /*
+    Whether what is composed here is what will be returned, or only
+    what a reading back at the end will be made from.  Asked once,
+    before anything is composed, for the reason given where
+    Item_func_json_insert::val_str() asks it.
+  */
+  compose_final= document_arg_composes_final(args[0], js);
+  /* Taken here for the reason given at the same place there. */
+  js_depth= args[0]->last_depth();
+
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
     int array_counters[JSON_DEPTH_LIMIT]= {0};
     json_path_with_flags *c_path= paths + n_path;
+
+    /*
+      Taken before the path is worked out, and afresh every time round.
+      See Item_func_json_insert::val_str().
+    */
+    watch.take(js);
+
     if (!c_path->parsed)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
@@ -2189,9 +4149,17 @@ String *Item_func_json_array_append::val_str(String *str)
     if (args[n_arg]->null_value)
       goto return_null;
 
+    DBUG_ASSERT(watch.unchanged(js));
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
     je.killed_ptr= (uint32_t *) &thd->killed;
+
+    /*
+      Where the document ends, read where the walk over it starts rather
+      than after the value has been worked out, so that the end copied
+      from is the end that was walked to.  See Json_source_watch.
+    */
+    js_end= js->end();
 
     c_path->cur_step= c_path->p.steps;
 
@@ -2205,6 +4173,20 @@ String *Item_func_json_array_append::val_str(String *str)
 
     if (json_read_value(&je))
       goto js_error;
+
+    /*
+      How many structures the value will sit inside once it is in
+      place.  Read off here because walking to the end of the array
+      below pops the scanner back out of it.
+
+      Reading a container puts it on the stack; reading a scalar does
+      not.  So for an array, and for an object about to be wrapped in a
+      new one, the scanner is already counting the structure the value
+      is going into, and counting it again would refuse a document that
+      fits.  Only a scalar being wrapped needs the one added, the new
+      array being a structure the scanner has never seen.
+    */
+    depth= (uint) je.stack_p + (json_value_scalar(&je) ? 1 : 0);
 
     str->length(0);
     str->set_charset(js->charset());
@@ -2222,7 +4204,9 @@ String *Item_func_json_array_append::val_str(String *str)
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
       if (n_items)
         str->append(", ", 2);
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, depth, func_name(),
+                            (int) n_arg + 1, splice,
+                            !compose_final, compose_final))
         goto return_null; /* Out of memory. */
 
       if (str->reserve(str_rest_len, 1024))
@@ -2239,6 +4223,13 @@ String *Item_func_json_array_append::val_str(String *str)
 
       if (je.value_type == JSON_VALUE_OBJECT)
       {
+        /*
+          Wrapping puts what was already there inside a new array, so
+          the KEPT value goes down a level too - and how far down it
+          already reached was never measured, it having been copied
+          rather than read.  Say so and let the answer be read back.
+        */
+        splice.is_valid= splice.is_nice= false;
         if (json_skip_level(&je))
           goto js_error;
         c_to= je.s.c_str;
@@ -2246,15 +4237,27 @@ String *Item_func_json_array_append::val_str(String *str)
       else
         c_to= je.value_end;
 
+      /*
+        The brackets and the comma are written, and go through a String
+        that converts them; the value and the rest of the document are
+        copied, and must not.  They are already in the character set
+        being built in - they came out of the document, which is what
+        the result is being made from - so converting them writes them
+        a second time.  The arm above copies its two pieces of document
+        the same way, with q_append().
+      */
       if (str->append('[') ||
-          str->append((const char *) c_from, c_to - c_from) ||
+          append_simple(str, c_from, c_to - c_from) ||
           str->append(", ", 2) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          append_json_value(str, args[n_arg+1], &tmp_val, depth, func_name(),
+                            (int) n_arg + 1, splice,
+                            !compose_final, compose_final) ||
           str->append(']') ||
-          str->append((const char *) je.s.c_str,
-                      js->end() - (const char *) je.s.c_str))
+          append_simple(str, je.s.c_str,
+                        js_end - (const char *) je.s.c_str))
         goto return_null; /* Out of memory. */
     }
+    DBUG_ASSERT(watch.unchanged(js));
     {
       /* Swap str and js. */
       if (str == &tmp_js)
@@ -2270,12 +4273,36 @@ String *Item_func_json_array_append::val_str(String *str)
     }
   }
 
+  /*
+    A document that was already written the loose way, with a value
+    written that way put inside it, is written that way already.  See
+    Item_func_json_insert::val_str() for why the answer is in js, and
+    for what makes this safe to believe - and for how deep it goes,
+    which is worked out the same way here.  Wrapping puts a new array
+    where the value it holds already sat, and the value going in beside
+    it is counted from inside that array, so the new level is counted
+    with it.
+  */
+  if (compose_final && splice.is_valid && splice.is_nice)
+  {
+    if (!return_json(to, js, MY_MAX(js_depth, splice.deepest)))
+      goto return_null; /* Out of memory. */
+
+    return to;
+  }
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto js_error;
 
+  /*
+    Both marks come from the reading back, and so does the depth, for
+    the reason given where Item_func_json_insert::val_str() marks the
+    same answer.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 js_error:
@@ -2292,9 +4319,26 @@ String *Item_func_json_array_insert::val_str(String *str)
   json_engine_t je;
   String *js= args[0]->val_json(&tmp_js);
   uint n_arg, n_path;
+  const char *js_end;
   THD *thd;
+  String *const to= str;
+  bool compose_final;
+  uint depth;
+  /* How deep the argument item attested its document to go. */
+  uint js_depth;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
+  Json_source_watch watch;
+  /*
+    Cleared by anything spliced in that leaves is_valid or is_nice
+    false for the answer, the depth a path reaches among it.  See
+    Item_func_json_insert::val_str() for what the fourth of them
+    starts at and why.
+  */
+  Json_splice_marks splice(0);
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2302,12 +4346,28 @@ String *Item_func_json_array_insert::val_str(String *str)
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  /*
+    Whether what is composed here is what will be returned, or only
+    what a reading back at the end will be made from.  Asked once,
+    before anything is composed, for the reason given where
+    Item_func_json_insert::val_str() asks it.
+  */
+  compose_final= document_arg_composes_final(args[0], js);
+  /* Taken here for the reason given at the same place there. */
+  js_depth= args[0]->last_depth();
+
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
     int array_counters[JSON_DEPTH_LIMIT]= {0};
     json_path_with_flags *c_path= paths + n_path;
     const char *item_pos;
     int n_item, corrected_n_item;
+
+    /*
+      Taken before the path is worked out, and afresh every time round.
+      See Item_func_json_insert::val_str().
+    */
+    watch.take(js);
 
     if (!c_path->parsed)
     {
@@ -2325,7 +4385,7 @@ String *Item_func_json_array_insert::val_str(String *str)
            c_path->p.last_step->type != JSON_PATH_ARRAY)
       {
         if (c_path->p.s.error == 0)
-          c_path->p.s.error= SHOULD_END_WITH_ARRAY;
+          json_error(&c_path->p.s, SHOULD_END_WITH_ARRAY);
 path_err:
         report_path_error(s_p, &c_path->p, n_arg);
 
@@ -2337,9 +4397,16 @@ path_err:
     if (args[n_arg]->null_value)
       goto return_null;
 
+    DBUG_ASSERT(watch.unchanged(js));
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
     je.killed_ptr= (uint32_t *) &thd->killed;
+
+    /*
+      Where the document ends, read where the walk over it starts.  See
+      Json_source_watch.
+    */
+    js_end= js->end();
 
     c_path->cur_step= c_path->p.steps;
 
@@ -2360,6 +4427,15 @@ path_err:
       /* Must be an array. */
       continue;
     }
+
+    /*
+      How many structures the value will sit inside once it is in
+      place: the ones holding the array, and the array itself.  Reading
+      the array has already put it on the stack, so the scanner is
+      counting it; read off here, before the walk below moves the
+      scanner about inside it.
+    */
+    depth= (uint) je.stack_p;
 
     item_pos= 0;
     n_item= 0;
@@ -2406,7 +4482,9 @@ path_err:
         my_error(ER_OUTOFMEMORY, MYF(0), 1);
         goto return_null; /* Out of memory. */
       }
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, depth, func_name(),
+                            (int) n_arg + 1, splice,
+                            !compose_final, compose_final))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
@@ -2421,7 +4499,7 @@ path_err:
         my_error(ER_OUTOFMEMORY, MYF(0), 1);
         goto return_null; /* Out of memory. */
       }
-      size= js->end() - item_pos;
+      size= js_end - item_pos;
       if (append_simple(str, item_pos, size))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
@@ -2445,12 +4523,14 @@ path_err:
         my_error(ER_OUTOFMEMORY, MYF(0), 2);
         goto return_null; /* Out of memory. */
       }
-      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      if (append_json_value(str, args[n_arg+1], &tmp_val, depth, func_name(),
+                            (int) n_arg + 1, splice,
+                            !compose_final, compose_final))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
         goto return_null; /* Out of memory. */
       }
-      size= js->end() - item_pos;
+      size= js_end - item_pos;
       if (append_simple(str, item_pos, size))
       {
          my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
@@ -2458,6 +4538,7 @@ path_err:
       }
     }
 
+    DBUG_ASSERT(watch.unchanged(js));
     {
       /* Swap str and js. */
       if (str == &tmp_js)
@@ -2473,12 +4554,36 @@ path_err:
     }
   }
 
+  /*
+    A document that was already written the loose way, with a value
+    written that way put inside it, is written that way already.  See
+    Item_func_json_insert::val_str() for why the answer is in js, and
+    for what makes this safe to believe - and for how deep it goes,
+    which is worked out the same way here.  Wrapping puts a new array
+    where the value it holds already sat, and the value going in beside
+    it is counted from inside that array, so the new level is counted
+    with it.
+  */
+  if (compose_final && splice.is_valid && splice.is_nice)
+  {
+    if (!return_json(to, js, MY_MAX(js_depth, splice.deepest)))
+      goto return_null; /* Out of memory. */
+
+    return to;
+  }
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto js_error;
 
+  /*
+    Both marks come from the reading back, and so does the depth, for
+    the reason given where Item_func_json_insert::val_str() marks the
+    same answer.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 js_error:
@@ -2494,21 +4599,40 @@ String *Item_func_json_object::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
+  /* One deep for the braces alone - see Item_func_json_array::val_str(). */
+  Json_splice_marks marks(1);
+
+  m_marks.clear();
+  /* Said per evaluation, as in the sister constructor. */
+  null_value= 0;
 
   str->length(0);
   str->set_charset(collation.collation);
 
-  if (str->append('{') ||
-      (arg_count > 0 &&
-       (append_json_keyname(str, args[0], &tmp_val) ||
-        append_json_value(str, args[1], &tmp_val))))
+  if (str->append('{'))
     goto err_return;
 
-  for (n_arg=2; n_arg < arg_count; n_arg+=2)
+  /*
+    The first pair used to be written outside this loop, the separator
+    being what set it apart.  It is written here instead so that the
+    refusal below is written once for every pair rather than twice.
+  */
+  for (n_arg=0; n_arg < arg_count; n_arg+=2)
   {
-    if (str->append(", ", 2) ||
-        append_json_keyname(str, args[n_arg], &tmp_val) ||
-        append_json_value(str, args[n_arg+1], &tmp_val))
+    if ((n_arg && str->append(STRING_WITH_LEN(json_loose_comma))) ||
+        append_json_keyname(str, args[n_arg], &tmp_val, func_name(),
+                            (int) n_arg) ||
+        append_json_value(str, args[n_arg+1], &tmp_val, 1, func_name(),
+                          (int) n_arg + 1, marks, false, false,
+                          Sql_condition::WARN_LEVEL_WARN))
+      goto err_return;
+
+    /*
+      As in the sister constructor: one value that is not a document is
+      the whole object not being one, so the arguments after it are not
+      evaluated.
+    */
+    if (!marks.is_valid)
       goto err_return;
   }
 
@@ -2519,7 +4643,15 @@ String *Item_func_json_object::val_str(String *str)
     result_limit= current_thd->variables.max_allowed_packet;
 
   if (str->length() <= result_limit)
+  {
+    /* As in the sister constructor above, and so is the refusal. */
+    if (json_container_charset_refused(str, func_name()))
+      goto err_return;
+
+    DBUG_ASSERT(marks.is_valid);
+    m_marks.set(str, true, marks.is_nice, marks.deepest);
     return str;
+  }
 
   push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -2533,7 +4665,15 @@ err_return:
 }
 
 
-static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
+/*
+  'wrapped' is raised where the merging puts what it was given inside a
+  new array.  That array is a level of its own, and how deep either
+  document already went was never measured - they were copied, not read.
+  Whoever is composing an answer out of this therefore cannot say how
+  deep the answer is, and has to have it read back rather than guess.
+*/
+static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2,
+                    bool *wrapped, uint colon_len)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
@@ -2580,6 +4720,22 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
         *je2= sav_je2;
       }
 
+      /*
+        Written the compact way on purpose, but only half of what
+        follows earns it.  A key only this document holds is copied out
+        of it below from where the space after the colon stands, so
+        writing one here would write it twice.  A key both documents
+        hold is composed instead, and a composed value begins at the
+        value itself - so that arm writes the space it needs before it
+        starts, and it is the only one that has to.
+
+        It writes one only where the answer is going out as it is
+        composed, which is what colon_len says.  Where the answer is to
+        be read back, the reading writes the whole of it anyway, and
+        writing a space here would only move every offset a released
+        server reports - including the ones it reports about documents
+        it then refuses.
+      */
       if (str->append('"') ||
           append_simple(str, key_start, key_end - key_start) ||
           str->append("\":", 2))
@@ -2599,7 +4755,9 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
         }
 
         /* Json_2 has same key as Json_1. Merge them. */
-        if ((ires= do_merge(str, je1, je2)))
+        if (colon_len == 3 && str->append(' '))
+          return 3;
+        if ((ires= do_merge(str, je1, je2, wrapped, colon_len)))
           return ires;
         goto merged_j1;
       }
@@ -2616,6 +4774,26 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
 merged_j1:
       continue;
     }
+
+    /*
+      The loop above ends on a refusal exactly as it ends on the object's
+      end, its condition asking only whether the scanner moved.  An
+      argument that broke before its first value was complete would
+      otherwise be merged from as far as it got, and what came out would
+      be an object no argument held: composed, well formed, and missing
+      whatever stood past the break.  Nothing downstream has any reason
+      to reject such a value, which is what makes it the quiet kind of
+      wrong.
+
+      Refusing it is what these functions already do for the same
+      breakage met one loop further in, and what every other JSON
+      function does with the same characters.  Every loop of this shape
+      was letting it through, here and in the two functions' other
+      argument, and once more where an argument is copied whole instead
+      of being merged with anything.
+    */
+    if (unlikely(je1->s.error))
+      return 1;
 
     *je2= sav_je2;
     /*
@@ -2672,6 +4850,10 @@ continue_j2:
       continue;
     }
 
+    /* The other loop, ending the same way - see above. */
+    if (unlikely(je2->s.error))
+      return 1;
+
     if (str->append('}'))
       return 3;
   }
@@ -2692,6 +4874,8 @@ continue_j2:
     }
     else
     {
+      /* A level of its own - see where this is declared. */
+      *wrapped= true;
       if (str->append('['))
         return 3;
       if (je1->value_type == JSON_VALUE_OBJECT)
@@ -2704,7 +4888,16 @@ continue_j2:
         end1= je1->value_end;
     }
 
-    if (str->append((const char*) beg1, end1 - beg1))
+    /*
+      Copied, not written: these bytes came out of a document and are
+      already in the character set the answer is being built in.  The
+      appends that convert are for punctuation written here, which
+      arrives as plain ASCII and has to be turned into the set; putting
+      a copied span through one of those writes it a second time, and in
+      a set that spends more than one byte on a character what comes out
+      is not a document at all.
+    */
+    if (append_simple(str, beg1, end1 - beg1))
       return 3;
 
     if (json_value_scalar(je2))
@@ -2729,8 +4922,9 @@ continue_j2:
       end2= je2->s.c_str;
     }
 
+    /* The comma is written and converts; the span is copied and must not. */
     if ((n_items1 && n_items2 && str->append(", ", 2)) ||
-        str->append((const char*) beg2, end2 - beg2))
+        append_simple(str, beg2, end2 - beg2))
       return 3;
 
     if (je2->value_type != JSON_VALUE_ARRAY &&
@@ -2742,6 +4936,76 @@ continue_j2:
 }
 
 
+/*
+  How deep the deepest of the document arguments goes, for the two
+  functions whose answer is composed out of nothing else.  Taken one
+  argument at a time, beside where that argument is evaluated.
+
+  What an argument answers is about the value it has just passed,
+  and by the end of the loop it need not be about that value any more.
+  An argument that reads a variable answers out of what is in the
+  variable now, so a later argument that assigns to the same variable
+  moves the first one's answer out from under the bytes that went into
+  the merge - and a document written over by a shallower one then
+  answers a depth smaller than the answer really goes, which is the one
+  direction a depth must never be wrong in.  The other two marks are
+  already taken this way; this is the third of them, and was the only
+  one left to the end.
+
+  One argument that will not say makes the answer not say either: what
+  is being asked is how deep the deepest part of the result is, and a
+  part nothing measured could be anywhere.
+*/
+static uint deepest_document_argument(uint deepest, Item *arg)
+{
+  uint arg_depth= arg->last_depth();
+
+  if (deepest == JSON_DEPTH_UNKNOWN || arg_depth == JSON_DEPTH_UNKNOWN)
+    return JSON_DEPTH_UNKNOWN;
+  return MY_MAX(deepest, arg_depth);
+}
+
+
+/*
+  Says what is wrong with a document argument that was read only as far
+  as its first value, when anything is.
+
+  These two functions read a document argument no further than that.
+  What they compose comes out of that value and nothing else, so neither
+  text standing after it nor a break the reading never got as far as
+  reaches the answer, and neither has ever stopped an answer being
+  given.  What is there is still not a document, and every other JSON
+  function says so about the very same characters.
+
+  Saying so here takes nothing away, which is why it is a note.  A
+  warning becomes an error under a strict mode, and that would take away
+  an answer that has always been given back.  An argument the merging
+  broke off inside arrives here already refused, and is reported from
+  where it was refused: an engine that has been refused does not move
+  again, so carrying the reading on cannot relocate the complaint.
+
+  The reading is carried on from where the merging left off rather than
+  started again, so an argument with nothing after its value pays one
+  step and no more.  It is carried on over a copy, because a reading
+  done to find out whether to say something must not be the reason
+  anything else is said: the caller reports its own failures out of its
+  own engine, and this must leave that engine where it found it.
+*/
+static void report_json_trailing_note(const json_engine_t *je,
+                                      const String *js,
+                                      const char *fname, int n_param)
+{
+  json_engine_t tail= *je;
+
+  while (json_scan_next(&tail) == 0)
+    /* There is nothing left to compose from, only to read. */;
+
+  if (tail.s.error)
+    report_json_error_ex(js->ptr(), &tail, fname, n_param,
+                         Sql_condition::WARN_LEVEL_NOTE);
+}
+
+
 String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
@@ -2749,6 +5013,22 @@ String *Item_func_json_merge::val_str(String *str)
   String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
   THD *thd;
+  String *const to= str;
+  bool compose_final;
+  /*
+    The formatting of the punctuation written here, settled from the first
+    document alone and before anything is composed - see below.
+  */
+  uint colon_len;
+  /* Raised where the merging puts what it was given inside a new array. */
+  bool wrapped= false;
+  /* How deep the deepest document argument goes, taken as each is read. */
+  uint deepest= 0;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
+  Json_source_watch watch;
+
+  m_marks.clear();
 
   if (args[0]->null_value)
     goto null_return;
@@ -2756,14 +5036,45 @@ String *Item_func_json_merge::val_str(String *str)
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  /*
+    Whether what is composed here is what will be returned.  Every
+    document merged in has a say, and they are only read one at a time,
+    so the answer is settled over the loop.  The FORMATTING cannot wait
+    for that - what is written early is written before the later
+    arguments have been looked at - so it follows the first document
+    alone, which is known here.  A later argument answering is_valid or
+    is_nice false then sends the answer through the reading back after
+    all, and the
+    positions it reports are offsets into text this function composed
+    rather than into anything a caller wrote.
+  */
+  compose_final= document_arg_composes_final(args[0], js1);
+  deepest= deepest_document_argument(deepest, args[0]);
+  colon_len= compose_final ? 3 : 2;
+
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     str->set_charset(js1->charset());
     str->length(0);
 
+    /*
+      The document on the left is not read until below, and working out
+      the one on the right can be any expression at all.  See
+      Json_source_watch.
+    */
+    watch.take(js1);
     js2= args[n_arg]->val_json(&tmp_js2);
+    DBUG_ASSERT(watch.unchanged(js1));
     if (args[n_arg]->null_value)
       goto null_return;
+
+    /*
+      Asked after the argument has been evaluated, what it answers being
+      about the value it has just passed.
+    */
+    if (!args[n_arg]->is_valid_json() || !args[n_arg]->is_nice_json())
+      compose_final= false;
+    deepest= deepest_document_argument(deepest, args[n_arg]);
 
     json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                     (const uchar *) js1->ptr() + js1->length());
@@ -2773,8 +5084,28 @@ String *Item_func_json_merge::val_str(String *str)
                     (const uchar *) js2->ptr() + js2->length());
     je2.killed_ptr= (uint32_t *) &thd->killed;
 
-    if (do_merge(str, &je1, &je2))
+    if (do_merge(str, &je1, &je2, &wrapped, colon_len))
       goto error_return;
+
+    /*
+      Putting the two inside a new array makes the answer a level deeper
+      than either of them, and how deep either of them went was never
+      measured.  Have it read back, the same reading a released server
+      always did, which is also what puts the complaint in the place
+      that server put it.
+    */
+    if (wrapped)
+      compose_final= false;
+
+    /*
+      Both were read as far as their first value and no further.  Only
+      the first turn of the loop has a document argument on the left:
+      after it, the left is what this function itself composed, and
+      nothing stands after that.
+    */
+    if (n_arg == 1)
+      report_json_trailing_note(&je1, js1, func_name(), 0);
+    report_json_trailing_note(&je2, js2, func_name(), (int) n_arg);
 
     {
       /* Swap str and js1. */
@@ -2791,14 +5122,53 @@ String *Item_func_json_merge::val_str(String *str)
     }
   }
 
+  /*
+    Documents that were all written the loose way, joined with
+    punctuation written the same way, make a document written that way.
+    See Item_func_json_insert::val_str() for why the answer is in js1,
+    and for what makes this safe to believe.
+
+    Nothing is spliced in here - every piece of the answer is a document
+    argument, and each of them has already had its say in compose_final
+    as it came round the loop - so there is no set of splice marks to
+    ask, and the one condition is the whole of it.
+
+    Which is also what says how deep the answer goes, ONE LEVEL OUT.
+    Merging two arrays lays their members side by side and merging two
+    objects puts their keys together, and neither of those moves
+    anything further inside than it was.  But merging an array with
+    anything else makes that other thing a MEMBER of the array, and a
+    member sits one level inside - so the deepest of the arguments is
+    not enough on its own, which the reading back said the first time
+    this was written without the level.
+
+    Which of the two happened is not worth telling apart here: a level
+    more than the answer needs turns down a splice that could have been
+    taken, and costs a reading nobody is owed an answer about.
+  */
+  if (compose_final)
+  {
+    if (!return_json(to, js1,
+                        deepest == JSON_DEPTH_UNKNOWN ? deepest : deepest + 1))
+      goto error_return;
+
+    return to;
+  }
+
   json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                   (const uchar *) js1->ptr() + js1->length());
   je1.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_nice(&je1, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je1, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto error_return;
 
   null_value= 0;
+  /*
+    Both marks come from the reading back, and so does the depth, for
+    the reason given where Item_func_json_insert::val_str() marks the
+    same answer.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 error_return:
@@ -2866,6 +5236,17 @@ static int copy_value_patch(String *str, json_engine_t *je)
         copy_value_patch(str, je))
       return 1;
   }
+
+  /*
+    The same loop end again, in the arm taken when there is nothing to
+    merge with and the argument is copied whole.  Everything said over
+    the walk that merges two objects together holds here word for word,
+    and this loop is reached for every object nested inside the value as
+    well as for the value itself.
+  */
+  if (unlikely(je->s.error))
+    return 1;
+
   if (str->append('}'))
     return 1;
 
@@ -2874,7 +5255,7 @@ static int copy_value_patch(String *str, json_engine_t *je)
 
 
 static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
-                          bool *empty_result)
+                          bool *empty_result, uint colon_len)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
@@ -2927,7 +5308,7 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
 
       if (str->append('"') ||
           append_simple(str, key_start, key_end - key_start) ||
-          str->append("\":", 2))
+          str->append(json_loose_colon, colon_len))
         return 3;
 
       while (json_scan_next(je2) == 0 &&
@@ -2944,7 +5325,7 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
         }
 
         /* Json_2 has same key as Json_1. Merge them. */
-        if ((ires= do_merge_patch(str, je1, je2, &mrg_empty)))
+        if ((ires= do_merge_patch(str, je1, je2, &mrg_empty, colon_len)))
           return ires;
 
         if (mrg_empty)
@@ -2962,6 +5343,15 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
       /* Just append the Json_1 key value. */
       if (json_skip_key(je1))
         return 1;
+      /*
+        This span begins where the colon left off, and in a document
+        written the loose way that is the space after it - the space
+        just written above.  The other way out of this loop has the
+        value written afresh, with no space of its own, which is why
+        the colon writes one at all.
+      */
+      if (colon_len == 3)
+        key_start= json_skip_space(je1->s.cs, key_start, je1->s.c_str);
       if (append_simple(str, key_start, je1->s.c_str - key_start))
         return 3;
       first_key= 0;
@@ -2969,6 +5359,13 @@ static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
 merged_j1:
       continue;
     }
+
+    /*
+      Ends on a refusal as well as on the object's end, exactly as the
+      loops in do_merge() do, and refused here for the same reason.
+    */
+    if (unlikely(je1->s.error))
+      return 1;
 
     *je2= sav_je2;
     /*
@@ -3018,7 +5415,7 @@ merged_j1:
 
       if (str->append('"') ||
           append_simple(str, key_start, key_end - key_start) ||
-          str->append("\":", 2))
+          str->append(json_loose_colon, colon_len))
         return 3;
 
       if (json_read_value(je2))
@@ -3036,6 +5433,10 @@ merged_j1:
 continue_j2:
       continue;
     }
+
+    /* The other loop, ending the same way - see above. */
+    if (unlikely(je2->s.error))
+      return 1;
 
     if (str->append('}'))
       return 3;
@@ -3062,6 +5463,25 @@ String *Item_func_json_merge_patch::val_str(String *str)
   uint n_arg;
   bool empty_result, merge_to_null;
   THD *thd= current_thd;
+  String *const to= str;
+  bool compose_final;
+  uint colon_len;
+  Json_source_watch watch;
+  /* How deep the deepest document argument goes, taken as each is read. */
+  uint deepest= 0;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
+  /*
+    Cleared by anything that goes into the answer that the answer cannot
+    be said to hold: a document taken over without having been read on
+    the way in, and a document whose item attests is_nice false.  Nothing is
+    spliced into a patched document - every piece of the answer is a
+    document argument - so the fourth of them is never moved off nothing
+    here.
+  */
+  Json_splice_marks splice(0);
+
+  m_marks.clear();
 
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
@@ -3069,14 +5489,54 @@ String *Item_func_json_merge_patch::val_str(String *str)
   je1.s.error= je2.s.error= 0;
   merge_to_null= args[0]->null_value;
 
+  /*
+    The formatting follows the first document alone, for the reason given
+    where Item_func_json_merge::val_str() picks its own.  A first
+    argument that is SQL NULL contributes nothing to the answer and is
+    not asked, and leaves nothing to read the character set off either.
+  */
+  compose_final= !merge_to_null && document_arg_composes_final(args[0], js1);
+  colon_len= compose_final ? 3 : 2;
+  deepest= deepest_document_argument(deepest, args[0]);
+  if (!compose_final)
+    splice.is_nice= false;
+
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
+    /*
+      The document on the left is not read until below, and working out
+      the one on the right can be any expression at all.  See
+      Json_source_watch.  A left-hand side that is SQL NULL has no bytes
+      to keep an eye on.
+    */
+    if (!merge_to_null)
+      watch.take(js1);
     js2= args[n_arg]->val_json(&tmp_js2);
+    DBUG_ASSERT(merge_to_null || watch.unchanged(js1));
+    /*
+      Taken before the arms below part, an argument that is dropped
+      being asked here just as one that goes in is.  A depth folded in
+      from an argument the answer does not hold is a depth larger than
+      the answer needs, which is the side a depth is allowed to be
+      wrong on; asking only the ones that stay would make the reading
+      turn on which arm was taken, and the arm is settled by later
+      arguments.
+    */
+    deepest= deepest_document_argument(deepest, args[n_arg]);
     if (args[n_arg]->null_value)
     {
       merge_to_null= true;
       goto cont_point;
     }
+
+    /*
+      Asked after the argument has been evaluated, what it answers being
+      about the value it has just passed.  A document merged in is
+      read as it is copied, so nothing here is about whether it is a
+      document - only about how it is written.
+    */
+    if (!args[n_arg]->is_nice_json())
+      splice.is_nice= false;
 
     json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
                     (const uchar *) js2->ptr() + js2->length());
@@ -3086,11 +5546,65 @@ String *Item_func_json_merge_patch::val_str(String *str)
     {
       if (json_read_value(&je2))
         goto error_return;
+
+      /*
+        Said before it is settled whether the argument goes into the
+        answer at all.  An object merged onto SQL NULL contributes
+        nothing and is dropped just below, and being dropped makes what
+        stands after it no more a document than it was; the very same
+        characters are spoken for in every other argument position.
+
+        Only the first value was read, so getting to the end of it comes
+        first here, where the merging below does it for itself.  A value
+        that cannot be got to the end of is one the merging will report
+        on in its own words; there is nothing to add to that.
+
+        Not asked at all of a value already attested to.
+        Being a document is a statement about the whole of it - a value
+        with anything standing after it is not one - so the walk could
+        only ever come back saying what is already known, and it is the
+        walk this whole exercise is about not making.  It is the one the
+        released server did not make either: it took the first value and
+        copied the rest in unread.
+      */
+      if (!args[n_arg]->is_valid_json())
+      {
+        json_engine_t adopted= je2;
+
+        if (json_value_scalar(&adopted) || !json_skip_level(&adopted))
+          report_json_trailing_note(&adopted, js2, func_name(), (int) n_arg);
+      }
+
       if (je2.value_type == JSON_VALUE_OBJECT)
         goto cont_point;
 
       merge_to_null= false;
-      str->set(js2->ptr(), js2->length(), js2->charset());
+      /*
+        Taken over by copying it rather than by pointing at it.  The next
+        argument is read into the very buffer this one came in, and a
+        buffer that has to grow to hold it is not the buffer it was: what
+        was pointed at is gone by the time it comes to be read.
+      */
+      if (str->copy(js2->ptr(), js2->length(), js2->charset()))
+        goto error_return;
+
+      /*
+        The whole of it goes in and only its first value was read, so
+        whatever stands after that value goes in unread.  Text standing
+        there is no reason to refuse the document: what comes of it is
+        a matter for whatever the answer turns out to be, and a later
+        argument merging over this one leaves it out of the answer
+        altogether, which is an answer that has always been given back.
+
+        A document whose item attests is_valid has nothing against it
+        to begin with, and goes in the way it was written.  Anything
+        else has to be read back, so say here that it has to be.
+      */
+      if (!args[n_arg]->is_valid_json())
+        splice.is_valid= splice.is_nice= false;
+      else if (!args[n_arg]->is_nice_json())
+        splice.is_nice= false;
+
       goto cont_point;
     }
 
@@ -3102,8 +5616,18 @@ String *Item_func_json_merge_patch::val_str(String *str)
                     (const uchar *) js1->ptr() + js1->length());
     je1.killed_ptr= (uint32_t *) &thd->killed;
 
-    if (do_merge_patch(str, &je1, &je2, &empty_result))
+    if (do_merge_patch(str, &je1, &je2, &empty_result, colon_len))
       goto error_return;
+
+    /*
+      Both were read as far as their first value and no further.  Only
+      the first turn of the loop has a document argument on the left:
+      after it, the left is what this function itself composed, or a
+      document taken over, which was spoken for where it was taken.
+    */
+    if (n_arg == 1)
+      report_json_trailing_note(&je1, js1, func_name(), 0);
+    report_json_trailing_note(&je2, js2, func_name(), (int) n_arg);
 
     if (empty_result)
       str->append(STRING_WITH_LEN("null"));
@@ -3127,13 +5651,49 @@ cont_point:
   if (merge_to_null)
     goto null_return;
 
+  /*
+    Documents that were all written the loose way, patched with
+    punctuation written the same way, make a document written that way.
+    See Item_func_json_insert::val_str() for why the answer is in js1,
+    and for what makes this safe to believe.
+
+    Asked of the splice marks alone, where the others ask compose_final
+    too, and it comes to the same thing: what the others keep in that
+    variable this one keeps in colon_len, which is the wider formatting
+    only where the first document answers is_valid and is_nice and can
+    be written -
+    and anything else clears is_nice on the spot.  A document taken over
+    whole clears both marks where it was taken.
+
+    How deep it goes is read off the arguments, and WITHOUT the extra
+    level Item_func_json_merge::val_str() takes.  Patching is not
+    merging: the two documents are walked in step, a key of one going
+    among the keys of the other at the level both were at, and a value
+    replacing a value where that value stood.  Nothing is ever made a
+    member of anything, which is the case that costs the level there,
+    and a key the patch drops only takes levels away.
+  */
+  if (splice.is_valid && splice.is_nice)
+  {
+    if (!return_json(to, js1, deepest))
+      goto error_return;
+
+    return to;
+  }
+
   json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                   (const uchar *) js1->ptr() + js1->length());
   je1.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je1, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je1, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto error_return;
 
   null_value= 0;
+  /*
+    Both marks come from the reading back, and so does the depth, for
+    the reason given where Item_func_json_insert::val_str() marks the
+    same answer.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 error_return:
@@ -3159,8 +5719,9 @@ bool Item_func_json_length::fix_length_and_dec(THD *thd)
 
 longlong Item_func_json_length::val_int()
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
+  Json_source_watch watch;
   uint length= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   int err;
@@ -3172,6 +5733,7 @@ longlong Item_func_json_length::val_int()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
@@ -3198,6 +5760,7 @@ longlong Item_func_json_length::val_int()
       goto null_return;
 
     path.cur_step= path.p.steps;
+    DBUG_ASSERT(watch.unchanged(js));
     if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
     {
       if (je.s.error)
@@ -3232,9 +5795,13 @@ longlong Item_func_json_length::val_int()
     };
   }
 
-  if (!err)
+  /*
+    The rest of the document is parsed only to check that it is one.
+    Not done at all where the item has already attested that the value
+    is_valid: the parse could only report what is already known.
+  */
+  if (!err && !args[0]->is_valid_json())
   {
-    /* Parse to the end of the JSON just to check it's valid. */
     while (json_scan_next(&je) == 0) {}
   }
 
@@ -3251,7 +5818,7 @@ null_return:
 
 longlong Item_func_json_depth::val_int()
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   uint depth= 0, c_depth= 0;
   bool inc_depth= TRUE;
@@ -3316,17 +5883,38 @@ bool Item_func_json_type::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_type::val_str(String *str)
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
   const char *type;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  /*
+    Returns the type of the document's first value, or NULL if the
+    document does not parse all the way through.  Parsing it through
+    comes first, then: a type worked out for text that turns out not to
+    be a document is a type that is never returned.
+
+    Not done at all where the item has already attested that the value
+    is_valid.  The parse could only report what is already known, and it
+    is the parse this whole change is about not making.
+
+    What follows it is not that parse repeated.  json_read_value() stops
+    at the bracket that opens a container - see read_obj() - so for any
+    document but a bare scalar it is one step and not a second walk.
+  */
+  if (!args[0]->is_valid_json() &&
+      !json_valid_engine(&je, js->ptr(), js->length(), js->charset()))
+    goto error;
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &current_thd->killed;
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   if (json_read_value(&je))
     goto error;
@@ -3354,12 +5942,6 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
-  /* ensure the json is at least valid. */
-  while(json_scan_next(&je) == 0) {}
-
-  if (je.s.error)
-    goto error;
-
   str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
@@ -3378,7 +5960,13 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   collation.set(args[0]->collation);
-  char_length= args[0]->max_char_length();
+  /*
+    The document is written out again around what is put into it, a
+    space arriving after every separator that is copied, so the room for
+    it has to cover the writing and not only the reading - the same
+    allowance JSON_REMOVE asks for, adding the same spacing.
+  */
+  char_length= static_cast<ulonglong>(args[0]->max_char_length()) * 2;
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
@@ -3387,8 +5975,8 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
       In the resulting JSON we can insert the property
       name from the path, and the value itself.
     */
-    char_length+= args[n_arg/2]->max_char_length() + 6;
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+= static_cast<ulonglong>(args[n_arg]->max_char_length()) + 6;
+    char_length+= json_value_reserve(args[n_arg+1]) + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -3403,19 +5991,71 @@ String *Item_func_json_insert::val_str(String *str)
   String *js= args[0]->val_json(&tmp_js);
   uint n_arg, n_path;
   json_string_t key_name;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp_key;
+  const char *js_end;
   THD *thd;
+  String *const to= str;
+  bool compose_final;
+  uint colon_len;
+  /* How deep the argument item attested its document to go. */
+  uint js_depth;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
+  Json_source_watch watch;
+  /*
+    Cleared by anything spliced in that leaves is_valid or is_nice false
+    for the answer, the depth a path reaches among it.  The deepest a
+    spliced value ends up starts at nothing: this writes no structure of
+    its own, so where the answer is deepest is either somewhere a value
+    went in or somewhere the document already was.
+  */
+  Json_splice_marks splice(0);
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if ((null_value= args[0]->null_value))
     return 0;
+
+  /*
+    Whether what is composed here is what will be returned, or only
+    what a reading back at the end will be made from.  Asked once,
+    before anything is composed, because the composing has to know it:
+    an answer that is going to be written out again must be composed
+    exactly as it always was, positions reported against it being
+    offsets into it.  A document whose item attests neither is_valid nor
+    is_nice is such an answer, and it is the one a caller wrote out by
+    hand.
+
+    A character set that cannot encode the punctuation written here is
+    the other one - see is_json_compatible_charset().  Nothing composed in
+    such a set is a document, however sound the pieces were, and until
+    the reading back went away it was the only thing that ever noticed.
+    So it is kept exactly where it was.
+  */
+  compose_final= document_arg_composes_final(args[0], js);
+  colon_len= compose_final ? 3 : 2;
+  /*
+    And how deep the document goes, taken here rather than where it is
+    used, which is after every other argument has been worked out.
+
+    THIS IS THE CANONICAL SITE for this too.  The three answers are
+    about one value and have to be taken over one moment: an argument
+    can be any expression a caller cares to write, a stored function
+    among them, and one of those can assign the very thing args[0] reads
+    - a stored program's variable, say - between the two readings.  The
+    document in hand is still the one this composed from, so a depth
+    read afterwards can be the depth of a value this answer is not
+    about, and too small is the one direction a depth must never be
+    wrong in.
+  */
+  js_depth= args[0]->last_depth();
 
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   str->set_charset(collation.collation);
   tmp_js.set_charset(collation.collation);
-  json_string_set_cs(&key_name, collation.collation);
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
@@ -3424,6 +6064,18 @@ String *Item_func_json_insert::val_str(String *str)
     const char *v_to;
     json_path_step_t *lp;
     int corrected_n_item;
+
+    /*
+      Taken before the path is worked out.  A path is any expression a
+      caller cares to write, and it is the first thing here that can
+      reach the document; once the walk below has started, its pointers
+      into the document are live and there is nothing left to catch.
+
+      Taken afresh every time round, too: the end of this loop swaps
+      what was composed here into js, so what the document IS changes
+      between one path and the next, on purpose.
+    */
+    watch.take(js);
 
     if (!c_path->parsed)
     {
@@ -3449,9 +6101,16 @@ String *Item_func_json_insert::val_str(String *str)
     if (args[n_arg]->null_value)
       goto return_null;
 
+    DBUG_ASSERT(watch.unchanged(js));
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
     je.killed_ptr= (uint32_t *) &thd->killed;
+
+    /*
+      Where the document ends, read where the walk over it starts.  See
+      Json_source_watch.
+    */
+    js_end= js->end();
 
     if (c_path->p.last_step < c_path->p.steps)
       goto v_found;
@@ -3506,6 +6165,16 @@ String *Item_func_json_insert::val_str(String *str)
 
         if (je.value_type == JSON_VALUE_OBJECT)
         {
+          /*
+            Wrapping puts what was already there inside a new array, so
+            the KEPT value goes down a level as well as the one being
+            put in - and how far down the kept one already reached was
+            never measured, it having been copied rather than read.  Say
+            so and let the answer be read back.  A scalar has nothing
+            inside it and so needs no saying.
+          */
+          if (do_array_autowrap)
+            splice.is_valid= splice.is_nice= false;
           if (json_skip_level(&je))
             goto js_error;
         }
@@ -3513,9 +6182,12 @@ String *Item_func_json_insert::val_str(String *str)
         if ((do_array_autowrap &&
              (append_simple(str, v_from, je.s.c_str - v_from) ||
               str->append(", ", 2))) ||
-            append_json_value(str, args[n_arg+1], &tmp_val) ||
+            append_json_value(str, args[n_arg+1], &tmp_val,
+                              (uint) je.stack_p + (do_array_autowrap ? 1 : 0),
+                              func_name(), (int) n_arg + 1, splice,
+                              !compose_final, compose_final) ||
             (do_array_autowrap && str->append(']')) ||
-            append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
+            append_simple(str, je.s.c_str, js_end - (const char *) je.s.c_str))
           goto js_error; /* Out of memory. */
 
         goto continue_point;
@@ -3553,18 +6225,39 @@ String *Item_func_json_insert::val_str(String *str)
 
       v_to= (const char *) (je.s.c_str - je.sav_c_len);
       str->length(0);
+      /*
+        One deeper than the scanner says.  Getting here means the walk
+        ran off the end of the array, and an array is taken off the
+        stack BEFORE the state that says it ended is set - so by now the
+        array the value is going into is no longer counted, and the
+        value goes inside it.  The arm that finds the place it was
+        looking for reads the level after skipping back over the value,
+        with the array still counted, and so needs no such correction.
+      */
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
           (n_item > 0 && str->append(", ", 2)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          append_simple(str, v_to, js->end() - v_to))
+          append_json_value(str, args[n_arg+1], &tmp_val,
+                            (uint) je.stack_p + 1,
+                            func_name(), (int) n_arg + 1, splice,
+                            !compose_final, compose_final) ||
+          append_simple(str, v_to, js_end - v_to))
         goto js_error; /* Out of memory. */
     }
     else /*JSON_PATH_KEY*/
     {
       uint n_key= 0;
+      bool key_inert= false;
 
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
+
+      /*
+        The key of the step is written in the character set of the path,
+        which is not necessarily the one the document is written in.
+        Comparing it against a key of the document compares characters,
+        so it has to be read in its own character set.
+      */
+      json_string_set_cs(&key_name, c_path->p.s.cs);
 
       while (json_scan_next(&je) == 0 && je.state != JST_OBJ_END)
       {
@@ -3594,10 +6287,40 @@ String *Item_func_json_insert::val_str(String *str)
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
           (n_key > 0 && str->append(", ", 2)) ||
           str->append('"') ||
-          append_simple(str, lp->key, lp->key_end - lp->key) ||
-          str->append("\":", 2) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          append_simple(str, v_to, js->end() - v_to))
+          DBUG_IF("json_insert_key_out_of_memory"))
+        goto js_error; /* Out of memory. */
+
+      if (append_json_path_key(str, lp, c_path->p.s.cs, &tmp_key,
+                               func_name(), (int) n_arg + 1, &key_inert) ||
+          DBUG_IF("json_insert_path_key_out_of_memory"))
+        goto js_error; /* Out of memory. */
+
+      /*
+        A key that reaches past the quotes around it can make the answer
+        anything at all - unreadable, or a different document that reads
+        perfectly well.  Which of the two it is can only be told by
+        reading the whole of it, so say here that it has to be.
+      */
+      if (!key_inert)
+        splice.is_valid= splice.is_nice= false;
+
+      /*
+        Written the loose way when that is how the answer is going out,
+        like the comma above it and the value after it.  A key put in
+        here is the only punctuation the editing adds of its own, so it
+        is the only place the two formats can differ.
+      */
+      /*
+        One deeper than the scanner says, for the reason given at the
+        end of the array above: the object is taken off the stack before
+        the state that says it ended, and the new key goes inside it.
+      */
+      if (str->append(json_loose_colon, colon_len) ||
+          append_json_value(str, args[n_arg+1], &tmp_val,
+                            (uint) je.stack_p + 1,
+                            func_name(), (int) n_arg + 1, splice,
+                            !compose_final, compose_final) ||
+          append_simple(str, v_to, js_end - v_to))
         goto js_error; /* Out of memory. */
     }
 
@@ -3620,10 +6343,13 @@ v_found:
     }
 
     if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
-        append_json_value(str, args[n_arg+1], &tmp_val) ||
-        append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
+        append_json_value(str, args[n_arg+1], &tmp_val, (uint) je.stack_p,
+                          func_name(), (int) n_arg + 1, splice,
+                          !compose_final, compose_final) ||
+        append_simple(str, je.s.c_str, js_end - (const char *) je.s.c_str))
       goto js_error; /* Out of memory. */
 continue_point:
+    DBUG_ASSERT(watch.unchanged(js));
     {
       /* Swap str and js. */
       if (str == &tmp_js)
@@ -3639,12 +6365,93 @@ continue_point:
     }
   }
 
+  /*
+    A document that was already written the loose way, edited with
+    pieces that were themselves written that way, is written that way
+    already: reading it back would write it exactly as it stands.  So it
+    is passed as it stands, and the reading below is the reading
+    this whole exercise is about doing away with.
+
+    THIS IS THE CANONICAL SITE.  The other five that edit a document
+    point here rather than repeat it.
+
+    What makes the answer A DOCUMENT.  What was kept of the document was
+    read as one on the way in - that is compose_final's
+    args[0]->is_valid_json() - and is copied out of it whole, at offsets
+    the walk above computed rather than guessed.  What was put in was
+    either read here as it went in, or attested to by whoever produced
+    it, and either way splice.is_valid says so.  What was written here
+    is punctuation and a key, and a key that could reach past its own
+    quotes clears the same mark rather than being refused.
+
+    What makes it WRITTEN THE LOOSE WAY.  The kept parts were, by
+    args[0]->is_nice_json(); the values put in were, by splice.is_nice;
+    and the punctuation written here was, colon_len having been picked
+    from compose_final before anything was composed.
+
+    And none of that means anything where the punctuation cannot be
+    written at all, which is compose_final's third part - see
+    is_json_compatible_charset().  A document in such a character set is a
+    scalar, because a container would take brackets it does not have.
+
+    Nothing here takes any of it on faith.  m_marks.set() reads the
+    answer back in a debug build and stops the server if these
+    conditions ever hold over something that is not a document written
+    that way - which is the same reading, kept exactly where it is worth
+    its cost and nowhere else.
+
+    The answer is in js rather than str: each pass writes into str and
+    then swaps the two, so after an odd number of passes str is the
+    scratch.  It is returned in the buffer the caller supplied, which
+    every path through this function has always done.
+
+    HOW DEEP IT GOES, when nothing read it back to find out.  Editing a
+    document puts a value somewhere inside it and copies the rest of it
+    across untouched, so the answer is deepest either where a value went
+    in - which splice.deepest holds, counted from the outside - or
+    somewhere the document already went, which is what the document was
+    able to say about itself.  Neither of those can be short: the first
+    is a bound the splice was let through on, and the second is
+    whatever args[0] attested, which is nothing at all unless something
+    measured it.  An item that attests to nothing leaves the answer
+    attesting to nothing, which is where this stood before there was
+    anything to ask.
+  */
+  if (compose_final && splice.is_valid && splice.is_nice)
+  {
+    if (!return_json(to, js, MY_MAX(js_depth, splice.deepest)))
+      goto js_error; /* Out of memory. */
+
+    return to;
+  }
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto js_error;
 
+  /*
+    The reading back just above is what sets both marks.  It also says
+    whether the depth reckoned at each splice was reckoned right: a
+    reading that got to the end is an answer inside the limit, so
+    nothing should have been marked as taking it past one.  The other
+    way round is allowed - a value can be marked for reasons that leave
+    a readable answer behind, an empty one among them.
+  */
+  DBUG_ASSERT(!splice.is_deep);
+
+  /*
+    Both marks come from the reading back and from it alone: json_nice()
+    got to the end of what was composed, which is what makes it a
+    document, and what is marked is what json_nice() WROTE rather than
+    what it read, which is what makes it written the loose way.  This is
+    the reading that stays wherever the document handed in was nobody's
+    word - it is not a leftover, and taking it out would take 10.11's
+    answers with it.  The depth comes from there too, and is the one
+    measurement rather than a bound.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 js_error:
@@ -3658,7 +6465,15 @@ return_null:
 bool Item_func_json_remove::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length;
+  /*
+    What is left of the document is written out again, with a space after
+    every separator that is copied, so what comes back can be longer than
+    what went in even though something was taken out of it.  A separator
+    has a value on either side of it and the shortest value is one
+    character, so at worst every second character gains one - which is
+    the allowance JSON_LOOSE asks for, adding the same spacing.
+  */
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 2);
 
   mark_constant_paths(paths, args+1, arg_count-1);
   set_maybe_null();
@@ -3673,8 +6488,17 @@ String *Item_func_json_remove::val_str(String *str)
   uint n_arg, n_path;
   json_string_t key_name;
   THD *thd;
+  String *const to= str;
+  bool compose_final;
+  uint comma_len;
+  Json_source_watch watch;
+  /* How deep the argument item attested its document to go. */
+  uint js_depth;
+  /* How deep the reading back below found the answer to go. */
+  uint read_back_depth= JSON_DEPTH_UNKNOWN;
 
   DBUG_ASSERT(fixed());
+  m_marks.clear();
 
   if (args[0]->null_value)
     goto null_return;
@@ -3683,7 +6507,17 @@ String *Item_func_json_remove::val_str(String *str)
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   str->set_charset(js->charset());
-  json_string_set_cs(&key_name, js->charset());
+
+  /*
+    Whether what is composed here is what will be returned, or only
+    what a reading back at the end will be made from.  Asked once,
+    before anything is composed, for the reason given where
+    Item_func_json_insert::val_str() asks it.
+  */
+  compose_final= document_arg_composes_final(args[0], js);
+  comma_len= compose_final ? 2 : 1;
+  /* Taken here for the reason given at the same place there. */
+  js_depth= args[0]->last_depth();
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg++, n_path++)
   {
@@ -3692,6 +6526,13 @@ String *Item_func_json_remove::val_str(String *str)
     const char *rem_start= 0, *rem_end;
     json_path_step_t *lp;
     int n_item= 0;
+
+    /*
+      Taken afresh every time round: the end of this loop swaps what
+      was composed here into js, so what the document IS changes
+      between one path and the next, on purpose.
+    */
+    watch.take(js);
 
     if (!c_path->parsed)
     {
@@ -3711,7 +6552,7 @@ String *Item_func_json_remove::val_str(String *str)
         c_path->p.last_step--;
         if (c_path->p.last_step < c_path->p.steps)
         {
-          c_path->p.s.error= TRIVIAL_PATH_NOT_ALLOWED;
+          json_error(&c_path->p.s, TRIVIAL_PATH_NOT_ALLOWED);
           report_path_error(s_p, &c_path->p, n_arg);
           goto null_return;
         }
@@ -3723,6 +6564,7 @@ String *Item_func_json_remove::val_str(String *str)
     if (args[n_arg]->null_value)
       goto null_return;
 
+    DBUG_ASSERT(watch.unchanged(js));
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
     je.killed_ptr= (uint32_t *) &thd->killed;
@@ -3786,6 +6628,13 @@ String *Item_func_json_remove::val_str(String *str)
       if (je.value_type != JSON_VALUE_OBJECT)
         continue;
 
+      /*
+        Set here and not once before the loop: each path is written in
+        its own character set, and the key has to be read in the one the
+        path it came from was written in.
+      */
+      json_string_set_cs(&key_name, c_path->p.s.cs);
+
       while (json_scan_next(&je) == 0 && je.state != JST_OBJ_END)
       {
         switch (je.state)
@@ -3819,13 +6668,42 @@ v_found:
     if (json_skip_key(&je) || json_scan_next(&je))
       goto js_error;
 
-    rem_end= (je.state == JST_VALUE && n_item == 0) ? 
+    rem_end= (je.state == JST_VALUE && n_item == 0) ?
       (const char *) je.s.c_str : (const char *) (je.s.c_str - je.sav_c_len);
+
+    /*
+      Taking out the first piece of an array takes the comma after it
+      with it, and in a document written the loose way a space stands
+      behind that comma.  That space belonged to the piece that has just
+      gone; leaving it puts it behind the bracket instead, in front of a
+      piece that already has all the spacing it needs.  Every other
+      piece ends AT its comma and so leaves nothing over.
+
+      Only where what is composed here is the answer.  Where it is not,
+      the reading back at the end settles the spacing and drops that
+      space itself, so skipping it changes no answer - but the reading
+      complains, when it has to, about a position in the text it was
+      given, and a text composed a character shorter than a released
+      server composed it moves every such position by one.  This is the
+      same reason the comma below is written the width a released
+      server writes it.
+    */
+    if (compose_final && je.state == JST_VALUE && n_item == 0)
+      rem_end= (const char *) json_skip_space(je.s.cs, (const uchar *) rem_end,
+                                              (const uchar *) js->end());
 
     str->length(0);
 
+    /*
+      What is removed reaches from just before the piece to just before
+      the piece after it, so the two ends join without punctuation
+      everywhere but between two keys, where one comma has to be put
+      back.  It is the only punctuation this function writes, and so
+      the only place the two formats can differ.
+    */
     if (append_simple(str, js->ptr(), rem_start - js->ptr()) ||
-        (je.state == JST_KEY && n_item > 0 && str->append(",", 1)) ||
+        (je.state == JST_KEY && n_item > 0 &&
+         str->append(json_loose_comma, comma_len)) ||
         append_simple(str, rem_end, js->end() - rem_end))
           goto js_error; /* Out of memory. */
 
@@ -3844,13 +6722,39 @@ v_found:
     }
   }
 
+  /*
+    Nothing is spliced in here - what is written is what was read,
+    less the piece that was asked for - so a document that was written
+    the loose way is still written that way with the piece gone, and
+    reading it back would write it exactly as it stands.  See
+    Item_func_json_insert::val_str() for why the answer is in js, and
+    for what makes this safe to believe.
+
+    Nothing goes in, so nothing can go deeper: whatever the document
+    said about its own depth is still true of it with a piece taken
+    out, and taking one out is the only thing that happens here.
+  */
+  if (compose_final)
+  {
+    if (!return_json(to, js, js_depth))
+      goto js_error; /* Out of memory. */
+
+    return to;
+  }
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+  if (json_nice(&je, str, Item_func_json_format::LOOSE, &read_back_depth))
     goto js_error;
 
   null_value= 0;
+  /*
+    Both marks come from the reading back, and so does the depth, for
+    the reason given where Item_func_json_insert::val_str() marks the
+    same answer.
+  */
+  m_marks.set(str, true, true, read_back_depth);
   return str;
 
 js_error:
@@ -3910,10 +6814,13 @@ static int check_key_in_list(String *res,
 String *Item_func_json_keys::val_str(String *str)
 {
   json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  Json_source_watch watch;
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   uint n_keys= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   THD *thd;
+
+  m_marks.clear();
 
   if ((args[0]->null_value))
     goto null_return;
@@ -3921,6 +6828,7 @@ String *Item_func_json_keys::val_str(String *str)
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
@@ -3949,6 +6857,7 @@ String *Item_func_json_keys::val_str(String *str)
 
   path.cur_step= path.p.steps;
 
+  DBUG_ASSERT(watch.unchanged(js));
   if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
   {
     if (je.s.error)
@@ -3988,7 +6897,7 @@ skip_search:
 
       if (!check_key_in_list(str, key_start, key_len))
       { 
-        if ((n_keys > 0 && str->append(", ", 2)) ||
+        if ((n_keys > 0 && str->append(STRING_WITH_LEN(json_loose_comma))) ||
           str->append('"') ||
           append_simple(str, key_start, key_len) ||
           str->append('"'))
@@ -4009,6 +6918,39 @@ skip_search:
   if (unlikely(je.s.error || str->append(']')))
     goto err_return;
 
+  /*
+    What was just written is an array of the object's key names, and
+    all three things there are to say about it are settled by how it
+    was written rather than by anything that would have to be measured.
+
+    It READS AS A DOCUMENT.  A key goes in between quotes with its bytes
+    copied across as they stood, and they stood inside a document that
+    parsed - so whatever needed escaping in them is already escaped, and
+    a key that would not go into an array would not have come out of an
+    object.  Nothing else can get in: every key written was copied out
+    of an object this walk read to its end, and a break the walk reaches
+    refuses the answer whole at the test just above.  What it does not
+    reach it does not read - text standing after the object, or a second
+    document behind it - so the argument need not be a document all the
+    way through for this to hold, and it is not asked to be.
+
+    It is FORMATTED THE PLAIN WAY.  The one thing that stands between two
+    of anything here is the pair of characters the plain formatting puts
+    there, and nothing goes after the opening bracket or before the
+    closing one.
+
+    It is ONE LEVEL DEEP.  An array of strings, and a key name is a
+    string whatever it holds.
+
+    All of it in the character set the argument was read in - the copy
+    is same-set, so the bytes mean here what they meant there - which
+    leaves only whether a document can be written in that set at all.
+  */
+  {
+    bool is_json_compatible= is_json_compatible_charset(str->charset());
+
+    m_marks.set(str, is_json_compatible, is_json_compatible, 1);
+  }
   null_value= 0;
   return str;
 
@@ -4106,7 +7048,8 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
 }
 
 
-static int append_json_path(String *str, const json_path_t *p)
+static int append_json_path(String *str, const json_path_t *p,
+                            bool *path_bytes_well_formed)
 {
   const json_path_step_t *c;
 
@@ -4123,6 +7066,17 @@ static int append_json_path(String *str, const json_path_t *p)
     }
     else /*JSON_PATH_ARRAY*/
     {
+      /*
+        The brackets go in through String::append(), which converts them,
+        so a set that writes no character in one byte gets a bracket of
+        its own width.  The number between them does not go that way: the
+        digits are written as themselves, whatever the set.  It is the
+        one part of a path not formatted the way the rest of it is, and one
+        stray byte is enough to leave every character after it reading
+        from the wrong place.
+      */
+      if (str->charset()->mbminlen > 1)
+        *path_bytes_well_formed= false;
 
       if (str->append('[') ||
           str->append_ulonglong(c->n_item) ||
@@ -4137,13 +7091,18 @@ static int append_json_path(String *str, const json_path_t *p)
 
 String *Item_func_json_search::val_str(String *str)
 {
+  Json_source_watch watch;
   String *js= args[0]->val_json(&tmp_js);
+  watch.take(js);
   String *s_str= args[2]->val_str(&tmp_path);
   json_engine_t je;
   json_path_t p, sav_path;
   uint n_arg;
   int array_sizes[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
+  bool path_bytes_well_formed= true;
+
+  m_marks.clear();
 
   if (args[0]->null_value || args[2]->null_value)
     goto null_return;
@@ -4178,6 +7137,7 @@ String *Item_func_json_search::val_str(String *str)
       goto null_return;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
                       (const uchar *) js->ptr() + js->length(), &p);
 
@@ -4204,10 +7164,11 @@ String *Item_func_json_search::val_str(String *str)
           if (n_path_found == 2)
           {
             if (str->append('[') ||
-                append_json_path(str, &sav_path))
+                append_json_path(str, &sav_path, &path_bytes_well_formed))
                 goto js_error;
           }
-          if (str->append(", ", 2) || append_json_path(str, &p))
+          if (str->append(STRING_WITH_LEN(json_loose_comma)) ||
+              append_json_path(str, &p, &path_bytes_well_formed))
             goto js_error;
         }
         if (mode_one)
@@ -4224,7 +7185,7 @@ end:
     goto null_return;
   if (n_path_found == 1)
   {
-    if (append_json_path(str, &sav_path))
+    if (append_json_path(str, &sav_path, &path_bytes_well_formed))
       goto js_error;
   }
   else
@@ -4233,6 +7194,35 @@ end:
       goto js_error;
   }
 
+  /*
+    A path is written out as a JSON string, and the keys that go into it
+    are copied from the document with whatever escaping they were
+    written with there - a key holding a quote was already written with
+    that quote escaped, or the document would not have read.  Several
+    paths are put in an array with the loose formatting between them.
+
+    How deep it goes is settled by which of those two was written and by
+    nothing else: one path is a string and nests nothing, several are an
+    array of strings and nest one.  That is a figure this function has
+    in hand rather than one it would have to go and measure, and without
+    it a caller splicing the answer falls back to guessing the depth
+    from the length - which for paths of any size says more levels than
+    a document is allowed and sends the whole thing to be read again.
+
+    None of that is worth anything if the bytes do not read at all, and
+    a path carrying an array index in a set that writes no character in
+    one byte does not - see the number written into it.  A set that can
+    write answers only for what went through it, so the path says for
+    itself whether it was written, and an unencoded one is passed on as
+    the bytes it is rather than as a document.
+  */
+  {
+    bool result_is_document= is_json_compatible_charset(str->charset()) &&
+                             path_bytes_well_formed;
+
+    m_marks.set(str, result_is_document, result_is_document,
+                n_path_found == 1 ? 0 : 1);
+  }
   null_value= 0;
   return str;
 
@@ -4288,11 +7278,16 @@ bool Item_func_json_format::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_format::val_str(String *str)
 {
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= val_json_arg0(args, arg_count, &tmp_js);
   json_engine_t je;
+  Json_source_watch watch;
   int tab_size= 4;
+  uint deepest= JSON_DEPTH_UNKNOWN;
   THD *thd;
 
+  m_marks.clear();
+
+  watch.take(js);
   if ((null_value= args[0]->null_value))
     return 0;
 
@@ -4316,27 +7311,63 @@ String *Item_func_json_format::val_str(String *str)
       tab_size= TAB_SIZE_LIMIT;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr()+js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_nice(&je, str, fmt, tab_size))
+  if (json_nice(&je, str, fmt, &deepest, tab_size))
   {
     null_value= 1;
     report_json_error(js, &je, 0);
     return 0;
   }
 
+  /*
+    Read back and written out again, so is_valid holds whatever the
+    argument was - but only json_loose() writes the loose form, the
+    other two formats being the whole point of the other two names.
+    The depth is what that reading measured, and no formatting changes
+    it: all three write the same structures and differ only in what
+    they put between them.
+  */
+  m_marks.set(str, true, fmt == LOOSE, deepest);
   return str;
+}
+
+
+/*
+  Nothing is read and nothing is written: the argument's value is passed
+  straight on.  So whatever the argument was able to say about it is
+  still true of it here, and this function says neither more nor less.
+*/
+String *Item_func_json_format::forward_json(String *js)
+{
+  m_marks.clear();
+  if ((null_value= args[0]->null_value))
+    return 0;
+  m_marks.set(js, args[0]->is_valid_json(), args[0]->is_nice_json(),
+              args[0]->last_depth());
+  return js;
 }
 
 
 String *Item_func_json_format::val_json(String *str)
 {
-  String *js= args[0]->val_json(&tmp_js);
-  if ((null_value= args[0]->null_value))
-    return 0;
-  return js;
+  return forward_json(args[0]->val_json(&tmp_js));
+}
+
+
+/*
+  What is returned IS the argument's value, so a caller that is
+  finished with it before anything else can run leaves the argument free
+  to answer with a view of what it already holds - see
+  Item::val_json_at_once().  The promise is passed along with the value
+  rather than stopping here.
+*/
+String *Item_func_json_format::val_json_at_once(String *str)
+{
+  return forward_json(args[0]->val_json_at_once(&tmp_js));
 }
 
 int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
@@ -4455,17 +7486,94 @@ bool Item_func_json_arrayagg::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func_group_concat::fix_fields(thd, ref);
   m_tmp_json.set_charset(collation.collation);
-  /* account for opening and closing brackets */
-  max_length= MY_MIN(max_length + 2*collation.collation->mbminlen, UINT_MAX32);
+  /*
+    Account for the opening and closing brackets, asking for the room
+    they take rather than working it out again: the width the item
+    declares and the room the limit keeps back for them are the same
+    figure, and two formats of it are two chances for one to move.
+
+    Added in a type wide enough to hold the sum.  A cap of a gigabyte in
+    a set of four bytes to the character fills the width on its own, and
+    an addition made in that width would carry the brackets round to
+    nothing.
+  */
+  max_length= (uint32) MY_MIN((ulonglong) max_length
+                              + reserved_result_length(), UINT_MAX32);
   return res;
 }
 
 
+/*
+  func_name() ends with '(' so that "Row %lu was cut by %s)" reads
+  properly.  A diagnostic that names the function on its own wants the
+  name without it.
+*/
+static const char json_arrayagg_name[]= "json_arrayagg";
+
+
+/*
+  Cleared where a group begins rather than where its result is asked
+  for.  Without ORDER BY or DISTINCT the rows are written out as they
+  arrive, long before anything asks for the result, so clearing the mark
+  at that point would throw away what the rows had already reported.
+*/
+void Item_func_json_arrayagg::clear()
+{
+  m_bad_element= false;
+  m_closed= false;
+  m_elements_valid= true;
+  m_elements_depth= 1;
+  Item_func_group_concat::clear();
+}
+
+
+/*
+  Returning nothing for a row is not the same as the row not being
+  there.  The separator between one element and the next is written
+  before the element is asked for (dump_leaf_key(), item_sum.cc), and it
+  stays written whether an element follows it or not, so a row declined
+  here leaves a separator with nothing on one side of it.
+
+  That is what has always been written for a value holding a character
+  no document can carry, and it still is - the writing is not this
+  function's to undo, and how much of a group there is around it is not
+  its to know either.  A row lost to a buffer that would not grow is a
+  different matter: nothing about the data asked for it and the
+  statement is over anyway, so the group is marked and refused whole
+  when it is asked for.
+
+  A row holding something that does not parse as JSON reaches neither
+  of these.  It is written out as it stands, the same as it always was.
+
+  What becomes of the group in the two cases that leave it not a
+  document is settled where it is asked for, both of them through the
+  same mark - see val_str().
+*/
 String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 {
+  int rc;
+  /*
+    One deep for the brackets the group is put inside, which is where
+    every element written here sits - see Item_func_json_array::val_str().
+    Carried across the elements rather than kept per element: the group
+    is as deep as its deepest element, and the elements are written out
+    one at a time long before the brackets go on.
+  */
+  Json_splice_marks marks(1);
+
   m_tmp_json.length(0);
-  if (append_json_value(&m_tmp_json, i, tmp))
+  rc= append_json_value(&m_tmp_json, i, tmp, 1, json_arrayagg_name, 0, marks,
+                        false, false, Sql_condition::WARN_LEVEL_WARN);
+  if (!marks.is_valid)
+    m_elements_valid= false;
+  m_elements_depth= MY_MAX(m_elements_depth, marks.deepest);
+
+  if (rc)
+  {
+    if (rc == JSON_APPEND_OOM)
+      m_bad_element= true;
     return NULL;
+  }
   return &m_tmp_json;
 }
 
@@ -4473,30 +7581,48 @@ String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
     String *tmp, const uchar *key, size_t offset)
 {
+  int rc;
+  /* One deep for the brackets - see get_str_from_item() just above. */
+  Json_splice_marks marks(1);
+
   m_tmp_json.length(0);
 
-  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+  rc= append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp,
+                                   1, json_arrayagg_name, 0, marks);
+  if (!marks.is_valid)
+    m_elements_valid= false;
+  m_elements_depth= MY_MAX(m_elements_depth, marks.deepest);
+
+  if (rc)
+  {
+    if (rc == JSON_APPEND_OOM)
+      m_bad_element= true;
     return NULL;
+  }
 
   return &m_tmp_json;
 
 }
 
 
+/*
+  Cut back to where the element that overran began, rather than to the
+  byte the limit falls on.  What GROUP_CONCAT passes as old_length
+  is the length the result had before the separator and this element
+  were written, so it is the end of the last whole element - the one
+  place a cut leaves something the brackets can go round.
+
+  A cut anywhere else leaves half an element behind, and the three ways
+  it can land are each their own kind of wrong.  On a quote it leaves a
+  string opened twice; on a separator it leaves one with nothing after
+  it; and just past an opening quote it leaves an empty string that no
+  row of the group ever held - which reads back as an element and is
+  not one, so nothing downstream has any way to know it is not data.
+*/
 void Item_func_json_arrayagg::cut_max_length(String *result,
-       uint old_length, uint max_length) const
+       uint old_length, uint max_length __attribute__((unused))) const
 {
-  if (result->length() == 0)
-    return;
-
-  if (result->end()[-1] != '"' || old_length == max_length)
-  {
-    Item_func_group_concat::cut_max_length(result, old_length, max_length);
-    return;
-  }
-
-  Item_func_group_concat::cut_max_length(result, old_length, max_length-1);
-  result->append('"');
+  result->length(old_length);
 }
 
 
@@ -4508,25 +7634,122 @@ Item *Item_func_json_arrayagg::copy_or_same(THD* thd)
 
 String* Item_func_json_arrayagg::val_str(String *str)
 {
+  m_marks.clear();
+
   if ((str= Item_func_group_concat::val_str(str)))
   {
     String s;
-    s.append('[');
-    s.swap(*str);
-    str->append(s);
-    str->append(']');
+
+    /*
+      The brackets are built up in a buffer of their own which is then
+      exchanged with the result, and the exchange carries the character
+      set across along with the bytes.  Left at its default the buffer
+      would say that what it holds is bytes rather than text, which
+      costs twice over: a bracket is then written one byte wide even
+      where a character of this result is two or four, leaving
+      everything between the two of them a byte out of step; and a
+      client asking for a character set other than the one the result
+      was computed in is handed the bytes as they stand, where every
+      other function here converts them first.
+    */
+    s.set_charset(collation.collation);
+
+    /*
+      A row that could not be written out left the elements it sits
+      between joined by nothing but their separator, so there is no
+      array here to return.  Reachable only through a failure to
+      allocate, which has already raised an error of its own.
+    */
+    if (m_bad_element)
+    {
+      null_value= 1;
+      return NULL;
+    }
+
+    /*
+      A group that is not a document is not returned either, for the
+      reason the constructors give where they refuse the same thing: the
+      elements were read as they went in, that reading is the only one
+      there is, and what it found has nowhere else to be acted on.
+
+      The row that made it so has already been reported - a value that
+      did not parse through the warning naming the argument, one carrying
+      a character no document can hold through the note saying which - so
+      what is added here is the refusal and not the complaint.
+
+      A group cut back to fit the length limit is NOT this.  It is cut to
+      the last whole element and the brackets go round what is left, so
+      it is a shorter document and still a document; the mark below
+      declines it all the same, that being about the answer this group
+      had rather than about the one it gives.
+    */
+    if (!m_elements_valid)
+    {
+      null_value= 1;
+      return NULL;
+    }
+
+    /*
+      Asked for a second time, the group is already inside its brackets
+      and there is nothing left to do to it.  What can be said about it
+      is said either way: the answer is about the value, and the value
+      is the same one.
+    */
+    if (!m_closed)
+    {
+      /*
+        The brackets are put on last, so a buffer that will not take them
+        leaves behind something that reads as a value of its own rather
+        than as the array it is meant to be.
+      */
+      if (s.append('['))
+        goto bad_result;
+
+      s.swap(*str);
+      if (str->append(s) || str->append(']'))
+        goto bad_result;
+
+      m_closed= true;
+    }
+
+    /*
+      Asked once the brackets are on, for the reason given there.  The
+      bare name, func_name() here carrying the open bracket that the cut
+      warning writes its own closing one after.
+    */
+    if (json_container_charset_refused(str, json_arrayagg_name))
+      goto bad_result;
+
+    /*
+      A group that was cut to fit the length limit is cut back to the
+      last whole element, so what stands between the brackets reads -
+      but it is a shorter answer than the group has, with the row it
+      stopped at reported, so this declines it.
+
+      Never said to be nicely written: what goes between the elements is
+      the separator this function inherits from GROUP_CONCAT, a comma
+      with nothing after it, where a nicely written document puts a
+      space there as well.  There is no asking for another one - the
+      grammar takes no SEPARATOR here and writes that comma itself.
+    */
+    m_marks.set(str, !warning_for_row, false, m_elements_depth);
   }
   return str;
+
+bad_result:
+  null_value= 1;
+  return NULL;
 }
 
 
 Item_func_json_objectagg::
 Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
-  :Item_sum(thd, item)
+  :Item_sum(thd, item), m_bad_pair(false), m_closed(false),
+   m_pairs_valid(true), m_pairs_depth(1), m_cut(false), m_row_count(0),
+   m_thd(NULL)
 {
   quick_group= FALSE;
   result.set_charset(collation.collation);
-  result.append('{');
 }
 
 
@@ -4561,9 +7784,19 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
+  /*
+    The cap, and on top of it the room the two braces take, for the
+    reason the sister aggregate carries the same allowance: the shortest
+    answer this function gives is the braces with nothing between them,
+    and a cap smaller than that is answered over the cap with nothing
+    left to cut.  A width worked out from the cap alone would then be a
+    column too narrow to hold the answer, which is cut into it without a
+    word said.
+  */
   max_length= (uint32) MY_MIN((ulonglong) thd->gconcat_max_len()
                                / collation.collation->mbminlen
-                               * collation.collation->mbmaxlen, UINT_MAX32);
+                               * collation.collation->mbmaxlen
+                              + 2 * brace_length(), UINT_MAX32);
 
 
   if (check_sum_func(thd, ref))
@@ -4579,7 +7812,7 @@ void Item_func_json_objectagg::cleanup()
   DBUG_ENTER("Item_func_json_objectagg::cleanup");
   Item_sum::cleanup();
 
-  result.length(1);
+  result.length(0);
   DBUG_VOID_RETURN;
 }
 
@@ -4590,33 +7823,168 @@ Item *Item_func_json_objectagg::copy_or_same(THD* thd)
 }
 
 
+/*
+  The opening brace is written here rather than where the object is
+  built up, because here the result has the character set it will be
+  read in and the brace can be written at the width that asks for.  The
+  closing one is written when the result is asked for, by which time the
+  same is true of it, so the two ends match.
+*/
 void Item_func_json_objectagg::clear()
 {
-  result.length(1);
+  result.length(0);
   null_value= 1;
+  /*
+    The brace is a write into the object like any other, and a group
+    that lost one is refused whole rather than returned short.
+  */
+  m_bad_pair= false;
+  m_closed= false;
+  m_pairs_valid= true;
+  m_pairs_depth= 1;
+  m_cut= false;
+  m_row_count= 0;
+  m_thd= current_thd;
+  if (result.append('{'))
+    m_bad_pair= true;
 }
+
+
+/*
+  The mirror of json_arrayagg_name above, and the other way round: the
+  message the cut warning goes into supplies its own ')', so the name
+  written into it is the one with the opening bracket already on it.
+  func_name() is the bare name here, being written into notes about the
+  data as well.
+*/
+static const char json_objectagg_cut_name[]= "json_objectagg(";
 
 
 bool Item_func_json_objectagg::add()
 {
   StringBuffer<MAX_FIELD_WIDTH> buf;
+  /*
+    One deep for the braces the group is put inside, and carried across
+    the pairs - see Item_func_json_arrayagg::get_str_from_item().
+  */
+  Json_splice_marks marks(1);
   String *key;
+  int rc;
+  /*
+    Where this pair begins, so that a pair taking the object past the
+    length limit can be taken back off whole - see the cut at the end
+    of this function.
+  */
+  uint32 old_length= result.length();
+
+  /*
+    A cut group takes nothing further, so neither argument is evaluated
+    for the rows after the cut.  The rows are still read; see the cut at
+    the end of this function.
+
+    An argument with side effects - a stored function that writes, an
+    assignment, a warning raised per row - therefore runs for the rows
+    up to the cut and not for those after it.  Nothing documents how
+    many times an aggregate evaluates its arguments.
+  */
+  if (m_cut)
+    return 0;
 
   key= args[0]->val_str(&buf);
   if (args[0]->is_null())
     return 0;
 
-  null_value= 0;
-  if (result.length() > 1)
-    result.append(STRING_WITH_LEN(", "));
+  m_row_count++;
 
-  result.append('"');
-  st_append_escaped(&result,key);
-  result.append(STRING_WITH_LEN("\":"));
+  /*
+    Whether this pair needs a separator in front of it is whether a pair
+    has been written already, which is what null_value says until this
+    row changes it.  Comparing the buffer against the opening brace would
+    be comparing it against a width that is not always one byte.
+  */
+  if ((!null_value && result.append(STRING_WITH_LEN(", "))) ||
+      (!null_value && DBUG_IF("json_objectagg_separator_out_of_memory")))
+    goto bad_pair;
+  null_value= 0;
+
+  if (result.append('"') || DBUG_IF("json_objectagg_key_out_of_memory"))
+    goto bad_pair;
+
+  /*
+    A key with a character no document can carry has always gone in as
+    however much of it could be written, and the pair has always been
+    finished around it.  Only a buffer that would not grow gives up.
+  */
+  if ((rc= st_append_escaped(&result, key)))
+  {
+    if (rc == JSON_APPEND_OOM)
+      goto bad_pair;
+    /*
+      The escaping writes into the buffer and says afterwards how much of
+      what it wrote counts, and a key it refused counts for none - so
+      the key that goes in is the empty one, with the quotes and the
+      colon written round it here as they are round any other.  The
+      object that comes of it is a document, and its keys are not the
+      ones that were asked for; the note is what says so, and nothing
+      about being a document is dropped for it.
+    */
+    report_bad_chr_note(func_name(), 1);
+  }
+
+  if (result.append(STRING_WITH_LEN("\":")) ||
+      DBUG_IF("json_objectagg_colon_out_of_memory"))
+    goto bad_pair;
 
   buf.length(0);
-  append_json_value(&result, args[1], &buf);
+  rc= append_json_value(&result, args[1], &buf, 1, func_name(), 1, marks,
+                        false, false, Sql_condition::WARN_LEVEL_WARN);
+  if (!marks.is_valid)
+    m_pairs_valid= false;
+  m_pairs_depth= MY_MAX(m_pairs_depth, marks.deepest);
+  if (rc == JSON_APPEND_OOM)
+    goto bad_pair;
 
+  /*
+    The same length limit the sister aggregate is held to, read where it
+    is read there - the session's setting as it stands while the group is
+    being built, rather than the width this item was fixed for.
+
+    Cut back to where this pair began rather than to the byte the limit
+    falls on, for the reason given at
+    Item_func_json_arrayagg::cut_max_length(): pairs are what the braces
+    can go round, and half of one is not.
+
+    The limit is on the bytes returned, and the brace that closes the
+    object is one of them; it is written when the group is asked for,
+    which is after every pair has been through here.  So the room for it
+    is kept back from the limit rather than left to be discovered once
+    there is nothing to be done about it.  The opening brace is in the
+    buffer already and is counted where it stands.  Neither of them is
+    one byte wide in a set that writes no character in one byte, which
+    is why the width is asked for rather than assumed.
+  */
+  {
+    uint32 close_len= brace_length();
+
+    DBUG_ASSERT(m_thd);
+    if (result.length() + close_len > m_thd->gconcat_max_len())
+    {
+      result.length(old_length);
+      m_cut= true;
+      report_cut_value_error(m_thd, m_row_count, json_objectagg_cut_name);
+    }
+  }
+
+  return 0;
+
+bad_pair:
+  /*
+    The pair has been written out in part, and the buffer will not take
+    the rest of it.  Whatever else the group goes on to add, the object
+    it is building is already broken, so it is refused as a whole
+    rather than returned half written.
+  */
+  m_bad_pair= true;
   return 0;
 }
 
@@ -4624,10 +7992,38 @@ bool Item_func_json_objectagg::add()
 String* Item_func_json_objectagg::val_str(String* str)
 {
   DBUG_ASSERT(fixed());
+  m_marks.clear();
+
   if (null_value)
     return 0;
 
-  result.append('}');
+  if (m_bad_pair || (!m_closed && result.append('}')))
+  {
+    null_value= 1;
+    return 0;
+  }
+  m_closed= true;
+
+  /*
+    And an object that is not a document is not returned, for the reason
+    the sister aggregate gives where it refuses the same thing.  Only a
+    VALUE gets an object here: a key that could not be written leaves
+    the pair whole around an empty one.
+
+    The braces are on by now, which is what the second of these reads.
+  */
+  if (!m_pairs_valid || json_container_charset_refused(&result, func_name()))
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  /*
+    Never said to be nicely written: a key is followed here by a colon
+    and the value straight after it, where the loose form puts a space
+    between the two.
+  */
+  m_marks.set(&result, true, false, m_pairs_depth);
   return &result;
 }
 
@@ -4637,7 +8033,9 @@ String *Item_func_json_normalize::val_str(String *buf)
   String tmp;
   json_engine_t je;
   THD *thd;
-  String *raw_json= args[0]->val_str(&tmp);
+  String *raw_json= val_json_arg0(args, arg_count, &tmp);
+
+  m_marks.clear();
 
   DYNAMIC_STRING normalized_json;
   if (init_dynamic_string(&normalized_json, NULL, 0, 0))
@@ -4664,6 +8062,20 @@ String *Item_func_json_normalize::val_str(String *buf)
   if (buf->append(normalized_json.str, normalized_json.length))
     goto null_return;
 
+  /*
+    Written out afresh from a document that was read through in full,
+    and written in the character set this function declares, whatever
+    the argument arrived in.  Not written the loose way, though: the
+    normal form puts nothing after a comma or a colon.
+
+    As deep as what it was made from.  Normalising sorts the keys of an
+    object and takes the spacing out; it puts nothing inside anything
+    and takes nothing out of anything, so every structure that was there
+    is there still and no other is.  So whatever the argument could say
+    about its own depth is said about this, and where it said nothing
+    this says nothing, which is where it stood.
+  */
+  m_marks.set(buf, true, false, args[0]->last_depth());
   goto end;
 
 null_return:
@@ -4697,6 +8109,27 @@ void json_skip_current_level(json_engine_t *js, json_engine_t *value)
 {
   json_skip_level(js);
   json_skip_level(value);
+}
+
+
+/*
+  Put an engine back where it was remembered from, so the next candidate
+  can be tried against it.
+
+  A refusal has to survive that.  The snapshot was taken before the
+  engine failed, so restoring over the failure returns an engine that
+  reads as healthy, standing somewhere the scanner never reached; the
+  walk then goes on questioning a document it can no longer read, and
+  the complaint that is finally made - if one is made at all - names
+  wherever the walk ran out rather than what was wrong with the
+  document.  Nonzero says the walk is over.
+*/
+static int json_resume_scan(json_engine_t *je, const json_engine_t *saved)
+{
+  if (je->s.error)
+    return 1;
+  *je= *saved;
+  return 0;
 }
 
 
@@ -4765,7 +8198,8 @@ bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
       int res1= json_find_overlap_with_object(js, value, true);
       if (res1)
         return TRUE;
-      *value= loc_val;
+      if (json_resume_scan(value, &loc_val))
+        return FALSE;
     }
     if (js->value_type == JSON_VALUE_ARRAY)
       json_skip_level(js);
@@ -4831,9 +8265,11 @@ int json_find_overlap_with_array(json_engine_t *js, json_engine_t *value,
           if (!json_value_scalar(value))
             json_skip_level(value);
         }
-        *js= current_js;
+        if (json_resume_scan(js, &current_js))
+          return FALSE;
       }
-      *value= loc_value;
+      if (json_resume_scan(value, &loc_value))
+        return FALSE;
       if (!json_value_scalar(js))
         json_skip_level(js);
     }
@@ -4858,8 +8294,16 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   int result= 0;
   const char *value_begin= (const char*)value->s.c_str-1;
   const char *js_begin= (const char*)js->s.c_str-1;
-  json_skip_level(value);
-  json_skip_level(js);
+  /*
+    A refusal here means the fragment was not read to its end, so what
+    lies between begin and end is a piece of a document rather than one.
+    Normalizing that piece finds it unterminated and says so, which
+    replaces the reason the scanner gave with a complaint about where it
+    was made to stop.  The engine already carries the reason; leave it
+    alone and let the caller report it.
+  */
+  if (json_skip_level(value) || json_skip_level(js))
+    return 0;
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
   json_engine_t je;
@@ -4874,14 +8318,20 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   { 
     goto error;
   }
+  /*
+    Only the code is carried over.  The normalizing engine read a copy of
+    the value, so where it stopped is a position in that copy and says
+    nothing about this document; json_error() takes the reading from the
+    engine being refused, which is the one the caller reports through.
+  */
   if (json_normalize_engine(&je, &a_res, a.ptr(), a.length(), value->s.cs))
   {
-    value->s.error= je.s.error;
+    json_error(&value->s, je.s.error);
     goto error;
   }
   if (json_normalize_engine(&je, &b_res, b.ptr(), b.length(), value->s.cs))
   {
-    js->s.error= je.s.error;
+    json_error(&js->s, je.s.error);
     goto error;
   }
 
@@ -4960,7 +8410,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
               only js (first argument i.e json document) and
               continue.
             */
-            *js= loc_js;
+            if (json_resume_scan(js, &loc_js))
+              return FALSE;
             continue;
           }
         }
@@ -4977,7 +8428,8 @@ int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value,
             return FALSE;
           if (!json_value_scalar(value))
             json_skip_level(value);
-          *js= loc_js;
+          if (json_resume_scan(js, &loc_js))
+            return FALSE;
         }
       }
       /*
@@ -5075,6 +8527,7 @@ bool Item_func_json_overlaps::val_bool()
   json_engine_t je, ve;
   int result;
   THD *thd;
+  Json_source_watch watch;
 
   if ((null_value= (js == nullptr) || args[0]->null_value))
     return 0;
@@ -5082,6 +8535,7 @@ bool Item_func_json_overlaps::val_bool()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
+  watch.take(js);
   if (!a2_parsed)
   {
     val= args[1]->val_json(&tmp_val);
@@ -5094,6 +8548,7 @@ bool Item_func_json_overlaps::val_bool()
     return 0;
   }
 
+  DBUG_ASSERT(watch.unchanged(js));
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   je.killed_ptr= (uint32_t *) &thd->killed;
