@@ -3352,11 +3352,14 @@ func_exit:
 
 	if (srv_thread_pool->submit_io(cb)) {
 		slots->release(cb);
-		os_file_handle_error_no_exit(type.node->name, type.is_read()
-					     ? "aio read" : "aio write",
-					     false);
+		const char *op= type.is_read() ? "aio read" : "aio write";
+		os_file_handle_error_no_exit(type.node->name, op, false);
+		sql_print_error("InnoDB: Tried to %s %zu bytes at offset %" PRIu64
+				" of file %s(file descriptor %d), buffer=%p, "
+				" but error %d instead",
+				op, n, offset, type.node->name,
+				type.node->handle.m_file, buf, errno);
 		err = DB_IO_ERROR;
-		type.node->space->release();
 	}
 
 	goto func_exit;

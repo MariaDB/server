@@ -665,17 +665,26 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
   if (multi_batch)
   {
     fil_system.sys_space->reacquire();
-    os_aio(request, write_buf,
-           os_offset_t{block1.page_no()} << srv_page_size_shift,
-           size << srv_page_size_shift);
-    os_aio(request, write_buf + (size << srv_page_size_shift),
-           os_offset_t{block2.page_no()} << srv_page_size_shift,
-           (old_first_free - size) << srv_page_size_shift);
+    if (os_aio(request, write_buf,
+               os_offset_t{block1.page_no()} << srv_page_size_shift,
+               size << srv_page_size_shift) != DB_SUCCESS
+        || os_aio(request, write_buf + (size << srv_page_size_shift),
+                  os_offset_t{block2.page_no()} << srv_page_size_shift,
+                  (old_first_free - size) << srv_page_size_shift)
+           != DB_SUCCESS)
+    {
+      mysql_mutex_lock(&mutex); // callers assume false has the mutex locked
+      return false;
+    }
   }
   else
-    os_aio(request, write_buf,
-           os_offset_t{block1.page_no()} << srv_page_size_shift,
-           old_first_free << srv_page_size_shift);
+    if (os_aio(request, write_buf,
+               os_offset_t{block1.page_no()} << srv_page_size_shift,
+               old_first_free << srv_page_size_shift) != DB_SUCCESS)
+    {
+      mysql_mutex_lock(&mutex);
+      return false;
+    }
   return true;
 }
 
@@ -759,8 +768,13 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     ut_ad(!e.request.node->space->full_crc32() ||
           !buf_page_is_corrupted(true, static_cast<const byte*>(frame),
                                  e.request.node->space->flags));
-    e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
-                              frame, bpage);
+    fil_io_t fil= e.request.node->space->io(e.request,
+                                            bpage->physical_offset(), e_size,
+                                            frame, bpage);
+    if (fil.err != DB_SUCCESS)
+    {
+      // TODO, or cry
+    }
   }
 }
 
