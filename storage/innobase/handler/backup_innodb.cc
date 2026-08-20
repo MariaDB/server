@@ -280,7 +280,7 @@ private:
           (hl == first_lsn) * (checkpoint - hl);
 #ifndef _WIN32
         std::ignore= posix_fadvise(s, begin, end - begin,
-                                   POSIX_FADV_WILLNEED);
+                                   POSIX_FADV_SEQUENTIAL);
 #endif
 #ifdef copy_file_shortcut
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
@@ -893,7 +893,7 @@ private:
         limit= node->size;
 #ifndef _WIN32
       std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
-                                 POSIX_FADV_WILLNEED);
+                                 POSIX_FADV_SEQUENTIAL);
 #endif
       /*
         For the system tablespace, a minimum size has been configured
@@ -1033,8 +1033,13 @@ private:
     if (file_size < limit)
     {
       limit= file_size;
-      chunk[1].length= chunk[2].offset;
+      chunk[0].length= chunk[1].offset;
     }
+
+#ifndef _WIN32
+    std::ignore= posix_fadvise(node->handle, 0, chunk[0].length,
+                               POSIX_FADV_SEQUENTIAL);
+#endif
 
     if (node == fil_system.sys_space->chain.start &&
         buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
@@ -1376,7 +1381,7 @@ public:
       chunk->offset= os_file_get_size(src);
 #else
       chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
-      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_WILLNEED);
+      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_SEQUENTIAL);
       if (dst != sink.stream)
       {
         err= copy_entire_file(src, dst);
@@ -1397,7 +1402,7 @@ public:
     pad_size:
 #ifdef _WIN32
       std::ignore= posix_fadvise(src, chunk[-1].offset, chunk[-1].length,
-                                 POSIX_FADV_WILLNEED);
+                                 POSIX_FADV_SEQUENTIAL);
 #endif
       /* Set the logical size of the file. */
       chunk->offset=
