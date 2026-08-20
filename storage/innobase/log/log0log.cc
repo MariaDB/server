@@ -823,17 +823,18 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
     if (archive)
     {
       const lsn_t limit{wait_lsn - (wait_lsn - first_lsn) % capacity()};
-      /* We are in innodb_log_archive=OFF. If the file has wrapped
-      around between the checkpoint and the current position, we must
-      wait for a log checkpoint not before the desired first_lsn of
-      our innodb_log_archive=ON log file, because that format does not
+      /* We are switching innodb_log_archive from OFF to ON. If the
+      circular ib_logfile0 is currently wrapped around between the
+      checkpoint and the current position, we must wait for a log
+      checkpoint not before the desired first_lsn of our
+      innodb_log_archive=ON log file, because that format does not
       allow any wrap-around. */
       if (checkpoint < limit)
-        goto retry_after_checkpoint;
+        goto force_checkpoint;
       circular_recovery_from_sequence_bit_0= limit != wait_lsn;
       wait_lsn= limit;
     }
-    else if (circular_recovery_from_sequence_bit_0)
+    else if (circular_recovery_from_sequence_bit_0 || checkpoint < first_lsn)
     {
       /* When switching innodb_log_archive back and forth, it could be
       the case that some records since the latest checkpoint were
@@ -841,15 +842,16 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
       checkpoint. This guarantees that if the server crashes between
       the completion of set_archive(false) and the next
       write_checkpoint(), recovery will only encounter
-      get_sequence_bit() == 1, consistent with our first_lsn. */
-      goto retry_after_checkpoint;
-    }
-    else if (checkpoint < first_lsn)
-    {
-      /* write_checkpoint() switched files, but the latest FILE_CHECKPOINT
-      record points to a previous log file. In the innodb_log_archive=OFF
-      format the checkpoint must be within the only log file. */
-      wait_lsn= first_lsn;
+      get_sequence_bit() == 1, consistent with our first_lsn.
+
+      It could also be that write_checkpoint() has switched files,
+      but the latest FILE_CHECKPOINT record points to a previous log file.
+      In the innodb_log_archive=OFF format the checkpoint must be within
+      the only log file. */
+    force_checkpoint:
+      /* To make a minimum amount of progress, we must aim for a
+      checkpoint right after the latest FILE_CHECKPOINT record. */
+      wait_lsn= end_lsn;
       goto retry_after_checkpoint;
     }
 
