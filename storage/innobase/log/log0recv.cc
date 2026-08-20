@@ -5631,7 +5631,10 @@ inline void log_t::set_recovered() noexcept
   ut_ad(!resize_log.is_opened());
   ut_ad(!resize_buf);
   ut_ad(!resize_flush_buf);
-  /* If innodb_log_archive=ON, we always write the sequence bit as 0.
+  /* If innodb_log_archive=ON, we always write the sequence bit as 1.
+  However, at the time set_archive(true) rewrote the header, the existing
+  records may have been written in the innodb_log_archive=OFF format as 0,
+  in case the log file had wrapped around an odd number of times.
   A subsequent log_t::set_archive(archive=false, ...) must wait for
   a checkpoint, to guarantee that recovery with innodb_log_archive=OFF
   will observe all sequence bits as 1. */

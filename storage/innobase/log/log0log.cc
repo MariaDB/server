@@ -822,38 +822,54 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
 
     if (archive)
     {
-      const lsn_t limit{wait_lsn - (wait_lsn - first_lsn) % capacity()};
+      wait_lsn-= (wait_lsn - first_lsn) % capacity();
+      ut_ad(get_sequence_bit(get_lsn()) == get_sequence_bit(wait_lsn));
       /* We are switching innodb_log_archive from OFF to ON. If the
       circular ib_logfile0 is currently wrapped around between the
       checkpoint and the current position, we must wait for a log
       checkpoint not before the desired first_lsn of our
       innodb_log_archive=ON log file, because that format does not
       allow any wrap-around. */
-      if (checkpoint < limit)
-        goto force_checkpoint;
-      circular_recovery_from_sequence_bit_0= limit != wait_lsn;
-      wait_lsn= limit;
+      if (checkpoint < wait_lsn)
+      {
+      force_checkpoint:
+        /*
+          Progress is guaranteed by setting a checkpoint target right
+          after the latest written FILE_CHECKPOINT record.
+        */
+        wait_lsn= end_lsn;
+        goto retry_after_checkpoint;
+      }
+      ut_ad(get_sequence_bit(checkpoint) == get_sequence_bit(wait_lsn));
+      /*
+        innodb_log_archive=ON recovery ignores the sequence bit.
+        Prepare for a subsequent invocation of set_archive(false),
+        in the "else if" below, and remember if any log records
+        had been written during innodb_log_archive=OFF with
+        the sequence bit value 0.
+      */
+      circular_recovery_from_sequence_bit_0= !get_sequence_bit(wait_lsn);
     }
-    else if (circular_recovery_from_sequence_bit_0 || checkpoint < first_lsn)
-    {
-      /* When switching innodb_log_archive back and forth, it could be
-      the case that some records since the latest checkpoint were
-      written with get_sequence_bit() == 0. Let us wait for another
-      checkpoint. This guarantees that if the server crashes between
-      the completion of set_archive(false) and the next
-      write_checkpoint(), recovery will only encounter
-      get_sequence_bit() == 1, consistent with our first_lsn.
+    else if (circular_recovery_from_sequence_bit_0)
+      /*
+        Some records after the latest checkpoint may have been written
+        with get_sequence_bit() == 0 in innodb_log_archive=OFF
+        mode. Since then we may have switched to innodb_log_archive=ON
+        without advancing the checkpoint (see the above "if" body),
+        and now back to innodb_log_archive=OFF again.
 
-      It could also be that write_checkpoint() has switched files,
-      but the latest FILE_CHECKPOINT record points to a previous log file.
-      In the innodb_log_archive=OFF format the checkpoint must be within
-      the only log file. */
-    force_checkpoint:
-      /* To make a minimum amount of progress, we must aim for a
-      checkpoint right after the latest FILE_CHECKPOINT record. */
-      wait_lsn= end_lsn;
-      goto retry_after_checkpoint;
-    }
+        Wait for write_checkpoint() to ensure that recovery will only
+        find get_sequence_bit() == 1, consistent with our first_lsn.
+      */
+      goto force_checkpoint;
+    else if (checkpoint < first_lsn)
+      /*
+        write_checkpoint() has switched files, but the latest
+        FILE_CHECKPOINT record points to the previous
+        innodb_log_archive=ON file. In the innodb_log_archive=OFF format
+        the checkpoint must be within the only log file.
+      */
+      goto force_checkpoint;
 
 #ifdef HAVE_PMEM
     if (is_mmap())
@@ -893,14 +909,14 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
     {
       std::swap(old_name, new_name);
       std::string spare{get_archive_path(first_lsn + capacity())};
-      if (!get_sequence_bit(last_checkpoint_lsn))
+      if (!get_sequence_bit(checkpoint))
         /*
           In the innodb_log_archive=ON format, mtr_t::finish_writer()
           always writes the sequence bit as 1. Ensure that the
           innodb_log_archive=OFF recovery will expect this value.
         */
         first_lsn-= capacity();
-      ut_ad(get_sequence_bit(last_checkpoint_lsn));
+      ut_ad(get_sequence_bit(checkpoint));
       ut_ad(get_sequence_bit(get_lsn()));
       header_rewrite(false);
       IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
@@ -955,7 +971,7 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
     {
       ut_ad(wait_lsn == get_lsn());
       /* apply similar logic as log_close() */
-      const lsn_t checkpoint_age{wait_lsn - log_sys.last_checkpoint_lsn};
+      const lsn_t checkpoint_age{wait_lsn - checkpoint};
       if (checkpoint_age < max_modified_age_async)
         wait_lsn= 0;
       else
