@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/tidesdb.cnf
+usr/lib/mysql/plugin/ha_tidesdb.so

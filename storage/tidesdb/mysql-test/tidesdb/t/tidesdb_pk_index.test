@@ -1,0 +1,176 @@
+--source include/have_tidesdb.inc
+--disable_warnings
+DROP TABLE IF EXISTS t_pk, t_autoinc, t_secidx, t_combined;
+--enable_warnings
+
+--replace_regex /\.dll/.so/
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: PRIMARY KEY - point lookups & range
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_pk (
+  id   INT NOT NULL PRIMARY KEY,
+  val  VARCHAR(50)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_pk VALUES (10, 'ten'), (20, 'twenty'), (30, 'thirty');
+
+--echo # Point lookup by PK
+SELECT * FROM t_pk WHERE id = 20;
+
+--echo # Range scan on PK
+SELECT * FROM t_pk WHERE id >= 15 AND id <= 25;
+
+--echo # Full scan (should still work)
+SELECT * FROM t_pk ORDER BY id;
+
+--echo # UPDATE via PK lookup
+UPDATE t_pk SET val = 'TWO-ZERO' WHERE id = 20;
+SELECT * FROM t_pk WHERE id = 20;
+
+--echo # DELETE via PK lookup
+DELETE FROM t_pk WHERE id = 10;
+SELECT * FROM t_pk ORDER BY id;
+
+DROP TABLE t_pk;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: AUTO_INCREMENT
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_autoinc (
+  id   INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_autoinc (name) VALUES ('alice');
+INSERT INTO t_autoinc (name) VALUES ('bob');
+INSERT INTO t_autoinc (name) VALUES ('carol');
+
+SELECT * FROM t_autoinc ORDER BY id;
+
+--echo # Explicit id should also work
+INSERT INTO t_autoinc (id, name) VALUES (100, 'dave');
+SELECT * FROM t_autoinc WHERE id = 100;
+
+--echo # Next auto-inc should continue past 100
+INSERT INTO t_autoinc (name) VALUES ('eve');
+SELECT * FROM t_autoinc ORDER BY id;
+
+DROP TABLE t_autoinc;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: Secondary index (KEY)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_secidx (
+  id  INT NOT NULL PRIMARY KEY,
+  k   INT NOT NULL,
+  val VARCHAR(50),
+  KEY k_idx (k)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_secidx VALUES (1, 100, 'a'), (2, 200, 'b'), (3, 100, 'c'), (4, 300, 'd');
+
+--echo # Lookup via secondary index
+SELECT * FROM t_secidx WHERE k = 100 ORDER BY id;
+SELECT * FROM t_secidx WHERE k = 200;
+
+--echo # Range on secondary index
+SELECT * FROM t_secidx WHERE k >= 200 ORDER BY k;
+
+--echo # UPDATE a row and verify secondary index is maintained
+UPDATE t_secidx SET k = 999 WHERE id = 2;
+SELECT * FROM t_secidx WHERE k = 200;
+SELECT * FROM t_secidx WHERE k = 999;
+
+--echo # DELETE and verify index entry removed
+DELETE FROM t_secidx WHERE id = 3;
+SELECT * FROM t_secidx WHERE k = 100 ORDER BY id;
+
+DROP TABLE t_secidx;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: Combined PK + AUTO_INCREMENT + secondary index
+--echo # (sysbench-like schema)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_combined (
+  id  INT NOT NULL AUTO_INCREMENT,
+  k   INT NOT NULL DEFAULT 0,
+  c   CHAR(120) NOT NULL DEFAULT '',
+  pad CHAR(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  KEY k_1 (k)
+) ENGINE=TIDESDB;
+
+--echo # Insert rows (sysbench-style)
+INSERT INTO t_combined (k, c, pad) VALUES
+  (1, REPEAT('a', 120), REPEAT('x', 60)),
+  (2, REPEAT('b', 120), REPEAT('y', 60)),
+  (3, REPEAT('c', 120), REPEAT('z', 60)),
+  (1, REPEAT('d', 120), REPEAT('w', 60));
+
+SELECT id, k, LENGTH(c) AS c_len, LENGTH(pad) AS pad_len FROM t_combined ORDER BY id;
+
+--echo # Point select by PK (sysbench oltp_point_select)
+SELECT id, k FROM t_combined WHERE id = 2;
+
+--echo # Range select by PK
+SELECT id, k FROM t_combined WHERE id BETWEEN 2 AND 3 ORDER BY id;
+
+--echo # Lookup via secondary index
+SELECT id, k FROM t_combined WHERE k = 1 ORDER BY id;
+
+--echo # Update indexed column (sysbench oltp_update_index)
+UPDATE t_combined SET k = k + 1 WHERE id = 1;
+SELECT id, k FROM t_combined WHERE id = 1;
+
+--echo # Verify old index entry gone, new one present
+SELECT id, k FROM t_combined WHERE k = 1 ORDER BY id;
+SELECT id, k FROM t_combined WHERE k = 2 ORDER BY id;
+
+--echo # Delete
+DELETE FROM t_combined WHERE id = 3;
+SELECT COUNT(*) AS cnt FROM t_combined;
+
+--echo # TRUNCATE
+TRUNCATE TABLE t_combined;
+SELECT COUNT(*) AS cnt FROM t_combined;
+
+DROP TABLE t_combined;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 5: BIGINT PRIMARY KEY
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_bigpk (
+  id  BIGINT NOT NULL PRIMARY KEY,
+  val VARCHAR(20)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_bigpk VALUES (9223372036854775806, 'near_max');
+INSERT INTO t_bigpk VALUES (1, 'one');
+INSERT INTO t_bigpk VALUES (9223372036854775807, 'max');
+
+SELECT * FROM t_bigpk ORDER BY id;
+SELECT * FROM t_bigpk WHERE id = 9223372036854775807;
+
+DROP TABLE t_bigpk;
+--source include/cleanup_tidesdb.inc
+

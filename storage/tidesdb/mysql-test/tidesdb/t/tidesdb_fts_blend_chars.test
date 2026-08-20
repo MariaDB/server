@@ -1,0 +1,69 @@
+--source include/have_tidesdb.inc
+--source include/force_restart.inc
+
+--echo #
+--echo # TidesDB FTS blend_chars support for Romance language elision
+--echo #
+
+SET GLOBAL tidesdb_fts_blend_chars = "'";
+
+CREATE TABLE docs (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  body TEXT,
+  FULLTEXT KEY ft_body (body)
+) ENGINE=TidesDB;
+
+INSERT INTO docs (body) VALUES
+  ("L'aria fresca della montagna"),
+  ("Dell'aria pura si respira bene"),
+  ("Un'aria di festa pervadeva la piazza"),
+  ("O'Malley went to the store"),
+  ("The cat sat on the mat");
+
+--echo # Sub-part search: aria matches Italian elision docs
+SELECT id FROM docs WHERE MATCH(body) AGAINST('aria') ORDER BY id;
+
+--echo # Blended form: l'aria ranks doc 1 highest
+SELECT id FROM docs WHERE MATCH(body) AGAINST("l'aria") ORDER BY id;
+
+--echo # Sub-part: malley finds O'Malley
+SELECT id FROM docs WHERE MATCH(body) AGAINST('malley') ORDER BY id;
+
+--echo # Blended form: o'malley
+SELECT id FROM docs WHERE MATCH(body) AGAINST("o'malley") ORDER BY id;
+
+--echo # Blended form: dell'aria
+SELECT id FROM docs WHERE MATCH(body) AGAINST("dell'aria") ORDER BY id;
+
+--echo # Non-blend word: cat (should still work)
+SELECT id FROM docs WHERE MATCH(body) AGAINST('cat') ORDER BY id;
+
+--echo # Stop word through blend: the (still filtered)
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('the');
+
+--echo # Boolean mode with blend chars
+SELECT id FROM docs WHERE MATCH(body) AGAINST("+aria -malley" IN BOOLEAN MODE) ORDER BY id;
+
+--echo # Update with blended content
+UPDATE docs SET body = "L'orchestra dell'opera suona bene" WHERE id = 5;
+SELECT id FROM docs WHERE MATCH(body) AGAINST('orchestra') ORDER BY id;
+SELECT id FROM docs WHERE MATCH(body) AGAINST("dell'opera") ORDER BY id;
+
+--echo # Insert more elision forms
+INSERT INTO docs (body) VALUES
+  ("Nell'acqua limpida del lago"),
+  ("All'interno del castello medievale");
+
+SELECT id FROM docs WHERE MATCH(body) AGAINST('acqua') ORDER BY id;
+SELECT id FROM docs WHERE MATCH(body) AGAINST("nell'acqua") ORDER BY id;
+SELECT id FROM docs WHERE MATCH(body) AGAINST('interno') ORDER BY id;
+
+--echo # Verify sysvar
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_fts_blend_chars';
+
+--echo # Reset blend chars
+SET GLOBAL tidesdb_fts_blend_chars = NULL;
+
+DROP TABLE docs;
+
+--source include/cleanup_tidesdb.inc

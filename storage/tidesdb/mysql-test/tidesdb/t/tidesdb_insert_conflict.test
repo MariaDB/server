@@ -1,0 +1,55 @@
+--source include/have_tidesdb.inc
+#
+# Issue #83: INSERT vs INSERT conflict detection.
+# Two concurrent transactions inserting the same PK should conflict.
+# The second committer should get ER_LOCK_DEADLOCK (TDB_ERR_CONFLICT).
+#
+# NOTE: This test requires TidesDB library fix for INSERT-INSERT
+# conflict detection.  If it fails, the library may need updating.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+--echo #
+--echo # Issue #83: INSERT vs INSERT conflict detection
+--echo #
+
+CREATE TABLE t (
+  a INT NOT NULL PRIMARY KEY,
+  b INT
+) ENGINE=TidesDB;
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+--echo # ---- TEST: Two INSERTs with same PK ----
+connection con1;
+START TRANSACTION;
+INSERT INTO t VALUES (1, 10);
+
+connection con2;
+START TRANSACTION;
+INSERT INTO t VALUES (1, 500);
+COMMIT;
+
+connection con1;
+--echo # con1 should get conflict error -- con2 committed first
+--error ER_LOCK_DEADLOCK,ER_ERROR_DURING_COMMIT
+COMMIT;
+
+connection default;
+--echo # con2 wins: b should be 500
+SELECT * FROM t;
+
+--echo # Cleanup
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+
+DROP TABLE t;
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

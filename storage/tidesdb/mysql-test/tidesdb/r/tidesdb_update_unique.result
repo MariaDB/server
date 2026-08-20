@@ -1,0 +1,57 @@
+# --- PRIMARY KEY collision ---
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t1 VALUES (1,10),(2,20);
+UPDATE t1 SET id=2 WHERE id=1;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+# Both rows must survive the rejected UPDATE
+SELECT * FROM t1 ORDER BY id;
+id	v
+1	10
+2	20
+# A non-colliding move still succeeds
+UPDATE t1 SET id=3 WHERE id=1;
+SELECT * FROM t1 ORDER BY id;
+id	v
+2	20
+3	10
+DROP TABLE t1;
+# --- UNIQUE secondary collision ---
+CREATE TABLE t2 (id INT PRIMARY KEY, e VARCHAR(20), v INT, UNIQUE KEY(e)) ENGINE=TidesDB;
+INSERT INTO t2 VALUES (1,'a',10),(2,'b',20);
+UPDATE t2 SET e='b' WHERE id=1;
+ERROR 23000: Duplicate entry 'b' for key 'e'
+# No duplicate 'b' may exist after the rejected UPDATE
+SELECT * FROM t2 ORDER BY id;
+id	e	v
+1	a	10
+2	b	20
+# Updating the unique column to a fresh value succeeds
+UPDATE t2 SET e='c' WHERE id=1;
+SELECT * FROM t2 ORDER BY id;
+id	e	v
+1	c	10
+2	b	20
+# Updating a non-indexed column leaves the unique value in place
+UPDATE t2 SET v=99 WHERE id=1;
+SELECT * FROM t2 ORDER BY id;
+id	e	v
+1	c	99
+2	b	20
+DROP TABLE t2;
+# --- changing only the PK keeps a stable unique value valid ---
+CREATE TABLE t3 (id INT PRIMARY KEY, e VARCHAR(20), UNIQUE KEY(e)) ENGINE=TidesDB;
+INSERT INTO t3 VALUES (1,'x'),(2,'y');
+# moving id 1 to 3 keeps e='x' unique to that row, must succeed
+UPDATE t3 SET id=3 WHERE id=1;
+SELECT * FROM t3 ORDER BY id;
+id	e
+2	y
+3	x
+DROP TABLE t3;
+# --- tidesdb_skip_unique_check bypasses enforcement by contract ---
+CREATE TABLE t4 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t4 VALUES (1,10),(2,20);
+SET SESSION tidesdb_skip_unique_check=1;
+UPDATE t4 SET id=2 WHERE id=1;
+SET SESSION tidesdb_skip_unique_check=DEFAULT;
+DROP TABLE t4;

@@ -1,0 +1,36 @@
+DROP TABLE IF EXISTS bulk_src;
+DROP TABLE IF EXISTS bulk_dst;
+CREATE TABLE bulk_src (
+id      INT PRIMARY KEY,
+payload VARCHAR(200)
+) ENGINE=TIDESDB;
+CREATE TABLE bulk_dst (
+id      INT PRIMARY KEY,
+payload VARCHAR(200)
+) ENGINE=TIDESDB;
+SELECT COUNT(*) AS src_rows FROM bulk_src;
+src_rows
+1000
+#
+# Run 50 bulk INSERT ... SELECT statements (50,000 rows total).
+# Each statement crosses the bulk-commit threshold, exercising
+# the maybe_bulk_commit() path that previously swallowed errors.
+#
+#
+# Assertion: every row from every batch must be present.  If
+# maybe_bulk_commit() ever swallows an inner commit failure again,
+# this verdict line will read "LOST <N> rows" instead of "OK".
+#
+SELECT IF(COUNT(*) = 50000,
+'OK',
+CONCAT('LOST ', 50000 - COUNT(*), ' rows of 50000'))
+AS verdict
+FROM bulk_dst;
+verdict
+OK
+SELECT COUNT(*) AS dst_rows, MIN(id) AS min_id, MAX(id) AS max_id FROM bulk_dst;
+dst_rows	min_id	max_id
+50000	1	50000
+DROP TABLE bulk_src;
+DROP TABLE bulk_dst;
+# Done.

@@ -1,0 +1,85 @@
+SET @saved_opt_switch = @@optimizer_switch;
+SET optimizer_switch = 'mrr=on,mrr_sort_keys=on,mrr_cost_based=off';
+#
+# TEST 1: IN (...) on PK (clustered-style point lookups)
+#
+CREATE TABLE t_pk (id INT PRIMARY KEY, v VARCHAR(20)) ENGINE=TidesDB;
+INSERT INTO t_pk VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),
+(6,'f'),(7,'g'),(8,'h'),(9,'i'),(10,'j');
+# Confirm the optimizer actually picks Rowid-ordered scan (MRR).
+EXPLAIN SELECT * FROM t_pk WHERE id IN (7, 2, 9, 3, 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_pk	range	PRIMARY	#	4	NULL	2	Using where
+# Unsorted IN-list; MRR must still return the right rows.
+SELECT * FROM t_pk WHERE id IN (7, 2, 9, 3, 5) ORDER BY id;
+id	v
+2	b
+3	c
+5	e
+7	g
+9	i
+# Mix of hits and misses -- missing IDs are silently skipped.
+SELECT * FROM t_pk WHERE id IN (11, 4, 99, 1, 42) ORDER BY id;
+id	v
+1	a
+4	d
+# Single-element IN is still routed through MRR.
+SELECT * FROM t_pk WHERE id IN (6);
+id	v
+6	f
+#
+# TEST 2: IN (...) on a unique secondary index
+#
+CREATE TABLE t_uk (
+id INT PRIMARY KEY,
+code INT,
+v VARCHAR(20),
+UNIQUE KEY u_code (code)
+) ENGINE=TidesDB;
+INSERT INTO t_uk VALUES (1,100,'a'),(2,200,'b'),(3,300,'c'),(4,400,'d'),(5,500,'e');
+SELECT * FROM t_uk WHERE code IN (300, 100, 500) ORDER BY code;
+id	code	v
+1	100	a
+3	300	c
+5	500	e
+SELECT * FROM t_uk WHERE code IN (999, 200, 111) ORDER BY code;
+id	code	v
+2	200	b
+#
+# TEST 3: Large unsorted IN-list (sort-then-seek should still be correct)
+#
+CREATE TABLE t_big (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+SELECT COUNT(*), MIN(id), MAX(id) FROM t_big
+WHERE id IN (37, 199, 2, 88, 150, 1, 73, 112, 200, 5);
+COUNT(*)	MIN(id)	MAX(id)
+10	1	200
+# EXPLAIN should mention MRR in Extra for a 10-value IN on a 200-row table.
+EXPLAIN SELECT * FROM t_big
+WHERE id IN (37, 199, 2, 88, 150, 1, 73, 112, 200, 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_big	range	PRIMARY	#	4	NULL	#	Using where
+#
+# TEST 4: Result is consistent with / without MRR
+#
+SET optimizer_switch = 'mrr=off';
+SELECT * FROM t_pk WHERE id IN (7, 2, 9, 3, 5) ORDER BY id;
+id	v
+2	b
+3	c
+5	e
+7	g
+9	i
+SET optimizer_switch = 'mrr=on,mrr_sort_keys=on,mrr_cost_based=off';
+SELECT * FROM t_pk WHERE id IN (7, 2, 9, 3, 5) ORDER BY id;
+id	v
+2	b
+3	c
+5	e
+7	g
+9	i
+#
+# Cleanup
+#
+DROP TABLE t_pk, t_uk, t_big;
+SET optimizer_switch = @saved_opt_switch;
+# Done.

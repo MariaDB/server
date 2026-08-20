@@ -1,0 +1,102 @@
+--source include/have_tidesdb.inc
+#
+# Test: AUTO_INCREMENT edge cases
+#
+
+--echo #
+--echo # TEST 1: Basic auto-increment
+--echo #
+
+CREATE TABLE t_ai (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_ai (v) VALUES ('a'), ('b'), ('c');
+SELECT * FROM t_ai ORDER BY id;
+
+--echo #
+--echo # TEST 2: Explicit value larger than counter
+--echo #
+
+INSERT INTO t_ai VALUES (100, 'explicit');
+INSERT INTO t_ai (v) VALUES ('after_explicit');
+SELECT * FROM t_ai ORDER BY id;
+
+--echo #
+--echo # TEST 3: Gap after rollback
+--echo #
+
+BEGIN;
+INSERT INTO t_ai (v) VALUES ('will_rollback');
+SELECT MAX(id) FROM t_ai;
+ROLLBACK;
+
+INSERT INTO t_ai (v) VALUES ('after_rollback');
+SELECT id, v FROM t_ai WHERE v IN ('after_rollback', 'after_explicit') ORDER BY id;
+
+--echo #
+--echo # TEST 4: LAST_INSERT_ID
+--echo #
+
+INSERT INTO t_ai (v) VALUES ('last_id_test');
+SELECT LAST_INSERT_ID() > 0 AS has_last_id;
+
+--echo #
+--echo # TEST 5: Auto-increment with REPLACE INTO
+--echo #
+
+CREATE TABLE t_ai_replace (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) UNIQUE
+) ENGINE=TidesDB;
+
+INSERT INTO t_ai_replace (name) VALUES ('x'), ('y'), ('z');
+REPLACE INTO t_ai_replace (name) VALUES ('y');
+SELECT * FROM t_ai_replace ORDER BY name;
+
+--echo #
+--echo # TEST 5b: an auto-increment PK must not bypass the UNIQUE secondary check
+--echo #
+
+--error ER_DUP_ENTRY
+INSERT INTO t_ai_replace (name) VALUES ('z');
+INSERT INTO t_ai_replace (name) VALUES ('x')
+  ON DUPLICATE KEY UPDATE name = 'x2';
+SELECT * FROM t_ai_replace ORDER BY name;
+--echo # no value may appear twice in the UNIQUE column
+SELECT name, COUNT(*) AS c FROM t_ai_replace GROUP BY name HAVING c > 1;
+
+--echo #
+--echo # TEST 6: BIGINT auto-increment
+--echo #
+
+CREATE TABLE t_ai_big (id BIGINT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_ai_big (v) VALUES (1), (2), (3);
+INSERT INTO t_ai_big VALUES (9999999999, 4);
+INSERT INTO t_ai_big (v) VALUES (5);
+SELECT * FROM t_ai_big ORDER BY id;
+
+--echo #
+--echo # TEST 7: Auto-increment after TRUNCATE resets counter
+--echo #
+
+TRUNCATE TABLE t_ai;
+INSERT INTO t_ai (v) VALUES ('fresh_start');
+SELECT * FROM t_ai;
+
+--echo #
+--echo # TEST 8: ALTER TABLE ... AUTO_INCREMENT=N takes effect
+--echo #
+
+CREATE TABLE t_ai_alter (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(10)) ENGINE=TidesDB;
+INSERT INTO t_ai_alter (v) VALUES ('a'), ('b');
+ALTER TABLE t_ai_alter AUTO_INCREMENT=1000;
+INSERT INTO t_ai_alter (v) VALUES ('jumped');
+SELECT * FROM t_ai_alter ORDER BY id;
+DROP TABLE t_ai_alter;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_ai, t_ai_replace, t_ai_big;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.
