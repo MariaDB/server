@@ -86,8 +86,8 @@ static int update_server_record_in_cache(FOREIGN_SERVER *existing,
 /* utility functions */
 static void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to);
 
-static const uchar *servers_cache_get_key(const void *server_, size_t *length,
-                                          my_bool)
+static const void *servers_cache_get_key(const void *server_, size_t *length,
+                                         my_bool)
 {
   auto server= static_cast<const FOREIGN_SERVER *>(server_);
   DBUG_ENTER("servers_cache_get_key");
@@ -96,7 +96,7 @@ static const uchar *servers_cache_get_key(const void *server_, size_t *length,
                       server->server_name));
 
   *length= server->server_name_length;
-  DBUG_RETURN(reinterpret_cast<const uchar *>(server->server_name));
+  DBUG_RETURN(server->server_name);
 }
 
 static PSI_memory_key key_memory_servers;

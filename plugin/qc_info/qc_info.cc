@@ -137,7 +137,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
   /* loop through all queries in the query cache */
   for (uint i= 0; i < queries->records; i++)
   {
-    const uchar *query_cache_block_raw;
+    const void *query_cache_block_raw;
     Query_cache_block* query_cache_block;
     Query_cache_query* query_cache_query;
     Query_cache_query_flags flags;

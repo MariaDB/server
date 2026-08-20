@@ -42,7 +42,7 @@ extern "C" {
 #define HASH_THREAD_SPECIFIC 2  /* Mark allocated memory THREAD_SPECIFIC */
 
 typedef uint32 my_hash_value_type;
-typedef const uchar *(*my_hash_get_key)(const void *, size_t *, my_bool);
+typedef const void *(*my_hash_get_key)(const void *, size_t *, my_bool);
 typedef my_hash_value_type (*my_hash_function)(CHARSET_INFO *,
                                                const uchar *, size_t);
 typedef void (*my_hash_free_key)(void *);
@@ -71,28 +71,28 @@ my_bool my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
                       void (*free_element)(void*), uint flags);
 void my_hash_free(HASH *tree);
 void my_hash_reset(HASH *hash);
-uchar *my_hash_element(HASH *hash, size_t idx);
-uchar *my_hash_search(const HASH *info, const uchar *key, size_t length);
-uchar *my_hash_search_using_hash_value(const HASH *info,
-                                       my_hash_value_type hash_value,
-                                       const uchar *key, size_t length);
+void *my_hash_element(HASH *hash, size_t idx);
+void *my_hash_search(const HASH *info, const uchar *key, size_t length);
+void *my_hash_search_using_hash_value(const HASH *info,
+                                      my_hash_value_type hash_value,
+                                      const uchar *key, size_t length);
 my_hash_value_type my_hash_sort(CHARSET_INFO *cs,
                                 const uchar *key, size_t length);
 #define my_calc_hash(A, B, C) my_hash_sort((A)->charset, B, C)
-uchar *my_hash_first(const HASH *info, const uchar *key, size_t length,
-                     HASH_SEARCH_STATE *state);
-uchar *my_hash_first_from_hash_value(const HASH *info,
-                                     my_hash_value_type hash_value,
-                                     const uchar *key,
-                                     size_t length,
-                                     HASH_SEARCH_STATE *state);
-uchar *my_hash_next(const HASH *info, const uchar *key, size_t length,
+void *my_hash_first(const HASH *info, const uchar *key, size_t length,
                     HASH_SEARCH_STATE *state);
-my_bool my_hash_insert(HASH *info, const uchar *data);
-my_bool my_hash_delete(HASH *hash, uchar *record);
-my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
+void *my_hash_first_from_hash_value(const HASH *info,
+                                    my_hash_value_type hash_value,
+                                    const uchar *key,
+                                    size_t length,
+                                    HASH_SEARCH_STATE *state);
+void *my_hash_next(const HASH *info, const uchar *key, size_t length,
+                   HASH_SEARCH_STATE *state);
+my_bool my_hash_insert(HASH *info, const void *data);
+my_bool my_hash_delete(HASH *hash, void *record);
+my_bool my_hash_update(HASH *hash, void *record, uchar *old_key,
                        size_t old_key_length);
-void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *state, uchar *new_row);
+void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *state, void *new_row);
 my_bool my_hash_check(HASH *hash); /* Only in debug library */
 my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument);
 

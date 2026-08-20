@@ -1133,7 +1133,7 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
 {
   uint32 i;
   HASH gtid_hash;
-  uchar *rec;
+  void *rec;
   rpl_gtid *gtid;
   int res= 1;
   bool locked= false;
@@ -2435,8 +2435,8 @@ int
 slave_connection_state::update(const rpl_gtid *in_gtid)
 {
   entry *e;
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
+  void *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                            sizeof(in_gtid->domain_id));
   if (rec)
   {
     e= (entry *)rec;
@@ -2461,8 +2461,8 @@ slave_connection_state::update(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
+  void *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                            sizeof(in_gtid->domain_id));
 #ifdef DBUG_ASSERT_EXISTS
   bool err;
   rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
@@ -2479,8 +2479,8 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
-                             sizeof(in_gtid->domain_id));
+  void *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                            sizeof(in_gtid->domain_id));
   if (rec)
     my_hash_delete(&hash, rec);
 }
