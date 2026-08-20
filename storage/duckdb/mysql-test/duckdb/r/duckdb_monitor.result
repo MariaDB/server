@@ -2,6 +2,9 @@
 CREATE TABLE t1(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
 CREATE TABLE t2(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
 CREATE TABLE t3(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=innodb;
+SHOW STATUS LIKE 'Duckdb_version';
+Variable_name	Value
+Duckdb_version	v1.5.5
 #
 # 1) INSERT: rows_insert increments per row (dml_in_batch=OFF)
 #
