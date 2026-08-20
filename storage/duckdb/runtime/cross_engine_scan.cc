@@ -294,7 +294,7 @@ mdb_scan_bind(duckdb::ClientContext &context,
                                   "external table registry",
                                   key.c_str());
 
-  for (Field **f= tbl->field; *f; f++)
+  for (Field **f= tbl->field; *f && (*f)->invisible == VISIBLE; f++)
   {
     names.push_back((*f)->field_name.str);
     return_types.push_back(field_to_logical_type(*f));
