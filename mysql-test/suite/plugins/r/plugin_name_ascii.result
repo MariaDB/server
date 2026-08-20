@@ -1,0 +1,51 @@
+#
+# MDEV-39245: Check that plugin name is pure ASCII
+#
+SET NAMES utf8mb4;
+#
+# Case 1: INSTALL SONAME with non-ASCII plugin name should fail
+#
+INSTALL SONAME 'plugin_name_non_ascii';
+ERROR HY000: Plugin 'plügïn_non_ascii': name must contain only ASCII characters
+# Verify mysql.plugin table is clean
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_non_ascii';
+COUNT(*)
+0
+SET NAMES utf8mb4;
+#
+# Case 2: INSTALL PLUGIN targeting non-ASCII plugin directly should fail
+#
+INSTALL PLUGIN plügïn_non_ascii SONAME 'plugin_name_non_ascii';
+ERROR HY000: Plugin 'plügïn_non_ascii': name must contain only ASCII characters
+#
+# Case 3: INSTALL SONAME with all ASCII names should succeed
+#
+INSTALL SONAME 'plugin_name_ascii';
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ascii_plugin_one', 'ascii_plugin_two');
+PLUGIN_NAME	PLUGIN_STATUS
+ascii_plugin_one	ACTIVE
+ascii_plugin_two	ACTIVE
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_ascii';
+COUNT(*)
+0
+UNINSTALL SONAME 'plugin_name_ascii';
+# Verify plugins are gone after uninstall
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ascii_plugin_one', 'ascii_plugin_two');
+PLUGIN_NAME	PLUGIN_STATUS
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_ascii';
+COUNT(*)
+0
+#
+# Case 4: INSTALL PLUGIN with ASCII name should succeed
+#
+INSTALL PLUGIN ascii_plugin_one SONAME 'plugin_name_ascii';
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME = 'ascii_plugin_one';
+PLUGIN_NAME	PLUGIN_STATUS
+ascii_plugin_one	ACTIVE
+UNINSTALL PLUGIN ascii_plugin_one;
