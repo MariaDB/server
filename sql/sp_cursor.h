@@ -193,14 +193,14 @@ public:
 };
 
 
-class sp_cursor_array: public Dynamic_array<sp_cursor_array_element>
+class sp_cursor_array: public Dynamic_array<sp_cursor_array_element*>
 {
 protected:
   Type_ref_null find_unused()
   {
     for (size_t i= 0 ; i < size(); i++)
     {
-      if (!at(i).is_open() && !at(i).ref_count())
+      if (!at(i)->is_open() && !at(i)->ref_count())
         return Type_ref_null((ulonglong) i);
     }
     return Type_ref_null();
@@ -220,20 +220,20 @@ public:
   ULonglong_null ref_count(ulonglong offset) const
   {
     return offset < elements() ?
-           ULonglong_null((ulonglong) at((size_t) offset).ref_count()) :
+           ULonglong_null((ulonglong) at((size_t) offset)->ref_count()) :
            ULonglong_null();
   }
 
   void ref_count_inc(ulonglong offset)
   {
     if (offset < elements())
-      at((size_t) offset).ref_count_inc();
+      at((size_t) offset)->ref_count_inc();
   }
 
   void ref_count_dec(THD *thd, ulonglong offset)
   {
     if (offset < elements())
-      at((size_t) offset).ref_count_dec(thd);
+      at((size_t) offset)->ref_count_dec(thd);
   }
 
   void ref_count_update(THD *thd, const Type_ref_null &old_value,
@@ -281,13 +281,18 @@ public:
   {
     for (uint i= 0; i < (uint) size(); i++)
     {
-      if (at(i).is_open())
-        at(i).close(thd);
+      if (at(i)->is_open())
+        at(i)->close(thd);
     }
   }
   void free(THD *thd)
   {
     close(thd);
+    for (uint i= 0; i < (uint) size(); i++)
+    {
+      DBUG_ASSERT(at(i));
+      delete at(i);
+    }
     free_memory();
   }
 };

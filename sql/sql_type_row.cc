@@ -135,6 +135,32 @@ public:
 };
 
 
+class my_var_sp_row_field_by_name: public my_var_sp
+{
+  const Lex_ident_sys_st m_field_name;
+public:
+  my_var_sp_row_field_by_name(const Lex_ident_sys_st &varname,
+                              const sp_rcontext_addr &varaddr,
+                              const Lex_ident_sys_st &field_name,
+                              sp_head *s)
+   :my_var_sp(varname, varaddr,
+              &type_handler_double/*Not really used*/, s),
+    m_field_name(field_name)
+  { }
+  bool check_assignability(THD *thd, const List<Item> &select_list,
+                           bool *assign_as_row) const override
+  {
+    *assign_as_row= false;
+    return select_list.elements == 1;
+  }
+  bool set(THD *thd, Item *item) override
+  {
+    return get_rcontext(thd->spcont)->
+             set_variable_row_field_by_name(thd, offset(), m_field_name, &item);
+  }
+};
+
+
 my_var *Type_handler_row::make_outvar(THD *thd,
                                       const Lex_ident_sys_st &name,
                                       const sp_rcontext_addr &addr,
@@ -159,11 +185,19 @@ my_var *Type_handler_row::make_outvar_field(THD *thd,
   DBUG_ASSERT(t);
   DBUG_ASSERT(t->type_handler() == this);
 
+  if (t->field_def.is_table_rowtype_ref() ||
+      t->field_def.is_cursor_rowtype_ref())
+  {
+    if (validate_only)
+      return nullptr;
+    return new (thd->mem_root) my_var_sp_row_field_by_name(name, addr,
+                                                           field, sphead);
+
+  }
   uint row_field_offset;
   if (!t->find_row_field(&name, &field, &row_field_offset))
   {
-    DBUG_ASSERT(0);
-    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0), name.str, field.str);
+    DBUG_ASSERT(thd->is_error());
     return NULL;
   }
   if (validate_only) // e.g. EXPLAIN SELECT .. INTO spvar_row.field;
