@@ -363,9 +363,19 @@ my_bool _ma_log_prefix(MARIA_PAGE *ma_page, uint changed_length,
   {
     /* Add prefix */
     DBUG_ASSERT(changed_length >0 && (int) changed_length >= move_length);
+    /* Each keyword forges one operand, so each record trips one check */
+    if (DBUG_IF("corrupt_add_prefix_big"))
+      changed_length= info->s->block_size - info->s->keypage_header;
+    if (DBUG_IF("corrupt_add_prefix_insert"))
+      changed_length= info->s->max_index_block_size - info->s->keypage_header;
     log_pos[0]= KEY_OP_ADD_PREFIX;
-    int2store(log_pos+1, move_length);
-    int2store(log_pos+3, changed_length);
+    int2store(log_pos+1,
+              DBUG_IF("corrupt_add_prefix_insert") ? changed_length :
+              DBUG_IF("corrupt_add_prefix_gap") ? changed_length + 100 :
+              (uint) move_length);
+    int2store(log_pos+3,
+              DBUG_IF("corrupt_add_prefix_changed") ? changed_length + 100
+                                                    : changed_length);
     log_pos+= 5;
   }
 
@@ -1031,8 +1041,15 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       DBUG_PRINT("redo", ("key_op_add_prefix: %u  %u",
                           insert_length, changed_length));
 
-      DBUG_ASSERT(insert_length <= changed_length &&
-                  page_length + insert_length <= max_page_size);
+      if (unlikely((size_t) (header_end - header) < (size_t) changed_length + 4 ||
+                   keypage_header + changed_length > max_page_size ||
+                   page_length + insert_length > max_page_size ||
+                   insert_length > changed_length))
+      {
+        DBUG_ASSERT(!maria_assert_if_crashed_table);
+        result= mark_crashed= 1;
+        goto err;
+      }
 
       bmove_upp(buff + page_length + insert_length, buff + page_length,
                 page_length - keypage_header);
