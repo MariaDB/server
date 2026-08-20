@@ -738,6 +738,7 @@ struct mysql_event_general
   unsigned long long query_id;
   unsigned int port;
   MYSQL_CONST_LEX_STRING database;
+  unsigned long long general_time_microseconds;
 };
 struct mysql_event_connection
 {

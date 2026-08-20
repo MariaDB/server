@@ -1666,7 +1666,7 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
   user_host_len= make_user_name(thd, user_host_buff);
   current_time= my_hrtime();
 
-  mysql_audit_general_log(thd, hrtime_to_time(current_time),
+  mysql_audit_general_log(thd, current_time,
                           user_host_buff, user_host_len,
                           command_name[(uint) command].str,
                           (uint)command_name[(uint) command].length,
