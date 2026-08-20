@@ -30628,9 +30628,10 @@ bool JOIN::rollup_init()
     reinterpret_cast<Ref_ptr_array*>
     (thd->alloc((sizeof(Ref_ptr_array) +
                  all_fields.elements * sizeof(Item*)) * send_group_parts));
-  rollup.fields= thd->alloc<List<Item> >(send_group_parts);
-
-  if (!null_items || !rollup.ref_pointer_arrays || !rollup.fields)
+  rollup.all_fields= thd->alloc<List<Item>>(send_group_parts);
+  rollup.fields_list= thd->alloc<List<Item>>(send_group_parts);
+  if (!null_items || !rollup.ref_pointer_arrays || !rollup.all_fields ||
+      !rollup.fields_list)
     return true;
 
   ref_array= (Item**) (rollup.ref_pointer_arrays+send_group_parts);
@@ -30644,15 +30645,22 @@ bool JOIN::rollup_init()
     if (!(rollup.null_items[i]= new (thd->mem_root) Item_null_result(thd)))
       return true;
 
-    List<Item> *rollup_fields= &rollup.fields[i];
+    List<Item> *rollup_fields= &rollup.all_fields[i];
     rollup_fields->empty();
     rollup.ref_pointer_arrays[i]= Ref_ptr_array(ref_array, all_fields.elements);
     ref_array+= all_fields.elements;
   }
+  uint hidden_fields= all_fields.elements - fields_list.elements;
   for (i= 0 ; i < send_group_parts; i++)
   {
-    for (j=0 ; j < fields_list.elements ; j++)
-      rollup.fields[i].push_back(rollup.null_items[i], thd->mem_root);
+    List_iterator_fast<Item> it(rollup.all_fields[i]);
+    for (j= 0; j < all_fields.elements; j++)
+    {
+      rollup.all_fields[i].push_back(rollup.null_items[i], thd->mem_root);
+      if (j < hidden_fields)
+        it++;
+    }
+    it.sublist(rollup.fields_list[i], fields_list.elements);
   }
   List_iterator<Item> it(all_fields);
   Item *item;
@@ -30791,7 +30799,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
     uint pos= send_group_parts - level -1;
     bool real_fields= 0;
     Item *item;
-    List_iterator<Item> new_it(rollup.fields[pos]);
+    List_iterator<Item> new_it(rollup.all_fields[pos]);
     Ref_ptr_array ref_array_start= rollup.ref_pointer_arrays[pos];
     ORDER *start_group;
 
@@ -30841,8 +30849,8 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	for (group_tmp= start_group, i= pos ;
              group_tmp ; group_tmp= group_tmp->next, i++)
 	{
-          if (*group_tmp->item == item)
-	  {
+          if (item->eq(*group_tmp->item, 0))
+          {
 	    /*
 	      This is an element that is used by the GROUP BY and should be
 	      set to NULL in this level
@@ -30859,12 +30867,10 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	}
       }
       ref_array_start[ref_array_ix]= item;
+      (void) new_it++;      // Point to next item
+      new_it.replace(item); // Replace previous
       if (real_fields)
-      {
-	(void) new_it++;			// Point to next item
-	new_it.replace(item);			// Replace previous
-	ref_array_ix++;
-      }
+        ref_array_ix++;
       else
 	ref_array_ix--;
     }
@@ -30903,9 +30909,9 @@ int JOIN::rollup_send_data(uint idx)
     if ((!having || having->val_bool()))
     {
       if (send_records < unit->lim.get_select_limit() && do_send_rows &&
-	  (res= result->send_data_with_check(rollup.fields[i],
-                                             unit, send_records)) > 0)
-	return 1;
+          (res= result->send_data_with_check(rollup.fields_list[i], unit,
+                                             send_records)) > 0)
+        return 1;
       if (!res)
         send_records++;
     }
@@ -30947,7 +30953,7 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
     {
       int write_error;
       Item *item;
-      List_iterator_fast<Item> it(rollup.fields[i]);
+      List_iterator_fast<Item> it(rollup.all_fields[i]);
       while ((item= it++))
       {
         if (item->type() == Item::NULL_ITEM && item->is_result_field())
