@@ -322,8 +322,10 @@ private:
       if (hl == current_first_lsn)
       {
         ut_ad(sink.stream == sink.NO_STREAM);
+        sql_print_information("de-hardlink");
         if (int fail= de_hardlink(target, hl))
           return fail;
+        sql_print_information("de-hardlinked");
       }
       return write_config(target, sink);
     }
@@ -636,7 +638,11 @@ public:
     else
     {
       log_sys.latch.wr_unlock();
+      sql_print_information("stop archiving: " LSN_PF,
+                            log_sys.last_checkpoint_lsn.load());
       fail= log_sys.backup_stop_archiving(thd);
+      sql_print_information("stopped archiving: " LSN_PF,
+                            log_sys.last_checkpoint_lsn.load());
       log_sys.latch.wr_lock();
       mutex.wr_lock();
       delete_logs();

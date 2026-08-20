@@ -438,6 +438,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
                          int threads, tpool::thread_pool *tp)
 {
   assert(!backup_step_callback_pending);
+  sql_print_information("backup_steps %d", target_phase->phase);
   if (threads == 1)
     return plugin_foreach_with_mask(thd, backup_step,
                                     MYSQL_STORAGE_ENGINE_PLUGIN,
