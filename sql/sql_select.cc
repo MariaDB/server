@@ -16825,6 +16825,10 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
     join->thd->set_examined_row_count(0);
     join->thd->limit_found_rows= 0;
   }
+  else
+  {
+    join->thd->limit_found_rows= send_row ? 1 : 0;
+  }
 
   if (!(result->send_result_set_metadata(*fields,
                               Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
@@ -24711,6 +24715,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     join->fields.
   */
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_send_group");
 
   if (!join->items3.is_null() && !join->set_group_rpa)
@@ -24726,7 +24731,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 
     if (!join->group_sent &&
         (join->first_record ||
-         (end_of_records && !join->group && !join->group_optimized_away)))
+         join->need_empty_set_row(end_of_records,
+                                  &empty_set_send_rollup_total)))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -24782,7 +24788,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	    join->send_records++;
             join->group_sent= true;
 	  }
-	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE && error <= 0))
+	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                 !empty_set_send_rollup_total && error <= 0))
 	  {
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
@@ -25103,13 +25110,15 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 {
   TABLE *table= join_tab->table;
   int	  idx= -1;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_write_group");
 
   join->accepted_rows++;
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
-    if (join->first_record || (end_of_records && !join->group))
+    if (join->first_record ||
+        join->need_empty_set_row(end_of_records, &empty_set_send_rollup_total))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -25134,7 +25143,8 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                                                    error, 0, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
-        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
+        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                     !empty_set_send_rollup_total))
 	{
           if (unlikely(join->rollup_write_data((uint) (idx+1),
                                                join_tab->tmp_table_param,
