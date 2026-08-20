@@ -29,7 +29,7 @@ insert into t1 values(2);
 select * from t1;
 insert into t1(a) values(3);
 select * from t1;
---error ER_BAD_FIELD_ERROR
+--error ER_COLUMNACCESS_DENIED_ERROR
 select invisible,a from t1;
 delete from t1 where a =1;
 update t1 set a=1 where a=3;

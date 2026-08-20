@@ -33,6 +33,7 @@
 #include "create_options.h"
 #include "discover.h"
 #include <m_ctype.h>
+#include "strfunc.h"                            // typelib_with_0x00
 
 #define FCOMP			17		/* Bytes for a packed field */
 
@@ -890,13 +891,17 @@ static bool pack_header(THD *thd, uchar *forminfo,
     if (field->typelib())
     {
       uint old_int_count=int_count;
+      bool typelib_with_z= typelib_with_0x00(*field->typelib());
 
-      if (field->charset->mbminlen > 1)
+      if (field->charset->mbminlen > 1 || typelib_with_z)
       {
         TYPELIB *tmpint;
+        if (typelib_with_z && field->charset->mbminlen == 1)
+          field->pack_flag|= FIELDFLAG_FRM_HEX_ENCODED_TYPELIB;
         /* 
           Escape UCS2 intervals using HEX notation to avoid
           problems with delimiters between enum elements.
+          Do the same for single byte intervals with 0x00 characters.
           As the original representation is still needed in 
           the function make_empty_rec to create a record of
           filled with default values it is saved in save_interval

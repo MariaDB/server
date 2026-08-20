@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2024, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2315,13 +2315,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     break;
   case COM_PROCESS_INFO:
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_PROCESSLIST]);
-    if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd, PRIV_COM_PROCESS_INFO))
-      break;
     general_log_print(thd, command, NullS);
-    mysqld_list_processes(thd,
-                     thd->security_ctx->master_access & PRIV_COM_PROCESS_INFO ?
-                     NullS : thd->security_ctx->priv_user, 0);
+    mysqld_list_processes(thd, 0);
     break;
   case COM_PROCESS_KILL:
   {
@@ -2867,12 +2862,9 @@ bool sp_process_definer(THD *thd)
       to create a stored routine under another user one must have
       SUPER privilege).
     */
-    bool curuser= !strcmp(d->user.str, thd->security_ctx->priv_user);
+    bool curuser= thd->security_ctx->is_priv_user(d->user, d->host);
     bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
-    bool curuserhost= curuser && d->host.str &&
-                      Lex_ident_host(d->host).
-                        streq(Lex_cstring_strlen(thd->security_ctx->priv_host));
-    if (!curuserhost && !currole &&
+    if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
   }
@@ -3915,7 +3907,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_ANALYZE:
   {
     if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd, PRIV_STMT_SHOW_EXPLAIN))
+        check_global_access(thd, PRIV_STMT_SHOW_PROCESSLIST))
       break;
 
     /*
@@ -4592,6 +4584,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     select_lex->options|= SELECT_NO_UNLOCK;
 
     unit->set_limit(select_lex);
+    if (thd->is_error())
+      goto error;
 
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
@@ -4847,14 +4841,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   }
   case SQLCOM_SHOW_PROCESSLIST:
-    if (!thd->security_ctx->priv_user[0] &&
-        check_global_access(thd, PRIV_STMT_SHOW_PROCESSLIST))
-      break;
-    mysqld_list_processes(thd,
-                (thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
-                 NullS :
-                 thd->security_ctx->priv_user),
-                lex->verbose);
+    mysqld_list_processes(thd, lex->verbose);
     break;
   case SQLCOM_SHOW_AUTHORS:
     res= mysqld_show_authors(thd);
@@ -9145,31 +9132,10 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
   DEBUG_SYNC(thd, "found_killee");
   if (tmp->get_command() != COM_DAEMON)
   {
-    /*
-      If we're SUPER, we can KILL anything, including system-threads.
-      No further checks.
-
-      KILLer: thd->security_ctx->user could in theory be NULL while
-      we're still in "unauthenticated" state. This is a theoretical
-      case (the code suggests this could happen, so we play it safe).
-
-      KILLee: tmp->security_ctx->user will be NULL for system threads.
-      We need to check so Jane Random User doesn't crash the server
-      when trying to kill a) system threads or b) unauthenticated users'
-      threads (Bug#43748).
-
-      If user of both killer and killee are non-NULL, proceed with
-      slayage if both are string-equal.
-
-      It's ok to also kill DELAYED threads with KILL_CONNECTION instead of
-      KILL_SYSTEM_THREAD; The difference is that KILL_CONNECTION may be
-      faster and do a harder kill than KILL_SYSTEM_THREAD;
-    */
-
     mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
 
     if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
-        thd->security_ctx->user_matches(tmp->security_ctx))
+        tmp->security_ctx->priv_user_matches(thd->security_ctx))
     {
 #ifdef WITH_WSREP
       if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
@@ -9182,21 +9148,14 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
                             tmp->thread_id,
                            (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
       }
+      else if (WSREP(tmp))
+        error = wsrep_kill_thd(thd, tmp, kill_signal);
       else
-      {
-        if (WSREP(tmp))
-        {
-          error = wsrep_kill_thd(thd, tmp, kill_signal);
-        }
-        else
-        {
 #endif /* WITH_WSREP */
+      {
         tmp->awake_no_mutex(kill_signal);
         error= 0;
-#ifdef WITH_WSREP
-        }
       }
-#endif /* WITH_WSREP */
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
@@ -9249,7 +9208,7 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
     {
       if (!(arg->thd->security_ctx->master_access &
             PRIV_KILL_OTHER_USER_PROCESS) &&
-          !arg->thd->security_ctx->user_matches(thd->security_ctx))
+          !thd->security_ctx->priv_user_matches(arg->thd->security_ctx))
       {
         return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
       }

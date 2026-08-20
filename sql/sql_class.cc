@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2024, MariaDB Corporation.
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -99,7 +99,6 @@ extern "C" void free_user_var(void *entry_)
   char *pos= (char*) entry+ALIGN_SIZE(sizeof(*entry));
   if (entry->value && entry->value != pos)
     my_free(entry->value);
-  my_free(entry);
 }
 
 /* Functions for last-value-from-sequence hash */
@@ -839,6 +838,13 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   init_sql_alloc(key_memory_thd_main_mem_root,
                  &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
+
+  /*
+    Use MY_ROOT_USE_VMEM to keep user vars away from the heap, so that a heap
+    buffer overflow couldn't corrupt a user_var_entry and its value pointer
+  */
+  init_sql_alloc(key_memory_user_var_entry, &user_vars_memroot,
+                 256, 0, MYF(MY_THREAD_SPECIFIC | MY_ROOT_USE_VMEM));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -1750,8 +1756,22 @@ void THD::cleanup(void)
   }
   wt_thd_destroy(&transaction->wt);
 
+  bool user_vars_used= user_vars.records != 0;
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
+  /*
+    MY_ROOT_USE_VMEM is expensive. If this connection used user vars,
+    let's keep one page prealloc so that the next connection on this THD
+    wouldn't need to allocate.
+  */
+  if (user_vars_used)
+  {
+    reset_root_defaults(&user_vars_memroot, user_vars_memroot.block_size,
+                        user_vars_memroot.block_size);
+    free_root(&user_vars_memroot, MYF(MY_KEEP_PREALLOC));
+  }
+  else
+    free_root(&user_vars_memroot, MYF(0));
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -1920,6 +1940,7 @@ THD::~THD()
 #endif
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
+  free_root(&user_vars_memroot, MYF(0));
   my_free(m_token_array);
   my_free(killed_err);
   main_da.free_memory();
@@ -5051,9 +5072,8 @@ change_security_context(THD *thd,
   DBUG_ASSERT(definer_user->str && definer_host->str);
 
   *backup= NULL;
-  needs_change= (strcmp(definer_user->str, thd->security_ctx->priv_user) ||
-                 !Lex_ident_host(*definer_host).
-                   streq(Lex_cstring_strlen(thd->security_ctx->priv_host)));
+  needs_change= !thd->security_ctx->is_priv_user(*definer_user,
+                                                 *definer_host);
   if (needs_change)
   {
     if (acl_getroot(this, *definer_user, *definer_host, *definer_host, *db))
@@ -5080,14 +5100,21 @@ Security_context::restore_security_context(THD *thd,
 #endif
 
 
-bool Security_context::user_matches(Security_context *them)
+/**
+  check that `this` is not system or pre-auth thread and
+  is owned by the same account as in `them`
+
+  Note that it's not symmetric, it's used in KILL/SHOW commands
+  to see whether "them" can kill/see "us", never the other way around!
+*/
+bool Security_context::priv_user_matches(const Security_context *them) const
 {
-  return ((user != NULL) && (them->user != NULL) &&
-          !strcmp(user, them->user));
+  return user && is_priv_user(Lex_cstring_strlen(them->priv_user),
+                              Lex_cstring_strlen(them->priv_host));
 }
 
 bool Security_context::is_priv_user(const LEX_CSTRING &user,
-                                    const LEX_CSTRING &host)
+                                    const LEX_CSTRING &host) const
 {
   return ((user.str != NULL) && (host.str != NULL) &&
           !strcmp(user.str, priv_user) &&

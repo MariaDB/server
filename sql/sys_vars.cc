@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2022, MariaDB Corporation.
+   Copyright (c) 2012, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1995,7 +1995,7 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
        VALID_RANGE(16384, SIZE_T_MAX), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024));
 
-static ulong mdl_locks_cache_size;
+READ_ONLY_SYSVAR static ulong mdl_locks_cache_size;
 static Sys_var_ulong Sys_metadata_locks_cache_size(
        "metadata_locks_cache_size", UNUSED_HELP,
        READ_ONLY GLOBAL_VAR(mdl_locks_cache_size), CMD_LINE(REQUIRED_ARG),
@@ -2003,7 +2003,7 @@ static Sys_var_ulong Sys_metadata_locks_cache_size(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(1105, ""));
 
-static ulong mdl_locks_hash_partitions;
+READ_ONLY_SYSVAR static ulong mdl_locks_hash_partitions;
 static Sys_var_ulong Sys_metadata_locks_hash_instances(
       "metadata_locks_hash_instances", UNUSED_HELP,
        READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
@@ -2123,7 +2123,7 @@ Sys_gtid_seq_no(
 
 
 #ifdef HAVE_REPLICATION
-static unsigned char opt_gtid_binlog_pos_dummy;
+READ_ONLY_SYSVAR static unsigned char opt_gtid_binlog_pos_dummy;
 static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
        "gtid_binlog_pos", "Last GTID logged to the binary log, per replication "
        "domain",
@@ -2150,7 +2150,7 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd,
 }
 
 
-static unsigned char opt_gtid_current_pos_dummy;
+READ_ONLY_SYSVAR static unsigned char opt_gtid_current_pos_dummy;
 static Sys_var_gtid_current_pos Sys_gtid_current_pos(
        "gtid_current_pos", "Current GTID position of the server. Per "
        "replication domain, this is either the last GTID replicated by a "
@@ -3649,11 +3649,15 @@ static Sys_var_mybool Sys_require_secure_transport(
   ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
 
 static Sys_var_charptr_fscs Sys_secure_file_priv(
-       "secure_file_priv",
-       "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
-       "within specified directory",
-       PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
-       CMD_LINE(REQUIRED_ARG, OPT_SEQURE_FILE_PRIV), DEFAULT(0));
+  "secure_file_priv",
+  "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
+  "within specified directory"
+#ifndef _WIN32
+  ". Empty value means no limits except /proc"
+#endif
+  ,
+  PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
+  CMD_LINE(REQUIRED_ARG, OPT_SEQURE_FILE_PRIV), DEFAULT(0));
 
 static bool check_server_id(sys_var *self, THD *thd, set_var *var)
 {
@@ -3696,8 +3700,7 @@ Sys_server_id(
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
 
-char *server_uid_ptr= &server_uid[0];
-
+READ_ONLY_SYSVAR char *server_uid_ptr= &server_uid[0];
 static Sys_var_charptr Sys_server_uid(
       "server_uid", "Automatically calculated server unique id hash",
        READ_ONLY GLOBAL_VAR(server_uid_ptr),
@@ -4324,7 +4327,7 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
 
-static char *opt_ssl_passphrase;
+READ_ONLY_SYSVAR static char *opt_ssl_passphrase;
 static Sys_var_charptr Sys_ssl_passphrase(
        "ssl_passphrase",
        "SSL certificate key passphrase",
@@ -4433,7 +4436,7 @@ static Sys_var_mybool Sys_sync_frm(
        GLOBAL_VAR(opt_sync_frm), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
-static char *system_time_zone_ptr;
+READ_ONLY_SYSVAR static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
        READ_ONLY GLOBAL_VAR(system_time_zone_ptr),
@@ -4771,7 +4774,7 @@ static Sys_var_charptr Sys_version(
        CMD_LINE_HELP_ONLY,
        DEFAULT(server_version));
 
-static char *server_version_comment_ptr;
+READ_ONLY_SYSVAR static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
        "version_comment", "Value of the COMPILATION_COMMENT option "
        "specified by CMake when building MariaDB, for example "
@@ -4780,14 +4783,14 @@ static Sys_var_charptr Sys_version_comment(
        CMD_LINE_HELP_ONLY,
        DEFAULT(MYSQL_COMPILATION_COMMENT));
 
-static char *server_version_compile_machine_ptr;
+READ_ONLY_SYSVAR static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "The machine type or architecture "
        "MariaDB was built on, for example i686",
        READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr),
        CMD_LINE_HELP_ONLY, DEFAULT(DEFAULT_MACHINE));
 
-static char *server_version_compile_os_ptr;
+READ_ONLY_SYSVAR static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
        "version_compile_os", "Operating system that MariaDB was built "
        "on, for example debian-linux-gnu",
@@ -4796,20 +4799,20 @@ static Sys_var_charptr Sys_version_compile_os(
        DEFAULT(SYSTEM_TYPE));
 
 #include <source_revision.h>
-static char *server_version_source_revision;
+READ_ONLY_SYSVAR static char *server_version_source_revision;
 static Sys_var_charptr Sys_version_source_revision(
        "version_source_revision", "Source control revision id for MariaDB source code",
        READ_ONLY GLOBAL_VAR(server_version_source_revision),
        CMD_LINE_HELP_ONLY,
        DEFAULT(SOURCE_REVISION));
 
-static char *malloc_library;
+READ_ONLY_SYSVAR static char *malloc_library;
 static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
        READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
        DEFAULT(guess_malloc_library()));
 
-static char *ssl_library;
+READ_ONLY_SYSVAR static char *ssl_library;
 static Sys_var_charptr Sys_ssl_library(
        "version_ssl_library", "Version of the used SSL library",
        READ_ONLY GLOBAL_VAR(ssl_library), CMD_LINE_HELP_ONLY,
@@ -5415,7 +5418,7 @@ static Sys_var_uint Sys_group_concat_max_len(
        VALID_RANGE(4, MAX_MAX_ALLOWED_PACKET), DEFAULT(1024*1024),
        BLOCK_SIZE(1));
 
-static char *glob_hostname_ptr;
+READ_ONLY_SYSVAR static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
        "hostname", "Server host name",
        READ_ONLY GLOBAL_VAR(glob_hostname_ptr), NO_CMD_LINE,
@@ -5472,7 +5475,7 @@ static Sys_var_mybool Sys_keep_files_on_create(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED_NO_REPLACEMENT(1008));
 
-static char *license;
+READ_ONLY_SYSVAR static char *license;
 static Sys_var_charptr Sys_license(
        "license", "The type of license the server has",
        READ_ONLY GLOBAL_VAR(license), NO_CMD_LINE,
@@ -5708,7 +5711,7 @@ static Sys_var_have Sys_have_symlink(
 #  define SANITIZER_MODE "MSAN"
 # endif
 
-static char *have_sanitizer;
+READ_ONLY_SYSVAR static char *have_sanitizer;
 static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
@@ -5832,7 +5835,7 @@ static Sys_var_charptr_fscs Sys_relay_log(
 static Sys_var_charptr_fscs Sys_relay_log_index(
        "relay_log_index", "The location and name to use for the file "
        "that keeps a list of the last relay logs",
-       READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
        DEFAULT(0));
 
 /*
@@ -5842,19 +5845,19 @@ static Sys_var_charptr_fscs Sys_relay_log_index(
 */
 static Sys_var_charptr_fscs Sys_binlog_index(
        "log_bin_index", "File that holds the names for last binary log files",
-       READ_ONLY GLOBAL_VAR(log_bin_index), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(log_bin_index), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_relay_log_basename(
        "relay_log_basename",
        "The full path of the relay log file names, excluding the extension",
-       READ_ONLY GLOBAL_VAR(relay_log_basename), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(relay_log_basename), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_log_bin_basename(
        "log_bin_basename",
        "The full path of the binary log file names, excluding the extension",
-       READ_ONLY GLOBAL_VAR(log_bin_basename), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(log_bin_basename), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_relay_log_info_file(
@@ -6822,7 +6825,7 @@ static Sys_var_mybool Sys_wsrep_gtid_mode(
        "ignored (backward compatibility)",
        GLOBAL_VAR(wsrep_gtid_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static char *wsrep_patch_version_ptr;
+READ_ONLY_SYSVAR static char *wsrep_patch_version_ptr;
 static Sys_var_charptr Sys_wsrep_patch_version(
        "wsrep_patch_version", "Wsrep patch version, for example wsrep_25.10",
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
@@ -6911,7 +6914,7 @@ static Sys_var_charptr_fscs Sys_ignore_db_dirs(
        "Specifies a directory to add to the ignore list when collecting "
        "database names from the datadir. Put a blank argument to reset "
        "the list accumulated so far",
-       READ_ONLY GLOBAL_VAR(opt_ignore_db_dirs), 
+       PREALLOCATED READ_ONLY GLOBAL_VAR(opt_ignore_db_dirs),
        CMD_LINE(REQUIRED_ARG, OPT_IGNORE_DB_DIRECTORY),
        DEFAULT(0));
 

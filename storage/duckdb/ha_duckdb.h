@@ -21,6 +21,7 @@
 #define HA_DUCKDB_H
 
 #include <sys/types.h>
+#include <atomic>
 #include <memory>
 
 #include "my_global.h"
@@ -47,8 +48,30 @@ class Duckdb_share : public Handler_share
 {
 public:
   THR_LOCK lock;
+  /*
+    AUTO_INCREMENT block cache. Blocks are drawn from the table's DuckDB
+    sequence in get_auto_increment(); the cache spreads the cost of that
+    query over duckdb_autoinc_cache_size ids.
+
+    The fast path claims ids with one CAS on the {next, end} pair. Both
+    fields must move together: with independent atomics a reader could pair
+    a stale bound with a fresh one and claim ids of a dropped block gap,
+    which may belong to a DuckDB-side writer. The mutex only serializes
+    block refills.
+  */
+  struct Autoinc_range
+  {
+    ulonglong next; ///< next unused id of the cached block
+    ulonglong end;  ///< one past the last id of the cached block
+  };
+  alignas(16) std::atomic<Autoinc_range> autoinc_range{{0, 0}};
+  mysql_mutex_t autoinc_refill_mutex;
   Duckdb_share();
-  ~Duckdb_share() { thr_lock_delete(&lock); }
+  ~Duckdb_share()
+  {
+    thr_lock_delete(&lock);
+    mysql_mutex_destroy(&autoinc_refill_mutex);
+  }
 };
 
 /** @brief
@@ -69,7 +92,7 @@ public:
   ulonglong table_flags() const override
   {
     return (HA_BINLOG_STMT_CAPABLE | HA_BINLOG_ROW_CAPABLE |
-            HA_NO_AUTO_INCREMENT | HA_NULL_IN_KEY | HA_CAN_INDEX_BLOBS |
+            HA_NULL_IN_KEY | HA_CAN_INDEX_BLOBS |
             HA_CAN_DIRECT_UPDATE_AND_DELETE);
   }
 
@@ -111,6 +134,9 @@ public:
   int close(void) override;
 
   int write_row(const uchar *buf) override;
+  void get_auto_increment(ulonglong offset, ulonglong increment,
+                          ulonglong nb_desired_values, ulonglong *first_value,
+                          ulonglong *nb_reserved_values) override;
   int update_row(const uchar *old_data, const uchar *new_data) override;
   int delete_row(const uchar *buf) override;
 
