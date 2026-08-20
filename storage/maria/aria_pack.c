@@ -3032,16 +3032,19 @@ static void flush_bits(void)
   ulonglong bit_buffer;
 
   bits= file_buffer.bits & ~7;
-  bit_buffer= file_buffer.bitbucket >> bits;
-  bits= BITS_SAVED - bits;
-  while (bits > 0)
+  if (bits != BITS_SAVED)
   {
-    bits-= 8;
-    *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    bit_buffer= file_buffer.bitbucket >> bits;
+    bits= BITS_SAVED - bits;
+    while (bits > 0)
+    {
+      bits-= 8;
+      *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    }
+    if (file_buffer.pos >= file_buffer.end)
+      flush_buffer(~ (ulong) 0);
+    file_buffer.bits= BITS_SAVED;
   }
-  if (file_buffer.pos >= file_buffer.end)
-    flush_buffer(~ (ulong) 0);
-  file_buffer.bits= BITS_SAVED;
   file_buffer.bitbucket= 0;
 }
 
