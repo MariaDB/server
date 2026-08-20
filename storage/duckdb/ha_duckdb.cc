@@ -1578,7 +1578,16 @@ static struct st_mysql_sys_var *duckdb_system_variables[]= {
     MYSQL_SYSVAR(explain_output), MYSQL_SYSVAR(disabled_optimizers),
     MYSQL_SYSVAR(cross_engine_ryow), NULL};
 
+static int show_duckdb_version(MYSQL_THD, struct st_mysql_show_var *var,
+                               void *, system_status_var *, enum_var_type)
+{
+  var->type= SHOW_CHAR;
+  var->value= const_cast<char *>(duckdb::DuckDB::LibraryVersion());
+  return 0;
+}
+
 static struct st_mysql_show_var duckdb_status_variables[]= {
+    {"Duckdb_version", (char *) show_duckdb_version, SHOW_SIMPLE_FUNC},
     {"Duckdb_rows_insert", (char *) &srv_duckdb_status.duckdb_rows_insert,
      SHOW_LONGLONG},
     {"Duckdb_rows_update", (char *) &srv_duckdb_status.duckdb_rows_update,

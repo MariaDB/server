@@ -549,7 +549,7 @@ with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
 with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
 
 --echo #
---echo # MDEV-38272 Recursive CTE usage leaks memory when not used in a top level select
+--echo # MDEV-38295 Recursive CTE usage leaks memory when not used in a top level select
 --echo #
 
 --error ER_BAD_FIELD_ERROR
@@ -593,6 +593,7 @@ with recursive cte as (select a from t1 union select a from cte where a < 2)
         delete from v1 using v1, cte where v1.a = cte.a;
 select * from t1 order by 1;
 
+drop view v1;
 drop table t1;
 
 --echo # End of 12.2 tests

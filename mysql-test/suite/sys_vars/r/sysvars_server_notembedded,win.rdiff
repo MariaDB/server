@@ -1266,7 +1266,7 @@
  VARIABLE_SCOPE	GLOBAL
  VARIABLE_TYPE	VARCHAR
 -VARIABLE_COMMENT	Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files within specified directory. Empty value means no limits except /proc
-+VARIABLE_COMMENT	Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files within specified directory.
++VARIABLE_COMMENT	Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files within specified directory
  NUMERIC_MIN_VALUE	NULL
  NUMERIC_MAX_VALUE	NULL
  NUMERIC_BLOCK_SIZE	NULL

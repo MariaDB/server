@@ -1,0 +1,62 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Found invalid event in binary log");
+call mtr.add_suppression("Relay log read failure: Could not parse relay log event entry");
+#
+# Initialize test data
+#
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection master;
+create table t1 (c1 int,c2 int,c3 int,c4 int,c5 int,c6 int,c7 int,c8 int,c9 int,c10 int,c11 int,c12 int,c13 int,c14 int,c15 int,c16 int,c17 int,c18 int,c19 int,c20 int,c21 int,c22 int,c23 int,c24 int);
+insert into t1 (c1) values (0);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+set @saved_dbug= @@global.debug_dbug;
+#
+# Test Case: a Table_map declaring more metadata than it carries
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_undersized_table_map_metadata";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+insert into t1 (c1) values (1);
+connection slave;
+# Waiting for the SQL thread to reject the malformed Table_map
+include/wait_for_slave_sql_error.inc [errno=1594]
+# Ensure the event was rejected before its metadata was decoded
+include/assert_grep.inc [The SQL thread reported an invalid event]
+#
+# Recover: discard the poisoned relay log and re-fetch a clean copy
+#
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+connection slave;
+include/stop_slave_io.inc
+include/start_slave.inc
+#
+# Ensure replication works after the invalid event
+#
+connection master;
+insert into t1 (c1) values (2);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Cleanup
+#
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_table_map_metadata_underflow.test

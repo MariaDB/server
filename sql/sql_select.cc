@@ -35010,6 +35010,13 @@ bool Sql_cmd_dml::execute(THD *thd)
   }
 
   unit->set_limit(select_lex);
+  /*
+    set_limit() evaluates the LIMIT expression and can raise an error, e.g.
+    ER_INVALID_DEFAULT_PARAM when DEFAULT is bound to a LIMIT placeholder.
+    Do not go on executing with an error already in the diagnostics area.
+  */
+  if (thd->is_error())
+    goto err;
 
   /* Perform statement-specific execution */
   res = execute_inner(thd);
