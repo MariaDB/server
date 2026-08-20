@@ -212,7 +212,8 @@ private:
         s= CreateFile(s_, GENERIC_READ,
                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                       my_win_file_secattr(), OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, nullptr);
+                      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                      nullptr);
         if (s != INVALID_HANDLE_VALUE)
           break;
         switch (GetLastError()) {
@@ -275,9 +276,12 @@ private:
 #endif
       if (!f)
       {
-        /* FIXME: we may have checkpoint < hl */
         const uint64_t begin= log_sys.START_OFFSET +
           (hl == first_lsn) * (checkpoint - hl);
+#ifndef _WIN32
+        std::ignore= posix_fadvise(s, begin, end - begin,
+                                   POSIX_FADV_WILLNEED);
+#endif
 #ifdef copy_file_shortcut
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
@@ -640,6 +644,9 @@ public:
       log_sys.latch.wr_unlock();
       sql_print_information("stop archiving: " LSN_PF,
                             log_sys.last_checkpoint_lsn.load());
+      /* FIXME: execute this at a later stage,
+      after MDL_BACKUP_WAIT_COMMIT has been released!
+      This may wait several seconds for some page flushing! */
       fail= log_sys.backup_stop_archiving(thd);
       sql_print_information("stopped archiving: " LSN_PF,
                             log_sys.last_checkpoint_lsn.load());
@@ -884,6 +891,10 @@ private:
       int err{0};
       if (node->size < limit)
         limit= node->size;
+#ifndef _WIN32
+      std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
+                                 POSIX_FADV_WILLNEED);
+#endif
       /*
         For the system tablespace, a minimum size has been configured
         which may be larger than the currently used size. Preserve the
@@ -1263,7 +1274,8 @@ public:
       src= CreateFile(path, GENERIC_READ,
                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                       my_win_file_secattr(), OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, nullptr);
+                      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                      nullptr);
       if (src != INVALID_HANDLE_VALUE)
         break;
       switch (GetLastError()) {
@@ -1363,12 +1375,13 @@ public:
       ut_ad(dst == sink.stream);
       chunk->offset= os_file_get_size(src);
 #else
+      chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
+      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_WILLNEED);
       if (dst != sink.stream)
       {
         err= copy_entire_file(src, dst);
         goto close_dst;
       }
-      chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
 #endif
       /* Omit the checkpoint header from the stream. */
       chunk[-1].length= chunk->offset - log_sys.START_OFFSET;
@@ -1382,6 +1395,10 @@ public:
       ut_ad(chunk[-1].length == ctx.last_lsn - lsn);
       chunk->offset= chunk[-1].length;
     pad_size:
+#ifdef _WIN32
+      std::ignore= posix_fadvise(src, chunk[-1].offset, chunk[-1].length,
+                                 POSIX_FADV_WILLNEED);
+#endif
       /* Set the logical size of the file. */
       chunk->offset=
         std::max<uint64_t>(log_sys.FILE_SIZE_MIN,
