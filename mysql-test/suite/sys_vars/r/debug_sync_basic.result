@@ -19,3 +19,8 @@ set @@session.debug_sync=1.1;
 ERROR 42000: Incorrect argument type to variable 'debug_sync'
 set @@session.debug_sync=1e1;
 ERROR 42000: Incorrect argument type to variable 'debug_sync'
+set @@session.debug_sync='now SIGNAL ü';
+select @@session.debug_sync, charset(@@session.debug_sync);
+@@session.debug_sync	charset(@@session.debug_sync)
+ON - current signals: 'ü'	utf8mb3
+set @@session.debug_sync=reset;
