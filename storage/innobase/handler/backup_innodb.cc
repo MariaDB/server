@@ -152,19 +152,19 @@ private:
   struct context
   {
     /** Start LSN of the first backed up log file */
-    lsn_t first_lsn;
+    const lsn_t first_lsn;
     /** Start LSN of the last log file, or LSN_MAX if not determined yet */
     lsn_t max_first_lsn;
     /** Final LSN of the backup, or LSN_MAX if not determined yet */
     lsn_t last_lsn;
     /** size of the first log file */
-    uint64_t first_size;
+    const uint64_t first_size;
     /** Checkpoint at the start of the backup */
-    lsn_t checkpoint;
+    const lsn_t checkpoint;
     /** Log record pointing to the checkpoint */
-    lsn_t checkpoint_end_lsn;
+    const lsn_t checkpoint_end_lsn;
     /** the original state of innodb_log_archive before/after backup */
-    bool archived;
+    const bool archived;
     /** whether end() was invoked */
     bool cleaned_up;
     /** the start LSN of the last hard-linked file, or 0 */
@@ -361,19 +361,29 @@ public:
       delete_logs();
     mutex.wr_unlock();
 
-    const bool fail{log_sys.backup_start(&old_size, thd)};
+    if (log_sys.backup_start(&old_size, thd))
+    {
+      log_sys.latch.wr_unlock();
+    fail:
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      return reinterpret_cast<void*>(-1);
+    }
+
     mutex.wr_lock();
 
-    if (!fail) try
+    try
     {
       lsn_t start_end;
       const lsn_t start=
 #if 1 /* TODO: for incremental backup, allow the start to be specified */
         log_sys.get_latest_checkpoint(start_end);
 #else
-        log_sys.archived_checkpoint;
+      log_sys.archived_checkpoint;
       start_end= log_sys.archived_lsn;
 #endif
+      ut_ad(start_end >= start);
+      ut_ad(start >= log_sys.get_first_lsn());
+
       ctx= new context{
         log_sys.get_first_lsn(), LSN_MAX, LSN_MAX, log_sys.file_size,
         start, start_end, !old_size, false, 0
@@ -420,14 +430,13 @@ public:
       delete ctx;
       ctx= nullptr;
       log_sys.backup_stop(old_size, thd);
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
-      return reinterpret_cast<void*>(-1);
+      goto fail;
     }
 
     mutex.wr_unlock();
     log_sys.latch.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
-    return fail ? reinterpret_cast<void*>(-1) : ctx;
+    return ctx;
   }
 
   /**
@@ -1433,10 +1442,21 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
 {
   ut_ad(latch_have_wr());
   ut_ad(!backup);
+  ut_ad(end_lsn >= last_checkpoint_lsn);
   backup= true;
   *old_size= 0;
   if (archive)
+  {
+    if (first_lsn > last_checkpoint_lsn)
+    {
+      /* Wait for recovery to be independent from the previous log. */
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      buf_flush_wait(end_lsn, false);
+      ut_ad(first_lsn <= last_checkpoint_lsn);
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    }
     return false;
+  }
   const uint64_t old_file_size{file_size};
   latch.wr_unlock();
   const bool fail{set_archive(true, thd, true)};
