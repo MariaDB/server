@@ -6117,6 +6117,26 @@ Rows_log_event_fragmenter::fragment()
       net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
   uint32_t width_size=
       static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
+  /*
+    TODO: MDEV-40851
+
+    A bug in the fragmentation logic bypasses compression when
+    log_bin_compress=ON, so events cannot currently be both fragmented and
+    compressed. Where the server expects the event to be compressed, we must
+    revert that decision because of this bug. So revert the type of the event
+    back to a regular row event.
+
+    Remove the following if conditional when MDEV-40851 is fixed.
+    rpl_fragment_row_event_(main/mysqlbinlog) tests should fail without this
+    workaround.
+  */
+  if (LOG_EVENT_IS_ROW_COMPRESSED(rows_event->m_type))
+  {
+    DBUG_ASSERT(!LOG_EVENT_IS_ROW_V2(rows_event->m_type));
+    rows_event->m_type= (Log_event_type)
+      (rows_event->m_type - WRITE_ROWS_COMPRESSED_EVENT_V1 +
+       WRITE_ROWS_EVENT_V1);
+  }
 
   /*
     Update row events write an extra bitmap
