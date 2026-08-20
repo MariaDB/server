@@ -1712,6 +1712,67 @@ release_tree:
   goto search_loop;
 }
 
+bool btr_cur_t::try_leaf_hint(const dtuple_t *tuple, page_id_t hint_page_id,
+                              mtr_t *mtr)
+{
+  /* hint_page_id was not read from a latched parent page, so it may now
+  precede the caller's already-latched secondary-index leaf in the
+  B-tree latching order: never block on its latch (page latches have no
+  deadlock detection) and never read it from disk. */
+  buf_block_t *const block= buf_page_try_get(hint_page_id, mtr);
+  if (!block)
+    return false;
+
+  const page_t *const page= block->page.frame;
+  if (block->page.is_freed() || !fil_page_index_page_check(page) ||
+      !page_is_leaf(page) ||
+      !!page_is_comp(page) != index()->table->not_redundant() ||
+      btr_page_get_index_id(page) != index()->id)
+  {
+    /* Stale hint or, for search_leaf()'s own checks, corruption; we cannot
+    tell here, so fall back either way, and the full descent still reports a
+    corrupt live leaf. is_freed() is the guard that descent omits: a freed
+    but unreused page keeps old contents that pass the other checks. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  page_cur.block= block;
+  up_match= 0;
+  up_bytes= 0;
+  low_match= 0;
+  low_bytes= 0;
+  if (page_cur_search_with_match(tuple, PAGE_CUR_LE, &up_match, &low_match,
+                                 &page_cur, nullptr) ||
+      page_rec_is_infimum(page_cur.rec))
+  {
+    /* Corruption, or tuple precedes every record on this page: its
+    predecessor, if any, is on an earlier leaf. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  if (page_has_next(page) && low_match < dtuple_get_n_fields_cmp(tuple))
+  {
+    /* The record found is strictly less than tuple: PAGE_CUR_LE lands on
+    the greatest record <= tuple, and a full match would have made
+    low_match == n_fields_cmp. If it is the last user record of a leaf
+    with a right sibling, the true match may be on a later leaf; we cannot
+    resolve that from here, so reject the hint. The rightmost leaf needs
+    no such check: its last record is that match for any larger tuple. */
+    const rec_t *const next_rec= page_rec_get_next_const(page_cur.rec);
+    if (UNIV_UNLIKELY(!next_rec) || page_rec_is_supremum(next_rec))
+    {
+      mtr->release_last_page();
+      return false;
+    }
+  }
+
+  /* Unlike search_leaf(), this feeds no btr_search_info_update(): a hit
+  already provides the direct leaf access the adaptive hash index would. */
+  return true;
+}
+
 ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
 {
   auto &slot= m_memo[get_savepoint() - 1];

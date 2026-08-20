@@ -1,0 +1,94 @@
+#
+# MDEV-32286 ANALYZE displays a huge number of InnoDB secondary index pages_accessed
+#
+# The .result records raw pages_accessed values, so the .opt pins every
+# server option they depend on: page size and row format (tree shape),
+# buffer pool size (the whole working set must stay resident, so that no
+# access path depends on eviction timing), and the adaptive hash index
+# (its hash guesses skip descent pages).
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+create table t1 (
+  pk int not null primary key,
+  domain_grp int,
+  val int
+) engine=innodb;
+
+insert into t1 select seq, mod(seq,10), seq from seq_1_to_10000;
+
+create index domain_idx on t1(domain_grp);
+
+analyze table t1 persistent for all;
+
+# "val" is outside domain_idx, so each matching row needs a clustered-index
+# lookup either way.
+let $out_scan=`analyze format=json select sql_no_cache val from t1 ignore index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_scan';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_FULL_SCAN;
+
+# ~1000 rows share key 3
+let $out_idx=`analyze format=json select sql_no_cache val from t1 force index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_idx';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_SEC_INDEX;
+
+drop table t1;
+
+# Wide primary key: the clustered index needs a 3-level tree.
+create table t2 (
+  pk varchar(500) not null primary key,
+  domain_grp int,
+  val int
+) engine=innodb;
+
+insert into t2 select lpad(seq,500,'0'), mod(seq,4), seq from seq_1_to_20000;
+
+create index domain_idx on t2(domain_grp);
+
+analyze table t2 persistent for all;
+
+# more than one non-leaf page implies an internal level below the root
+select stat_value into @size from mysql.innodb_index_stats
+  where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='size';
+select stat_value into @leaf from mysql.innodb_index_stats
+  where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='n_leaf_pages';
+select @size as TOTAL_PAGES, @leaf as LEAF_PAGES, (@size - @leaf) as NON_LEAF_PAGES;
+select (@size - @leaf) > 1 as THREE_LEVEL_TREE;
+
+let $out_scan2=`analyze format=json select sql_no_cache val from t2 ignore index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_scan2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_FULL_SCAN_3LEVEL;
+
+# ~5000 rows share key 3
+let $out_idx2=`analyze format=json select sql_no_cache val from t2 force index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_idx2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_SEC_INDEX_3LEVEL;
+
+drop table t2;
+
+# Secondary index decorrelated from clustered key order: the clustered-leaf
+# hint must give up instead of paying a wasted probe on every row.
+create table t3 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb;
+
+insert into t3 select seq, mod(seq*997+13,10007), seq from seq_1_to_10000;
+
+create index k_idx on t3(k);
+
+analyze table t3 persistent for all;
+
+let $out_uncorr=`analyze format=json select sql_no_cache val from t3 force index(k_idx) where k between 0 and 10006`;
+evalp set @js='$out_uncorr';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_UNCORRELATED;
+
+drop table t3;

@@ -68,6 +68,12 @@ to que_run_threads: this is to allow canceling runaway queries */
 
 #define SEL_COST_LIMIT	100
 
+/** Consecutive btr_cur_t::try_leaf_hint() misses at which
+Row_sel_get_clust_rec_for_mysql gives up on the hint for the rest of the
+statement. Must be > 1: a well-correlated scan misses once at every
+leaf-page boundary. */
+#define CLUST_LEAF_HINT_MAX_MISSES	2
+
 /* Flags for search shortcut */
 #define SEL_FOUND	0
 #define	SEL_EXHAUSTED	1
@@ -3397,9 +3403,45 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	clust_index = dict_table_get_first_index(sec_index->table);
 	prebuilt->clust_pcur->btr_cur.page_cur.index = clust_index;
 
-	dberr_t err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
+	/* Consecutive rows of a non-covering secondary-index scan often
+	share a clustered leaf page, so try the remembered leaf before a
+	full descent; give up once misses show the scan has no correlation
+	to clustered key order. */
+	dberr_t err;
+	if (prebuilt->clust_leaf_hint_page_no
+	    && prebuilt->clust_pcur->btr_cur.try_leaf_hint(
+		    prebuilt->clust_ref,
+		    page_id_t(clust_index->table->space_id,
+			      prebuilt->clust_leaf_hint_page_no),
+		    mtr)) {
+		err = DB_SUCCESS;
+		/* Mirror what btr_pcur_open_with_no_init() below sets for
+		the same (PAGE_CUR_LE, BTR_SEARCH_LEAF) arguments. */
+		prebuilt->clust_pcur->latch_mode
+			= BTR_LATCH_MODE_WITHOUT_INTENTION(BTR_SEARCH_LEAF);
+		prebuilt->clust_pcur->search_mode = PAGE_CUR_LE;
+		prebuilt->clust_pcur->pos_state = BTR_PCUR_IS_POSITIONED;
+		prebuilt->clust_leaf_hint_miss_streak = 0;
+	} else {
+		err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 prebuilt->clust_pcur, mtr);
+		if (prebuilt->clust_leaf_hint_page_no
+		    && ++prebuilt->clust_leaf_hint_miss_streak
+			    >= CLUST_LEAF_HINT_MAX_MISSES) {
+			/* Give up on the hint for the rest of the
+			statement. */
+			prebuilt->clust_leaf_hint_page_no = 0;
+		} else if (err == DB_SUCCESS
+			   && prebuilt->clust_leaf_hint_miss_streak
+				   < CLUST_LEAF_HINT_MAX_MISSES) {
+			/* Remember the leaf this descent landed on, for
+			the next lookup in this statement. */
+			prebuilt->clust_leaf_hint_page_no
+				= prebuilt->clust_pcur->btr_cur.page_cur
+					.block->page.id().page_no();
+		}
+	}
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		return err;
 	}

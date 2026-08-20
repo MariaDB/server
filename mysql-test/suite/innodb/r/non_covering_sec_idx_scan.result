@@ -1,0 +1,73 @@
+create table t1 (
+pk int not null primary key,
+domain_grp int,
+val int
+) engine=innodb;
+insert into t1 select seq, mod(seq,10), seq from seq_1_to_10000;
+create index domain_idx on t1(domain_grp);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @js='$out_scan';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_FULL_SCAN;
+PAGES_ACCESSED_FULL_SCAN
+23
+set @js='$out_idx';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_SEC_INDEX;
+PAGES_ACCESSED_SEC_INDEX
+1046
+drop table t1;
+create table t2 (
+pk varchar(500) not null primary key,
+domain_grp int,
+val int
+) engine=innodb;
+insert into t2 select lpad(seq,500,'0'), mod(seq,4), seq from seq_1_to_20000;
+create index domain_idx on t2(domain_grp);
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+select stat_value into @size from mysql.innodb_index_stats
+where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='size';
+select stat_value into @leaf from mysql.innodb_index_stats
+where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='n_leaf_pages';
+select @size as TOTAL_PAGES, @leaf as LEAF_PAGES, (@size - @leaf) as NON_LEAF_PAGES;
+TOTAL_PAGES	LEAF_PAGES	NON_LEAF_PAGES
+761	715	46
+select (@size - @leaf) > 1 as THREE_LEVEL_TREE;
+THREE_LEVEL_TREE
+1
+set @js='$out_scan2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_FULL_SCAN_3LEVEL;
+PAGES_ACCESSED_FULL_SCAN_3LEVEL
+717
+set @js='$out_idx2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_SEC_INDEX_3LEVEL;
+PAGES_ACCESSED_SEC_INDEX_3LEVEL
+7309
+drop table t2;
+create table t3 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb;
+insert into t3 select seq, mod(seq*997+13,10007), seq from seq_1_to_10000;
+create index k_idx on t3(k);
+analyze table t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set @js='$out_uncorr';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) as PAGES_ACCESSED_UNCORRELATED;
+PAGES_ACCESSED_UNCORRELATED
+20012
+drop table t3;

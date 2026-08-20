@@ -574,6 +574,20 @@ struct row_prebuilt_t {
 					sel/upd/del */
 	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
 	bool		skip_locked;	/*!< TL_{READ,WRITE}_SKIP_LOCKED */
+	uint8_t		clust_leaf_hint_miss_streak; /*!< Consecutive
+					btr_cur_t::try_leaf_hint() misses; at
+					CLUST_LEAF_HINT_MAX_MISSES (row0sel.cc) the hint
+					is abandoned for the rest of the statement by
+					zeroing clust_leaf_hint_page_no below.
+					Reset per statement in ha_innobase::reset(),
+					matching autoinc_last_value. */
+	uint32_t	clust_leaf_hint_page_no; /*!< Clustered leaf page
+					number remembered from the previous
+					Row_sel_get_clust_rec_for_mysql() lookup in this
+					statement, for btr_cur_t::try_leaf_hint(); the
+					tablespace is always the clustered index's own.
+					0 (the zero-initialized state; page 0 is the FSP
+					header, never a leaf) means no hint. */
 	lock_mode	stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type
 					that was decided in ha_innodb.cc,
