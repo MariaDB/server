@@ -109,15 +109,12 @@ LEX_CSTRING current_user_and_current_role=
 LEX_CSTRING none= {STRING_WITH_LEN("NONE") };
 LEX_CSTRING public_name= {STRING_WITH_LEN("PUBLIC") };
 
-static plugin_ref old_password_plugin;
 static plugin_ref native_password_plugin;
 
 static plugin_ref get_auth_plugin(THD *thd, const LEX_CSTRING &name, bool *locked)
 {
   if (name.str == native_password_plugin_name.str)
     return native_password_plugin;
-  else if (name.str == old_password_plugin_name.str)
-    return old_password_plugin;
   *locked=true;
   return my_plugin_lock_by_name(thd, &name, MYSQL_AUTHENTICATION_PLUGIN);
 }
@@ -3286,15 +3283,13 @@ bool acl_init(bool dont_read_acl_tables)
                                       &my_charset_utf8mb3_bin);
 
   /*
-    cache built-in native authentication plugins,
+    cache built-in native authentication plugin,
     to avoid hash searches and a global mutex lock on every connect
   */
   native_password_plugin= my_plugin_lock_by_name(0,
            &native_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
-  old_password_plugin= my_plugin_lock_by_name(0,
-           &old_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
 
-  if (!native_password_plugin || !old_password_plugin)
+  if (!native_password_plugin)
     DBUG_RETURN(1);
 
   if (dont_read_acl_tables)
@@ -3714,7 +3709,6 @@ void acl_free(bool end)
   else
   {
     plugin_unlock(0, native_password_plugin);
-    plugin_unlock(0, old_password_plugin);
     delete acl_cache;
     acl_cache=0;
   }
