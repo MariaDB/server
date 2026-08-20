@@ -278,7 +278,7 @@ private:
       {
         const uint64_t begin= log_sys.START_OFFSET +
           (hl == first_lsn) * (checkpoint - hl);
-#ifndef _WIN32
+#ifdef POSIX_FADV_SEQUENTIAL
         std::ignore= posix_fadvise(s, begin, end - begin,
                                    POSIX_FADV_SEQUENTIAL);
 #endif
@@ -286,7 +286,7 @@ private:
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
         f= copy_file(s, d, begin, end);
-#ifndef _WIN32
+#ifdef POSIX_FADV_DONTNEED
         std::ignore= posix_fadvise(s, 0, 0, POSIX_FADV_DONTNEED);
 #endif
         if (!f && hl == first_lsn)
@@ -564,7 +564,7 @@ public:
         }
 # endif
         res= (*method)(fd, node, start, limit);
-#ifndef _WIN32
+#ifdef POSIX_FADV_DONTNEED
         std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
 #endif
         if (res)
@@ -898,7 +898,7 @@ private:
       int err{0};
       if (node->size < limit)
         limit= node->size;
-#ifndef _WIN32
+#ifdef POSIX_FADV_SEQUENTIAL
       std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
                                  POSIX_FADV_SEQUENTIAL);
 #endif
@@ -1043,7 +1043,7 @@ private:
       chunk[0].length= chunk[1].offset;
     }
 
-#ifndef _WIN32
+#ifdef POSIX_FADV_SEQUENTIAL
     std::ignore= posix_fadvise(node->handle, 0, chunk[0].length,
                                POSIX_FADV_SEQUENTIAL);
 #endif
@@ -1388,7 +1388,9 @@ public:
       chunk->offset= os_file_get_size(src);
 #else
       chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
+# ifdef POSIX_FADV_SEQUENTIAL
       std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_SEQUENTIAL);
+# endif
       if (dst != sink.stream)
       {
         err= copy_entire_file(src, dst);
@@ -1407,7 +1409,7 @@ public:
       ut_ad(chunk[-1].length == ctx.last_lsn - lsn);
       chunk->offset= chunk[-1].length;
     pad_size:
-#ifndef _WIN32
+#ifdef POSIX_FADV_SEQUENTIAL
       std::ignore= posix_fadvise(src, chunk[-1].offset, chunk[-1].length,
                                  POSIX_FADV_SEQUENTIAL);
 #endif

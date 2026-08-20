@@ -168,7 +168,9 @@ static ssize_t pread_write(IF_WIN(const native_file_handle&,int) in_fd,
 extern "C" int copy_entire_file(int src, int dst)
 {
   uint64_t end(lseek(src, 0, SEEK_END));
+#ifdef POSIX_FADV_SEQUENTIAL
   std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
   int ret;
 # ifdef copy_file_shortcut
   ret= int(copy_file_shortcut(src, dst, 0, end));
@@ -188,7 +190,9 @@ extern "C" int copy_entire_file(int src, int dst)
       ret= copy_file(src, dst, 0, end);
     }
   }
+#ifdef POSIX_FADV_DONTNEED
   std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
+#endif
   return ret;
 }
 #endif
