@@ -453,12 +453,12 @@ set sql_mode=@old_sql_mode;
 
 --echo ## Original testcase
 CREATE TABLE t (a TEXT) AS SELECT '[1]' AS a;
---error ER_TOO_BIG_FIELDLENGTH
+--error ER_TRUNCATED_WRONG_VALUE
 CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
 DROP TABLE t;
 
 CREATE TABLE t (a LONGBLOB) AS SELECT '[1]' AS a;
---error ER_TOO_BIG_FIELDLENGTH
+--error ER_TRUNCATED_WRONG_VALUE
 CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
 DROP TABLE t;
 
@@ -478,9 +478,15 @@ CREATE TABLE tt AS
   SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16382), ']')) AS f;
 DROP TABLE tt;
 
---error ER_TOO_BIG_FIELDLENGTH
+--error ER_TRUNCATED_WRONG_VALUE
 CREATE TABLE tt AS
   SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
+
+CREATE TABLE t1 (v VECTOR(2));
+INSERT INTO t1 VALUES (VEC_FROMTEXT(CONCAT('[1.', REPEAT('0',70000), ',2]')));
+DROP TABLE t1;
+
+SELECT VEC_FROMTEXT('😀😀😀');
 
 --echo ## "Zero-dimensional" argument, no change in behaviour after fix
 SELECT VEC_FROMTEXT('[]') as f;
@@ -503,9 +509,11 @@ DROP TABLE t1, t2;
 --error ER_WRONG_FIELD_SPEC
 CREATE TABLE t3 (f VECTOR(0));
 
---echo ## Fails because concat('[',group_concat(1),']') is mediumblob
---error ER_TOO_BIG_FIELDLENGTH
 create view v1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+DROP view v1;
+
+--error ER_TRUNCATED_WRONG_VALUE
+create table t1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
 
 --echo ## NULLs
 select vec_fromtext(NULL);
@@ -551,5 +559,15 @@ execute p1 using '[]';
 --error ER_JSON_EOS
 execute p1 using '';
 deallocate prepare p1;
+
+--echo #
+--echo # MDEV-40751 CREATE ... SELECT VEC_FROMTEXT(...) may create VECTOR columns that reject every value
+--echo #
+
+CREATE TABLE t1 (a CHAR(4));
+create table t2 select vec_fromtext(a) from t1;
+show create table t2;
+insert into t2 values (vec_fromtext('[1]'));
+DROP TABLE t1, t2;
 
 --echo # End of 11.8 tests
