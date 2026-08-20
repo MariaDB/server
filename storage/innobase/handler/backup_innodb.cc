@@ -563,7 +563,11 @@ public:
                        uint32_t(os_file_get_size(node->handle) / page_size));
         }
 # endif
-        if ((res= (*method)(fd, node, start, limit)))
+        res= (*method)(fd, node, start, limit);
+#ifndef _WIN32
+        std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
+#endif
+        if (res)
           break;
         fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
         if (!next)
@@ -791,11 +795,6 @@ private:
         backup_batch_stop(node->space, blocks, end);
         if (err)
           return err;
-#ifndef _WIN32
-        std::ignore= posix_fadvise(node->handle, o,
-                                   uint64_t{page} * page_size - o,
-                                   POSIX_FADV_DONTNEED);
-#endif
       }
 
       if (final_limit != 0 && page == buf_dblwr.begin())
@@ -963,11 +962,6 @@ private:
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
-#ifndef _WIN32
-              std::ignore= posix_fadvise(node->handle, o,
-                                         uint64_t{page} * page_size - o,
-                                         POSIX_FADV_DONTNEED);
-#endif
             }
 
             if (final_limit != 0 && !err && page == buf_dblwr.begin())
@@ -997,11 +991,6 @@ private:
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
-#ifndef _WIN32
-              std::ignore= posix_fadvise(node->handle, o,
-                                         uint64_t{page} * page_size - o,
-                                         POSIX_FADV_DONTNEED);
-#endif
             }
 
             if (final_limit != 0 && !err && page == buf_dblwr.begin())
@@ -1098,11 +1087,6 @@ private:
       backup_batch_stop(node->space, blocks, end);
       if (err)
         goto fail;
-#ifndef _WIN32
-      std::ignore= posix_fadvise(node->handle, uint64_t{page} * page_size,
-                                 uint64_t{last - page} * page_size,
-                                 POSIX_FADV_DONTNEED);
-#endif
     }
 
     if (limit == buf_dblwr.begin() && n_chunk == 3)
