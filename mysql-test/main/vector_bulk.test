@@ -24,22 +24,22 @@ set max_recursive_iterations= 300;
 
 create table t1 (id int auto_increment primary key, v vector(3000) not null);
 
-# Insert 115 rows of 3000-dimensional vectors.
-# Total size: 115 * ~9288 bytes/row (with M=200) = ~1.06 MB, exceeding 1MB.
+# Insert 175 rows of 3000-dimensional distinct vectors.
+# Total size with M=6: 176 * ~6.26 KB = ~1.10 MB, exceeding 1MB.
 insert into t1 (v)
 with recursive cte as (
   select 1 as n
   union all
-  select n + 1 from cte where n < 115
+  select n + 1 from cte where n < 175
 )
-select repeat(x'00', 12000) from cte;
+select concat(repeat(x'00', 11996), unhex(concat(lpad(hex(n), 4, '0'), '0000'))) from cte;
 
 # Insert a unique search target vector with fixed ID 999 to guarantee deterministic results across all engines
 insert into t1 (id, v) values (999, concat(repeat(x'00', 11996), x'0000803f'));
 
 --echo # Adding index with small cache size should trigger fallback and show a warning
 --replace_regex /usage \(\d+\)/usage (estimated_mem)/
-alter table t1 add vector index (v) m=200;
+alter table t1 add vector index (v) m=6;
 --replace_regex /usage \(\d+\)/usage (estimated_mem)/
 show warnings;
 
@@ -80,21 +80,20 @@ set max_recursive_iterations= 300;
 
 create table t1 (id int auto_increment primary key, v vector(3000) not null);
 
-# Insert 100 rows of 3000-dimensional vectors.
-# Total size with M=16: 101 * ~12.3 KB = ~1.24 MB, exceeding 1MB.
+# Insert 100 rows of 3000-dimensional distinct vectors.
 insert into t1 (v)
 with recursive cte as (
   select 1 as n
   union all
   select n + 1 from cte where n < 100
 )
-select repeat(x'00', 12000) from cte;
+select concat(repeat(x'00', 11996), unhex(concat(lpad(hex(n), 4, '0'), '0000'))) from cte;
 
 insert into t1 (id, v) values (999, concat(repeat(x'00', 11996), x'0000803f'));
 
 # Temporarily increase cache size to allow initial index creation via bulk insert
 set global mhnsw_max_cache_size= 104857600;
-alter table t1 add vector index (v) m=16;
+alter table t1 add vector index (v) m=6;
 
 # Lower cache size back to trigger fallback during OPTIMIZE TABLE
 set global mhnsw_max_cache_size= 1048576;
