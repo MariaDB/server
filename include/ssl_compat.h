@@ -68,6 +68,42 @@
 
 #ifdef HAVE_WOLFSSL
 #define EVP_MD_CTX_SIZE                 sizeof(wc_Md5)
+#define SSL_READ_EARLY_DATA_SUCCESS 0
+#define early_data_size_t int
+/**** WolfSSL stub: will go away when WOLFSSL_EARLY_DATA is enabled ****/
+static inline
+int  wolfSSL_write_early_data(void* ssl __attribute__((unused)),
+                              const void* data __attribute__((unused)),
+                              int sz __attribute__((unused)),
+                              int* outSz)
+{
+  return 1;
+}
+static inline
+int  wolfSSL_read_early_data(void* ssl __attribute__((unused)),
+                             void* data __attribute__((unused)),
+                             int sz __attribute__((unused)),
+                             int* outSz __attribute__((unused)))
+{
+  *outSz= 0;
+  return SSL_READ_EARLY_DATA_SUCCESS;
+}
+static inline
+int  SSL_CTX_set_max_early_data(void* ctx __attribute__((unused)),
+                                    unsigned int sz __attribute__((unused)))
+{
+  return 1;
+}
+static inline
+int SSL_get_early_data_status(const void* ssl __attribute__((unused)))
+{
+  return 1;
+}
+#define SSL_EARLY_DATA_ACCEPTED 0
+#define SSL_EARLY_DATA_REJECTED 1
+/**** End of WolfSSL stub **********************************************/
+#else
+#define early_data_size_t size_t
 #endif
 
 #ifndef HAVE_OPENSSL11

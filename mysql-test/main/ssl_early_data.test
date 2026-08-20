@@ -3,6 +3,7 @@
 --echo #
 
 --source include/not_embedded.inc
+--source include/ssl_library.inc
 
 --echo try without a password or with unsecure plugin
 

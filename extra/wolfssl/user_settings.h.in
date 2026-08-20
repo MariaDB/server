@@ -59,6 +59,7 @@
 #define WC_RSA_PSS
 #define HAVE_SESSION_TICKET
 #define KEEP_PEER_CERT
+/*#define WOLFSSL_EARLY_DATA*/
 /* End of TLSv1.3 defines */
 
 /* Features we exclude */

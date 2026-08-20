@@ -1,0 +1,37 @@
+--- a/mysql-test/main/ssl_early_data.result
++++ b/mysql-test/main/ssl_early_data.result
+@@ -7,7 +7,7 @@ connect ssl1,localhost,u1,pw,,,,SSL;
+ show status like 'ssl_early_data%';
+ Variable_name	Value
+ Ssl_early_data_accepted	0
+-Ssl_early_data_rejected	0
++Ssl_early_data_rejected	1
+ Ssl_early_data_replies	0
+ show status like 'ssl_sessions_reused';
+ Variable_name	Value
+@@ -16,9 +16,9 @@ disconnect ssl1;
+ connect ssl2,localhost,u1,pw,,,,SSL;
+ show status like 'ssl_early_data%';
+ Variable_name	Value
+-Ssl_early_data_accepted	1
+-Ssl_early_data_rejected	0
+-Ssl_early_data_replies	1
++Ssl_early_data_accepted	0
++Ssl_early_data_rejected	2
++Ssl_early_data_replies	0
+ show status like 'ssl_sessions_reused';
+ Variable_name	Value
+ Ssl_sessions_reused	1
+@@ -26,9 +26,9 @@ disconnect ssl2;
+ connect ssl3,localhost,u1,pw,,,,SSL;
+ show status like 'ssl_early_data%';
+ Variable_name	Value
+-Ssl_early_data_accepted	2
+-Ssl_early_data_rejected	0
+-Ssl_early_data_replies	2
++Ssl_early_data_accepted	0
++Ssl_early_data_rejected	3
++Ssl_early_data_replies	0
+ show status like 'ssl_sessions_reused';
+ Variable_name	Value
+ Ssl_sessions_reused	1

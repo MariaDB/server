@@ -425,7 +425,7 @@ ulong sslaccept(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *
     set_if_smaller(bufsize, MAX_EARLY_DATA);
     for (;;)
     {
-      size_t nread;
+      early_data_size_t nread;
       int ret= SSL_read_early_data(ssl, buf, bufsize, &nread);
       if (ret >= SSL_READ_EARLY_DATA_SUCCESS)
       {
