@@ -4671,7 +4671,20 @@ public:
 
     return NULL;
   }
-  /* store value for the duration of the current read record */
+  /*
+    Double-buffering with 'value' and 'read_value': a blob keeps its bytes in
+    one of these two String buffers. 'value' is the scratch buffer that
+    store() writes into (and points the record at), while 'read_value' holds
+    the bytes of the currently-read row. The swap only exchanges buffer
+    ownership, so any record pointer already referring to that memory stays
+    valid.
+
+    It is used to preserve a read row's blob across the computation of a
+    virtual blob column, whose store() would otherwise overwrite 'value':
+    swap the read bytes into 'read_value' before computing, and swap the
+    computed value back into 'read_value' afterwards. This maintains the
+    invariant that 'read_value' always holds the blob data of the read row.
+  */
   inline void swap_value_and_read_value()
   {
     read_value.swap(value);
