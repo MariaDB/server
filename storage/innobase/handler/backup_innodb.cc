@@ -144,9 +144,7 @@ namespace
 class InnoDB_backup
 {
 public:
-#ifdef SUX_LOCK_GENERIC
   InnoDB_backup() { mutex.init(); }
-#endif
   ~InnoDB_backup() { mutex.destroy(); }
 
 private:
@@ -364,6 +362,7 @@ public:
     mutex.wr_unlock();
 
     const bool fail{log_sys.backup_start(&old_size, thd)};
+    mutex.wr_lock();
 
     if (!fail) try
     {
@@ -425,6 +424,7 @@ public:
       return reinterpret_cast<void*>(-1);
     }
 
+    mutex.wr_unlock();
     log_sys.latch.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
     return fail ? reinterpret_cast<void*>(-1) : ctx;
