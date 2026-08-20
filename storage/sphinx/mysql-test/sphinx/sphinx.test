@@ -54,3 +54,20 @@ select * from ts where q=';filter=meta.sub.list[0],4';
 select * from ts where q=';filter=meta.sub.list[1],4';
 select * from ts where q='test;range=meta.foo_count,100,500';
 drop table ts;
+
+--echo # MDEV-37969 sphinx_snippets() UDF fails to resolve hostname
+
+eval CREATE FUNCTION sphinx_snippets RETURNS STRING SONAME '$HA_SPHINX_SO';
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval SELECT sphinx_snippets('d', 'test1', 'search_term', 'sphinx://localhost:$SPHINXSEARCH_PORT' AS sphinx);
+eval SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'sphinx://127.0.0.1:$SPHINXSEARCH_PORT' AS sphinx);
+--replace_result $SPHINXSEARCH_SOCKET SPHINXSEARCH_SOCKET
+eval SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'unix://$SPHINXSEARCH_SOCKET' AS sphinx);
+
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+eval SELECT sphinx_snippets('d', 'test1', 'search_term', 'sphinx://somedomainthatdoesntresolve.example.com:$SPHINXSEARCH_PORT' AS sphinx);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+eval SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'unix://$MYSQL_TMP_DIR/missing_socket' AS sphinx);
+DROP FUNCTION sphinx_snippets;
+
+--echo # End of 10.11 tests
