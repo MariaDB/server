@@ -12422,3 +12422,4 @@ ER_FULL_JOIN_BASE_TABLES_ONLY
         eng "FULL JOIN is only supported with base tables on the right side; '%s' is not a base table"
 ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
         eng "FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN"
+
