@@ -2118,6 +2118,7 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
 }
 
 
+
 static bool
 is_until_reached(binlog_send_info *info, ulong *ev_offset,
                  Log_event_type event_type, const char **errmsg,
@@ -5828,6 +5829,118 @@ int compare_log_name(const char *log_1, const char *log_2) {
     res= (ext1 > ext2 ? 1 : ((ext1 == ext2) ? 0 : -1));
   }
   return res;
+}
+
+/**
+  @brief Helper function to validate if all GTIDs in a given string are reachable/viable.
+
+  This checks the requested GTID state against the current binlog state. It evaluates:
+  1. If binary logging is enabled.
+  2. If the GTID string can be parsed correctly.
+  3. If each GTID is present in the master's binlog state and has not been written in the future.
+  4. If all requested GTIDs have not been purged from the binary log files.
+
+  @param gtid_str      The input string containing GTIDs.
+  @param is_reachable  [OUT] Set to true if all requested GTIDs exist and are not purged.
+
+  @sa gtid_find_binlog_pos()
+  @sa Item_func_gtid_check_pos::val_bool()
+
+  @retval true   An error occurred (binary logging disabled or malformed string).
+  @retval false  Success. The reachability state is stored in `is_reachable`.
+*/
+bool rpl_gtid_pos_check_reachable(String *gtid_str, bool *is_reachable)
+{
+
+  slave_connection_state state;
+  char buf[FN_REFLEN] = {0};
+  const char *errormsg;
+
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return true;
+  }
+
+  if (state.load(gtid_str->ptr(), gtid_str->length()))
+  {
+    /* 
+      We purposefully do not swallow the error here. If the user passes an 
+      ill-formed string, state.load throws ER_INCORRECT_GTID_STATE which 
+      will correctly abort the statement and notify the user.
+    */
+    return true;
+  }
+
+  /*
+    Verify that each requested GTID actually exists in the binlog state
+    and is not in the future.
+  */
+  for (uint32 i= 0; i < state.hash.records; ++i)
+  {
+    slave_connection_state::entry *entry=
+      (slave_connection_state::entry *)my_hash_element(&state.hash, i);
+    rpl_gtid *slave_gtid= &entry->gtid;
+    rpl_gtid master_gtid;
+    rpl_gtid master_replication_gtid;
+
+    bool in_binlog= mysql_bin_log.find_in_binlog_state(slave_gtid->domain_id,
+                                                       slave_gtid->server_id,
+                                                       &master_gtid);
+    if (in_binlog)
+    {
+      if (slave_gtid->seq_no > master_gtid.seq_no)
+      {
+        *is_reachable= false;
+        return false;
+      }
+    }
+    else
+    {
+      bool start_at_own_slave_pos=
+        rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
+                                                    &master_replication_gtid) &&
+        slave_gtid->server_id == master_replication_gtid.server_id &&
+        slave_gtid->seq_no == master_replication_gtid.seq_no;
+      if (!start_at_own_slave_pos)
+      {
+        *is_reachable= false;
+        return false;
+      }
+    }
+  }
+
+  /*
+    gtid_find_binlog_pos will natively iterate over the entire `state` hash,
+    evaluating every GTID provided in the comma-separated list.
+    
+    If ANY of the requested GTIDs are found to be purged from the binary logs, 
+    it returns a non-null error message pinpointing the purged GTID.
+    
+    If ALL GTIDs within the requested state natively resolve (meaning they exist
+    in our index/binlogs, or are safely in the future), it returns a null errormsg.
+    
+    We disregard `found_in_index` and `out_start_seek` counts since we are only doing 
+    boolean viability checking of the provided GTIDs, not actually initializing a dump thread.
+  */
+  bool found_in_index= false;
+  uint32 out_start_seek= 0;
+  rpl_binlog_state until_binlog_state;
+  until_binlog_state.init();
+  slave_connection_state until_gtid_state;
+  
+  errormsg= gtid_find_binlog_pos(&state, buf, &until_gtid_state, &until_binlog_state, &found_in_index, &out_start_seek);
+  
+  until_binlog_state.free();
+  
+  if (errormsg)
+  {
+    *is_reachable= false;
+    return false; // At least one requested GTID has been purged.
+  }
+
+  *is_reachable= true;
+  return false; // All requested GTIDs are currently viable/reachable.
 }
 
 #endif /* HAVE_REPLICATION */
