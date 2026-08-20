@@ -130,6 +130,30 @@ Window_frame::check_frame_bounds()
   return false;
 }
 
+bool
+Window_frame::is_frame_always_empty()
+{
+  if ((top_bound->precedence_type == Window_frame_bound::PRECEDING &&
+     bottom_bound->precedence_type == Window_frame_bound::PRECEDING) ||
+    (top_bound->precedence_type == Window_frame_bound::FOLLOWING &&
+     bottom_bound->precedence_type == Window_frame_bound::FOLLOWING))
+  {
+    if (top_bound->offset == NULL || bottom_bound->offset == NULL)
+      return false;
+
+    THD *thd= current_thd;
+    bool is_preceding= (top_bound->precedence_type == Window_frame_bound::PRECEDING);
+    Item *a= is_preceding ? top_bound->offset : bottom_bound->offset;
+    Item *b= is_preceding ? bottom_bound->offset : top_bound->offset;
+    Item_func_lt *lt= new (thd->mem_root) Item_func_lt(thd, a, b);
+    lt->set_cmp_func(thd);
+    if (lt->fix_fields_if_needed(thd, (Item**) &lt))
+    	return false;
+    return lt->val_int() != 0;
+  }
+
+  return false;
+}
 
 void
 Window_frame::print(String *str, enum_query_type query_type)
@@ -1214,10 +1238,18 @@ private:
 class Cursor_manager
 {
 public:
+  Cursor_manager() : always_empty(false) {}
+
   bool add_cursor(Frame_cursor *cursor)
   {
     return cursors.push_back(cursor);
   }
+
+  /*
+    Mark this manager as owning an always-empty frame. Both notify methods
+    become no-ops, avoiding all cursor I/O for the partition/row transitions.
+  */
+  void set_always_empty() { always_empty= true; }
 
   void initialize_cursors(READ_RECORD *info)
   {
@@ -1229,6 +1261,8 @@ public:
 
   void notify_cursors_partition_changed(ha_rows rownum)
   {
+    if (always_empty)
+      return;
     List_iterator_fast<Frame_cursor> iter(cursors);
     Frame_cursor *cursor;
     while ((cursor= iter++))
@@ -1241,6 +1275,8 @@ public:
 
   void notify_cursors_next_row()
   {
+    if (always_empty)
+      return;
     List_iterator_fast<Frame_cursor> iter(cursors);
     Frame_cursor *cursor;
     while ((cursor= iter++))
@@ -1254,6 +1290,7 @@ public:
   ~Cursor_manager() { cursors.delete_elements(); }
 
 private:
+  bool always_empty;
   /* List of the cursors that this manager owns. */
   List<Frame_cursor> cursors;
 };
@@ -2710,14 +2747,28 @@ bool get_window_functions_required_cursors(
   while ((item_win_func= it++))
   {
     Cursor_manager *cursor_manager = new Cursor_manager();
+
+    /*
+      If the window is always empty we can set the cursor manager to be always
+      empty as well making all cursor management functions null ops.
+    */
+    if (item_win_func->window_spec->window_frame &&
+        item_win_func->window_spec->window_frame->is_frame_always_empty())
+    {
+      cursor_manager->set_always_empty();
+      cursor_managers->push_back(cursor_manager);
+      continue;
+    }
+
     sum_func = item_win_func->window_func();
-    Frame_cursor *fc;
+
     /*
       Some window functions require the partition size for computing values.
       Add a cursor that retrieves it as the first one in the list if necessary.
     */
     if (item_win_func->requires_partition_size())
     {
+      Frame_cursor *fc;
       if (item_win_func->only_single_element_order_list())
       {
         fc= new Frame_unbounded_following_set_count_no_nulls(thd,
@@ -2730,6 +2781,7 @@ bool get_window_functions_required_cursors(
                 item_win_func->window_spec->partition_list,
                 item_win_func->window_spec->order_list);
       }
+
       fc->add_sum_func(sum_func);
       cursor_manager->add_cursor(fc);
     }
@@ -3094,17 +3146,95 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 }
 
 
+bool Window_func_runner::all_frames_always_empty()
+{
+  List_iterator_fast<Item_window_func> it(window_functions);
+  Item_window_func *win_func;
+  while ((win_func= it++))
+  {
+    Window_frame *frame= win_func->window_spec->window_frame;
+    if (!frame || !frame->is_frame_always_empty())
+      return false;
+  }
+  return true;
+}
+
+
+bool Window_func_runner::exec_always_empty(THD *thd, TABLE *tbl)
+{
+  List_iterator_fast<Item_window_func> it(window_functions);
+  Item_window_func *win_func;
+  bool ret= false;
+  uint err;
+
+  while ((win_func= it++))
+  {
+    win_func->set_phase_to_computation();
+    win_func->window_func()->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR);
+    win_func->window_func()->clear();
+  }
+
+  READ_RECORD info;
+  if (init_read_record(&info, thd, tbl, NULL/*select*/, NULL/*filesort_result*/,
+                       0, 1, FALSE))
+    return true;
+
+  JOIN_TAB *join_tab= tbl->reginfo.join_tab;
+  while (true)
+  {
+    if ((err= info.read_record()))
+      break;
+
+    if (unlikely(thd->is_error() || thd->is_killed()))
+    {
+      ret= true;
+      break;
+    }
+
+    store_record(tbl, record[1]);
+    it.rewind();
+    while ((win_func= it++))
+      win_func->save_in_field(win_func->result_field, true);
+
+    Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+    for (Item *func; (func= *func_ptr); func_ptr++)
+      if (func->with_window_func() && func->type() != Item::WINDOW_FUNC_ITEM)
+        func->save_in_result_field(true);
+
+    int update_err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+    if (update_err && update_err != HA_ERR_RECORD_IS_THE_SAME)
+    {
+      ret= true;
+      break;
+    }
+  }
+
+  end_read_record(&info);
+
+  it.rewind();
+  while ((win_func= it++))
+    win_func->set_phase_to_retrieval();
+
+  return ret;
+}
+
+
 bool Window_funcs_sort::exec(JOIN *join, bool keep_filesort_result)
 {
   THD *thd= join->thd;
   JOIN_TAB *join_tab= join->join_tab + join->total_join_tab_cnt();
+  TABLE *tbl= join_tab->table;
+
+  if (runner.all_frames_always_empty())
+    return runner.exec_always_empty(thd, tbl);
+
+  DBUG_EXECUTE_IF("win_always_empty_slow_path", DBUG_ASSERT(0););
 
   /* Sort the table based on the most specific sorting criteria of
      the window functions. */
   if (create_sort_index(thd, join, join_tab, filesort))
     return true;
 
-  TABLE *tbl= join_tab->table;
   SORT_INFO *filesort_result= join_tab->filesort_result;
 
   bool is_error= runner.exec(thd, tbl, filesort_result);
