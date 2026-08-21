@@ -1,0 +1,367 @@
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO without INTO
+--echo #
+
+# First of all check that the patch for MDEV-39563 did not break
+# anything in the usual UPDATE..RETURNING, without INTO.
+# The second execution is important to test.
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  UPDATE t1 SET a=a+1 WHERE a>=20 RETURNING a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+#
+# Make sure that already `lex->m_sql_cmd != nullptr` when
+# Sql_cmd_update::set_with_old_value_items() is called
+# while parsing OLD_VALUE().
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+UPDATE t1 SET a=OLD_VALUE(a);
+--error ER_WRONG_USAGE
+UPDATE t1 SET a=OLD_VALUE(a) RETURNING a INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=OLD_VALUE(a)+1 RETURNING a INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=1+OLD_VALUE(a) RETURNING a INTO @a;
+
+--error ER_WRONG_USAGE
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a) INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a)+1 INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=a+1 RETURNING 1+OLD_VALUE(a) INTO @a;
+
+--error ER_NON_UPDATABLE_TABLE
+UPDATE (SELECT OLD_VALUE(a) AS x FROM t1) AS dt SET dt.x=1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # ANALYZE/EXPLAIN UPDATE .. RETURNING .. INTO ..;
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+SELECT @a,@b;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+SELECT @a,@b;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too few and too many INTO variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a;
+SELECT @a;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c;
+SELECT @a,@b,@c;
+
+# The for a wrong number of rows is done in select_dumpvar::prepare
+# (when ROW variables are already resolved)
+# So the error gets raised at the execution TIME
+
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a';
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+EXECUTE stmt;
+SELECT @a;
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c';
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+EXECUTE stmt;
+SELECT @a,@b,@c;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # Multi-table UPDATEs
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+--error ER_NOT_SUPPORTED_YET
+UPDATE t1,t2 SET t1.a=t1.a+1 WHERE t1.a=t2.b AND t1.a=10 RETURNING t1.a INTO @a;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+UPDATE t1 SET a=a+1 WHERE a=(SELECT MAX(a) FROM t1) RETURNING a INTO @a;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # Stored functions with UPDATE..RETURNING
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  UPDATE t1 SET a=a+1 RETURNING a;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Empty table do not raise errors
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET @a=123;
+UPDATE t1 SET a=10 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--source update_returning_engines.inc
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for user variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+  SET @va=NULL;
+  SET @vb=NULL;
+  UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO @va, @vb;
+  SELECT @va, @vb;
+  SET @va=NULL;
+  SET @vb=NULL;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+SELECT @va, @vb;
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+SELECT @va, @vb;
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+SELECT @va, @vb;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+CALL p1(30);
+CALL p1(30);
+SELECT * FROM t1;
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for SP variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+  DECLARE va INT;
+  DECLARE vb VARCHAR(10);
+  UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO va,vb;
+  SELECT va, vb;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+--error ER_SP_FETCH_NO_DATA
+CALL p1(100);
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+CALL p1(30);
+CALL p1(30);
+SELECT * FROM t1;
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO row_var.not_existing_field
+--echo #
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CREATE PROCEDURE p1_row_explicit()
+BEGIN
+  DECLARE r0 ROW(a INT, b VARCHAR(10));
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1_row_type_of_table()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1_row_type_of_table;
+DROP PROCEDURE p1_row_type_of_table;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1_row_type_of_cursor()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+    SELECT r0.a, r0.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1_row_type_of_cursor;
+DROP PROCEDURE p1_row_type_of_cursor;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a ROW variable
+--echo #
+
+--let $TYPE= ROW(a INT, b VARCHAR(10))
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a ROW variable fields
+--echo #
+
+--let $TYPE= ROW(a INT, b VARCHAR(10))
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable
+--echo #
+
+--let $TYPE= ROW TYPE OF t1
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable fields
+--echo #
+
+--let $TYPE= ROW TYPE OF t1
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable
+--echo #
+
+--let $TYPE= ROW TYPE OF c1
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable fields
+--echo #
+
+--let $TYPE= ROW TYPE OF c1
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo # End of 13.1 tests

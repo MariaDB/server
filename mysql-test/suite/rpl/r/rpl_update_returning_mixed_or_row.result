@@ -1,0 +1,30 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+connection slave;
+connection master;
+BEGIN NOT ATOMIC
+DECLARE va INT;
+UPDATE t1 SET a=a+1 RETURNING a INTO va;
+END;
+$$
+ERROR 42000: Result consisted of more than one row
+SELECT * FROM t1;
+a
+11
+20
+30
+connection slave;
+SELECT * FROM t1;
+a
+11
+20
+30
+connection master;
+DROP TABLE t1;
+# End of 13.1 tests
+include/rpl_end.inc

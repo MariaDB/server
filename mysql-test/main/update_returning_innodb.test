@@ -1,0 +1,43 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+
+SET default_storage_engine=InnoDB;
+--source update_returning_engines.inc
+SET default_storage_engine=DEFAULT;
+
+
+--echo #
+--echo # Empty table
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SET @a=123;
+--error ER_SP_FETCH_NO_DATA
+UPDATE t1 SET a=a+1 WHERE a=0 RETURNING a INTO @a;
+SELECT @a;
+SET @a=NULL;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too many rows inside a transaction
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (10),(20),(30);
+START TRANSACTION;
+SET @a=123;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+COMMIT;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests
