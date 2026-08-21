@@ -941,6 +941,17 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 
 	ut_free(prebuilt->mysql_template);
 
+	if (prebuilt->clust_leaf_hint) {
+		/* The slots are on prebuilt->heap, but the buffers that
+		rec_copy_prefix_to_buf() allocated for their keys are not.
+		Every slot is freed, not only the ones in use: a slot that
+		was discarded or evicted keeps the buffers it owned. */
+		for (ulint i = 0; i < CLUST_LEAF_HINT_SLOTS; i++) {
+			ut_free(prebuilt->clust_leaf_hint[i].first_buf);
+			ut_free(prebuilt->clust_leaf_hint[i].last_buf);
+		}
+	}
+
 	if (prebuilt->ins_graph) {
 		que_graph_free_recursive(prebuilt->ins_graph);
 	}

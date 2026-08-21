@@ -770,6 +770,26 @@ struct btr_cur_t {
   @return error code */
   inline dberr_t open_random_leaf(rec_offs *&offsets, mem_heap_t *& heap,
                                   mtr_t &mtr);
+
+  /** Try a PAGE_CUR_LE, BTR_SEARCH_LEAF lookup directly on a previously
+  remembered leaf page instead of descending from the root.
+  The hint is a guess, never derived from a latched parent page, so the
+  page is acquired via a non-blocking, no-I/O buf_page_try_get() and a
+  miss (stale hint) is expected, not corruption; the caller falls back
+  to a normal search.
+  Unlike search_leaf(), no index()->lock is acquired: that latch protects
+  the tree structure, which only a descent reads, while the contents of a
+  leaf page are protected by the page latch alone, and this never
+  dereferences a node pointer.
+  For a clustered index only: the page is acquired without the change
+  buffer merge that a secondary index leaf can need.
+  @param tuple         key to search for: a complete unique key of the index,
+                       compared over its n_fields_cmp fields
+  @param hint_page_id  remembered leaf page id
+  @param mtr           mini-transaction
+  @return whether the cursor was positioned on the hinted leaf page */
+  bool try_leaf_hint(const dtuple_t *tuple, page_id_t hint_page_id,
+                     mtr_t *mtr);
 };
 
 /** Modify the delete-mark flag of a record.

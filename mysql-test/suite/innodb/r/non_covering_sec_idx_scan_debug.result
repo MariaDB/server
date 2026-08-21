@@ -1,0 +1,220 @@
+# clustered leaf hints disabled
+create table t1 (
+pk int not null primary key,
+domain_grp int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t1 select seq, mod(seq,10), seq from seq_1_to_10000;
+create index domain_idx on t1(domain_grp);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @js='$out_scan';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_FULL_SCAN;
+PAGES_ACCESSED_FULL_SCAN
+23
+set @js='$out_idx';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SEC_INDEX;
+PAGES_ACCESSED_SEC_INDEX
+2003
+drop table t1;
+create table t2 (
+pk varchar(500) character set utf8mb4 collate utf8mb4_general_ci
+not null primary key,
+domain_grp int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t2 select lpad(seq,500,'0'), mod(seq,4), seq from seq_1_to_3000;
+create index domain_idx on t2(domain_grp);
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+select stat_value into @leaf from mysql.innodb_index_stats
+where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='n_leaf_pages';
+select @leaf > 100 as THREE_LEVEL_TREE;
+THREE_LEVEL_TREE
+1
+set @js='$out_scan2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_FULL_SCAN_3LEVEL;
+PAGES_ACCESSED_FULL_SCAN_3LEVEL
+110
+set @js='$out_idx2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SEC_INDEX_3LEVEL;
+PAGES_ACCESSED_SEC_INDEX_3LEVEL
+2277
+drop table t2;
+create table t3 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t3 select seq, mod(seq*997+13,10007), seq from seq_1_to_10000;
+create index k_idx on t3(k);
+analyze table t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set @js='$out_uncorr';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_UNCORRELATED;
+PAGES_ACCESSED_UNCORRELATED
+20010
+drop table t3;
+create table t4 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t4 select seq, 2*seq-1, seq from seq_1_to_1000;
+insert into t4 select 1000000+seq, 2*seq, seq from seq_1_to_1000;
+create index k_idx on t4(k);
+analyze table t4 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+set @js='$out_interleaved';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_INTERLEAVED;
+PAGES_ACCESSED_INTERLEAVED
+4003
+drop table t4;
+create table t5 (
+pk int not null primary key,
+k int unsigned,
+val int
+) engine=innodb row_format=dynamic;
+insert into t5 select seq, crc32(seq), seq from seq_1_to_10000;
+create index k_idx on t5(k);
+analyze table t5 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t5	analyze	status	Engine-independent statistics collected
+test.t5	analyze	status	OK
+set @js='$out_shuffled';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SHUFFLED;
+PAGES_ACCESSED_SHUFFLED
+20010
+drop table t5;
+create table t6 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t6 select seq, mod(seq,10), seq from seq_1_to_10000;
+alter table t6 add column c int default 42, algorithm=instant;
+create index k_idx on t6(k);
+select count(val) as ROWS_INSTANT, sum(val) as SUM_INSTANT, min(c) as DEFAULT_C
+from t6 force index(k_idx) where k=3;
+ROWS_INSTANT	SUM_INSTANT	DEFAULT_C
+1000	4998000	42
+drop table t6;
+create table t7 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb row_format=redundant;
+insert into t7 select seq, mod(seq,10), seq from seq_1_to_10000;
+alter table t7 add column c int default 42, algorithm=instant;
+create index k_idx on t7(k);
+select count(val) as ROWS_REDUNDANT, sum(val) as SUM_REDUNDANT
+from t7 force index(k_idx) where k=3;
+ROWS_REDUNDANT	SUM_REDUNDANT
+1000	4998000
+drop table t7;
+create table t8 (
+pk int not null primary key,
+k int,
+val int,
+drop_me int
+) engine=innodb row_format=dynamic;
+insert into t8 select seq, mod(seq,10), seq, seq from seq_1_to_10000;
+alter table t8 drop column drop_me, algorithm=instant;
+create index k_idx on t8(k);
+select count(val) as ROWS_DROPPED, sum(val) as SUM_DROPPED
+from t8 force index(k_idx) where k=3;
+ROWS_DROPPED	SUM_DROPPED
+1000	4998000
+drop table t8;
+create table t9 (
+pk int not null primary key,
+k int,
+val int,
+drop_me int
+) engine=innodb row_format=redundant;
+insert into t9 select seq, mod(seq,10), seq, seq from seq_1_to_10000;
+alter table t9 drop column drop_me, algorithm=instant;
+create index k_idx on t9(k);
+select count(val) as ROWS_REDUNDANT_DROPPED, sum(val) as SUM_REDUNDANT_DROPPED
+from t9 force index(k_idx) where k=3;
+ROWS_REDUNDANT_DROPPED	SUM_REDUNDANT_DROPPED
+1000	4998000
+drop table t9;
+create table t10 (
+pk int not null primary key,
+k int,
+val int
+) engine=innodb row_format=compressed key_block_size=8;
+insert into t10 select seq, mod(seq,10), seq from seq_1_to_10000;
+create index k_idx on t10(k);
+select count(val) as ROWS_COMPRESSED, sum(val) as SUM_COMPRESSED
+from t10 force index(k_idx) where k=3;
+ROWS_COMPRESSED	SUM_COMPRESSED
+1000	4998000
+drop table t10;
+create table t11 (
+k int,
+val int
+) engine=innodb row_format=dynamic;
+insert into t11 select mod(seq,10), seq from seq_1_to_10000;
+create index k_idx on t11(k);
+select count(val) as ROWS_ROW_ID, sum(val) as SUM_ROW_ID
+from t11 force index(k_idx) where k=3;
+ROWS_ROW_ID	SUM_ROW_ID
+1000	4998000
+drop table t11;
+create table t12 (
+pk int not null primary key,
+k int,
+val varchar(255)
+) engine=innodb row_format=dynamic;
+insert into t12 select seq, seq, repeat('x',30) from seq_1_to_10000;
+create index k_idx on t12(k);
+update t12 force index(k_idx) set val=repeat('y',200) where k > 0;
+select count(*) as ROWS_GROWN, sum(pk) as SUM_PK from t12
+where val=repeat('y',200);
+ROWS_GROWN	SUM_PK
+10000	50005000
+update t12 force index(k_idx) set val=repeat('x',30) where k > 0;
+select count(*) as ROWS_SHRUNK, sum(pk) as SUM_PK from t12
+where val=repeat('x',30);
+ROWS_SHRUNK	SUM_PK
+10000	50005000
+check table t12;
+Table	Op	Msg_type	Msg_text
+test.t12	check	status	OK
+drop table t12;
+create table t13 (
+pk int not null primary key,
+k bigint unsigned,
+val int
+) engine=innodb row_format=dynamic;
+insert into t13 select seq, crc32(seq), seq from seq_1_to_3000;
+insert into t13 select 3000+seq, 4294967296+seq, seq from seq_1_to_3000;
+create index k_idx on t13(k);
+analyze table t13 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t13	analyze	status	Engine-independent statistics collected
+test.t13	analyze	status	OK
+set @js='$out_split';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_LATE_LOCALITY;
+PAGES_ACCESSED_LATE_LOCALITY
+12008
+drop table t13;

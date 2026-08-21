@@ -16027,6 +16027,13 @@ ha_innobase::reset()
 	/* This is a statement level counter. */
 	m_prebuilt->autoinc_last_value = 0;
 
+	/* The clustered leaf hints are scoped to one statement. The slots
+	keep their key buffers, which are already sized for this table, and
+	their contents, which the next statement overwrites before reading:
+	a slot is only read once an insertion has counted it. */
+	m_prebuilt->clust_leaf_hint_n = 0;
+	m_prebuilt->clust_leaf_hint_miss = 0;
+
 	m_prebuilt->skip_locked = false;
 	return(0);
 }

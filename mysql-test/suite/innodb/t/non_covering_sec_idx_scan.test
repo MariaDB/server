@@ -1,0 +1,362 @@
+#
+# MDEV-32286 ANALYZE displays a huge number of InnoDB secondary index pages_accessed
+#
+# The .result records raw pages_accessed values, so every server option they
+# depend on is fixed by the test itself, because mariadb-test-run appends the
+# options of its own --mysqld arguments after any that a test file requests,
+# and the last value on the command line wins. The page size decides the tree
+# shape, so a run of another page size skips. The row format decides the
+# record layout, so every table names its own. The whole working set must stay
+# resident, so that no access path depends on eviction timing, and it fits the
+# buffer pool of a default run; a run with a smaller pool skips. The adaptive
+# hash index, whose hash guesses reach a record without reading the pages that
+# a descent reads, is set below, where no command line reaches it.
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_sequence.inc
+
+if (`select @@global.innodb_buffer_pool_size < 8*1024*1024`)
+{
+  --skip Test requires innodb_buffer_pool_size of 8M or more
+}
+
+# Kept out of the .result, so that a build without the adaptive hash index,
+# where the variable does not exist, records the same result.
+--disable_query_log
+let $adaptive_hash_index= `select count(*) from information_schema.global_variables
+                           where variable_name = 'innodb_adaptive_hash_index'`;
+if ($adaptive_hash_index)
+{
+  set @save_adaptive_hash_index= @@global.innodb_adaptive_hash_index;
+  set global innodb_adaptive_hash_index= 0;
+}
+--enable_query_log
+
+create table t1 (
+  pk int not null primary key,
+  domain_grp int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t1 select seq, mod(seq,10), seq from seq_1_to_10000;
+
+create index domain_idx on t1(domain_grp);
+
+analyze table t1 persistent for all;
+
+# "val" is outside domain_idx, so each matching row needs a clustered-index
+# lookup either way.
+let $out_scan=`analyze format=json select sql_no_cache val from t1 ignore index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_scan';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_FULL_SCAN;
+
+# ~1000 rows share key 3
+let $out_idx=`analyze format=json select sql_no_cache val from t1 force index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_idx';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SEC_INDEX;
+
+drop table t1;
+
+# Wide primary key: the clustered index needs a 3-level tree. The character
+# set and collation are pinned, because they decide the maximum key length
+# and the comparison rules, and with them the recorded counts.
+create table t2 (
+  pk varchar(500) character set utf8mb4 collate utf8mb4_general_ci
+     not null primary key,
+  domain_grp int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t2 select lpad(seq,500,'0'), mod(seq,4), seq from seq_1_to_3000;
+
+create index domain_idx on t2(domain_grp);
+
+analyze table t2 persistent for all;
+
+# A node pointer for this 500-byte key takes about 507 bytes, so a 16k root
+# page holds about 32 of them: a leaf count far above that cannot hang off a
+# single root, and the tree has at least three levels. The 'size' statistic
+# cannot show this, because it counts the pages that both segments reserve,
+# the free ones included, and so exceeds the leaf count of a two-level tree
+# as well.
+select stat_value into @leaf from mysql.innodb_index_stats
+  where database_name='test' and table_name='t2' and index_name='PRIMARY'
+  and stat_name='n_leaf_pages';
+select @leaf > 100 as THREE_LEVEL_TREE;
+
+let $out_scan2=`analyze format=json select sql_no_cache val from t2 ignore index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_scan2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_FULL_SCAN_3LEVEL;
+
+# ~750 rows share key 3
+let $out_idx2=`analyze format=json select sql_no_cache val from t2 force index(domain_idx) where domain_grp=3`;
+evalp set @js='$out_idx2';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SEC_INDEX_3LEVEL;
+
+drop table t2;
+
+# Secondary index decorrelated from clustered key order by a multiplier: the
+# scan walks the clustered index in two slowly drifting strides, so
+# consecutive rows keep sharing a clustered leaf for a while.
+create table t3 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t3 select seq, mod(seq*997+13,10007), seq from seq_1_to_10000;
+
+create index k_idx on t3(k);
+
+analyze table t3 persistent for all;
+
+let $out_uncorr=`analyze format=json select sql_no_cache val from t3 force index(k_idx) where k between 0 and 10006`;
+evalp set @js='$out_uncorr';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_UNCORRELATED;
+
+drop table t3;
+
+# Two well separated clustered key ranges, interleaved in secondary key order:
+# consecutive rows alternate between two clustered leaves, so the whole scan
+# needs no more than two of them at a time.
+create table t4 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t4 select seq, 2*seq-1, seq from seq_1_to_1000;
+insert into t4 select 1000000+seq, 2*seq, seq from seq_1_to_1000;
+
+create index k_idx on t4(k);
+
+analyze table t4 persistent for all;
+
+let $out_interleaved=`analyze format=json select sql_no_cache val from t4 force index(k_idx) where k between 1 and 2000`;
+evalp set @js='$out_interleaved';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_INTERLEAVED;
+
+drop table t4;
+
+# Secondary key order shuffled against clustered key order, over five times
+# as many clustered leaves as there are slots. Some lookups do land on a
+# remembered leaf, but too few in a row: the miss counter reaches its limit
+# early in the scan and the slots stop being tested on every row. The count
+# therefore shows that the scan abandoned pays almost nothing, which is what
+# this case is for, rather than what a hinted scan saves.
+create table t5 (
+  pk int not null primary key,
+  k int unsigned,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t5 select seq, crc32(seq), seq from seq_1_to_10000;
+
+create index k_idx on t5(k);
+
+analyze table t5 persistent for all;
+
+let $out_shuffled=`analyze format=json select sql_no_cache val from t5 force index(k_idx) where k > 0`;
+evalp set @js='$out_shuffled';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_SHUFFLED;
+
+drop table t5;
+
+# The cases below cover the record formats and key shapes that the remembered
+# leaves have to read. They check query results rather than counts, because a
+# count would only repeat what t1 measures over a record layout that the
+# counts do not depend on.
+#
+# Instant ALTER TABLE leaves a metadata pseudo-record as the first user record
+# of the leftmost clustered leaf, which a remembered leaf then copies and
+# compares its keys against. Nothing between that ALTER TABLE and the query
+# may rebuild the clustered index, here or in the ROW_FORMAT=REDUNDANT case
+# below: a rebuild drops the record, and the case then measures what t1
+# already measures, with the same query result to show it.
+create table t6 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t6 select seq, mod(seq,10), seq from seq_1_to_10000;
+
+alter table t6 add column c int default 42, algorithm=instant;
+
+create index k_idx on t6(k);
+
+select count(val) as ROWS_INSTANT, sum(val) as SUM_INSTANT, min(c) as DEFAULT_C
+  from t6 force index(k_idx) where k=3;
+
+drop table t6;
+
+# ROW_FORMAT=REDUNDANT, with a metadata pseudo-record as well: the keys are
+# copied out of the other record format.
+create table t7 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb row_format=redundant;
+
+insert into t7 select seq, mod(seq,10), seq from seq_1_to_10000;
+
+alter table t7 add column c int default 42, algorithm=instant;
+
+create index k_idx on t7(k);
+
+select count(val) as ROWS_REDUNDANT, sum(val) as SUM_REDUNDANT
+  from t7 force index(k_idx) where k=3;
+
+drop table t7;
+
+# The same, for a column dropped instantly rather than added. That sets
+# dict_table_t::instant and leaves an alter metadata pseudo-record, whose
+# header carries an added-field count and a metadata BLOB that the add
+# metadata record above does not, so rec_copy_prefix_to_buf() converts a
+# different header when a remembered leaf copies its first record.
+# ALGORITHM=INSTANT is the assertion: without it the record would not exist.
+create table t8 (
+  pk int not null primary key,
+  k int,
+  val int,
+  drop_me int
+) engine=innodb row_format=dynamic;
+
+insert into t8 select seq, mod(seq,10), seq, seq from seq_1_to_10000;
+
+alter table t8 drop column drop_me, algorithm=instant;
+
+create index k_idx on t8(k);
+
+select count(val) as ROWS_DROPPED, sum(val) as SUM_DROPPED
+  from t8 force index(k_idx) where k=3;
+
+drop table t8;
+
+# The dropped column under ROW_FORMAT=REDUNDANT.
+create table t9 (
+  pk int not null primary key,
+  k int,
+  val int,
+  drop_me int
+) engine=innodb row_format=redundant;
+
+insert into t9 select seq, mod(seq,10), seq, seq from seq_1_to_10000;
+
+alter table t9 drop column drop_me, algorithm=instant;
+
+create index k_idx on t9(k);
+
+select count(val) as ROWS_REDUNDANT_DROPPED, sum(val) as SUM_REDUNDANT_DROPPED
+  from t9 force index(k_idx) where k=3;
+
+drop table t9;
+
+# ROW_FORMAT=COMPRESSED: the keys are copied out of a third record layout,
+# and its page can carry a page_zip_des_t. Whether the buffer pool holds such
+# a page without the uncompressed frame that a hint needs is not a state a
+# test can ask for, so this case does not reach that rejection; it covers the
+# record layout.
+create table t10 (
+  pk int not null primary key,
+  k int,
+  val int
+) engine=innodb row_format=compressed key_block_size=8;
+
+insert into t10 select seq, mod(seq,10), seq from seq_1_to_10000;
+
+create index k_idx on t10(k);
+
+select count(val) as ROWS_COMPRESSED, sum(val) as SUM_COMPRESSED
+  from t10 force index(k_idx) where k=3;
+
+drop table t10;
+
+# No user primary key: the clustered index is keyed by the hidden row id, so
+# a remembered key is that single field.
+create table t11 (
+  k int,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t11 select mod(seq,10), seq from seq_1_to_10000;
+
+create index k_idx on t11(k);
+
+select count(val) as ROWS_ROW_ID, sum(val) as SUM_ROW_ID
+  from t11 force index(k_idx) where k=3;
+
+drop table t11;
+
+# Leaves that move while they are read. The secondary key order follows the
+# clustered one, so every row is looked up through a remembered leaf, and the
+# writes of the same statement grow each row from 30 to 200 bytes, which
+# splits those leaves, and shrink it back, which merges and frees them. A
+# remembered range then promises a leaf that the latched page denies, and a
+# page that has left the tree keeps contents that only the check for a freed
+# page rejects. Being a locking read, it also stores the position of a cursor
+# that a hint placed.
+create table t12 (
+  pk int not null primary key,
+  k int,
+  val varchar(255)
+) engine=innodb row_format=dynamic;
+
+insert into t12 select seq, seq, repeat('x',30) from seq_1_to_10000;
+
+create index k_idx on t12(k);
+
+update t12 force index(k_idx) set val=repeat('y',200) where k > 0;
+select count(*) as ROWS_GROWN, sum(pk) as SUM_PK from t12
+  where val=repeat('y',200);
+
+update t12 force index(k_idx) set val=repeat('x',30) where k > 0;
+select count(*) as ROWS_SHRUNK, sum(pk) as SUM_PK from t12
+  where val=repeat('x',30);
+
+check table t12;
+
+drop table t12;
+
+# Locality that appears only half way through the scan, which is what the
+# retry that starts the miss count again is for. The secondary key order
+# visits 3000 shuffled rows first, which makes the scan give the slots up,
+# and then 3000 whose order follows the clustered one. crc32() cannot reach
+# 2**32, so the second group sorts wholly above the first. Without the
+# retry the scan would stay unhinted over that second group, and the count
+# would be the one that non_covering_sec_idx_scan_debug records. A count
+# again, placed after the cases above because it needs a table of its own
+# shape.
+create table t13 (
+  pk int not null primary key,
+  k bigint unsigned,
+  val int
+) engine=innodb row_format=dynamic;
+
+insert into t13 select seq, crc32(seq), seq from seq_1_to_3000;
+insert into t13 select 3000+seq, 4294967296+seq, seq from seq_1_to_3000;
+
+create index k_idx on t13(k);
+
+analyze table t13 persistent for all;
+
+let $out_split=`analyze format=json select sql_no_cache val from t13 force index(k_idx) where k >= 0`;
+evalp set @js='$out_split';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as UNSIGNED) as PAGES_ACCESSED_LATE_LOCALITY;
+
+drop table t13;
+
+--disable_query_log
+if ($adaptive_hash_index)
+{
+  set global innodb_adaptive_hash_index= @save_adaptive_hash_index;
+}
+--enable_query_log

@@ -1712,6 +1712,98 @@ release_tree:
   goto search_loop;
 }
 
+bool btr_cur_t::try_leaf_hint(const dtuple_t *tuple, page_id_t hint_page_id,
+                              mtr_t *mtr)
+{
+  /* A clustered index only. buf_page_try_get() omits the change buffer
+  merge that buf_page_get_low() performs on a page whose state is
+  IBUF_EXIST, which would drop buffered entries of a secondary index leaf,
+  and the checks below accept FIL_PAGE_RTREE, which search_leaf() rejects.
+  Neither can happen where nothing is buffered and no page is an R-tree. */
+  ut_ad(index()->is_primary());
+
+  /* A complete unique key. The search below takes a match on every compared
+  field as the answer without examining the successor record, which only a
+  key that cannot repeat allows: the PAGE_CUR_LE match of a repeating key can
+  be on a later leaf. */
+  ut_ad(dtuple_get_n_fields_cmp(tuple) == dict_index_get_n_unique(index()));
+
+  /* hint_page_id was not read from a latched parent page, so it may now
+  precede the caller's already-latched secondary-index leaf in the
+  B-tree latching order: never block on its latch (page latches have no
+  deadlock detection) and never read it from disk. */
+  buf_block_t *const block= buf_page_try_get(hint_page_id, mtr);
+  if (!block)
+    return false;
+
+  const page_t *const page= block->page.frame;
+  if (block->page.is_freed() || !fil_page_index_page_check(page) ||
+      !page_is_leaf(page) ||
+      !!page_is_comp(page) != index()->table->not_redundant() ||
+      btr_page_get_index_id(page) != index()->id)
+  {
+    /* Stale hint or, for search_leaf()'s own checks, corruption; we cannot
+    tell here, so fall back either way, and the full descent still reports a
+    corrupt live leaf. is_freed() is the guard that descent omits: a freed
+    but unreused page keeps old contents that pass the other checks. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  page_cur.block= block;
+  /* The byte counts stay 0 instead of being computed: the search below does
+  not report them, and their only reader is the adaptive hash index, which
+  the hints stand down for. */
+  up_match= 0;
+  up_bytes= 0;
+  low_match= 0;
+  low_bytes= 0;
+  if (page_cur_search_with_match(tuple, PAGE_CUR_LE, &up_match, &low_match,
+                                 &page_cur, nullptr) ||
+      page_rec_is_infimum(page_cur.rec))
+  {
+    /* Corruption, or tuple precedes every record on this page: its
+    predecessor, if any, is on an earlier leaf. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  if (page_has_next(page) && low_match < dtuple_get_n_fields_cmp(tuple))
+  {
+    /* The record found is strictly less than tuple: PAGE_CUR_LE lands on
+    the greatest record <= tuple, and a full match would have made
+    low_match == n_fields_cmp. If it is the last user record of a leaf
+    with a right sibling, the true match may be on a later leaf; we cannot
+    resolve that from here, so reject the hint. The rightmost leaf needs
+    no such check: its last record is that match for any larger tuple. */
+    const rec_t *const next_rec= page_rec_get_next_const(page_cur.rec);
+    if (UNIV_UNLIKELY(!next_rec) || page_rec_is_supremum(next_rec))
+    {
+      mtr->release_last_page();
+      return false;
+    }
+  }
+
+  /* Unlike search_leaf(), this feeds no btr_search_info_update(): a hit
+  already provides the direct leaf access the adaptive hash index would. */
+
+  /* Age the page as the buf_page_get_gen() of a descent would, which
+  buf_page_try_get() does not do: a leaf that a correlated scan reads once
+  per row must not look less recently used than one reached by descent. */
+  buf_page_make_young_if_needed(&block->page);
+
+  /* search_leaf() also sets tree_height, which the hint cannot know because
+  it never walks the levels above the leaf. The value that the last descent
+  of this cursor left stands, and it is a real height of this tree: a hint is
+  only tried where a descent of this cursor already remembered a leaf of this
+  index. That matters because the value does travel: apart from search_leaf()
+  itself, its readers are the extent reservations of the pessimistic insert,
+  update and delete, which btr_pcur_copy_stored_position() reaches by copying
+  the whole cursor into the cursor of an update node. */
+  flag= BTR_CUR_BINARY;
+  return true;
+}
+
 ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
 {
   auto &slot= m_memo[get_savepoint() - 1];
