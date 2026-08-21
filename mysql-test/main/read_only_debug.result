@@ -1,0 +1,84 @@
+set @start_read_only= @@global.read_only;
+create user test@localhost;
+grant SUPER on *.* to test@localhost;
+grant SELECT, INSERT, UPDATE, LOCK TABLES on test.* to test@localhost;
+create table t1 (a int);
+insert into t1 values (1),(2);
+connect  con1,localhost,test,,test;
+connection default;
+#
+# read_only turned off between the statement check and the error
+#
+set global read_only='NO_LOCK';
+connection con1;
+set debug_sync='after_read_only_check SIGNAL parked WAIT_FOR go';
+update t1 set a= a + 1;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+connection con1;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+set debug_sync='RESET';
+#
+# read_only changed to another level between the statement check and
+# the error. The error must still name the level that was rejected on.
+#
+connection default;
+set global read_only='NO_LOCK';
+connection con1;
+set debug_sync='after_read_only_check SIGNAL parked WAIT_FOR go';
+update t1 set a= a + 1;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='ON';
+set debug_sync='now SIGNAL go';
+connection con1;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+set debug_sync='RESET';
+#
+# read_only turned off between the lock check and the error
+#
+connection default;
+set global read_only='NO_LOCK';
+connection con1;
+set debug_sync='after_lock_tables_read_only_check SIGNAL parked WAIT_FOR go';
+lock tables t1 read;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+connection con1;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+unlock tables;
+set debug_sync='RESET';
+#
+# read_only turned off between the start transaction check and the
+# error
+#
+connection default;
+set global read_only='ON';
+connection con1;
+set debug_sync='after_trans_begin_read_only_check SIGNAL parked WAIT_FOR go';
+start transaction read write;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+connection con1;
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+set debug_sync='RESET';
+#
+# The rows must be unchanged
+#
+select * from t1;
+a
+1
+2
+disconnect con1;
+connection default;
+set debug_sync='RESET';
+drop table t1;
+drop user test@localhost;
+set global read_only= @start_read_only;
+# End of 13.1 tests
