@@ -22,6 +22,7 @@
 /* Definitions for MariaDB global transaction ID (GTID). */
 
 struct slave_connection_state;
+class Domain_id_filter;
 
 struct rpl_gtid
 {
