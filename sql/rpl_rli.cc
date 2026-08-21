@@ -2286,6 +2286,8 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
+
+    DBUG_ASSERT(!thd->backup_commit_lock); // trans_rollback must've taken care
     /*
       Now that we have rolled back the transaction, make sure we do not
       erroneously update the GTID position.

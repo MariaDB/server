@@ -24,6 +24,8 @@
 #include "sql_class.h"                   /* THD */
 #include "log_event.h"
 #include "rpl_parallel.h"
+#include <map>
+#include <set>
 
 struct RPL_TABLE_LIST;
 class Master_info;
@@ -58,6 +60,161 @@ class Rpl_filter;
 
 struct rpl_group_info;
 struct inuse_relaylog;
+
+
+/**
+  Each parallel-slave worker that takes MDL_BACKUP_COMMIT (or its
+  high-priority variant MDL_BACKUP_COMMIT_HIGH_PRIO) at commit time first
+  registers its `gtid_sub_id` here, then queries `has_higher()` to
+  decide which mode to request:
+
+      join(domain, my_sub_id);
+      if (has_higher(domain, my_sub_id))
+         lock_type= MDL_BACKUP_COMMIT_HIGH_PRIO;
+      else
+         lock_type= MDL_BACKUP_COMMIT;
+      ...acquire_lock + commit...
+      leave(domain, my_sub_id);
+
+  `has_higher()` returns true iff some other registered worker in the
+  same domain has a strictly greater `gtid_sub_id`. The strict-greater
+  rule preserves the "leapfrog only when needed to break the deadlock
+  topology" invariant and bounds the per-backup-wait bypass count by
+  `slave_parallel_threads − 1`.
+*/
+class Backup_commit_team
+{
+public:
+  Backup_commit_team()
+  {
+    mysql_mutex_init(key_relay_log_info_backup_team_lock,
+                     &m_mtx, MY_MUTEX_INIT_FAST);
+  }
+  ~Backup_commit_team()
+  {
+    DBUG_ASSERT(is_empty());
+    mysql_mutex_destroy(&m_mtx);
+  }
+
+  /*
+    Register `sub_id` and atomically decide the BACKUP-COMMIT lock type
+    for this worker. The decision rule:
+
+      Pick MDL_BACKUP_COMMIT_HIGH_PRIO iff
+        (a) some larger-sub_id teammate is registered in this domain, AND
+        (b) no teammate with sub_id < mine is currently pending-C (i.e.
+            picked C but MDL has not granted yet).
+
+      Otherwise pick MDL_BACKUP_COMMIT and mark this worker pending-C.
+
+    Both conditions are evaluated under one critical section so the
+    (register, decide, mark-pending-C) triple is atomic — no other
+    worker can observe a half-decided state.
+  */
+  enum_mdl_type join_and_decide(uint32 domain, uint64 sub_id)
+  {
+    enum_mdl_type lock_type;
+    mysql_mutex_lock(&m_mtx);
+
+    auto &ms= m_per_domain[domain];
+    ms.insert(sub_id);
+
+    /* (a) any larger teammate registered? */
+    bool has_higher= *ms.rbegin() > sub_id;
+
+    /* (b) any smaller teammate currently pending-C? */
+    bool has_smaller_pending_c= false;
+    auto pit= m_pending_c.find(domain);
+    if (pit != m_pending_c.end() && !pit->second.empty())
+      has_smaller_pending_c= *pit->second.begin() < sub_id;
+
+    if (has_higher && !has_smaller_pending_c)
+    {
+      lock_type= MDL_BACKUP_COMMIT_HIGH_PRIO;
+      /* No pending-C marker — we won't be a stranded C. */
+    }
+    else
+    {
+      lock_type= MDL_BACKUP_COMMIT;
+      m_pending_c[domain].insert(sub_id);
+    }
+    mysql_mutex_unlock(&m_mtx);
+    return lock_type;
+  }
+
+  /*
+    Called after MDL acquire_lock() returns granted. Removes the
+    pending-C marker if we had one. No-op for workers that picked H.
+  */
+  void mark_granted(uint32 domain, uint64 sub_id)
+  {
+    mysql_mutex_lock(&m_mtx);
+    auto pit= m_pending_c.find(domain);
+    if (pit != m_pending_c.end())
+    {
+      auto v= pit->second.find(sub_id);
+      if (v != pit->second.end())
+      {
+        pit->second.erase(v);
+        if (pit->second.empty())
+          m_pending_c.erase(pit);
+      }
+    }
+    mysql_mutex_unlock(&m_mtx);
+  }
+
+  /*
+    Remove my sub_id from the team. Cleans both the in-flight multiset
+    and the pending-C set; the pending-C cleanup is a no-op if I had
+    already been mark_granted()-ed or had picked H.
+  */
+  void leave(uint32 domain, uint64 sub_id)
+  {
+    mysql_mutex_lock(&m_mtx);
+    auto it= m_per_domain.find(domain);
+    DBUG_ASSERT(it != m_per_domain.end());
+    if (it != m_per_domain.end())
+    {
+      auto victim= it->second.find(sub_id);
+      DBUG_ASSERT(victim != it->second.end());
+      if (victim != it->second.end())
+      {
+        it->second.erase(victim);
+        /* Drop empty domain entries so the map doesn't grow without
+           bound in multi-source / many-domain setups. */
+        if (it->second.empty())
+          m_per_domain.erase(it);
+      }
+    }
+    auto pit= m_pending_c.find(domain);
+    if (pit != m_pending_c.end())
+    {
+      auto v= pit->second.find(sub_id);
+      if (v != pit->second.end())
+      {
+        pit->second.erase(v);
+        if (pit->second.empty())
+          m_pending_c.erase(pit);
+      }
+    }
+    mysql_mutex_unlock(&m_mtx);
+  }
+
+  bool is_empty()
+  {
+    mysql_mutex_lock(&m_mtx);
+    bool empty= m_per_domain.empty() && m_pending_c.empty();
+    mysql_mutex_unlock(&m_mtx);
+    return empty;
+  }
+
+private:
+  mysql_mutex_t m_mtx;
+  /* All registered in-flight teammates per GTID domain. */
+  std::map<uint32, std::multiset<uint64> > m_per_domain;
+  /* Subset that picked C and whose MDL hasn't been granted yet. */
+  std::map<uint32, std::multiset<uint64> > m_pending_c;
+};
 
 class Relay_log_info : public Slave_reporting_capability
 {
@@ -410,6 +567,9 @@ public:
     starting event.
   */
   slave_connection_state restart_gtid_pos;
+
+  /* Per-relay in-flight BACKUP-COMMIT holders; see Backup_commit_team. */
+  Backup_commit_team backup_team;
 
   Relay_log_info(bool is_slave_recovery, const char* thread_name= "SQL");
   ~Relay_log_info();
@@ -1052,7 +1212,6 @@ struct rpl_group_info
   {
     finish_event_group_called= value;
   }
-
 };
 
 

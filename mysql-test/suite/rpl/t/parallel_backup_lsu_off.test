@@ -4,4 +4,5 @@
 --echo # MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
 --echo # MDEV-30423: dealock XA COMMIT vs BACKUP
 --let $rpl_skip_reset_master_and_slave = 1
+--let $parallel_backup_without_binlog=1
 --source parallel_backup.test
