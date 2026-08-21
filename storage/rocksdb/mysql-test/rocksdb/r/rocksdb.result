@@ -2642,4 +2642,20 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (a INET6 NOT NULL, KEY (a)) ENGINE=RocksDB;
 INSERT INTO t1 VALUES ('41::1'),('61::1');
 DROP TABLE t1;
+#
+# MDEV-21735: text prefix indexes return wrong results
+#
+create table t1 (txt text COLLATE utf8mb4_swedish_ci) engine=rocksdb;
+insert into t1 values ('long text');
+create index i1 on t1(txt(3));
+select * from t1 where txt='long text';
+txt
+long text
+select * from t1 where txt like 'long text';
+txt
+long text
+select * from t1 where txt like 'long%';
+txt
+long text
+drop table t1;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
