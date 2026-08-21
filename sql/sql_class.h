@@ -3364,7 +3364,7 @@ public:
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
 
-  pwt_worker *parallel_worker;
+//  pwt_worker *parallel_worker;
 
   union {
     rpl_io_thread_info *rpl_io_info;

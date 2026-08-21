@@ -123,9 +123,16 @@ bool error_to_queue(THD *thd, pwt_queued_event **event, uint error,
 }
 
 
+/*
+  Capture errors and warnings and redirect them to worker->manager.
+*/
+
 class PWT_error_handler : public Internal_error_handler
 {
+  pwt_worker *worker;
 public:
+  PWT_error_handler(pwt_worker *worker_arg) : worker(worker_arg) {}
+
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sql_state,
@@ -133,46 +140,43 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl) override
   {
-    if (pwt_worker *worker= thd->parallel_worker)
+    /*
+      A genuine error (not a warning) raised while the worker runs the query
+      -- e.g. a WHERE/projection/join evaluation error -- must abort the whole
+      query. Trip fatal_error so the worker stops producing and the manager
+      aborts instead of sending a truncated result. The error text is still
+      relayed to the manager below and surfaced from finalize.
+
+      Exclude a killed worker's own ER_QUERY_INTERRUPTED: a KILL is reported
+      separately via kill_signal (which also carries the kill type, so a
+      KILL vs KILL QUERY of a worker maps to dropping the manager connection
+      vs just its query). Tripping fatal_error here would make the manager
+      take the generic-error path and lose that distinction.
+    */
+    if (*level == Sql_condition::WARN_LEVEL_ERROR && !thd->killed)
+    {
+      mysql_mutex_lock(&worker->manager->LOCK_data);
+      worker->manager->fatal_error= true;
+      mysql_cond_broadcast(&worker->manager->COND_data_avail);
+      mysql_mutex_unlock(&worker->manager->LOCK_data);
+    }
+    pwt_queued_event *event;
+    if (error_to_queue(thd, &event, sql_errno, *level, msg))
     {
       /*
-        A genuine error (not a warning) raised while the worker runs the query
-        -- e.g. a WHERE/projection/join evaluation error -- must abort the whole
-        query. Trip fatal_error so the worker stops producing and the manager
-        aborts instead of sending a truncated result. The error text is still
-        relayed to the manager below and surfaced from finalize.
-
-        Exclude a killed worker's own ER_QUERY_INTERRUPTED: a KILL is reported
-        separately via kill_signal (which also carries the kill type, so a
-        KILL vs KILL QUERY of a worker maps to dropping the manager connection
-        vs just its query). Tripping fatal_error here would make the manager
-        take the generic-error path and lose that distinction.
+        Couldn't allocate the queued event. The worker THD's diagnostics
+        area is discarded when the worker exits, so flag the manager so it
+        can surface a single ER_OUTOFMEMORY warning to the user instead of
+        letting this condition vanish.
       */
-      if (*level == Sql_condition::WARN_LEVEL_ERROR && !thd->killed)
-      {
-        mysql_mutex_lock(&worker->manager->LOCK_data);
-        worker->manager->fatal_error= true;
-        mysql_cond_broadcast(&worker->manager->COND_data_avail);
-        mysql_mutex_unlock(&worker->manager->LOCK_data);
-      }
-      pwt_queued_event *event;
-      if (error_to_queue(thd, &event, sql_errno, *level, msg))
-      {
-        /*
-          Couldn't allocate the queued event. The worker THD's diagnostics
-          area is discarded when the worker exits, so flag the manager so it
-          can surface a single ER_OUTOFMEMORY warning to the user instead of
-          letting this condition vanish.
-        */
-        mysql_mutex_lock(&worker->manager->LOCK_pwt_thread);
-        worker->manager->messages_dropped= true;
-        mysql_mutex_unlock(&worker->manager->LOCK_pwt_thread);
-        return true;
-      }
       mysql_mutex_lock(&worker->manager->LOCK_pwt_thread);
-      worker->manager->record_event(event);
+      worker->manager->messages_dropped= true;
       mysql_mutex_unlock(&worker->manager->LOCK_pwt_thread);
+      return true;
     }
+    mysql_mutex_lock(&worker->manager->LOCK_pwt_thread);
+    worker->manager->record_event(event);
+    mysql_mutex_unlock(&worker->manager->LOCK_pwt_thread);
     return true;                // no further processing in worker thread
   }
 
@@ -224,7 +228,7 @@ static void *parallel_worker_thread_func(void *arg)
 {
   DBUG_ENTER("parallel_worker_thread_func");
   pwt_worker *worker= (pwt_worker*) arg;
-  PWT_error_handler error_handler;
+  PWT_error_handler error_handler(worker);
 
   /*
     Set current_thd and thread local storage (my_thread_var) for our new THD
@@ -467,7 +471,7 @@ bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
   thd->query_string= CSET_STRING(info.process_list,
                                  strlen(info.process_list),
                                  thd->query_charset());
-  thd->parallel_worker= this;
+  // Not needed: thd->parallel_worker= this;
   state.finished= state.joined= false;
   state.killed= NOT_KILLED;
 
