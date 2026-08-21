@@ -386,9 +386,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 70
-%else
 %expect 71
+%else
+%expect 72
 %endif
 
 /*
@@ -19119,7 +19119,7 @@ trigger_tail_sys:
             */
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
           }
-          sp_proc_stmt
+          sp_proc_stmt force_lookahead
           {
             LEX *lex= Lex;
 

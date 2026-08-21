@@ -265,3 +265,33 @@ SHOW TRIGGERS;
 --echo # Clean up
 DROP TRIGGER trg1;
 SET @@sql_mode= @save_sql_mode;
+
+--echo #
+--echo # MDEV-40083: Compound triggers for startup/shutdown are stored without END, which leads to silent non-firing after restart
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--delimiter |
+
+CREATE TRIGGER c1 AFTER STARTUP  BEGIN INSERT INTO t1 VALUES (1); END|
+CREATE TRIGGER c2 BEFORE SHUTDOWN BEGIN INSERT INTO t1 VALUES (2); INSERT INTO t1 VALUES (3); END|
+
+--delimiter ;
+
+SELECT name, body FROM mysql.event WHERE name IN ('c1','c2') ORDER BY name;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER c1;
+--replace_column 7 #
+SHOW CREATE TRIGGER c2;
+--echo # Restart server. The trigger c2 must be fired before shutdown, the trigger c1
+--echo # Must be fired after start up.
+--source include/restart_mysqld.inc
+--echo # In result, the rows (2), (3), (1) must be returned by the following query
+SELECT * from t1;
+
+--echo # Clean up
+DROP TRIGGER c1;
+DROP TRIGGER c2;
+DROP TABLE t1;

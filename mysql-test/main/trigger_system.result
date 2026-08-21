@@ -217,3 +217,32 @@ Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_clie
 # Clean up
 DROP TRIGGER trg1;
 SET @@sql_mode= @save_sql_mode;
+#
+# MDEV-40083: Compound triggers for startup/shutdown are stored without END, which leads to silent non-firing after restart
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER c1 AFTER STARTUP  BEGIN INSERT INTO t1 VALUES (1); END|
+CREATE TRIGGER c2 BEFORE SHUTDOWN BEGIN INSERT INTO t1 VALUES (2); INSERT INTO t1 VALUES (3); END|
+SELECT name, body FROM mysql.event WHERE name IN ('c1','c2') ORDER BY name;
+name	body
+c1	BEGIN INSERT INTO t1 VALUES (1); END
+c2	BEGIN INSERT INTO t1 VALUES (2); INSERT INTO t1 VALUES (3); END
+SHOW CREATE TRIGGER c1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+c1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER c1 AFTER STARTUP BEGIN INSERT INTO t1 VALUES (1); END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+SHOW CREATE TRIGGER c2;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+c2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER c2 BEFORE SHUTDOWN BEGIN INSERT INTO t1 VALUES (2); INSERT INTO t1 VALUES (3); END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+# Restart server. The trigger c2 must be fired before shutdown, the trigger c1
+# Must be fired after start up.
+# restart
+# In result, the rows (2), (3), (1) must be returned by the following query
+SELECT * from t1;
+a
+2
+3
+1
+# Clean up
+DROP TRIGGER c1;
+DROP TRIGGER c2;
+DROP TABLE t1;
