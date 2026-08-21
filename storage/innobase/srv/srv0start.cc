@@ -74,6 +74,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "que0que.h"
 #include "lock0lock.h"
 #include "trx0roll.h"
+#include "trx0undo.h"
 #include "trx0purge.h"
 #include "lock0lock.h"
 #include "pars0pars.h"
@@ -1916,6 +1917,7 @@ dberr_t srv_start(bool create_new_db)
 			dict_index_t::clear_instant_alter() while open
 			table handles exist in client connections. */
 			trx_rollback_recovered(false);
+			consider_instant_rollback_recovered_trxs();
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
@@ -2074,6 +2076,7 @@ void innodb_preshutdown()
        innobase_tc_log_recovery_done(), thus it is started here to finish the
        normal shutdown process.
      */
+    consider_instant_rollback_recovered_trxs();
     trx_rollback_is_active= true;
     srv_thread_pool->submit_task(&rollback_all_recovered_task);
   }
