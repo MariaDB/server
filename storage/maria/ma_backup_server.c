@@ -198,7 +198,8 @@ static int aria_backup_file(const struct backup_target *target,
   {
     char dstpath[FN_REFLEN * 3 / 2];
     if ((int) sizeof dstpath <=
-        snprintf(dstpath, sizeof dstpath, "%s/%s/%s", target->path, dir, path))
+        snprintf(dstpath, sizeof dstpath, "%s/%s/%s",
+                 target->path, dir, path + dir_prefix))
       my_error(ER_TOO_LONG_IDENT, MYF(0), name);
     else if (!CopyFileEx(path, dstpath, NULL, NULL, NULL,
                          COPY_FILE_NO_BUFFERING))
@@ -234,7 +235,8 @@ static int aria_backup_file(const struct backup_target *target,
     }
 
     ret= !GetFileSizeEx(src, &li) ||
-      backup_stream_start(dst, path, 0644, li.QuadPart, NULL, 0) ||
+      backup_stream_start(dst, path + dir_prefix, 0644, li.QuadPart,
+                          NULL, 0) ||
       backup_stream_append_plain(src, dst, 0, li.QuadPart) ||
       backup_stream_zeropad(dst, (size_t) li.QuadPart);
     (void) CloseHandle(src);
@@ -242,7 +244,7 @@ static int aria_backup_file(const struct backup_target *target,
     if (ret)
     {
       my_osmaperr(GetLastError());
-      my_error(ER_ERROR_ON_WRITE, MYF(0), path, errno);
+      my_error(ER_ERROR_ON_WRITE, MYF(0), path + dir_prefix, errno);
     }
   }
   return ret;
