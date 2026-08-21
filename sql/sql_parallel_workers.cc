@@ -355,8 +355,7 @@ void pwt_worker::abort_worker()
     thd->awake(ABORT_QUERY);
   mysql_mutex_unlock(&LOCK_worker);
   pthread_join(pthread, nullptr);
-  mysql_mutex_destroy(&LOCK_worker);
-  mysql_cond_destroy(&COND_worker);
+  cleanup_worker();
 }
 
 
@@ -476,6 +475,13 @@ bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
   state.killed= NOT_KILLED;
 
   return false; // Ok
+}
+
+
+void pwt_worker::cleanup_worker()
+{
+  mysql_mutex_destroy(&LOCK_worker);
+  mysql_cond_destroy(&COND_worker);
 }
 
 /**
@@ -751,8 +757,7 @@ cleanup_db_string:
     destroy_background_thd(workers[i].thd);
     set_current_thd(save_thd);
   }
-  mysql_mutex_destroy(&workers[i].LOCK_worker);
-  mysql_cond_destroy(&workers[i].COND_worker);
+  workers[i].cleanup_worker();
 
 cleanup_old_workers:
   /*
@@ -937,8 +942,7 @@ void pwt_manager::quiesce_workers()
   for (uint i= 0; i < nworkers; i++)
   {
     pthread_join(workers[i].pthread, nullptr);
-    mysql_mutex_destroy(&workers[i].LOCK_worker);
-    mysql_cond_destroy(&workers[i].COND_worker);
+    workers[i].cleanup_worker();
   }
   /*
     The work the workers did was this session's work, so its statistics are the

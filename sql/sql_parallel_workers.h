@@ -198,6 +198,8 @@ public:
   */
   bool init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
                        int worker_nr);
+  /* This is like a destructor. Called after worker is done. */
+  void cleanup_worker();
 
   THD             *thd;
   pwt_manager     *manager;
