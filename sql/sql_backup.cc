@@ -487,9 +487,17 @@ bool Sql_cmd_backup::execute(THD *thd)
   assert(!!target == !command);
 
   if (check_global_access(thd, RELOAD_ACL) ||
-      check_global_access(thd, SELECT_ACL) ||
-      (target && error_if_data_home_dir(target, "BACKUP SERVER TO")))
+      check_global_access(thd, SELECT_ACL))
     return true;
+
+  if (!target);
+  else if (error_if_data_home_dir(target, "BACKUP SERVER TO"))
+    return true;
+  else if (!is_secure_file_path(target))
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
+    return true;
+  }
 
   if (thd->current_backup_stage != BACKUP_FINISHED)
   {

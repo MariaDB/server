@@ -83,7 +83,7 @@ void unlink_thd(THD *thd);
 void refresh_status_legacy(THD *thd);
 void refresh_session_status(THD *thd);
 void refresh_global_status();
-bool is_secure_file_path(char *path);
+bool is_secure_file_path(const char *path);
 extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
 extern void create_new_thread(CONNECT *connect);

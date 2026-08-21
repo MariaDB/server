@@ -9452,7 +9452,7 @@ fn_format_relative_to_data_home(char * to, const char *name,
     @retval FALSE The path isn't secure
 */
 
-bool is_secure_file_path(char *path)
+bool is_secure_file_path(const char *path)
 {
   char buff1[FN_REFLEN], buff2[FN_REFLEN];
   size_t opt_secure_file_priv_len;

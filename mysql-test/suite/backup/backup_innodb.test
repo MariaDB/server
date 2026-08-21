@@ -17,7 +17,11 @@ BEGIN;
 INSERT INTO t SET a=1;
 
 --let $target_directory=/tmp/some_directory$MTR_COMBINATION_ARCHIVED
-# comment out the following line (and replace all "rmdir" with "exec rm -fr")
+--error ER_OPTION_PREVENTS_STATEMENT
+evalp BACKUP SERVER TO '$target_directory';
+
+# comment out the following line
+# (and replace all "rmdir" with "exec rm -fr" and remove backup_innodb.opt)
 # to test cross-filesystem copy
 --let $target_directory=$MYSQLTEST_VARDIR/some_directory
 

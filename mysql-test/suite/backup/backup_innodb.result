@@ -7,6 +7,8 @@ ENGINE=INNODB;
 BEGIN;
 INSERT INTO t SET a=1;
 BACKUP SERVER TO '$target_directory';
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+BACKUP SERVER TO '$target_directory';
 ROLLBACK;
 SELECT * FROM t;
 a	b
