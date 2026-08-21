@@ -123,8 +123,7 @@ static ssize_t mmap_copy(const void *p, int out_fd, uint64_t o, uint64_t end)
    @retval 0  on success
 */
 template<bool stream>
-static ssize_t pread_write(IF_WIN(const native_file_handle&,int) in_fd,
-                           IF_WIN(const native_file_handle&,int) out_fd,
+static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
                            uint64_t o, uint64_t end)
   noexcept
 {
@@ -197,7 +196,7 @@ extern "C" int copy_entire_file(int src, int dst)
     else
 # endif
     {
-      ret= copy_file(src, dst, 0, end);
+      ret= backup::copy(src, dst, 0, end);
     }
   }
 #ifdef POSIX_FADV_DONTNEED
@@ -210,7 +209,8 @@ extern "C" int copy_entire_file(int src, int dst)
 #if defined __linux__ || defined __FreeBSD__
 using copying_step= ssize_t(int,int,size_t,off_t*);
 template<copying_step step,bool nonblocking>
-static ssize_t copy(int in_fd, int out_fd, off_t offset, off_t end) noexcept
+static ssize_t stepwise(int in_fd, int out_fd, off_t offset, off_t end)
+  noexcept
 {
   for (;;)
   {
@@ -235,9 +235,10 @@ copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 {
   return copy_file_range(in_fd, offset, out_fd, offset, count, 0);
 }
-# define cfr(src,dst,start,end) copy<copy_step,false>(src, dst, start, end)
+# define cfr(src,dst,start,end) stepwise<copy_step,false>(src, dst, start, end)
 #endif
 
+namespace backup {
 /** Copy a portion of a file.
 @param src   source file descriptor
 @param dst   target to append src to
@@ -245,9 +246,7 @@ copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 @param end   last offset to copy (exclusive)
 @return error code (non-positive)
 @retval 0   on success */
-extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
-                         IF_WIN(const native_file_handle&,int) dst,
-                         uint64_t start, uint64_t end)
+int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 {
   assert(end >= start);
 #ifdef __FreeBSD__
@@ -260,6 +259,49 @@ extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
 #endif
 }
 
+/**
+   Append a file snippet to stream,
+   after a corresponding call to backup_stream_start().
+
+   Note that tar uses 512-byte blocks. If end-start is not a multiple of
+   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   @param src      source file
+   @param stream   backup stream
+   @param start first offset to copy
+   @param end   last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
+{
+  assert(stream != backup_sink::NO_STREAM);
+  /*
+    It is not safe to send from an mmap(2) on src, because we cannot
+    guarantee that the receiving end of the pipe has consumed
+    everything before our caller re-enables writes to this src region.
+
+    On Linux, even for MAP_PRIVATE, the following has been documented:
+    It is unspecified whether changes made to the file after the
+    mmap() call are visible in the mapped region.
+  */
+  return int(pread_write<true>(src, stream, start, end));
+}
+};
+
+extern "C" int backup_stream_append_plain(backup_fd src, backup_fd stream,
+                                          uint64_t start, uint64_t end)
+{
+  /*
+    On Windows, this invokes native_file_handle::native_file_handle(HANDLE).
+
+    Elsewhere, this should be a tail-call, for example JMP rel32
+    (0xe9) on IA-32 or AMD64. This non-inline wrapper exists only
+    because the basic API target is C, not C++, which is required
+    because of Windows.
+  */
+  return backup::append(src, stream, start, end);
+}
+
 #ifdef __linux__
 /**
    Try to copy a portion of a file via copy_file_range(2).
@@ -269,7 +311,7 @@ extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
    @param end   last offset to copy (exclusive)
    @return error code (non-positive)
    @retval 0   on success
-   @retval 1   if a fallback to copy_mmap() or copy_file() is needed
+   @retval 1   if a fallback to copy_mmap() or backup::copy() is needed
 */
 extern "C"
 int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
@@ -794,7 +836,7 @@ static void ustar_block_checksum(char *buf) noexcept
    @return error code (non-positive)
    @retval 0 on success
 */
-extern "C" int backup_stream_write(IF_WIN(HANDLE, int) stream, const void *buf,
+extern "C" int backup_stream_write(backup_fd stream, const void *buf,
                                    size_t size)
 {
 #ifdef _WIN32
@@ -858,7 +900,7 @@ static inline char *ustar_zeropad(char *b, const char *s, size_t size) noexcept
 @return error code (non-positive)
 @retval 0   on success */
 extern "C"
-int backup_stream_start(IF_WIN(HANDLE, int) stream,
+int backup_stream_start(backup_fd stream,
                         const char *name, mode_t mode, uint64_t size,
                         const struct backup_chunk *chunks, size_t n_chunks)
 {
@@ -913,7 +955,7 @@ int backup_stream_start(IF_WIN(HANDLE, int) stream,
 @param size     length of the snippet
 @return error code (non-positive)
 @retval 0   on success */
-extern "C" int backup_stream_config(IF_WIN(HANDLE, int) stream,
+extern "C" int backup_stream_config(backup_fd stream,
                                     const char *config, size_t size)
 {
   /* FIXME: append to a pre-created configuration file */
@@ -931,43 +973,7 @@ extern "C" int backup_stream_config(IF_WIN(HANDLE, int) stream,
   return backup_stream_write(stream, buf, sizeof buf);
 }
 
-/**
-   Append a file snippet to stream,
-   after a corresponding call to backup_stream_start().
-
-   Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
-   @param src      source file
-   @param stream   backup stream
-   @param start first offset to copy
-   @param end   last offset to copy (exclusive)
-   @return error code (non-positive)
-   @retval 0   on success
-*/
-extern "C" int backup_stream_append(IF_WIN(const native_file_handle&,int) src,
-                                    IF_WIN(HANDLE, int) stream,
-                                    uint64_t start, uint64_t end)
-{
-  assert(stream != backup_sink::NO_STREAM);
-  /*
-    It is not safe to send from an mmap(2) on src, because we cannot
-    guarantee that the receiving end of the pipe has consumed
-    everything before our caller re-enables writes to this src region.
-
-    On Linux, even for MAP_PRIVATE, the following has been documented:
-    It is unspecified whether changes made to the file after the
-    mmap() call are visible in the mapped region.
-  */
-  return int(pread_write<true>(src, stream, start, end));
-}
-
-#ifdef _WIN32
-extern "C" int backup_stream_append_plain(HANDLE src, HANDLE stream,
-                                          uint64_t start, uint64_t end)
-{
-  return backup_stream_append(src, stream, start, end);
-}
-#else
+#ifndef _WIN32
 # ifdef __linux__
 #  include <sys/sendfile.h>
 /** Copy a file to a stream or to a regular file. */
@@ -1001,7 +1007,7 @@ extern "C" int backup_stream_append_async(int src, int stream,
 {
   assert(stream != backup_sink::NO_STREAM);
 # ifdef __linux__
-  return int(copy<send_step,true>(src, stream, off_t(start), off_t(end)));
+  return int(stepwise<send_step,true>(src, stream, off_t(start), off_t(end)));
 # else
 #  if SIZEOF_SIZE_T > 4
   void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);

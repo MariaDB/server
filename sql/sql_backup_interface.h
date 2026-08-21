@@ -24,12 +24,14 @@ struct backup_chunk
   uint64_t length;
 };
 
+/** File descriptor */
+typedef IF_WIN(HANDLE, int) backup_fd;
+
 #ifdef _WIN32
 /* Use CopyFileEx() to copy entire files */
-struct native_file_handle;
 #elif defined __APPLE__
 /* You should invoke fclonefileat(2) manually before attempting
-copy_entire_file() or copy_file() */
+copy_entire_file() or backup::copy() */
 # include <sys/attr.h>
 # include <sys/clonefile.h>
 # include <copyfile.h>
@@ -55,8 +57,13 @@ int copy_entire_file(int src, int dst);
 #endif
 
 #ifdef __cplusplus
-extern "C"
-#endif
+# ifdef _WIN32
+struct native_file_handle;
+# endif
+namespace backup {
+
+typedef IF_WIN(native_file_handle, int) handle;
+
 /**
    Copy a portion of a file.
    @param src   source file descriptor
@@ -66,11 +73,28 @@ extern "C"
    @return error code (non-positive)
    @retval 0   on success
 */
-int copy_file(IF_WIN(const native_file_handle&,int) src,
-              IF_WIN(const native_file_handle&,int) dst,
-              uint64_t start, uint64_t end);
+int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept;
+
+/**
+   Append a file snippet to the stream,
+   after a corresponding call to backup_stream_start().
+
+   Note that tar uses 512-byte blocks. If end-start is not a multiple of
+   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   @param src    source file
+   @param stream backup stream
+   @param start  first offset to copy
+   @param end    last offset to copy (exclusive)
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+int append(handle src, backup_fd stream, uint64_t start, uint64_t end)
+  noexcept;
+}
+#endif
+
 #if defined _WIN32 || defined __FreeBSD__
-/* There is no special variant of copy_file(). */
+/* There is no special variant of backup::copy(). */
 #else
 # if SIZEOF_SIZE_T > 4
 #  ifdef __cplusplus
@@ -101,7 +125,7 @@ extern "C"
    @param end   last offset to copy (exclusive)
    @return error code (non-positive)
    @retval 0   on success
-   @retval 1   if a fallback to copy_mmap() or copy_file() is needed
+   @retval 1   if a fallback to copy_mmap() or backup::copy() is needed
 */
 int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end);
 #  define copy_file_shortcut copy_file_range_try
@@ -129,8 +153,7 @@ extern "C"
 @param size     length of the snippet
 @return error code (non-positive)
 @retval 0   on success */
-int backup_stream_config(IF_WIN(HANDLE, int) stream,
-                         const char *config, size_t size);
+int backup_stream_config(backup_fd stream, const char *config, size_t size);
 
 #ifdef __cplusplus
 extern "C"
@@ -144,7 +167,7 @@ extern "C"
 @param n_chunks number of chunks; 0 unless sparse file
 @return error code (non-positive)
 @retval 0   on success */
-int backup_stream_start(IF_WIN(HANDLE, int) stream,
+int backup_stream_start(backup_fd stream,
                         const char *name, mode_t mode, uint64_t size,
                         const struct backup_chunk *chunks, size_t n_chunks);
 
@@ -159,7 +182,7 @@ extern "C"
    @return error code (non-positive)
    @retval 0 on success
 */
-int backup_stream_write(IF_WIN(HANDLE, int) stream, const void *buf,
+int backup_stream_write(backup_fd stream, const void *buf,
                         size_t size);
 
 #ifdef __cplusplus
@@ -178,19 +201,12 @@ extern "C"
    @return error code (non-positive)
    @retval 0   on success
 */
-int backup_stream_append(IF_WIN(const native_file_handle&,int) src,
-                         IF_WIN(HANDLE, int) stream,
-                         uint64_t start, uint64_t end);
+int backup_stream_append_plain(backup_fd src, backup_fd stream,
+                               uint64_t start, uint64_t end);
 
 #ifdef _WIN32
 # define backup_stream_append_async backup_stream_append_plain
-# ifdef __cplusplus
-extern "C"
-# endif
-int backup_stream_append_plain(HANDLE src, HANDLE stream,
-                               uint64_t start, uint64_t end);
 #else
-# define backup_stream_append_plain backup_stream_append
 # ifdef __cplusplus
 extern "C"
 # endif

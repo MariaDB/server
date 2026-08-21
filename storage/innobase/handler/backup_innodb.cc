@@ -285,7 +285,7 @@ private:
 #ifdef copy_file_shortcut
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
-        f= copy_file(s, d, begin, end);
+        f= backup::copy(s, d, begin, end);
 #ifdef POSIX_FADV_DONTNEED
         std::ignore= posix_fadvise(s, 0, 0, POSIX_FADV_DONTNEED);
 #endif
@@ -987,7 +987,8 @@ private:
               page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
               /* TODO: avoid copying freed page ranges, or pages that were
               allocated after the backup started */
-              err= copy_file(node->handle, f, o, uint64_t{page} * page_size);
+              err=
+                backup::copy(node->handle, f, o, uint64_t{page} * page_size);
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
@@ -1023,7 +1024,7 @@ private:
      @return error code (non-positive)
      @retval 0 on success
   */
-  static int stream(IF_WIN(HANDLE,int) stream, fil_node_t *node,
+  static int stream(backup_fd stream, fil_node_t *node,
                     uint32_t start, uint32_t limit) noexcept
   {
     const uint32_t page_size{node->space->physical_size()},
@@ -1080,9 +1081,9 @@ private:
       uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
       /* TODO: avoid copying freed page ranges, or pages that were
       allocated after the backup started */
-      err= backup_stream_append(node->handle, stream,
-                                uint64_t{page} * page_size,
-                                uint64_t{last} * page_size);
+      err= backup::append(node->handle, stream,
+                          uint64_t{page} * page_size,
+                          uint64_t{last} * page_size);
       page= last;
       backup_batch_stop(node->space, blocks, end);
       if (err)
@@ -1123,7 +1124,7 @@ private:
   @param buf       checkpoint header
   @return error code
   @retval 0 on success */
-  static int write_checkpoint(IF_WIN(HANDLE,int) dst, const void *buf) noexcept
+  static int write_checkpoint(backup_fd dst, const void *buf) noexcept
   {
 #ifdef _WIN32
     using tpool::pwrite;
@@ -1453,8 +1454,8 @@ public:
 #else
       err= ftruncate(dst, chunk->offset) ||
 #endif
-        copy_file(src, dst, chunk[-1].offset, chunk[-1].offset +
-                  chunk[-1].length) ||
+        backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
+                     chunk[-1].length) ||
         (lsn < ctx.checkpoint && write_checkpoint(dst, cp_buf));
 #ifdef _WIN32
       err|= !CloseHandle(dst);

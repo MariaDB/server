@@ -272,7 +272,7 @@ namespace
       {
         uint64_t end= uint64_t(lseek(src_fd, 0, SEEK_END));
         if (backup_stream_start(tgt_fd, path, 0644, end, nullptr, 0) ||
-            backup_stream_append(src_fd, tgt_fd, 0, end))
+            backup_stream_append_plain(src_fd, tgt_fd, 0, end))
           goto write_error;
         if (size_t pad= size_t(end) & 511)
           if (backup_stream_write(tgt_fd, zerobuf, 512 - pad))
