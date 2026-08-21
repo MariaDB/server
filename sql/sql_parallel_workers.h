@@ -372,12 +372,15 @@ public:
   THD                      *thd;
   bool                     fatal_error;   // a producer hit a real engine error
 
+  void notify_message_dropped();
+private:
   /*
     Set under LOCK_pwt_thread when a worker fails to allocate a queued event.
     The manager surfaces a single ER_OUTOFMEMORY warning so the user sees
     that worker diagnostics were dropped instead of silently disappearing.
   */
   bool                     messages_dropped;
+public:
 
   /*
     Set once the workers have been stopped and pthread_join'd (quiesce_workers).
@@ -419,7 +422,9 @@ public:
   void free_queue();
   void record_event(pwt_queued_event *event)
   {
+    mysql_mutex_lock(&LOCK_pwt_thread);
     parallel_messages.push_back(event);
+    mysql_mutex_unlock(&LOCK_pwt_thread);
   }
 
   /* Copy the next worker result-row image into dst (reclength bytes).

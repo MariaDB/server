@@ -169,19 +169,22 @@ public:
         can surface a single ER_OUTOFMEMORY warning to the user instead of
         letting this condition vanish.
       */
-      mysql_mutex_lock(&worker->manager->LOCK_pwt_thread);
-      worker->manager->messages_dropped= true;
-      mysql_mutex_unlock(&worker->manager->LOCK_pwt_thread);
+      worker->manager->notify_message_dropped();
       return true;
     }
-    mysql_mutex_lock(&worker->manager->LOCK_pwt_thread);
     worker->manager->record_event(event);
-    mysql_mutex_unlock(&worker->manager->LOCK_pwt_thread);
     return true;                // no further processing in worker thread
   }
 
 };
 
+
+void pwt_manager::notify_message_dropped()
+{
+  mysql_mutex_lock(&LOCK_pwt_thread);
+  messages_dropped= true;
+  mysql_mutex_unlock(&LOCK_pwt_thread);
+}
 
 /**
   @brief
