@@ -1,0 +1,58 @@
+#
+# MDEV-39998: JSON_OVERLAPS asymmetry for ordered array comparison
+#
+SELECT JSON_OVERLAPS('[[1,2]]', '[[1]]') AS must_be_0;
+must_be_0
+0
+SELECT JSON_OVERLAPS('[[1]]', '[[1,2]]') AS must_be_0_too;
+must_be_0_too
+0
+SELECT JSON_OVERLAPS('[[1,2]]', '[[1,2]]') AS must_be_1;
+must_be_1
+1
+SELECT JSON_OVERLAPS('[[1,2,3]]', '[[1,2]]') AS r1,
+JSON_OVERLAPS('[[1,2]]', '[[1,2,3]]') AS r2;
+r1	r2
+0	0
+SELECT JSON_OVERLAPS('[1,2,3]', '[3,4,5]') AS scalar_overlap;
+scalar_overlap
+1
+SELECT JSON_OVERLAPS('[[]]', '[[]]') AS empty_match;
+empty_match
+1
+SELECT JSON_OVERLAPS('[[1]]', '[[]]') AS r1,
+JSON_OVERLAPS('[[]]', '[[1]]') AS r2;
+r1	r2
+0	0
+SELECT JSON_OVERLAPS('[{"a":1}]', '[{"a":1}]') AS obj_match;
+obj_match
+1
+SELECT JSON_OVERLAPS('[{"a":1,"b":2}]', '[{"a":1}]') AS r1,
+JSON_OVERLAPS('[{"a":1}]', '[{"a":1,"b":2}]') AS r2;
+r1	r2
+0	0
+SELECT JSON_OVERLAPS('[[[1,2]]]', '[[[1]]]') AS r1,
+JSON_OVERLAPS('[[[1]]]', '[[[1,2]]]') AS r2;
+r1	r2
+0	0
+SELECT JSON_OVERLAPS('[[[1,2]]]', '[[[1,2]]]') AS deep_match;
+deep_match
+1
+SELECT JSON_OVERLAPS(NULL, '[[1]]') AS r1,
+JSON_OVERLAPS('[[1]]', NULL) AS r2;
+r1	r2
+NULL	NULL
+SELECT JSON_OVERLAPS('[1,[1,2]]', '[[1,2],1]') AS mixed_match;
+mixed_match
+1
+SELECT JSON_OVERLAPS('[1,[1,2]]', '[[1],1]') AS r1,
+JSON_OVERLAPS('[[1],1]', '[1,[1,2]]') AS r2;
+r1	r2
+1	1
+SELECT JSON_OVERLAPS('[[1]]', '[[1]]') AS single_match;
+single_match
+1
+SELECT JSON_OVERLAPS('[["a"]]', '[["a","b"]]') AS r1,
+JSON_OVERLAPS('[["a","b"]]', '[["a"]]') AS r2;
+r1	r2
+0	0

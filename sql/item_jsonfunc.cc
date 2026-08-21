@@ -5158,8 +5158,8 @@ bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value,
       return FALSE;
     }
   }
-  res= (value->state == JST_ARRAY_END || value->state == JST_OBJ_END ?
-        TRUE : FALSE);
+  res= (value->state == JST_ARRAY_END || value->state == JST_OBJ_END) &&
+       (js->state == JST_ARRAY_END || js->state == JST_OBJ_END);
   json_skip_current_level(js, value);
   return res;
 }
