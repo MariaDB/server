@@ -1,0 +1,33 @@
+--echo #
+--echo # MDEV-39933: Incorrect result of JSON_NORMALIZE on invalid json data
+--echo #
+
+--echo # JSON with trailing literal junk (no NUL) - should return NULL
+SELECT JSON_NORMALIZE('{"a":1}0junk');
+
+--echo # JSON_VALID correctly rejects JSON with embedded NUL byte + trailing junk
+SELECT JSON_VALID(CONVERT(CONCAT('{"a":1}', CHAR(0), 'junk') USING latin1));
+
+--echo # JSON_NORMALIZE should also return NULL for invalid JSON with embedded NUL
+SELECT JSON_NORMALIZE(CONVERT(CONCAT('{"a":1}', CHAR(0), 'junk') USING latin1));
+
+--echo # Additional case: just a NUL after valid JSON
+SELECT JSON_NORMALIZE(CONVERT(CONCAT('{"a":1}', CHAR(0)) USING latin1));
+
+--echo # Valid JSON through conversion should still work
+SELECT JSON_NORMALIZE(CONVERT('{"a":1}' USING latin1));
+
+--echo # Multi-byte source charset (utf16)
+SELECT JSON_NORMALIZE(CONVERT(CONCAT('{"a":1}', CHAR(0), 'x') USING utf16));
+
+--echo # NUL embedded inside a JSON string value
+SELECT JSON_NORMALIZE(CONVERT(CONCAT('{"a":"b', CHAR(0), 'c"}') USING latin1));
+
+--echo # JSON array with trailing NUL
+SELECT JSON_NORMALIZE(CONVERT(CONCAT('[1,2,3]', CHAR(0), 'x') USING latin1));
+
+--echo # Nested object - valid through conversion
+SELECT JSON_NORMALIZE(CONVERT('{"a":{"b":1}}' USING latin1));
+
+--echo # Empty string
+SELECT JSON_NORMALIZE(CONVERT('' USING latin1));
