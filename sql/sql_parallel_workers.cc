@@ -76,15 +76,17 @@ static PSI_memory_info all_pwt_memory[]=
 
 /**
   @brief
-    push an error message onto our queue to send to the manager
+    Save error condition into pwt_queued_event object.
 
   @return
     true      an error occurred
-    false     error or warning is queued
+    false     error or warning is provided in *event
 */
 
-bool error_to_queue(THD *thd, pwt_queued_event **event, uint error,
-                     Sql_condition::enum_warning_level level, const char *msg)
+static
+bool save_error_to_queued_event(THD *thd, pwt_queued_event **event, uint error,
+                                 Sql_condition::enum_warning_level level,
+                                 const char *msg)
 {
   DBUG_EXECUTE_IF("pwt_error_to_queue_oom",
                   { *event= nullptr; return true; });
@@ -161,7 +163,7 @@ public:
       mysql_mutex_unlock(&worker->manager->LOCK_data);
     }
     pwt_queued_event *event;
-    if (error_to_queue(thd, &event, sql_errno, *level, msg))
+    if (save_error_to_queued_event(thd, &event, sql_errno, *level, msg))
     {
       /*
         Couldn't allocate the queued event. The worker THD's diagnostics
