@@ -1028,8 +1028,13 @@ static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc,
   Otherwise, when passing a NULL THD, the caller must arrange that plugin
   unlock happens later.
 */
+plugin_ref (*plugin_lock_hook)(THD *thd, plugin_ref ptr) = nullptr;
+void (*plugin_unlock_hook)(THD *thd, plugin_ref plugin) = nullptr;
+
 plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 {
+  if (plugin_lock_hook)
+    return plugin_lock_hook(thd, ptr);
   LEX *lex= thd ? thd->lex : 0;
   plugin_ref rc;
   DBUG_ENTER("plugin_lock");
@@ -1412,6 +1417,11 @@ static void intern_plugin_unlock(LEX *lex, plugin_ref plugin)
 
 void plugin_unlock(THD *thd, plugin_ref plugin)
 {
+  if (plugin_unlock_hook)
+  {
+    plugin_unlock_hook(thd, plugin);
+    return;
+  }
   LEX *lex= thd ? thd->lex : 0;
   DBUG_ENTER("plugin_unlock");
   if (!plugin)

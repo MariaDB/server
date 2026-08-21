@@ -1331,6 +1331,9 @@ void convert_error_to_warning(THD *thd);
 void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);
 
+extern void (*push_warning_printf_hook)(THD *thd, Sql_condition::enum_warning_level level,
+                                        uint code, const char *format, va_list args);
+
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
                          uint code, const char *format, ...)
                          ATTRIBUTE_FORMAT(printf, 4, 5);

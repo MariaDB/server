@@ -1918,6 +1918,11 @@ static inline handlerton *plugin_hton(plugin_ref plugin)
   return plugin_data(plugin, handlerton *);
 }
 
+extern handlerton *(*ha_default_handlerton_hook)(THD *thd);
+extern plugin_ref (*ha_resolve_by_name_hook)(THD *thd, const LEX_CSTRING *name, bool is_temp_table);
+extern plugin_ref (*ha_lock_engine_hook)(THD *thd, const handlerton *hton);
+extern handler *(*get_new_handler_hook)(TABLE_SHARE *share, MEM_ROOT *alloc, handlerton *db_type);
+
 handlerton *ha_default_handlerton(THD *thd);
 handlerton *ha_default_tmp_handlerton(THD *thd);
 

@@ -9142,9 +9142,13 @@ MYSQL_BIN_LOG::update_gtid_index(uint32 offset, const rpl_gtid *gtid)
   }
 }
 
+int (*error_log_print_hook)(enum loglevel level, const char *format, va_list args) = nullptr;
+
 int error_log_print(enum loglevel level, const char *format,
                     va_list args)
 {
+  if (error_log_print_hook)
+    return error_log_print_hook(level, format, args);
   return logger.error_log_print(level, format, args);
 }
 
