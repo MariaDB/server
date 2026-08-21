@@ -814,19 +814,6 @@ static inline bool frame_is_streaming_compatible(Window_spec *win_spec)
   return (frame->bottom_bound->precedence_type == Window_frame_bound::CURRENT);
 }
 
-static inline bool check_argument_list_aggregation(Window_spec *win_spec)
-{
-  for (ORDER *o= win_spec->partition_list->first; o; o= o->next)
-    if ((*o->item)->with_sum_func())
-      return true;
-
-  for (ORDER *o= win_spec->order_list->first; o; o= o->next)
-    if ((*o->item)->with_sum_func())
-      return true;
-
-  return false;
-}
-
 static Item_window_func *
 find_longest_compatible_order(const List<Item_window_func> &win_funcs)
 {
@@ -890,8 +877,6 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
          running aggregates SUM, COUNT, AVG, MIN, MAX),
        - it is not a DISTINCT aggregate (the streaming path uses the SIMPLE
          aggregator and cannot deduplicate), and
-       - no PARTITION BY / ORDER BY expression contains an aggregate
-         (check_argument_list_aggregation()).
 
     3. The frame is prohibited or streamable: for aggregates it must be exactly
        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
@@ -900,6 +885,11 @@ find_longest_compatible_order(const List<Item_window_func> &win_funcs)
     4. The longest window order is compatible (equal, or one a prefix of the
        other) with the main query ORDER BY, and with the GROUP BY list when
        present, so a single sort satisfies both the window(s) and the query.
+
+    5. If a window order is longer than the main query order, then it
+       only references the first real table in the JOIN or const tables, is
+       deterministic and has no sum functions. (like how remove_const() does
+       for the main query ORDER BY).
 
   On success it sets:
     longest_wf_order             - the order the streaming sort should use.
@@ -911,7 +901,9 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *&longest_wf_order,
                                  ORDER *main_query_order,
                                  ORDER *main_query_group_list,
-                                 bool &streaming_wf_order_is_longer)
+                                 bool &streaming_wf_order_is_longer,
+                                 table_map first_table_map,
+                                 table_map const_table_map)
 {
   if (win_funcs.elements == 0)
     return false;
@@ -930,7 +922,6 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
     Window_spec *spec= win_func->window_spec;
     Item_sum *sum_func= win_func->window_func();
     if (!sum_func->is_streamable() || sum_func->has_with_distinct() ||
-        check_argument_list_aggregation(spec) ||
         (!win_func->is_frame_prohibited() &&
          !frame_is_streaming_compatible(spec)))
       return false;
@@ -953,13 +944,27 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
   else
     streaming_wf_order_is_longer= false;
 
-  // Ordering keys after the complete GROUP BY key does not affect the ordering
-  // of the grouped result: there is exactly one row per group key, so a
-  // trailing key can never be reached as a tie-breaker. Hence it is safe to
-  // drop the trailing keys even if the window function references non-grouped
-  // columns, whose values are plan-dependent but cannot affect the ordering
-  // between grouped rows. (Assumes the whole GROUP BY key is matched as a
-  // prefix, and no WITH ROLLUP.)
+  if (streaming_wf_order_is_longer)
+  {
+    for (ORDER *o= longest_wf_order; o; o= o->next)
+    {
+      table_map used= (*o->item)->used_tables() & ~const_table_map;
+      if ((used & ~first_table_map) ||
+          (used & (RAND_TABLE_BIT | OUTER_REF_TABLE_BIT)) ||
+          (*o->item)->with_sum_func())
+        return false;
+    }
+  }
+
+  /*
+    Ordering keys after the complete GROUP BY key does not affect the ordering
+    of the grouped result: there is exactly one row per group key, so a
+    trailing key can never be reached as a tie-breaker. Hence it is safe to
+    drop the trailing keys even if the window function references non-grouped
+    columns, whose values are plan-dependent but cannot affect the ordering
+    between grouped rows. (Assumes the whole GROUP BY key is matched as a
+    prefix, and no WITH ROLLUP.)
+  */
   if (main_query_group_list)
   {
     cmp= compare_order_lists(

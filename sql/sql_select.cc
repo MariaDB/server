@@ -1617,17 +1617,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   /*
-    Checks streamability of window functions, which will be used in
-    optimize_stage2() to choose the streaming path if a temp table is not
-    needed for other reasons
-  */
-  if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
-      have_streaming_window_funcs(thd, select_lex->window_funcs,
-                                  win_func_longest_order, order, group_list,
-                                  streaming_wf_order_is_longer))
-    streamable_window_funcs= true;
-
-  /*
     Permanently remove redundant parts from the query if
       1) This is a subquery
       2) This is the first time this query is optimized (since the
@@ -3349,6 +3338,18 @@ int JOIN::optimize_stage2()
         simple_order= 0;
     }
   }
+
+  /*
+    Checks streamability of window functions, which will be used to choose the
+    streaming path if a temp table is not needed for other reasons
+  */
+  if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
+      !only_const_tables() &&
+      have_streaming_window_funcs(
+          thd, select_lex->window_funcs, win_func_longest_order, order,
+          group_list, streaming_wf_order_is_longer,
+          join_tab[const_tables].table->map, const_table_map))
+    streamable_window_funcs= true;
 
   need_tmp= test_if_need_tmp_table();
 
@@ -26238,9 +26239,11 @@ enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
 
   if (!end_of_records)
   {
-    // If a loose index scan is used (the only case for group by + streaming),
-    // then a HAVING that was not pushed down should be applied before the
-    // window functions process the rows.
+    /*
+      If a loose index scan is used (the only case for group by + streaming),
+      then a HAVING that was not pushed down should be applied before the
+      window functions process the rows.
+    */
     if (join->table_count && join->join_tab->is_using_loose_index_scan())
     {
       copy_fields(&join->tmp_table_param);

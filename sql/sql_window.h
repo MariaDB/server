@@ -188,7 +188,9 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *&longest_wf_order,
                                  ORDER *main_query_order,
                                  ORDER *main_query_group_list,
-                                 bool &streaming_wf_order_is_longer);
+                                 bool &streaming_wf_order_is_longer,
+                                 table_map first_table_map,
+                                 table_map const_table_map);
 
 //////////////////////////////////////////////////////////////////////////////
 // Classes that make window functions computation a part of SELECT's query plan
