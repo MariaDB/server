@@ -79,11 +79,13 @@ set debug_sync= 'now signal go';
 
 --connection master
 --reap
+SHOW BINLOG EVENTS;
 --source include/save_master_gtid.inc
 
 --connection slave
 source include/start_slave.inc;
 --source include/sync_with_master_gtid.inc
+SHOW BINLOG EVENTS;
 select * from t;
 
 # Cleanup

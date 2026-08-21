@@ -1,0 +1,117 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@session.binlog_sequential_table_ids= ON;
+#
+# Test 1: Same table in multiple statements within one transaction
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (1, 10);
+INSERT INTO t1 VALUES (2, 20);
+UPDATE t1 SET b= 30 WHERE a= 1;
+DELETE FROM t1 WHERE a= 2;
+COMMIT;
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	30
+#
+# Test 2: Transaction touching many tables
+#
+connection master;
+BEGIN;
+COMMIT;
+connection slave;
+connection slave;
+SELECT * FROM many_1;
+a
+1
+SELECT * FROM many_25;
+a
+25
+SELECT * FROM many_50;
+a
+50
+#
+# Test 3: Temporary tables mixed with regular tables
+#
+connection master;
+CREATE TEMPORARY TABLE tmp1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE reg1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO tmp1 VALUES (1);
+INSERT INTO reg1 VALUES (1);
+INSERT INTO t1 VALUES (3, 300);
+COMMIT;
+connection slave;
+connection slave;
+SELECT * FROM reg1 ORDER BY a;
+a
+1
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	30
+3	300
+#
+# Test 4: DELETE with multi-table syntax
+#
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (100, 1), (200, 2);
+INSERT INTO t1 VALUES (100, 1);
+DELETE t1, t2 FROM t1 INNER JOIN t2 ON t1.a= t2.a;
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	30
+3	300
+SELECT * FROM t2 ORDER BY a;
+a	b
+200	2
+#
+# Test 5: REPLACE and INSERT ... ON DUPLICATE KEY UPDATE
+#
+connection master;
+INSERT INTO t1 VALUES (5, 50);
+REPLACE INTO t1 VALUES (5, 55);
+INSERT INTO t1 VALUES (6, 60) ON DUPLICATE KEY UPDATE b= 66;
+INSERT INTO t1 VALUES (6, 60) ON DUPLICATE KEY UPDATE b= 66;
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	30
+3	300
+5	55
+6	66
+#
+# Test 6: Multiple single-statement transactions (autocommit)
+#
+connection master;
+SET autocommit= 1;
+INSERT INTO t1 VALUES (7, 70);
+INSERT INTO t1 VALUES (8, 80);
+INSERT INTO t1 VALUES (9, 90);
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	30
+3	300
+5	55
+6	66
+7	70
+8	80
+9	90
+#
+# Cleanup
+#
+connection master;
+SET @@session.binlog_sequential_table_ids= OFF;
+DROP TABLE t1, t2, reg1;
+DROP TEMPORARY TABLE IF EXISTS tmp1;
+connection slave;
+include/rpl_end.inc
