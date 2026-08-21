@@ -198,8 +198,8 @@ static int aria_backup_file(const struct backup_target *target,
   {
     char dstpath[FN_REFLEN * 3 / 2];
     if ((int) sizeof dstpath <=
-        snprintf(dstpath, sizeof dstpath, "%s/%s/%s",
-                 target->path, path + dir_prefix, name))
+        snprintf(dstpath, sizeof dstpath, "%s/%s",
+                 target->path, path + dir_prefix))
       my_error(ER_TOO_LONG_IDENT, MYF(0), name);
     else if (!CopyFileEx(path, dstpath, NULL, NULL, NULL,
                          COPY_FILE_NO_BUFFERING))
