@@ -6516,13 +6516,86 @@ bool Item_func_regex::val_bool()
 }
 
 
+// false = OK, true = error
+bool Regexp_processor_pcre::init(const String *match_type_str,
+                                 const DTCollation &collation)
+{
+  init(collation.collation, 0);
+  const bool case_sensitive_is_default =
+      (collation.collation->state & (MY_CS_BINSORT | MY_CS_CSSORT)) != 0;
+
+  uint32_t result = case_sensitive_is_default ? 0 : PCRE2_CASELESS;
+
+  if (match_type_str && match_type_str->length())
+  {
+    const char *p   = match_type_str->ptr();
+    const char *end = p + match_type_str->length();
+    
+    for (; p < end; p++)
+    {
+      switch (*p) {
+      case 'c':
+        result &= ~PCRE2_CASELESS;
+        break;
+      case 'i':
+        result |= PCRE2_CASELESS; 
+        break;
+      case 'm':
+        result |= PCRE2_MULTILINE;
+        break;
+      case 'n':
+        result |= PCRE2_DOTALL;
+        break;
+      case 'u':
+        /* Unix-only line endings: no direct PCRE2 equivalent, accepted. */
+        break;
+      default:
+        my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
+                "match_type",
+                const_cast<String*>(match_type_str)->c_ptr_safe(),
+                "regexp_instr");
+        return true;
+      }
+    }
+  }
+  m_library_flags&= ~(PCRE2_CASELESS | PCRE2_MULTILINE | PCRE2_DOTALL);
+  m_library_flags|= (int) result;
+  /*
+    In the case of a non-constant match_type with a constant pattern, 
+    invalidate the pattern cache so that compile() is not skipped
+    when flags change.
+  */
+  m_prev_pattern.length(0);
+  return false;
+}
+
+
 bool
 Item_func_regexp_instr::fix_length_and_dec(THD *thd)
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
 
-  re.init(cmp_collation.collation, 0);
+  m_match_type_is_const= (arg_count > 5 && args[5]->const_item());
+  if (m_match_type_is_const)
+  {
+    char mt_buf[64];
+    String mt_tmp(mt_buf, sizeof(mt_buf), &my_charset_latin1);
+    String *match_type_str= args[5]->val_str(&mt_tmp);
+    if (!args[5]->null_value && match_type_str)
+    {
+      if (re.init(match_type_str, cmp_collation))
+        return TRUE;
+    }
+    else
+    {
+      re.init(cmp_collation.collation, 0);
+    }
+  }
+  else
+  {
+    re.init(cmp_collation.collation, 0);
+  }
   max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
   return re.fix_owner(this, args[0], args[1]);
 }
@@ -6531,13 +6604,136 @@ Item_func_regexp_instr::fix_length_and_dec(THD *thd)
 longlong Item_func_regexp_instr::val_int()
 {
   DBUG_ASSERT(fixed());
-  if ((null_value= re.recompile(args[1])))
+
+  // args[1]: pattern (may be recompiled per row)
+  if (arg_count <= 5 || m_match_type_is_const)
+  {
+    if ((null_value= re.recompile(args[1])))
+      return 0;
+  }
+
+  // args[2]: pos (1-based, default 1)
+  longlong pos= 1;
+  if (arg_count > 2)
+  {
+    pos= args[2]->val_int();
+    if ((null_value= args[2]->null_value))
+      return 0;
+    if (pos <= 0)
+    {
+      my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), func_name());
+      return (null_value= true, 0);
+    }
+  }
+
+  // args[3]: occurrence (1-based, default 1)
+  longlong occurrence= 1;
+  if (arg_count > 3)
+  {
+    occurrence= args[3]->val_int();
+    if ((null_value= args[3]->null_value))
+      return 0;
+    if (occurrence <= 0)
+    {
+      my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), func_name());
+      return (null_value= true, 0);
+    }
+  }
+
+  // args[4]: return_option (0=start pos, 1=end pos, default 0)
+  longlong return_option= 0;
+  if (arg_count > 4)
+  {
+    return_option= args[4]->val_int();
+    if ((null_value= args[4]->null_value))
+      return 0;
+    if (return_option != 0 && return_option != 1)
+    {
+      my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), func_name());
+      return (null_value= true, 0);
+    }
+  }
+
+  // args[5]: match_type string
+  if (arg_count > 5)
+  {
+    if ((null_value= args[5]->is_null()))
+      return 0;
+
+    if (!m_match_type_is_const)
+    {
+      char mt_buf[64];
+      String mt_tmp(mt_buf, sizeof(mt_buf), &my_charset_latin1);
+      String *match_type_str= args[5]->val_str(&mt_tmp);
+      if ((null_value= args[5]->null_value))
+        return 0;
+
+      if (re.init(match_type_str, cmp_collation))
+        return (null_value= true, 0);
+      if ((null_value= re.compile(args[1], false)))
+        return 0;
+    }
+  }
+
+  char subject_buf[MAX_FIELD_WIDTH];
+  String subject_tmp(subject_buf, sizeof(subject_buf), &my_charset_bin);
+  String *subject= args[0]->val_str(&subject_tmp);
+  if ((null_value= args[0]->null_value))
     return 0;
 
-  if ((null_value= re.exec(args[0], 0, 1)))
-    return 0;
+  String *subject_conv= re.convert_if_needed(subject, &re.subject_converter);
+  if (!subject_conv)
+    return (null_value= true, 0);
 
-  return re.match() ? (longlong) (re.subpattern_start(0) + 1) : 0;
+  const char   *subject_ptr= subject_conv->ptr();
+  size_t        subject_len= subject_conv->length();
+  CHARSET_INFO *lib_cs     = re.library_charset();
+
+  size_t byte_offset= lib_cs->charpos(subject_ptr,
+                                      subject_ptr + subject_len,
+                                      (size_t)(pos - 1));
+
+  longlong found_occurrence= 0;
+  while (byte_offset <= subject_len)
+  {
+    if ((null_value= re.exec(subject_ptr, subject_len, byte_offset)))
+      return 0;
+
+    if (!re.match())
+      return 0;
+
+    found_occurrence++;
+    if (found_occurrence == occurrence)
+    {
+      size_t match_byte_start= re.subpattern_start(0);
+      size_t match_byte_end  = re.subpattern_end(0);
+
+      if (return_option == 0)
+        return (longlong) lib_cs->numchars(subject_ptr,
+                                           subject_ptr + match_byte_start) + 1;
+      else
+        return (longlong) lib_cs->numchars(subject_ptr,
+                                           subject_ptr + match_byte_end) + 1;
+    }
+
+    size_t next_offset= re.subpattern_end(0);
+    if (next_offset == byte_offset)
+    {
+#ifdef USE_MB
+      if (lib_cs->use_mb())
+      {
+        uint l= my_ismbchar(lib_cs, subject_ptr + byte_offset,
+                            subject_ptr + subject_len);
+        next_offset+= l ? l : 1;
+      }
+      else
+#endif
+        next_offset++;
+    }
+    byte_offset= next_offset;
+  }
+
+  return 0;
 }
 
 

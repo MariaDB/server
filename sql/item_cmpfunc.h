@@ -3240,6 +3240,7 @@ public:
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);
+  bool init(const String *match_type_str, const DTCollation &collation);
   bool fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
@@ -3325,14 +3326,25 @@ class Item_func_regexp_instr :public Item_long_func
 {
   bool check_arguments() const override
   {
-    return (args[0]->check_type_can_return_str(func_name_cstring()) ||
-            args[1]->check_type_can_return_text(func_name_cstring()));
+    if (args[0]->check_type_can_return_str(func_name_cstring()) ||
+        args[1]->check_type_can_return_text(func_name_cstring()))
+      return true;
+    if (arg_count > 2 && args[2]->check_type_can_return_int(func_name_cstring()))
+      return true;
+    if (arg_count > 3 && args[3]->check_type_can_return_int(func_name_cstring()))
+      return true;
+    if (arg_count > 4 && args[4]->check_type_can_return_int(func_name_cstring()))
+      return true;
+    if (arg_count > 5 && args[5]->check_type_can_return_str(func_name_cstring()))
+      return true;
+    return false;
   }
   Regexp_processor_pcre re;
   DTCollation cmp_collation;
+  bool m_match_type_is_const;
 public:
-  Item_func_regexp_instr(THD *thd, Item *a, Item *b)
-   :Item_long_func(thd, a, b)
+  Item_func_regexp_instr(THD *thd, List<Item> &list)
+   :Item_long_func(thd, list)
   {}
   void cleanup() override
   {

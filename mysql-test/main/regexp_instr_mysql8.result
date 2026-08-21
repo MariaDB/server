@@ -1,0 +1,277 @@
+#
+# MDEV-39520: Improve REGEXP_INSTR for MySQL 8.0 compatibility
+#
+# 1. Basic 2-argument form
+SELECT REGEXP_INSTR('abba', 'b{2}');
+REGEXP_INSTR('abba', 'b{2}')
+2
+SELECT REGEXP_INSTR('abba', 'x');
+REGEXP_INSTR('abba', 'x')
+0
+SELECT REGEXP_INSTR('hello world', 'world');
+REGEXP_INSTR('hello world', 'world')
+7
+SELECT REGEXP_INSTR('hello', '');
+REGEXP_INSTR('hello', '')
+1
+SELECT REGEXP_INSTR('', 'a');
+REGEXP_INSTR('', 'a')
+0
+SELECT REGEXP_INSTR('', '');
+REGEXP_INSTR('', '')
+1
+# 2. Three arguments: pos
+SELECT REGEXP_INSTR('abba', 'b{2}', 2);
+REGEXP_INSTR('abba', 'b{2}', 2)
+2
+SELECT REGEXP_INSTR('abba', 'b{2}', 3);
+REGEXP_INSTR('abba', 'b{2}', 3)
+0
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1);
+REGEXP_INSTR('abbabba', 'b{2}', 1)
+2
+SELECT REGEXP_INSTR('aabba', 'b', 3);
+REGEXP_INSTR('aabba', 'b', 3)
+3
+SELECT REGEXP_INSTR('xyzabc', 'abc', 4);
+REGEXP_INSTR('xyzabc', 'abc', 4)
+4
+SELECT REGEXP_INSTR('abc', 'c', 3);
+REGEXP_INSTR('abc', 'c', 3)
+3
+SELECT REGEXP_INSTR('abc', 'c', 4);
+REGEXP_INSTR('abc', 'c', 4)
+0
+# 3. Four arguments: occurrence
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 1);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 1)
+2
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 2);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 2)
+5
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 3);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 3)
+0
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 2, 1);
+REGEXP_INSTR('abbabba', 'b{2}', 2, 1)
+2
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 2, 2);
+REGEXP_INSTR('abbabba', 'b{2}', 2, 2)
+5
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 3, 2);
+REGEXP_INSTR('abbabba', 'b{2}', 3, 2)
+0
+SELECT REGEXP_INSTR('aaa', 'a', 1, 1);
+REGEXP_INSTR('aaa', 'a', 1, 1)
+1
+SELECT REGEXP_INSTR('aaa', 'a', 1, 2);
+REGEXP_INSTR('aaa', 'a', 1, 2)
+2
+SELECT REGEXP_INSTR('aaa', 'a', 1, 3);
+REGEXP_INSTR('aaa', 'a', 1, 3)
+3
+SELECT REGEXP_INSTR('aaa', 'a', 1, 4);
+REGEXP_INSTR('aaa', 'a', 1, 4)
+0
+# 4. Five arguments: return_option
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 1, 0);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 1, 0)
+2
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 1, 1);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 1, 1)
+4
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 2, 0);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 2, 0)
+5
+SELECT REGEXP_INSTR('abbabba', 'b{2}', 1, 2, 1);
+REGEXP_INSTR('abbabba', 'b{2}', 1, 2, 1)
+7
+SELECT REGEXP_INSTR('abcabc', 'b', 1, 1, 0);
+REGEXP_INSTR('abcabc', 'b', 1, 1, 0)
+2
+SELECT REGEXP_INSTR('abcabc', 'b', 1, 1, 1);
+REGEXP_INSTR('abcabc', 'b', 1, 1, 1)
+3
+SELECT REGEXP_INSTR('abcabc', 'b', 1, 2, 0);
+REGEXP_INSTR('abcabc', 'b', 1, 2, 0)
+5
+SELECT REGEXP_INSTR('abcabc', 'b', 1, 2, 1);
+REGEXP_INSTR('abcabc', 'b', 1, 2, 1)
+6
+SELECT REGEXP_INSTR('abcabc', 'z', 1, 1, 1);
+REGEXP_INSTR('abcabc', 'z', 1, 1, 1)
+0
+# 5. Six arguments: match_type
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'i');
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'i')
+1
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'c');
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'c')
+0
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'ci');
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'ci')
+1
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'ic');
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, 'ic')
+0
+SELECT REGEXP_INSTR('a\nb\nc', '^b$', 1, 1, 0, 'm');
+REGEXP_INSTR('a\nb\nc', '^b$', 1, 1, 0, 'm')
+3
+SELECT REGEXP_INSTR('a\nb\nc', '^b$', 1, 1, 0, '');
+REGEXP_INSTR('a\nb\nc', '^b$', 1, 1, 0, '')
+0
+SELECT REGEXP_INSTR('a\nb\nc', 'a.b', 1, 1, 0, 'n');
+REGEXP_INSTR('a\nb\nc', 'a.b', 1, 1, 0, 'n')
+1
+SELECT REGEXP_INSTR('a\nb\nc', 'a.b', 1, 1, 0, '');
+REGEXP_INSTR('a\nb\nc', 'a.b', 1, 1, 0, '')
+0
+SELECT REGEXP_INSTR('a\nb', '^b$', 1, 1, 0, 'mu');
+REGEXP_INSTR('a\nb', '^b$', 1, 1, 0, 'mu')
+3
+SELECT REGEXP_INSTR('a\nB\nc', '^b$', 1, 1, 0, 'im');
+REGEXP_INSTR('a\nB\nc', '^b$', 1, 1, 0, 'im')
+3
+# 6. Multibyte characters
+SET NAMES utf8mb4;
+SELECT REGEXP_INSTR('áéí', 'é');
+REGEXP_INSTR('áéí', 'é')
+2
+SELECT REGEXP_INSTR('áéí', 'í');
+REGEXP_INSTR('áéí', 'í')
+3
+SELECT REGEXP_INSTR('αβγδ', 'γ');
+REGEXP_INSTR('αβγδ', 'γ')
+3
+SELECT REGEXP_INSTR('áéíó', 'í', 2);
+REGEXP_INSTR('áéíó', 'í', 2)
+3
+SELECT REGEXP_INSTR('αβγδ', 'β', 2);
+REGEXP_INSTR('αβγδ', 'β', 2)
+2
+SELECT REGEXP_INSTR('αβγδ', 'β', 1, 1, 1);
+REGEXP_INSTR('αβγδ', 'β', 1, 1, 1)
+3
+# 7. NULL propagation
+SELECT REGEXP_INSTR(NULL,  'a');
+REGEXP_INSTR(NULL,  'a')
+NULL
+SELECT REGEXP_INSTR('abc', NULL);
+REGEXP_INSTR('abc', NULL)
+NULL
+SELECT REGEXP_INSTR('abc', 'a', NULL);
+REGEXP_INSTR('abc', 'a', NULL)
+NULL
+SELECT REGEXP_INSTR('abc', 'a', 1, NULL);
+REGEXP_INSTR('abc', 'a', 1, NULL)
+NULL
+SELECT REGEXP_INSTR('abc', 'a', 1, 1, NULL);
+REGEXP_INSTR('abc', 'a', 1, 1, NULL)
+NULL
+SELECT REGEXP_INSTR('abc', 'a', 1, 1, 0, NULL);
+REGEXP_INSTR('abc', 'a', 1, 1, 0, NULL)
+NULL
+# 8. Edge cases
+SELECT REGEXP_INSTR('abc', '', 1, 1);
+REGEXP_INSTR('abc', '', 1, 1)
+1
+SELECT REGEXP_INSTR('abc', '', 1, 2);
+REGEXP_INSTR('abc', '', 1, 2)
+2
+SELECT REGEXP_INSTR('abc', '', 1, 3);
+REGEXP_INSTR('abc', '', 1, 3)
+3
+SELECT REGEXP_INSTR('abc', '', 1, 4);
+REGEXP_INSTR('abc', '', 1, 4)
+4
+SELECT REGEXP_INSTR('abc', '', 1, 5);
+REGEXP_INSTR('abc', '', 1, 5)
+0
+SELECT REGEXP_INSTR('abcabc', '^abc');
+REGEXP_INSTR('abcabc', '^abc')
+1
+SELECT REGEXP_INSTR('abcabc', 'abc$');
+REGEXP_INSTR('abcabc', 'abc$')
+4
+SELECT REGEXP_INSTR('abcabc', '^abc$');
+REGEXP_INSTR('abcabc', '^abc$')
+0
+SELECT REGEXP_INSTR('foo bar baz', 'bar|baz', 1, 1);
+REGEXP_INSTR('foo bar baz', 'bar|baz', 1, 1)
+5
+SELECT REGEXP_INSTR('foo bar baz', 'bar|baz', 1, 2);
+REGEXP_INSTR('foo bar baz', 'bar|baz', 1, 2)
+9
+SELECT REGEXP_INSTR('aabbaabb', '(a+)(b+)\\1', 1, 1);
+REGEXP_INSTR('aabbaabb', '(a+)(b+)\\1', 1, 1)
+1
+SELECT REGEXP_INSTR('aabbaabb', '(a+)(b+)\\1', 1, 2);
+REGEXP_INSTR('aabbaabb', '(a+)(b+)\\1', 1, 2)
+0
+SELECT REGEXP_INSTR(REPEAT('x', 1000), 'x{5}', 1, 1);
+REGEXP_INSTR(REPEAT('x', 1000), 'x{5}', 1, 1)
+1
+SELECT REGEXP_INSTR(REPEAT('x', 1000), 'x{5}', 1, 200);
+REGEXP_INSTR(REPEAT('x', 1000), 'x{5}', 1, 200)
+996
+SELECT REGEXP_INSTR('Test-abc-abc-abc', 'AB', 1, 3, 0);
+REGEXP_INSTR('Test-abc-abc-abc', 'AB', 1, 3, 0)
+14
+SELECT REGEXP_INSTR('Test-abc-abc-abc', 'AB', 1, 3, 0, 'c');
+REGEXP_INSTR('Test-abc-abc-abc', 'AB', 1, 3, 0, 'c')
+0
+# Non-constant match_type with constant pattern
+CREATE TABLE foo (cond VARCHAR(50));
+INSERT INTO foo VALUES ('c'), ('ic');
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, cond) FROM foo;
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, cond)
+0
+0
+DROP TABLE foo;
+# Prepared statements with changing parameters
+PREPARE stmt FROM
+"SELECT REGEXP_INSTR(?, ?, 1, ?)";
+SET @subject = 'abc abc abc';
+SET @pattern = 'abc';
+SET @occ = 1;
+EXECUTE stmt USING @subject, @pattern, @occ;
+REGEXP_INSTR(?, ?, 1, ?)
+1
+SET @occ = 2;
+EXECUTE stmt USING @subject, @pattern, @occ;
+REGEXP_INSTR(?, ?, 1, ?)
+5
+PREPARE stmt FROM
+"SELECT REGEXP_INSTR(?, ?, 1, 1, 0, ?)";
+SET @subject = 'Abc abc';
+SET @pattern = 'abc';
+SET @match = 'c';
+EXECUTE stmt USING @subject, @pattern, @match;
+REGEXP_INSTR(?, ?, 1, 1, 0, ?)
+5
+SET @match = 'i';
+EXECUTE stmt USING @subject, @pattern, @match;
+REGEXP_INSTR(?, ?, 1, 1, 0, ?)
+1
+# match_type from 1-row table
+CREATE TABLE t1 (cond VARCHAR(10));
+INSERT INTO t1 VALUES ('c');
+SELECT REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, cond) FROM t1;
+REGEXP_INSTR('Abba', 'ABBA', 1, 1, 0, cond)
+0
+DROP TABLE t1;
+CREATE TABLE t1 (
+subject VARCHAR(20),
+pattern VARCHAR(20),
+mt      VARCHAR(10)
+);
+INSERT INTO t1 VALUES ('Abc abc', 'abc', 'c');
+SELECT REGEXP_INSTR(subject, pattern, 1, 1, 0, mt) FROM t1;
+REGEXP_INSTR(subject, pattern, 1, 1, 0, mt)
+5
+UPDATE t1 SET mt='i';
+SELECT REGEXP_INSTR(subject, pattern, 1, 1, 0, mt) FROM t1;
+REGEXP_INSTR(subject, pattern, 1, 1, 0, mt)
+1
+DROP TABLE t1;
+End of 13.0 tests
