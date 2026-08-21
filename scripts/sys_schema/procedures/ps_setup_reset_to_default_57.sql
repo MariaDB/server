@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_setup_reset_to_default;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_reset_to_default (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_reset_to_default (
        IN in_verbose BOOLEAN
     )
     COMMENT '
