@@ -7225,7 +7225,19 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, thd,
+          /*
+            MDEV-38486: Do not await a semi-sync ACK for an event marked with
+            LOG_EVENT_SKIP_REPLICATION_F when every connected semi-sync slave
+            requested master-side filtering (FILTER_ON_MASTER). Such an event
+            is sent to no slave and can never be ACKed, so awaiting it would
+            hang the primary until rpl_semi_sync_master_timeout. When at least
+            one slave does not filter, that slave still receives and ACKs the
+            event, so the normal semi-sync wait must apply.
+          */
+          if (!((event_info->flags & LOG_EVENT_SKIP_REPLICATION_F) &&
+                repl_semisync_master.
+                  all_semi_sync_slaves_filter_skip_replication()) &&
+              repl_semisync_master.report_binlog_update(thd, thd,
                                                         log_file_name, offset))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
@@ -8842,7 +8854,19 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                           SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
                              ? current->thd
                              : leader->thd;
+        /*
+          MDEV-38486: Do not await a semi-sync ACK for a transaction committed
+          with @@skip_replication=1 when every connected semi-sync slave
+          requested master-side filtering (FILTER_ON_MASTER). Such a
+          transaction is sent to no slave and can never be ACKed, so awaiting
+          it would hang the primary until rpl_semi_sync_master_timeout. When at
+          least one slave does not filter, that slave still receives and ACKs
+          the transaction, so the normal semi-sync wait must apply.
+        */
         if (likely(!current->error) &&
+            !((current->thd->variables.option_bits & OPTION_SKIP_REPLICATION) &&
+              repl_semisync_master.
+                all_semi_sync_slaves_filter_skip_replication()) &&
             unlikely(repl_semisync_master.
                      report_binlog_update(current->thd, waiter_thd,
                                           current->cache_mngr->
