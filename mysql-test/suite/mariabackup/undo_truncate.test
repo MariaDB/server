@@ -2,6 +2,7 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --source include/have_file_key_management.inc
+--source include/have_mariabackup_combination.inc
 
 SET GLOBAL innodb_undo_log_truncate = 0;
 

@@ -642,6 +642,9 @@ struct file_name_t {
 	/** Log sequence number of a FILE_CREATE record, or 0 */
 	lsn_t		create_lsn = 0;
 
+	/** Last FSP_SIZE or FSP_SPACE_FLAGS change, or 0 */
+	lsn_t		page0_lsn = 0;
+
 	/** FSP_SIZE of tablespace */
 	uint32_t	size = 0;
 
@@ -929,6 +932,18 @@ processed:
         d++;
         continue;
       }
+      else
+      {
+        recv_spaces_t::iterator it{recv_spaces.find(d->first)};
+        if (UNIV_UNLIKELY(it == recv_spaces.end()))
+          ut_ad("inconsistent data structures" == 0);
+        else if (it->second.create_lsn)
+          /*
+            Because a FILE_CREATE record exists, the entire file must
+            be recoverable via log records.
+          */
+          goto next_item;
+      }
       const page_id_t page_id{d->first, 0};
       const byte *page= recv_sys.dblwr.find_page(page_id, max_lsn);
       if (!page)
@@ -1208,6 +1223,51 @@ inline size_t recv_sys_t::files_size()
   return files.size();
 }
 
+/** Apply a FILE_DELETE record. */
+ATTRIBUTE_COLD static void fil_delete_apply(fil_space_t *space) noexcept
+{
+  if (log_sys.archive)
+  {
+    /*
+      In recovery with innodb_log_archive=ON there may be a situation like
+      the following:
+
+      FILE_RENAME(123, t1.ibd, #sql-ib123.ibd)
+      FILE_CREATE(124, #sql-alter-.ibd)
+      FILE_RENAME(124, #sql-alter-.ibd, t1.ibd)
+      FILE_DELETE(123, #sql-ib123.ibd)
+
+      In such a scenario, we must delete the old file in order to
+      avoid a name clash in recv_rename_files().
+
+      In normal crash recovery, at most one file operation can be
+      pending, and it will be handled by rollback or purge.
+    */
+    if (FSP_FLAGS_HAS_DATA_DIR(space->flags))
+      RemoteDatafile::delete_link_file(space->name());
+    os_file_delete(innodb_data_file_key, space->chain.start->name);
+  }
+  fil_space_free(space->id, false);
+}
+
+/** Apply a FILE_DELETE record to a tablespace that has not been loaded yet. */
+ATTRIBUTE_COLD static void fil_delete_apply(uint32_t id, const char *name)
+  noexcept
+{
+  if (log_sys.archive)
+  {
+    fil_space_t *space{nullptr};
+    if (fil_ibd_load(id, name, space) == FIL_LOAD_OK)
+    {
+      ut_ad(space);
+      deferred_spaces.remove(id);
+      fil_delete_apply(space);
+      return;
+    }
+    ut_ad(!space);
+  }
+}
+
 /** Process a file name from a FILE_* record.
 @param[in]	name		file name
 @param[in]	len		length of the file name
@@ -1234,32 +1294,28 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 	ut_ad(p.first->first == space_id);
 
 	file_name_t&	f = p.first->second;
-
+	ut_ad(!f.space || f.space->id == space_id);
 	auto d = deferred_spaces.find(space_id);
-	if (d) {
-		if (deleted) {
-			d->deleted = true;
-			goto got_deleted;
-		}
-		goto reload;
-	}
 
 	if (deleted) {
-got_deleted:
 		/* Got FILE_DELETE */
-		if (!p.second && f.status != file_name_t::DELETED) {
+		if (d) {
+			d->deleted = true;
+		}
+		if (p.second) {
+			fil_delete_apply(space_id, f.name.c_str());
+		} else if (f.status != file_name_t::DELETED) {
 			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
-				fil_space_free(space_id, false);
+				fil_delete_apply(f.space);
 				f.space = NULL;
 			}
 		}
 
 		ut_ad(f.space == NULL);
-		goto reset_create;
-	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
+		f.create_lsn = 0;
+	} else if (d || p.second /* the first FILE_MODIFY or FILE_RENAME */
 		   || f.name != fname.name) {
-reload:
 		if (f.name.size() == 0) {
 			/* Augment the recv_spaces.emplace_hint() for the
 			FILE_MODIFY record that had been added by
@@ -1273,7 +1329,8 @@ reload:
 		the space_id. If not, ignore the file after displaying
 		a note. Abort if there are multiple files with the
 		same space_id. */
-		switch (fil_ibd_load(space_id, fname.name.c_str(), space)) {
+		switch (fil_load_status s
+			= fil_ibd_load(space_id, fname.name.c_str(), space)) {
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
@@ -1308,25 +1365,28 @@ same_space:
 			break;
 
 		case FIL_LOAD_ID_CHANGED:
-			ut_ad(space == NULL);
-			break;
-
 		case FIL_LOAD_NOT_FOUND:
 			/* No matching tablespace was found; maybe it
 			was renamed, and we will find a subsequent
 			FILE_* record. */
 			ut_ad(space == NULL);
 
-			if (srv_operation == SRV_OPERATION_RESTORE && d
-			    && ftype == FILE_RENAME) {
+			if (f.create_lsn) {
+				if (d && ftype == FILE_RENAME) {
 rename:
-				d->file_name = fname.name;
-				f.name = fname.name;
+					d->file_name = fname.name;
+					f.name = fname.name;
+				}
 				break;
 			}
 
-			if (f.create_lsn) {
-				return;
+			if (ftype == FILE_CREATE) {
+				f.create_lsn = lsn;
+				break;
+			}
+
+			if (s == FIL_LOAD_ID_CHANGED) {
+				break;
 			}
 
 			if (srv_force_recovery
@@ -1346,11 +1406,10 @@ rename:
 					int(fname.name.size()),
 					fname.name.data(), space_id);
 			}
-			return;
+			break;
 
 		case FIL_LOAD_DEFER:
-			if (d && ftype == FILE_RENAME
-			    && srv_operation == SRV_OPERATION_RESTORE) {
+			if (d && ftype == FILE_RENAME && f.create_lsn) {
 				goto rename;
 			}
 			/* Skip the deferred spaces
@@ -1382,8 +1441,6 @@ rename:
 					  " due to innodb_force_recovery",
 					  int(len), name, space_id);
 		}
-reset_create:
-		f.create_lsn = 0;
 	} else if (ftype == FILE_CREATE && !f.space) {
 		f.create_lsn = lsn;
 	}
@@ -2099,6 +2156,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     lsn= file_checkpoint= log_sys.last_checkpoint_lsn;
+    log_sys.archived_checkpoint= lsn;
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
@@ -2177,7 +2235,8 @@ dberr_t recv_sys_t::find_checkpoint()
         log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
                                          field == log_t::CHECKPOINT_1);
     }
-    if (!log_sys.last_checkpoint_lsn)
+    log_sys.archived_checkpoint= log_sys.last_checkpoint_lsn;
+    if (!log_sys.archived_checkpoint)
       goto got_no_checkpoint;
     else if (!log_sys.archived_lsn)
       log_sys.archived_lsn= lsn;
@@ -3041,12 +3100,19 @@ void recv_sys_t::parse_page0(const page_id_t id, const byte *b,
     f{flags ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + b)
       : file_name_t::initial_flags};
   recv_spaces_t::iterator it= recv_spaces.find(space_id);
-  if (it != recv_spaces.end() && !it->second.space)
+  if (it != recv_spaces.end())
   {
-    if (size)
-      it->second.size= s;
-    if (flags)
-      it->second.flags= f;
+    if (it->second.page0_lsn > lsn)
+      return;
+    it->second.page0_lsn= lsn;
+
+    if (!it->second.space)
+    {
+      if (size)
+        it->second.size= s;
+      if (flags)
+        it->second.flags= f;
+    }
   }
   fil_space_set_recv_size_and_flags(space_id, s, f);
 }
@@ -4155,7 +4221,7 @@ set_start_lsn:
 		/* There have been no operations that modify the page.
 		Any buffered changes will be merged in ibuf_upgrade(). */
 		ut_ad(!mtr.has_modifications());
-		block->page.set_freed(block->page.state());
+		block->page.set_freed();
 	}
 
 	/* Make sure that committing mtr does not change the modification

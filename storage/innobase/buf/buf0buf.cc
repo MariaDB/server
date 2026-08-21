@@ -2298,7 +2298,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   if (block->index)
     btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
-  block->page.set_freed(block->page.state());
+  block->page.set_freed();
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
@@ -2367,7 +2367,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     exclusive latch on this block and either in progress or invoking
     buf_pool_t::corrupted_evict().
 
-    Let us aqcuire and release buf_pool.mutex to ensure that any
+    Let us acquire and release buf_pool.mutex to ensure that any
     buf_pool_t::corrupted_evict() will proceed before we reacquire
     the hash_lock that it could be waiting for.
 
@@ -2501,7 +2501,12 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
   case buf_page_t::REINIT + 1:
     break;
   default:
-    ut_ad(state < buf_page_t::READ_FIX);
+    /*
+      There may be a fake "write fix" if a thread is executing
+      between InnoDB_backup::backup_batch_start() and
+      InnoDB_backup::backup_batch_stop() on this page.
+    */
+    ut_ad(!buf_page_t::is_read_fixed(state));
 
     if (state < buf_page_t::UNFIXED + 1)
     {
@@ -2520,7 +2525,7 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
     goto wait_for_unfix;
   }
 
-  /* Ensure that another buf_page_get_low() or buf_page_t::page_fix()
+  /* Ensure that another buf_page_get_low() or buf_pool_t::page_fix()
   will wait for block->page.lock.x_unlock(). buf_relocate() will
   copy the state from b to block and replace b with block in page_hash. */
   b->set_state(buf_page_t::READ_FIX);
@@ -2879,7 +2884,17 @@ ignore_unfixed:
 				if (!nowait) {
 					goto latch_waited;
 				} else {
-					ut_ad(state < buf_page_t::READ_FIX);
+					/* If a thread is executing between
+					InnoDB_backup::backup_batch_start() and
+					InnoDB_backup::backup_batch_stop()
+					for this page, a fake "write
+					fix" may exist. We are free to
+					modify the page in the buffer
+					pool, but buf_page_t::flush()
+					will refuse to write it to the
+					file system. */
+					ut_ad(!buf_page_t::
+					      is_read_fixed(state));
 				}
 				/* fall through */
 			case RW_S_LATCH:
@@ -2893,8 +2908,7 @@ ignore_unfixed:
 	} else {
 not_read_fixed:
 		ut_ad(state > buf_page_t::FREED);
-		ut_ad(state < buf_page_t::READ_FIX
-		      || state > buf_page_t::WRITE_FIX);
+		ut_ad(!buf_page_t::is_read_fixed(state));
 		if (UNIV_UNLIKELY(!block->page.frame
 				  && mode == BUF_PEEK_IF_IN_POOL)) {
 			/* The BUF_PEEK_IF_IN_POOL mode is mainly used
@@ -2956,7 +2970,8 @@ wait_for_unzip:
 		break;
 	case RW_SX_LATCH:
 		block->page.lock.u_lock();
-		ut_ad(!block->page.is_io_fixed());
+                /* A fake "write fix" of InnoDB_backup may exist */
+		ut_ad(!block->page.is_read_fixed());
 		break;
 	default:
 		ut_ad(rw_latch == RW_X_LATCH);
@@ -3039,7 +3054,8 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
     goto fail;
   else
   {
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
 
     if (modify_clock != block->modify_clock || block->page.is_freed())
     {
@@ -3151,6 +3167,37 @@ buf_pool_t::page_hash_table::replace(buf_pool_t::hash_chain &chain,
   *prev= bpage;
 }
 
+/** Mark the block as reinitialized in the file. @see set_freed() */
+void buf_page_t::set_reinit() noexcept
+{
+  /*
+    Ensure that lock.x_lock() is being held (hopefully, by us).
+    This blocks a concurrent flush(), protected by lock.u_lock().
+  */
+  ut_ad(lock.is_write_locked());
+  uint32_t s{state()};
+  do
+  {
+    /*
+      InnoDB_backup::backup_batch_start() may set fix() and
+      write_fix_try() on any dirty block to prevent flush() from
+      writing changes back to the file system. As long as buf_relocate()
+      will not be invoked, we may safely mark such blocks as REINIT;
+      write_unfix_try() will account for that.
+    */
+    ut_ad(s < READ_FIX || (s > WRITE_FIX && frame));
+    if (!((REINIT ^ s) & LRU_MASK))
+      break;
+  }
+  /*
+    fetch_add() or fetch_sub() are not safe here, because this may run
+    concurrently with write_fix_try() or write_unfix_try().
+  */
+  while (!zip.fix.compare_exchange_weak(s, REINIT + buf_fix_count(s),
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed));
+}
+
 static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
                                         mtr_t *mtr, buf_block_t *free_block)
   noexcept
@@ -3198,10 +3245,9 @@ retry:
         mysql_mutex_unlock(&buf_pool.mutex);
 
         bpage->lock.x_lock();
-        const page_id_t id{bpage->id()};
-        if (UNIV_UNLIKELY(id != page_id))
+        if (UNIV_UNLIKELY(bpage->id() != page_id))
         {
-          ut_ad(id.is_corrupted());
+          ut_ad(bpage->id().is_corrupted());
           ut_ad(bpage->is_freed());
           bpage->unfix();
           bpage->lock.x_unlock();
@@ -3209,26 +3255,23 @@ retry:
         }
         mysql_mutex_lock(&buf_pool.mutex);
         state= bpage->state();
-        ut_ad(!bpage->is_io_fixed(state));
         ut_ad(bpage->buf_fix_count(state));
       }
       else
         state= bpage->state();
 
-      ut_ad(state > buf_page_t::FREED);
-      ut_ad(state < buf_page_t::READ_FIX);
       /* In addition to our buffer-fix, there may be another that is
       held by a concurrent IORequest::read_complete() that had
-      released the bpage->lock in bpage->read_complete(...)  but not
+      released the bpage->lock in bpage->read_complete(...) but not
       yet invoked bpage->unfix(). This should only be due to an
-      asynchronous read-ahead for a page that was actually marked as
-      freed in the underlying data file. */
-      ut_ad(bpage->buf_fix_count(state) <= 2);
+      unnecessary asynchronous read-ahead for a page that was actually
+      marked as freed in the underlying data file.
 
-      if (state < buf_page_t::UNFIXED)
-        bpage->set_reinit(buf_page_t::FREED);
-      else
-        bpage->set_reinit(state & buf_page_t::LRU_MASK);
+      Alternatively, another thread may be executing between
+      InnoDB_backup::backup_batch_start() and
+      InnoDB_backup::backup_batch_stop() on this page. */
+      ut_ad(bpage->buf_fix_count(state) <= 2);
+      ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
 
       if (UNIV_LIKELY(bpage->frame != nullptr))
       {
@@ -3242,23 +3285,40 @@ retry:
       }
       else
       {
+        /*
+          Augment the compressed-only ROW_FORMAT=COMPRESSED page with
+          an uncompressed page frame.
+        */
         page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
         for (;;)
         {
           hash_lock.lock();
           state= bpage->state();
-          if ((state & ~buf_page_t::LRU_MASK) == 1)
+          if (state == buf_page_t::FREED + 1 ||
+              state == buf_page_t::UNFIXED + 1 ||
+              state == buf_page_t::REINIT + 1)
             break;
-          /* Wait for a concurrent IORequest::read_complete() to
-          invoke bpage->unfix(), for an unnecessary read-ahead of
-          a freed page. */
-          ut_ad((state & ~buf_page_t::LRU_MASK) == 2);
+          ut_ad(state > buf_page_t::FREED);
+          /*
+            Wait for the competing thread to invoke buf_page_t::unfix()
+            and possibly buf_page_t::write_unfix_try() before that.
+          */
+          ut_ad(bpage->buf_fix_count(state) == 2);
           hash_lock.unlock();
+          if (state >= buf_page_t::READ_FIX)
+          {
+            ut_ad(state > buf_page_t::WRITE_FIX);
+            /* InnoDB_backup::step() may take a long time. */
+            mysql_mutex_unlock(&buf_pool.mutex);
+            std::this_thread::yield();
+            mysql_mutex_lock(&buf_pool.mutex);
+          }
         }
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
         free_block->page.lock.x_lock();
+        free_block->page.set_state(buf_page_t::REINIT + 1);
         buf_flush_relocate_on_flush_list(bpage, &free_block->page);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -3272,7 +3332,7 @@ retry:
 #endif
         ut_free(bpage);
         mtr->memo_push(free_block, MTR_MEMO_PAGE_X_FIX);
-        bpage= &free_block->page;
+        return free_block;
       }
     }
     else
@@ -3283,12 +3343,9 @@ retry:
 #ifdef BTR_CUR_HASH_ADAPT
       ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
 #endif
-      const auto state= bpage->state();
-      ut_ad(state >= buf_page_t::FREED);
-      bpage->set_reinit(state < buf_page_t::UNFIXED ? buf_page_t::FREED
-                        : state & buf_page_t::LRU_MASK);
     }
 
+    bpage->set_reinit();
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
@@ -3831,8 +3888,7 @@ void buf_pool_t::validate() noexcept
 			/* do nothing */
 			break;
 		default:
-			if (f >= buf_page_t::READ_FIX
-			    && f < buf_page_t::WRITE_FIX) {
+			if (buf_page_t::is_read_fixed(f)) {
 				/* A read-fixed block is not
 				necessarily in the page_hash yet. */
 				break;

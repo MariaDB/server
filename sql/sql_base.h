@@ -320,7 +320,7 @@ void close_log_table(THD *thd, Open_tables_backup *backup);
 
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
-void purge_tables();
+extern "C" void purge_tables();
 bool flush_tables(THD *thd, flush_tables_type flag);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,

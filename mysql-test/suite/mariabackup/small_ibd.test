@@ -1,4 +1,5 @@
 --source include/innodb_page_size.inc
+--source include/have_mariabackup_combination.inc
 
 # Check if ibd smaller than page size are skipped
 # It is possible, due to race conditions that new file
