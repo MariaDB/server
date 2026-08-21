@@ -1,0 +1,528 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection default;
+ALTER DATABASE federated CHARACTER SET latin1;
+set global federated_pushdown=1;
+connection slave;
+DROP TABLE IF EXISTS federated.t1, federated.t2, federated.t3;
+Warnings:
+Note	1051	Unknown table 'federated.t1,federated.t2,federated.t3'
+CREATE TABLE federated.t1 (a int, b varchar(16)) DEFAULT CHARSET=latin1;
+CREATE TABLE federated.t2 (a int, c varchar(16)) DEFAULT CHARSET=latin1;
+CREATE TABLE federated.t3 (a int, b int, UNIQUE KEY(b));
+SET @old_log_output= @@global.log_output;
+SET @old_general_log= @@global.general_log;
+SET global log_output='TABLE';
+connection master;
+DROP TABLE IF EXISTS federated.t1, federated.t2, federated.t3;
+Warnings:
+Note	1051	Unknown table 'federated.t1,federated.t2,federated.t3'
+CREATE TABLE federated.t1 (a int, b varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+CREATE TABLE federated.t2 (a int, c varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+CREATE TABLE federated.t3 (a int, b int, UNIQUE KEY(b))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t3';
+USE federated;
+CREATE PROCEDURE fill_tables()
+BEGIN
+DELETE FROM t1;
+DELETE FROM t2;
+DELETE FROM t3;
+INSERT INTO t1 VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four');
+INSERT INTO t2 VALUES (1,'I'),(2,'II'),(3,'III');
+INSERT INTO t3 VALUES (1,10),(2,20),(3,30);
+END|
+#
+# ==================================================================
+# The statement the remote server receives
+# ==================================================================
+#
+# A pushed down statement is printed back by SELECT_LEX::print() with
+# QT_SELECT_ONLY cleared, which produces
+#   update <join> set <assignments> where <cond>
+# for an UPDATE and
+#   delete from <targets> using <join> where <cond>
+# for a DELETE. Both are understood by the remote server.
+#
+connection master;
+CALL fill_tables();
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+UPDATE t1 JOIN t2 ON t1.a= t2.a SET t1.b= CONCAT(t2.c,'!') WHERE t2.a > 2;
+UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+UPDATE t1, t2 SET t1.b= 'both', t2.c= 'both' WHERE t1.a= t2.a;
+UPDATE t1, t2 SET t1.b= 'sub' WHERE t1.a= t2.a AND
+t1.a IN (SELECT a FROM t2 WHERE c= 'both');
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 3;
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a;
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'update %' OR argument LIKE 'delete %';
+argument
+update `federated`.`t1` join `federated`.`t2` set `federated`.`t1`.`b` = 'updated' where `federated`.`t1`.`a` = `federated`.`t2`.`a` and `federated`.`t1`.`a` < 3
+update (`federated`.`t1` join `federated`.`t2` on(`federated`.`t1`.`a` = `federated`.`t2`.`a`)) set `federated`.`t1`.`b` = concat(`federated`.`t2`.`c`,'!') where `federated`.`t2`.`a` > 2
+update (`federated`.`t1` `x` join `federated`.`t2` `y` on(`federated`.`x`.`a` = `federated`.`y`.`a`)) set `federated`.`x`.`b` = `federated`.`y`.`c` where `federated`.`y`.`a` = 1
+update `federated`.`t1` join `federated`.`t2` set `federated`.`t1`.`b` = 'both',`federated`.`t2`.`c` = 'both' where `federated`.`t1`.`a` = `federated`.`t2`.`a`
+update `federated`.`t1` join `federated`.`t2` set `federated`.`t1`.`b` = 'sub' where `federated`.`t1`.`a` = `federated`.`t2`.`a` and `federated`.`t1`.`a` in (select `federated`.`t2`.`a` from `federated`.`t2` where `federated`.`t2`.`c` = 'both')
+delete  from `federated`.`t1` using (`federated`.`t1` join `federated`.`t2` on(`federated`.`t1`.`a` = `federated`.`t2`.`a`)) where `federated`.`t1`.`a` = 3
+delete  from `x` using (`federated`.`t1` `x` join `federated`.`t2` `y` on(`federated`.`x`.`a` = `federated`.`y`.`a`)) where `federated`.`y`.`a` = 2
+delete  from `federated`.`t1`,`federated`.`t2` using (`federated`.`t1` join `federated`.`t2` on(`federated`.`t1`.`a` = `federated`.`t2`.`a`))
+#
+# ==================================================================
+# Row counts reported by batch_update_delete()
+# ==================================================================
+#
+connection master;
+# All matched rows are changed
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+EXPLAIN UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+affected rows: 1
+ANALYZE UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+affected rows: 1
+EXPLAIN
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE t1, cte1 SET t1.b= 'updated' WHERE t1.a= cte1.a AND t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+affected rows: 1
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE t1, cte1 SET t1.b= 'updated' WHERE t1.a= cte1.a AND t1.a < 3;
+affected rows: 0
+info: Rows matched: 2  Changed: 0  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	updated
+3	three
+4	four
+affected rows: 4
+# explain plans for single table
+CALL fill_tables();
+EXPLAIN SELECT * FROM t1 WHERE t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+affected rows: 1
+EXPLAIN UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+affected rows: 1
+ANALYZE UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	50.00	Using where
+affected rows: 1
+UPDATE t1 SET t1.b= 'updated' WHERE t1.a < 3;
+affected rows: 0
+info: Rows matched: 2  Changed: 0  Warnings: 0
+SELECT * FROM t1;
+a	b
+1	updated
+2	updated
+3	three
+4	four
+affected rows: 4
+EXPLAIN
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE cte1 SET cte1.a = cte1.a * 2 ;
+ERROR HY000: The target table cte1 of the UPDATE is not updatable
+WITH cte1 AS (SELECT * FROM t2 WHERE t2.a < 5)
+UPDATE cte1 SET cte1.a = cte1.a * 2 ;
+ERROR HY000: The target table cte1 of the UPDATE is not updatable
+SELECT * FROM t2;
+a	c
+1	I
+2	II
+3	III
+affected rows: 3
+# A matched row that keeps its value is counted as matched but not as
+# changed. The count comes from federatedx_io_mysql::matched_rows(),
+# which parses it out of the remote server's info string
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'two' WHERE t1.a= t2.a AND t1.a < 3;
+affected rows: 1
+info: Rows matched: 2  Changed: 1  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	two
+2	two
+3	three
+4	four
+# Two tables updated at once
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'upd1', t2.c= 'upd2' WHERE t1.a= t2.a;
+affected rows: 6
+info: Rows matched: 6  Changed: 6  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	upd1
+2	upd1
+3	upd1
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	upd2
+2	upd2
+3	upd2
+# No row matches
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'nope' WHERE t1.a= t2.a AND t1.a > 100;
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Warnings: 0
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a > 100;
+affected rows: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+2	two
+3	three
+4	four
+# For a DELETE the remote server reports no matched count, so
+# matched_rows() falls back to the number of deleted rows
+CALL fill_tables();
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t2.c <> 'II';
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+2	two
+4	four
+# Two tables deleted from at once
+CALL fill_tables();
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 2;
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	three
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	I
+3	III
+# Aliased delete target
+CALL fill_tables();
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+affected rows: 1
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	three
+4	four
+#
+# ==================================================================
+# An error on the remote server is reported to the client
+# ==================================================================
+#
+# The remote server executed the whole statement, so the error it
+# reports is the error of this statement. Its error code and SQLSTATE
+# are passed through rather than hidden behind the generic
+# ER_QUERY_ON_FOREIGN_DATA_SOURCE, so the client sees the same error it
+# would have seen had the statement been executed locally
+#
+CALL fill_tables();
+# A division by zero in the WHERE clause. Compare with the same error
+# raised locally by a single-table UPDATE, which is never pushed down
+# through the select handler
+UPDATE t1 SET t1.b= 'x' WHERE t1.a < 3/0;
+ERROR 22012: Division by 0
+UPDATE t1, t2 SET t1.b= 'x' WHERE t1.a= t2.a AND t1.a < 3/0;
+ERROR 22012: Division by 0
+# A division by zero in the SET clause
+UPDATE t1, t2 SET t1.a= 1/0 WHERE t1.a= t2.a;
+ERROR 22012: Division by 0
+# A duplicate key
+UPDATE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+ERROR 23000: Duplicate entry '30' for key 'b'
+# An error raised by a trigger of the remote server, reported for a
+# DELETE the same way
+connection slave;
+CREATE TRIGGER federated.t1_bd BEFORE DELETE ON federated.t1
+FOR EACH ROW SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT= 'deleting is not allowed here';
+connection master;
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 1;
+ERROR HY000: deleting is not allowed here
+connection slave;
+DROP TRIGGER federated.t1_bd;
+connection master;
+# Nothing was modified by any of the failed statements
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+2	two
+3	three
+4	four
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+#
+# ==================================================================
+# Inside a transaction the statement is not auto-committed by itself
+# ==================================================================
+#
+CALL fill_tables();
+BEGIN;
+UPDATE t1, t2 SET t1.b= 'in trx' WHERE t1.a= t2.a;
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 3;
+affected rows: 1
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	in trx
+2	in trx
+4	four
+#
+# ==================================================================
+# EXPLAIN and ANALYZE report the pushdown
+# ==================================================================
+#
+# A statement taken over by the select handler has no local query plan,
+# it is reported as PUSHED UPDATE / PUSHED DELETE, the way a
+# pushed down SELECT is reported as PUSHED SELECT
+#
+# EXPLAIN does not execute the statement
+CALL fill_tables();
+EXPLAIN UPDATE t1, t2 SET t1.b= 'explained' WHERE t1.a= t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN FORMAT=JSON UPDATE t1, t2 SET t1.b= 'explained' WHERE t1.a= t2.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Pushed update"
+    }
+  }
+}
+EXPLAIN DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED DELETE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+2	two
+3	three
+4	four
+# ANALYZE does execute it, and the whole statement still goes to the
+# remote server in one piece
+CALL fill_tables();
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+ANALYZE UPDATE t1, t2 SET t1.b= 'analyzed' WHERE t1.a= t2.a AND t1.a= 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+update `federated`.`t1` join `federated`.`t2` set `federated`.`t1`.`b` = 'analyzed' where `federated`.`t1`.`a` = `federated`.`t2`.`a` and `federated`.`t1`.`a` = 1
+connection master;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	analyzed
+2	two
+3	three
+4	four
+#
+# ==================================================================
+# Statements that are not pushed down
+# ==================================================================
+#
+# EXPLAIN shows the local query plan for them, so it tells a pushed
+# down statement from one that is executed locally
+#
+# IGNORE is not printed by SELECT_LEX::print(), so an IGNORE statement
+# is executed locally and keeps ignoring the duplicate key errors
+CALL fill_tables();
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+EXPLAIN UPDATE IGNORE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+UPDATE IGNORE t3, t2 SET t3.b= 30 WHERE t3.a= t2.a AND t3.a < 3;
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+UPDATE IGNORE `t3` SET `b` = 30 WHERE `a` = 1 AND `b` = 10 LIMIT 1
+UPDATE IGNORE `t3` SET `b` = 30 WHERE `a` = 2 AND `b` = 20 LIMIT 1
+# A statement that mixes engines has no FederatedX-only table list
+connection master;
+CREATE TABLE t4 (a int, d varchar(16)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'x'),(2,'y');
+CALL fill_tables();
+EXPLAIN UPDATE t1, t4 SET t1.b= t4.d WHERE t1.a= t4.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+UPDATE t1, t4 SET t1.b= t4.d WHERE t1.a= t4.a;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	x
+2	y
+3	three
+4	four
+DROP TABLE t4;
+# A single-table UPDATE/DELETE does not go through the select handler
+# at all, it is pushed down by direct_update_rows()/direct_delete_rows(),
+# a decision taken at execution time. So its plan is the ordinary one
+CALL fill_tables();
+EXPLAIN UPDATE t1 SET b= 'single' WHERE a= 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+EXPLAIN DELETE FROM t1 WHERE a= 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+UPDATE t1 SET b= 'single' WHERE a= 1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+DELETE FROM t1 WHERE a= 4;
+affected rows: 1
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	single
+2	two
+3	three
+#
+# ==================================================================
+# Without pushdown the same statements give the same results
+# ==================================================================
+#
+connection default;
+set global federated_pushdown=0;
+connection master;
+CALL fill_tables();
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+UPDATE t1, t2 SET t1.b= 'updated' WHERE t1.a= t2.a AND t1.a < 3;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	updated
+3	three
+4	four
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+UPDATE `t1` SET `b` = 'updated' WHERE `a` = 1 AND `b` = 'one' LIMIT 1
+UPDATE `t1` SET `b` = 'updated' WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+connection master;
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'two' WHERE t1.a= t2.a AND t1.a < 3;
+affected rows: 1
+info: Rows matched: 2  Changed: 1  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	two
+2	two
+3	three
+4	four
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'upd1', t2.c= 'upd2' WHERE t1.a= t2.a;
+affected rows: 6
+info: Rows matched: 6  Changed: 6  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	upd1
+2	upd1
+3	upd1
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	upd2
+2	upd2
+3	upd2
+CALL fill_tables();
+UPDATE t1, t2 SET t1.b= 'nope' WHERE t1.a= t2.a AND t1.a > 100;
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Warnings: 0
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a > 100;
+affected rows: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+2	two
+3	three
+4	four
+CALL fill_tables();
+DELETE t1 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t2.c <> 'II';
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+2	two
+4	four
+CALL fill_tables();
+DELETE t1, t2 FROM t1 JOIN t2 ON t1.a= t2.a WHERE t1.a= 2;
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	three
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	I
+3	III
+CALL fill_tables();
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+affected rows: 1
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	three
+4	four
+DROP PROCEDURE fill_tables;
+DROP TABLE federated.t1, federated.t2, federated.t3;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log= @old_general_log;
+SET global log_output= @old_log_output;
+DROP TABLE federated.t1, federated.t2, federated.t3;
+connection default;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+# End of 13.2 tests

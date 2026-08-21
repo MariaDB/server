@@ -421,6 +421,9 @@ create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
 static select_handler *
 create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
 
+static multi_upddel_handler *
+create_federatedx_multi_upddel_handler(THD *thd, SELECT_LEX *sel_lex);
+
 /*
   Federated doesn't need costs.disk_read_ratio as everything is one a remote
   server and nothing is cached locally
@@ -470,6 +473,8 @@ int federatedx_db_init(void *p)
   federatedx_hton->create_select= create_federatedx_select_handler;
   federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
   federatedx_hton->create_unit= create_federatedx_unit_handler;
+  federatedx_hton->create_multi_upddel=
+    create_federatedx_multi_upddel_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))

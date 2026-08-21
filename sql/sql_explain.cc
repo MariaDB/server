@@ -40,6 +40,38 @@ const char *pushed_unit_operation_text[4]=
 
 const char *pushed_derived_text= "PUSHED DERIVED";
 const char *pushed_select_text= "PUSHED SELECT";
+const char *pushed_update_text= "PUSHED UPDATE";
+const char *pushed_delete_text= "PUSHED DELETE";
+
+/*
+  A statement that was taken over by an engine has no local query plan, it is
+  reported as a single line carrying just the select type. Below are the
+  select types this applies to and the messages they are shown with in the
+  JSON output.
+*/
+
+static inline bool is_pushed_down_select_type(const char *select_type)
+{
+  return select_type == pushed_derived_text ||
+         select_type == pushed_select_text ||
+         select_type == pushed_update_text ||
+         select_type == pushed_delete_text;
+}
+
+
+static const char *pushed_down_select_type_message(const char *select_type)
+{
+  if (select_type == pushed_derived_text)
+    return "Pushed derived";
+  if (select_type == pushed_select_text)
+    return "Pushed select";
+  if (select_type == pushed_update_text)
+    return "Pushed update";
+  DBUG_ASSERT(select_type == pushed_delete_text);
+  return "Pushed delete";
+}
+
+
 /* See enum ha_parititon::partition_index_scan_method */
 const char *partitions_index_scan_method_str[]=
   {NULL, "merge_ordered_scans", "iterate_over_partitions", "both"};
@@ -1021,7 +1053,7 @@ int Explain_select::print_explain(Explain_query *query,
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
 
-  if (select_type == pushed_derived_text || select_type == pushed_select_text)
+  if (is_pushed_down_select_type(select_type))
   {
      print_explain_message_line(output, explain_flags, is_analyze,
                                 select_id /*select number*/,
@@ -1154,20 +1186,16 @@ void Explain_select::print_explain_json(Explain_query *query,
   bool started_subq_mat= print_explain_json_subq_materialization(writer,
                                                                  is_analyze);
 
-  if (message ||
-      select_type == pushed_derived_text ||
-      select_type == pushed_select_text)
+  if (message || is_pushed_down_select_type(select_type))
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
     add_linkage(writer);
 
     writer->add_member("table").start_object();
-    writer->add_member("message").add_str(select_type == pushed_derived_text ?
-                                          "Pushed derived" :
-                                          select_type == pushed_select_text ?
-                                          "Pushed select" :
-                                          message);
+    writer->add_member("message").
+      add_str(is_pushed_down_select_type(select_type) ?
+              pushed_down_select_type_message(select_type) : message);
     writer->end_object();
 
     print_explain_json_for_children(query, writer, is_analyze);
