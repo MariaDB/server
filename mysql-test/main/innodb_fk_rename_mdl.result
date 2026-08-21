@@ -1,0 +1,79 @@
+#
+# MDEV-37365: Renaming a table participating in a foreign key
+# must lock the related tables, so that concurrent DML cannot
+# acquire a metadata lock on a stale table name
+#
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES parent(a)) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1),(2),(3);
+#
+# Test 1: RENAME TABLE on FK parent waits for a child transaction
+#
+connect con1,localhost,root,,test;
+BEGIN;
+INSERT INTO child VALUES (1);
+connection default;
+RENAME TABLE parent TO parent1;
+connection con1;
+# RENAME is waiting for MDL on child as expected
+COMMIT;
+connection default;
+# The foreign key now references the new name and is enforced
+SHOW CREATE TABLE child;
+Table	Create Table
+child	CREATE TABLE `child` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO child VALUES (2);
+INSERT INTO child VALUES (99);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent1` (`a`))
+RENAME TABLE parent1 TO parent;
+#
+# Test 2: ALTER TABLE ... RENAME on FK parent waits for a child
+# transaction
+#
+connection con1;
+BEGIN;
+INSERT INTO child VALUES (3);
+connection default;
+ALTER TABLE parent RENAME TO parent1;
+connection con1;
+# ALTER ... RENAME is waiting for MDL on child as expected
+COMMIT;
+connection default;
+ALTER TABLE parent1 RENAME TO parent;
+#
+# Test 3: RENAME TABLE on FK child waits for a transaction that
+# performed DML on the parent
+#
+connection con1;
+BEGIN;
+DELETE FROM parent WHERE a=99;
+connection default;
+RENAME TABLE child TO child1;
+connection con1;
+# RENAME of child is waiting for MDL as expected
+COMMIT;
+connection default;
+RENAME TABLE child1 TO child;
+DROP TABLE child, parent;
+#
+# Test 4: RENAME TABLE on a table without foreign keys is not
+# affected by transactions on unrelated tables
+#
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+connection con1;
+BEGIN;
+INSERT INTO t2 VALUES (1);
+connection default;
+RENAME TABLE t1 TO t3;
+RENAME TABLE t3 TO t1;
+connection con1;
+COMMIT;
+connection default;
+DROP TABLE t1, t2;
+disconnect con1;
