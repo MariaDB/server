@@ -3,6 +3,13 @@
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
+#
+# The test for MDEV-21953 is adapted to MDEV-36025 fixes including
+# some comments.
+# Find in rpl.rpl_parallel_backup_worker_retry more
+# of the parallel slave concurrent with BACKUP scenarios.
+#
+
 --echo #
 --echo # MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
 --echo # replication
@@ -45,24 +52,30 @@ INSERT INTO t1 VALUES (1);
 
 --connection aux_slave
 --let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
---source include/wait_condition.inc
+source include/wait_condition.inc;
 
 # While the 1st worker is locked out run backup
 --connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
 BACKUP STAGE START;
 --send BACKUP STAGE BLOCK_COMMIT
 
-# release the 1st work
 --connection aux_slave
---sleep 1
+# BACKUP is waiting
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+source include/wait_condition.inc;
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Update"
+source include/wait_condition.inc;
+# go trx1,trx2
 ROLLBACK;
+
+# .. so the group of two will commit. This proves MDEV-36025 efficacy.
+--connection slave
+--sync_with_master
 
 --connection backup_slave
 --reap
 BACKUP STAGE END;
 
---connection slave
---sync_with_master
 
 --let $diff_tables= master:t1,slave:t1
 --source include/diff_tables.inc
@@ -93,6 +106,28 @@ BACKUP STAGE END;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
+if (!$parallel_backup_without_binlog)
+{
+# Test with optimistic retry.
+--let $complete = COMMIT
+--source parallel_backup_xa2.inc
+--let $complete = ROLLBACK
+--source parallel_backup_xa2.inc
+}
+
+source include/stop_slave.inc;
+SET @@global.slave_parallel_threads= 3;
+source include/start_slave.inc;
+
+if ($parallel_backup_without_binlog)
+{
+# Test with optimistic retry.
+# --skip-log-bin and --log-slave-updates=0 tests have a bit different scenario.
+--let $complete = COMMIT
+--source parallel_backup_xa3.inc
+--let $complete = ROLLBACK
+--source parallel_backup_xa3.inc
+}
 
 # Clean up.
 --connection slave

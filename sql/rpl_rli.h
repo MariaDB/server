@@ -1052,7 +1052,11 @@ struct rpl_group_info
   {
     finish_event_group_called= value;
   }
-
+  /*
+    The method helps to determine if a lock request from a parallel worker
+    can ignore BACKUP MDL priority to be granted ahead of any waiting X lock.
+  */
+  static bool ignore_mdl_priority(const THD* holder, const THD* requestor);
 };
 
 
