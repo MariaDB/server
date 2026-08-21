@@ -2046,6 +2046,7 @@ static void clean_up(bool print_message)
 #ifndef EMBEDDED_LIBRARY
   Events::deinit();
 #endif
+  deinit_sys_triggers_environment();
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -4571,6 +4572,8 @@ static int init_common_variables()
   global_system_variables.saved_auto_increment_offset=
     global_system_variables.auto_increment_offset;
 #endif /* WITH_WSREP */
+
+  init_sys_triggers_environment();
 
   return 0;
 }

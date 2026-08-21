@@ -114,4 +114,7 @@ void report_trg_already_exist_error(const sp_name *spname);
 bool fetch_trigger_record_by_name(TABLE *event_table, const sp_name *spname);
 bool find_sys_trigger_by_name(THD *thd, sp_name *spname);
 
+void init_sys_triggers_environment();
+void deinit_sys_triggers_environment();
+
 #endif /* SQL_SQL_SYS_OR_DDL_TRIGGER_H */

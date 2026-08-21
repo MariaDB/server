@@ -32,6 +32,54 @@
 
 static LEX_CSTRING event_table_name{STRING_WITH_LEN("event")};
 static bool sys_triggers_enabled= false;
+static bool run_on_shutdown_triggers= false;
+static mysql_mutex_t LOCK_firing_on_shutdown_triggers;
+static bool sys_triggers_env_inited= false;
+
+#ifdef HAVE_PSI_INTERFACE
+
+PSI_mutex_key key_LOCK_firing_on_shutdown_triggers;
+
+static PSI_mutex_info all_sys_trg_mutexes[]=
+{
+  { &key_LOCK_firing_on_shutdown_triggers,
+    "LOCK_on_firing_instance_level_triggers", PSI_FLAG_GLOBAL}
+};
+
+static void init_sys_triggers_psi_keys(void)
+{
+  const char* category= "sql";
+  int count;
+
+  count= array_elements(all_sys_trg_mutexes);
+  mysql_mutex_register(category, all_sys_trg_mutexes, count);
+}
+#endif
+
+void init_sys_triggers_environment()
+{
+  if (sys_triggers_env_inited)
+    return;
+
+#ifdef HAVE_PSI_INTERFACE
+  init_sys_triggers_psi_keys();
+#endif
+  mysql_mutex_init(key_LOCK_firing_on_shutdown_triggers,
+                   &LOCK_firing_on_shutdown_triggers,
+                   MY_MUTEX_INIT_FAST);
+  sys_triggers_env_inited= true;
+}
+
+
+void deinit_sys_triggers_environment()
+{
+  if (sys_triggers_env_inited)
+  {
+    mysql_mutex_destroy(&LOCK_firing_on_shutdown_triggers);
+    sys_triggers_env_inited= false;
+  }
+}
+
 
 /**
   Raise the error ER_TRG_ALREADY_EXISTS
@@ -456,6 +504,18 @@ static void register_system_triggers(Sys_trigger *sys_trg,
 
 void unregister_trigger(sp_name *spname)
 {
+  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
+  if (run_on_shutdown_triggers)
+  {
+    /*
+      Don't attempt to remove a system trigger from the sys_triggers array
+      at the same time the shutdown is in progress since it could result in
+      race condition on accessing the array from different threads
+    */
+    mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
+    return;
+  }
+
   for (int i= 0; i < TRG_ACTION_MAX; i++)
   {
     for (int j= 0; j < TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP; j++)
@@ -473,6 +533,7 @@ void unregister_trigger(sp_name *spname)
             sys_triggers[i][j]= sys_trg->next;
 
           sys_trg->destroy();
+          mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
           return;
         }
         prev_sys_trg= sys_trg;
@@ -480,6 +541,7 @@ void unregister_trigger(sp_name *spname)
       }
     }
   }
+  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
 }
 
 
@@ -625,12 +687,23 @@ bool mysql_create_sys_trigger(THD *thd)
 
   events_mask = events_mask << 1;
 
+  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
+  /*
+    Check under the lock LOCK_firing_on_shutdown_triggers that
+    shutdown is not in progress. Do it here and not in the function
+    register_system_triggers, since thd_for_sys_triggers is destroyed
+    on shutdown.
+  */
+  if (run_on_shutdown_triggers)
+  {
+    mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
+    my_ok(thd);
+    return false;
+  }
+
   Sys_trigger *sys_trg=
     new (thd_for_sys_triggers->mem_root) Sys_trigger(thd_for_sys_triggers,
                                                      thd->lex->sphead);
-  register_system_triggers(
-    sys_trg, thd->lex->trg_chistics.action_time,
-    Event_parse_data::enum_kind(events_mask));
 
   /*
     Stop destroy of sp_head for just handled CREATE TRIGGER statement
@@ -639,6 +712,13 @@ bool mysql_create_sys_trigger(THD *thd)
        lex_end_nops() -> sp_head::destroy
   */
   thd->lex->sphead= nullptr;
+
+  register_system_triggers(
+    sys_trg, thd->lex->trg_chistics.action_time,
+    Event_parse_data::enum_kind(events_mask));
+
+  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
+
   my_ok(thd);
   return false;
 }
@@ -1557,6 +1637,14 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
   if (bootstrap_or_noacl)
     return;
 
+  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
+  /*
+    Set the flag to avoid adding/removing system triggers in
+    the sys_triggers array at the same moment as server shutdown
+    is in progress.
+  */
+  run_on_shutdown_triggers= true;
+
   bool stack_top;
   init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
@@ -1575,6 +1663,10 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
   destroy_sys_triggers();
   lex_end_nops(thd_for_sys_triggers->lex);
   delete thd_for_sys_triggers;
+  thd_for_sys_triggers= nullptr;
+
+  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
+
   set_current_thd(original_thd);
 }
 
