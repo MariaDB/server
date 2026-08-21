@@ -3803,7 +3803,7 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           select_n_where_fields * winfunc_factor +
           order_group_num * 2 * winfunc_factor +
           hidden_bit_fields +
-          fields_in_window_functions + 1;
+          fields_in_window_functions + 1; // consider this case for streaming
   return n;
 }
 
