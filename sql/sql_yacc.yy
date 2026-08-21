@@ -1761,7 +1761,7 @@ rule:
         using_list opt_use_partition use_partition
 
 %type <key_part>
-        key_part key_part_simple
+        key_part key_part_simple multi_valued_key_part
 
 %type <table_list>
         join_table_list  join_table
@@ -7636,6 +7636,7 @@ opt_without_overlaps:
 
 key_part:
           key_part_simple
+        | multi_valued_key_part
         | ident '(' NUM ')'
           {
             int key_part_len= atoi($3.str);
@@ -7644,6 +7645,42 @@ key_part:
             $$= new (thd->mem_root) Key_part_spec(&$1, (uint) key_part_len);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+          }
+        ;
+
+multi_valued_key_part:
+          /*
+             TODO:
+
+             1. store expr and cast_type somewhere.
+
+             2. create a vcol using add_internal_field, like unique
+                indexes for blobs, and could be done at the same place
+          */
+          '(' CAST_SYM '(' expr AS cast_type ARRAY_SYM ')' ')'
+          {
+            /* Create a Create_field */
+            Create_field *f= new (thd->mem_root) Create_field();
+
+            if (unlikely(!f))
+              MYSQL_YYABORT;
+
+            LEX_CSTRING fname= make_internal_field_name(thd, "DB_MVI_", &Lex->alter_info.create_list);
+            /*
+              f->invisible= INVISIBLE_FULL;
+             */
+            f->set_handler(&type_handler_blob);
+            Lex->init_last_field(f, &fname);
+            Lex->alter_info.create_list.push_back(f, thd->mem_root);
+
+            /* Create a vcol */
+            Virtual_column_info *v= add_virtual_expression(thd, $4);
+            if (unlikely(!v))
+              MYSQL_YYABORT;
+            Lex->last_field->vcol_info= v;
+            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_STORED);
+
+            $$= new (thd->mem_root) Key_part_spec(&fname, 0, /*gen=*/true);
           }
         ;
 
