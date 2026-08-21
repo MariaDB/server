@@ -609,7 +609,7 @@ static bool increment_count_by_name(const char *name, size_t name_length,
    */
   ++user_stats->concurrent_connections;
 #endif
-  if (thd->net.vio && thd->net.vio->type == VIO_TYPE_SSL)
+  if (thd->net.vio && vio_ssl_handle(thd->net.vio))
     ++user_stats->total_ssl_connections;
 
   return FALSE;
@@ -1084,7 +1084,7 @@ static int check_connection(THD *thd)
                     );
     DBUG_EXECUTE_IF("vio_peer_addr_fake_ipv4",
                     {
-                      struct sockaddr *sa= (sockaddr *) &net->vio->remote;
+                      struct sockaddr *sa= (sockaddr *) vio_remote_addr(net->vio);
                       sa->sa_family= AF_INET;
                       struct in_addr *ip4= &((struct sockaddr_in *) sa)->sin_addr;
                       /* See RFC 5737, 192.0.2.0/24 is reserved. */
@@ -1098,7 +1098,7 @@ static int check_connection(THD *thd)
 #ifdef HAVE_IPV6
     DBUG_EXECUTE_IF("vio_peer_addr_fake_ipv6",
                     {
-                      struct sockaddr_in6 *sa= (sockaddr_in6 *) &net->vio->remote;
+                      struct sockaddr_in6 *sa= (sockaddr_in6 *) vio_remote_addr(net->vio);
                       sa->sin6_family= AF_INET6;
                       struct in6_addr *ip6= & sa->sin6_addr;
                       /* See RFC 3849, ipv6 2001:DB8::/32 is reserved. */
@@ -1145,7 +1145,7 @@ static int check_connection(THD *thd)
       return 1;
     }
 
-    if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port,
+    if (thd_set_peer_addr(thd, vio_remote_addr(net->vio), ip, peer_port,
                           true, &connect_errors))
     {
       statistic_increment(aborted_connects_preauth, &LOCK_status);
@@ -1158,7 +1158,7 @@ static int check_connection(THD *thd)
     thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host;
     thd->main_security_ctx.ip= 0;
     /* Reset sin_addr */
-    bzero((char*) &net->vio->remote, sizeof(net->vio->remote));
+    bzero(vio_remote_addr(net->vio), sizeof(sockaddr_storage));
   }
   vio_keepalive(net->vio, TRUE);
   vio_set_keepalive_options(net->vio, &opt_vio_keepalive);
@@ -1500,7 +1500,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   {
     bool create_user= TRUE;
 
-    mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
+    mysql_socket_set_thread_owner(*vio_mysql_socket_ptr(thd->net.vio));
     if (thd_prepare_connection(thd))
     {
       create_user= FALSE;
@@ -1665,9 +1665,7 @@ THD *CONNECT::create_thd(THD *thd)
 
   init_net_server_extension(thd);
 
-  thd->security_ctx->host= thd->net.vio->type == VIO_TYPE_NAMEDPIPE ||
-                           thd->net.vio->type == VIO_TYPE_SOCKET ?
-                           my_localhost : 0;
+  thd->security_ctx->host= vio_is_local(thd->net.vio)? my_localhost : 0;
 
   thd->scheduler=          scheduler;
   thd->real_id= pthread_self(); /* Duplicates THD::store_globals() setting. */

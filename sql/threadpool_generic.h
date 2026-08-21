@@ -93,7 +93,7 @@ struct TP_connection_generic :public TP_connection
   bool fix_group;
 #ifdef _WIN32
   win_aiosocket win_sock{};
-  void init_vio(st_vio *vio) override
+  void init_vio(st_vio **vio) override
   { win_sock.init(vio);}
 #endif
 

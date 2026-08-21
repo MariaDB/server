@@ -5941,12 +5941,12 @@ public:
       /* For proxied connections, add the real IP to the warning message */
       if (net.using_proxy_protocol && net.vio)
       {
-        if(net.vio->localhost)
+        if (vio_is_local(net.vio))
           snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
         else
         {
           char buf[INET6_ADDRSTRLEN];
-          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+          if (!vio_getnameinfo((sockaddr *) vio_remote_addr(net.vio), buf,
               sizeof(buf),NULL, 0, NI_NUMERICHOST))
           {
             snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
