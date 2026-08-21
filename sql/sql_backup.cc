@@ -24,36 +24,46 @@
 #include "tpool.h"
 #include "aligned.h"
 
-#if defined __linux__ || defined __FreeBSD__
-using copying_step= ssize_t(int,int,size_t,off_t*);
-template<copying_step step,bool nonblocking>
-static ssize_t copy(int in_fd, int out_fd, off_t offset, off_t end) noexcept
-{
-  for (;;)
-  {
-    const size_t c{size_t(std::min<off_t>(end - offset, INT_MAX >> 20 << 20))};
-    ssize_t ret= step(in_fd, out_fd, c, &offset);
-    if (ret < 0)
-    {
-      if (nonblocking && errno == EAGAIN)
-        continue;
-      return ret;
-    }
-    if (offset == end)
-      return 0;
-    if (!ret)
-      return -1;
-  }
-}
+static bool backup_execute(THD *thd, const char *target, const char *command,
+                           int threads);
 
-/* Copy between files in a single (type of) file system */
-static inline ssize_t
-copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
+/**
+   @brief BACKUP SERVER command
+
+   BACKUP SERVER copies the storage of a running server optionally
+   using multiple CONCURRENT threads, each one writing to the target
+   directory or its own tar stream.
+
+   BACKUP SERVER TO '/path/to/directory' [ 1 CONCURRENT ];
+   BACKUP SERVER WITH [ 1 CONCURRENT ] 'command';
+
+   The operation is divided into multiple phases; @see backup_phase
+
+   Each phase is divided into "start" and "end", which are invoked
+   by this thread, and a number of "step" in between that may be
+   invoked by multiple CONCURRENT threads.
+   @see handlerton::backup_start
+   @see handlerton::backup_step
+   @see handlerton::backup_end
+
+   Most phases are tied with BACKUP STAGE locks; the actual first work phase:
+   @see BACKUP_PHASE_START
+   @see MDL_BACKUP_START
+
+   The snapshot for transactional storage engines is determined in:
+   @see BACKUP_PHASE_NO_COMMIT
+   @see MDL_BACKUP_WAIT_COMMIT
+
+   Some backup_phase for preparation and clean-up are executed while
+   not holding any MDL.
+
+   @param thd   client connection
+   @return whether the operation failed
+*/
+bool Sql_cmd_backup::execute(THD *thd)
 {
-  return copy_file_range(in_fd, offset, out_fd, offset, count, 0);
+  return backup_execute(thd, target, command, threads);
 }
-# define cfr(src,dst,start,end) copy<copy_step,false>(src, dst, start, end)
-#endif
 
 #ifdef _WIN32
 using tpool::pread;
@@ -195,6 +205,37 @@ extern "C" int copy_entire_file(int src, int dst)
 #endif
   return ret;
 }
+#endif
+
+#if defined __linux__ || defined __FreeBSD__
+using copying_step= ssize_t(int,int,size_t,off_t*);
+template<copying_step step,bool nonblocking>
+static ssize_t copy(int in_fd, int out_fd, off_t offset, off_t end) noexcept
+{
+  for (;;)
+  {
+    const size_t c{size_t(std::min<off_t>(end - offset, INT_MAX >> 20 << 20))};
+    ssize_t ret= step(in_fd, out_fd, c, &offset);
+    if (ret < 0)
+    {
+      if (nonblocking && errno == EAGAIN)
+        continue;
+      return ret;
+    }
+    if (offset == end)
+      return 0;
+    if (!ret)
+      return -1;
+  }
+}
+
+/* Copy between files in a single (type of) file system */
+static inline ssize_t
+copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
+{
+  return copy_file_range(in_fd, offset, out_fd, offset, count, 0);
+}
+# define cfr(src,dst,start,end) copy<copy_step,false>(src, dst, start, end)
 #endif
 
 /** Copy a portion of a file.
@@ -482,9 +523,20 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
   return false;
 }
 
-bool Sql_cmd_backup::execute(THD *thd)
+/**
+   BACKUP SERVER driver
+
+   @param thd     client connection
+   @param target  BACKUP SERVER TO directory to be created
+   @param command BACKUP SERVER WITH command
+   @param threads number of CONCURRENT threads to employ
+   @return whether the operation failed
+*/
+static bool backup_execute(THD *thd, const char *target, const char *command,
+                           int threads)
 {
   assert(!!target == !command);
+  assert(threads > 0);
 
   if (check_global_access(thd, RELOAD_ACL) ||
       check_global_access(thd, SELECT_ACL))

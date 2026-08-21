@@ -1526,7 +1526,7 @@ struct backup_sink
   void *ha_data;
 };
 
-/** BACKUP SERVER execution phase */
+/** BACKUP SERVER execution phase; @see Sql_cmd_backup::execute() */
 enum backup_phase
 {
   /** finish backup, possibly after BACKUP_PHASE_ABORT */
