@@ -259,7 +259,7 @@ void Json_writer::add_unquoted_str(const char* str, size_t len)
 {
   VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
                   got_name == named_item_expected());
-  if (on_add_str(str, len))
+  if (on_add_str(str, len, false))
     return;
 
   if (!element_started)
@@ -269,12 +269,13 @@ void Json_writer::add_unquoted_str(const char* str, size_t len)
   element_started= false;
 }
 
-inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
+inline bool Json_writer::on_add_str(const char *str, size_t num_bytes,
+                                    bool quoted_str)
 {
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
 #endif
-  bool helped= fmt_helper.on_add_str(str, num_bytes);
+  bool helped= fmt_helper.on_add_str(str, num_bytes, quoted_str);
   return helped;
 }
 
@@ -327,7 +328,7 @@ void Json_writer::add_escaped_str(const char* str, size_t num_bytes)
 {
   VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
                   got_name == named_item_expected());
-  if (on_add_str(str, num_bytes))
+  if (on_add_str(str, num_bytes, true))
     return;
 
   if (!element_started)
@@ -383,6 +384,7 @@ bool Single_line_formatting_helper::on_add_member(const char *name,
   {
     // remove everything from the array
     buf_ptr= buffer;
+    n_elements= 0;
 
     //append member name to the array
     if (len < MAX_LINE_LEN)
@@ -438,7 +440,8 @@ void Single_line_formatting_helper::on_start_object()
 
 
 bool Single_line_formatting_helper::on_add_str(const char *str,
-                                               size_t len)
+                                               size_t len,
+                                               bool quoted_str)
 {
   if (state == IN_ARRAY)
   {
@@ -448,10 +451,18 @@ bool Single_line_formatting_helper::on_add_str(const char *str,
       return false;
     }
 
-    // New length will be:
-    //  "$string", 
-    //  quote + quote + comma + space = 4
-    if (line_len + len + 4 > MAX_LINE_LEN)
+    /*
+      New length will be:
+        "$string",
+        quote + quote + comma + space = 4
+
+      Each element uses at least 4 bytes of the line length budget, so the
+      line length check alone already guarantees that we never accumulate
+      MAX_ELEMENTS elements. The n_elements check is redundant, but it is
+      kept so that quoted[] cannot be overrun in a release build if the
+      accounting above is ever changed.
+    */
+    if (line_len + len + 4 > MAX_LINE_LEN || n_elements >= MAX_ELEMENTS)
     {
       disable_and_flush();
       return false; // didn't handle the last element
@@ -461,6 +472,7 @@ bool Single_line_formatting_helper::on_add_str(const char *str,
     memcpy(buf_ptr, str, len);
     buf_ptr+=len;
     *(buf_ptr++)= 0;
+    quoted[n_elements++]= quoted_str;
     line_len += (uint)len + 4;
     return true; // handled
   }
@@ -494,9 +506,13 @@ void Single_line_formatting_helper::flush_on_one_line()
     {
       if (nr != 1)
         owner->output.append(STRING_WITH_LEN(", "));
-      owner->output.append('"');
+      /* Only JSON strings are printed inside quotes */
+      bool add_quotes= quoted[nr - 1];
+      if (add_quotes)
+        owner->output.append('"');
       owner->output.append(str);
-      owner->output.append('"');
+      if (add_quotes)
+        owner->output.append('"');
     }
     nr++;
 
@@ -507,6 +523,7 @@ void Single_line_formatting_helper::flush_on_one_line()
   owner->output.append(']');
   /* We've printed out the contents of the buffer, mark it as empty */
   buf_ptr= buffer;
+  n_elements= 0;
 }
 
 
@@ -535,13 +552,22 @@ void Single_line_formatting_helper::disable_and_flush()
     {
       //if (nr == 1)
       //  owner->start_array();
-      owner->add_str(str, len);
+      /*
+        Print the element as it was originally added: strings are quoted,
+        numbers, booleans and nulls are not. Note that strings in the buffer
+        are already escaped, so there is no need to escape them again.
+      */
+      if (quoted[nr - 1])
+        owner->add_escaped_str(str, len);
+      else
+        owner->add_unquoted_str(str, len);
     }
-    
+
     nr++;
     ptr+= len+1;
   }
   buf_ptr= buffer;
+  n_elements= 0;
   state= INACTIVE;
 }
 
