@@ -809,6 +809,27 @@ bool Sys_trigger::execute()
 }
 
 
+static constexpr LEX_CSTRING base_event_time[]= {
+  LEX_CSTRING{STRING_WITH_LEN("BEFORE")},
+  LEX_CSTRING{STRING_WITH_LEN("AFTER")}
+};
+
+static constexpr LEX_CSTRING base_event_names[]= {
+  LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
+  LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
+  LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
+  LEX_CSTRING{STRING_WITH_LEN("LOGON")},
+  LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
+};
+
+static constexpr size_t max_event_names_length =
+  (base_event_names[0].length + 1) +
+  (base_event_names[1].length + 1) +
+  (base_event_names[2].length + 1) +
+  (base_event_names[3].length + 1) +
+  (base_event_names[4].length + 1);
+
+
 /**
   Convert the value of trigger kind mask into a comma separated strings value
 
@@ -847,8 +868,9 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
   for (int idx= 1; kind != 0; kind= kind >> 1, idx++)
   {
     if (kind & 0x1)
-      offset+= sprintf(set_of_events + offset, "%s,",
-                       base_event_names[idx].str);
+      offset+= snprintf(set_of_events + offset,
+                        max_event_names_length - offset, "%s,",
+                        base_event_names[idx].str);
   }
   if (offset)
   {
@@ -857,27 +879,6 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
   }
   return LEX_CSTRING{set_of_events, offset};
 }
-
-
-static constexpr LEX_CSTRING base_event_time[]= {
-  LEX_CSTRING{STRING_WITH_LEN("BEFORE")},
-  LEX_CSTRING{STRING_WITH_LEN("AFTER")}
-};
-
-static constexpr LEX_CSTRING base_event_names[]= {
-  LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
-  LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
-  LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
-  LEX_CSTRING{STRING_WITH_LEN("LOGON")},
-  LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
-};
-
-static constexpr size_t max_event_names_length =
-  (base_event_names[0].length + 1) +
-  (base_event_names[1].length + 1) +
-  (base_event_names[2].length + 1) +
-  (base_event_names[3].length + 1) +
-  (base_event_names[4].length + 1);
 
 
 /**
@@ -1111,7 +1112,7 @@ static bool load_trigger_metadata(THD *thd, TABLE *event_table,
                                   LEX_STRING *trg_body,
                                   LEX_STRING *trg_definer,
                                   sql_mode_t *sql_mode,
-                                  trg_action_time_type *trg_when)
+                                  longlong *trg_when)
 {
   *db_name=
     event_table->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root);
@@ -1154,6 +1155,149 @@ static bool load_trigger_metadata(THD *thd, TABLE *event_table,
     (trg_action_time_type)(event_table->field[ET_FIELD_WHEN]->val_int() - 1);
 
   return false;
+}
+
+
+/**
+  Check the trigger kind and trigger time of action for validity.
+  Form an error message in case values of trigger kind or time is not valid
+  and buffer for error message (represented by the parameter err_msg)
+  is not null.
+
+  @param err_msg[out]  buffer where to write the error message in case error
+  @param err_msg_buf_sz  size of buffer for an error message
+  @param trg_kind  value of a trigger kind to check for validity
+  @param trg_when  value of a trigger action time to check for validity
+
+  @return false on success, true on error
+*/
+
+static bool check_valid_trigger_metadata(char *err_msg, size_t err_msg_buf_sz,
+                                         int trg_kind, int trg_when)
+{
+  bool ret= false;
+  size_t cur_msg_len= strlen(err_msg);
+
+  /*
+    events for system triggers stored in the column mysql.event.kind
+    has the following values:
+    SCHEDULE = 0x01
+    STARTUP = 0x02
+    SHUTDOWN = 0x04
+    LOGON = 0x08
+    LOGOFF = 0x10
+    DDL = 0x20
+
+    Check the event kind for validness, meaning that no bits are set
+    except ones listed above. All above bits set is also considered
+    as invalid since the bit SCHEDULE and others ones are mutually
+    exclusive.
+  */
+  if (trg_kind == 0x3F || (trg_kind & ~0x3F) != 0)
+  {
+    if (err_msg)
+    {
+      if (cur_msg_len)
+        cur_msg_len+= snprintf(err_msg + cur_msg_len,
+                               err_msg_buf_sz - cur_msg_len,
+                               ", Invalid event.kinds value %d",
+                               trg_kind);
+      else
+        cur_msg_len+= snprintf(err_msg, err_msg_buf_sz,
+                               "Invalid event.kinds value %d",
+                               trg_kind);
+      ret= true;
+    }
+    else
+      return true;
+  }
+
+  switch (trg_when)
+  {
+    case TRG_ACTION_BEFORE:
+    case TRG_ACTION_AFTER:
+      break;
+    default:
+      if (err_msg)
+      {
+        if (cur_msg_len)
+          snprintf(err_msg + cur_msg_len,
+                   err_msg_buf_sz - cur_msg_len,
+                   ", Invalid event.trg_when value %d",
+                   trg_when);
+        else
+          snprintf(err_msg, err_msg_buf_sz,
+                   "Invalid event.trg_when value %d",
+                   trg_when);
+        ret= true;
+      }
+      else
+        return true;
+  }
+
+  return ret;
+}
+
+
+/**
+  Check the trigger status, trigger kind and trigger time of action for
+  validity. Show warning in case the trigger metadata is not valid.
+
+  @param thd       current thread context
+  @param trg_name  the trigger name
+  @param trg_kind  value of a trigger kind to check for validity
+  @param trg_when  value of a trigger action time to check for validity
+
+  @return false on success, true on error
+*/
+
+static bool check_valid_trigger_metadata(THD *thd, const LEX_STRING &trg_name,
+                                         int trg_kind,
+                                         int trg_when)
+{
+  bool ret= false;
+  char err_msg[256];
+
+  err_msg[0]= 0;
+
+  ret|= check_valid_trigger_metadata(err_msg, sizeof(err_msg),
+                                     trg_kind, trg_when);
+  if (ret)
+    sql_print_warning(ER_THD(thd, ER_SYSTEM_TRG_INVALID_METADATA),
+                      trg_name.str, err_msg);
+
+  return ret;
+}
+
+
+/**
+  Check the trigger kind and trigger time of action for validity.
+  Raise the error in diagnostics area in case the trigger metadata
+  is not valid.
+
+
+  @param thd       current thread context
+  @param trg_name  the trigger name
+  @param trg_kind  value of a trigger kind to check for validity
+  @param trg_status  trigger status value to check for validity
+  @param trg_when  value of a trigger action time to check for validity
+
+  @return false on success, true on error
+*/
+
+static bool check_valid_trigger_metadata(const LEX_STRING &trg_name,
+                                         int trg_kind, int trg_when)
+{
+  bool ret;
+  char err_msg[256];
+
+  err_msg[0]= 0;
+  ret= check_valid_trigger_metadata(err_msg, sizeof(err_msg),
+                                    trg_kind, trg_when);
+  if (ret)
+    my_error(ER_SYSTEM_TRG_INVALID_METADATA, MYF(0), trg_name.str, err_msg);
+
+  return ret;
 }
 
 
@@ -1210,13 +1354,13 @@ static bool load_system_triggers(THD *thd)
     Event_parse_data::enum_status trg_status;
     sql_mode_t sql_mode;
 
-    Event_parse_data::enum_kind trg_kind=
-      (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
+    longlong trg_kind_in= event_table->field[ET_FIELD_KIND]->val_int();
 
     /*
       Skip records for real events (not triggers)
     */
-    if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+    if ((Event_parse_data::enum_kind)trg_kind_in ==
+          Event_parse_data::SCHEDULE_EVENT)
       continue;
 
     trg_status= (Event_parse_data::enum_status)
@@ -1228,18 +1372,31 @@ static bool load_system_triggers(THD *thd)
       continue;
 
     LEX_STRING db_name, trg_name, trg_body, trg_definer;
-    trg_action_time_type trg_when;
+    longlong trg_when_in;
     if (load_trigger_metadata(thd, event_table, &db_name, &trg_name,
-                              &trg_body, &trg_definer, &sql_mode, &trg_when))
+                              &trg_body, &trg_definer, &sql_mode,
+                              &trg_when_in))
     {
       ret= true;
       break;
     }
 
+    if (check_valid_trigger_metadata(thd, trg_name, trg_kind_in,
+                                     trg_when_in))
+      /*
+        Skip triggers with invalid metadata (assuming that somebody updated
+        the trigger metadata explicitly bypassing the SQL interface (i.e.,
+        the trigger metadata is set explicitly with the statement
+        `UPDATE mysql.event SET ...`))
+      */
+      continue;
+
     bool parse_error= false;
     Sys_trigger *sys_trg=
       instantiate_sys_trigger(thd, db_name, trg_name,
-                              trg_definer, trg_kind, trg_when,
+                              trg_definer,
+                              (Event_parse_data::enum_kind)trg_kind_in,
+                              (trg_action_time_type)trg_when_in,
                               trg_body, sql_mode, creation_ctx,
                               &parse_error);
 
@@ -1258,7 +1415,8 @@ static bool load_system_triggers(THD *thd)
       break;
     }
 
-    register_system_triggers(sys_trg, trg_when, trg_kind);
+    register_system_triggers(sys_trg, (trg_action_time_type)trg_when_in,
+                             (Event_parse_data::enum_kind)trg_kind_in);
   }
 
   end_read_record(&read_record_info);
@@ -1547,13 +1705,13 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
     return true;
   }
 
-  Event_parse_data::enum_kind trg_kind=
+  longlong trg_kind_in=
     (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
 
   /*
     Trigger doesn't exist in case the record is for the real event
   */
-  if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+  if (trg_kind_in == (longlong)Event_parse_data::SCHEDULE_EVENT)
   {
     my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
     return true;
@@ -1563,11 +1721,13 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
   LEX_STRING trigger_name{(char*)trg_name->m_name.str,
                           trg_name->m_name.length};
   sql_mode_t sql_mode;
-  trg_action_time_type trg_when;
+  longlong trg_when_in;
   if (load_trigger_metadata(thd, event_table, &db_name, &trigger_name,
-                            &trg_body, &trg_definer, &sql_mode, &trg_when))
+                            &trg_body, &trg_definer, &sql_mode, &trg_when_in))
     return true;
 
+  if (check_valid_trigger_metadata(trigger_name, trg_kind_in, trg_when_in))
+    return true;
   /*
     Convert a definer value to the quoted form `user`@`host` to align with
     output of SHOW CREATE TRIGGER for DML triggers
@@ -1579,7 +1739,9 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
 
   if (reconstruct_create_trigger_stmt(thd, &create_trg_stmt,
                                       quoted_definer.to_lex_cstring(),
-                                      trigger_name, trg_kind, trg_when,
+                                      trigger_name,
+                                      (Event_parse_data::enum_kind)trg_kind_in,
+                                      (trg_action_time_type)trg_when_in,
                                       trg_body))
     return true;
 
@@ -1771,11 +1933,32 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
   {
     TABLE *event= event_table.table;
 
-    Event_parse_data::enum_kind trg_kind=
-      (Event_parse_data::enum_kind)event->field[ET_FIELD_KIND]->val_int();
+    longlong val=event->field[ET_FIELD_KIND]->val_int();
 
-    if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+    if (val == Event_parse_data::SCHEDULE_EVENT)
+      /* Skip records for regular event */
       continue;
+
+    /*
+      events for system triggers stored in the column mysql.event.kind
+      has the following values:
+      SCHEDULE = 0x01
+      STARTUP = 0x02
+      SHUTDOWN = 0x04
+      LOGON = 0x08
+      LOGOFF = 0x10
+      DDL = 0x20
+
+      Check the event kind for validness, meaning that no bits are set
+      except ones listed above. All above bits set is also considered
+      as invalid since the bit SCHEDULE and others ones are mutually
+      exclusive.
+    */
+    if (val == 0x3F || (val & ~0x3F) != 0)
+      /* Skip records with invalid value for trigger kind */
+      continue;
+
+    Event_parse_data::enum_kind trg_kind= (Event_parse_data::enum_kind) val;
 
     trg_status= (Event_parse_data::enum_status)
       event->field[ET_FIELD_STATUS]->val_int();
@@ -1827,8 +2010,11 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
       from 0, so adjust values restored from the table mysql.event before using
       them for calculations.
     */
-    trg_action_time_type trg_when=
-      (trg_action_time_type)(event->field[ET_FIELD_WHEN]->val_int() - 1);
+    val= event->field[ET_FIELD_WHEN]->val_int();
+    if (val < 1 || val > 2)
+      /* Skip triggers with invalid value for the column `when` */
+      continue;
+    trg_action_time_type trg_when= (trg_action_time_type)(val - 1);
 
     const Lex_cstring client_cs_name(
       event->field[ET_FIELD_CHARACTER_SET_CLIENT]->val_lex_string_strmake(

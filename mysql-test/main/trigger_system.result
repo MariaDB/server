@@ -200,3 +200,20 @@ CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
 CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
 # Clean up
 DROP TRIGGER trg1;
+#
+# MDEV-40076: ASAN global-buffer-overflow in reconstruct_create_trigger_stmt
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+UPDATE mysql.event SET `when`=0 WHERE name='trg1';
+Warnings:
+Warning	1265	Data truncated for column 'when' at row 1
+SHOW CREATE TRIGGER trg1;
+ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.trg_when value -1'
+# No triggers be output since triggers having invalid metadata are skipped
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+# Clean up
+DROP TRIGGER trg1;
+SET @@sql_mode= @save_sql_mode;

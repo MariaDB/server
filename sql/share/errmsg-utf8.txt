@@ -12412,3 +12412,5 @@ ER_TRG_EVENT_CONFLICTS_NAME
         eng "%s with the same name '%s' already exists"
 ER_SYSTEM_TRG_DISABLED
         eng "The table mysql.event doesn't contain all mandatory columns required for support of system triggers. Operations with system triggers is disabled."
+ER_SYSTEM_TRG_INVALID_METADATA
+        eng "Wrong metadata for trigger '%s': '%s'"

@@ -245,3 +245,23 @@ CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
 CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
 --echo # Clean up
 DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40076: ASAN global-buffer-overflow in reconstruct_create_trigger_stmt
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+
+SET @save_sql_mode= @@sql_mode;
+# Reset the sql_mode to allow UPDATE mysql.event
+SET sql_mode='';
+UPDATE mysql.event SET `when`=0 WHERE name='trg1';
+
+--error ER_SYSTEM_TRG_INVALID_METADATA
+SHOW CREATE TRIGGER trg1;
+
+--echo # No triggers be output since triggers having invalid metadata are skipped
+SHOW TRIGGERS;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+SET @@sql_mode= @save_sql_mode;
