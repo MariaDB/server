@@ -5956,16 +5956,6 @@ int mysqld_main(int argc, char **argv)
       SYSVAR_AUTOSIZE(global_system_variables.binlog_format, BINLOG_FORMAT_ROW);
     }
     binlog_format_used= 1;
-    if (IS_SYSVAR_AUTOSIZE(&internal_slave_connections_needed_for_purge))
-    {
-      slave_connections_needed_for_purge=
-        internal_slave_connections_needed_for_purge= 0;
-      SYSVAR_AUTOSIZE(internal_slave_connections_needed_for_purge, 0);
-      sql_print_information(
-      "slave_connections_needed_for_purge changed to 0 because "
-      "of Galera. Change it to 1 or higher if this Galera node "
-      "is also Master in a normal replication setup");
-    }
   }
 #endif /* WITH_WSREP */
 
@@ -8353,6 +8343,11 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   }
 
 #ifdef HAVE_REPLICATION
+  case OPT_SLAVE_CONNECTIONS_NEEDED_FOR_PURGE:
+    warn_slaves_not_needed_for_purge.store(false,
+      std::memory_order_relaxed); // no other threads to sync with
+    break;
+
   case (int)OPT_REPLICATE_IGNORE_DB:
   {
     cur_rpl_filter->add_ignore_db(argument);

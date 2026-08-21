@@ -148,6 +148,7 @@ INSERT INTO global_suppressions VALUES
  ("Slave: .*Duplicate entry"),
 
  ("Statement may not be safe to log in statement format"),
+ ("slave_connections_needed_for_purge"),
 
  /* innodb foreign key tests that fail in ALTER or RENAME produce this */
  ("InnoDB: Error: in ALTER TABLE `test`.`t[123]`"),

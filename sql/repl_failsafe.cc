@@ -50,6 +50,7 @@ struct Slave_info
 };
 
 
+std::atomic<bool> warn_slaves_not_needed_for_purge= {true};
 Atomic_counter<uint32_t> binlog_dump_thread_count;
 ulong rpl_status=RPL_NULL;
 mysql_mutex_t LOCK_rpl_status;
@@ -120,6 +121,13 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   Slave_info *si;
   uchar *p= packet, *p_end= packet + packet_length;
   const char *errmsg= "Wrong parameters to function register_slave";
+  if (variables.log_warnings >= 1 && // Verbosity Level "Binlog/Replication"
+      warn_slaves_not_needed_for_purge.exchange(false,
+        // no need to sync with `@@slave_connections_needed_for_purge` itself
+        std::memory_order_relaxed))
+    sql_print_warning(
+      "`@@slave_connections_needed_for_purge` defaults to 0, which means "
+      "this master does not retain older logs even if slaves need them.");
 
   if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db.str, NULL,NULL,0,0))
     return 1;
