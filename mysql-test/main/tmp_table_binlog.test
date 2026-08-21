@@ -31,3 +31,39 @@ INSERT INTO t2 (c) VALUES ('b');
 --error ER_DUP_ENTRY
 INSERT INTO t2 (c) VALUES ('b');
 drop table t1,t2;
+
+--echo #
+--echo # Start of 12.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-38633 Row events in statement based binlog: optimization possible?
+--echo #
+
+CREATE TABLE t1 (c INT);
+
+CREATE TEMPORARY TABLE tt (c INT PRIMARY KEY);
+INSERT INTO tt VALUES (1),(2);
+--error ER_DUP_ENTRY
+UPDATE tt SET c=2;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 SELECT * FROM tt;
+--source include/show_binlog_events.inc
+DROP TABLE tt;
+
+CREATE TEMPORARY TABLE tt (c INT PRIMARY KEY);
+INSERT INTO tt VALUES (1),(2);
+CREATE TEMPORARY TABLE tt2 (c INT);
+INSERT INTO tt2 VALUES (1);
+--error ER_DUP_ENTRY
+UPDATE tt, tt2 SET tt.c=2;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 SELECT * FROM tt;
+--source include/show_binlog_events.inc
+
+DROP TABLE tt, tt2;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
