@@ -66,7 +66,7 @@ close $fd;
 EOF
 --echo # "innodb_force_recovery" should be read from "backup-my.cnf" (mariabackup)
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$targetdir/backup-my.cnf --prepare --export --target-dir=$targetdir >$backuplog;
+exec $XTRABACKUP --defaults-file=$targetdir/backup-my.cnf --prepare --export --target-dir=$targetdir --skip-rollback-xa >$backuplog;
 --enable_result_log
 --let SEARCH_PATTERN=innodb_force_recovery = 1
 --let SEARCH_FILE=$backuplog
@@ -84,7 +84,7 @@ close $fd;
 EOF
 --echo # "innodb_force_recovery=1" should be read from "backup-my.cnf" (innobackupex)
 --disable_result_log
-exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --export $targetdir >$backuplog;
+exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --export --skip-rollback-xa $targetdir >$backuplog;
 --enable_result_log
 --let SEARCH_PATTERN=innodb_force_recovery = 1
 --let SEARCH_FILE=$backuplog
@@ -121,7 +121,7 @@ close $fd;
 EOF
 --echo # "innodb_force_recovery" from the command line should override "backup-my.cnf" (innobackupex)
 --disable_result_log
-exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --innodb-force-recovery=0 --export $targetdir >$backuplog;
+exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --innodb-force-recovery=0 --export --skip-rollback-xa $targetdir >$backuplog;
 --enable_result_log
 --let SEARCH_PATTERN=innodb_force_recovery = 1
 --let SEARCH_FILE=$backuplog

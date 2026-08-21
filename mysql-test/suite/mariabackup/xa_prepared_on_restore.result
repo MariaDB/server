@@ -1,0 +1,30 @@
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Found .* prepared transactions!");
+call mtr.add_suppression("Aborting");
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t1 VALUES (0);
+FLUSH TABLES;
+connect  con1,localhost,root,,;
+SET debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (1);
+connect  con2,localhost,root,,;
+SET debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (2);
+connect  con3,localhost,root,,;
+SET debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (3);
+connect  con4,localhost,root,,;
+SET debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (4);
+connect  con5,localhost,root,,;
+SET debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (5);
+connection default;
+# Kill the server
+FOUND 1 /Found .* prepared transactions!/ in mysqld.1.err
+# restart
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;

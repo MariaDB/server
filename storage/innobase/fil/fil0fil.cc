@@ -437,7 +437,7 @@ static bool fil_node_open_file(fil_node_t *node, const byte *page, bool no_lsn)
   ut_ad(!node->is_open());
   ut_ad(!is_predefined_tablespace(node->space->id) ||
         srv_operation == SRV_OPERATION_BACKUP ||
-        srv_operation == SRV_OPERATION_RESTORE ||
+        is_mariabackup_restore() ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_ad(!node->space->is_temporary());
   ut_ad(node->space->referenced());
@@ -1172,8 +1172,8 @@ void fil_space_t::close()
 	mysql_mutex_lock(&fil_system.mutex);
 	ut_ad(this == fil_system.temp_space
 	      || srv_operation == SRV_OPERATION_BACKUP
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA
+	      || is_mariabackup_restore());
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(chain);
 	     node != NULL;
@@ -2322,6 +2322,7 @@ fil_ibd_discover(
 			break;
 		case SRV_OPERATION_RESTORE_EXPORT:
 		case SRV_OPERATION_RESTORE:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 			break;
 		case SRV_OPERATION_NORMAL:
 		case SRV_OPERATION_EXPORT_RESTORED:
@@ -2426,7 +2427,7 @@ fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space) noexc
 		return FIL_LOAD_ID_CHANGED;
 	}
 
-	if (srv_operation == SRV_OPERATION_RESTORE) {
+	if (is_mariabackup_restore()) {
 		/* Replace absolute DATA DIRECTORY file paths with
 		short names relative to the backup directory. */
 		const char* name = strrchr(filename, '/');

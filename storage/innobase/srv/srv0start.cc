@@ -1128,8 +1128,7 @@ dberr_t srv_start(bool create_new_db)
 	mtr_t		mtr;
 
 	ut_ad(srv_operation <= SRV_OPERATION_RESTORE_EXPORT
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	if (srv_force_recovery) {
 		ib::info() << "!!! innodb_force_recovery is set to "
@@ -1291,8 +1290,7 @@ dberr_t srv_start(bool create_new_db)
 		recv_sys.debug_free();
 	} else {
 		ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
-		      || srv_operation == SRV_OPERATION_RESTORE
-		      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+                      || is_mariabackup_restore_or_export());
 		ut_ad(!recv_sys.recovery_on);
 
 		if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
@@ -1453,6 +1451,7 @@ dberr_t srv_start(bool create_new_db)
 		switch (srv_operation) {
                 case SRV_OPERATION_NORMAL:
 		case SRV_OPERATION_EXPORT_RESTORED:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			/* Initialize the change buffer. */
 			err = dict_boot();
@@ -1464,8 +1463,7 @@ dberr_t srv_start(bool create_new_db)
 			/* This must precede recv_sys.apply(true). */
 			srv_undo_tablespaces_active
 				= trx_rseg_get_n_undo_tablespaces();
-
-			if (srv_operation != SRV_OPERATION_RESTORE) {
+			if (!is_mariabackup_restore()) {
 				dict_sys.load_sys_tables();
 			}
 			err = trx_lists_init_at_db_start();
@@ -1510,8 +1508,7 @@ dberr_t srv_start(bool create_new_db)
 		fil_system.space_id_reuse_warned = false;
 
 		if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
-			ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
-			      || srv_operation == SRV_OPERATION_RESTORE);
+			ut_ad(is_mariabackup_restore_or_export());
 			return(err);
 		}
 
@@ -1917,7 +1914,9 @@ void innodb_preshutdown()
 
   if (srv_read_only_mode)
     return;
-  if (!srv_fast_shutdown && srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
+  if (!srv_fast_shutdown && (srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+                             || srv_operation
+                             == SRV_OPERATION_RESTORE_ROLLBACK_XA))
   {
     /* Because a slow shutdown must empty the change buffer, we had
     better prevent any further changes from being buffered. */
