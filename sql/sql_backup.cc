@@ -264,7 +264,7 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
    after a corresponding call to backup_stream_start().
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   512 bytes, backup_stream_zeropad() must be invoked.
    @param src      source file
    @param stream   backup stream
    @param start first offset to copy
@@ -300,6 +300,21 @@ extern "C" int backup_stream_append_plain(backup_fd src, backup_fd stream,
     because of Windows.
   */
   return backup::append(src, stream, start, end);
+}
+
+/**
+   Zero-pad a the stream to a multiple of 512 bytes.
+
+   @param stream  backup stream
+   @param written least significant bits of the number of payload appended
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+extern "C" int backup_stream_zeropad(backup_fd stream, size_t written)
+{
+  static constexpr const char zerobuf[511]{'\0'};
+  written&= 511;
+  return written ? backup_stream_write(stream, zerobuf, 512 - written) : 0;
 }
 
 #ifdef __linux__
@@ -994,7 +1009,7 @@ send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
    to the block cache for a long time.
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   512 bytes, backup_stream_zeropad() must be invoked.
    @param src    source file
    @param stream backup stream
    @param start  first offset to copy

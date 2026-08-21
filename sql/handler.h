@@ -23,6 +23,7 @@
 
 #include "sql_const.h"
 #include "sql_basic_types.h"
+#include "sql_backup_interface.h"
 #include "mysqld.h"                             /* server_id */
 #include "optimizer_costs.h"
 #include "sql_plugin.h"        /* plugin_ref, st_plugin_int, plugin */
@@ -1494,61 +1495,6 @@ struct transaction_participant
       @retval 0 if no system-versioned data was affected by the transaction
   */
   ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
-};
-
-/** BACKUP SERVER target */
-struct backup_target
-{
-#ifdef _WIN32
-  /** Target directory path name, or nullptr if streaming */
-  const char *path;
-#else
-  /** Target directory descriptor, or -1 if streaming */
-  int fd;
-#endif
-};
-
-/** BACKUP SERVER worker specific context */
-struct backup_sink
-{
-#ifdef _WIN32
-  /** A value indicating an invalid stream */
-  static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};
-  /** Target pipe, or NO_STREAM if path!=nullptr */
-  HANDLE stream;
-#else
-  /** A value indicating an invalid file descriptor or stream */
-  static constexpr int NO_STREAM{-1};
-  /** Target pipe, or NO_STREAM if copying to a directory */
-  int stream;
-#endif
-  /** storage engine context returned by handlerton::backup_start() */
-  void *ha_data;
-};
-
-/** BACKUP SERVER execution phase; @see Sql_cmd_backup::execute() */
-enum backup_phase
-{
-  /** finish backup, possibly after BACKUP_PHASE_ABORT */
-  BACKUP_PHASE_FINISH= -2,
-  /** abort any operation */
-  BACKUP_PHASE_ABORT= -1,
-  /** preparatory phase executed while holding no locks */
-  BACKUP_PHASE_PREPARE_START= 0,
-  /** initial actual work phase; @see MDL_BACKUP_START */
-  BACKUP_PHASE_START,
-  /** copy while new writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_FLUSH */
-  BACKUP_PHASE_NO_BEGIN_NON_TRANS,
-  /** copy while any writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_WAIT_FLUSH */
-  BACKUP_PHASE_NO_DML_NON_TRANS,
-  /** copy files while DDL is blocked; @see MDL_BACKUP_WAIT_DDL */
-  BACKUP_PHASE_NO_DDL,
-  /** determine the logical time of the backup and copy any
-  remaining files while MDL_BACKUP_WAIT_COMMIT is active;
-  this is followed by BACKUP_PHASE_FINISH */
-  BACKUP_PHASE_NO_COMMIT
 };
 
 /*

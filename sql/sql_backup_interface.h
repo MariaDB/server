@@ -13,7 +13,67 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-struct backup_target;
+#pragma once
+#include <stdint.h>
+
+/** BACKUP SERVER target */
+struct backup_target
+{
+#ifdef _WIN32
+  /** Target directory path name, or nullptr if streaming */
+  const char *path;
+#else
+  /** Target directory descriptor, or -1 if streaming */
+  int fd;
+#endif
+};
+
+/** BACKUP SERVER worker specific context */
+struct backup_sink
+{
+#ifdef _WIN32
+# ifdef __cplusplus
+  /** A value indicating an invalid stream */
+  static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};
+# endif
+  /** Target pipe, or NO_STREAM if path!=nullptr */
+  HANDLE stream;
+#else
+# ifdef __cplusplus
+  /** A value indicating an invalid file descriptor or stream */
+  static constexpr int NO_STREAM{-1};
+# endif
+  /** Target pipe, or NO_STREAM if copying to a directory */
+  int stream;
+#endif
+  /** storage engine context returned by handlerton::backup_start() */
+  void *ha_data;
+};
+
+/** BACKUP SERVER execution phase; @see Sql_cmd_backup::execute() */
+enum backup_phase
+{
+  /** finish backup, possibly after BACKUP_PHASE_ABORT */
+  BACKUP_PHASE_FINISH= -2,
+  /** abort any operation */
+  BACKUP_PHASE_ABORT= -1,
+  /** preparatory phase executed while holding no locks */
+  BACKUP_PHASE_PREPARE_START= 0,
+  /** initial actual work phase; @see MDL_BACKUP_START */
+  BACKUP_PHASE_START,
+  /** copy while new writes to non-transactional tables are blocked;
+  @see MDL_BACKUP_FLUSH */
+  BACKUP_PHASE_NO_BEGIN_NON_TRANS,
+  /** copy while any writes to non-transactional tables are blocked;
+  @see MDL_BACKUP_WAIT_FLUSH */
+  BACKUP_PHASE_NO_DML_NON_TRANS,
+  /** copy files while DDL is blocked; @see MDL_BACKUP_WAIT_DDL */
+  BACKUP_PHASE_NO_DDL,
+  /** determine the logical time of the backup and copy any
+  remaining files while MDL_BACKUP_WAIT_COMMIT is active;
+  this is followed by BACKUP_PHASE_FINISH */
+  BACKUP_PHASE_NO_COMMIT
+};
 
 /** A payload chunk in a sparse file that is being streamed */
 struct backup_chunk
@@ -182,8 +242,7 @@ extern "C"
    @return error code (non-positive)
    @retval 0 on success
 */
-int backup_stream_write(backup_fd stream, const void *buf,
-                        size_t size);
+int backup_stream_write(backup_fd stream, const void *buf, size_t size);
 
 #ifdef __cplusplus
 extern "C"
@@ -193,7 +252,7 @@ extern "C"
    after a corresponding call to backup_stream_start().
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   512 bytes, backup_stream_zeropad() must be invoked.
    @param src    source file
    @param stream backup stream
    @param start  first offset to copy
@@ -203,6 +262,19 @@ extern "C"
 */
 int backup_stream_append_plain(backup_fd src, backup_fd stream,
                                uint64_t start, uint64_t end);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+/**
+   Zero-pad a the stream to a multiple of 512 bytes.
+
+   @param stream  backup stream
+   @param written least significant bits of the number of payload appended
+   @return error code (non-positive)
+   @retval 0   on success
+*/
+int backup_stream_zeropad(backup_fd stream, size_t written);
 
 #ifdef _WIN32
 # define backup_stream_append_async backup_stream_append_plain
@@ -220,7 +292,7 @@ extern "C"
    to the block cache for a long time.
 
    Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_write() must be invoked to zero-pad the output.
+   512 bytes, backup_stream_zeropad() must be invoked.
    @param src    source file
    @param stream backup stream
    @param start  first offset to copy

@@ -16,7 +16,6 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "backup_innodb.h"
-#include "sql_backup_interface.h"
 #include "trx0trx.h"
 #include "buf0flu.h"
 #include "log0crypt.h"
@@ -1437,10 +1436,8 @@ public:
       if (!err)
       {
         err= backup_stream_append_async(src, dst, end.offset,
-                                        end.offset + end.length);
-        if (err);
-        else if (size_t pad= size_t(end.length) & 511)
-          err= backup_stream_write(dst, field_ref_zero, 512 - pad);
+                                        end.offset + end.length) ||
+          backup_stream_zeropad(dst, size_t(end.length));
       }
     }
     else

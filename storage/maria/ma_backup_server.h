@@ -15,11 +15,11 @@
 
 #pragma once
 
-/* BACKUP SERVER support for Aria engine. */
+#include "sql_backup_interface.h"
 
-#include <sql_backup_interface.h>
-#include <handler.h>
-
+#ifdef __cplusplus
+extern "C"
+#endif
 /**
    Start of a BACKUP SERVER phase,
    when no aria_backup_step() or aria_backup_end() is pending.
@@ -30,9 +30,13 @@
    @return backup context object to be attached to backup_target, or nullptr
    @retval -1     on failure
 */
-void *aria_backup_start(THD *thd, const backup_target *target,
-                        backup_phase phase, const backup_sink *sink) noexcept;
+void *aria_backup_start(THD *thd, const struct backup_target *target,
+                        enum backup_phase phase,
+                        const struct backup_sink *sink);
 
+#ifdef __cplusplus
+extern "C"
+#endif
 /**
    Process a file that was collected in aria_backup_start().
    @param thd   current session
@@ -41,9 +45,12 @@ void *aria_backup_start(THD *thd, const backup_target *target,
    @param sink    worker context
    @retval 0 on completion
 */
-int aria_backup_step(THD *thd, const backup_target *target, backup_phase phase,
-                     const backup_sink *sink) noexcept;
+int aria_backup_step(THD *thd, const struct backup_target *target,
+                     enum backup_phase phase, const struct backup_sink *sink);
 
+#ifdef __cplusplus
+extern "C"
+#endif
 /**
    Finish a phase, once all calls for the current phase are completed.
    @param thd   current session
@@ -54,5 +61,5 @@ int aria_backup_step(THD *thd, const backup_target *target, backup_phase phase,
    @return error code
    @retval 0 on success
 */
-int aria_backup_end(THD *thd, const backup_target *target, backup_phase phase,
-                    const backup_sink *sink) noexcept;
+int aria_backup_end(THD *thd, const struct backup_target *target,
+                    enum backup_phase phase, const struct backup_sink *sink);
