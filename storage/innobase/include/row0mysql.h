@@ -456,6 +456,60 @@ struct mysql_row_templ_t {
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
 
+/** A remembered clustered-index leaf page and the key range it covered when
+it was remembered, for btr_cur_t::try_leaf_hint(). The keys are copies,
+because the page is unlatched between two lookups.
+
+The range is a filter only: a stale one (the page was split, merged, or a
+record was inserted below its old minimum) can cost a wasted probe or a
+needless descent, never a wrong result, because the checks that
+btr_cur_t::try_leaf_hint() makes on the latched page remain the sole
+authority. It therefore needs no invalidation protocol and no
+modify_clock guard. */
+struct clust_leaf_hint_t {
+	const rec_t*	first;		/*!< copy of the leaf's first user
+					record, truncated to the key fields */
+	const rec_t*	last;		/*!< copy of the leaf's last user
+					record, truncated to the key fields */
+	byte*		first_buf;	/*!< buffer owning first */
+	ulint		first_buf_size;	/*!< allocated size of first_buf */
+	byte*		last_buf;	/*!< buffer owning last */
+	ulint		last_buf_size;	/*!< allocated size of last_buf */
+	rec_offs*	first_offs;	/*!< rec_get_offsets() of first */
+	rec_offs*	last_offs;	/*!< rec_get_offsets() of last. Both
+					arrays are made where the copies are,
+					so that a lookup compares against a
+					slot without parsing its records
+					again; they are sized for the key of
+					this index and never grow */
+	uint32_t	page_no;	/*!< the remembered leaf page number in
+					the clustered index's own tablespace;
+					page 0 is the FSP header, never a
+					leaf */
+	uint16_t	n_core_fields;	/*!< dict_index_t::n_core_fields when
+					first and last were copied. The copies
+					must be interpreted with the value that
+					was in force, and that value can change
+					under a reader that holds no more than a
+					shared metadata lock, in either
+					direction, so a slot whose value no
+					longer matches is discarded rather than
+					read; see
+					row_sel_clust_leaf_hint_covers() */
+	bool		rightmost;	/*!< whether the leaf had no right
+					sibling when it was remembered */
+};
+
+/** Number of clustered leaf pages that a handle remembers, kept in most
+recently used order. It buys the access patterns that alternate between a
+few leaves, which one slot cannot serve at all; it cannot buy a scan that is
+random over a table with many more leaves than this, at any size. Every
+lookup that the hints do not answer scans them all, comparing at most two
+keys per slot and only one where the key sorts below the range, so the count
+is kept small enough for that scan to stay under the page-local searches of
+the descent that follows it. */
+#define CLUST_LEAF_HINT_SLOTS	4
+
 /** A struct for (sometimes lazily) prebuilt structures in an Innobase table
 handle used within MySQL; these are used to save CPU time. */
 
@@ -574,6 +628,15 @@ struct row_prebuilt_t {
 					sel/upd/del */
 	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
 	bool		skip_locked;	/*!< TL_{READ,WRITE}_SKIP_LOCKED */
+	uint8_t		clust_leaf_hint_n;/*!< how many leading slots of
+					clust_leaf_hint are in use; zeroed per
+					statement in ha_innobase::reset(),
+					matching autoinc_last_value */
+	uint16_t	clust_leaf_hint_miss;/*!< consecutive lookups that no
+					slot of clust_leaf_hint answered; see
+					CLUST_LEAF_HINT_MAX_MISSES in
+					row0sel.cc. Zeroed per statement with
+					clust_leaf_hint_n */
 	lock_mode	stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type
 					that was decided in ha_innodb.cc,
@@ -694,6 +757,19 @@ struct row_prebuilt_t {
 	uint		srch_key_val_len; /*!< Size of search key */
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** CLUST_LEAF_HINT_SLOTS clustered leaves remembered from the
+	Row_sel_get_clust_rec_for_mysql() lookups of this statement, most
+	recently used first, or NULL if no lookup of this handle has
+	descended yet. Allocated from heap on the first descent, so that a
+	handle that never needs a clustered lookup allocates nothing, and one
+	that does pays for the slots once, not per statement; the key buffers,
+	which are already sized for this table, outlive the statement and are
+	released in row_prebuilt_free().
+	Declared last, apart from the counters that go with it, so that every
+	field that precedes it keeps the offset, and with it the cache line,
+	that it had before this pointer existed. */
+	clust_leaf_hint_t* clust_leaf_hint;
 
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const

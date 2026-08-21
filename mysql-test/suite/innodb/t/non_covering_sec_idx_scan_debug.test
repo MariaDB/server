@@ -1,0 +1,20 @@
+#
+# MDEV-32286 ANALYZE displays a huge number of InnoDB secondary index pages_accessed
+#
+# The same shapes with the clustered leaf hints turned off, which only a debug
+# build can do. The .result is a line for line counterpart of the one of
+# non_covering_sec_idx_scan, so a diff of the two files is what the hints save.
+#
+--source include/have_debug.inc
+--echo # clustered leaf hints disabled
+--disable_query_log
+# Global, and not of this session: an embedded server answers the backticks of
+# a let on another thread than the rest, and only a global DBUG setting reaches
+# both.
+set @save_debug_dbug= @@global.debug_dbug;
+set global debug_dbug='+d,ib_no_clust_leaf_hint';
+--enable_query_log
+--source suite/innodb/t/non_covering_sec_idx_scan.test
+--disable_query_log
+set global debug_dbug= @save_debug_dbug;
+--enable_query_log
