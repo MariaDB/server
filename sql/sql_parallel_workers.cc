@@ -29,6 +29,7 @@
 
 #include "mariadb.h"
 #include "mysqld_error.h"
+#include "sql_class.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -403,6 +404,76 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
 }
 
 
+bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
+                                 int worker_nr)
+{
+  /* First, do things that may fail early. */
+  LEX_CSTRING new_db;
+  if (parent_thd->db.str)
+  {
+    // Explicit call in ~THD/THD::free_connection()/my_free, so we do this
+    if (!(new_db.str= my_strndup(key_memory_pwt_db, parent_thd->db.str,
+                                 parent_thd->db.length,
+                                 MYF(MY_WME | ME_FATAL))))
+      return true;  // OOM
+    new_db.length= parent_thd->db.length;
+  }
+  else
+  {
+    new_db.str= nullptr;
+    new_db.length= 0;
+  }
+
+  thd= create_background_thd();
+  if (!thd)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+            "init_parallel_workers: failed to create worker thread THD");
+    return true; // Failed
+  }
+  thd->db= new_db;
+  manager= manager_arg;
+  mysql_mutex_init(key_mutex_pwt_LOCK_worker, &LOCK_worker, 
+                   MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_pwt_worker, &COND_worker, nullptr);
+
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  size_t len= my_snprintf(info.conn_name, MAX_THREAD_NAME,
+                          WORKER_NAME);
+  thd->connection_name.str= info.conn_name;
+  thd->connection_name.length= len;
+
+  thd->security_ctx= parent_thd->security_ctx;
+  thd->set_command(parent_thd->get_command());
+  thd->start_utime= parent_thd->start_utime;
+
+  /*
+    A worker evaluates this session's expressions, so it is running this
+    session's query and has to say so. Items that hold a value for the
+    duration of one statement keep it against the query id they computed it
+    under: Item_func_curtime, and the NOW/SYSDATE family with it, recomputes
+    only when thd->query_id has moved past its own last_query_id. A
+    background THD starts at query id 0, which is also the value that field
+    is born with, so a copy that had not been evaluated before it was cloned
+    looked up to date to the worker and handed out its uninitialized
+    MYSQL_TIME -- what the is_valid_value_slow() assertion in Time::Time()
+    catches.
+  */
+  thd->query_id= parent_thd->query_id;
+  thd->thread_id= next_thread_id();
+  my_snprintf(info.process_list, sizeof(info.process_list),
+              WORKER_NAME " %u " CONNECTION_NAME_THREAD " %llu",
+              worker_nr, parent_thd->thread_id);
+  thd->query_string= CSET_STRING(info.process_list,
+                                 strlen(info.process_list),
+                                 thd->query_charset());
+  thd->parallel_worker= this;
+  state.finished= state.joined= false;
+  state.killed= NOT_KILLED;
+
+  return false; // Ok
+}
+
 /**
   @brief
     Initialise our parallel worker threads, setting their own new THD objects.
@@ -602,72 +673,9 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     workers[i].exec.handler_ctx= file->parallel_get_worker_context(i);
     DBUG_ASSERT(workers[i].exec.handler_ctx);
 
-    workers[i].thd= create_background_thd();
-    if (!workers[i].thd)
-    {
-      my_error(ER_INTERNAL_ERROR, MYF(0),
-              "init_parallel_workers: failed to create worker thread THD");
+    if (workers[i].init_worker_thd(this, thd, /*worker_nr=*/i+1))
       goto cleanup_old_workers;
-    }
 
-    workers[i].manager= this;
-    mysql_mutex_init(key_mutex_pwt_LOCK_worker, &workers[i].LOCK_worker,
-                      MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_COND_pwt_worker, &workers[i].COND_worker, nullptr);
-    workers[i].thd->system_thread= SYSTEM_THREAD_GENERIC;
-    size_t len= my_snprintf(workers[i].info.conn_name, MAX_THREAD_NAME,
-                            WORKER_NAME);
-    workers[i].thd->connection_name.str= workers[i].info.conn_name;
-    workers[i].thd->connection_name.length= len;
-    workers[i].thd->security_ctx= thd->security_ctx;
-    workers[i].thd->set_command(thd->get_command());
-    if (thd->db.str)
-    {
-      // explicit call in ~THD/THD::free_connection()/my_free, so we do this
-      workers[i].thd->db.str= (char*)my_malloc(key_memory_pwt_db,
-                                                thd->db.length+1,
-                                                MYF(0));
-      if (!workers[i].thd->db.str)
-      {
-        my_error(ER_INTERNAL_ERROR, MYF(0),
-                "init_parallel_workers: failed to allocate database name");
-        goto cleanup_db_string;
-      }
-
-      strmake(const_cast<char*>(workers[i].thd->db.str), thd->db.str,
-              thd->db.length);
-      workers[i].thd->db.length= thd->db.length;
-    }
-    else
-    {
-      workers[i].thd->db.str= nullptr;
-      workers[i].thd->db.length= 0;
-    }
-    workers[i].thd->start_utime= thd->start_utime;
-    /*
-      A worker evaluates this session's expressions, so it is running this
-      session's query and has to say so. Items that hold a value for the
-      duration of one statement keep it against the query id they computed it
-      under: Item_func_curtime, and the NOW/SYSDATE family with it, recomputes
-      only when thd->query_id has moved past its own last_query_id. A
-      background THD starts at query id 0, which is also the value that field
-      is born with, so a copy that had not been evaluated before it was cloned
-      looked up to date to the worker and handed out its uninitialized
-      MYSQL_TIME -- what the is_valid_value_slow() assertion in Time::Time()
-      catches.
-    */
-    workers[i].thd->query_id= thd->query_id;
-    workers[i].thd->thread_id= next_thread_id();
-    my_snprintf(workers[i].info.process_list,
-                sizeof(workers[i].info.process_list),
-                WORKER_NAME " %u " CONNECTION_NAME_THREAD " %llu",
-                i+1, thd->thread_id);
-    workers[i].thd->query_string= CSET_STRING(workers[i].info.process_list,
-                                          strlen(workers[i].info.process_list),
-                                          workers[i].thd->query_charset());
-    workers[i].thd->parallel_worker= workers+i;
-    workers[i].state.finished= workers[i].state.joined= false;
-    workers[i].state.killed= NOT_KILLED;
     workers[i].batch.full= false;
     workers[i].batch.count= 0;
     workers[i].batch.rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,

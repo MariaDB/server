@@ -192,6 +192,13 @@ class pwt_worker
 {
   int execute_and_handoff();
 public:
+  /*
+    Intialize the worker and create its THD.
+    (this is called from the master thread)
+  */
+  bool init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
+                       int worker_nr);
+
   THD             *thd;
   pwt_manager     *manager;
   pthread_t       pthread;
