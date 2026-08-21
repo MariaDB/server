@@ -110,6 +110,25 @@ static inline void MY_RELAX_CPU(void)
 }
 
 
+/*
+  Hint the CPU to start loading a cache line for reading.
+
+  Like YieldProcessor() above, PreFetchCacheLine() is architecture-independent:
+  winnt.h picks the instruction per target, unlike _mm_prefetch().
+  clang-cl defines __clang__ but not __GNUC__, so it must take the first branch.
+*/
+static inline void my_prefetch(const void *addr)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  __builtin_prefetch(addr, 0, 3);
+#elif defined(_WIN32)
+  PreFetchCacheLine(PF_TEMPORAL_LEVEL_1, addr);
+#else
+  (void) addr;
+#endif
+}
+
+
 #ifdef HAVE_PAUSE_INSTRUCTION
 # ifdef __cplusplus
 extern "C" {
