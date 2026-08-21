@@ -1154,11 +1154,9 @@ class Item_func_member_of : public Item_func_opt_neg
 {
   Item_func_json_quote *json_quote_item;
   Item_func_json_contains *json_contains_item;
-  String tmp_candidate;
 public:
   Item_func_member_of(THD *thd, Item *a, Item *b):
-    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL),
-    tmp_candidate()
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
     {}
 
   bool val_bool() override;
@@ -1178,9 +1176,11 @@ public:
 
   bool walk(Item_processor processor, void *arg, item_walk_flags flags) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
-  Item *propagate_equal_fields(THD *thd, const Item::Context &ctx, COND_EQUAL *cond) override
+  Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond) override
   {
-    return json_contains_item ? json_contains_item->propagate_equal_fields(thd, ctx, cond) : this;
+    if (json_contains_item)
+      json_contains_item->propagate_equal_fields(thd, ctx, cond);
+    return Item_func::propagate_equal_fields(thd, ctx, cond);
   }
   void update_used_tables() override;
 };

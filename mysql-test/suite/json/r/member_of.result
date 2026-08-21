@@ -78,12 +78,12 @@ CREATE TABLE t2 (candidate INT);
 INSERT INTO t2 VALUES (2), (4), (NULL);
 SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
 candidate	val	candidate MEMBER OF (val)
-NULL	[1, 2, 3]	1
+NULL	[1, 2, 3]	NULL
 2	[1, 2, 3]	1
-4	[1, 2, 3]	1
-NULL	[4, 5, 6]	0
+4	[1, 2, 3]	0
+NULL	[4, 5, 6]	NULL
 2	[4, 5, 6]	0
-4	[4, 5, 6]	0
+4	[4, 5, 6]	1
 NULL	NULL	NULL
 2	NULL	NULL
 4	NULL	NULL
@@ -188,3 +188,85 @@ EXECUTE stmt4;
 JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
 1
 DEALLOCATE PREPARE stmt4;
+#
+# 15. Item 12 (mentor): null literal vs JSON null \u2014 type-strict distinctions
+#
+# SQL string 'null' inside a JSON string-array ["null"] -> 1 (matches the string)
+select 'null' member of ('["null"]');
+'null' member of ('["null"]')
+1
+# SQL NULL inside an array containing JSON null literal [null] -> NULL (SQL NULL propagates)
+select null member of ('[null]');
+null member of ('[null]')
+NULL
+# SQL string 'null' inside an array containing JSON null literal [null] -> 0 (type mismatch)
+select 'null' member of ('[null]');
+'null' member of ('[null]')
+0
+# SQL NULL inside a JSON string-array ["null"] -> NULL (SQL NULL propagates)
+select null member of ('["null"]');
+null member of ('["null"]')
+NULL
+#
+# 16. Regression test for Item 1 root-cause fix (stale a2_parsed cache bug)
+# Before the fix, cross-join with non-constant candidate produced wrong results:
+#   NULL  MEMBER OF ([1,2,3]) returned 1  (should be NULL)
+#   4     MEMBER OF ([1,2,3]) returned 1  (should be 0)
+#   NULL  MEMBER OF ([4,5,6]) returned 0  (should be NULL)
+# Verify each combination individually to prevent any future regression.
+#
+CREATE TABLE t5 (id INT, val JSON);
+INSERT INTO t5 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]'), (3, NULL);
+CREATE TABLE t6 (candidate INT);
+INSERT INTO t6 VALUES (2), (4), (NULL);
+# Exact results expected after fix:
+# (NULL, [1,2,3]) -> NULL, (2, [1,2,3]) -> 1, (4, [1,2,3]) -> 0
+# (NULL, [4,5,6]) -> NULL, (2, [4,5,6]) -> 0, (4, [4,5,6]) -> 1
+# (NULL, NULL)    -> NULL, (2, NULL)    -> NULL, (4, NULL)  -> NULL
+SELECT candidate, val, candidate MEMBER OF (val) FROM t5, t6 ORDER BY id, candidate;
+candidate	val	candidate MEMBER OF (val)
+NULL	[1, 2, 3]	NULL
+2	[1, 2, 3]	1
+4	[1, 2, 3]	0
+NULL	[4, 5, 6]	NULL
+2	[4, 5, 6]	0
+4	[4, 5, 6]	1
+NULL	NULL	NULL
+2	NULL	NULL
+4	NULL	NULL
+# Cross-check with JSON_CONTAINS(val, JSON_QUOTE(candidate)) - results must match
+SELECT candidate, val,
+candidate MEMBER OF (val)                    AS member_of_result,
+JSON_CONTAINS(val, JSON_QUOTE(candidate))     AS json_contains_result
+FROM t5, t6
+WHERE candidate IS NOT NULL AND val IS NOT NULL
+ORDER BY id, candidate;
+candidate	val	member_of_result	json_contains_result
+2	[1, 2, 3]	1	1
+4	[1, 2, 3]	0	0
+2	[4, 5, 6]	0	0
+4	[4, 5, 6]	1	1
+DROP TABLE t5, t6;
+#
+# 17. Item 6 test: Multi-column ROW_RESULT error path
+# Multi-column row as argument disallows multi-column operands
+#
+SELECT JSON_QUOTE((1,2));
+Got one of the listed errors
+SELECT (1,2) MEMBER OF ('[1,2,3]');
+Got one of the listed errors
+#
+# 18. Item 10 regression test: Equality propagation / ref substitution
+# Verify that optimizer equality substitution (t7.a = t8.b) properly evaluates
+# MEMBER OF across join rows without stale candidate/container values.
+#
+CREATE TABLE t7 (a INT, j JSON);
+CREATE TABLE t8 (b INT, k JSON);
+INSERT INTO t7 VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+INSERT INTO t8 VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+SELECT t7.a, t7.j, t8.k, t7.a MEMBER OF (t8.k) FROM t7, t8
+WHERE t7.a = t8.b AND t7.a MEMBER OF (t8.k)
+ORDER BY t7.a;
+a	j	k	t7.a MEMBER OF (t8.k)
+1	[1,2,3]	[1,2,3]	1
+DROP TABLE t7, t8;
