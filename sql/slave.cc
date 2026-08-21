@@ -152,7 +152,6 @@ static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
 static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
-static void make_slave_skip_errors_printable(void);
 static void make_slave_transaction_retry_errors_printable(void);
 static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
 static int safe_reconnect(THD*, MYSQL*, Master_info*, bool);
@@ -809,7 +808,7 @@ int init_recovery(Master_info* mi, const char** errmsg)
   Convert slave skip errors bitmap into a printable string.
 */
 
-static void make_slave_skip_errors_printable(void)
+void make_slave_skip_errors_printable(void)
 {
   /*
     To be safe, we want 10 characters of room in the buffer for a number
@@ -829,12 +828,14 @@ static void make_slave_skip_errors_printable(void)
   {
     /* purecov: begin tested */
     memcpy(slave_skip_error_names, STRING_WITH_LEN("OFF"));
+    slave_skip_error_names[3]= '\0';
     /* purecov: end */
   }
   else if (bitmap_is_set_all(&slave_error_mask))
   {
     /* purecov: begin tested */
     memcpy(slave_skip_error_names, STRING_WITH_LEN("ALL"));
+    slave_skip_error_names[3]= '\0';
     /* purecov: end */
   }
   else
@@ -866,18 +867,7 @@ static void make_slave_skip_errors_printable(void)
   DBUG_VOID_RETURN;
 }
 
-/*
-  Init function to set up array for errors that should be skipped for slave
-
-  SYNOPSIS
-    init_slave_skip_errors()
-    arg         List of errors numbers to skip, separated with ','
-
-  NOTES
-    Called from get_options() in mysqld.cc on start-up
-*/
-
-bool init_slave_skip_errors(const char* arg)
+bool init_slave_skip_errors_bitmap(const char* arg)
 {
   const char *p;
   DBUG_ENTER("init_slave_skip_errors");
@@ -885,14 +875,20 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
-    DBUG_RETURN(1);
+  if (!use_slave_mask)
+  {
+    if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
+      DBUG_RETURN(1);
+  }
+  else
+  {
+    bitmap_clear_all(&slave_error_mask);
+  }
 
   use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
-  if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
-  {
+  if (strlen(arg) == 3 && !system_charset_info->strnncoll((uchar*)arg,3,(const uchar*)"all",3))  {
     bitmap_set_all(&slave_error_mask);
     bitmap_clear_bit(&slave_error_mask,ER_CONNECTION_KILLED);
     sql_print_warning("Slave: ER_CONNECTION_KILLED (%d) is not allowed in "
@@ -923,10 +919,28 @@ bool init_slave_skip_errors(const char* arg)
   }
 
 end:
+  DBUG_RETURN(0);
+}
+/*
+  Init function to set up array for errors that should be skipped for slave
+
+  SYNOPSIS
+    init_slave_skip_errors()
+    arg         List of errors numbers to skip, separated with ','
+
+  NOTES
+    Called from get_options() in mysqld.cc on start-up
+*/
+bool init_slave_skip_errors(const char* arg)
+{
+  DBUG_ENTER("init_slave_skip_errors");
+  if (init_slave_skip_errors_bitmap(arg))
+  {
+    DBUG_RETURN(1);
+  }
   make_slave_skip_errors_printable();
   DBUG_RETURN(0);
 }
-
 /**
   Make printable version if slave_transaction_retry_errors
   This is never empty as at least ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT

@@ -15,7 +15,3 @@ SLAVE_SKIP_ERRORS	OFF
 select * from information_schema.session_variables where variable_name='slave_skip_errors';
 VARIABLE_NAME	VARIABLE_VALUE
 SLAVE_SKIP_ERRORS	OFF
-set global slave_skip_errors=1;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
-set session slave_skip_errors=1;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
