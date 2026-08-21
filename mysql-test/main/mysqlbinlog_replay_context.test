@@ -1,0 +1,208 @@
+# MDEV-37602: session-scoped applier context for BINLOG replay
+#
+# Once Query_log_events are replayed through the applier, a BINLOG statement is
+# no longer a self-contained unit of work: consecutive BINLOG statements in one
+# connection belong to the same event stream and must share applier state.
+# The connection -- not the individual BINLOG statement -- therefore owns the
+# rpl_group_info and the Master_info/Relay_log_info that back it.
+#
+# This test pins the observable consequences of that ownership rule:
+#   1. tables opened by one BINLOG statement stay usable by the next one in the
+#      same transaction (a transaction spans several BINLOG statements)
+#   2. table-map ids are still released between autocommit BINLOG statements,
+#      so a reused table id cannot collide with a stale mapping
+#   3. the per-connection context survives interleaved tables and transactions
+#   4. resetting pseudo_slave_mode tears the context down and a later BINLOG
+#      statement rebuilds it, within a single connection
+#
+# The client-side emission contract is covered by main.mysqlbinlog_query_events.
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+RESET MASTER;
+
+--echo #
+--echo # Two tables, so table-map ids alternate rather than staying constant,
+--echo # and a mix of multi-statement transactions with autocommit statements.
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+
+# A transaction spanning several row-event BINLOG statements, touching both
+# tables.  Under the connection-scoped rgi the tables opened by the first
+# statement must remain open for the rest of the transaction.
+BEGIN;
+INSERT INTO t1 VALUES (1,'one');
+INSERT INTO t2 VALUES (1,'uno');
+INSERT INTO t1 VALUES (2,'two');
+UPDATE t2 SET b='UNO' WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+COMMIT;
+
+# Autocommit statements: each is its own event group, so the table-map context
+# must be dropped between them even though the table id is reused.
+INSERT INTO t1 VALUES (3,'three');
+INSERT INTO t1 VALUES (4,'four');
+INSERT INTO t2 VALUES (2,'dos');
+
+# A second transaction after the autocommit run.
+BEGIN;
+UPDATE t1 SET b='THREE' WHERE a=3;
+INSERT INTO t2 VALUES (3,'tres');
+COMMIT;
+
+let $datadir= `SELECT @@datadir`;
+let $binlog1= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--let $sum_t1= `CHECKSUM TABLE t1`
+--let $sum_t2= `CHECKSUM TABLE t2`
+
+--echo #
+--echo # A second binary log, so the replay can drive two pseudo_slave_mode
+--echo # cycles through one connection (each dump brackets itself with
+--echo # PSEUDO_SLAVE_MODE=1 ... =0).
+--echo #
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t3 VALUES (1,'x');
+INSERT INTO t3 VALUES (2,'y');
+COMMIT;
+INSERT INTO t3 VALUES (3,'z');
+
+let $binlog2= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--let $sum_t3= `CHECKSUM TABLE t3`
+
+--exec $MYSQL_BINLOG $datadir/$binlog1 > $MYSQL_TMP_DIR/ctx1.sql
+--exec $MYSQL_BINLOG $datadir/$binlog2 > $MYSQL_TMP_DIR/ctx2.sql
+
+# Each dump must bracket itself with PSEUDO_SLAVE_MODE 1 ... 0, otherwise
+# concatenating the two does not exercise teardown and rebuild at all.
+--let SEARCH_FILE= $MYSQL_TMP_DIR/ctx1.sql
+--let SEARCH_PATTERN= PSEUDO_SLAVE_MODE=1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= PSEUDO_SLAVE_MODE=0
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # Replay both dumps over a single connection.  The concatenation drives
+--echo # PSEUDO_SLAVE_MODE 1 -> 0 -> 1 -> 0, so the session Master_info and
+--echo # rpl_group_info are built, torn down and rebuilt without the connection
+--echo # ever being closed.
+--echo #
+--exec cat $MYSQL_TMP_DIR/ctx1.sql $MYSQL_TMP_DIR/ctx2.sql | $MYSQL test
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+--let $sum_t1_after= `CHECKSUM TABLE t1`
+--let $sum_t2_after= `CHECKSUM TABLE t2`
+--let $sum_t3_after= `CHECKSUM TABLE t3`
+
+if ($sum_t1 != $sum_t1_after)
+{
+  --die t1 diverged after BINLOG replay
+}
+if ($sum_t2 != $sum_t2_after)
+{
+  --die t2 diverged after BINLOG replay
+}
+if ($sum_t3 != $sum_t3_after)
+{
+  --die t3 diverged after BINLOG replay
+}
+--echo # All three tables match their pre-replay checksums.
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # Replaying the same dump twice over one connection, with the tables
+--echo # dropped in between, must give the same result both times: the context
+--echo # rebuilt for the second cycle must not retain table maps from the first,
+--echo # even though the replayed events carry identical table ids.
+--echo #
+DROP TABLE t1, t2, t3;
+
+--write_file $MYSQL_TMP_DIR/dropall.sql
+DROP TABLE t1, t2;
+EOF
+
+--exec cat $MYSQL_TMP_DIR/ctx1.sql $MYSQL_TMP_DIR/dropall.sql $MYSQL_TMP_DIR/ctx1.sql | $MYSQL test
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--let $sum_t1_twice= `CHECKSUM TABLE t1`
+--let $sum_t2_twice= `CHECKSUM TABLE t2`
+if ($sum_t1 != $sum_t1_twice)
+{
+  --die Second replay of the same dump diverged for t1
+}
+if ($sum_t2 != $sum_t2_twice)
+{
+  --die Second replay of the same dump diverged for t2
+}
+--echo # Both replay cycles produced the same checksums.
+
+DROP TABLE t1, t2;
+--remove_file $MYSQL_TMP_DIR/ctx1.sql
+--remove_file $MYSQL_TMP_DIR/ctx2.sql
+--remove_file $MYSQL_TMP_DIR/dropall.sql
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # Compressed query events (QUERY_COMPRESSED_EVENT) must be accepted by
+--echo # the BINLOG statement too, otherwise replay of a compressed binary log
+--echo # fails outright once query events stop being emitted as raw SQL.
+--echo #
+SET @old_compress= @@GLOBAL.log_bin_compress;
+SET @old_min_len= @@GLOBAL.log_bin_compress_min_len;
+SET GLOBAL log_bin_compress= ON;
+SET GLOBAL log_bin_compress_min_len= 10;
+
+# Statement format, so the DML is logged as (compressed) Query events rather
+# than row events -- that is the case the BINLOG statement had to learn.
+SET SESSION binlog_format= STATEMENT;
+
+RESET MASTER;
+CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(500)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1, REPEAT('compressible payload ', 8));
+BEGIN;
+INSERT INTO t4 VALUES (2, REPEAT('more compressible payload ', 8));
+UPDATE t4 SET b= REPEAT('updated payload ', 8) WHERE a=1;
+COMMIT;
+
+let $binlog3= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+--let $sum_t4= `CHECKSUM TABLE t4`
+
+--exec $MYSQL_BINLOG $datadir/$binlog3 > $MYSQL_TMP_DIR/ctx3.sql
+
+# Guard against this section silently becoming vacuous: if the workload stops
+# producing compressed query events, the replay below proves nothing.
+--let SEARCH_FILE= $MYSQL_TMP_DIR/ctx3.sql
+--let SEARCH_PATTERN= Query_compressed
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t4;
+--exec $MYSQL test < $MYSQL_TMP_DIR/ctx3.sql
+
+SELECT a, LENGTH(b) FROM t4 ORDER BY a;
+--let $sum_t4_after= `CHECKSUM TABLE t4`
+if ($sum_t4 != $sum_t4_after)
+{
+  --die Compressed-event replay diverged
+}
+--echo # Compressed-event replay matches the pre-replay checksum.
+
+DROP TABLE t4;
+--remove_file $MYSQL_TMP_DIR/ctx3.sql
+SET GLOBAL log_bin_compress= @old_compress;
+SET GLOBAL log_bin_compress_min_len= @old_min_len;
+SET SESSION binlog_format= ROW;

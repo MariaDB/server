@@ -1,0 +1,71 @@
+RESET MASTER;
+#
+# A workload mixing DDL, autocommit DML and an explicit transaction.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'one');
+BEGIN;
+INSERT INTO t1 VALUES (2,'two');
+UPDATE t1 SET b='ONE' WHERE a=1;
+COMMIT;
+FLUSH LOGS;
+#
+# 1. Default: Query_log_events are emitted as BINLOG '<base64>'.
+#    The DDL/DML statement text must NOT appear as executable SQL.
+#
+NOT FOUND /\nCREATE TABLE t1/ in default.sql
+NOT FOUND /\nINSERT INTO t1/ in default.sql
+NOT FOUND /\nUPDATE t1/ in default.sql
+#
+# ... but transaction control still arrives as plain SQL, because that
+# cleanup must run through dispatch_command() rather than the applier.
+#
+FOUND 2 /\nSTART TRANSACTION/ in default.sql
+FOUND 2 /\nCOMMIT/ in default.sql
+#
+# 2. --query-events-as-sql restores the historical raw SQL for the same
+#    events.  The only BINLOG statement left is the format-description
+#    event, which is emitted regardless.
+#
+FOUND 1 /\nCREATE TABLE t1/ in sql.sql
+FOUND 2 /\nINSERT INTO t1/ in sql.sql
+FOUND 1 /\nUPDATE t1/ in sql.sql
+FOUND 1 /BINLOG '/ in sql.sql
+#
+# 3. Modes that suppress base64 output keep the raw SQL, exactly as they
+#    already do for row events.  Without this, --base64-output=NEVER
+#    would silently produce a dump with no statements in it at all.
+#
+FOUND 1 /\nCREATE TABLE t1/ in never.sql
+NOT FOUND /BINLOG '/ in never.sql
+FOUND 1 /\nCREATE TABLE t1/ in decode.sql
+NOT FOUND /BINLOG '/ in decode.sql
+FOUND 1 /\nCREATE TABLE t1/ in short.sql
+NOT FOUND /BINLOG '/ in short.sql
+#
+# 4. Round trip: replaying the default (BINLOG) dump into an empty
+#    database must reproduce the original table definition and contents.
+#
+DROP TABLE t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(20) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	ONE
+2	two
+# Checksum matches the pre-replay value.
+#
+# 5. The --query-events-as-sql dump must replay to the same state.
+#
+DROP TABLE t1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	ONE
+2	two
+# Checksum matches the pre-replay value.
+DROP TABLE t1;
