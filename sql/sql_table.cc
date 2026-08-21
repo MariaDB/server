@@ -12665,6 +12665,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
   bool bulk_insert_started= 0;
+  bool hlindex_bulk_started= 0;
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
@@ -12711,11 +12712,20 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
-  if (!to->s->long_unique_table && !to->s->hlindexes())
+
+  if (!to->s->long_unique_table)
   {
-    to->file->ha_start_bulk_insert(from->file->stats.records,
-                                   ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-    bulk_insert_started= 1;
+      if (to->s->hlindexes())
+      {
+          if (to->hlindexes_bulk_insert_begin(from->file->stats.records) == 0)
+              hlindex_bulk_started= 1;
+      }
+      if (!to->s->hlindexes() || hlindex_bulk_started)
+      {
+          to->file->ha_start_bulk_insert(from->file->stats.records,
+                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+          bulk_insert_started= 1;
+      }
   }
   mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
   List_iterator<Create_field> it(alter_info->create_list);
@@ -13058,6 +13068,19 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
+  if (hlindex_bulk_started)
+  {
+    int err= to->hlindexes_bulk_insert_end();
+    thd->optimize_mhnsw= false;
+    if (err && error <= 0)
+    {
+      if (!thd->is_error())
+        to->file->print_error(my_errno, MYF(0));
+      error= 1;
+    }
+  }
+  hlindex_bulk_started=0;
+
   if (error <= 0 && !to->s->hlindexes())
   {
     Abort_on_warning_instant_set save_abort_on_warning(thd, false);
