@@ -4453,9 +4453,45 @@ static int append_json_path(String *str, const json_path_t *p)
   {
     if (c->type & JSON_PATH_KEY)
     {
-      if (str->append(".", 1) ||
-          append_simple(str, c->key, c->key_end-c->key))
+      const char *k= (const char *) c->key;
+      size_t k_len= c->key_end - c->key;
+      bool needs_quote= (k_len == 0);
+      for (size_t i= 0; i < k_len; i++)
+      {
+        if (k[i] == '.' || k[i] == '[' || k[i] == ']' ||
+            k[i] == '"' || k[i] == ' ' || k[i] == '*' || k[i] == '\\')
+        {
+          needs_quote= true;
+          break;
+        }
+      }
+      if (str->append(".", 1))
         return TRUE;
+      if (needs_quote)
+      {
+        if (str->append('\\') || str->append('"'))
+          return TRUE;
+        for (size_t i= 0; i < k_len; i++)
+        {
+          if (k[i] == '"' || k[i] == '\\')
+          {
+            if (str->append('\\') || str->append(k[i]))
+              return TRUE;
+          }
+          else
+          {
+            if (str->append(k[i]))
+              return TRUE;
+          }
+        }
+        if (str->append('\\') || str->append('"'))
+          return TRUE;
+      }
+      else
+      {
+        if (append_simple(str, c->key, k_len))
+          return TRUE;
+      }
     }
     else /*JSON_PATH_ARRAY*/
     {
