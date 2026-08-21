@@ -2512,6 +2512,24 @@ coalesce(t1.grp, t2.grp) having count(*) > 1;
 grp	cnt
 a	2
 c	2
+# A HAVING predicate over one side of the join alone.  It is moved
+# into the WHERE, where it names a table on the left side of a
+# surviving FULL JOIN, so it has to wait for the match on the right
+# side rather than prune left side rows.
+select t1.val, count(*) as cnt
+from t1 full join t2 on t1.grp = t2.grp
+group by t1.val having t1.val = 30;
+val	cnt
+30	1
+select dt.val1, count(*) as cnt
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt
+group by dt.val1 having dt.val1 = 30;
+val1	cnt
+30	1
 # COUNT(*) with no GROUP BY — total row count of the FULL JOIN.
 select count(*) from t1 full join t2 on t1.grp = t2.grp;
 count(*)
@@ -7567,6 +7585,27 @@ NULL	NULL	3
 drop table t1;
 drop table t2;
 drop table t3;
+# A WHERE predicate that names the left side alone only after the
+# FULL JOIN's fate has been settled.  The first disjunct cannot
+# hold, so what is left of the WHERE names t1 alone and has to wait
+# for the match on t2 rather than prune t1 rows.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+select * from t1 full join t2 on t1.a = t2.a
+where (t2.b is null and t2.b = 9) or t1.a = 1;
+a	b	a	b
+1	1	1	1
+select * from t1 left join t2 on t1.a = t2.a
+where (t2.b is null and t2.b = 9) or t1.a = 1
+union
+select * from t1 right join t2 on t1.a = t2.a
+where (t2.b is null and t2.b = 9) or t1.a = 1;
+a	b	a	b
+1	1	1	1
+drop table t1;
+drop table t2;
 # ====================================================================
 # MDEV-39967 not a bug, but preserving the test case.
 # ====================================================================
@@ -10830,6 +10869,21 @@ NULL	NULL	NULL	NULL	1	10
 NULL	NULL	NULL	NULL	2	20
 NULL	NULL	NULL	NULL	4	40
 NULL	NULL	NULL	NULL	5	50
+# The same, where the WHERE names the nest alone only after the
+# FULL JOIN's fate has been settled.  The first disjunct cannot
+# hold, so what is left names the nest alone and has to wait for
+# the match on t1 rather than prune the nest.
+select * from (t2 join t3 on t2.a = t3.a) full join t1 on t1.a = t2.a
+where (t3.d is null and t3.d = 1) or t2.c = 300;
+a	c	a	d	a	b
+3	300	3	3000	3	30
+select * from (t2 join t3 on t2.a = t3.a) left join t1 on t1.a = t2.a
+where (t3.d is null and t3.d = 1) or t2.c = 300
+union
+select * from (t2 join t3 on t2.a = t3.a) right join t1 on t1.a = t2.a
+where (t3.d is null and t3.d = 1) or t2.c = 300;
+a	c	a	d	a	b
+3	300	3	3000	3	30
 # A nest on both sides, with the predicate over each in turn.
 select * from (t1 join t4 on t1.a = t4.a)
 full join (t2 join t3 on t2.a = t3.a) on t1.a = t2.a
@@ -11172,6 +11226,24 @@ select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
 where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000) d;
 count(*)
 800
+# A predicate over both sides stays in the WHERE.  Distributing the
+# WHERE over the plan still takes from each disjunct the part the
+# left table alone decides and ORs those parts together, and that
+# condition is none of the WHERE's conjuncts.  It names the left
+# side alone, so it waits for the match too.
+select * from t1 full join t2 on t1.a = t2.a
+where (t1.b = 1 and t2.b = 1) or t1.a is null;
+a	b	a	b
+1	1	1	1
+NULL	NULL	4	4
+select * from t1 left join t2 on t1.a = t2.a
+where (t1.b = 1 and t2.b = 1) or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a
+where (t1.b = 1 and t2.b = 1) or t1.a is null;
+a	b	a	b
+1	1	1	1
+NULL	NULL	4	4
 drop table t1;
 drop table t2;
 drop table t3;

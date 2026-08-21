@@ -1671,6 +1671,23 @@ select coalesce(t1.grp, t2.grp) as grp,
 right join t2 on t1.grp = t2.grp group by
 coalesce(t1.grp, t2.grp) having count(*) > 1;
 
+--echo # A HAVING predicate over one side of the join alone.  It is moved
+--echo # into the WHERE, where it names a table on the left side of a
+--echo # surviving FULL JOIN, so it has to wait for the match on the right
+--echo # side rather than prune left side rows.
+--sorted_result
+select t1.val, count(*) as cnt
+from t1 full join t2 on t1.grp = t2.grp
+group by t1.val having t1.val = 30;
+--sorted_result
+select dt.val1, count(*) as cnt
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+      from t1 left join t2 on t1.grp = t2.grp
+      union
+      select t1.grp, t1.val, t2.grp, t2.val
+      from t1 right join t2 on t1.grp = t2.grp) dt
+group by dt.val1 having dt.val1 = 30;
+
 --echo # COUNT(*) with no GROUP BY — total row count of the FULL JOIN.
 select count(*) from t1 full join t2 on t1.grp = t2.grp;
 select count(*) from (select t1.grp as g1, t1.val as v1, t2.grp as g2, t2.val as v2
@@ -4994,6 +5011,27 @@ drop table t1;
 drop table t2;
 drop table t3;
 
+--echo # A WHERE predicate that names the left side alone only after the
+--echo # FULL JOIN's fate has been settled.  The first disjunct cannot
+--echo # hold, so what is left of the WHERE names t1 alone and has to wait
+--echo # for the match on t2 rather than prune t1 rows.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+insert into t2 values (1,1),(2,2),(4,4);
+--source include/full_join_add_indexes.inc
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a
+  where (t2.b is null and t2.b = 9) or t1.a = 1;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+  where (t2.b is null and t2.b = 9) or t1.a = 1
+union
+select * from t1 right join t2 on t1.a = t2.a
+  where (t2.b is null and t2.b = 9) or t1.a = 1;
+drop table t1;
+drop table t2;
+
 --echo # ====================================================================
 --echo # MDEV-39967 not a bug, but preserving the test case.
 --echo # ====================================================================
@@ -7007,6 +7045,20 @@ union
 select * from (t2 join t3 on t2.a = t3.a) right join t1 on t1.a = t2.a
   where t3.d is null or t3.d > 3500;
 
+--echo # The same, where the WHERE names the nest alone only after the
+--echo # FULL JOIN's fate has been settled.  The first disjunct cannot
+--echo # hold, so what is left names the nest alone and has to wait for
+--echo # the match on t1 rather than prune the nest.
+--sorted_result
+select * from (t2 join t3 on t2.a = t3.a) full join t1 on t1.a = t2.a
+  where (t3.d is null and t3.d = 1) or t2.c = 300;
+--sorted_result
+select * from (t2 join t3 on t2.a = t3.a) left join t1 on t1.a = t2.a
+  where (t3.d is null and t3.d = 1) or t2.c = 300
+union
+select * from (t2 join t3 on t2.a = t3.a) right join t1 on t1.a = t2.a
+  where (t3.d is null and t3.d = 1) or t2.c = 300;
+
 --echo # A nest on both sides, with the predicate over each in turn.
 --sorted_result
 select * from (t1 join t4 on t1.a = t4.a)
@@ -7299,6 +7351,21 @@ select count(*) from
    union
    select t1.a, t2.a, t3.x from t1 right join t2 on t1.a = t2.a, t3
      where (t1.b is null or t1.b + t3.x > 1) and t3.x > 0 and t3.y < 1000) d;
+
+--echo # A predicate over both sides stays in the WHERE.  Distributing the
+--echo # WHERE over the plan still takes from each disjunct the part the
+--echo # left table alone decides and ORs those parts together, and that
+--echo # condition is none of the WHERE's conjuncts.  It names the left
+--echo # side alone, so it waits for the match too.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a
+  where (t1.b = 1 and t2.b = 1) or t1.a is null;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+  where (t1.b = 1 and t2.b = 1) or t1.a is null
+union
+select * from t1 right join t2 on t1.a = t2.a
+  where (t1.b = 1 and t2.b = 1) or t1.a is null;
 
 drop table t1;
 drop table t2;

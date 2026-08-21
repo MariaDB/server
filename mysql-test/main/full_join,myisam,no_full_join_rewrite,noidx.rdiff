@@ -1,5 +1,5 @@
---- full_join.result	2026-08-17 11:50:12
-+++ full_join,myisam,no_full_join_rewrite,noidx.result	2026-08-17 11:48:35
+--- full_join.result	2026-08-21 10:40:42
++++ full_join,myisam,no_full_join_rewrite,noidx.result	2026-08-21 10:39:06
 @@ -557,8 +557,8 @@
  select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null and t2.pk is not null;
  pk	x	y	pk	x	y
@@ -118,7 +118,7 @@
  select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
  avg(t2.a) AS avg_t2_a from
  t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
-@@ -3135,11 +3136,13 @@
+@@ -3153,11 +3154,13 @@
  from fj a join fj b on a.id1 = b.id1;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
@@ -137,7 +137,7 @@
  with fj as (
  select t1.id as id1, t2.id as id2, t5.id as id5
  from t1 full join (t2 join t5 on t2.id = t5.id) on t1.id = t2.id
-@@ -6693,13 +6696,12 @@
+@@ -6711,13 +6714,12 @@
  full join t4 on (true)
  where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -155,7 +155,7 @@
  # IS NOT NULL drives the same rewrite path.
  select t1.a, t2.a, t3.a, t4.a
  from t1 left join t2 on (true)
-@@ -6715,13 +6717,12 @@
+@@ -6733,13 +6735,12 @@
  full join t4 on (true)
  where t4.a is not null;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -173,7 +173,7 @@
  # RIGHT JOIN canonicalizes to LEFT JOIN, same trigger applies.
  select t1.a, t2.a, t3.a, t4.a
  from t1 right join t2 on (true)
-@@ -6737,13 +6738,12 @@
+@@ -6755,13 +6756,12 @@
  full join t4 on (true)
  where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -191,7 +191,7 @@
  # Reproducer matching the original ticket.  All left tables are
  # empty so only null complement rows for t4 reach the WHERE,
  # and GROUP BY collapses them.
-@@ -6765,13 +6765,12 @@
+@@ -6783,13 +6783,12 @@
  where t4.a <= 3000
  group by field1;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -210,7 +210,7 @@
  # The guard must not block the normal FULL JOIN rewrite when
  # the left side is a base table.  A plain t1 FULL JOIN t4 with
  # the same WHERE predicate still rewrites and the UNION oracle
-@@ -6784,10 +6783,10 @@
+@@ -6802,10 +6801,10 @@
  explain extended
  select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -223,7 +223,7 @@
  select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
  union
  select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
-@@ -6848,13 +6847,12 @@
+@@ -6866,13 +6865,12 @@
  full join t6 on (true)
  where t6.a <= 300000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -240,7 +240,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -6906,12 +6904,12 @@
+@@ -6924,12 +6922,12 @@
  full join t4 on (true)
  where t3.a <= 1000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -258,7 +258,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -7885,8 +7883,8 @@
+@@ -7924,8 +7922,8 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -269,7 +269,7 @@
  select * from t3 left join (t1 full join t2 on t1.a = t2.b)
  on t3.c = t1.a;
  c	a	b
-@@ -7911,8 +7909,8 @@
+@@ -7950,8 +7948,8 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -280,7 +280,7 @@
  select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
  on t3.c = t1.a;
  c	a	b
-@@ -7922,8 +7920,8 @@
+@@ -7961,8 +7959,8 @@
  where t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -291,7 +291,7 @@
  select * from t3, (t1 full join t2 on t1.a = t2.b)
  where t3.c = t1.a;
  c	a	b
-@@ -7947,8 +7945,8 @@
+@@ -7986,8 +7984,8 @@
  on t1.a = t3.c;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -302,7 +302,7 @@
  select * from (t1 full join t2 on t1.a = t2.b) right join t3
  on t1.a = t3.c;
  a	b	c
-@@ -7976,9 +7974,9 @@
+@@ -8015,9 +8013,9 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -315,7 +315,7 @@
  select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
  on t3.c = t1.a;
  c	a	b	c
-@@ -8579,10 +8577,12 @@
+@@ -8618,10 +8616,12 @@
  on t1.a=t2.a
  where t1.a > 0;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -332,7 +332,7 @@
  select t1.a, t4.a
  from (t1 join t4 on t1.a=t4.a) full join (t2 join t3 on t2.a=t3.a)
  on t1.a=t2.a
-@@ -8783,9 +8783,9 @@
+@@ -8822,9 +8822,9 @@
  left join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -345,7 +345,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  left join t3 on t3.a = t2.a;
-@@ -8877,9 +8877,10 @@
+@@ -8916,9 +8916,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -359,7 +359,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 left join
  (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -8908,9 +8909,9 @@
+@@ -8947,9 +8948,9 @@
  right join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -372,7 +372,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 right join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  right join t3 on t3.a = t2.a;
-@@ -8937,9 +8938,10 @@
+@@ -8976,9 +8977,10 @@
  right join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -386,7 +386,7 @@
  select t1.a as a1, t5.a as a5, t2.a as a2, t3.a as a3
  from (t1 right join t5 on t1.a = t5.a) full join t2 on t1.a = t2.a
  right join t3 on t3.a = t2.a;
-@@ -9029,9 +9031,9 @@
+@@ -9068,9 +9070,9 @@
  inner join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -399,7 +399,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 inner join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  inner join t3 on t3.a = t2.a;
-@@ -9109,9 +9111,10 @@
+@@ -9148,9 +9150,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -413,7 +413,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 inner join
  (t1 full join (t2 inner join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -9556,9 +9559,9 @@
+@@ -9595,9 +9598,9 @@
  inner join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -426,7 +426,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  inner join t3 on t3.a = t2.a;
-@@ -9771,9 +9774,10 @@
+@@ -9810,9 +9813,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -440,7 +440,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 inner join
  (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -9801,10 +9805,11 @@
+@@ -9840,10 +9844,11 @@
  cross join t4;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	

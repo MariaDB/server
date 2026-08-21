@@ -5896,6 +5896,48 @@ static List<Item> *top_level_conjuncts(THD *thd, COND *cond,
 
 
 /*
+  The right side that must record its match before a condition over the
+  given tables may be evaluated.
+
+  A condition that reads a surviving FULL JOIN's left side and not its
+  right side cannot be evaluated while the left side row is being
+  matched, since rejecting the row there also loses the record of its
+  match.  It has to wait for the right side, where the match is
+  recorded.  When several FULL JOINs have the tables on their left side,
+  the outermost one is the one to wait for, and that is the one with the
+  larger left side, so the match is recorded by every FULL JOIN before
+  the condition can reject the row.
+
+  Returns NULL when the tables name no surviving FULL JOIN's left side,
+  or name a right side as well, in which case that side already defers
+  the condition behind its own match.
+*/
+
+static TABLE_LIST *full_join_right_side_for(List<TABLE_LIST> *right_sides,
+                                            table_map used)
+{
+  TABLE_LIST *best= NULL;
+  table_map best_left= 0;
+  List_iterator<TABLE_LIST> li(*right_sides);
+  TABLE_LIST *r;
+
+  while ((r= li++))
+  {
+    table_map left= join_side_map(r->foj_partner);
+
+    if (!(used & left) || (used & join_side_map(r)))
+      continue;
+    if (!best || my_count_bits(left) > my_count_bits(best_left))
+    {
+      best= r;
+      best_left= left;
+    }
+  }
+  return best;
+}
+
+
+/*
   Move a surviving FULL JOIN's left side WHERE predicates out of the WHERE.
 
   A FULL JOIN runs as a LEFT JOIN of its left side over its right side,
@@ -5921,18 +5963,28 @@ static List<Item> *top_level_conjuncts(THD *thd, COND *cond,
   partner.  Removed from the WHERE, they build no ref or range on the
   left side, so it is read in full; make_join_select reattaches them to
   the right partner under the found-match guard, so they apply to every
-  output row only after the match is recorded.  A conjunct that also
-  references the right side stays in place, because the right side
-  already defers it.
+  output row only after the match is recorded.
 
-  A multiple equality is lifted only when the FULL JOIN rewrite is
-  disabled.  With the rewrite enabled a multiple equality cannot reach a
-  surviving FULL JOIN, because it rejects NULLs on the left side and
-  that rewrites the FULL JOIN to a LEFT JOIN, so leaving it in place
-  keeps cond_equal consistent at no cost.  With the rewrite disabled the
-  FULL JOIN survives regardless of what the WHERE clause rejects, the
-  multiple equality does reach it, and leaving it in place puts it on a
-  left side table where the null complement pass never evaluates it.
+  This runs before the join order is known and works on whole conjuncts,
+  which is the granularity that ref and range analysis reads the WHERE
+  at.  It is not the granularity the WHERE is distributed over the plan
+  at, and it is not the last word on the WHERE either, since the WHERE
+  goes on being rewritten afterwards.  Whether a condition may be
+  evaluated on the left side is therefore decided again in
+  make_join_select, on whatever condition is about to be attached to a
+  tab, and that decision is the one correctness rests on.  What this
+  function still owns is keeping the left side out of ref and range
+  analysis, which happens before make_join_select runs.
+
+  A multiple equality is left alone when the FULL JOIN rewrite is
+  enabled.  build_equal_items splices the list nodes of
+  cond_equal.current_level onto the top level AND, and the equality
+  substitution later unlinks that same run of nodes, so taking a
+  multiple equality out of the AND here breaks a list the substitution
+  still walks.  Leaving it in place costs nothing for the answer,
+  because a predicate over the left side is deferred at attachment time
+  whether it was lifted or not.  What it costs is that the multiple
+  equality still reaches ref and range analysis on the left side.
 
   Called once per execution on the statement's working copy of the
   WHERE, so the held conjuncts are reset first.  Returns the WHERE with
@@ -5973,29 +6025,8 @@ static COND *lift_full_join_left_where(JOIN *join, COND *conds)
         ((Item_func *) c)->functype() == Item_func::MULT_EQUAL_FUNC)
       continue;
 
-    table_map used= c->used_tables();
-    TABLE_LIST *best= NULL;
-    table_map best_left= 0;
-    List_iterator<TABLE_LIST> lj(right_sides);
-    TABLE_LIST *r;
-    while ((r= lj++))
-    {
-      table_map left= join_side_map(r->foj_partner);
-      if ((used & left) && !(used & join_side_map(r)))
-      {
-        /*
-          A conjunct may sit on the left side of several FULL JOINs at
-          once (nested FULL JOINs).  Defer it to the outermost one, the
-          one with the larger left side, so the match is recorded by
-          every FULL JOIN before the predicate can reject the row.
-        */
-        if (!best || my_count_bits(left) > my_count_bits(best_left))
-        {
-          best= r;
-          best_left= left;
-        }
-      }
-    }
+    TABLE_LIST *best= full_join_right_side_for(&right_sides,
+                                               c->used_tables());
     if (!best)
       continue;
 
@@ -15372,6 +15403,62 @@ static JOIN_TAB *tab_for_full_join_left_cond(JOIN *join, JOIN_TAB *partner,
 
 
 /*
+  Hold a condition the plan wants to check on a surviving FULL JOIN's
+  left side on the right partner instead.
+
+  Distributing the WHERE over the plan does not preserve the units the
+  WHERE was written in.  From a disjunction it takes, for each table,
+  the part of every disjunct that the table alone can decide and ORs
+  those parts together, and the result is a condition no conjunct of the
+  WHERE ever contained.  The equality machinery likewise leaves
+  conditions behind that were not there when the WHERE was first
+  examined.  Anything reaching a left side table this way is a predicate
+  the left side is not allowed to apply, for the reason
+  lift_full_join_left_where describes: the left row also carries the
+  record that a right row matched, so dropping it before the match
+  reaches the right partner turns a matched right row into a right-only
+  row.
+
+  Move such a condition to the right partner, where
+  attach_full_join_left_conds puts it behind the found-match guard.  The
+  right partner follows every table of the left side in the join order,
+  so every table the condition reads holds a row there.  A condition
+  that also reads a table the plan places after the right partner cannot
+  be checked there and stays where it is; being after the partner, it is
+  already checked after the match.
+
+  prefix is the tables the plan has positioned at the point the
+  condition is being attached.  A condition manufactured from a
+  disjunction inherits the whole disjunction's used_tables(), which
+  names tables the manufactured condition does not read, so the tables
+  it can read are the ones the two maps have in common.
+
+  Returns true when the condition was taken.
+*/
+
+static bool hold_full_join_left_cond(THD *thd, JOIN *join,
+                                     List<TABLE_LIST> *right_sides,
+                                     table_map prefix, COND *cond)
+{
+  table_map used= cond->used_tables() & prefix;
+  TABLE_LIST *side;
+  JOIN_TAB *partner;
+
+  if (right_sides->is_empty())
+    return false;
+  if (!(side= full_join_right_side_for(right_sides, used)))
+    return false;
+  if (!(partner= tab_for_full_join_right_side(join, side)))
+    return false;
+  if (tab_for_full_join_left_cond(join, partner, used) != partner)
+    return false;
+
+  add_cond_and_fix(thd, &side->fj_left_cond, cond);
+  return true;
+}
+
+
+/*
   Return the lifted conjuncts the plan does not need lifted.
 
   A conjunct is lifted so that a predicate over the FULL JOIN's left
@@ -15812,6 +15899,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       run inside it does not restore it early.
     */
     JOIN_TAB *fj_save_root= NULL;
+    /*
+      The surviving FULL JOINs, so that a condition about to be attached
+      to a table on one of their left sides can be recognised and held
+      on the right partner instead.  Empty when the query has none.
+    */
+    List<TABLE_LIST> fj_right_sides;
+    if (thd->lex->full_join_count &&
+        collect_full_join_right_sides(join->join_list, &fj_right_sides,
+                                      thd->mem_root))
+      DBUG_RETURN(1);
     used_tables=((select->const_tables=join->const_table_map) |
 		 OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
     JOIN_TAB *tab;
@@ -15990,6 +16087,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               DBUG_RETURN(1);
           }
         }
+        if (tmp && hold_full_join_left_cond(thd, join, &fj_right_sides,
+                                            used_tables, tmp))
+          tmp= NULL;
         /* Add conditions added by add_not_null_conds(). */
         if (tab->select_cond)
           add_cond_and_fix(thd, &tmp, tab->select_cond);

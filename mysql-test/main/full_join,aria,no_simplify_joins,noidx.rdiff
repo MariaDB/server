@@ -1,5 +1,5 @@
---- full_join.result	2026-08-17 11:50:12
-+++ full_join,aria,no_simplify_joins,noidx.result	2026-08-17 11:46:54
+--- full_join.result	2026-08-21 10:40:42
++++ full_join,aria,no_simplify_joins,noidx.result	2026-08-21 10:37:03
 @@ -34,7 +34,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
@@ -190,7 +190,7 @@
  select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
  avg(t2.a) AS avg_t2_a from
  t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
-@@ -3135,11 +3136,13 @@
+@@ -3153,11 +3154,13 @@
  from fj a join fj b on a.id1 = b.id1;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
@@ -209,7 +209,7 @@
  with fj as (
  select t1.id as id1, t2.id as id2, t5.id as id5
  from t1 full join (t2 join t5 on t2.id = t5.id) on t1.id = t2.id
-@@ -4493,7 +4496,7 @@
+@@ -4511,7 +4514,7 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	index	NULL	u	5	NULL	3	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
@@ -218,7 +218,7 @@
  1	MATERIALIZED	t3	eq_ref	u	u	5	test.t2.u	1	Using where; Using index
  select t1.u as u1, t2.u as u2, t3.u as u3
  from t1 full join (t2 join t3 on t2.u = t3.u) on t1.u = t2.u;
-@@ -6186,7 +6189,7 @@
+@@ -6204,7 +6207,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -227,7 +227,7 @@
  select *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6206,7 +6209,7 @@
+@@ -6224,7 +6227,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -236,7 +236,7 @@
  select /*+ join_order(t3,t1,t2) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6226,7 +6229,7 @@
+@@ -6244,7 +6247,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -245,7 +245,7 @@
  select /*+ join_order(t1,t2,t3) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6247,7 +6250,7 @@
+@@ -6265,7 +6268,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t3`,`t2`) is ignored as conflicting/duplicated
@@ -254,7 +254,7 @@
  select /*+ join_order(t1,t3,t2) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6291,7 +6294,7 @@
+@@ -6309,7 +6312,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -263,7 +263,7 @@
  select *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6314,7 +6317,7 @@
+@@ -6332,7 +6335,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -272,7 +272,7 @@
  select /*+ join_order(t4,t1,t2,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6337,7 +6340,7 @@
+@@ -6355,7 +6358,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -281,7 +281,7 @@
  select /*+ join_order(t1,t2,t3,t4) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6361,7 +6364,7 @@
+@@ -6379,7 +6382,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -290,7 +290,7 @@
  select /*+ join_order(t4,t2,t1,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6386,7 +6389,7 @@
+@@ -6404,7 +6407,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t4`,`t2`,`t3`) is ignored as conflicting/duplicated
@@ -299,7 +299,7 @@
  select /*+ join_order(t1,t4,t2,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6413,7 +6416,7 @@
+@@ -6431,7 +6434,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t2`,`t4`,`t3`) is ignored as conflicting/duplicated
@@ -308,7 +308,7 @@
  select /*+ join_order(t1,t2,t4,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6456,7 +6459,7 @@
+@@ -6474,7 +6477,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -317,7 +317,7 @@
  select /*+ join_prefix(t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6476,7 +6479,7 @@
+@@ -6494,7 +6497,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -326,7 +326,7 @@
  select /*+ join_prefix(t1, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6499,7 +6502,7 @@
+@@ -6517,7 +6520,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_PREFIX(`t1`,`t3`) is ignored as conflicting/duplicated
@@ -335,7 +335,7 @@
  select /*+ join_prefix(t1, t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6521,7 +6524,7 @@
+@@ -6539,7 +6542,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -344,7 +344,7 @@
  select /*+ join_suffix(t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6542,7 +6545,7 @@
+@@ -6560,7 +6563,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -353,7 +353,7 @@
  select /*+ join_suffix(t1, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6565,7 +6568,7 @@
+@@ -6583,7 +6586,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_SUFFIX(`t3`,`t2`) is ignored as conflicting/duplicated
@@ -362,7 +362,7 @@
  select /*+ join_suffix(t3, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6693,13 +6696,12 @@
+@@ -6711,13 +6714,12 @@
  full join t4 on (true)
  where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -380,7 +380,7 @@
  # IS NOT NULL drives the same rewrite path.
  select t1.a, t2.a, t3.a, t4.a
  from t1 left join t2 on (true)
-@@ -6715,13 +6717,12 @@
+@@ -6733,13 +6735,12 @@
  full join t4 on (true)
  where t4.a is not null;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -398,7 +398,7 @@
  # RIGHT JOIN canonicalizes to LEFT JOIN, same trigger applies.
  select t1.a, t2.a, t3.a, t4.a
  from t1 right join t2 on (true)
-@@ -6737,13 +6738,12 @@
+@@ -6755,13 +6756,12 @@
  full join t4 on (true)
  where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -416,7 +416,7 @@
  # Reproducer matching the original ticket.  All left tables are
  # empty so only null complement rows for t4 reach the WHERE,
  # and GROUP BY collapses them.
-@@ -6765,13 +6765,12 @@
+@@ -6783,13 +6783,12 @@
  where t4.a <= 3000
  group by field1;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -435,7 +435,7 @@
  # The guard must not block the normal FULL JOIN rewrite when
  # the left side is a base table.  A plain t1 FULL JOIN t4 with
  # the same WHERE predicate still rewrites and the UNION oracle
-@@ -6784,10 +6783,10 @@
+@@ -6802,10 +6801,10 @@
  explain extended
  select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -448,7 +448,7 @@
  select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
  union
  select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
-@@ -6799,13 +6798,13 @@
+@@ -6817,13 +6816,13 @@
  union
  select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -465,7 +465,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -6848,13 +6847,12 @@
+@@ -6866,13 +6865,12 @@
  full join t6 on (true)
  where t6.a <= 300000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -482,7 +482,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -6906,12 +6904,12 @@
+@@ -6924,12 +6922,12 @@
  full join t4 on (true)
  where t3.a <= 1000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -500,7 +500,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -7706,7 +7704,7 @@
+@@ -7745,7 +7743,7 @@
  2	SUBQUERY	s1	index	NULL	col_varchar_key	12	NULL	20	100.00	Using index
  2	SUBQUERY	s2	ref	col_varchar_key	col_varchar_key	7	test.s1.col_varchar_key	3	100.00	Using where; Using index
  Warnings:
@@ -509,7 +509,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -7885,8 +7883,8 @@
+@@ -7924,8 +7922,8 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -520,7 +520,7 @@
  select * from t3 left join (t1 full join t2 on t1.a = t2.b)
  on t3.c = t1.a;
  c	a	b
-@@ -7911,8 +7909,8 @@
+@@ -7950,8 +7948,8 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -531,7 +531,7 @@
  select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
  on t3.c = t1.a;
  c	a	b
-@@ -7922,8 +7920,8 @@
+@@ -7961,8 +7959,8 @@
  where t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -542,7 +542,7 @@
  select * from t3, (t1 full join t2 on t1.a = t2.b)
  where t3.c = t1.a;
  c	a	b
-@@ -7947,8 +7945,8 @@
+@@ -7986,8 +7984,8 @@
  on t1.a = t3.c;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -553,7 +553,7 @@
  select * from (t1 full join t2 on t1.a = t2.b) right join t3
  on t1.a = t3.c;
  a	b	c
-@@ -7976,9 +7974,9 @@
+@@ -8015,9 +8013,9 @@
  on t3.c = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -566,7 +566,7 @@
  select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
  on t3.c = t1.a;
  c	a	b	c
-@@ -8088,9 +8086,9 @@
+@@ -8127,9 +8125,9 @@
  select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t1.a < 3;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	t1	index	NULL	a	5	NULL	5	100.00	Using index
@@ -578,7 +578,7 @@
  # Impossible ON range on an indexed column.  There are no matches, so
  # every row is null-complemented; the impossible range must not fold
  # the FULL JOIN to an empty result.
-@@ -8139,7 +8137,7 @@
+@@ -8178,7 +8176,7 @@
  1	SIMPLE	t1	index	NULL	a	5	NULL	3	100.00	Using index
  1	SIMPLE	t2	index	NULL	b	5	NULL	3	100.00	Using where; Using index
  Warnings:
@@ -587,7 +587,7 @@
  select * from t1 natural full join t2;
  a	b
  1	1
-@@ -8225,7 +8223,7 @@
+@@ -8264,7 +8262,7 @@
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	t2	index	NULL	a	4	NULL	5	100.00	Using where; Using index
  Warnings:
@@ -596,7 +596,7 @@
  # ON true: same shape with the boolean literal.
  explain select t1.a, t2.a from t1 full join t2 on true;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-@@ -8361,7 +8359,7 @@
+@@ -8400,7 +8398,7 @@
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	t2	index	a	a	4	NULL	5	100.00	Using where; Using index
  Warnings:
@@ -605,7 +605,7 @@
  # A sargable range in the ON of a FULL JOIN whose left operand is a
  # nested join.  Range analysis reaches an indexed column of a table
  # inside the nest, and every row of both sides must still survive.
-@@ -8395,11 +8393,11 @@
+@@ -8434,11 +8432,11 @@
  from (t1 join t3 on t1.a = t3.a) full join t2 on t1.a = t2.a and t2.a > 3;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
@@ -619,7 +619,7 @@
  # The same range with the nested join on the right.  The nest is
  # computed into a temporary table, so an access path built from the ON
  # would leave rows out of the temporary table that the FULL JOIN still
-@@ -8436,7 +8434,7 @@
+@@ -8475,7 +8473,7 @@
  1	MATERIALIZED	t2	index	a	a	4	NULL	5	20.00	Using where; Using index
  1	MATERIALIZED	t3	ref	a	a	5	test.t2.a	1	100.00	Using where; Using index
  Warnings:
@@ -628,7 +628,7 @@
  # A range over the left operand's column, which reaches the columns of
  # the nest through the equality in the same ON expression.
  select t1.a as a1, t2.a as a2, t3.a as a3
-@@ -8516,10 +8514,10 @@
+@@ -8555,10 +8553,10 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
@@ -642,7 +642,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -8579,10 +8577,12 @@
+@@ -8618,10 +8616,12 @@
  on t1.a=t2.a
  where t1.a > 0;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -659,7 +659,7 @@
  select t1.a, t4.a
  from (t1 join t4 on t1.a=t4.a) full join (t2 join t3 on t2.a=t3.a)
  on t1.a=t2.a
-@@ -8783,9 +8783,9 @@
+@@ -8822,9 +8822,9 @@
  left join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -672,7 +672,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  left join t3 on t3.a = t2.a;
-@@ -8877,9 +8877,10 @@
+@@ -8916,9 +8916,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -686,7 +686,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 left join
  (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -8908,9 +8909,9 @@
+@@ -8947,9 +8948,9 @@
  right join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -699,7 +699,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 right join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  right join t3 on t3.a = t2.a;
-@@ -8937,9 +8938,10 @@
+@@ -8976,9 +8977,10 @@
  right join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -713,7 +713,7 @@
  select t1.a as a1, t5.a as a5, t2.a as a2, t3.a as a3
  from (t1 right join t5 on t1.a = t5.a) full join t2 on t1.a = t2.a
  right join t3 on t3.a = t2.a;
-@@ -9029,9 +9031,9 @@
+@@ -9068,9 +9070,9 @@
  inner join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -726,7 +726,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 inner join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  inner join t3 on t3.a = t2.a;
-@@ -9109,9 +9111,10 @@
+@@ -9148,9 +9150,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -740,7 +740,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 inner join
  (t1 full join (t2 inner join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -9556,9 +9559,9 @@
+@@ -9595,9 +9598,9 @@
  inner join t3 on t3.a = t2.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
@@ -753,7 +753,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
  from t5 left join (t1 full join t2 on t1.a = t2.a) on t5.a = t1.a
  inner join t3 on t3.a = t2.a;
-@@ -9771,9 +9774,10 @@
+@@ -9810,9 +9813,10 @@
  on t5.a = t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
@@ -767,7 +767,7 @@
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 inner join
  (t1 full join (t2 left join t4 on t2.a = t4.a) on t1.a = t2.a)
-@@ -9801,10 +9805,11 @@
+@@ -9840,10 +9844,11 @@
  cross join t4;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	

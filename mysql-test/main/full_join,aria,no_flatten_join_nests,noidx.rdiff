@@ -1,5 +1,5 @@
---- full_join.result	2026-08-17 11:50:12
-+++ full_join,aria,no_flatten_join_nests,noidx.result	2026-08-17 11:46:19
+--- full_join.result	2026-08-21 10:40:42
++++ full_join,aria,no_flatten_join_nests,noidx.result	2026-08-21 10:36:18
 @@ -34,7 +34,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
@@ -117,7 +117,7 @@
  select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
  avg(t2.a) AS avg_t2_a from
  t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
-@@ -4493,7 +4493,7 @@
+@@ -4511,7 +4511,7 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	index	NULL	u	5	NULL	3	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
@@ -126,7 +126,7 @@
  1	MATERIALIZED	t3	eq_ref	u	u	5	test.t2.u	1	Using where; Using index
  select t1.u as u1, t2.u as u2, t3.u as u3
  from t1 full join (t2 join t3 on t2.u = t3.u) on t1.u = t2.u;
-@@ -6186,7 +6186,7 @@
+@@ -6204,7 +6204,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -135,7 +135,7 @@
  select *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6206,7 +6206,7 @@
+@@ -6224,7 +6224,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -144,7 +144,7 @@
  select /*+ join_order(t3,t1,t2) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6226,7 +6226,7 @@
+@@ -6244,7 +6244,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -153,7 +153,7 @@
  select /*+ join_order(t1,t2,t3) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6247,7 +6247,7 @@
+@@ -6265,7 +6265,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t3`,`t2`) is ignored as conflicting/duplicated
@@ -162,7 +162,7 @@
  select /*+ join_order(t1,t3,t2) */ *
  from t3 inner join (t1 full join t2 on t1.a=t2.b)
  on (t3.c=t1.a or t2.b=5);
-@@ -6291,7 +6291,7 @@
+@@ -6309,7 +6309,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -171,7 +171,7 @@
  select *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6314,7 +6314,7 @@
+@@ -6332,7 +6332,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -180,7 +180,7 @@
  select /*+ join_order(t4,t1,t2,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6337,7 +6337,7 @@
+@@ -6355,7 +6355,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -189,7 +189,7 @@
  select /*+ join_order(t1,t2,t3,t4) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6361,7 +6361,7 @@
+@@ -6379,7 +6379,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
@@ -198,7 +198,7 @@
  select /*+ join_order(t4,t2,t1,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6386,7 +6386,7 @@
+@@ -6404,7 +6404,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t4`,`t2`,`t3`) is ignored as conflicting/duplicated
@@ -207,7 +207,7 @@
  select /*+ join_order(t1,t4,t2,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6413,7 +6413,7 @@
+@@ -6431,7 +6431,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
  Warnings:
  Warning	4219	Hint JOIN_ORDER(`t1`,`t2`,`t4`,`t3`) is ignored as conflicting/duplicated
@@ -216,7 +216,7 @@
  select /*+ join_order(t1,t2,t4,t3) */ *
  from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
  on (t4.d=t3.c or t4.d=5);
-@@ -6456,7 +6456,7 @@
+@@ -6474,7 +6474,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -225,7 +225,7 @@
  select /*+ join_prefix(t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6476,7 +6476,7 @@
+@@ -6494,7 +6494,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -234,7 +234,7 @@
  select /*+ join_prefix(t1, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6499,7 +6499,7 @@
+@@ -6517,7 +6517,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_PREFIX(`t1`,`t3`) is ignored as conflicting/duplicated
@@ -243,7 +243,7 @@
  select /*+ join_prefix(t1, t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6521,7 +6521,7 @@
+@@ -6539,7 +6539,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -252,7 +252,7 @@
  select /*+ join_suffix(t3) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6542,7 +6542,7 @@
+@@ -6560,7 +6560,7 @@
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
@@ -261,7 +261,7 @@
  select /*+ join_suffix(t1, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6565,7 +6565,7 @@
+@@ -6583,7 +6583,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
  Warnings:
  Warning	4219	Hint JOIN_SUFFIX(`t3`,`t2`) is ignored as conflicting/duplicated
@@ -270,7 +270,7 @@
  select /*+ join_suffix(t3, t2) */ *
  from (t1 full join t2 on t1.a=t2.b) inner join t3
  on (t3.c=t1.a or t2.b=5);
-@@ -6699,7 +6699,7 @@
+@@ -6717,7 +6717,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
  Warnings:
@@ -279,7 +279,7 @@
  # IS NOT NULL drives the same rewrite path.
  select t1.a, t2.a, t3.a, t4.a
  from t1 left join t2 on (true)
-@@ -6721,7 +6721,7 @@
+@@ -6739,7 +6739,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
  Warnings:
@@ -288,7 +288,7 @@
  # RIGHT JOIN canonicalizes to LEFT JOIN, same trigger applies.
  select t1.a, t2.a, t3.a, t4.a
  from t1 right join t2 on (true)
-@@ -6743,7 +6743,7 @@
+@@ -6761,7 +6761,7 @@
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
  Warnings:
@@ -297,7 +297,7 @@
  # Reproducer matching the original ticket.  All left tables are
  # empty so only null complement rows for t4 reach the WHERE,
  # and GROUP BY collapses them.
-@@ -6771,7 +6771,7 @@
+@@ -6789,7 +6789,7 @@
  1	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	
  1	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
  Warnings:
@@ -306,7 +306,7 @@
  # The guard must not block the normal FULL JOIN rewrite when
  # the left side is a base table.  A plain t1 FULL JOIN t4 with
  # the same WHERE predicate still rewrites and the UNION oracle
-@@ -6787,7 +6787,7 @@
+@@ -6805,7 +6805,7 @@
  1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
  Warnings:
@@ -315,7 +315,7 @@
  select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
  union
  select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
-@@ -6799,13 +6799,13 @@
+@@ -6817,13 +6817,13 @@
  union
  select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -332,7 +332,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -6854,7 +6854,7 @@
+@@ -6872,7 +6872,7 @@
  1	MATERIALIZED	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
  1	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
  Warnings:
@@ -341,7 +341,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -6906,12 +6906,12 @@
+@@ -6924,12 +6924,12 @@
  full join t4 on (true)
  where t3.a <= 1000;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -359,7 +359,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -7706,7 +7706,7 @@
+@@ -7745,7 +7745,7 @@
  2	SUBQUERY	s1	index	NULL	col_varchar_key	12	NULL	20	100.00	Using index
  2	SUBQUERY	s2	ref	col_varchar_key	col_varchar_key	7	test.s1.col_varchar_key	3	100.00	Using where; Using index
  Warnings:
@@ -368,7 +368,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -8088,9 +8088,9 @@
+@@ -8127,9 +8127,9 @@
  select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t1.a < 3;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	t1	index	NULL	a	5	NULL	5	100.00	Using index
@@ -380,7 +380,7 @@
  # Impossible ON range on an indexed column.  There are no matches, so
  # every row is null-complemented; the impossible range must not fold
  # the FULL JOIN to an empty result.
-@@ -8139,7 +8139,7 @@
+@@ -8178,7 +8178,7 @@
  1	SIMPLE	t1	index	NULL	a	5	NULL	3	100.00	Using index
  1	SIMPLE	t2	index	NULL	b	5	NULL	3	100.00	Using where; Using index
  Warnings:
@@ -389,7 +389,7 @@
  select * from t1 natural full join t2;
  a	b
  1	1
-@@ -8225,7 +8225,7 @@
+@@ -8264,7 +8264,7 @@
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	t2	index	NULL	a	4	NULL	5	100.00	Using where; Using index
  Warnings:
@@ -398,7 +398,7 @@
  # ON true: same shape with the boolean literal.
  explain select t1.a, t2.a from t1 full join t2 on true;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-@@ -8361,7 +8361,7 @@
+@@ -8400,7 +8400,7 @@
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	t2	index	a	a	4	NULL	5	100.00	Using where; Using index
  Warnings:
@@ -407,7 +407,7 @@
  # A sargable range in the ON of a FULL JOIN whose left operand is a
  # nested join.  Range analysis reaches an indexed column of a table
  # inside the nest, and every row of both sides must still survive.
-@@ -8395,11 +8395,11 @@
+@@ -8434,11 +8434,11 @@
  from (t1 join t3 on t1.a = t3.a) full join t2 on t1.a = t2.a and t2.a > 3;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
@@ -421,7 +421,7 @@
  # The same range with the nested join on the right.  The nest is
  # computed into a temporary table, so an access path built from the ON
  # would leave rows out of the temporary table that the FULL JOIN still
-@@ -8436,7 +8436,7 @@
+@@ -8475,7 +8475,7 @@
  1	MATERIALIZED	t2	index	a	a	4	NULL	5	20.00	Using where; Using index
  1	MATERIALIZED	t3	ref	a	a	5	test.t2.a	1	100.00	Using where; Using index
  Warnings:
@@ -430,7 +430,7 @@
  # A range over the left operand's column, which reaches the columns of
  # the nest through the equality in the same ON expression.
  select t1.a as a1, t2.a as a2, t3.a as a3
-@@ -8516,10 +8516,10 @@
+@@ -8555,10 +8555,10 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
@@ -444,7 +444,7 @@
  drop table t1;
  drop table t2;
  drop table t3;
-@@ -9110,7 +9110,7 @@
+@@ -9149,7 +9149,7 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
@@ -453,7 +453,7 @@
  1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
  select t5.a as a5, t1.a as a1, t2.a as a2, t4.a as a4
  from t5 inner join
-@@ -9801,10 +9801,10 @@
+@@ -9840,10 +9840,10 @@
  cross join t4;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	

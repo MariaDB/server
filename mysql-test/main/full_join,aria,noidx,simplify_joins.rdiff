@@ -1,6 +1,6 @@
---- full_join.result	2026-08-17 11:50:12
-+++ full_join,aria,noidx,simplify_joins.result	2026-08-17 11:47:06
-@@ -4493,7 +4493,7 @@
+--- full_join.result	2026-08-21 10:40:42
++++ full_join,aria,noidx,simplify_joins.result	2026-08-21 10:37:18
+@@ -4511,7 +4511,7 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	index	NULL	u	5	NULL	3	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
@@ -9,7 +9,7 @@
  1	MATERIALIZED	t3	eq_ref	u	u	5	test.t2.u	1	Using where; Using index
  select t1.u as u1, t2.u as u2, t3.u as u3
  from t1 full join (t2 join t3 on t2.u = t3.u) on t1.u = t2.u;
-@@ -8395,7 +8395,7 @@
+@@ -8434,7 +8434,7 @@
  from (t1 join t3 on t1.a = t3.a) full join t2 on t1.a = t2.a and t2.a > 3;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	
@@ -18,7 +18,7 @@
  1	MATERIALIZED	t3	index	NULL	a	5	NULL	4	100.00	Using index
  1	MATERIALIZED	t1	index	NULL	a	4	NULL	5	100.00	Using index
  Warnings:
-@@ -8516,8 +8516,8 @@
+@@ -8555,8 +8555,8 @@
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
  1	SIMPLE	t1	index	NULL	a	4	NULL	5	100.00	Using index
  1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where
