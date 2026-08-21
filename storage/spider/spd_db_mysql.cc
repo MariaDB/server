@@ -6102,6 +6102,8 @@ int spider_db_mbase_util::open_item_sum_func(
   int error_num;
   DBUG_ENTER("spider_db_mbase_util::open_item_sum_func");
   DBUG_PRINT("info",("spider Sumfunctype = %d", item_sum->sum_func()));
+  if (item_sum->has_filter())
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   switch (item_sum->sum_func())
   {
     case Item_sum::COUNT_FUNC:

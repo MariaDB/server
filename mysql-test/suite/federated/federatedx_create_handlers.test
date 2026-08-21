@@ -1024,9 +1024,46 @@ drop table federated.t1, federated.t2;
 connection slave;
 drop table federated.t1, federated.t2;
 
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-24943: Implement FILTER clause support for aggregate functions
+--echo #
+
+--connection slave
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+);
+
+INSERT INTO federated.t1 VALUES
+  (3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+
+--connection master
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+select sum(id) from federated.t1;
+explain
+select sum(id) filter (where name = 'yyy') from federated.t1;
+select sum(id) filter (where name = 'yyy') from federated.t1;
+
+drop table federated.t1;
+
+connection slave;
+drop table federated.t1;
+
+--echo # End of 13.2 tests
+
 # cleanup
 connection default;
 set global federated_pushdown=0;
 source include/federated_cleanup.inc;
 
---echo # End of 11.4 tests
+--echo # End of 13.2 tests
