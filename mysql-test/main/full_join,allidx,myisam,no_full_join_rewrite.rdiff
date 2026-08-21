@@ -1,5 +1,5 @@
---- full_join.result	2026-08-21 10:40:42
-+++ full_join,allidx,myisam,no_full_join_rewrite.result	2026-08-21 10:39:19
+--- full_join.result	2026-08-21 10:55:56
++++ full_join,allidx,myisam,no_full_join_rewrite.reject	2026-08-21 12:36:43
 @@ -31,10 +31,10 @@
  NULL	3
  explain extended select * from t1 full join t2 on t1.a = t2.a;
@@ -1046,7 +1046,7 @@
 -1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 +1	SIMPLE	t3	index	NULL	fj_idx_c	5	NULL	2	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t3.c	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	2	Using index
 +1	SIMPLE	t2	ref	fj_idx_b	fj_idx_b	5	test.t3.c	1	Using where; Using index
  select * from t3 left join (t1 full join t2 on t1.a = t2.b)
  on t3.c = t1.a;
@@ -1111,7 +1111,7 @@
 -1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 +1	SIMPLE	t3	index	NULL	fj_idx_c	5	NULL	2	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t3.c	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	2	Using index
 +1	SIMPLE	t2	ref	fj_idx_b	fj_idx_b	5	test.t1.a	1	Using where; Using index
  select * from (t1 full join t2 on t1.a = t2.b) right join t3
  on t1.a = t3.c;
@@ -1138,7 +1138,7 @@
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 -1	SIMPLE	t3b	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (incremental, BNL join)
 +1	SIMPLE	t3	index	NULL	fj_idx_c	5	NULL	2	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t3.c	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	2	Using index
 +1	SIMPLE	t2	ref	fj_idx_b	fj_idx_b	5	test.t1.a	1	Using where; Using index
 +1	SIMPLE	t3b	index	NULL	fj_idx_c	5	NULL	2	Using index
  select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
@@ -1256,7 +1256,7 @@
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
 -1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 +1	SIMPLE	t5	index	NULL	fj_idx_a	5	NULL	3	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t5.a	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	3	Using index
 +1	SIMPLE	t2	ref	fj_idx_a	fj_idx_a	5	test.t1.a	1	Using where; Using index
 +1	SIMPLE	t3	ref	fj_idx_a	fj_idx_a	5	test.t2.a	1	Using where; Using index
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3
@@ -1301,7 +1301,7 @@
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
 -1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 +1	SIMPLE	t5	index	NULL	fj_idx_a	5	NULL	3	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t5.a	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	3	Using index
 +1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	0	Using where
 +1	MATERIALIZED	t2	index	fj_idx_a	fj_idx_a	5	NULL	3	Using index
 +1	MATERIALIZED	t4	ref	fj_idx_a	fj_idx_a	5	test.t2.a	1	Using where; Using index
@@ -1569,7 +1569,7 @@
 -1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
 -1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
 +1	SIMPLE	t5	index	NULL	fj_idx_a	5	NULL	3	Using index
-+1	SIMPLE	t1	ref	fj_idx_a	fj_idx_a	5	test.t5.a	1	Using index
++1	SIMPLE	t1	index	fj_idx_a	fj_idx_a	5	NULL	3	Using index
 +1	SIMPLE	t2	ref	fj_idx_a	fj_idx_a	5	test.t1.a	1	Using where; Using index
 +1	SIMPLE	t3	ref	fj_idx_a	fj_idx_a	5	test.t2.a	1	Using index
  select t5.a as a5, t1.a as a1, t2.a as a2, t3.a as a3

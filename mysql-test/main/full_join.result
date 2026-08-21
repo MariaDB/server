@@ -11452,6 +11452,104 @@ drop table t2;
 drop table t3;
 drop table t4;
 # ====================================================================
+# Section 36: An enclosing ON that keeps the left side NULLs
+# ====================================================================
+#
+# The pass that produces a FULL JOIN's right side rows emits a right
+# row only when no left row matched it, so the record of which right
+# rows matched is complete only once every left row has been read.
+# A join above the FULL JOIN whose ON reads a left side column can
+# supply a key value for that table, and reading the left side on
+# that key reads fewer rows than the FULL JOIN needs.
+#
+# A plain equality is safe either way because it rejects the NULLs
+# the FULL JOIN pads its left side with, so the enclosing join drops
+# the rows a shortened scan got wrong.  A null safe equality keeps
+# those rows, and a right row whose match went unread then comes back
+# as a row that never matched.
+#
+# The left side of a FULL JOIN that still runs as one is read in
+# full, so the plans below show a scan there.  The right side keeps
+# the key access the FULL JOIN's own ON gives it.
+create table t1 (a int, key(a));
+create table t2 (b int, key(b));
+create table t3 (c int, key(c));
+create table t4 (d int, key(d));
+insert into t1 values (1),(2),(3),(NULL);
+insert into t2 values (2),(3),(5);
+insert into t3 values (NULL),(3);
+insert into t4 values (1),(2),(NULL);
+# A null safe equality in the enclosing ON reads the left side table.
+explain select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c <=> t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	c	5	NULL	#	Using index
+1	SIMPLE	t1	index	a	a	5	NULL	#	Using index
+1	SIMPLE	t2	ref	b	b	5	test.t1.a	#	Using where; Using index
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c <=> t1.a;
+c	a	b
+3	3	3
+NULL	NULL	5
+NULL	NULL	NULL
+# The same shape written as a RIGHT JOIN.
+explain select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t3.c <=> t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	c	5	NULL	#	Using index
+1	SIMPLE	t1	index	a	a	5	NULL	#	Using index
+1	SIMPLE	t2	ref	b	b	5	test.t1.a	#	Using where; Using index
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t3.c <=> t1.a;
+a	b	c
+3	3	3
+NULL	5	NULL
+NULL	NULL	NULL
+# A plain equality in the same place, which rejects the padded NULLs.
+# No plan is shown for it because whether the FULL JOIN is rewritten
+# decides the access method here, and this file runs with the
+# rewrite both on and off.
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+c	a	b
+3	3	3
+NULL	NULL	NULL
+# A null safe equality reading the right side table instead, where
+# a key access changes nothing about which left rows are read.
+explain select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c <=> t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	c	5	NULL	#	Using index
+1	SIMPLE	t1	index	NULL	a	5	NULL	#	Using index
+1	SIMPLE	t2	ref	b	b	5	test.t1.a	#	Using where; Using index
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c <=> t2.b;
+c	a	b
+3	3	3
+NULL	1	NULL
+NULL	NULL	NULL
+# The left side is a nest, so the whole nest has to be read.
+explain select * from t3 left join
+((t1 join t4 on t1.a = t4.d) full join t2 on t1.a = t2.b)
+on t3.c <=> t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	c	5	NULL	#	Using index
+1	SIMPLE	<derived>	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t2	ref	b	b	5	test.t1.a	#	Using where; Using index
+1	MATERIALIZED	t4	index	NULL	d	5	NULL	#	Using index
+1	MATERIALIZED	t1	index	a	a	5	NULL	#	Using index
+select * from t3 left join
+((t1 join t4 on t1.a = t4.d) full join t2 on t1.a = t2.b)
+on t3.c <=> t1.a;
+c	a	d	b
+3	NULL	NULL	NULL
+NULL	NULL	NULL	3
+NULL	NULL	NULL	5
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+# ====================================================================
 # Section 38: An eliminated table inside a FULL JOIN operand nest
 # ====================================================================
 #

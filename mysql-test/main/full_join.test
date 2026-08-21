@@ -7536,6 +7536,85 @@ drop table t3;
 drop table t4;
 
 --echo # ====================================================================
+--echo # Section 36: An enclosing ON that keeps the left side NULLs
+--echo # ====================================================================
+--echo #
+--echo # The pass that produces a FULL JOIN's right side rows emits a right
+--echo # row only when no left row matched it, so the record of which right
+--echo # rows matched is complete only once every left row has been read.
+--echo # A join above the FULL JOIN whose ON reads a left side column can
+--echo # supply a key value for that table, and reading the left side on
+--echo # that key reads fewer rows than the FULL JOIN needs.
+--echo #
+--echo # A plain equality is safe either way because it rejects the NULLs
+--echo # the FULL JOIN pads its left side with, so the enclosing join drops
+--echo # the rows a shortened scan got wrong.  A null safe equality keeps
+--echo # those rows, and a right row whose match went unread then comes back
+--echo # as a row that never matched.
+--echo #
+--echo # The left side of a FULL JOIN that still runs as one is read in
+--echo # full, so the plans below show a scan there.  The right side keeps
+--echo # the key access the FULL JOIN's own ON gives it.
+
+create table t1 (a int, key(a));
+create table t2 (b int, key(b));
+create table t3 (c int, key(c));
+create table t4 (d int, key(d));
+insert into t1 values (1),(2),(3),(NULL);
+insert into t2 values (2),(3),(5);
+insert into t3 values (NULL),(3);
+insert into t4 values (1),(2),(NULL);
+--source include/full_join_add_indexes.inc
+
+--echo # A null safe equality in the enclosing ON reads the left side table.
+--replace_column 9 #
+explain select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c <=> t1.a;
+--sorted_result
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c <=> t1.a;
+
+--echo # The same shape written as a RIGHT JOIN.
+--replace_column 9 #
+explain select * from (t1 full join t2 on t1.a = t2.b) right join t3
+  on t3.c <=> t1.a;
+--sorted_result
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+  on t3.c <=> t1.a;
+
+--echo # A plain equality in the same place, which rejects the padded NULLs.
+--echo # No plan is shown for it because whether the FULL JOIN is rewritten
+--echo # decides the access method here, and this file runs with the
+--echo # rewrite both on and off.
+--sorted_result
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # A null safe equality reading the right side table instead, where
+--echo # a key access changes nothing about which left rows are read.
+--replace_column 9 #
+explain select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c <=> t2.b;
+--sorted_result
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c <=> t2.b;
+
+--echo # The left side is a nest, so the whole nest has to be read.
+--replace_column 9 #
+explain select * from t3 left join
+  ((t1 join t4 on t1.a = t4.d) full join t2 on t1.a = t2.b)
+  on t3.c <=> t1.a;
+--sorted_result
+select * from t3 left join
+  ((t1 join t4 on t1.a = t4.d) full join t2 on t1.a = t2.b)
+  on t3.c <=> t1.a;
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+--echo # ====================================================================
 --echo # Section 38: An eliminated table inside a FULL JOIN operand nest
 --echo # ====================================================================
 --echo #

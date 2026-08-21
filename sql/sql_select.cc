@@ -9211,6 +9211,45 @@ const char* dbug_print_join_prefix(const POSITION *join_positions,
 }
 #endif
 
+
+/*
+  Whether a key value may position a table on the left side of a FULL
+  JOIN that still runs as one.
+
+  The pass that produces the right side rows emits a right row only
+  when no left row matched it, so the record of which right rows
+  matched is complete only once every left row has been read.  An
+  access method that positions a left side table on a key value taken
+  from outside the left side reads fewer left rows than that, and a
+  right row whose match went unread comes back as a row that never
+  matched.
+
+  A key value that reads only tables of the same left side is allowed.
+  Those tables are joined among themselves before the FULL JOIN pairs
+  the two sides, so such an access decides where one left side table is
+  read from another, not how much of the left side the FULL JOIN sees.
+
+  A rewritten FULL JOIN has JOIN_TYPE_FULL cleared on both sides, so
+  the operand below is found only while the join still runs as a FULL
+  JOIN.
+*/
+
+static bool full_join_left_side_allows(TABLE_LIST *tl,
+                                       table_map used_tables)
+{
+  for ( ; tl ; tl= tl->embedding)
+  {
+    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_LEFT)) !=
+        (JOIN_TYPE_FULL | JOIN_TYPE_LEFT))
+      continue;
+    return !(used_tables &
+             ~(tl->nested_join ? tl->nested_join->used_tables
+                               : tl->table->map));
+  }
+  return true;
+}
+
+
 /**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
@@ -9448,6 +9487,8 @@ best_access_path(JOIN      *join,
               (!keyuse->validity_ref || *keyuse->validity_ref) &&
               s->access_from_tables_is_allowed(keyuse->used_tables,
                                                join->sjm_lookup_tables) &&
+              full_join_left_side_allows(table->pos_in_table_list,
+                                         keyuse->used_tables) &&
               !(ref_or_null_part && (keyuse->optimize &
                                      KEY_OPTIMIZE_REF_OR_NULL)))
           {
@@ -13219,6 +13260,15 @@ bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
 {
   if (!access_from_tables_is_allowed(keyuse->used_tables, 
                                      join->sjm_lookup_tables))
+    return false;
+  /*
+    A key part whose value comes from outside a FULL JOIN's left side
+    is refused for the same reason best_access_path refuses it, so that
+    a key the plan picked for its other parts cannot pick this one up
+    when the ref is built.
+  */
+  if (!full_join_left_side_allows(table->pos_in_table_list,
+                                  keyuse->used_tables))
     return false;
   if (join->sjm_scan_tables & table->map)
     return true;
