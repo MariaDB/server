@@ -1,0 +1,31 @@
+include/reset_master.inc
+set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET SESSION server_id= 12345;
+*** Generate a small workload into binlog-000000.ibb
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+UPDATE t1 SET b=1 WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+REPLACE INTO t1 VALUES (3, 3);
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+3	3
+FLUSH BINARY LOGS;
+*** Convert binlog-000000.ibb to legacy format
+*** Converted file contains the synthesized header events
+FOUND 1 /Gtid list/ in conv_listing.txt
+FOUND 1 /Binlog checkpoint conv.000001/ in conv_listing.txt
+FOUND 1 /Start: binlog v 4/ in conv_listing.txt
+FOUND 1 /server v 13.1.0-MariaDB/ in conv_listing.txt
+FOUND 1 /#700121 15:32:22 server id 12345.*Start: binlog v 4/ in conv_listing.txt
+FOUND 1 /#700121 15:32:22 server id 12345.*Gtid list/ in conv_listing.txt
+FOUND 1 /#700121 15:32:22 server id 12345.*Binlog checkpoint conv.000001/ in conv_listing.txt
+NOT FOUND /Rotate to/ in conv_listing.txt
+*** Round-trip: replay the converted file and compare data
+DROP TABLE t1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+3	3
+DROP TABLE t1;

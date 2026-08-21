@@ -1,0 +1,16 @@
+*** --read-from-remote-server is unsupported
+ERROR: The --convert-engine-binlog option does not support --read-from-remote-server
+*** --raw is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --raw
+*** --flashback is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --flashback
+*** --stop-datetime is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --stop-datetime
+*** Numeric --stop-position is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --stop-position
+*** GTID --start-position is unsupported
+ERROR: The --convert-engine-binlog option does not support GTID values for --start-position or --stop-position
+*** GTID --stop-position is unsupported
+ERROR: The --convert-engine-binlog option does not support GTID values for --start-position or --stop-position
+*** Legacy binlog input is unsupported
+ERROR: The --convert-engine-binlog option requires InnoDB-engine binlog input files

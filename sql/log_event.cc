@@ -2370,6 +2370,59 @@ Format_description_log_event(const uchar *buf, uint event_len,
   DBUG_VOID_RETURN;
 }
 
+bool
+Format_description_log_event::to_packet(String *packet)
+{
+  uchar *p;
+  uint32 needed_length=
+    packet->length() + START_V3_HEADER_LEN + 1 + number_of_event_types + 1;
+  if (packet->reserve(needed_length))
+    return true;
+  p= (uchar *)packet->ptr() + packet->length();
+  packet->length(needed_length);
+  int2store(p, binlog_version);
+  p += 2;
+  memcpy(p, server_version, ST_SERVER_VER_LEN);
+  p+= ST_SERVER_VER_LEN;
+#ifdef MYSQL_SERVER
+  if (!dont_set_created)
+    created= get_time();
+#endif
+  int4store(p, created);
+  p+= 4;
+  *p++= common_header_len;
+  memcpy(p, post_header_len, number_of_event_types);
+  p+= number_of_event_types;
+
+  /*
+    if checksum is requested
+    record the checksum-algorithm descriptor next to
+    post_header_len vector which will be followed by the checksum value.
+    Master is supposed to trigger checksum computing by binlog_checksum_options,
+    slave does it via marking the event according to
+    FD_queue checksum_alg value.
+  */
+  compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
+  uint8 checksum_byte= (uint8) (used_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF ?
+                                used_checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
+  DBUG_ASSERT(used_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+  /* 
+     FD of checksum-aware server is always checksum-equipped, (V) is in,
+     regardless of @@global.binlog_checksum policy.
+     Thereby a combination of (A) == 0, (V) != 0 means
+     it's the checksum-aware server's FD event that heads checksum-free binlog
+     file. 
+     Here 0 stands for checksumming OFF to evaluate (V) as 0 is that case.
+     A combination of (A) != 0, (V) != 0 denotes FD of the checksum-aware server
+     heading the checksummed binlog.
+     (A), (V) presence in FD of the checksum-aware server makes the event
+     1 + 4 bytes bigger comparing to the former FD.
+  */
+  *p++= checksum_byte;
+
+  return false;
+}
+
 bool Format_description_log_event::start_decryption(Start_encryption_log_event* sele)
 {
   DBUG_ASSERT(crypto_data.scheme == 0);
@@ -2771,6 +2824,35 @@ Gtid_list_log_event::Gtid_list_log_event(const uchar *buf, uint event_len,
 #endif
 }
 
+bool
+Gtid_list_log_event::to_packet(String *packet)
+{
+  uint32 i;
+  uchar *p;
+  uint32 needed_length;
+
+  DBUG_ASSERT(count < 1<<28);
+
+  needed_length= packet->length() + get_data_size();
+  if (packet->reserve(needed_length))
+    return true;
+  p= (uchar *)packet->ptr() + packet->length();;
+  packet->length(needed_length);
+  int4store(p, (count & ((1<<28)-1)) | gl_flags);
+  p += 4;
+  /* Initialise the padding for empty Gtid_list. */
+  if (count == 0)
+    int2store(p, 0);
+  for (i= 0; i < count; ++i)
+  {
+    int4store(p, list[i].domain_id);
+    int4store(p+4, list[i].server_id);
+    int8store(p+8, list[i].seq_no);
+    p += 16;
+  }
+
+  return false;
+}
 
 /*
   Used to record gtid_list event while sending binlog to slave, without having to
