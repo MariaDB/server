@@ -34,6 +34,9 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo);
 int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate);
 void mhnsw_free(TABLE_SHARE *share);
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo);
+int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows);
+int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo);
+int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo);
 
 extern ha_create_table_option mhnsw_index_options[];
 extern st_plugin_int *mhnsw_plugin;
