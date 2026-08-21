@@ -128,7 +128,7 @@ static int aria_backup_mkdir(const struct backup_target *target,
   if ((int) sizeof path <=
       snprintf(path, sizeof path, "%s/%s", target->path, name))
   {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), dir_name);
+    my_error(ER_TOO_LONG_IDENT, MYF(0), name);
     return -1;
   }
   if (CreateDirectory(path, NULL))
