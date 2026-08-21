@@ -1,0 +1,59 @@
+#
+# MDEV-37167 Nested BEGINs (4600+) cause a segmentation fault
+#
+#
+# Unclosed BEGINs
+#
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p1() ', REPEAT('BEGIN ', 6000));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+#
+# Well-formed deep routine
+#
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p2() ',
+REPEAT('BEGIN ', 6000), REPEAT('END; ', 5999), 'END');
+DROP PROCEDURE p2;
+#
+# Same, with variables, so the contexts are not empty
+#
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p3() ',
+REPEAT('BEGIN DECLARE v INT DEFAULT 1; ', 2000),
+REPEAT('END; ', 1999), 'END');
+DROP PROCEDURE p3;
+#
+# A deep FUNCTION tears down the same way
+#
+EXECUTE IMMEDIATE CONCAT('CREATE FUNCTION f1() RETURNS INT ',
+REPEAT('BEGIN ', 6000), 'RETURN 1; ',
+REPEAT('END; ', 5999), 'END');
+DROP FUNCTION f1;
+#
+# Invoking a deep routine must not crash. It is rejected with
+# ER_STACK_OVERRUN_NEED_MORE when the frame does not fit the thread
+# stack, which depends on the build, so both outcomes are accepted.
+#
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p4() ',
+REPEAT('BEGIN ', 6000), REPEAT('END; ', 5999), 'END');
+CALL p4();
+DROP PROCEDURE p4;
+#
+# Nested scopes must still resolve correctly
+#
+CREATE PROCEDURE p5()
+BEGIN
+DECLARE a INT DEFAULT 1;
+BEGIN
+DECLARE b INT DEFAULT 2;
+BEGIN
+DECLARE c INT DEFAULT 3;
+SELECT a + b + c AS total;
+END;
+END;
+END$$
+CALL p5();
+total
+6
+DROP PROCEDURE p5;
+SELECT 'Server is alive' AS state;
+state
+Server is alive
+# End of 10.11 tests
