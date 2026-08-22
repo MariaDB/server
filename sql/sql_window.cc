@@ -922,7 +922,7 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
     Window_spec *spec= win_func->window_spec;
     Item_sum *sum_func= win_func->window_func();
     if (!sum_func->is_streamable() || sum_func->has_with_distinct() ||
-        (!win_func->is_frame_prohibited() &&
+        (!win_func->is_frame_prohibited() && !spec->order_is_unique &&
          !frame_is_streaming_compatible(spec)))
       return false;
   }
@@ -2626,7 +2626,8 @@ private:
 /*
   Get a Frame_cursor for a frame bound. This is a "factory function".
 */
-Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
+Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound,
+                               bool for_streaming= false)
 {
   Window_frame *frame= spec->window_frame;
   if (!frame)
@@ -2653,10 +2654,16 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
       return new Frame_unbounded_preceding(thd,
                                            spec->partition_list,
                                            spec->order_list);
-    else
-      return new Frame_range_current_row_bottom(thd,
-                                                spec->partition_list,
-                                                spec->order_list);
+    /*
+      When streaming and the order is provably unique (no peers), the default
+      RANGE UNBOUNDED PRECEDING AND CURRENT ROW frame is equivalent to the ROWS
+      frame. We use it instead for streaming so as to not call
+      walk_till_non_peer().
+    */
+    if (for_streaming && spec->order_is_unique)
+      return new Frame_rows_current_row_bottom;
+    return new Frame_range_current_row_bottom(thd, spec->partition_list,
+                                              spec->order_list);
   }
 
   Window_frame_bound *bound= is_top_bound? frame->top_bound :
@@ -2951,8 +2958,8 @@ bool get_window_functions_required_cursors(
       continue;
     }
 
-    Frame_cursor *frame_bottom= get_frame_cursor(thd,
-        item_win_func->window_spec, false);
+    Frame_cursor *frame_bottom= get_frame_cursor(
+        thd, item_win_func->window_spec, false, for_streaming);
     Frame_cursor *frame_top= get_frame_cursor(thd,
         item_win_func->window_spec, true);
 

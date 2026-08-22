@@ -290,7 +290,9 @@ static bool test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,
                                     const key_map *map,
                                     bool *fatal_error);
 static bool list_contains_unique_index(TABLE *table,
-                          bool (*find_func) (Field *, void *), void *data);
+                                       bool (*find_func)(Field *, void *),
+                                       void *data,
+                                       bool ignore_table_maybe_null= false);
 static bool find_field_in_item_list (Field *field, void *data);
 static bool find_field_in_order_list (Field *field, void *data);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
@@ -3336,6 +3338,36 @@ int JOIN::optimize_stage2()
         simple_group= 0;
       if (order)
         simple_order= 0;
+    }
+  }
+
+  /*
+    A default aggregate window uses a RANGE UNBOUNDED PRECEDING
+    AND CURRENT ROW frame, whose "current row" spans all peers - which needs to
+    lookahead and so can't stream. But if the window's order list is provably
+    unique and NOT NULL, no lookahead is needed and the RANGE can be treated as
+    ROWS instead.
+
+    This works for queries with a single non-const table only. Uniqueness of a
+    base-table index does not imply uniqueness of the join output.
+  */
+  {
+    List_iterator_fast<Item_window_func> wit(select_lex->window_funcs);
+    Item_window_func *wf;
+    while ((wf= wit++))
+    {
+      Window_spec *spec= wf->window_spec;
+      if (wf->window_func()->is_streamable() && !wf->is_frame_prohibited() &&
+          !spec->window_frame)
+      {
+        spec->join_partition_and_order_lists();
+        spec->order_is_unique=
+            (table_count - const_tables == 1) &&
+            list_contains_unique_index(
+                join_tab[const_tables].table, find_field_in_order_list,
+                (void *) spec->partition_list->first, true);
+        spec->disjoin_partition_and_order_lists();
+      }
     }
   }
 
@@ -27529,9 +27561,10 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
     0                    not found.
 */
 
-static bool
-list_contains_unique_index(TABLE *table,
-                          bool (*find_func) (Field *, void *), void *data)
+static bool list_contains_unique_index(TABLE *table,
+                                       bool (*find_func)(Field *, void *),
+                                       void *data,
+                                       bool ignore_table_maybe_null)
 {
   for (uint keynr= 0; keynr < table->s->keys; keynr++)
   {
@@ -27546,8 +27579,14 @@ list_contains_unique_index(TABLE *table,
            key_part < key_part_end;
            key_part++)
       {
-        if (key_part->field->maybe_null() ||
-            !find_func(key_part->field, data))
+        /*
+          ignore_table_maybe_null callers only care about the column's own
+          declared nullability, not TABLE::maybe_null
+        */
+        bool part_is_nullable= ignore_table_maybe_null
+                                   ? key_part->field->real_maybe_null()
+                                   : key_part->field->maybe_null();
+        if (part_is_nullable || !find_func(key_part->field, data))
           break;
       }
       if (key_part == key_part_end)

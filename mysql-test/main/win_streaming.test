@@ -2,24 +2,6 @@
 # Streaming Window Functions Tests
 #
 
-# I will remove these comments when I'm done testing, will just write the # cases I'll consider for testing here.
-
-# Explain per scenario to lock up streaming path
-# Explains for non streamable cases, no need to check output
-
-# Order by and partition
-# Explain with one function to show streamable and index or filesort is
-# used
-# Show compatible functions also stream
-# show results only to prove partition tracking correctness
-# windows reusing the main query order (whichever is longer) under its mdev
-# incompatible orders materialize
-# aggregate functions inside partition lists materialize
-# aggregate functions anywhere in the select list materialize
-# cases to look harder later (subqueries, expressions)
-
-# Test with limit and analyze to show we read only rows needed
-
 # For each streamable case we run the query twice: once as-is (streaming path)
 # and once with SQL_BUFFER_RESULT, which forces a temp table and so the old
 # materialized path. The two must agree, which is what proves the streamed
@@ -296,13 +278,117 @@ eval SELECT $q;
 --sorted_result
 eval SELECT SQL_BUFFER_RESULT $q;
 
+
+# Default frame (RANGE) over a unique non-NULL order for aggregate functions can stream
+# It's proven no peers exist so the RANGE frame is equivalent to a ROWS frame, which does not require lookahead.
+# This is only for single table queries, as uniqueness of a base table index does not imply that of the join output.
+
+
+# Single-column PRIMARY KEY as the order
+--let $q= pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# PARTITION BY a with the unique order pk
+--let $q= pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+--let $q= pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Non-unique order on the same table: peers exist, materializes.
+EXPLAIN EXTENDED SELECT pk, sum(b) OVER (ORDER BY a) FROM t1;
+
+# A unique NOT NULL index other than the PRIMARY KEY also proves uniqueness; a
+# NULLable UNIQUE index does not.
+CREATE TABLE tu (
+  id INT PRIMARY KEY,
+  u  INT NOT NULL UNIQUE,
+  n  INT UNIQUE,
+  v  INT
+);
+INSERT INTO tu VALUES (1, 100, 1,    5);
+INSERT INTO tu VALUES (2, 200, NULL, 5);
+INSERT INTO tu VALUES (3, 300, 3,    7);
+INSERT INTO tu VALUES (4, 400, NULL, 7);
+INSERT INTO tu VALUES (5, 500, 5,    9);
+
+# Order by the NOT NULL UNIQUE column: streams.
+--let $q= id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Order by the NULLable UNIQUE column: not provably unique, materializes.
+EXPLAIN EXTENDED SELECT id, sum(v) OVER (ORDER BY n) FROM tu;
+
+DROP TABLE tu;
+
+# Composite unique NOT NULL key: the full key in the order streams; a prefix of
+# it does not; PARTITION BY + ORDER BY that together cover the key streams.
+CREATE TABLE tc (x INT NOT NULL, y INT NOT NULL, v INT, PRIMARY KEY (x, y));
+INSERT INTO tc VALUES (1, 1, 10);
+INSERT INTO tc VALUES (1, 2, 20);
+INSERT INTO tc VALUES (2, 1, 30);
+INSERT INTO tc VALUES (2, 2, 40);
+INSERT INTO tc VALUES (3, 1, 50);
+
+# Full composite key in the order: streams.
+--let $q= x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+# Prefix of the composite key only materializes.
+EXPLAIN EXTENDED SELECT x, sum(v) OVER (ORDER BY x) FROM tc;
+
+# PARTITION BY x plus ORDER BY y together cover the composite key: streams.
+--let $q= x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y)
+eval EXPLAIN EXTENDED SELECT $q;
+--sorted_result
+eval SELECT $q;
+--sorted_result
+eval SELECT SQL_BUFFER_RESULT $q;
+
+DROP TABLE tc;
+
+# Single table only is covered, because the uniqueness of a base table order does not 
+# imply the uniqueness of the join output (1:N joins), this materializes.
+CREATE TABLE t2 (pk INT PRIMARY KEY, c INT);
+INSERT INTO t2 VALUES (1, 10);
+INSERT INTO t2 VALUES (2, 20);
+INSERT INTO t2 VALUES (3, 30);
+INSERT INTO t2 VALUES (4, 40);
+INSERT INTO t2 VALUES (5, 50);
+INSERT INTO t2 VALUES (6, 60);
+INSERT INTO t2 VALUES (7, 70);
+INSERT INTO t2 VALUES (8, 80);
+INSERT INTO t2 VALUES (9, 90);
+EXPLAIN EXTENDED SELECT t1.pk, sum(t1.b) OVER (ORDER BY t1.pk) FROM t1 JOIN t2 ON t1.pk = t2.pk;
+DROP TABLE t2;
+
 #
 # Aggregate window functions that do NOT stream (still "Using temporary").
 #
 
-# Default-frame: ORDER BY with no explicit frame defaults to RANGE, not ROWS.
-# Under RANGE "current row" is the end of the peer group, so a row's value is
-# unknown until the group is scanned ahead and buffered.
+# Default-frame (RANGE) over a NON-unique order: peers exist, so a row's value
+# is unknown until the peer group is scanned ahead and buffered. Materializes.
+# (Contrast the unique-order default-frame cases above, which stream.)
 EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
 # Explicit RANGE, same peer-group reason.
 EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;

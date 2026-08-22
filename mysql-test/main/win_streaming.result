@@ -654,6 +654,175 @@ pk	a	b	cnt	s	av	mn	mx
 7	3	10	1	10	10.0000	10	10
 8	3	30	2	40	20.0000	10	30
 9	3	30	3	70	23.3333	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	4	60	15.0000	10	20
+5	2	20	5	80	16.0000	10	20
+6	2	30	6	110	18.3333	10	30
+7	3	10	7	120	17.1429	10	30
+8	3	30	8	150	18.7500	10	30
+9	3	30	9	180	20.0000	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	4	60	15.0000	10	20
+5	2	20	5	80	16.0000	10	20
+6	2	30	6	110	18.3333	10	30
+7	3	10	7	120	17.1429	10	30
+8	3	30	8	150	18.7500	10	30
+9	3	30	9	180	20.0000	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+SELECT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+pk	a	b	s	mx
+1	1	10	10	10
+2	1	10	20	10
+3	1	20	40	20
+4	2	20	20	20
+5	2	20	40	20
+6	2	30	70	30
+7	3	10	10	10
+8	3	30	40	30
+9	3	30	70	30
+SELECT SQL_BUFFER_RESULT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+pk	a	b	s	mx
+1	1	10	10	10
+2	1	10	20	10
+3	1	20	40	20
+4	2	20	20	20
+5	2	20	40	20
+6	2	30	70	30
+7	3	10	10	10
+8	3	30	40	30
+9	3	30	70	30
+EXPLAIN EXTENDED SELECT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+SELECT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	s	rnk
+1	1	10	10	1
+2	1	10	20	2
+3	1	20	40	3
+4	2	20	60	4
+5	2	20	80	5
+6	2	30	110	6
+7	3	10	120	7
+8	3	30	150	8
+9	3	30	180	9
+SELECT SQL_BUFFER_RESULT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	s	rnk
+1	1	10	10	1
+2	1	10	20	2
+3	1	20	40	3
+4	2	20	60	4
+5	2	20	80	5
+6	2	30	110	6
+7	3	10	120	7
+8	3	30	150	8
+9	3	30	180	9
+EXPLAIN EXTENDED SELECT pk, sum(b) OVER (ORDER BY a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+CREATE TABLE tu (
+id INT PRIMARY KEY,
+u  INT NOT NULL UNIQUE,
+n  INT UNIQUE,
+v  INT
+);
+INSERT INTO tu VALUES (1, 100, 1,    5);
+INSERT INTO tu VALUES (2, 200, NULL, 5);
+INSERT INTO tu VALUES (3, 300, 3,    7);
+INSERT INTO tu VALUES (4, 400, NULL, 7);
+INSERT INTO tu VALUES (5, 500, 5,    9);
+EXPLAIN EXTENDED SELECT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tu	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+SELECT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	u	s	cnt
+1	100	5	1
+2	200	10	2
+3	300	17	3
+4	400	24	4
+5	500	33	5
+SELECT SQL_BUFFER_RESULT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	u	s	cnt
+1	100	5	1
+2	200	10	2
+3	300	17	3
+4	400	24	4
+5	500	33	5
+EXPLAIN EXTENDED SELECT id, sum(v) OVER (ORDER BY n) FROM tu;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tu	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary
+DROP TABLE tu;
+CREATE TABLE tc (x INT NOT NULL, y INT NOT NULL, v INT, PRIMARY KEY (x, y));
+INSERT INTO tc VALUES (1, 1, 10);
+INSERT INTO tc VALUES (1, 2, 20);
+INSERT INTO tc VALUES (2, 1, 30);
+INSERT INTO tc VALUES (2, 2, 40);
+INSERT INTO tc VALUES (3, 1, 50);
+EXPLAIN EXTENDED SELECT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+SELECT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+x	y	s	mn
+1	1	10	10
+1	2	30	10
+2	1	60	10
+2	2	100	10
+3	1	150	10
+SELECT SQL_BUFFER_RESULT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+x	y	s	mn
+1	1	10	10
+1	2	30	10
+2	1	60	10
+2	2	100	10
+3	1	150	10
+EXPLAIN EXTENDED SELECT x, sum(v) OVER (ORDER BY x) FROM tc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary
+EXPLAIN EXTENDED SELECT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+SELECT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+x	y	s
+1	1	10
+1	2	30
+2	1	30
+2	2	70
+3	1	50
+SELECT SQL_BUFFER_RESULT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+x	y	s
+1	1	10
+1	2	30
+2	1	30
+2	2	70
+3	1	50
+DROP TABLE tc;
+CREATE TABLE t2 (pk INT PRIMARY KEY, c INT);
+INSERT INTO t2 VALUES (1, 10);
+INSERT INTO t2 VALUES (2, 20);
+INSERT INTO t2 VALUES (3, 30);
+INSERT INTO t2 VALUES (4, 40);
+INSERT INTO t2 VALUES (5, 50);
+INSERT INTO t2 VALUES (6, 60);
+INSERT INTO t2 VALUES (7, 70);
+INSERT INTO t2 VALUES (8, 80);
+INSERT INTO t2 VALUES (9, 90);
+EXPLAIN EXTENDED SELECT t1.pk, sum(t1.b) OVER (ORDER BY t1.pk) FROM t1 JOIN t2 ON t1.pk = t2.pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	9	100.00	Using temporary
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk	1	100.00	Using index
+DROP TABLE t2;
 EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
