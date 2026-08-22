@@ -181,10 +181,33 @@ SELECT t7.a, t7.j, t8.k, t7.a MEMBER OF (t8.k) FROM t7, t8
 DROP TABLE t7, t8;
 
 --echo #
---echo # 19. Item 6 test: ROW_RESULT arguments rejected at bind time
---echo # Confirms ROW_RESULT arguments (including single-column stored functions returning ROW)
---echo # are rejected by check_cols(1) during fix_fields(); the ROW_RESULT unwrap branch in
---echo # Item_func_json_quote::val_str() is unreachable via standard SQL.
+--echo # 19. Item 6 (mentor): Single-column ROW_RESULT via stored function call
+--echo # Stored function calls (Item_func_sp) report ROW_RESULT with cols() == 1
+--echo # at the point val_str() inspects args[0]->result_type() — the goto-eval unwrap
+--echo # path is reached through ordinary stored function calls.
+--echo #
+--delimiter //
+CREATE FUNCTION f_row_result() RETURNS VARCHAR(50)
+RETURN JSON_OBJECT('value', 2, 'key', 'golden')//
+--delimiter ;
+
+SELECT f_row_result() MEMBER OF ('[{"key": "golden", "value": 2E0}]');
+SELECT JSON_QUOTE(f_row_result());
+
+DROP FUNCTION f_row_result;
+
+--echo #
+--echo # 20. Item 4 (mentor): TIME_RESULT tests
+--echo # Verify that TIME values are quoted as JSON string literals without escaping.
+--echo #
+SELECT JSON_QUOTE(CAST('12:30:00' AS TIME));
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["12:30:00"]');
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["10:00:00", "12:30:00"]');
+
+--echo #
+--echo # 21. Literal ROW() constructor / RETURNS ROW rejection tests
+--echo # Confirms literal multi-column ROW() constructors and RETURNS ROW(...) functions
+--echo # are rejected by check_cols(1) during fix_fields() at bind time.
 --echo #
 --delimiter //
 CREATE FUNCTION f1_row() RETURNS ROW(a INT)
@@ -199,12 +222,4 @@ SELECT JSON_QUOTE(f1_row());
 SELECT f1_row() MEMBER OF ('[42]');
 
 DROP FUNCTION f1_row;
-
---echo #
---echo # 20. Item 4 (mentor): TIME_RESULT tests
---echo # Verify that TIME values are quoted as JSON string literals without escaping.
---echo #
-SELECT JSON_QUOTE(CAST('12:30:00' AS TIME));
-SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["12:30:00"]');
-SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["10:00:00", "12:30:00"]');
 

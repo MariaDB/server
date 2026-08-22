@@ -1068,12 +1068,16 @@ eval:
 
   case ROW_RESULT:
     /*
-      Item 6 note: Single-column ROW_RESULT unwrapping logic (goto eval).
-      NOTE: In MariaDB's expression binder, Item_func::fix_fields() calls
-      check_cols(1) on all scalar arguments, which disallows ROW_RESULT
-      operands (see DBUG_ASSERT in sql_type.cc: "Disallowed by check_cols()
-      in fix_fields()").  Therefore, this branch is unreachable via standard
-      SQL execution paths and serves as a defensive safeguard.
+      Item 6: Single-column ROW_RESULT unwrapping logic (goto eval).
+      Stored function calls (Item_func_sp) can report ROW_RESULT with cols() == 1
+      at the point val_str() inspects args[0]->result_type(). The inner return
+      element type is extracted via element_index(0)->result_type() and the
+      switch is re-entered via goto eval.
+
+      NOTE: When a stored function returning VARCHAR(30) (e.g. JSON_OBJECT text)
+      is unwrapped here, its element type is STRING_RESULT. In val_str(),
+      STRING_RESULT inputs are quoted and escaped (e.g. producing '"{\"key\":...}"').
+      This double-quoting is standard SQL/JSON behavior for VARCHAR return types.
     */
     if (args[0]->cols() == 1)
     {
