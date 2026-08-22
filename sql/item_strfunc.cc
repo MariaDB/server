@@ -489,9 +489,9 @@ String *Item_func_kdf::val_str(String *buf)
   {
     if (String *s= args[3]->val_str(buf))
     {
-      if (strcasecmp(s->c_ptr(), "hkdf") == 0)
+      if (strcasecmp(s->c_ptr_safe(), "hkdf") == 0)
         use_hkdf= true;
-      else if (strcasecmp(s->c_ptr(), "pbkdf2_hmac") != 0)
+      else if (strcasecmp(s->c_ptr_safe(), "pbkdf2_hmac") != 0)
       {
         invalid_argument_error(func_name(), ErrConvStringQ(s).ptr());
         goto ret_null;
