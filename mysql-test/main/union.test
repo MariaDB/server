@@ -2050,3 +2050,39 @@ select 1 as res union select 2 union all select 1 union distinct select 3;
 select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2;
 select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2 union distinct select 5;
 select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2 union all select 1 union distinct select 3 union all select 2;
+
+--echo #
+--echo # A result table that is converted to an on-disk table after its index
+--echo # has been disabled
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq FROM seq_1_to_5000;
+
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+--echo # The index of the result table is dropped once the last distinct part
+--echo # has been read, so the trailing UNION ALL part fills a table with no
+--echo # index, and that table then outgrows the in-memory limit.
+let $q=
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT a) AS distinct_a FROM (
+  SELECT a FROM t1 WHERE a <= 100
+    UNION
+  SELECT a FROM t1 WHERE a <= 100
+    UNION ALL
+  SELECT a FROM t1) d;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= @save_tmp_memory_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests
