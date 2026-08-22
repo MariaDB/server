@@ -3836,7 +3836,7 @@ EXPLAIN
               "loops": 420.35,
               "rows": 30,
               "cost": "COST_REPLACED",
-              "filtered": 0.237896994,
+              "filtered": 15.20221233,
               "using_index": true
             }
           }
@@ -3940,7 +3940,7 @@ EXPLAIN
               "loops": 420.35,
               "rows": 30,
               "cost": "COST_REPLACED",
-              "filtered": 0.237896994,
+              "filtered": 15.20221233,
               "using_index": true
             }
           }
@@ -4060,7 +4060,7 @@ EXPLAIN
               "loops": 420.35,
               "rows": 30,
               "cost": "COST_REPLACED",
-              "filtered": 0.237896994,
+              "filtered": 15.20221233,
               "using_index": true
             }
           }
