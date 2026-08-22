@@ -54,11 +54,11 @@ static PSI_mutex_info all_pwt_mutexes[]=
   { &key_mutex_pwt_LOCK_data,        "pwt_manager::LOCK_data",      0},
 };
 
-static PSI_cond_key key_COND_pwt_worker,
+static PSI_cond_key //key_COND_pwt_worker,
                     key_COND_pwt_data_avail, key_COND_pwt_data_space;
 static PSI_cond_info all_pwt_conds[]=
 {
-  { &key_COND_pwt_worker,      "pwt_worker::COND_worker",                 0},
+ // { &key_COND_pwt_worker,      "pwt_worker::COND_worker",                 0},
   { &key_COND_pwt_data_avail,  "pwt_manager::COND_data_avail",      0},
   { &key_COND_pwt_data_space,  "pwt_manager::COND_data_space",      0},
 };
@@ -443,7 +443,7 @@ bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
   manager= manager_arg;
   mysql_mutex_init(key_mutex_pwt_LOCK_worker, &LOCK_worker, 
                    MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_pwt_worker, &COND_worker, nullptr);
+  //mysql_cond_init(key_COND_pwt_worker, &COND_worker, nullptr);
 
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   size_t len= my_snprintf(info.conn_name, MAX_THREAD_NAME,
@@ -486,7 +486,7 @@ bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
 void pwt_worker::cleanup_worker()
 {
   mysql_mutex_destroy(&LOCK_worker);
-  mysql_cond_destroy(&COND_worker);
+  // mysql_cond_destroy(&COND_worker);
 }
 
 /**

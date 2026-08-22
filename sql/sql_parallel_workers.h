@@ -210,7 +210,7 @@ public:
     See parallel_worker_thread_func.
   */
   mysql_mutex_t   LOCK_worker;
-  mysql_cond_t    COND_worker;
+  // mysql_cond_t    COND_worker;
 
   pwt_worker_info       info;
   pwt_worker_state      state;
