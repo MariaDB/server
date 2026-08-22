@@ -40,6 +40,10 @@ Created 4/20/1996 Heikki Tuuri
 #include "log0log.h"
 #include "eval0eval.h"
 #include "data0data.h"
+#include "log0recv.h"
+#include "handler.h"
+#include "table.h"
+#include "ha_innodb.h"
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -47,11 +51,66 @@ Created 4/20/1996 Heikki Tuuri
 # include "btr0sea.h"
 #endif
 #include "sql_class.h" // THD
+#include <mysql/plugin.h>
+#include <mysql/service_thd_binlog.h>
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
 #include "ha_prototypes.h"
 #endif /* WITH_WSREP */
+
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+			  const char *table, size_t table_len);
+
+static TABLE*
+row_ins_find_open_table_for_cascade_binlog(
+	trx_t*			trx,
+	dict_table_t*		child)
+{
+	THD*	thd;
+	TABLE*	mysql_table;
+	char	db_buf[NAME_LEN + 1];
+	char	tbl_buf[NAME_LEN + 1];
+	ulint	db_buf_len;
+	ulint	tbl_buf_len;
+
+	thd = trx->mysql_thd;
+	if (thd == NULL) {
+		return NULL;
+	}
+
+	if (!child->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+		return NULL;
+	}
+
+	mysql_table = find_fk_open_table(thd,
+					db_buf, db_buf_len,
+					tbl_buf, tbl_buf_len);
+
+	return mysql_table;
+}
+
+static inline bool
+row_ins_allow_fk_cascade_binlog_for_table(const TABLE* table)
+{
+	if (table == NULL) {
+		return false;
+	}
+
+	if (table->s->primary_key != MAX_KEY) {
+		return true;
+	}
+
+	if (Field **vf = table->vfield) {
+		for (; *vf; vf++) {
+			if ((*vf)->flags & PART_KEY_FLAG) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -269,7 +328,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_ins_clust_index_entry_by_modify(
 /*================================*/
-	btr_pcur_t*	pcur,	/*!< in/out: a persistent cursor pointing
+	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor pointing
 				to the clust_rec that is being modified. */
 	ulint		flags,	/*!< in: undo logging and locking flags */
 	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
@@ -299,7 +358,6 @@ row_ins_clust_index_entry_by_modify(
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing undo log record. */
 	ut_ad(rec_get_trx_id(rec, cursor->index()));
-
 	/* Build an update vector containing all the fields to be modified;
 	NOTE that this vector may NOT contain system columns trx_id or
 	roll_ptr */
@@ -1012,6 +1070,13 @@ row_ins_foreign_check_on_constraint(
 	mem_heap_t*	tmp_heap	= NULL;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 
+	TABLE*		child_mysql_table = NULL;
+	byte*		before_mysql_rec = NULL;
+	byte*		after_mysql_rec = NULL;
+	bool		need_cascade_binlog = false;
+	bool		can_cascade_binlog = false;
+	bool		have_after_image = false;
+
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
 
 	trx = thr_get_trx(thr);
@@ -1346,15 +1411,191 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
+	/*
+	  Capture cascade row events whenever the session requests it.
+	  If the master has binlogged the cascaded rows, the events carry
+	  FK_CASCADE_EVENTS_F, causing the applier to run with foreign key
+	  checks disabled, and this cascade function is never reached.
+	*/
+	if (trx->mysql_thd &&
+	    thd_rpl_use_binlog_events_for_fk_cascade(trx->mysql_thd)) {
+
+	child_mysql_table = row_ins_find_open_table_for_cascade_binlog(trx, table);
+	if (child_mysql_table != NULL) {
+		handler* file = child_mysql_table->file;
+		const bool allow_rpl_fk_cascade_binlog=
+			row_ins_allow_fk_cascade_binlog_for_table(child_mysql_table);
+		const bool emulate_binlog=
+#ifdef WITH_WSREP
+			wsrep_emulate_binlog(trx->mysql_thd);
+#else
+			false;
+#endif
+		if (child_mysql_table->in_use == trx->mysql_thd
+		    && (emulate_binlog ||
+			thd_is_current_stmt_binlog_format_row(trx->mysql_thd))
+		    && ((emulate_binlog) ||
+		        (thd_rpl_use_binlog_events_for_fk_cascade(trx->mysql_thd) &&
+		         allow_rpl_fk_cascade_binlog))
+		    && file->prepare_for_row_logging()) {
+			need_cascade_binlog = true;
+			before_mysql_rec = static_cast<byte*>(
+				mem_heap_alloc(tmp_heap, child_mysql_table->s->reclength));
+			if (cascade->is_delete != PLAIN_DELETE) {
+				after_mysql_rec = static_cast<byte*>(
+					mem_heap_alloc(tmp_heap, child_mysql_table->s->reclength));
+			}
+		}
+	}
+
+	if (need_cascade_binlog) {
+		ha_innobase* ib = static_cast<ha_innobase*>(child_mysql_table->file);
+		row_prebuilt_t* prebuilt = ib->innobase_prebuilt();
+		if (prebuilt != NULL && prebuilt->mysql_template != NULL) {
+			MY_BITMAP* old_read_set = child_mysql_table->read_set;
+			MY_BITMAP* old_write_set = child_mysql_table->write_set;
+			MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
+			child_mysql_table->column_bitmaps_set_no_signal(
+				&child_mysql_table->tmp_set, &child_mysql_table->tmp_set);
+			bitmap_set_all(&child_mysql_table->tmp_set);
+			if (Field **vf = child_mysql_table->vfield) {
+				for (; *vf; vf++) {
+					bitmap_clear_bit(&child_mysql_table->tmp_set, (*vf)->field_index);
+				}
+			}
+			if (child_mysql_table->rpl_write_set == NULL) {
+				child_mysql_table->rpl_write_set = &child_mysql_table->tmp_set;
+			}
+			ib->rebuild_template_for_cascade_binlog_row_image();
+
+			mtr_start(mtr);
+			if (cascade->pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+			    == btr_pcur_t::SAME_ALL) {
+				const rec_t* before_rec = btr_pcur_get_rec(cascade->pcur);
+			mem_heap_t* offs_heap = NULL;
+			rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+			rec_offs_init(offsets_);
+			const rec_offs* offsets = rec_get_offsets(
+				before_rec, clust_index, offsets_, clust_index->n_core_fields,
+				ULINT_UNDEFINED, &offs_heap);
+			dict_index_t* saved_index = prebuilt->index;
+			prebuilt->index = clust_index;
+			if (!row_sel_store_mysql_rec(before_mysql_rec, prebuilt,
+						     before_rec, NULL, true,
+						     clust_index, offsets)) {
+				need_cascade_binlog = false;
+			}
+			prebuilt->index = saved_index;
+			if (UNIV_LIKELY_NULL(offs_heap)) {
+				mem_heap_free(offs_heap);
+			}
+			} else {
+				need_cascade_binlog = false;
+			}
+			mtr_commit(mtr);
+
+			child_mysql_table->column_bitmaps_set_no_signal(old_read_set, old_write_set);
+			child_mysql_table->rpl_write_set = old_rpl_write_set;
+			ib->reset_template_for_cascade_binlog_row_image();
+		} else {
+			need_cascade_binlog = false;
+		}
+	}
+	  }
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
 	mtr_start(mtr);
 
+	can_cascade_binlog = (err == DB_SUCCESS && need_cascade_binlog);
+	have_after_image = false;
+
+	if (can_cascade_binlog && cascade->is_delete != PLAIN_DELETE) {
+		if (cascade->pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+		    == btr_pcur_t::SAME_ALL) {
+			const rec_t* after_rec = btr_pcur_get_rec(cascade->pcur);
+			if (page_rec_is_user_rec(after_rec)
+			    && !rec_get_deleted_flag(after_rec,
+					       dict_table_is_comp(table))) {
+					ha_innobase* ib = static_cast<ha_innobase*>(child_mysql_table->file);
+					row_prebuilt_t* prebuilt = ib->innobase_prebuilt();
+					if (prebuilt != NULL && prebuilt->mysql_template != NULL) {
+						MY_BITMAP* old_read_set = child_mysql_table->read_set;
+					MY_BITMAP* old_write_set = child_mysql_table->write_set;
+					MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
+					child_mysql_table->column_bitmaps_set_no_signal(
+						&child_mysql_table->tmp_set, &child_mysql_table->tmp_set);
+					bitmap_set_all(&child_mysql_table->tmp_set);
+					if (Field **vf = child_mysql_table->vfield) {
+						for (; *vf; vf++) {
+							bitmap_clear_bit(&child_mysql_table->tmp_set, (*vf)->field_index);
+						}
+					}
+					if (child_mysql_table->rpl_write_set == NULL) {
+						child_mysql_table->rpl_write_set = &child_mysql_table->tmp_set;
+					}
+					ib->rebuild_template_for_cascade_binlog_row_image();
+
+						mem_heap_t* offs_heap = NULL;
+						rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+						rec_offs_init(offsets_);
+						const rec_offs* offsets = rec_get_offsets(
+							after_rec, clust_index, offsets_,
+							clust_index->n_core_fields,
+							ULINT_UNDEFINED, &offs_heap);
+						dict_index_t* saved_index = prebuilt->index;
+						prebuilt->index = clust_index;
+						have_after_image = row_sel_store_mysql_rec(after_mysql_rec, prebuilt,
+									 after_rec, NULL, true,
+									 clust_index, offsets);
+						prebuilt->index = saved_index;
+						child_mysql_table->column_bitmaps_set_no_signal(old_read_set, old_write_set);
+						child_mysql_table->rpl_write_set = old_rpl_write_set;
+						ib->reset_template_for_cascade_binlog_row_image();
+						if (UNIV_LIKELY_NULL(offs_heap)) {
+							mem_heap_free(offs_heap);
+						}
+					}
+			}
+		}
+	}
+
 	/* Restore pcur position */
 
 	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
-	    != btr_pcur_t::SAME_ALL) {
+	    != btr_pcur_t::SAME_ALL && err == DB_SUCCESS) {
+		err = DB_CORRUPTION;
+	}
+
+	mtr_commit(mtr);
+
+	if (can_cascade_binlog
+	    && (cascade->is_delete == PLAIN_DELETE || have_after_image)) {
+		/*
+		  Report the cascade row change to the server (both the DELETE and
+		  the UPDATE case). The server queues the reported rows and writes
+		  them to the binary log in the same order the cascade operations
+		  were executed, after the originating statement's own events.
+		  Logging deletes immediately here would place every cascade delete
+		  ahead of every deferred update within a statement, which reorders
+		  events that touch the same row and can make the replica apply an
+		  update to an already-deleted row. The server copies the record
+		  images, so the temp-heap buffers can be reused/freed afterwards.
+		*/
+		if (cascade->is_delete == PLAIN_DELETE) {
+			thd_binlog_cascade_delete_row(
+				trx->mysql_thd, child_mysql_table,
+				before_mysql_rec);
+		} else {
+			thd_binlog_cascade_update_row(
+				trx->mysql_thd, child_mysql_table,
+				before_mysql_rec, after_mysql_rec);
+		}
+	}
+
+	mtr_start(mtr);
+	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+	    != btr_pcur_t::SAME_ALL && err == DB_SUCCESS) {
 		err = DB_CORRUPTION;
 	}
 
@@ -2564,7 +2805,7 @@ statement
 @return true if it is insert statement */
 static bool thd_sql_is_insert(const THD *thd) noexcept
 {
-  switch (thd->lex->sql_command) {
+  switch (thd_sql_command(thd)) {
   case SQLCOM_INSERT:
   case SQLCOM_INSERT_SELECT:
     return true;

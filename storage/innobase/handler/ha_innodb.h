@@ -517,6 +517,20 @@ protected:
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
 
+public:
+	row_prebuilt_t*		innobase_prebuilt() const { return m_prebuilt; }
+
+	void rebuild_template_for_cascade_binlog_row_image()
+	{
+		reset_template();
+		build_template(true);
+	}
+
+	void reset_template_for_cascade_binlog_row_image()
+	{
+		reset_template();
+	}
+
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;

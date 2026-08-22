@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+CREATE TABLE p (
+id INT PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE c (
+id INT PRIMARY KEY,
+a INT,
+b INT,
+KEY(a),
+KEY(b),
+CONSTRAINT fk_a FOREIGN KEY (a) REFERENCES p(id) ON DELETE SET NULL,
+CONSTRAINT fk_b FOREIGN KEY (b) REFERENCES p(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1);
+INSERT INTO c VALUES (10, 1, 1);
+connection slave;
+connection master;
+DELETE FROM p WHERE id=1;
+# master: child row cascade-deleted
+SELECT * FROM c;
+id	a	b
+connection slave;
+connection slave;
+# slave must match master (row deleted); a wrong DELETE-before-UPDATE
+# ordering would have stopped the SQL thread on the UPDATE event
+SELECT * FROM c;
+id	a	b
+connection master;
+DROP TABLE c, p;
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+include/rpl_end.inc

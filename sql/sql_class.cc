@@ -93,6 +93,144 @@ extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
+void THD::binlog_mark_fk_cascade_events()
+{
+  binlog_fk_cascade_events= true;
+
+  if (binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr())
+  {
+    /*
+      Also set the  NO_FOREIGN_KEY_CHECKS_F. An older slave does
+      not understand FK_CASCADE_EVENTS_F, but it does understand
+      NO_FOREIGN_KEY_CHECKS_F, so setting it makes such a slave disable foreign
+      key checks for these events.
+    */
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, false)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, true)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+  }
+}
+
+/*
+  Queue an FK-cascade row change reported by a storage engine, for binlogging.
+  The record image(s) are copied so the caller may reuse or free its buffers
+  once this returns. Marking the current statement as carrying cascade events
+  here  ensures the originating statement's own pending event is flagged too.
+*/
+void THD::binlog_report_cascade_row(TABLE *table, bool is_delete,
+                                    const uchar *before_record,
+                                    const uchar *after_record)
+{
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(before_record);
+  DBUG_ASSERT(is_delete == (after_record == NULL));
+
+  const size_t len= table->s->reclength;
+  uchar *before_copy= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME));
+  uchar *after_copy= NULL;
+  if (!is_delete)
+    after_copy= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME));
+
+  if (!before_copy || (!is_delete && !after_copy))
+  {
+    my_free(before_copy);
+    my_free(after_copy);
+    return;
+  }
+
+  memcpy(before_copy, before_record, len);
+  if (!is_delete)
+    memcpy(after_copy, after_record, len);
+
+  Cascade_binlog_row_event ev;
+  ev.table= table;
+  ev.before_record= before_copy;
+  ev.after_record= after_copy;
+  ev.is_delete= is_delete;
+
+  if (pending_cascade_binlog_row_events.append(ev))
+  {
+    my_free(before_copy);
+    my_free(after_copy);
+    return;
+  }
+
+  /* Flag the originating statement's own (already pending) row event. */
+  binlog_mark_fk_cascade_events();
+}
+
+/*
+  Flush the queued FK-cascade row changes into the binary log, in the order the
+  cascade operations executed. Deferring here keeps the root statement's own
+  events ahead of the derived ones, and keeps interleaved cascade operations
+  in execution order. 
+  Events written here are additionally marked FK_CASCADE_DERIVED_F.
+*/
+void THD::flush_pending_cascade_binlog()
+{
+  if (pending_cascade_binlog_row_events.elements() == 0)
+    return;
+
+  binlog_mark_fk_cascade_events();
+  binlog_begin_fk_cascade_derived();
+
+  for (size_t i= 0; i < pending_cascade_binlog_row_events.elements(); i++)
+  {
+    Cascade_binlog_row_event &ev= pending_cascade_binlog_row_events.at(i);
+    TABLE *table= ev.table;
+    if (!table || !table->file ||
+        table->s->tmp_table != NO_TMP_TABLE)
+    {
+      my_free(ev.before_record);
+      my_free(ev.after_record);
+      continue;
+    }
+
+    MY_BITMAP *old_read_set= table->read_set;
+    MY_BITMAP *old_write_set= table->write_set;
+    MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
+
+    table->column_bitmaps_set_no_signal(&table->s->all_set,
+                                        &table->s->all_set);
+    if (table->rpl_write_set == NULL)
+      table->rpl_write_set= &table->s->all_set;
+
+    Log_func *log_func= ev.is_delete
+      ? Delete_rows_log_event::binlog_row_logging_function
+      : Update_rows_log_event::binlog_row_logging_function;
+    table->file->binlog_log_row(ev.before_record, ev.after_record, log_func);
+
+    table->column_bitmaps_set_no_signal(old_read_set, old_write_set);
+    table->rpl_write_set= old_rpl_write_set;
+
+    my_free(ev.before_record);
+    my_free(ev.after_record);
+  }
+
+  binlog_end_fk_cascade_derived();
+  pending_cascade_binlog_row_events.clear();
+}
+
+/*
+  Drop the queued FK-cascade row changes without logging them.
+*/
+void THD::discard_pending_cascade_binlog()
+{
+  for (size_t i= 0; i < pending_cascade_binlog_row_events.elements(); i++)
+  {
+    Cascade_binlog_row_event &ev= pending_cascade_binlog_row_events.at(i);
+    my_free(ev.before_record);
+    my_free(ev.after_record);
+  }
+  pending_cascade_binlog_row_events.clear();
+}
+
 extern "C" void free_user_var(void *entry_)
 {
   user_var_entry *entry= static_cast<user_var_entry *>(entry_);
@@ -507,6 +645,33 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+extern "C"
+int thd_is_current_stmt_binlog_format_row(const THD *thd)
+{
+  return (int) thd->is_current_stmt_binlog_format_row();
+}
+
+extern "C"
+int thd_rpl_use_binlog_events_for_fk_cascade(const THD *thd)
+{
+  return (int) thd->variables.rpl_use_binlog_events_for_fk_cascade;
+}
+
+extern "C"
+void thd_binlog_cascade_delete_row(THD *thd, TABLE *table,
+                                   const unsigned char *before_record)
+{
+  thd->binlog_report_cascade_row(table, true, before_record, NULL);
+}
+
+extern "C"
+void thd_binlog_cascade_update_row(THD *thd, TABLE *table,
+                                   const unsigned char *before_record,
+                                   const unsigned char *after_record)
+{
+  thd->binlog_report_cascade_row(table, false, before_record, after_record);
+}
+
 /*
   Returns options used with DDL's, like IF EXISTS etc...
   Will returns 'nonsense' if the command was not a DDL.
@@ -902,6 +1067,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   binlog_table_maps= FALSE;
+  binlog_fk_cascade_events= FALSE;
+  binlog_fk_cascade_derived= FALSE;
   binlog_xid= 0;
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;
@@ -1887,6 +2054,8 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+  /* Backstop: free any FK-cascade row buffers not drained by commit/rollback */
+  discard_pending_cascade_binlog();
   /* Make sure threads are not available via server_threads.  */
   assert_not_linked();
   if (m_psi)

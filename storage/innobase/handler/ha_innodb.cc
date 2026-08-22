@@ -49,8 +49,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_check_opt.h>
 #include <my_bitmap.h>
 #include <my_sys.h>
-#include <mysql/service_thd_alloc.h>
+#include <mysql/plugin.h>
+#include <mysql/service_thd_binlog.h>
 #include <mysql/service_thd_wait.h>
+#include <mysql/service_thd_alloc.h>
 #include <mysql/service_print_check_msg.h>
 #include "sql_type_geom.h"
 #include "scope.h"
