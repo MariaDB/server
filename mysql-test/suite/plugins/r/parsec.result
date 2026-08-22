@@ -17,6 +17,19 @@ disconnect con2;
 connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect con3, localhost, test1, wrong_pwd;
 ERROR 28000: Access denied for user 'test1'@'localhost' (using password: NO)
+connect con4, localhost, root;
+select 4.1, USER(), CURRENT_USER();
+4.1	USER()	CURRENT_USER()
+4.1	root@localhost	root@localhost
+change_user test1,pwd,;
+select 4.2, USER(), CURRENT_USER();
+4.2	USER()	CURRENT_USER()
+4.2	test1@localhost	test1@%
+change_user root,,;
+select 4.3,USER(), CURRENT_USER();
+4.3	USER()	CURRENT_USER()
+4.3	root@localhost	root@localhost
+disconnect con4;
 connection default;
 create function have_ssl() returns char(3)
 return (select if(variable_value > '','yes','no') as 'have_ssl'
@@ -28,7 +41,9 @@ test.have_ssl()
 yes
 drop function have_ssl;
 drop user test1@'%';
+#
 # MDEV-34854 Parsec sends garbage when using an empty password
+#
 create user test2@'%' identified via parsec using PASSWORD('');
 show grants for test2@'%';
 Grants for test2@%

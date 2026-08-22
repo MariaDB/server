@@ -25,6 +25,14 @@ disconnect con2;
 --error ER_ACCESS_DENIED_ERROR
 connect con3, localhost, test1, wrong_pwd;
 
+connect con4, localhost, root;
+select 4.1, USER(), CURRENT_USER();
+change_user test1, pwd;
+select 4.2, USER(), CURRENT_USER();
+change_user root;
+select 4.3,USER(), CURRENT_USER();
+disconnect con4;
+
 connection default;
 
 create function have_ssl() returns char(3)
@@ -46,8 +54,9 @@ source include/wait_until_count_sessions.inc;
 drop function have_ssl;
 drop user test1@'%';
 
-
+--echo #
 --echo # MDEV-34854 Parsec sends garbage when using an empty password
+--echo #
 create user test2@'%' identified via parsec using PASSWORD('');
 --replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
 show grants for test2@'%';
