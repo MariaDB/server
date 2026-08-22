@@ -61,6 +61,7 @@
 #include "rpl_constants.h"
 #include "sql_digest.h"
 #include "zlib.h"
+#include <map>
 
 
 #define log_cs  &my_charset_latin1
