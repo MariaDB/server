@@ -961,21 +961,17 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
-    Item 2 (maybe_null update): Worst-case output length: each input character
-    can expand to '\uXXXX\uXXXX' (12 bytes) plus the two surrounding quotes.
+    Item 2 (maybe_null & view-protocol fix): Worst-case output length: each
+    input character can expand to '\uXXXX\uXXXX' (12 bytes) plus the two
+    surrounding quotes (+2).
 
-    After the Item 6 restructuring, the default branch (reached for truly
-    unknown result types, e.g. a multi-column ROW_RESULT that cannot be
-    unwrapped) sets null_value=1 and returns SQL NULL, so maybe_null MUST be
-    set.  The original comment ("function never returns SQL NULL") was correct
-    before that branch existed but is no longer true.
-
-    For NULL input we still return the 4-character literal "null" (non-NULL
-    SQL result); for STRING/INT/REAL/DECIMAL/TIME we also never return NULL
-    unless memory allocation fails — but the default branch makes maybe_null
-    necessary overall.
+    For NULL input, val_str() returns the 4-character unquoted string "null".
+    When args[0]->max_char_length() is 0 (e.g. for literal NULL), the formula
+    (0 * 12 + 2 = 2) would under-declare max_char_length as 2, causing "null"
+    to be truncated to "nu" under --view-protocol.  We enforce a minimum of 4
+    characters using MY_MAX(..., 4ULL) to ensure "null" is never truncated.
   */
-  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length() * 12 + 2, 4ULL));
   set_maybe_null();
   return FALSE;
 }
@@ -1072,9 +1068,12 @@ eval:
 
   case ROW_RESULT:
     /*
-      Item 6: A row expression with exactly one column can be unwrapped;
-      evaluate the inner element's result type and re-enter the switch.
-      Rows with multiple columns fall through to the error below.
+      Item 6 note: Single-column ROW_RESULT unwrapping logic (goto eval).
+      NOTE: In MariaDB's expression binder, Item_func::fix_fields() calls
+      check_cols(1) on all scalar arguments, which disallows ROW_RESULT
+      operands (see DBUG_ASSERT in sql_type.cc: "Disallowed by check_cols()
+      in fix_fields()").  Therefore, this branch is unreachable via standard
+      SQL execution paths and serves as a defensive safeguard.
     */
     if (args[0]->cols() == 1)
     {
@@ -1087,11 +1086,7 @@ eval:
     /*
       Item 6: Unknown or multi-column ROW_RESULT — emit a real diagnostic
       instead of silently returning NULL.  Under MEMBER OF this will surface
-      as a warning mentioning json_quote internally; that is acceptable and
-      better than silently swallowing the error.
-      NOTE: this path is currently unreachable for the standard SQL types
-      (STRING/INT/REAL/DECIMAL/TIME) and single-column ROW_RESULT, confirming
-      test coverage is complete for those cases.
+      as a warning mentioning json_quote internally.
     */
     my_error(ER_WRONG_ARGUMENTS, MYF(ME_WARNING), func_name());
     null_value= 1;

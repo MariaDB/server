@@ -179,3 +179,32 @@ SELECT t7.a, t7.j, t8.k, t7.a MEMBER OF (t8.k) FROM t7, t8
  ORDER BY t7.a;
 
 DROP TABLE t7, t8;
+
+--echo #
+--echo # 19. Item 6 test: ROW_RESULT arguments rejected at bind time
+--echo # Confirms ROW_RESULT arguments (including single-column stored functions returning ROW)
+--echo # are rejected by check_cols(1) during fix_fields(); the ROW_RESULT unwrap branch in
+--echo # Item_func_json_quote::val_str() is unreachable via standard SQL.
+--echo #
+--delimiter //
+CREATE FUNCTION f1_row() RETURNS ROW(a INT)
+BEGIN
+  RETURN (SELECT 42);
+END//
+--delimiter ;
+
+--error ER_OPERAND_COLUMNS
+SELECT JSON_QUOTE(f1_row());
+--error ER_OPERAND_COLUMNS
+SELECT f1_row() MEMBER OF ('[42]');
+
+DROP FUNCTION f1_row;
+
+--echo #
+--echo # 20. Item 4 (mentor): TIME_RESULT tests
+--echo # Verify that TIME values are quoted as JSON string literals without escaping.
+--echo #
+SELECT JSON_QUOTE(CAST('12:30:00' AS TIME));
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["12:30:00"]');
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["10:00:00", "12:30:00"]');
+
