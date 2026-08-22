@@ -1062,6 +1062,8 @@ public:
     return append(s.str, s.length, cs);
   }
 
+  bool append_double(double d);
+
   // Append a wide character
   bool append_wc(my_wc_t wc)
   {

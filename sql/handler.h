@@ -4411,6 +4411,16 @@ protected:
   virtual int index_next_same(uchar *buf, const uchar *key, uint keylen);
   /**
      @brief
+     Positions an index cursor to an approximately random row of the
+     active index and fetches it into buf. Storage engines that want to
+     support TABLESAMPLE SYSTEM must override this with an implementation
+     that exploits their own index structure (e.g. picking a random leaf
+     page).
+  */
+  virtual int index_random_dive(uchar *buf, struct my_rnd_struct *rand_state)
+   { return HA_ERR_WRONG_COMMAND; }
+  /**
+     @brief
      The following functions works like index_read, but it find the last
      row with the current key value or prefix.
      @returns @see index_read_map().
@@ -4447,6 +4457,7 @@ public:
   int ha_index_first(uchar * buf);
   int ha_index_last(uchar * buf);
   int ha_index_next_same(uchar *buf, const uchar *key, uint keylen);
+  int ha_index_random_dive(uchar *buf, struct my_rnd_struct *rand_state);
   /*
     TODO: should we make for those functions non-virtual ha_func_name wrappers,
     too?

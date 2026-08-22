@@ -2047,6 +2047,12 @@ int ha_myisam::index_next_same(uchar *buf,
   return error;
 }
 
+int ha_myisam::index_random_dive(uchar *buf, struct my_rnd_struct *rand_state)
+{
+  DBUG_ASSERT(inited==INDEX);
+  return mi_random_dive(file, active_index, buf, rand_state);
+}
+
 
 int ha_myisam::rnd_init(bool scan)
 {

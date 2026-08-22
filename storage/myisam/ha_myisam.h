@@ -76,6 +76,7 @@ class ha_myisam final : public handler
   int index_first(uchar * buf) override;
   int index_last(uchar * buf) override;
   int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
+  int index_random_dive(uchar *buf, struct my_rnd_struct *rand_state) override;
   int ft_init() override
   {
     if (!ft_handler)

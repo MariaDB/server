@@ -4708,6 +4708,22 @@ bool Item_param::set_from_item(THD *thd, Item *item)
       DBUG_RETURN(set_limit_clause_param(val));
     }
   }
+  if (tablesample_clause_param)
+  {
+    double val= item->val_real();
+    if (item->null_value)
+    {
+      set_null(DTCollation_numeric());
+      set_handler(&type_handler_null);
+      DBUG_RETURN(false);
+    }
+    else
+    {
+      unsigned_flag= item->unsigned_flag;
+      set_handler(item->type_handler());
+      DBUG_RETURN(set_tablesample_clause_param(val));
+    }
+  }
   st_value tmp;
   item->save_in_value(thd, &tmp);
   DBUG_RETURN(set_from_value(thd, tmp, item->type_handler(), *item));

@@ -1,0 +1,137 @@
+DROP TABLE IF EXISTS t1, t2;
+DROP VIEW IF EXISTS v1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (b));
+CREATE TABLE t2 (a INT, c INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 TABLESAMPLE SYSTEM (10);
+a	b
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (50);
+a	b
+SELECT * FROM t1 TABLESAMPLE SYSTEM (12.5);
+a	b
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (0.5);
+a	b
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL)' at line 1
+SELECT * FROM t1 TABLESAMPLE NONEXISTENTMETHOD (12.5);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NONEXISTENTMETHOD (12.5)' at line 1
+SELECT * FROM t1 TABLESAMPLE SYSTEM (-12.5);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-12.5)' at line 1
+SELECT * FROM t1 TABLESAMPLE SYSTEM (10) JOIN t2 ON t1.a = t2.a;
+a	b	a	c
+SELECT * FROM v1 TABLESAMPLE SYSTEM (20);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+PREPARE stmt2 FROM 'SELECT * FROM t1 TABLESAMPLE BERNOULLI (?)';
+SET @pct = 30;
+EXECUTE stmt2 USING @pct;
+a	b
+SET @pct = 300;
+EXECUTE stmt2 USING @pct;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+DEALLOCATE PREPARE stmt2;
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+CREATE PROCEDURE p1(IN sample_pct INT)
+BEGIN
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (sample_pct);
+END//
+CALL p1(40);
+a	b
+CALL p1(101);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(IN sample_pct DECIMAL)
+BEGIN
+SELECT * FROM t1 TABLESAMPLE SYSTEM (sample_pct);
+END//
+CALL p1(20.11);
+a	b
+Warnings:
+Note	1265	Data truncated for column 'sample_pct' at row 0
+DROP PROCEDURE p1;
+DROP PROCEDURE IF EXISTS p_char;
+Warnings:
+Note	1305	PROCEDURE test.p_char does not exist
+CREATE PROCEDURE p_char(IN sample_pct CHAR(10))
+BEGIN
+SELECT * FROM t1 TABLESAMPLE SYSTEM (sample_pct);
+END//
+ERROR HY000: A variable of a non-numeric based type in TABLESAMPLE clause
+DROP PROCEDURE IF EXISTS p_date;
+Warnings:
+Note	1305	PROCEDURE test.p_date does not exist
+CREATE PROCEDURE p_date(IN sample_pct DATE)
+BEGIN
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (sample_pct);
+END//
+ERROR HY000: A variable of a non-numeric based type in TABLESAMPLE clause
+SELECT * FROM information_schema.tables TABLESAMPLE BERNOULLI (5);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+SELECT * FROM mysql.user TABLESAMPLE SYSTEM (10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+SELECT * FROM (SELECT * FROM t1) AS derived_tbl TABLESAMPLE SYSTEM (30);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TABLESAMPLE SYSTEM (30)' at line 1
+WITH cte_tbl AS (SELECT * FROM t1)
+SELECT * FROM cte_tbl TABLESAMPLE BERNOULLI (10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+CREATE TABLE t_no_pk (a INT, b INT);
+CREATE TABLE t_pk (a INT PRIMARY KEY, b INT);
+SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10);
+a	b
+Warnings:
+Note	4272	TABLESAMPLE SYSTEM requires a primary key on table 't_no_pk'; using BERNOULLI sampling instead
+SHOW WARNINGS;
+Level	Code	Message
+Note	4272	TABLESAMPLE SYSTEM requires a primary key on table 't_no_pk'; using BERNOULLI sampling instead
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (10);
+a	b
+SHOW WARNINGS;
+Level	Code	Message
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30);
+a	b
+SHOW WARNINGS;
+Level	Code	Message
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30.01);
+a	b
+Warnings:
+Note	4273	TABLESAMPLE SYSTEM on table 't_pk' requested more than 30% of rows; using BERNOULLI sampling instead
+SHOW WARNINGS;
+Level	Code	Message
+Note	4273	TABLESAMPLE SYSTEM on table 't_pk' requested more than 30% of rows; using BERNOULLI sampling instead
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (50);
+a	b
+Warnings:
+Note	4273	TABLESAMPLE SYSTEM on table 't_pk' requested more than 30% of rows; using BERNOULLI sampling instead
+SHOW WARNINGS;
+Level	Code	Message
+Note	4273	TABLESAMPLE SYSTEM on table 't_pk' requested more than 30% of rows; using BERNOULLI sampling instead
+PREPARE stmt3 FROM 'SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10)';
+Warnings:
+Note	4272	TABLESAMPLE SYSTEM requires a primary key on table 't_no_pk'; using BERNOULLI sampling instead
+EXECUTE stmt3;
+a	b
+Warnings:
+Note	4272	TABLESAMPLE SYSTEM requires a primary key on table 't_no_pk'; using BERNOULLI sampling instead
+SHOW WARNINGS;
+Level	Code	Message
+Note	4272	TABLESAMPLE SYSTEM requires a primary key on table 't_no_pk'; using BERNOULLI sampling instead
+ALTER TABLE t_no_pk ADD PRIMARY KEY (a);
+EXECUTE stmt3;
+a	b
+SHOW WARNINGS;
+Level	Code	Message
+DEALLOCATE PREPARE stmt3;
+DROP TABLE t_no_pk, t_pk;
+CREATE TABLE t_data (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t_data SELECT seq, seq * 2 FROM seq_1_to_20;
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 3;
+EXPLAIN SELECT * FROM t_data AS t1 TABLESAMPLE BERNOULLI (20)
+JOIN t_data AS t2 TABLESAMPLE BERNOULLI (30) ON t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	sample	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t2	hash_sample	NULL	#hash#$hj:	4:	test.t1.a	6	Using where; Using join buffer (flat, BNLH join)
+SET join_cache_level= @save_join_cache_level;
+DROP TABLE t1, t2;
+DROP VIEW v1;

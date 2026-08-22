@@ -69,6 +69,7 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 #include "opt_hints.h"
+#include "sql_tablesample.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -8557,6 +8558,14 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                             table_list->alias);
         }
 
+        if (table_list->tablesample_clause && (get_table_category(
+          table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
+          table_list->tablesample_clause->fix_tablesample_fields(thd, table)))
+        {
+            my_error(ER_SYNTAX_ERROR, MYF(0));
+            DBUG_RETURN(1);
+        }
+
         if (!table_list->opt_hints_table ||
             !table_list->opt_hints_table->update_index_hint_maps(thd, table))
         {
@@ -8609,6 +8618,14 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         table->maybe_null= table_list->maybe_null_exec;
         table->pos_in_table_list= table_list;
 
+        if (table_list->tablesample_clause && (get_table_category(
+          table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
+          table_list->tablesample_clause->fix_tablesample_fields(thd, table)))
+        {
+            my_error(ER_SYNTAX_ERROR, MYF(0));
+            DBUG_RETURN(1);
+        }
+
         if (!table_list->opt_hints_table ||
             !table_list->opt_hints_table->update_index_hint_maps(thd, table))
         {
@@ -8628,6 +8645,12 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
        table_list;
        table_list= table_list->next_local)
   {
+    if (table_list->tablesample_clause && table_list->is_view_or_derived())
+    {
+      my_error(ER_SYNTAX_ERROR, MYF(0));
+      DBUG_RETURN(1);
+    }
+
     if (table_list->is_merged_derived() && table_list->merge_underlying_list)
     {
       Query_arena *arena, backup;

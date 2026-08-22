@@ -34,6 +34,7 @@
 #include "sql_show.h"
 #include "sql_partition.h"
 #include "sql_alter.h"                          // RENAME_STAT_PARAMS
+#include "sql_tablesample.h"
 
 #include <vector>
 #include <string>
@@ -4160,6 +4161,10 @@ void set_statistics_for_table(THD *thd, TABLE *table)
     if (table->part_info)
       table->used_stat_records= table->file->stats.records;
 #endif
+
+  if (table->pos_in_table_list && table->pos_in_table_list->tablesample_clause)
+    table->used_stat_records= (ha_rows)(table->used_stat_records *
+      table->pos_in_table_list->tablesample_clause->get_sampling_percentage_fraction());
 
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;

@@ -9575,7 +9575,7 @@ bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
 }
 
 
-Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
+Item_splocal *LEX::create_item(THD *thd, const Lex_ident_cli_st *ca)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
   DBUG_ASSERT(ca->pos() <= ca->end());
@@ -9605,15 +9605,36 @@ Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 #endif
   safe_to_cache_query= 0;
 
-  if (!item->is_valid_limit_clause_variable_with_error())
-    return NULL;
-
-  item->limit_clause_param= true;
   return item;
 }
 
+Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
+{
+  Item_splocal *num_item = create_item(thd, ca);
+  if (!num_item)
+    return NULL;
+  
+  if (!num_item->is_valid_numeric_clause_variable_with_error())
+    return NULL;
 
-Item *LEX::create_item_limit(THD *thd,
+  num_item->limit_clause_param= true;
+  return num_item;
+}
+
+Item *LEX::create_item_tablesample(THD *thd, const Lex_ident_cli_st *ca)
+{
+  Item_splocal *num_item = create_item(thd, ca);
+  if (!num_item)
+    return NULL;
+  
+  if (!num_item->is_valid_tablesample_clause_variable_with_error())
+    return NULL;
+
+  num_item->tablesample_clause_param= true;
+  return num_item;
+}
+
+Item_splocal *LEX::create_item(THD *thd,
                              const Lex_ident_cli_st *ca,
                              const Lex_ident_cli_st *cb)
 {
@@ -9637,12 +9658,39 @@ Item *LEX::create_item_limit(THD *thd,
   if (unlikely(!(item= create_item_spvar_row_field(thd, rh, &sa, &sb, spv,
                                                    ca->pos(), cb->end()))))
     return NULL;
-  if (!item->is_valid_limit_clause_variable_with_error())
-    return NULL;
-  item->limit_clause_param= true;
+
   return item;
 }
 
+Item *LEX::create_item_limit(THD *thd,
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
+{
+  Item_splocal *num_item = create_item(thd, ca, cb);
+  if (!num_item)
+    return NULL;
+
+  if (!num_item->is_valid_numeric_clause_variable_with_error())
+    return NULL;
+
+  num_item->limit_clause_param= true;
+  return num_item;
+}
+
+Item *LEX::create_item_tablesample(THD *thd,
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
+{
+  Item_splocal *num_item = create_item(thd, ca, cb);
+  if (!num_item)
+    return NULL;
+
+  if (!num_item->is_valid_tablesample_clause_variable_with_error())
+    return NULL;
+
+  num_item->tablesample_clause_param= true;
+  return num_item;
+}
 
 bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 {

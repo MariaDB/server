@@ -958,6 +958,24 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
 
 bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
 {
+  /*
+    A TABLESAMPLE clause forces a sampling scan of the table and
+    index-based access can bias the result. Ignore any index hints
+    (old- or new-style) entirely and make sure no key is considered
+    usable, regardless of what the hints say.
+  */
+  if (tbl->pos_in_table_list && tbl->pos_in_table_list->tablesample_clause)
+  {
+    tbl->keys_in_use_for_query.clear_all();
+    tbl->keys_in_use_for_group_by.clear_all();
+    tbl->keys_in_use_for_order_by.clear_all();
+    tbl->keys_in_use_for_rowid_filter.clear_all();
+    tbl->covering_keys.clear_all();
+    tbl->force_index= tbl->force_index_join= tbl->force_index_group=
+        tbl->force_index_order= false;
+    return true;  // handled: caller must not also run process_index_hints()
+  }
+
   if (!is_fixed(INDEX_HINT_ENUM) && !is_fixed(JOIN_INDEX_HINT_ENUM) &&
       !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM) &&
       !is_fixed(ROWID_FILTER_HINT_ENUM))
