@@ -1394,8 +1394,9 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
 {
   CHARSET_INFO *cs= &my_charset_utf8mb4_bin;
-  bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
-               type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
+  bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT ||
+               type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE ||
+               type == JT_HASH_SAMPLE);
   LEX_CSTRING hash_key_prefix= { STRING_WITH_LEN("#hash#") };
   const char *key_name;
 
@@ -1441,8 +1442,9 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
 void Explain_table_access::fill_key_len_str(String *key_len_str,
                                             bool is_json) const
 {
-  bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
-               type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
+  bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT ||
+               type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE ||
+               type == JT_HASH_SAMPLE);
   if (key.get_key_len() != (uint)-1)
   {
     char buf[64];

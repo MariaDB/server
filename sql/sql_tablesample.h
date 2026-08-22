@@ -18,8 +18,8 @@
 
 
 #include "my_global.h"
-#include "item.h"
 #include "sql_alloc.h"
+#include "my_rnd.h"
 
 enum tablesample_method_enum
 {
@@ -29,11 +29,35 @@ enum tablesample_method_enum
 };
 
 class THD;
+struct TABLE;
+class Item;
 
 class Lex_tablesample: public Sql_alloc
 {
 private:
+  /*
+    SYSTEM sampling draws independent random index descents and rejects
+    duplicates (see mi_random_dive() / rr_sampling_system()). As the
+    requested fraction approaches 1, collisions between draws become
+    frequent, and the expected number of descents needed to collect p*N
+    distinct rows grows like N * ln(1/(1-p)) -- unboundedly worse than a
+    single sequential scan as p -> 1. Past this fraction, BERNOULLI
+    (cost O(N), independent of p) is cheaper, so SYSTEM falls back to it.
+  */
+  static constexpr double SYSTEM_TO_BERNOULLI_MAX_FRACTION= 0.3;
+
   enum tablesample_method_enum sampling_method=
+    tablesample_method_enum::TABLESAMPLE_NONE;
+  /*
+    The method actually used at read/cost time, which may differ from
+    sampling_method (e.g. SYSTEM falls back to BERNOULLI when the table
+    has no primary key). Recomputed on every fix_tablesample_fields() call
+    (once per statement execution) from the immutable sampling_method, so
+    that a prepared statement/stored procedure re-executed against a table
+    whose primary key changed always reflects the current table, never a
+    stale decision from an earlier execution.
+  */
+  enum tablesample_method_enum effective_method=
     tablesample_method_enum::TABLESAMPLE_NONE;
   Item *sampling_percentage;
   double percentage= 0.0;
@@ -42,9 +66,10 @@ private:
 
 public:
   Lex_tablesample(enum tablesample_method_enum method, Item *percentage) :
-    sampling_method(method), sampling_percentage(percentage) {}
+    sampling_method(method), effective_method(method),
+    sampling_percentage(percentage) {}
 
-  int fix_tablesample_fields(THD *thd);
+  int fix_tablesample_fields(THD *thd, TABLE *table);
 
   double get_sampling_percentage_fraction() const
   {
@@ -54,6 +79,11 @@ public:
   tablesample_method_enum get_sampling_method() const
   {
     return sampling_method;
+  }
+
+  tablesample_method_enum get_effective_sampling_method() const
+  {
+    return effective_method;
   }
 
   void seed_sample_rand(my_rnd_struct *out) const

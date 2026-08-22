@@ -8560,7 +8560,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
 
         if (table_list->tablesample_clause && (get_table_category(
           table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
-          table_list->tablesample_clause->fix_tablesample_fields(thd)))
+          table_list->tablesample_clause->fix_tablesample_fields(thd, table)))
         {
             my_error(ER_SYNTAX_ERROR, MYF(0));
             DBUG_RETURN(1);
@@ -8620,7 +8620,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
 
         if (table_list->tablesample_clause && (get_table_category(
           table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
-          table_list->tablesample_clause->fix_tablesample_fields(thd)))
+          table_list->tablesample_clause->fix_tablesample_fields(thd, table)))
         {
             my_error(ER_SYNTAX_ERROR, MYF(0));
             DBUG_RETURN(1);

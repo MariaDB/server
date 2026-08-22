@@ -9,7 +9,7 @@ DROP TABLE IF EXISTS t1, t2;
 DROP VIEW IF EXISTS v1;
 --enable_warnings
 
-CREATE TABLE t1 (a INT, b INT, KEY idx_b(b));
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (b));
 CREATE TABLE t2 (a INT, c INT);
 CREATE VIEW v1 AS SELECT * FROM t1;
 
@@ -58,7 +58,7 @@ DROP PROCEDURE IF EXISTS p1;
 DELIMITER //;
 CREATE PROCEDURE p1(IN sample_pct INT)
 BEGIN
-  SELECT * FROM t1 TABLESAMPLE SYSTEM (sample_pct);
+  SELECT * FROM t1 TABLESAMPLE BERNOULLI (sample_pct);
 END//
 DELIMITER ;//
 
@@ -76,7 +76,7 @@ BEGIN
 END//
 DELIMITER ;//
 
-CALL p1(40.11);
+CALL p1(20.11);
 
 DROP PROCEDURE p1;
 
@@ -113,7 +113,7 @@ SELECT * FROM mysql.user TABLESAMPLE SYSTEM (10);
 # TABLESAMPLE should not work on derived tables
 #
 --error ER_PARSE_ERROR
-SELECT * FROM (SELECT * FROM t1) AS derived_tbl TABLESAMPLE SYSTEM (50);
+SELECT * FROM (SELECT * FROM t1) AS derived_tbl TABLESAMPLE SYSTEM (30);
 
 --error ER_SYNTAX_ERROR
 WITH cte_tbl AS (SELECT * FROM t1)
@@ -125,6 +125,69 @@ SELECT * FROM cte_tbl TABLESAMPLE BERNOULLI (10);
 # SELECT * FROM t1 TABLESAMPLE BERNOULLI (50);
 
 # SELECT * FROM t1 TABLESAMPLE BERNOULLI (50) JOIN t2 TABLESAMPLE BERNOULLI (50) ON t1.a = t2.a;
+
+#
+# TABLESAMPLE SYSTEM without a primary key falls back to BERNOULLI
+#
+CREATE TABLE t_no_pk (a INT, b INT);
+CREATE TABLE t_pk (a INT PRIMARY KEY, b INT);
+
+SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (10);
+SHOW WARNINGS;
+
+#
+# TABLESAMPLE SYSTEM with a sampling percentage above the
+# SYSTEM_TO_BERNOULLI_MAX_FRACTION threshold falls back to
+# BERNOULLI
+#
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30.01);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (50);
+SHOW WARNINGS;
+
+# Same parsed statement re-executed after the table's primary key changes:
+# the fallback (and its warning) must reflect the CURRENT execution's table,
+# not stick around from an earlier execution.
+PREPARE stmt3 FROM 'SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10)';
+
+EXECUTE stmt3;
+SHOW WARNINGS;
+
+ALTER TABLE t_no_pk ADD PRIMARY KEY (a);
+
+EXECUTE stmt3;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt3;
+DROP TABLE t_no_pk, t_pk;
+
+--source include/have_sequence.inc
+
+CREATE TABLE t_data (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t_data SELECT seq, seq * 2 FROM seq_1_to_20;
+
+# SELECT * FROM t_data TABLESAMPLE SYSTEM (20);
+
+# SELECT * FROM t_data as t1 TABLESAMPLE BERNOULLI (20) JOIN t_data as t2 TABLESAMPLE BERNOULLI (30) ON t1.a = t2.a;
+
+#
+# A TABLESAMPLE'd table joined via hash join (BNLH) shows "hash_sample"
+# in EXPLAIN, not the misleading "hash_ALL"
+#
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 3;
+
+EXPLAIN SELECT * FROM t_data AS t1 TABLESAMPLE BERNOULLI (20)
+  JOIN t_data AS t2 TABLESAMPLE BERNOULLI (30) ON t1.a = t2.a;
+
+SET join_cache_level= @save_join_cache_level;
 
 #
 # Cleanup

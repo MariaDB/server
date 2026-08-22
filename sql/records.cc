@@ -31,6 +31,7 @@
 #include "sql_base.h"
 #include "sql_sort.h"                           // SORT_ADDON_FIELD
 #include "sql_tablesample.h"
+#include "key.h"                                // key_copy
 
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
@@ -324,16 +325,33 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else if (has_tablesample)
   {
     DBUG_PRINT("info",("using rr_sampling"));
-    Lex_tablesample *tablesample_clause= 
+    Lex_tablesample *tablesample_clause=
       table->pos_in_table_list->tablesample_clause;
     enum tablesample_method_enum sampling_method=
-      tablesample_clause->get_sampling_method();
+      tablesample_clause->get_effective_sampling_method();
     if (sampling_method == tablesample_method_enum::TABLESAMPLE_BERNOULLI)
+    {
       info->read_record_func= rr_sampling_bernoulli;
+      if (unlikely(table->file->ha_rnd_init_with_error(1)))
+        DBUG_RETURN(1);
+    }
     else
+    {
+      int error;
       info->read_record_func= rr_sampling_system;
-    if (unlikely(table->file->ha_rnd_init_with_error(1)))
-      DBUG_RETURN(1);
+      info->sample_key= table->s->primary_key;
+      if (!table->file->inited &&
+          unlikely((error= table->file->ha_index_init(info->sample_key, 0))))
+      {
+        if (print_error)
+          table->file->print_error(error, MYF(0));
+        DBUG_RETURN(1);
+      }
+      my_hash_init(PSI_INSTRUMENT_ME, &info->sample_seen_keys,
+                   &my_charset_bin, 0, 0,
+                   table->key_info[info->sample_key].key_length,
+                   NULL, my_free, HASH_UNIQUE);
+    }
     tablesample_clause->seed_sample_rand(&info->sample_rand);
   }
   else
@@ -368,6 +386,8 @@ void end_read_record(READ_RECORD *info)
 {
   /* free cache if used */
   free_cache(info);
+  if (my_hash_inited(&info->sample_seen_keys))
+    my_hash_free(&info->sample_seen_keys);
   if (info->table)
   {
     if (info->table->db_stat) // if opened
@@ -559,19 +579,47 @@ int rr_sampling_bernoulli(READ_RECORD *info)
 int rr_sampling_system(READ_RECORD *info)
 {
   int tmp;
-  const double p= info->table->pos_in_table_list->tablesample_clause->
-                    get_sampling_percentage_fraction();
+  handler *file= info->table->file;
+  KEY *key_info= &info->table->key_info[info->sample_key];
+  const uint key_length= key_info->key_length;
+
+  /*
+    used_stat_records was scaled down to sampling_fraction * total_rows
+    before
+  */
+  if (info->sample_seen_keys.records >= info->table->stat_records())
+    return rr_handle_error(info, HA_ERR_END_OF_FILE);
 
   for (;;)
   {
-    tmp= info->table->file->ha_rnd_next(info->record());
+    tmp= file->ha_index_random_dive(info->record(), &info->sample_rand);
     if (tmp)
     {
       tmp= rr_handle_error(info, tmp);
       break;
     }
-    if (my_rnd(&info->sample_rand) < p)
+
+    uchar *key_buff= (uchar*) my_malloc(PSI_INSTRUMENT_ME, key_length,
+                                        MYF(MY_WME));
+    if (unlikely(!key_buff))
+    {
+      tmp= HA_ERR_OUT_OF_MEM;
       break;
+    }
+    key_copy(key_buff, info->record(), key_info, key_length);
+
+    if (my_hash_search(&info->sample_seen_keys, key_buff, key_length))
+    {
+      my_free(key_buff);
+      continue; // already returned this row, dive again
+    }
+
+    if (unlikely(my_hash_insert(&info->sample_seen_keys, key_buff)))
+    {
+      my_free(key_buff);
+      tmp= HA_ERR_OUT_OF_MEM;
+    }
+    break;
   }
   return tmp;
 }

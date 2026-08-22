@@ -435,8 +435,18 @@ enum join_type
     Shown as "hash_index_merge" in EXPLAIN.
   */
   JT_HASH_INDEX_MERGE,
+
+  /*
+    JT_HASH where the joined table also carries a TABLESAMPLE clause,
+    so the buffer-refill scan reads a sample of the table's rows
+    instead of all of them.  Appears only in EXPLAIN output, derived
+    from a JT_HASH table whose table has a tablesample_clause; never
+    the type of a JOIN_TAB.
+
+    Shown as "hash_sample" in EXPLAIN.
+  */
+  JT_HASH_SAMPLE,
   JT_SAMPLE,
-  JT_HASH_SAMPLE
 };
 
 class JOIN;

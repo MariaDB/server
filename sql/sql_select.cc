@@ -123,7 +123,8 @@ const char *join_type_str[]={ "UNKNOWN","system","const","eq_ref","ref",
 			      "MAYBE_REF","ALL","range","index","fulltext",
 			      "ref_or_null","unique_subquery","index_subquery",
                               "index_merge", "hash_ALL", "hash_range",
-                              "hash_index", "hash_index_merge" };
+                              "hash_index", "hash_index_merge",
+                              "hash_sample", "sample" };
 
 static const Lex_ident_column group_key= "group_key"_Lex_ident_column;
 static const Lex_ident_column distinct_key= "distinct_key"_Lex_ident_column;
@@ -16930,34 +16931,33 @@ void JOIN_TAB::estimate_scan_time()
       }
       else
       {
-        sampling_info= table->pos_in_table_list->tablesample_clause;
-        if (unlikely(sampling_info && sampling_info->get_sampling_method() ==
+        sampling_info= table->pos_in_table_list ?
+          table->pos_in_table_list->tablesample_clause : NULL;
+        if (unlikely(sampling_info && sampling_info->get_effective_sampling_method() ==
           tablesample_method_enum::TABLESAMPLE_SYSTEM))
         {
+          /*
+            get_effective_sampling_method() only returns TABLESAMPLE_SYSTEM
+            when the table has a primary key (otherwise it has already
+            fallen back to TABLESAMPLE_BERNOULLI), so table->s->primary_key
+            is guaranteed to be usable here.
+          */
           cached_covering_key= table->s->primary_key;
-          if (cached_covering_key != MAX_KEY)
+          DBUG_ASSERT(cached_covering_key != MAX_KEY);
+          if (file->is_clustering_key(cached_covering_key))
           {
-            if (file->is_clustering_key(cached_covering_key))
-            {
-              cost->index_cost=
-                file->ha_keyread_clustered_time(cached_covering_key, records, records, 0);
-              read_time= file->cost(cost->index_cost);
-              row_copy_cost= file->ROW_COPY_COST;
-            }
-            else
-            {
-              cost->index_cost=
-                file->ha_keyread_time(cached_covering_key, records, records, 0);
-              cost->row_cost= file->ha_rnd_pos_time(records);
-              read_time= file->cost(cost->row_cost) + file->cost(cost->index_cost);
-              row_copy_cost= 0; // included in ha_rnd_pos_time
-            }
+            cost->index_cost=
+              file->ha_keyread_clustered_time(cached_covering_key, 1, records, 0);
+            read_time= file->cost(cost->index_cost);
+            row_copy_cost= file->ROW_COPY_COST;
           }
           else
           {
-            cost->row_cost= file->ha_scan_time(records);
-            read_time= file->cost(cost->row_cost);
-            row_copy_cost= 0;              // Included in ha_scan_time
+            cost->index_cost=
+              file->ha_keyread_time(cached_covering_key, 1, records, 0);
+            cost->row_cost= file->ha_rnd_pos_time(records);
+            read_time= file->cost(cost->row_cost) + file->cost(cost->index_cost);
+            row_copy_cost= 0; // included in ha_rnd_pos_time
           }
         }
         else
@@ -31306,6 +31306,8 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     else
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
   }
+  else if (type == JT_HASH && table_list && table_list->tablesample_clause)
+    tab_type= JT_HASH_SAMPLE;
   eta->type= tab_type;
 
   /* Build "possible_keys" value */
