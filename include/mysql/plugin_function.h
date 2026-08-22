@@ -27,8 +27,16 @@
 
 #include <mysql/plugin.h>
 
+class Create_func;
+
 /*
   API for function plugins. (MariaDB_FUNCTION_PLUGIN)
+
+  An aggregate function's Create_func must create an Item_sum_plugin descendant.
+  Aggregate implementations use the normal Item_sum lifecycle and
+  aggregation_arg() to read values, including values replayed by DISTINCT. They
+  can implement supports_removal() and remove() for moving window frames, and
+  val_native() to preserve a pluggable result type.
 */
 #define MariaDB_FUNCTION_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 

@@ -209,6 +209,14 @@ protected:
 };
 
 
+class Create_aggregate_func : public Create_native_func
+{
+protected:
+  Create_aggregate_func() = default;
+  virtual ~Create_aggregate_func() = default;
+};
+
+
 /**
   Function builder for qualified functions.
   This builder is used with functions call using a qualified function name
