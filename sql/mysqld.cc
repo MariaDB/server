@@ -7991,6 +7991,7 @@ SHOW_VAR status_vars[]= {
   {"Connection_errors_peer_address", (char*) &connection_errors_peer_addr, SHOW_LONG},
   {"Connection_errors_select", (char*) &connection_errors_select, SHOW_LONG},
   {"Connection_errors_tcpwrap", (char*) &connection_errors_tcpwrap, SHOW_LONG},
+  {"Connection_init_auth",     (char*) &show_init_auth, SHOW_SIMPLE_FUNC},
   {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_MICROSECOND_STATUS},
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
@@ -8102,6 +8103,7 @@ SHOW_VAR status_vars[]= {
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
   SHOW_FUNC_ENTRY("Rpl_semi_sync_slave_status",  &rpl_semi_sync_enabled),
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
+  {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
 #endif /* HAVE_REPLICATION */
   {"Qcache_free_blocks",       (char*) &query_cache.free_memory_blocks, SHOW_LONG_NOFLUSH},
   {"Qcache_free_memory",       (char*) &query_cache.free_memory, SHOW_LONG_NOFLUSH},
@@ -8195,7 +8197,6 @@ SHOW_VAR status_vars[]= {
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) offsetof(STATUS_VAR, threads_running), SHOW_UINT32_STATUS},
   {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
-  {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
   {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
   {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},

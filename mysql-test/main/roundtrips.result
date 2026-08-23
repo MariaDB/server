@@ -24,21 +24,21 @@ disconnect u;
 # Round-trips: 4
 connect u,127.0.0.1,u,pwd4,,$port,,NOSSL;
 disconnect u;
-# Round-trips: 4
+# Round-trips: 3
 connect u,127.0.0.1,u,pwd4,,$port,,NOSSL;
 disconnect u;
-# Round-trips: 4
+# Round-trips: 3
 connection default;
 #  5. ssl parsec
 create or replace user u@'%' identified with parsec using password('pwd5');
 connect u,127.0.0.1,u,pwd5,,$port,,SSL;
 disconnect u;
-# Round-trips: 4
+# Round-trips: 3
 connection default;
 #  6. ssl parsec repeated
 connect u,127.0.0.1,u,pwd5,,$port,,SSL;
 disconnect u;
-# Round-trips: 4
+# Round-trips: 3
 connection default;
 #  7. native->native change user
 create or replace user u@'%' identified with mysql_native_password using password('pwd7');
@@ -46,7 +46,7 @@ create or replace user u2@'%' identified with mysql_native_password using passwo
 connect u,127.0.0.1,u,pwd7,,$port,,NOSSL;
 change_user u2,dwp7,;
 disconnect u;
-# Round-trips: 4
+# Round-trips: 5
 connection default;
 #  8. native->parsec change user
 create or replace user u@'%' identified with mysql_native_password using password('pwd8');
@@ -54,7 +54,7 @@ create or replace user u2@'%' identified with parsec using password('dwp8');
 connect u,127.0.0.1,u,pwd8,,$port,,NOSSL;
 change_user u2,dwp8,;
 disconnect u;
-# Round-trips: 5
+# Round-trips: 6
 connection default;
 #  9. parsec->native change user
 create or replace user u@'%' identified with parsec using password('pwd9');
@@ -62,7 +62,7 @@ create or replace user u2@'%' identified with mysql_native_password using passwo
 connect u,127.0.0.1,u,pwd9,,$port,,NOSSL;
 change_user u2,dwp9,;
 disconnect u;
-# Round-trips: 6
+# Round-trips: 5
 connection default;
 # 10. parsec->parsec change user
 create or replace user u@'%' identified with parsec using password('pwd10');
@@ -70,7 +70,7 @@ create or replace user u2@'%' identified with parsec using password('dwp10');
 connect u,127.0.0.1,u,pwd10,,$port,,NOSSL;
 change_user u2,dwp10,;
 disconnect u;
-# Round-trips: 7
+# Round-trips: 6
 connection default;
 drop user u@'%';
 drop user u2@'%';

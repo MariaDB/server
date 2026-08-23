@@ -85,6 +85,8 @@ static inline int access_denied_error_code(int passwd_used)
 }
 
 /* prototypes */
+int show_init_auth(THD *thd, SHOW_VAR *var, void *buff,
+                   system_status_var *, enum enum_var_type scope);
 
 bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);

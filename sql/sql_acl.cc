@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,10 +87,6 @@ static Lex_ident_plugin native_password_plugin_name=
 
 static Lex_ident_plugin old_password_plugin_name=
   "mysql_old_password"_Lex_ident_plugin;
-
-
-/// @todo make it configurable
-LEX_CSTRING *default_auth_plugin_name= &native_password_plugin_name;
 
 /*
   Wildcard host, matches any hostname
@@ -757,7 +753,6 @@ static int traverse_role_graph_down(ACL_USER_BASE *, void *,
                              int (*) (ACL_USER_BASE *, void *),
                              int (*) (ACL_USER_BASE *, ACL_ROLE *, void *));
 
-
 HASH *Sp_handler_procedure::get_priv_hash() const
 {
   return &proc_priv_hash;
@@ -781,6 +776,92 @@ HASH *Sp_handler_package_body::get_priv_hash() const
   return &package_body_priv_hash;
 }
 
+
+/*
+  Statistics of what plugins are used for authentication.
+  This is used to select the plugin name for the server handshake packet.
+  Intentionally uses malloc/free, not acl_memroot to avoid taking
+  acl_cache->lock in acl_authenticate().
+  Note that the list is very short, there can be only few auth plugins.
+*/
+struct plugin_stat
+{
+  LEX_CSTRING name;
+  uint16 used= 0;
+  bool cannot_be_first= false;
+
+  plugin_stat(const LEX_CSTRING &name, bool cannot_be_first)
+    : name({my_strdup(PSI_INSTRUMENT_MEM, name.str, MYF(MY_WME)),
+           name.length}), cannot_be_first(cannot_be_first) {}
+  ~plugin_stat() { my_free(const_cast<char*>(name.str)); }
+  static constexpr uint16 compact= 2048;
+  static const uchar *get_key(const void *self_, size_t *len, my_bool)
+  {
+    auto self=static_cast<const plugin_stat*>(self_);
+    *len= self->name.length;
+    return (const uchar*)(self->name.str);
+  }
+  static void free(void* self_)
+  {
+    delete static_cast<const plugin_stat*>(self_);
+  }
+};
+
+static plugin_stat *most_used_plugin;
+static Hash_set<plugin_stat>
+  plugin_stats(PSI_INSTRUMENT_MEM, &my_charset_latin1, 0, 0, 0,
+               plugin_stat::get_key, plugin_stat::free, HASH_UNIQUE);
+
+static void increment_plugin_stats(const LEX_CSTRING &name)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  struct plugin_stat *plugin= plugin_stats.find(name.str, name.length);
+  if (!plugin)
+  {
+    if (plugin_ref ref= plugin_lock_by_name(0, &name, MYSQL_AUTHENTICATION_PLUGIN))
+    {
+      /* this happens at most once per plugin */
+      st_mysql_auth *info= (st_mysql_auth*)plugin_decl(ref)->info;
+      /*
+        don't put into the handshake packet a plugin if it's
+        - has no client plugin, like unix_socket. We don't need a roundtrip
+          to switch to it, so we don't save anything when it's first.
+        - doesn't hash passwords. Let's not ask a client by default
+          to send a plain-text password.
+      */
+      bool cannot_be_first= !info->client_auth_plugin ||
+                            !info->hash_password;
+      plugin_unlock(0, ref);
+      plugin= new plugin_stat(name, cannot_be_first);
+      plugin_stats.insert(plugin);
+    }
+    else // ER_PLUGIN_IS_NOT_LOADED will be thrown later
+      return;
+  }
+  if (plugin->cannot_be_first || ++plugin->used < most_used_plugin->used)
+    return;
+  most_used_plugin= plugin;
+  if (plugin->used >= plugin->compact)
+    for (auto p: plugin_stats)
+      p.used/= 2;
+}
+
+static void reset_plugin_stats()
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  for (auto &p: plugin_stats) p.used= 0;
+  most_used_plugin= plugin_stats.find(native_password_plugin_name.str,
+                                      native_password_plugin_name.length);
+}
+
+int show_init_auth(THD *thd, SHOW_VAR *var, void *buff, system_status_var *,
+                   enum enum_var_type scope)
+{
+  var->type= SHOW_CHAR;
+  var->value= buff;
+  strmake((char*)buff, most_used_plugin->name.str, SHOW_VAR_FUNC_BUFF_SIZE-1);
+  return 0;
+}
 
 /*
  Enumeration of ACL/GRANT tables in the mysql database
@@ -3292,6 +3373,9 @@ bool acl_init(bool dont_read_acl_tables)
   if (!native_password_plugin)
     DBUG_RETURN(1);
 
+  most_used_plugin= new plugin_stat(native_password_plugin_name, false);
+  plugin_stats.insert(most_used_plugin);
+
   if (dont_read_acl_tables)
   {
     DBUG_RETURN(0); /* purecov: tested */
@@ -3709,6 +3793,7 @@ void acl_free(bool end)
   else
   {
     plugin_unlock(0, native_password_plugin);
+    plugin_stats.~Hash_set<plugin_stat>();
     delete acl_cache;
     acl_cache=0;
   }
@@ -3814,6 +3899,7 @@ bool acl_reload(THD *thd)
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
   }
+  reset_plugin_stats();
   mysql_mutex_unlock(&acl_cache->lock);
 end:
   close_mysql_tables(thd);
@@ -15491,7 +15577,6 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
 
   THD *thd= mpvio->auth_info.thd;
   char *buff= (char *) my_alloca(1 + SERVER_VERSION_LENGTH + 1 + data_len + 64);
-  char scramble_buf[SCRAMBLE_LENGTH];
   char *end= buff;
   DBUG_ENTER("send_server_handshake_packet");
 
@@ -15517,31 +15602,20 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
 
   if (data_len < SCRAMBLE_LENGTH)
   {
-    if (data_len)
-    {
-      /*
-        the first packet *must* have at least 20 bytes of a scramble.
-        if a plugin provided less, we pad it to 20 with zeros
-      */
-      memcpy(scramble_buf, data, data_len);
-      bzero(scramble_buf + data_len, SCRAMBLE_LENGTH - data_len);
-      data= scramble_buf;
-    }
-    else
-    {
-      /*
-        if the default plugin does not provide the data for the scramble at
-        all, we generate a scramble internally anyway, just in case the
-        user account (that will be known only later) uses a
-        native_password_plugin (which needs a scramble). If we don't send a
-        scramble now - wasting 20 bytes in the packet -
-        native_password_plugin will have to send it in a separate packet,
-        adding one more round trip.
-      */
-      thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
-      data= thd->scramble;
-    }
+    /*
+      the first packet *must* have at least 20 bytes of a scramble.
+      if a plugin provided less, we pad it to 20
+    */
+    thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
+    memcpy(thd->scramble, data, data_len);
+    thd->scramble[data_len]= 0;         // plugins expect zero-terminated
+    data= thd->scramble;
     data_len= SCRAMBLE_LENGTH;
+  }
+  else
+  {
+    memcpy(thd->scramble, data, SCRAMBLE_LENGTH);
+    thd->scramble[SCRAMBLE_LENGTH]= 0;
   }
 
   end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
@@ -15745,7 +15819,11 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
 
   if (user && !user->dont_accept_new_connections())
+  {
+    if (user->nauth && user->auth[0].plugin.length)
+      increment_plugin_stats(user->auth[0].plugin);
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
+  }
 
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -16424,7 +16502,7 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   {
     const char *client_auth_plugin=
       ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
-    if (client_auth_plugin == 0)
+    if (client_auth_plugin == 0) // should never happen, really
     {
       mpvio->status= MPVIO_EXT::FAILURE;
       pkt_len= 0;
@@ -16659,6 +16737,13 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   bool unlock_plugin= false;
   plugin_ref plugin= get_auth_plugin(thd, *auth_plugin_name, &unlock_plugin);
 
+  /* if there's no user we use most_used_plugin, it can be uninstalled */
+  if (!plugin && !thd->security_ctx->user)
+  {
+    plugin= native_password_plugin;
+    unlock_plugin= false;
+  }
+
   mpvio->plugin= plugin;
   mpvio->auth_info.user_name= NULL;
 
@@ -16795,8 +16880,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       with a user name, and performs the authentication if everyone has used
       the correct plugin.
     */
-
-    res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
+    res= do_auth_once(thd, &most_used_plugin->name, &mpvio);
   }
 
   PSI_CALL_set_connection_type(vio_type(thd->net.vio));
