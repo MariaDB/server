@@ -1,0 +1,105 @@
+--source include/not_windows.inc
+
+--let $port=$($MASTER_MYPORT + 1)
+--let $report=$MYSQL_TMP_DIR/roundtrips.inc
+--let $counter=perl lib/roundtrips-mitm.pl --listen-on $port --connect-to $MASTER_MYPORT --report $report
+
+--echo #  1. nossl native
+flush privileges;
+create or replace user u@'%' identified with mysql_native_password;
+--exec $counter
+--connect u,127.0.0.1,u,,,$port,,NOSSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  2. ssl native no password
+--exec $counter
+--connect u,127.0.0.1,u,,,$port,,SSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  3. ssl native with password
+set password for u@'%' = password('pwd3');
+--exec $counter
+--connect u,127.0.0.1,u,pwd3,,$port,,SSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  4. nossl parsec
+flush privileges;
+create or replace user u@'%' identified with parsec using password('pwd4');
+--exec $counter
+--connect u,127.0.0.1,u,pwd4,,$port,,NOSSL
+--disconnect u
+--exec flock $report cat $report
+--exec $counter
+--connect u,127.0.0.1,u,pwd4,,$port,,NOSSL
+--disconnect u
+--exec flock $report cat $report
+--exec $counter
+--connect u,127.0.0.1,u,pwd4,,$port,,NOSSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  5. ssl parsec
+create or replace user u@'%' identified with parsec using password('pwd5');
+--exec $counter
+--connect u,127.0.0.1,u,pwd5,,$port,,SSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  6. ssl parsec repeated
+--exec $counter
+--connect u,127.0.0.1,u,pwd5,,$port,,SSL
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  7. native->native change user
+create or replace user u@'%' identified with mysql_native_password using password('pwd7');
+create or replace user u2@'%' identified with mysql_native_password using password('dwp7');
+--exec $counter
+--connect u,127.0.0.1,u,pwd7,,$port,,NOSSL
+--change_user u2,dwp7
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  8. native->parsec change user
+create or replace user u@'%' identified with mysql_native_password using password('pwd8');
+create or replace user u2@'%' identified with parsec using password('dwp8');
+--exec $counter
+--connect u,127.0.0.1,u,pwd8,,$port,,NOSSL
+--change_user u2,dwp8
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo #  9. parsec->native change user
+create or replace user u@'%' identified with parsec using password('pwd9');
+create or replace user u2@'%' identified with mysql_native_password using password('dwp9');
+--exec $counter
+--connect u,127.0.0.1,u,pwd9,,$port,,NOSSL
+--change_user u2,dwp9
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+--echo # 10. parsec->parsec change user
+create or replace user u@'%' identified with parsec using password('pwd10');
+create or replace user u2@'%' identified with parsec using password('dwp10');
+--exec $counter
+--connect u,127.0.0.1,u,pwd10,,$port,,NOSSL
+--change_user u2,dwp10
+--disconnect u
+--exec flock $report cat $report
+--connection default
+
+drop user u@'%';
+drop user u2@'%';
+--remove_file $report

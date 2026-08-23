@@ -1,0 +1,2 @@
+--plugin-load-add=$AUTH_PARSEC_SO
+--loose-parsec
