@@ -121,6 +121,7 @@ SET (SQL_SOURCE
                sql_parallel_workers.cc
                sql_parallel_execution.cc
                sql_parallel_costs.cc
+               sql_parallel_thread.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
                opt_sargable_left.cc
