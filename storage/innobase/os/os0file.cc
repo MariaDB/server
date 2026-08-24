@@ -2017,7 +2017,15 @@ os_file_create_func(
 	);
 
 	DWORD		create_flag = OPEN_EXISTING;
-	DWORD		share_mode = read_only
+	/* BACKUP SERVER may invoke CreateHardLink() on a log file that
+	may concurrently be written to. This is why we must allow
+	FILE_SHARE_WRITE. This has the side effect that multiple InnoDB
+	instances may be concurrently started on the same log file.
+	However, InnoDB will not write any log before it has successfully
+	opened data files. As long as the multiple instances are also
+	opening the same InnoDB data files (such as the system tablespace),
+	they should fail to start up concurrently. */
+	DWORD		share_mode = read_only || type == OS_LOG_FILE
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
 		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 

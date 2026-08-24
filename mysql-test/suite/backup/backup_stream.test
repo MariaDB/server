@@ -1,0 +1,85 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/maybe_debug.inc
+
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO t SET a=1;
+
+CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO at1 VALUES (1);
+CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO at0 VALUES (0);
+
+--remove_files_wildcard $MYSQL_TMP_DIR/. stream.bat
+--write_file $MYSQL_TMP_DIR/stream.bat
+#!/bin/sh
+exec cat > $MYSQL_TMP_DIR/$1.tar
+EOF
+
+--let $script=$MYSQL_TMP_DIR/stream.bat
+if (!$MARIADB_UPGRADE_EXE) {
+# Because we may run on Linux /dev/shm which may be mounted as noexec,
+# we cannot rely on chmod +x, but must explicitly invoke a shell on the script.
+--let $script=/bin/sh $script
+}
+if ($MARIADB_UPGRADE_EXE)
+{
+--exec echo "@cat > %MYSQL_TMP_DIR%\%1.tar" > $MYSQL_TMP_DIR/stream.bat
+}
+
+BEGIN;
+DELETE FROM t;
+
+--connect backup,localhost,root
+if ($have_debug) {
+SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
+--replace_result $script stream.bat
+send_eval BACKUP SERVER WITH 2 CONCURRENT '$script';
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR start';
+INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
+SET DEBUG_SYNC='now SIGNAL resume';
+--connection backup
+--reap
+}
+if (!$have_debug) {
+--replace_result $script stream.bat
+eval BACKUP SERVER WITH 2 CONCURRENT '$script';
+}
+
+--remove_file $MYSQL_TMP_DIR/stream.bat
+--disconnect backup
+--connection default
+ROLLBACK;
+SELECT * FROM t;
+DELETE FROM t;
+DROP TABLE at0, at1;
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_stream
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+--mkdir $target_directory
+--exec tar xf $MYSQL_TMP_DIR/1.tar -C $target_directory
+--exec tar xf $MYSQL_TMP_DIR/2.tar -C $target_directory
+
+--exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/restart_mysqld.inc
+SELECT * FROM at0;
+SELECT * FROM at1;
+SELECT * FROM t;
+--error ER_OPEN_AS_READONLY
+DELETE FROM t;
+
+--remove_file $MYSQL_TMP_DIR/1.tar
+--remove_file $MYSQL_TMP_DIR/2.tar
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+
+--rmdir $target_directory

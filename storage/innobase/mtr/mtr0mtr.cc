@@ -313,7 +313,8 @@ void mtr_t::release_unlogged()
       buf_block_t *block= static_cast<buf_block_t*>(slot.object);
       ut_d(const auto s=) block->page.unfix();
       ut_ad(s >= buf_page_t::FREED);
-      ut_ad(s < buf_page_t::READ_FIX);
+      /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+      ut_ad(!buf_page_t::is_read_fixed(s));
 
       if (slot.type & MTR_MEMO_MODIFY)
       {
@@ -440,7 +441,8 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
         ut_ad(b->page.id() < end_page_id);
         ut_d(const auto s= b->page.state());
         ut_ad(s > buf_page_t::FREED);
-        ut_ad(s < buf_page_t::READ_FIX);
+        /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+        ut_ad(!buf_page_t::is_read_fixed(s));
         ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <=
               mtr->m_commit_lsn);
         mach_write_to_8(b->page.frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
@@ -492,7 +494,13 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
           ut_ad(bpage->oldest_modification() < mtr->m_commit_lsn);
           ut_ad(bpage->id() < end_page_id);
           ut_ad(s >= buf_page_t::FREED);
-          ut_ad(s < buf_page_t::READ_FIX);
+          /* If a thread is executing between
+          InnoDB_backup::backup_batch_start() and
+          InnoDB_backup::backup_batch_stop() for this page, a fake
+          "write fix" may exist. We are free to modify the page in the
+          buffer pool, but buf_page_t::flush() will refuse to write it
+          to the file system. */
+          ut_ad(!buf_page_t::is_read_fixed(s));
           ut_ad(mach_read_from_8(bpage->frame + FIL_PAGE_LSN) <=
                 mtr->m_commit_lsn);
           mach_write_to_8(bpage->frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
@@ -595,12 +603,34 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
-/** Set create_lsn. */
-inline void fil_space_t::set_create_lsn(lsn_t lsn) noexcept
+/** Mark an X-latched block as freed in the tablespace. @see set_reinit() */
+void buf_page_t::set_freed() noexcept
 {
-  /* Concurrent log_checkpoint_low() must be impossible. */
-  ut_ad(latch.have_wr());
-  create_lsn= lsn;
+  /*
+    Ensure that lock.x_lock() is being held (hopefully, by us).
+    This blocks a concurrent flush(), protected by lock.u_lock().
+  */
+  ut_ad(lock.is_write_locked());
+  uint32_t s{state()};
+  do
+  {
+    ut_ad(s >= UNFIXED);
+    /*
+      InnoDB_backup::backup_batch_start() may set fix() and
+      write_fix_try() on any dirty block to prevent flush() from
+      writing changes back to the file system. We may safely mark such
+      blocks as FREED; write_unfix_try() will account for that.
+    */
+    ut_ad(s > WRITE_FIX || s < READ_FIX);
+  }
+  /*
+    fetch_sub() is not safe here, because this may run concurrently
+    with write_fix_try() or write_unfix_try().
+  */
+  while (!zip.fix.compare_exchange_weak(s, FREED + (s & ~LRU_MASK),
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed) &&
+         !is_freed(s));
 }
 
 /** Commit a mini-transaction that is shrinking a tablespace.
@@ -635,7 +665,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   if (space.id == TRX_SYS_SPACE)
     srv_sys_space.set_last_file_size(file->size);
   else
-    space.set_create_lsn(m_commit_lsn);
+    space.create_lsn= m_commit_lsn;
 
   mysql_mutex_unlock(&fil_system.mutex);
 
@@ -674,7 +704,8 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
       const page_id_t id{b->page.id()};
       const auto s= b->page.state();
       ut_ad(s > buf_page_t::FREED);
-      ut_ad(s < buf_page_t::READ_FIX);
+      /* A fake "write fix" of InnoDB_backup may exist for a latched page */
+      ut_ad(!buf_page_t::is_read_fixed(s));
       ut_ad(b->page.frame);
       ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= m_commit_lsn);
       ut_ad(!b->page.zip.data); // we no not shrink ROW_FORMAT=COMPRESSED
@@ -695,7 +726,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
       {
         ut_ad(id.space() == high.space());
         if (s >= buf_page_t::UNFIXED)
-          b->page.set_freed(s);
+          b->page.set_freed();
         if (b->page.oldest_modification() > 1)
           b->page.reset_oldest_modification();
         slot.type= mtr_memo_type_t(slot.type & ~MTR_MEMO_MODIFY);
@@ -1542,7 +1573,8 @@ buf_block_t *mtr_t::page_lock(buf_block_t *block, ulint rw_latch) noexcept
   case RW_SX_LATCH:
     fix_type= MTR_MEMO_PAGE_SX_FIX;
     block->page.lock.u_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
     break;
   default:
     ut_ad(rw_latch == RW_X_LATCH);
@@ -1553,7 +1585,8 @@ buf_block_t *mtr_t::page_lock(buf_block_t *block, ulint rw_latch) noexcept
       page_lock_upgrade(*block);
       return block;
     }
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
   }
 
 done:
@@ -1588,11 +1621,13 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
     break;
   case RW_SX_LATCH:
     block->page.lock.u_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
     break;
   case RW_X_LATCH:
     block->page.lock.x_lock();
-    ut_ad(!block->page.is_io_fixed());
+    /* A fake "write fix" of InnoDB_backup may exist */
+    ut_ad(!block->page.is_read_fixed());
   }
 
   ut_ad(page_id_t(page_get_space_id(block->page.frame),
@@ -1784,7 +1819,7 @@ void mtr_t::init(buf_block_t *b)
     m_freed_space= nullptr;
   }
 
-  b->page.set_reinit(b->page.state() & buf_page_t::LRU_MASK);
+  b->page.set_reinit();
 
   if (!is_logged())
     return;
@@ -1849,7 +1884,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       if (block->index)
         btr_search_drop_page_hash_index(block, nullptr);
 #endif /* BTR_CUR_HASH_ADAPT */
-      block->page.set_freed(block->page.state());
+      block->page.set_freed();
     }
   }
 
