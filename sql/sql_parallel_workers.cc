@@ -157,10 +157,10 @@ public:
     */
     if (*level == Sql_condition::WARN_LEVEL_ERROR && !thd->killed)
     {
-      mysql_mutex_lock(&manager->LOCK_data);
-      manager->fatal_error= true;
-      mysql_cond_broadcast(&manager->COND_data_avail);
-      mysql_mutex_unlock(&manager->LOCK_data);
+      //TODO: and we don't save which error we've got?
+      //  Do we save it right below? If yes, why don't we
+      //  enqueue it first?
+      manager->notify_fatal_error();
     }
     pwt_queued_event *event;
     if (save_error_to_queued_event(thd, &event, sql_errno, *level, msg))
@@ -187,6 +187,17 @@ void pwt_manager::notify_message_dropped()
   messages_dropped= true;
   mysql_mutex_unlock(&LOCK_pwt_manager);
 }
+
+
+void pwt_manager::notify_fatal_error()
+{
+  mysql_mutex_lock(&LOCK_data);
+  fatal_error= true;
+  // TODO: should mysql_cond_signal be sufficient?
+  mysql_cond_broadcast(&COND_data_avail);
+  mysql_mutex_unlock(&LOCK_data);
+}
+
 
 /**
   @brief
