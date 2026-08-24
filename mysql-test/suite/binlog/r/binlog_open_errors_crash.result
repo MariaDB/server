@@ -1,0 +1,55 @@
+call mtr.add_suppression("Found 1 prepared transactions!.*");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("Recovering after a crash .*");
+call mtr.add_suppression("Aborted .* during recovery .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+RESET MASTER;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=crash.non_critical_before_update_index kind=crash trigger=flush dbug=crash_create_non_critical_before_update_index mdev36606=open.non_critical_before_update_index
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=crash.critical_before_update_index kind=crash trigger=flush dbug=crash_create_critical_before_update_index mdev36606=open.critical_before_update_index
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=crash.after_update_index kind=crash trigger=flush dbug=crash_create_after_update_index mdev36606=open.after_update_index
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=crash.before_write_checkpoint_event kind=crash trigger=flush dbug=crash_before_write_checkpoint_event mdev36606=open.before_write_checkpoint_event
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=crash.after_reset_master kind=crash trigger=reset_master dbug=crash_after_reset_master mdev36606=reset_master.crash_after
+RESET MASTER;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;

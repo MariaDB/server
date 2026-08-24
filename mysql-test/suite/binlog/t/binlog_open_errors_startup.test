@@ -1,0 +1,153 @@
+#
+# Server-startup binlog-open error injection scenarios.
+#
+# STEPS:
+#   - restart with --debug-dbug=+d,<knob> so the failure hits the
+#     server's first MYSQL_BIN_LOG::open call
+#   - record the post-startup state via binlog_open_error_scenario.inc
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Failed to enable encryption of binary logs");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+
+# Baseline: confirm a clean restart works and binlogging is on.
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+RESET MASTER;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: fail_init_log_file_name at startup
+#
+# mysqld.cc's startup path treats any MYSQL_BIN_LOG::open() failure as
+# fatal (unireg_abort), unlike FLUSH BINARY LOGS / RESET MASTER which just
+# disable logging and stay up. Confirmed: the server aborts entirely
+# rather than starting with binlog off.
+#
+--let $scn_id= startup.init_log_file_name
+--let $scn_kind= startup
+--let $scn_dbug= fail_init_log_file_name
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.init_log_file_name
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_find_uniq_filename_dir_enum at startup
+#
+# Only reachable here, not via FLUSH BINARY LOGS / rotation: this is the
+# `else` branch of find_uniq_filename (the one that calls my_dir()), which
+# only runs while last_used_log_number is still 0 -- true at the server's
+# very first open() call, but RESET MASTER's own internal reopen caches it
+# to a nonzero value for every subsequent call. Same unconditional-abort
+# path as init_log_file_name above.
+#
+--let $scn_id= startup.find_uniq_filename_dir_enum
+--let $scn_kind= startup
+--let $scn_dbug= fail_find_uniq_filename_dir_enum
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename.dir_enum
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fault_injection_registering_index at startup
+# Same unconditional-abort path as init_log_file_name above.
+#
+--let $scn_id= startup.registering_index
+--let $scn_kind= startup
+--let $scn_dbug= fault_injection_registering_index
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.purge_index_register
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fault_injection_openning_index at startup
+# Same unconditional-abort path as init_log_file_name above.
+#
+--let $scn_id= startup.openning_index
+--let $scn_kind= startup
+--let $scn_dbug= fault_injection_openning_index
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.openning_index
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_my_random_bytes at startup — original MDEV-24625 trigger
+#
+# Unreachable without encrypt-binlog, so skipped here; kept as a row so
+# the matrix stays aligned with the gap report. Actually exercised by
+# binlog_encryption/binlog_open_errors_startup.test.
+#
+--let $scn_id= startup.my_random_bytes
+--let $scn_kind= startup
+--let $scn_dbug= fail_my_random_bytes
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.my_random_bytes
+--let $scn_skip_reason= requires encrypted-binlog config; see binlog_encryption/binlog_open_errors_startup.test
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_mysql_log_open at startup
+# Same unconditional-abort path as init_log_file_name above.
+#
+--let $scn_id= startup.mysql_log_open
+--let $scn_kind= startup
+--let $scn_dbug= fail_mysql_log_open
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= MYSQL_LOG.open
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_write_binlog_magic at startup
+# Same unconditional-abort path as init_log_file_name above.
+#
+--let $scn_id= startup.write_binlog_magic
+--let $scn_kind= startup
+--let $scn_dbug= fail_write_binlog_magic
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.write_binlog_magic
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_write_initial_fde at startup
+# Same unconditional-abort path as init_log_file_name above.
+#
+--let $scn_id= startup.write_initial_fde
+--let $scn_kind= startup
+--let $scn_dbug= fail_write_initial_fde
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.write_initial_fde
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
