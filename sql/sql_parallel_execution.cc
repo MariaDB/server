@@ -426,6 +426,9 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
   int err= mgr->init_parallel_workers(thd, join, scan_tab);
   if (err == HA_ERR_UNSUPPORTED)
   {
+    // TODO: This should not be done (at this stage)
+    //  We don't do silent fallback when a part of query plan fails.
+    //
     /*
       The engine declined the parallel scan -- e.g. this is a locking read, so
       not a consistent read (see parallel_init_coordinator). Nothing was set up
