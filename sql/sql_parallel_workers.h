@@ -212,8 +212,8 @@ public:
   mysql_mutex_t   LOCK_worker;
   // mysql_cond_t    COND_worker;
 
-  pwt_worker_info       info;
-  pwt_worker_state      state;
+  pwt_worker_info       info; // Connection/thread name
+  pwt_worker_state      state; // Whether running/killed/etc.
   pwt_worker_batch      batch;
   pwt_worker_execution  exec;
 
@@ -365,7 +365,9 @@ protected:
 
 public:
   uint                     nworkers;
+private:
   mysql_mutex_t            LOCK_pwt_manager;
+public:
   mysql_mutex_t            LOCK_data;
   mysql_cond_t             COND_data_avail;
   mysql_cond_t             COND_data_space;
@@ -402,6 +404,8 @@ public:
   }
 
   void notify_message_dropped();
+  void notify_fatal_error();
+
 
 private:
   void process_pending_warnings();
