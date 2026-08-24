@@ -10326,6 +10326,7 @@ static PSI_memory_info all_server_memory[]=
 
 
 extern void pwt_init_psi_keys(void);
+extern void pwt_threads_init_psi_keys(void);
 
 /**
   Initialise all the performance schema instrumentation points
@@ -10414,6 +10415,7 @@ void init_server_psi_keys(void)
   mysql_statement_register(category, &stmt_info_rpl, 1);
 #endif
   pwt_init_psi_keys();
+  pwt_threads_init_psi_keys();
 }
 
 #endif /* HAVE_PSI_INTERFACE */

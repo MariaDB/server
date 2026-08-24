@@ -1253,7 +1253,7 @@ int pwt_worker::emit_joined_row()
   for (uint i= 0; i < exec.proj_count; i++)
     exec.proj[i]->save_in_field(exec.result_table->field[i], false);
 
-  if (manager->fatal_error)               // projection raised an error
+  if (manager->is_fatal_error())               // projection raised an error
     DBUG_RETURN(1);
 
   memcpy(batch.rows + (size_t) batch.count * manager->drain.reclength,
@@ -1374,7 +1374,7 @@ int pwt_worker::execute_and_handoff()
 {
   DBUG_ENTER("pwt_worker::execute_and_handoff");
   TABLE *src= exec.scan_table;
-  pwt_manager *mgr= manager;
+  //pwt_manager *mgr= manager;
   const uint nt= exec.n_tables;
   int err= 0;
   uint i;
@@ -1461,7 +1461,8 @@ int pwt_worker::execute_and_handoff()
   src->file->parallel_end_worker();
 
   // hand off the final partial batch (ignore a late stop -- we are done)
-  if (!err && !killed && !mgr->fatal_error && batch.count)
+  // TODO-note: removed "&& !mgr->fatal_error". Checking it was a race cond anyway.
+  if (!err && !killed && batch.count)
     handoff_batch();
 
 exec_exit:
@@ -1511,7 +1512,9 @@ void pwt_worker::execute_and_signal_manager()
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   killed_state killed= thd->killed;
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
-
+  
+  // TODO: this propagates the "killed" signal to the manager... 
+  // TODO:  also propagates the "error" signal there.
   mysql_mutex_lock(&mgr->LOCK_data);
   if (err)
     mgr->fatal_error= true;

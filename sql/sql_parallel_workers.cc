@@ -38,19 +38,10 @@
 #include "transaction.h"
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_thread_key key_thread_pwt;
-static PSI_thread_info all_pwt_threads[]=
-{
-  { &key_thread_pwt, WORKER_NAME, PSI_FLAG_GLOBAL},
-};
 
-static PSI_mutex_key key_mutex_pwt_LOCK_manager,
-                     key_mutex_pwt_LOCK_worker,
-                     key_mutex_pwt_LOCK_data;
+static PSI_mutex_key key_mutex_pwt_LOCK_data;
 static PSI_mutex_info all_pwt_mutexes[]=
 {
-  { &key_mutex_pwt_LOCK_manager,     "pwt_manager::LOCK_pwt_manager",      0},
-  { &key_mutex_pwt_LOCK_worker,      "pwt_worker::LOCK_worker",           0},
   { &key_mutex_pwt_LOCK_data,        "pwt_manager::LOCK_data",      0},
 };
 
@@ -67,133 +58,19 @@ static PSI_memory_info all_pwt_memory[]=
 {
   { &key_memory_pwt_queued_event,  "pwt_queued_event",          0},
   { &key_memory_pwt_error_message, "pwt_error_message",         0},
-  { &key_memory_pwt_workers,       "pwt_manager::workers",      0},
   { &key_memory_pwt_db,            "pwt_worker::db",            0},
   { &key_memory_pwt_batch_rows,    "pwt_worker::batch.rows",    0},
 };
 #endif /* HAVE_PSI_INTERFACE */
 
 
-/**
-  @brief
-    Save error condition into pwt_queued_event object.
-
-  @return
-    true      an error occurred
-    false     error or warning is provided in *event
-*/
-
-static
-bool save_error_to_queued_event(THD *thd, pwt_queued_event **event, uint error,
-                                 Sql_condition::enum_warning_level level,
-                                 const char *msg)
-{
-  DBUG_EXECUTE_IF("pwt_error_to_queue_oom",
-                  { *event= nullptr; return true; });
-  *event= (pwt_queued_event*) my_malloc(key_memory_pwt_queued_event,
-                                        sizeof(pwt_queued_event),
-                                        MYF(0));
-  if (!*event)
-    return true;
-  (*event)->error= (pwt_error_message*) my_malloc(key_memory_pwt_error_message,
-                                                  sizeof(pwt_error_message),
-                                                  MYF(0));
-  if (!(*event)->error)
-  {
-    my_free(*event);
-    *event= nullptr;
-    return true;
-  }
-  (*event)->error->level= level;
-  if (level == Sql_condition::enum_warning_level::WARN_LEVEL_ERROR)
-    (*event)->error->worker_errno= thd->killed_errno();
-  else
-    (*event)->error->worker_errno= 0;
-  (*event)->error->code= error;
-  (*event)->error->message= (char *) my_malloc(key_memory_pwt_error_message,
-                                               strlen(msg)+1,
-                                               MYF(0));
-  if (!(*event)->error->message)
-  {
-    my_free((*event)->error);
-    my_free(*event);
-    *event= nullptr;
-    return true;
-  }
-  strmake((*event)->error->message, msg, strlen(msg));
-  return false;
-}
-
-
-/*
-  Capture errors and warnings and redirect them to worker->manager.
-*/
-
-class PWT_error_handler : public Internal_error_handler
-{
-  pwt_manager *manager;
-public:
-  PWT_error_handler(pwt_manager *manager_arg) : manager(manager_arg) {}
-
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sql_state,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl) override
-  {
-    /*
-      A genuine error (not a warning) raised while the worker runs the query
-      -- e.g. a WHERE/projection/join evaluation error -- must abort the whole
-      query. Trip fatal_error so the worker stops producing and the manager
-      aborts instead of sending a truncated result. The error text is still
-      relayed to the manager below and surfaced from finalize.
-
-      Exclude a killed worker's own ER_QUERY_INTERRUPTED: a KILL is reported
-      separately via kill_signal (which also carries the kill type, so a
-      KILL vs KILL QUERY of a worker maps to dropping the manager connection
-      vs just its query). Tripping fatal_error here would make the manager
-      take the generic-error path and lose that distinction.
-    */
-    if (*level == Sql_condition::WARN_LEVEL_ERROR && !thd->killed)
-    {
-      //TODO: and we don't save which error we've got?
-      //  Do we save it right below? If yes, why don't we
-      //  enqueue it first?
-      manager->notify_fatal_error();
-    }
-    pwt_queued_event *event;
-    if (save_error_to_queued_event(thd, &event, sql_errno, *level, msg))
-    {
-      /*
-        Couldn't allocate the queued event. The worker THD's diagnostics
-        area is discarded when the worker exits, so flag the manager so it
-        can surface a single ER_OUTOFMEMORY warning to the user instead of
-        letting this condition vanish.
-      */
-      manager->notify_message_dropped();
-      return true;
-    }
-    manager->record_event(event);
-    return true;                // no further processing in worker thread
-  }
-
-};
-
-
-void pwt_manager::notify_message_dropped()
-{
-  mysql_mutex_lock(&LOCK_pwt_manager);
-  messages_dropped= true;
-  mysql_mutex_unlock(&LOCK_pwt_manager);
-}
-
-
+// TODO: this should go into pwt_manager_base.
+//  but the action here goes beyond pwt_manager_base.
 void pwt_manager::notify_fatal_error()
 {
   mysql_mutex_lock(&LOCK_data);
   fatal_error= true;
-  // TODO: should mysql_cond_signal be sufficient?
+  /* This is to notify other workers too */
   mysql_cond_broadcast(&COND_data_avail);
   mysql_mutex_unlock(&LOCK_data);
 }
@@ -240,77 +117,13 @@ bool pwt_worker::handoff_batch()
     needs to be run
 */
 
-static void *parallel_worker_thread_func(void *arg)
+void pwt_worker::thread_func()
 {
-  DBUG_ENTER("parallel_worker_thread_func");
-  pwt_worker *worker= (pwt_worker*) arg;
-  PWT_error_handler error_handler(worker->manager);
-
-  /*
-    Set current_thd and thread local storage (my_thread_var) for our new THD
-    to ensure they have their own local objects/errors/warnings etc
-  */
-  void *save= thd_attach_thd(worker->thd);
-  /*
-    create_background_thd()'s THD(0) never ran the connection-setup path that
-    allocates debug_sync_control, so DEBUG_SYNC actions on this worker (e.g. the
-    pwt_worker_pause_before_signal sync point used by the tests) would assert on
-    a NULL control block. Initialise it here, on the worker thread, so the
-    MY_THREAD_SPECIFIC allocation is charged to this THD and freed symmetrically
-    by ~THD (debug_sync_end_thread) when destroy_background_thd() runs below.
-    No-op in non-DEBUG_SYNC builds and when debug_sync is inactive.
-  */
-#ifdef ENABLED_DEBUG_SYNC
-  if (!worker->thd->debug_sync_control)
-    debug_sync_init_thread(worker->thd);
-#endif
-  my_thread_set_name(worker->thd->connection_name.str);
-  THD_STAGE_INFO(worker->thd, stage_sending_data);
-  worker->thd->push_internal_handler(&error_handler);
-
-  DBUG_EXECUTE_IF("pwt_error_to_queue_oom",
-  {
-    push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                 "This is an example warning to show we can push a "
-                 "warning from a worker thread to its manager ");
-  });
-#ifdef ENABLED_DEBUG_SYNC
-  /*
-    we can't sync on the managers or our THD, spin the whole thing about
-    and use the global signal pool, NO_CLEAR_EVENT is needed because we have
-    multiple workers and the wrong one will likely consume the signal.
-  */
-  DBUG_EXECUTE_IF("pwt_worker_pause_before_signal",
-    DBUG_ASSERT(!debug_sync_set_action(worker->thd, STRING_WITH_LEN(
-      "now SIGNAL pwt_worker_paused WAIT_FOR pwt_worker_continue NO_CLEAR_EVENT"
-      ))););
-#endif
-
-  mysql_mutex_lock(&worker->thd->LOCK_thd_kill);
-  if (worker->thd->killed)
-  {
-    my_error(ER_QUERY_INTERRUPTED, MYF(0));
-  }
-  mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
-
-  worker->execute_and_signal_manager();
-
-  // manager needs to see this as atomic
-  mysql_mutex_lock(&worker->LOCK_worker);
-  /*
-    LOCK_thd_kill is the canonical guard for thd->killed; a user-issued
-    KILL on this worker's thread_id goes through THD::awake() which holds
-    LOCK_thd_kill but not LOCK_worker, so we must nest both to get a
-    race-free snapshot for the manager.
-  */
-  mysql_mutex_lock(&worker->thd->LOCK_thd_kill);
-  worker->state.killed= worker->thd->killed; // save this flag, THD is destroyed
-  mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
-  worker->thd->pop_internal_handler();       // maybe not needed
-  worker->state.finished= true;
-  THD *thd= worker->thd;
-  worker->thd= nullptr;
-  mysql_mutex_unlock(&worker->LOCK_worker);
+  execute_and_signal_manager();
+ 
+  // TODO-discuss: note: the following cleanup is now done before
+  // destroying and detaching the THD. Before, it was done after.
+  // Is this fine?
 
   /*
     Close our private table copies while we are still attached to our THD
@@ -319,8 +132,8 @@ static void *parallel_worker_thread_func(void *arg)
     that references that transaction (InnoDB's prebuilt). The manager never
     touches a started worker's tables, so no lock is needed here.
   */
-  worker->snapshot_table_stats();          // while the tables are still open
-  worker->close_tables();
+  snapshot_table_stats();          // while the tables are still open
+  close_tables();
 
   /*
     Hand our status counters to the manager, which adds them to the session's
@@ -336,21 +149,10 @@ static void *parallel_worker_thread_func(void *arg)
     whole of it with the global counters -- clear_for_flush_status is the offset
     that leaves those fields alone, and the snapshot drops its copies of them.
   */
-  worker->exec.stats= thd->status_var;
-  worker->exec.stats.global_memory_used= 0;
-  worker->exec.stats.tmp_space_used= 0;
+  exec.stats= thd->status_var;
+  exec.stats.global_memory_used= 0;
+  exec.stats.tmp_space_used= 0;
   thd->set_status_var_init(clear_for_flush_status);
-
-  /*
-    executing thd_detach_thd sets my_thread_var to null, stopping our ability
-    use the normal mutex mechanisms, so we operate this outside the locked
-    region on a copy of our THD pointer
-  */
-  thd_detach_thd(save);
-  server_threads.erase(thd);
-  destroy_background_thd(thd);
-
-  DBUG_RETURN(nullptr);
 }
 
 
@@ -372,32 +174,6 @@ void pwt_worker::abort_worker()
   mysql_mutex_unlock(&LOCK_worker);
   pthread_join(pthread, nullptr);
   cleanup_worker();
-}
-
-
-/**
-   @brief
-     Free our message queue, discard the messages
-*/
-
-void pwt_manager::free_queue()
-{
-  // process queue
-  if (!parallel_messages.head())
-    return;
-
-  mysql_mutex_lock(&LOCK_pwt_manager);
-  pwt_queued_event *event;
-  while ((event= parallel_messages.get()))
-  {
-    if (pwt_error_message *err= event->error)
-    {
-      my_free(err->message);
-      my_free(err);
-    }
-    my_free(event);
-  }
-  mysql_mutex_unlock(&LOCK_pwt_manager);
 }
 
 
@@ -423,82 +199,6 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
 }
 
 
-bool pwt_worker::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
-                                 int worker_nr)
-{
-  /* First, do things that may fail early. */
-  LEX_CSTRING new_db;
-  if (parent_thd->db.str)
-  {
-    // Explicit call in ~THD/THD::free_connection()/my_free, so we do this
-    if (!(new_db.str= my_strndup(key_memory_pwt_db, parent_thd->db.str,
-                                 parent_thd->db.length,
-                                 MYF(MY_WME | ME_FATAL))))
-      return true;  // OOM
-    new_db.length= parent_thd->db.length;
-  }
-  else
-  {
-    new_db.str= nullptr;
-    new_db.length= 0;
-  }
-
-  thd= create_background_thd();
-  if (!thd)
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-            "init_parallel_workers: failed to create worker thread THD");
-    return true; // Failed
-  }
-  thd->db= new_db;
-  manager= manager_arg;
-  mysql_mutex_init(key_mutex_pwt_LOCK_worker, &LOCK_worker, 
-                   MY_MUTEX_INIT_FAST);
-  //mysql_cond_init(key_COND_pwt_worker, &COND_worker, nullptr);
-
-  thd->system_thread= SYSTEM_THREAD_GENERIC;
-  size_t len= my_snprintf(info.conn_name, MAX_THREAD_NAME,
-                          WORKER_NAME);
-  thd->connection_name.str= info.conn_name;
-  thd->connection_name.length= len;
-
-  thd->security_ctx= parent_thd->security_ctx;
-  thd->set_command(parent_thd->get_command());
-  thd->start_utime= parent_thd->start_utime;
-
-  /*
-    A worker evaluates this session's expressions, so it is running this
-    session's query and has to say so. Items that hold a value for the
-    duration of one statement keep it against the query id they computed it
-    under: Item_func_curtime, and the NOW/SYSDATE family with it, recomputes
-    only when thd->query_id has moved past its own last_query_id. A
-    background THD starts at query id 0, which is also the value that field
-    is born with, so a copy that had not been evaluated before it was cloned
-    looked up to date to the worker and handed out its uninitialized
-    MYSQL_TIME -- what the is_valid_value_slow() assertion in Time::Time()
-    catches.
-  */
-  thd->query_id= parent_thd->query_id;
-  thd->thread_id= next_thread_id();
-  my_snprintf(info.process_list, sizeof(info.process_list),
-              WORKER_NAME " %u " CONNECTION_NAME_THREAD " %llu",
-              worker_nr, parent_thd->thread_id);
-  thd->query_string= CSET_STRING(info.process_list,
-                                 strlen(info.process_list),
-                                 thd->query_charset());
-  // Not needed: thd->parallel_worker= this;
-  state.finished= state.joined= false;
-  state.killed= NOT_KILLED;
-
-  return false; // Ok
-}
-
-
-void pwt_worker::cleanup_worker()
-{
-  mysql_mutex_destroy(&LOCK_worker);
-  // mysql_cond_destroy(&COND_worker);
-}
 
 
 /**
@@ -545,18 +245,13 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     file->print_error(err, MYF(0));
     return err;
   }
-
-  workers= (pwt_worker *) my_malloc(key_memory_pwt_workers,
-                                    n * sizeof(pwt_worker),
-                                    MYF(MY_WME | MY_ZEROFILL));
+  
+  workers= new pwt_worker[n]; // TODO: does this occur on mem_root this way?
   if (!workers)
   {
     file->parallel_end_coordinator();
     return HA_ERR_UNSUPPORTED;
   }
-
-  mysql_mutex_init(key_mutex_pwt_LOCK_manager, &LOCK_pwt_manager,
-                    MY_MUTEX_INIT_SLOW);
 
   /*
     Set up the streaming channel before any worker starts: a worker's first
@@ -693,7 +388,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   drain.stop= false;
   reaped= false;
   drain.cur_worker= nullptr;
-  kill_signal= NOT_KILLED;
 
   for (i= 0; i < n; i++)
   {
@@ -726,8 +420,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     if (open_worker_tables(thd, workers + i))
       goto cleanup_db_string;
 
-    server_threads.insert(workers[i].thd);  // +information_schema.processlist
-
     /*
       Set up how this worker joins the non-driving tables (access method,
       worker-bound ref clone, condition), its result container, and private
@@ -746,9 +438,11 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
                "init_parallel_workers: failed to set up worker execution");
       goto cleanup_thread_create;
     }
+    
+    // TODO: move server_threads usage to parallel_thread...
+    server_threads.insert(workers[i].thd);  // +information_schema.processlist
 
-    if (mysql_thread_create(key_thread_pwt, &workers[i].pthread, nullptr,
-                            parallel_worker_thread_func, &workers[i]))
+    if (workers[i].create_thread())
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to create worker thread");
@@ -793,10 +487,9 @@ cleanup_old_workers:
   // free each worker's row buffer (NULL for those not yet allocated)
   for (uint j= 0; j < n; j++)
     my_free(workers[j].batch.rows);
-  my_free(workers);
+  delete[] workers;
   workers= nullptr;
   nworkers= 0;
-  mysql_mutex_destroy(&LOCK_pwt_manager);
   mysql_cond_destroy(&COND_data_avail);
   mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
@@ -809,8 +502,6 @@ void pwt_init_psi_keys(void)
 {
   const char *category= "sql";
   int count;
-  count= array_elements(all_pwt_threads);
-  PSI_server->register_thread(category, all_pwt_threads, count);
   count= array_elements(all_pwt_mutexes);
   mysql_mutex_register(category, all_pwt_mutexes, count);
   count= array_elements(all_pwt_conds);
@@ -819,6 +510,7 @@ void pwt_init_psi_keys(void)
   mysql_memory_register(category, all_pwt_memory, count);
 }
 #endif
+
 
 /*
   @brief
@@ -1023,45 +715,6 @@ void pwt_manager::quiesce_workers()
 }
 
 
-void pwt_manager::process_pending_warnings()
-{
-  /*
-    Surface errors/warnings the workers queued via PWT_error_handler. A worker
-    error that mattered to the result has already aborted the join during
-    execution (fatal_error or a propagated kill), so thd is already in error by
-    the time we get here; raising another error would trip the "can't overwrite
-    status" assertion in the diagnostics area. So only raise a queued ERROR
-    when thd is not already in error -- otherwise keep it as a warning. Plain
-    warnings are always safe to add.
-  */
-  bool surface_drop;
-  mysql_mutex_lock(&LOCK_pwt_manager);
-  surface_drop= messages_dropped;
-  messages_dropped= false;
-  pwt_queued_event *event;
-  while ((event= parallel_messages.get()))
-  {
-    if (pwt_error_message *err= event->error)
-    {
-      if (err->level == Sql_condition::enum_warning_level::WARN_LEVEL_ERROR &&
-          !thd->is_error())
-        my_message_sql(err->code, err->message, MYF(0));
-      else
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, err->code,
-                     err->message);
-      my_free(err->message);
-      my_free(err);
-    }
-    my_free(event);
-  }
-  mysql_mutex_unlock(&LOCK_pwt_manager);
-
-  if (surface_drop)
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_OUTOFMEMORY,
-                        "Parallel worker diagnostics were dropped due to "
-                        "memory allocation failure");
-}
-
 /**
   @brief
     Reap the workers (if not already) and tear the channel down.
@@ -1083,11 +736,10 @@ void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
   mysql_cond_destroy(&COND_data_avail);
   mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
-  mysql_mutex_destroy(&LOCK_pwt_manager);
   free_result_tables(thd);              // workers joined; result tables idle
   for (uint i= 0; i < nworkers; i++)    // workers are joined, buffers idle
     my_free(workers[i].batch.rows);
-  my_free(workers);
+  delete [] workers;
   workers= nullptr;
   nworkers= 0;
   DBUG_VOID_RETURN;

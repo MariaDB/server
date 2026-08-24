@@ -11,29 +11,7 @@ extern void destroy_background_thd(MYSQL_THD thd);
 extern void *thd_attach_thd(MYSQL_THD thd);
 extern void thd_detach_thd(void *save);
 
-// PWT Parallel Worker Thread
-
-
-/*
-  Message Types
-*/
-class pwt_error_message
-{
-public:
-  uint worker_errno;
-  uint code;
-  Sql_condition::enum_warning_level level;
-  char *message;
-};
-
-/*
-  Event type. Inherits ilink so it can live in an I_List<pwt_queued_event>.
-*/
-class pwt_queued_event : public ilink
-{
-public:
-    pwt_error_message   *error;
-};
+#include "sql_parallel_thread.h"
 
 
 /*
@@ -54,13 +32,6 @@ typedef struct st_join_table JOIN_TAB;
 class JOIN;
 class Item;
 class TMP_TABLE_PARAM;
-
-#define WORKER_NAME                    "Parallel Worker"
-#define WORKER_ID_LENGTH               3
-#define WORKER_NAME_LENGTH             15
-#define CONNECTION_NAME_THREAD         "For Thread ID"
-#define CONNECTION_NAME_THREAD_LENGTH  13
-#define THREAD_ID_LENGTH               20         // ull can occupy 20 chars
 
 struct pwt_worker_batch
 {
@@ -165,58 +136,19 @@ struct pwt_worker_execution
   Parallel_worker_ctx   *handler_ctx;
 };
 
-struct pwt_worker_info
-{
-  char            conn_name[MAX_THREAD_NAME+1];
-  /*
-    This is displayed in information_schema.processlist.info
-    Currently "Parallel Worker {1..N} For Thread M"
-  */
-  char            process_list[WORKER_NAME_LENGTH+
-                               1+WORKER_ID_LENGTH+1+
-                               CONNECTION_NAME_THREAD_LENGTH+
-                               1+THREAD_ID_LENGTH+1];
-};
-
-struct pwt_worker_state
-{
-  bool            joined;
-  bool            finished;
-  killed_state    killed;
-};
 
 /*
   Parallel Worker Thread specific attributes
 */
-class pwt_worker
+class pwt_worker : public pwt_worker_base
 {
   int execute_and_handoff();
 public:
-  /*
-    Intialize the worker and create its THD.
-    (this is called from the master thread)
-  */
-  bool init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
-                       int worker_nr);
-  /* This is like a destructor. Called after worker is done. */
-  void cleanup_worker();
 
-  THD             *thd;
-  pwt_manager     *manager;
-  pthread_t       pthread;
-  /*
-    Guards worker->thd while the worker nulls it on exit, so abort_worker()
-    sees either a live THD to awake() or nullptr.
-    See parallel_worker_thread_func.
-  */
-  mysql_mutex_t   LOCK_worker;
-  // mysql_cond_t    COND_worker;
-
-  pwt_worker_info       info; // Connection/thread name
-  pwt_worker_state      state; // Whether running/killed/etc.
   pwt_worker_batch      batch;
   pwt_worker_execution  exec;
-
+  
+  void thread_func() override;
   /* Run this worker's share of the query and stream the result rows out. */
   void execute_and_signal_manager();
   /* Close this worker's private table copies (called by the worker thread). */
@@ -353,34 +285,24 @@ struct pwt_manager_transport
 /*
   Class to create, manage and eventually destroy a "team" of worker threads.
 */
-class pwt_manager : public Sql_alloc
+class pwt_manager : public pwt_manager_base
 {
   pwt_manager_execution    exec;
   pwt_manager_transport    transport;
-  pwt_worker               *workers;
-  I_List<pwt_queued_event> parallel_messages;
 
 protected:
   pwt_manager_drain        drain;
 
 public:
-  uint                     nworkers;
-private:
-  mysql_mutex_t            LOCK_pwt_manager;
-public:
   mysql_mutex_t            LOCK_data;
   mysql_cond_t             COND_data_avail;
   mysql_cond_t             COND_data_space;
-  THD                      *thd;
   bool                     fatal_error;   // a producer hit a real engine error
+  void notify_fatal_error();
+  bool is_fatal_error() { return fatal_error; } 
 
   pwt_manager():
-    workers(nullptr),
-    nworkers(0),
-    fatal_error(false),
-    messages_dropped(false),
-    reaped(false),
-    kill_signal(NOT_KILLED)
+    fatal_error(false)
     {}
   ~pwt_manager()
   {
@@ -396,46 +318,8 @@ public:
     Returns 0 on success (all rows sent), 1 on error.
   */
   int drain_and_send(JOIN *join);
-  void record_event(pwt_queued_event *event)
-  {
-    mysql_mutex_lock(&LOCK_pwt_manager);
-    parallel_messages.push_back(event);
-    mysql_mutex_unlock(&LOCK_pwt_manager);
-  }
-
-  void notify_message_dropped();
-  void notify_fatal_error();
-
 
 private:
-  void process_pending_warnings();
-
-  //TODO: why would we free the queue and not process warnings there??
-  void free_queue();
-
-  /*
-      Set under LOCK_pwt_manager when a worker fails to allocate a queued event.
-    The manager surfaces a single ER_OUTOFMEMORY warning so the user sees
-    that worker diagnostics were dropped instead of silently disappearing.
-  */
-  bool                     messages_dropped;
-
-  /*
-    Set once the workers have been stopped and pthread_join'd (quiesce_workers).
-    Workers read this join's source tables (via their private handlers), so
-    they must be reaped before JOIN::join_free()->cleanup() frees those tables;
-    quiesce_workers is called from join_free, and again (idempotently) from
-    finalize.
-  */
-  bool                     reaped;
-  /*
-    Set (under LOCK_data) to a worker's killed_state when that worker exits
-    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
-    worker. The consumer propagates it to the manager's own THD so the join
-    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
-    sent, rather than completing and trying to raise the error too late.
-  */
-  killed_state             kill_signal;
 
   /* Copy the next worker result-row image into dst (reclength bytes).
      0 = row produced, -1 = end of data, 1 = error. */
