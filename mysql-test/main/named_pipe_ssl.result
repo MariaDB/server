@@ -1,0 +1,11 @@
+CREATE USER pipe_ssl_user@localhost REQUIRE SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client';
+# Client connection without SSL over a named pipe
+have_ssl
+0
+# Client connection with SSL over a named pipe
+have_ssl
+1
+# Client connection with SSL over a named pipe and REQUIRE SUBJECT
+have_ssl
+1
+DROP USER pipe_ssl_user@localhost;

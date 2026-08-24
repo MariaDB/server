@@ -1,17 +1,14 @@
---- ssl_autoverify.result	2024-02-08 23:55:13.779166100 +0100
-+++ ssl_autoverify,win.reject	2024-02-08 23:55:46.988212400 +0100
-@@ -22,9 +22,9 @@
+--- ssl_autoverify.result
++++ ssl_autoverify,win.reject
+@@ -22,7 +22,7 @@
  WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
  test.have_ssl()
  yes
 -# mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 +# mysql --protocol pipe -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
  test.have_ssl()
--yes
-+no
- # mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
- test.have_ssl()
  yes
+ # mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
 @@ -45,16 +45,6 @@
  # mysql -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()"
  test.have_ssl()
