@@ -378,6 +378,7 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
+	page/page0blink.cc
 	page/page0cur.cc
 	page/page0page.cc
 	page/page0zip.cc

@@ -66,6 +66,7 @@ bool is_update_query(enum enum_sql_command command);
 #include <sql_manager.h>
 
 /* Include necessary InnoDB headers */
+#include "btr0blink.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0bulk.h"
@@ -11157,6 +11158,10 @@ create_index(
 		ind_type |= DICT_UNIQUE;
 	}
 
+	if (srv_blink_enabled && blink_table_shape_ok(table)) {
+		ind_type |= DICT_BLINK;
+	}
+
 	field_lengths = (ulint*) my_malloc(PSI_INSTRUMENT_ME,
 		key->user_defined_key_parts * sizeof *
 				field_lengths, MYF(MY_FAE));
@@ -13087,7 +13092,9 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 		ulint flags = m_table->flags;
 		dict_index_t* index = dict_mem_index_create(
 			m_table, GEN_CLUST_INDEX.str,
-			DICT_CLUSTERED, 0);
+			DICT_CLUSTERED |
+			(srv_blink_enabled && blink_table_shape_ok(m_table)
+			 ? DICT_BLINK : 0), 0);
 		error = convert_error_code_to_mysql(
 			row_create_index_for_mysql(
 				index, m_trx, NULL,
@@ -19547,6 +19554,11 @@ static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
   "Include delete marked records when calculating persistent statistics",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(blink_enabled, srv_blink_enabled,
+  PLUGIN_VAR_OPCMDARG,
+  "Stamp newly created supported InnoDB indexes for the B-link tree proof of concept",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_ENUM(instant_alter_column_allowed,
 			 innodb_instant_alter_column_allowed,
   PLUGIN_VAR_RQCMDARG,
@@ -20569,6 +20581,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(stats_include_delete_marked),
+  MYSQL_SYSVAR(blink_enabled),
   MYSQL_SYSVAR(use_atomic_writes),
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),
