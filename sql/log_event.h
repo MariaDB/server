@@ -3576,6 +3576,9 @@ public:
 #ifdef MYSQL_SERVER
   uint32_t get_size() const noexcept;
   bool write(Log_event_writer *writer) override;
+#ifdef HAVE_REPLICATION
+  bool is_part_of_group() override { return 1; }
+#endif
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, enum_binlog_checksum_alg checksum_alg);
   static bool peek(const uchar *event_start, size_t event_len,
@@ -4836,17 +4839,15 @@ public:
 
   /* not for direct call, each derived has its own ::print() */
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override= 0;
-  void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
+  bool change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
   bool print_verbose(IO_CACHE *file,
                      PRINT_EVENT_INFO *print_event_info);
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
                                const uchar *ptr, const uchar *prefix);
-  size_t calc_row_event_length(table_def *td,
-                               MY_BITMAP *cols_bitmap,
-                               const uchar *value,
-                               Field_info *fields);
+  size_t calc_row_event_length(table_def *td, MY_BITMAP *cols_bitmap,
+                               const uchar *value, Field_info *fields);
   void count_row_events(PRINT_EVENT_INFO *print_event_info);
 
 #endif

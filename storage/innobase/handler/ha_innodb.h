@@ -182,6 +182,8 @@ public:
 
 	int extra(ha_extra_function operation) override;
 
+	int extra_opt(ha_extra_function operation, ulong arg) override;
+
 	int reset() override;
 
 	int external_lock(THD *thd, int lock_type) override;
@@ -719,7 +721,10 @@ private:
 	/** Connection thread handle. */
 	THD*		m_thd;
 
-	/** InnoDB transaction handle. */
+	/** InnoDB transaction handle. Non-NULL only when
+	create is invoked from an truncation operation.
+	NULL for regular CREATE TABLE and ALTER TABLE,
+	which build their own transaction internally. */
 	trx_t*		m_trx;
 
 	/** Information on table columns and indexes. */

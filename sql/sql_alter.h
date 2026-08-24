@@ -453,6 +453,7 @@ public:
 
 private:
   char new_filename[FN_REFLEN + 1];
+  CharBuffer<NAME_LEN> new_db_buff;
   CharBuffer<NAME_LEN> new_name_buff;
   char tmp_name_buff[NAME_LEN + 1];
   char path[FN_REFLEN + 1];

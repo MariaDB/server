@@ -43,7 +43,7 @@ eval kill $id;
 set debug_sync='now signal done';
 
 connection killee;
---error 1053,1927,2006,2013
+--error 1053,1927,2006,2013,2026
 reap;
 
 connection default;

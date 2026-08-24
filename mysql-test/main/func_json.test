@@ -26,10 +26,7 @@ select json_array(1);
 --disable_view_protocol
 select json_array(1, "text", false, null);
 
-#enable after fix MDEV-31554
---disable_cursor_protocol
 select json_array_append('["a", "b"]', '$', FALSE);
---enable_cursor_protocol
 --enable_view_protocol
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
@@ -1244,6 +1241,15 @@ SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'
 SELECT JSON_EXISTS('[[[[[Y[[[[n[[[[[[[[[[[n[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 to rrrrrRR-1]') as je;
 SELECT JSON_EXISTS('[[[[[Y[[[[[[[[[[[[[[[[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 to rrrrRR-1]') as je;
 
+--echo #
+--echo # MDEV-39817 JSON_ARRAYAGG() returns garbage because of off-by-one error
+--echo #
+set session group_concat_max_len = 9;
+create temporary table t (c varchar(20) character set latin1);
+insert into t values ('ab'), ('cd'), ('ef');
+select json_arrayagg(c order by c) from t;
+drop temporary table t;
+
 --echo # End of 10.6 tests
 
 SELECT json_extract(t.j, '$')
@@ -2100,6 +2106,13 @@ SELECT JSON_EXTRACT('0E+0','$');
 --echo #
 
 SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
+
+--echo #
+--echo # MDEV-40414 Server crash in Charset::charset upon JSON operations
+--echo #
+
+SELECT JSON_EQUALS('[]', JSON_ARRAY_INSERT(NULL,'$[0]',1)) AS x;
+SELECT JSON_OVERLAPS(JSON_ARRAY_INSERT(NULL,'$[0]',1), '[]') AS x;
 
 --echo # End of 10.11 Test
 
@@ -4337,6 +4350,53 @@ SELECT full, overlap, json_array_intersect(full, overlap) as jai from t1;
 DROP TABLE t1;
 
 --echo # End of 11.4 Test
+
+--echo #
+--echo # MDEV-38033: JSON_SCHEMA_VALID function returning wrong result
+--echo #
+
+SET @schema= '
+{
+  "type": "object",
+  "properties":
+  {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arr_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field1": {
+            "type": "string"
+          },
+          "field2": {
+            "type": "number"
+          }
+        },
+        "required": ["field1"]
+      }
+    }
+  }
+}';
+
+SET @value= '
+{
+  "id": "zero",
+  "arr_fields": [
+    {
+      "field1": "A",
+      "field2": 123
+    },
+    {
+      "field1": "B"
+    }
+  ]
+}';
+
+SELECT JSON_SCHEMA_VALID(@schema, @value);
 
 --echo #
 --echo # MDEV-38702 Behaviour of IF() with boolean JSON_EXTRACT as expression is wrong

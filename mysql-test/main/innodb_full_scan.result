@@ -1,0 +1,176 @@
+#
+# MDEV-24813 Locking full table scan fails to use table-level locking
+#
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+insert into t values (42);
+# SELECT
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+a
+42
+COMMIT;
+# lock_rec_created
+1
+BEGIN;
+SELECT * FROM t for update;
+a
+42
+COMMIT;
+# lock_rec_created
+1
+## SELECT without explicit transaction
+SELECT * FROM t;
+a
+42
+# lock_rec_created
+0
+# SELECT with a condition
+BEGIN;
+select * from t where a > 10 lock in share mode;
+a
+42
+COMMIT;
+# lock_rec_created
+1
+BEGIN;
+SELECT * FROM t where a > 10 for update;
+a
+42
+COMMIT;
+# lock_rec_created
+1
+## SELECT with a condition without explicit transaction
+SELECT * FROM t where a > 10;
+a
+42
+# lock_rec_created
+0
+DROP TABLE t;
+# INSERT INTO ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int, b int) engine=innodb;
+insert into t2
+select * from t1 where t1.a = 10
+UNION
+select * from t1;
+# lock_rec_created
+3
+insert into t2
+select * from t1
+UNION
+select * from t1 where t1.a = 10;
+# lock_rec_created
+3
+insert into t2
+select * from t1 where t1.a > 10
+UNION
+select * from t1;
+# lock_rec_created
+1
+insert into t2
+select * from t1
+UNION
+select * from t1 where t1.a > 10;
+# lock_rec_created
+1
+drop table t1, t2;
+# CREATE ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int, b int) engine=innodb
+select * from t1 where t1.a = 10
+UNION
+select * from t1;
+# lock_rec_created
+3
+create or replace table t2 (a int, b int) engine=innodb
+select * from t1
+UNION
+select * from t1 where t1.a = 10;
+# lock_rec_created
+3
+create or replace table t2 (a int, b int) engine=innodb
+select * from t1 where t1.a > 10
+UNION
+select * from t1;
+# lock_rec_created
+1
+create or replace table t2 (a int, b int) engine=innodb
+select * from t1
+UNION
+select * from t1 where t1.a > 10;
+# lock_rec_created
+1
+drop table t1, t2;
+# UPDATE
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+UPDATE t1 SET b = b + 3;
+# lock_rec_created
+1
+UPDATE t1 SET b = b + 3 WHERE a = 10;
+# lock_rec_created
+1
+UPDATE t1 SET b = b + 3 WHERE a > 10;
+# lock_rec_created
+1
+# DELETE
+DELETE FROM t1;
+# lock_rec_created
+1
+DELETE FROM t1 WHERE a = 10;
+# lock_rec_created
+1
+DELETE FROM t1 WHERE a > 10;
+# lock_rec_created
+1
+drop table t1;
+# JOIN
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int primary key, b int) engine=innodb;
+insert into t2 select seq, seq from seq_1_to_100;
+begin;
+select * from t1 join t2 on t1.a = t2.a LOCK IN SHARE MODE;
+commit;
+# lock_rec_created
+2
+begin;
+select * from t1 join t2 on t1.a = t2.b LOCK IN SHARE MODE;
+commit;
+# lock_rec_created
+2
+begin;
+select * from t1 join t2 on t1.b = t2.b LOCK IN SHARE MODE;
+commit;
+# lock_rec_created
+2
+drop table t1, t2;
+# Full index scan
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+insert into t11 select a from t10;
+# lock_rec_created
+11
+drop table t10, t11;
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+insert into t11 select a from t10 order by a desc;
+# lock_rec_created
+11
+drop table t10, t11;
+# Range access
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+explain
+insert into t11 select a from t10 where a > 30;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t10	range	a	a	5	NULL	#	Using where; Using index
+insert into t11 select a from t10 where a > 30;
+# lock_rec_created
+11
+drop table t10, t11;

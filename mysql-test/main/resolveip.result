@@ -1,0 +1,35 @@
+#
+# MDEV-39169: resolveip IPv6 support
+#
+#
+# Special addresses
+#
+Broadcast
+Null-IP-Addr
+Null-IP-Addr
+Null-IP-Addr
+Broadcast
+Null-IP-Addr
+#
+# Several addresses in one call, mixed address families
+#
+Broadcast
+Null-IP-Addr
+Broadcast
+Null-IP-Addr
+#
+# Address without a host name is reverse-resolved, not treated as a
+# host name ("hostname" in the error, not "hostid")
+#
+resolveip: Unable to find hostname for '192.0.2.1'
+resolveip: Unable to find hostname for '::ffff:192.0.2.1'
+#
+# Unresolvable host name (.invalid never resolves, RFC 6761)
+#
+resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR
+#
+# Unresolvable host name after a valid address
+#
+Broadcast
+resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR
+# End of 13.2 tests

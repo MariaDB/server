@@ -424,6 +424,7 @@ enum enum_commands {
   Q_PS_BIND,
   Q_PS_EXECUTE,
   Q_PS_CLOSE,
+  Q_DISABLE_REPLAY,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -549,6 +550,7 @@ const char *command_names[]=
   "PS_bind",
   "PS_execute",
   "PS_close",
+  "disable_replay",
   0
 };
 
@@ -3226,7 +3228,7 @@ set_result_format_version(ulong new_version)
 static void
 do_result_format_version(struct st_command *command)
 {
-  long version;
+  uint version;
   static DYNAMIC_STRING ds_version;
   const struct command_arg result_format_args[] = {
     {"version", ARG_STRING, TRUE, &ds_version, "Version to use"}
@@ -3240,7 +3242,7 @@ do_result_format_version(struct st_command *command)
                      ',');
 
   /* Convert version  number to int */
-  if (!str2int(ds_version.str, 10, (long) 0, (long) INT_MAX, &version))
+  if (!str2int(ds_version.str, ds_version.length, 10, &version))
     die("Invalid version number: '%s'", ds_version.str);
 
   set_result_format_version(version);
@@ -3277,7 +3279,7 @@ do_result_format_version(struct st_command *command)
 
 void var_set_query_get_value(struct st_command *command, VAR *var)
 {
-  long row_no;
+  uint row_no;
   int col_no= -1;
   MYSQL_RES* UNINIT_VAR(res);
   MYSQL* mysql= cur_con->mysql;
@@ -3309,9 +3311,9 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   DBUG_PRINT("info", ("col: %s", ds_col.str));
 
   /* Convert row number to int */
-  if (!str2int(ds_row.str, 10, (long) 0, (long) INT_MAX, &row_no))
+  if (!str2int(ds_row.str, ds_row.length, 10, &row_no))
     die("Invalid row number: '%s'", ds_row.str);
-  DBUG_PRINT("info", ("row: %s, row_no: %ld", ds_row.str, row_no));
+  DBUG_PRINT("info", ("row: %s, row_no: %u", ds_row.str, row_no));
   dynstr_free(&ds_row);
 
   /* Remove any surrounding "'s from the query - if there is any */
@@ -3371,7 +3373,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   {
     /* Get the value */
     MYSQL_ROW row;
-    long rows= 0;
+    uint rows= 0;
     const char* value= "No such row";
 
     while ((row= mysql_fetch_row(res)))
@@ -3379,7 +3381,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
       if (++rows == row_no)
       {
 
-        DBUG_PRINT("info", ("At row %ld, column %d is '%s'",
+        DBUG_PRINT("info", ("At row %u, column %d is '%s'",
                             row_no, col_no, row[col_no]));
         /* Found the row to get */
         if (row[col_no])
@@ -4357,7 +4359,7 @@ void do_move_file(struct st_command *command)
 
 void do_chmod_file(struct st_command *command)
 {
-  long mode= 0;
+  uint mode= 0;
   int err_code;
   static DYNAMIC_STRING ds_mode;
   static DYNAMIC_STRING ds_file;
@@ -4377,10 +4379,10 @@ void do_chmod_file(struct st_command *command)
 
   /* Parse what mode to set */
   if (ds_mode.length != 4 ||
-      str2int(ds_mode.str, 8, 0, INT_MAX, &mode) == NullS)
+      str2int(ds_mode.str, ds_mode.length, 8, &mode) == NullS)
     die("You must write a 4 digit octal number for mode");
 
-  DBUG_PRINT("info", ("chmod %o %s", (uint)mode, ds_file.str));
+  DBUG_PRINT("info", ("chmod %o %s", mode, ds_file.str));
   err_code= chmod(ds_file.str, mode);
   if (err_code < 0)
     err_code= 1;
@@ -4700,9 +4702,12 @@ void do_write_file_command(struct st_command *command, my_bool append)
   static DYNAMIC_STRING ds_content;
   static DYNAMIC_STRING ds_filename;
   static DYNAMIC_STRING ds_delimiter;
+  static DYNAMIC_STRING ds_eval_flag;
+  my_bool eval_content;
   const struct command_arg write_file_args[] = {
     { "filename", ARG_STRING, TRUE, &ds_filename, "File to write to" },
-    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" }
+    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" },
+    { "eval", ARG_STRING, FALSE, &ds_eval_flag, "Evaluate the content" }
   };
   DBUG_ENTER("do_write_file");
 
@@ -4714,6 +4719,14 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   if (bad_path(ds_filename.str))
     DBUG_VOID_RETURN;
+
+  if ((eval_content= (ds_eval_flag.length != 0)) &&
+      strcasecmp(ds_eval_flag.str, "eval"))
+  {
+    report_or_die("Invalid argument '%s' to '%.*s', only 'eval' is allowed",
+                  ds_eval_flag.str, command->first_word_len, command->query);
+    DBUG_VOID_RETURN;
+  }
 
   if (!append && access(ds_filename.str, F_OK) == 0)
   {
@@ -4737,10 +4750,24 @@ void do_write_file_command(struct st_command *command, my_bool append)
   if (cur_block->ok)
   {
     DBUG_PRINT("info", ("Writing to file: %s", ds_filename.str));
-    str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
+    if (eval_content)
+    {
+      /* Evaluate on every execution, keep command->content unevaluated */
+      DYNAMIC_STRING ds_eval_content;
+      if (init_dynamic_string(&ds_eval_content, "", ds_content.length + 256, 256))
+        die("Out of memory");
+      do_eval(&ds_eval_content, ds_content.str,
+              ds_content.str + ds_content.length, FALSE);
+      str_to_file2(ds_filename.str, ds_eval_content.str, ds_eval_content.length,
+                   append);
+      dynstr_free(&ds_eval_content);
+    }
+    else
+      str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   }
   dynstr_free(&ds_filename);
   dynstr_free(&ds_delimiter);
+  dynstr_free(&ds_eval_flag);
   DBUG_VOID_RETURN;
 }
 
@@ -4751,11 +4778,11 @@ void do_write_file_command(struct st_command *command, my_bool append)
   command	called command
 
   DESCRIPTION
-  write_file <file_name> [<delimiter>];
+  write_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --write_file <file_name>;
   <what to write line 1>
@@ -4765,6 +4792,9 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   Write everything between the "write_file" command and 'delimiter'
   to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   NOTE! Will fail if <file_name> exists
 
@@ -4827,11 +4857,11 @@ void do_write_line(struct st_command *command)
   command	called command
 
   DESCRIPTION
-  append_file <file_name> [<delimiter>];
+  append_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --append_file <file_name>;
   <what to write line 1>
@@ -4841,6 +4871,9 @@ void do_write_line(struct st_command *command)
 
   Append everything between the "append_file" command
   and 'delimiter' to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   Default <delimiter> is EOF
 
@@ -8397,7 +8430,7 @@ void do_get_errcodes(struct st_command *command)
     }
     else
     {
-      long val;
+      uint val;
       char *start= p;
       /* Check that the string passed to str2int only contain digits */
       while (*p && p != end)
@@ -8410,10 +8443,10 @@ void do_get_errcodes(struct st_command *command)
       }
 
       /* Convert the string to int */
-      if (!str2int(start, 10, (long) INT_MIN, (long) INT_MAX, &val))
+      if (!str2int(start, p - start, 10, &val))
 	die("Invalid argument to error: '%s'", command->first_argument);
 
-      to->code.errnum= (uint) val;
+      to->code.errnum= val;
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
@@ -11172,6 +11205,43 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command, cons
 void run_close_stmt(struct st_connection *cn, struct st_command *command, const char *query,
                     size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
+static void do_disable_replay(struct st_command *command)
+{
+  const char *p= command->first_argument;
+  const char *end= command->end;
+  const char *tok;
+  size_t tok_len;
+  DBUG_ENTER("do_disable_replay");
+
+  /* Skip leading whitespace */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  tok= p;
+  while (p < end && !my_isspace(charset_info, *p))
+    p++;
+  tok_len= (size_t)(p - tok);
+
+  if ((tok_len == 10 && strncmp(tok, "next_query", 10) == 0) ||
+      (tok_len == 8 && strncmp(tok, "testfile", 8) == 0))
+  {
+    /* Token is correct. */
+  }
+  else
+    die("Syntax: disable_replay next_query|testfile <reason>");
+
+  /* Skip whitespace between the scope token and the reason */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  if (p >= end)
+    die("Syntax: disable_replay next_query|testfile <reason>  (reason missing)");
+
+  command->last_argument= command->end;
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   Run query using MySQL C API
 
@@ -13540,6 +13610,9 @@ int main(int argc, char **argv)
         break;
       case Q_OPTIMIZER_TRACE:
         enable_optimizer_trace(cur_con);
+        break;
+      case Q_DISABLE_REPLAY:
+        do_disable_replay(command);
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,

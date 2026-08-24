@@ -55,7 +55,7 @@ Tables created with `ENGINE=DuckDB` store data in DuckDB's native format. Querie
 
 ## Building
 
-The engine is built as part of the MariaDB server tree. It lives under `storage/duckdb/` and uses `ExternalProject_Add` to build DuckDB v1.5.2 from source.
+The engine is built as part of the MariaDB server tree. It lives under `storage/duckdb/` and uses `ExternalProject_Add` to build DuckDB v1.5.4 from source.
 
 Clone the branch matching your target MariaDB version. The engine is already part of the tree under `storage/duckdb/`:
 

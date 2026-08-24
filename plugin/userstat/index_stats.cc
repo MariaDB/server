@@ -30,7 +30,7 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     tmp_table.db.length= strlen(index_stats->index);
     tmp_table.table_name.str= index_stats->index + tmp_table.db.length + 1;
     tmp_table.table_name.length= strlen(tmp_table.table_name.str);
-    tmp_table.grant.privilege= NO_ACL;
+    tmp_table.grant.privilege= access_t(NO_ACL);
     if (check_access(thd, SELECT_ACL, tmp_table.db.str,
                       &tmp_table.grant.privilege, NULL, 0, 1) ||
         check_grant(thd, SELECT_ACL, &tmp_table, 1, 1, 1))

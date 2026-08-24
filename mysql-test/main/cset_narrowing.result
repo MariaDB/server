@@ -303,7 +303,7 @@ EXPLAIN
           "rows": 4,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t1.mb3 = '????' or t1.mb3 = 'hello'"
+          "index_condition": "t1.mb3 = '😊' or t1.mb3 = 'hello'"
         }
       }
     ]
@@ -338,7 +338,7 @@ EXPLAIN
           "rows": 10002,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "convert(t1.mb3 using utf8mb4) > '????'"
+          "attached_condition": "convert(t1.mb3 using utf8mb4) > '😊'"
         }
       }
     ]
@@ -384,7 +384,7 @@ EXPLAIN
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t2.mb4 > '????'"
+          "index_condition": "t2.mb4 > '😊'"
         }
       }
     ]

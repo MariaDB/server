@@ -187,6 +187,15 @@ Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
+#
+# MDEV-37840 Server crashes when executing FLUSH PRIVILEGES after starting with skip-grant-tables and creating mysql.host table
+#
+call mtr.add_suppression("Cannot load from mysql.host");
+call mtr.add_suppression("Can't open and lock privilege tables");
+create table mysql.host (c int);
+flush privileges;
+ERROR HY000: Cannot load from mysql.host. The table is probably corrupted
+drop table mysql.host;
 # End of 10.11 tests
 #
 # MDEV-36351 MariaDB crashes when trying to access information_schema.users under --skip-grant-tables

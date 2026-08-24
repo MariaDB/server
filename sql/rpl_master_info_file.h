@@ -88,6 +88,11 @@ inline uint64_t master_retry_count= 100000;
 /// }@
 
 
+/**
+  @note The line count includes the line-count line.
+    Master_info_file::load_from_file() implements this
+    using @ref Master_info_file::LINE_COUNT_FIX.
+*/
 struct Master_info_file: Info_file
 {
 
@@ -244,7 +249,7 @@ struct Master_info_file: Info_file
 
     bool load_from(IO_CACHE *file) override
     {
-      long count;
+      int count;
       size_t i;
       /// +1 for the terminating delimiter
       char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> + 1];
@@ -257,13 +262,13 @@ struct Master_info_file: Info_file
         if (c == /* End of Line */ '\n' || c == /* End of Count */ ' ')
           break;
       }
-      char *end= str2int(buf, 10, 1, INT32_MAX, &count);
+      char *end= str2int(buf, i, 10, &count);
       // Reserve enough elements ahead of time.
-      if (!end || allocate_dynamic(&array, count))
+      if (!end || count<0 || allocate_dynamic(&array, count))
         return true;
       while (count--)
       {
-        long value;
+        int value;
         /*
           Check that the previous number ended with a ` `,
           not `\n` or anything else.
@@ -283,8 +288,8 @@ struct Master_info_file: Info_file
           if (c == /* End of Count */ ' ' || c == /* End of Line */ '\n')
             break;
         }
-        end= str2int(buf, 10, 1, INT32_MAX, &value);
-        if (!end)
+        end= str2int(buf, i, 10, &value);
+        if (!end || value <= 0)
           return true;
         ulong id= value;
         bool oom= insert_dynamic(&array, (uchar *)&id);
@@ -540,6 +545,21 @@ struct Master_info_file: Info_file
   /// }@
 
 
+protected:
+  /**
+    Info_file::load_from_file() does not include
+    the line-count "value" in the line count.
+    The Master_info_file::load_from_file() overload utilizes the presence
+    of this no-op pseudo-value to emulating counting the line-count "value" -
+    The driver loop will increment the line counter while this reads nothing.
+  */
+  struct: Persistent
+  {
+    bool load_from(IO_CACHE *file) override { return false; } ///< No-op
+    void save_to(IO_CACHE *file) override {} ///< No-op
+  } LINE_COUNT_FIX;
+public:
+
   inline static const Mem_fn VALUE_LIST[] {
     &Master_info_file::master_log_file,
     &Master_info_file::master_log_pos,
@@ -561,7 +581,9 @@ struct Master_info_file: Info_file
     nullptr, // MySQL `master_uuid`, which MariaDB ignores.
     &Master_info_file::master_retry_count,
     &Master_info_file::master_ssl_crl,
-    &Master_info_file::master_ssl_crlpath
+    &Master_info_file::master_ssl_crlpath,
+    // This must be last, so its blank line blend into trailing blank line(s).
+    &Master_info_file::LINE_COUNT_FIX
   };
 
   /**

@@ -240,4 +240,15 @@ SELECT ST_ASTEXT(ST_ENVELOPE(ST_COLLECT(c))) FROM t;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-38669 ST_COLLECT reads past the end of a non-geometry argument
+--echo #
+SELECT ST_COLLECT('');
+SELECT ST_COLLECT('') IS NULL;
+SELECT ST_COLLECT('not wkb');
+CREATE TABLE t1 (a VARCHAR(16));
+INSERT INTO t1 VALUES (''), ('not wkb'), (NULL);
+SELECT ST_COLLECT(a) FROM t1;
+DROP TABLE t1;
+
 --echo # End of 12.3 tests

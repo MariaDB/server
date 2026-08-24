@@ -95,11 +95,19 @@ bool Sp_handler_procedure::add_instr_preturn(THD *thd, sp_head *sp,
 }
 
 
+bool Sp_handler_event::add_instr_preturn(THD *thd, sp_head *sp,
+                                         sp_pcontext *spcont) const
+{
+  return sp->add_instr_preturn(thd, spcont);
+}
+
+
 Sp_handler_procedure sp_handler_procedure;
 Sp_handler_function sp_handler_function;
 Sp_handler_package_spec sp_handler_package_spec;
 Sp_handler_package_body sp_handler_package_body;
 Sp_handler_trigger sp_handler_trigger;
+Sp_handler_event sp_handler_event;
 Sp_handler_package_procedure sp_handler_package_procedure;
 Sp_handler_package_function sp_handler_package_function;
 
@@ -212,22 +220,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("character_set_client") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(32)") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
-    { STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("longblob") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {
@@ -417,7 +425,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     from the disk.
   */
 
-  if (!db_cl)
+  if (!db_cl && name->m_db.length)
     db_cl= get_default_db_collation(thd, name->m_db.str);
 
   /* Create the context. */
@@ -878,7 +886,10 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
 
   LEX_STRING definition_string;
 
-  lex_start(thd);
+  DBUG_ASSERT(thd->lex->stmt_lex);
+  LEX *old_stmt_lex= thd->lex->stmt_lex;
+  lex_start(thd); // This changes thd->lex->stmt_lex
+  thd->lex->stmt_lex= old_stmt_lex;
 
   init_sql_alloc(key_memory_sp_head_main_root, &thd->lex->sp_mem_root,
                  MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
@@ -980,6 +991,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
                             Stored_program_creation_ctx *creation_ctx) const
 {
   LEX *old_lex= thd->lex, newlex;
+  DBUG_ASSERT(thd->lex->stmt_lex);
+  newlex.stmt_lex= thd->lex->stmt_lex;
   String defstr;
   char saved_cur_db_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db= { saved_cur_db_buf, sizeof(saved_cur_db_buf) };
@@ -989,7 +1002,6 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   int ret= 0;
 
   thd->lex= &newlex;
-  newlex.current_select= NULL;
 
   defstr.set_charset(creation_ctx->get_client_cs());
   defstr.set_thread_specific();
@@ -2527,6 +2539,43 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
 }
 
 
+/*
+  Find and cache a routine in a parser safe mode and suppress all errors.
+*/
+int
+Sp_handler::sp_cache_routine_reentrant_suppress_errors(THD *thd,
+                                       const Database_qualified_name *name,
+                                       sp_head **sp) const
+{
+  Dummy_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+  int ret= sp_cache_routine_reentrant(thd, name, sp);
+  thd->pop_internal_handler();
+  return ret;
+}
+
+
+/*
+  Find and cache a PACKAGE spec in a parser-safe reentrant mode.
+  @param db      - The database name
+  @param package - The package name
+  @retval        - A null ptr if some error happened.
+                   Or a pointer to the PACKAGE spec.
+*/
+sp_package *Sp_handler::find_package_spec(THD *thd,
+                                          const Lex_ident_db &db,
+                                          const LEX_CSTRING &package)
+{
+  DBUG_ASSERT(!thd->is_fatal_error);
+  sp_head *sp= nullptr;
+  Database_qualified_name tmp(db, package);
+  bool ret= sp_handler_package_spec.
+              sp_cache_routine_reentrant_suppress_errors(thd, &tmp, &sp);
+  sp_package *spec= (!ret && sp) ? sp->get_package() : nullptr;
+  return spec;
+}
+
+
 /**
   Check if a routine has a declaration in the CREATE PACKAGE statement,
   by looking up in thd->sp_package_spec_cache, and by loading from mysql.proc
@@ -2560,15 +2609,7 @@ is_package_public_routine(THD *thd,
                           const LEX_CSTRING &routine,
                           enum_sp_type type)
 {
-  sp_head *sp= NULL;
-  Database_qualified_name tmp(db, package);
-
-  Dummy_error_handler err_handler;
-  thd->push_internal_handler(&err_handler);
-  bool ret= sp_handler_package_spec.sp_cache_routine_reentrant(thd, &tmp, &sp);
-  thd->pop_internal_handler();
-
-  sp_package *spec= (!ret && sp) ? sp->get_package() : NULL;
+  sp_package *spec= Sp_handler::find_package_spec(thd, db, package);
   return spec && spec->m_routine_declarations.find(routine, type);
 }
 
@@ -2994,8 +3035,22 @@ int Sp_handler::sp_cache_routine(THD *thd, const Database_qualified_name *name,
         Any error when loading an existing routine is either some problem
         with the mysql.proc table, or a parse error because the contents
         has been tampered with (in which case we clear that error).
+        Other scenarios when we want to preserve the original error
+        instead of ER_SP_PROC_TABLE_CORRUPT, for better readability:
+        - A routine uses a TYPE from a PACKAGE specification
+          but does not have EXECUTE privilege on the PACKAGE specification.
+          Let's preserve the ER_PROCACCESS_DENIED_ERROR error,
+        - Packages use types in a long cycle (MDEV-40597):
+          * Package pkg1499 uses a type from pkg1500
+          * Package pkg1498 uses a type from pkg1499
+          * Package pkg1497 uses a type from pkg1488
+          and so on. This can cause a thread stack overrun.
+          Let's preserve the ER_STACK_OVERRUN_NEED_MORE error.
       */
-      if (ret == SP_PARSE_ERROR)
+      if (ret == SP_PARSE_ERROR &&
+          (!thd->is_error() ||
+           (thd->get_stmt_da()->sql_errno() != ER_PROCACCESS_DENIED_ERROR &&
+            thd->get_stmt_da()->sql_errno() != ER_STACK_OVERRUN_NEED_MORE)))
         thd->clear_error();
       /*
         If we cleared the parse error, or when db_find_routine() flagged
@@ -3233,6 +3288,8 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   }
 
   LEX *old_lex= thd->lex, newlex;
+  DBUG_ASSERT(thd->lex->stmt_lex);
+  newlex.stmt_lex= thd->lex->stmt_lex;
   Stored_program_creation_ctx *creation_ctx= 
     Stored_routine_creation_ctx::load_from_db(thd, &sp_name_obj, proc_table);
   defstr.set_charset(creation_ctx->get_client_cs());

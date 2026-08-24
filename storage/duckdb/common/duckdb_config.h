@@ -67,6 +67,7 @@ ulonglong get_thd_merge_join_threshold(THD *thd);
 my_bool get_thd_force_no_collation(THD *thd);
 ulong get_thd_explain_output(THD *thd);
 ulonglong get_thd_disabled_optimizers(THD *thd);
+my_bool get_thd_cross_engine_ryow(THD *thd);
 
 /* Explain output types */
 enum enum_explain_output

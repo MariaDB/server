@@ -541,6 +541,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> DELETE_DOMAIN_ID_SYM
 %token  <kwd> DELETE_SYM                    /* SQL-2003-R */
 %token  <kwd> DENSE_RANK_SYM
+%token  <kwd> DENY
 %token  <kwd> DESCRIBE                      /* SQL-2003-R */
 %token  <kwd> DESC                          /* SQL-2003-N */
 %token  <kwd> DETERMINISTIC_SYM             /* SQL-2003-R */
@@ -1030,6 +1031,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NOWAIT_SYM
 %token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
 %token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
+%token  <kwd>  NUMTODSINTERVAL_SYM
+%token  <kwd>  NUMTOYMINTERVAL_SYM
 %token  <kwd>  NVARCHAR_SYM
 %token  <kwd>  OBJECT_SYM
 %token  <kwd>  OF_SYM                        /* SQL-1992-R, Oracle-R */
@@ -1376,7 +1379,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db opt_nls_param
-        udt_name
 
 %ifdef ORACLE
 %type <lex_str>
@@ -1395,6 +1397,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_for_loop_index
         select_or_ps_name
         fetch_statement_source
+        udt_name
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1879,7 +1882,7 @@ rule:
         procedure_list procedure_list2 procedure_item
         handler opt_generated_always
         opt_ignore opt_column opt_restrict
-        grant revoke set lock unlock string_list
+        deny grant revoke set lock unlock string_list
         table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
@@ -2191,6 +2194,7 @@ verb_clause:
         | create
         | deallocate
         | delete
+        | deny
         | describe
         | do
         | drop
@@ -3332,7 +3336,7 @@ ev_sql_stmt:
               
             if (unlikely(!lex->make_sp_head(thd,
                                             lex->event_parse_data->identifier,
-                                            &sp_handler_procedure,
+                                            &sp_handler_event,
                                             DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
@@ -5152,7 +5156,11 @@ part_type_def:
 	    Select->parsing_place= NO_MATTER;
 	  }
         | LIST_SYM part_column_list
-          { Lex->part_info->part_type= LIST_PARTITION; }
+          {
+            Lex->part_info->part_type= LIST_PARTITION;
+            if (Lex->part_info->int_type != INTERVAL_LAST)
+              my_yyabort_error((ER_PARTITION_INTERVAL_NOT_LIST, MYF(0)));
+          }
         | SYSTEM_TIME_SYM
           {
              if (unlikely(Lex->part_info->vers_init_info(thd)))
@@ -5220,14 +5228,59 @@ part_field_item:
         ;
 
 part_column_list:
-          COLUMNS '(' part_field_list ')'
+          COLUMNS '(' part_field_list ')' opt_part_interval
           {
             partition_info *part_info= Lex->part_info;
             part_info->column_list= TRUE;
             part_info->list_of_part_fields= TRUE;
+            if (part_info->int_type != INTERVAL_LAST &&
+                part_info->num_columns > 1)
+              my_yyabort_error((ER_TOO_MANY_PARTITION_FUNC_FIELDS_ERROR, MYF(0),
+                                "range interval partition fields"));
           }
         ;
 
+opt_part_interval:
+          /* empty */ {}
+        | { Lex->clause_that_disallows_subselect= "INTERVAL"; }
+          opt_part_interval2
+          { Lex->clause_that_disallows_subselect= NULL; }
+        ;
+
+opt_part_interval2:
+          INTERVAL_SYM expr interval opt_auto
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(thd, $2, $3,
+                                                       table_name)))
+              MYSQL_YYABORT;
+          }
+        | INTERVAL_SYM '(' NUMTODSINTERVAL_SYM
+                           '(' NUM ',' TEXT_STRING_sys ')' ')'
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(atoi($5.str), $7,
+                                                       true, table_name)))
+              MYSQL_YYABORT;
+          }
+        | INTERVAL_SYM '(' NUMTOYMINTERVAL_SYM
+                           '(' NUM ',' TEXT_STRING_sys ')' ')'
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(atoi($5.str), $7,
+                                                       false, table_name)))
+              MYSQL_YYABORT;
+          }
+        ;
 
 part_func:
           '(' part_func_expr ')'
@@ -5487,6 +5540,11 @@ part_func_max:
             {
               part_info->print_debug("Kilroy II", NULL);
               thd->parse_error(ER_PARTITION_COLUMN_LIST_ERROR);
+              MYSQL_YYABORT;
+            }
+            else if (part_info->is_range_interval())
+            {
+              my_error(ER_PARTITION_INTERVAL_MAXVALUE, MYF(0));
               MYSQL_YYABORT;
             }
             else
@@ -5798,6 +5856,12 @@ opt_vers_auto_part:
            $$= 1;
          }
        ;
+
+opt_auto:
+          /* empty */ {}
+        | AUTO_SYM {}
+        ;
+
 /*
  End of partition parser part
 */
@@ -6653,8 +6717,8 @@ qualified_field_type:
 
 udt_name:
           IDENT_sys                     { $$= $1; }
-        | reserved_keyword_udt          { $$= $1; }
-        | non_reserved_keyword_udt      { $$= $1; }
+        | reserved_keyword_udt          { $$= Lex_ident_sys($1.str, $1.length); }
+        | non_reserved_keyword_udt      { $$= Lex_ident_sys($1.str, $1.length); }
         ;
 
 field_type_all_builtin:
@@ -6682,6 +6746,16 @@ field_type_all_with_typedefs:
         | udt_name float_options srid_option opt_binary
           {
             if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, $4)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident
+          {
+            if (Lex->set_field_type_typedef_package_spec(&$$, $1, $3))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (Lex->set_field_type_typedef_package_spec(&$$, $1, $3, $5))
               MYSQL_YYABORT;
           }
         ;
@@ -13862,7 +13936,7 @@ select_outvar:
           }
         | ident_or_text
           {
-            const Lex_ident_sys name(thd, &$1);
+            const Lex_ident_sys name($1);
             if (unlikely(!($$= Lex->create_outvar(thd, name)) && Lex->result))
               MYSQL_YYABORT;
           }
@@ -17313,6 +17387,8 @@ keyword_sp_var_and_label:
         | MINUTE_SYM
         | MONTH_SYM
         | NEXTVAL_SYM
+        | NUMTODSINTERVAL_SYM
+        | NUMTOYMINTERVAL_SYM
         | OLD_VALUE_SYM
         | OVERLAPS_SYM
         | RECORD_SYM
@@ -18359,11 +18435,41 @@ handler_rkey_mode:
 /* GRANT / REVOKE */
 
 revoke:
-          REVOKE clear_privileges revoke_command
+          REVOKE clear_privileges revoke_privileges_or_proxy
+          {
+          }
+        |
+          REVOKE DENY clear_privileges revoke_privileges
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny();
+          }
+        | REVOKE clear_privileges ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
+          {
+            Lex->sql_command = SQLCOM_REVOKE_ALL;
+          }
+        | REVOKE clear_privileges revoke_role
           {}
         ;
 
-revoke_command:
+revoke_role:
+          admin_option_for_role FROM user_and_role_list
+          {
+            Lex->sql_command= SQLCOM_REVOKE_ROLE;
+            if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+revoke_privileges_or_proxy:
+          revoke_privileges
+        | PROXY_SYM ON user FROM user_list
+          {
+            if (Lex->stmt_revoke_proxy(thd, $3))
+              MYSQL_YYABORT;
+          }
+        ;
+
+revoke_privileges:
           grant_privileges ON opt_table grant_ident FROM user_and_role_list
           {
             if (Lex->stmt_revoke_table(thd, $1, *$4))
@@ -18372,21 +18478,6 @@ revoke_command:
         | grant_privileges ON sp_handler grant_ident FROM user_and_role_list
           {
             if (Lex->stmt_revoke_sp(thd, $1, *$4, *$3))
-              MYSQL_YYABORT;
-          }
-        | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
-          {
-            Lex->sql_command = SQLCOM_REVOKE_ALL;
-          }
-        | PROXY_SYM ON user FROM user_list
-          {
-            if (Lex->stmt_revoke_proxy(thd, $3))
-              MYSQL_YYABORT;
-          }
-        | admin_option_for_role FROM user_and_role_list
-          {
-            Lex->sql_command= SQLCOM_REVOKE_ROLE;
-            if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
               MYSQL_YYABORT;
           }
         ;
@@ -18398,12 +18489,37 @@ admin_option_for_role:
         { Lex->with_admin_option= false; $$= $1; }
       ;
 
+deny:
+          DENY clear_privileges grant_privileges_command
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny();
+          }
+        ;
 grant:
           GRANT clear_privileges grant_command
-          {}
+          {
+          }
+        | GRANT clear_privileges grant_role_command
+          {
+            /*
+              TODO(cvicentiu) grant_role_command should use the Sql_cmd_grant
+              interface. This will allow moving Lex->stmt_grant_xxx calls
+              at this level instead of having them within grant_command
+              rule.
+            */
+          }
         ;
 
 grant_command:
+          grant_privileges_command
+        | PROXY_SYM ON user TO_SYM grant_list opt_grant_option
+          {
+            if (Lex->stmt_grant_proxy(thd, $3, $6))
+              MYSQL_YYABORT;
+          }
+        ;
+
+grant_privileges_command:
           grant_privileges ON opt_table grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
@@ -18416,12 +18532,10 @@ grant_command:
             if (Lex->stmt_grant_sp(thd, $1, *$4, *$3, $8))
               MYSQL_YYABORT;
           }
-        | PROXY_SYM ON user TO_SYM grant_list opt_grant_option
-          {
-            if (Lex->stmt_grant_proxy(thd, $3, $6))
-              MYSQL_YYABORT;
-          }
-        | grant_role TO_SYM grant_list opt_with_admin_option
+        ;
+
+grant_role_command:
+          grant_role TO_SYM grant_list opt_with_admin_option
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
@@ -18429,7 +18543,6 @@ grant_command:
             if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
               MYSQL_YYABORT;
           }
-
         ;
 
 opt_with_admin:
@@ -19708,7 +19821,7 @@ sf_c_chistics_and_body_standalone:
 sp_tail_standalone:
           sp_name
           {
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1, Lex->definer,
                                                          &sp_handler_procedure,
                                                          DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
@@ -20468,7 +20581,7 @@ package_implementation_routine_definition:
             pkg->m_current_routine= NULL;
             $$.init();
           }
-        | package_specification_element { $$.init(); }
+        | package_specification_routine { $$.init(); }
         ;
 
 
@@ -20521,7 +20634,7 @@ package_specification_element_list:
         | package_specification_element_list package_specification_element
         ;
 
-package_specification_element:
+package_specification_routine:
           FUNCTION_SYM package_specification_function ';'
           {
             sp_package *pkg= Lex->get_sp_package();
@@ -20536,6 +20649,13 @@ package_specification_element:
               MYSQL_YYABORT;
             pkg->m_current_routine= NULL;
           }
+        ;
+
+package_specification_element:
+          package_specification_routine
+%ifdef ORACLE
+        | sp_decl_type ';'
+%endif
         ;
 
 
@@ -20625,7 +20745,7 @@ sf_c_chistics_and_body_standalone:
 sp_tail_standalone:
           sp_name
           {
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1, Lex->definer,
                                                          &sp_handler_procedure,
                                                          DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
@@ -20912,15 +21032,22 @@ sp_decl_type:
           }
         | typed_ident IS REF_SYM CURSOR_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       nullptr, nullptr, $4)))
               MYSQL_YYABORT;
             $$.init();
           }
-        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM sp_decl_ident
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, $6,
-                                                      nullptr, nullptr, $5)))
+            /*
+              Conversion of $6 components to Lex_ident_sys is safe,
+              according to the grammar.
+            */
+            if (unlikely(Lex->declare_type_ref_cursor_return_typedef(thd, $1,
+                       Lex_ident_sys($6->db.str, $6->db.length),
+                       Lex_ident_sys($6->table.str, $6->table.length),
+                       Lex_ident_sys($6->m_column.str, $6->m_column.length))))
               MYSQL_YYABORT;
             $$.init();
           }
@@ -20928,7 +21055,7 @@ sp_decl_type:
           optionally_qualified_column_ident
           PERCENT_ORACLE_SYM TYPE_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       nullptr, $6, $8)))
               MYSQL_YYABORT;
             $$.init();
@@ -20937,7 +21064,7 @@ sp_decl_type:
           optionally_qualified_column_ident
           PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
-            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1,
                                                       $6, nullptr, $8)))
               MYSQL_YYABORT;
             $$.init();

@@ -1,0 +1,115 @@
+--source include/not_embedded.inc
+--source include/no_protocol.inc
+
+--echo #
+--echo # Test DENY + role inheritance: denies on a role propagate
+--echo # through the role graph to users and other roles.
+--echo #
+
+CREATE DATABASE testdb;
+USE testdb;
+CREATE TABLE t1 (id INT, val VARCHAR(50));
+INSERT INTO t1 VALUES (1,'a'), (2,'b');
+
+CREATE USER u1@localhost;
+CREATE ROLE r_grant, r_deny, r_combined;
+
+--echo #
+--echo # Setup: r_grant has SELECT, r_deny has DENY SELECT,
+--echo # r_combined inherits both. User u1 gets r_combined.
+--echo #
+GRANT SELECT ON testdb.t1 TO r_grant;
+DENY SELECT ON testdb.t1 TO r_deny;
+GRANT r_grant TO r_combined;
+GRANT r_deny TO r_combined;
+GRANT r_combined TO u1@localhost;
+
+--echo #
+--echo # DENY from r_deny should win over GRANT from r_grant
+--echo #
+connect (con1, localhost, u1,,);
+SET ROLE r_combined;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # After revoking the deny, SELECT should work again
+--echo #
+REVOKE DENY SELECT ON testdb.t1 FROM r_deny;
+connect (con1, localhost, u1,,);
+SET ROLE r_combined;
+SELECT * FROM testdb.t1;
+disconnect con1;
+connection default;
+
+--echo # Cleanup scenario 1
+REVOKE SELECT ON testdb.t1 FROM r_grant;
+DROP ROLE r_grant, r_deny, r_combined;
+DROP USER u1@localhost;
+
+--echo #
+--echo # DB-level DENY on a role blocks table-level GRANT
+--echo # inherited through a different role in the DAG.
+--echo #
+CREATE USER u2@localhost;
+CREATE ROLE r_db_deny, r_tbl_grant, r_top;
+DENY SELECT ON testdb.* TO r_db_deny;
+GRANT SELECT ON testdb.t1 TO r_tbl_grant;
+GRANT r_db_deny TO r_top;
+GRANT r_tbl_grant TO r_top;
+GRANT r_top TO u2@localhost;
+
+connect (con2, localhost, u2,,);
+SET ROLE r_top;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+disconnect con2;
+connection default;
+
+--echo # Cleanup scenario 2
+DROP ROLE r_db_deny, r_tbl_grant, r_top;
+DROP USER u2@localhost;
+
+--echo #
+--echo # DENY on a leaf role, grant on a higher role:
+--echo # deny should still win (deny always wins over grant).
+--echo #
+CREATE USER u3@localhost;
+CREATE ROLE r_child, r_parent;
+GRANT r_child TO r_parent;
+GRANT r_parent TO u3@localhost;
+
+GRANT SELECT ON testdb.t1 TO r_parent;
+DENY SELECT ON testdb.t1 TO r_child;
+
+connect (con3, localhost, u3,,);
+SET ROLE r_parent;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+disconnect con3;
+connection default;
+
+--echo #
+--echo # Reverse: deny on parent, grant on child — deny still wins.
+--echo #
+REVOKE DENY SELECT ON testdb.t1 FROM r_child;
+REVOKE SELECT ON testdb.t1 FROM r_parent;
+GRANT SELECT ON testdb.t1 TO r_child;
+DENY SELECT ON testdb.t1 TO r_parent;
+
+connect (con3, localhost, u3,,);
+SET ROLE r_parent;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+disconnect con3;
+connection default;
+
+--echo # Cleanup scenario 3
+DROP ROLE r_child, r_parent;
+DROP USER u3@localhost;
+
+--echo # Final cleanup
+DROP TABLE testdb.t1;
+DROP DATABASE testdb;

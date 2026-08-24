@@ -174,7 +174,7 @@ int FiberScanState::init(TABLE *tbl,
   }
 
   /* Grant full privileges so the fiber can open any table */
-  fiber_thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  fiber_thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
   /* Disable query cache — fiber queries are internal, not cacheable */
   fiber_thd->query_cache_is_applicable= 0;
@@ -302,8 +302,8 @@ void fiber_scan_func(void *arg)
   */
 
   /* Set thread_stack for check_stack_overrun() — point to fiber's stack */
-  char stack_top;
-  thd->thread_stack= &stack_top;
+  thd->thread_stack= reinterpret_cast<char *>(
+    fiber_context_stack_top(&state->ctx));
 
   state->result= new select_to_duckdb(thd, &state->ctx,
                                       &state->buffer,

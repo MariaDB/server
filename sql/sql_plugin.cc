@@ -1795,14 +1795,28 @@ int plugin_init(int *argc, char **argv, int flags)
       /* If the retry list has not changed, i.e. if all retry attempts
       result in another retry request, empty the retry list */
       if (to_re_retry == retry_end)
-        while (to_re_retry > retry_start)
+      {
+        if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
         {
-          plugin_ptr= *(--to_re_retry);
-          *(reap++)= plugin_ptr;
-          /** `plugin_do_initialize()' did not print any error in this
-          case, so we do it here. */
-          print_init_failed_error(plugin_ptr);
+          /* mysql.plugin already loaded; give up on these plugins */
+          while (to_re_retry > retry_start)
+          {
+            plugin_ptr= *(--to_re_retry);
+            *(reap++)= plugin_ptr;
+            /** `plugin_do_initialize()' did not print any error in this
+            case, so we do it here. */
+            print_init_failed_error(plugin_ptr);
+          }
         }
+        /*
+          else: mysql.plugin not yet loaded; stop retrying for now.
+          retry_end is left unchanged so these plugins are retried after
+          plugin_load() runs and loads DAEMON plugins (e.g. compression
+          providers) that the retrying plugins depend on.
+        */
+        retry_end= to_re_retry;
+        break;
+      }
       retry_end= to_re_retry;
     }
 
@@ -3298,6 +3312,8 @@ void plugin_thdvar_init(THD *thd)
   thd->session_tracker.sysvars.deinit(thd);
   my_free(thd->variables.redirect_url);
   thd->variables.redirect_url= 0;
+  my_free(thd->variables.optimizer_replay_context);
+  thd->variables.optimizer_replay_context= NULL;
 #endif
   my_free((char*) thd->variables.default_master_connection.str);
   thd->variables.default_master_connection.str= 0;
@@ -3335,6 +3351,10 @@ void plugin_thdvar_init(THD *thd)
     my_strdup(key_memory_Sys_var_charptr_value,
               global_system_variables.redirect_url,
               MYF(MY_WME | MY_THREAD_SPECIFIC));
+  thd->variables.optimizer_replay_context=
+      my_strdup(key_memory_Sys_var_charptr_value,
+                global_system_variables.optimizer_replay_context,
+                MYF(MY_WME | MY_THREAD_SPECIFIC));
 #endif
 
   DBUG_VOID_RETURN;
@@ -3406,6 +3426,8 @@ void plugin_thdvar_cleanup(THD *thd)
   thd->session_tracker.sysvars.deinit(thd);
   my_free(thd->variables.redirect_url);
   thd->variables.redirect_url= 0;
+  my_free(thd->variables.optimizer_replay_context);
+  thd->variables.optimizer_replay_context= NULL;
 #endif
   my_free((char*) thd->variables.default_master_connection.str);
   thd->variables.default_master_connection.str= 0;

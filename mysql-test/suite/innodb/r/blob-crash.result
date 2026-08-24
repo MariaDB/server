@@ -14,6 +14,7 @@ INSERT INTO t1 (a, b) VALUES (4, '4');
 INSERT INTO t1 (a, b) VALUES (5, '5');
 begin;
 INSERT INTO t1 (a, b) VALUES (6, REPEAT('a', 4*1024*1024));
+SET GLOBAL innodb_log_archive=ON;
 SELECT a, right(b, 50) FROM t1;
 a	right(b, 50)
 1	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -27,6 +28,7 @@ a	right(b, 50)
 #
 begin;
 UPDATE t1 set b = REPEAT('a', 4*1024*1024) where a = 5 ;
+SET GLOBAL innodb_log_archive=OFF;
 SELECT a, right(b, 50) FROM t1;
 a	right(b, 50)
 1	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -135,6 +137,7 @@ UPDATE t3 set f2 = concat(f2, repeat(',', 10)) where f1 = 3;
 connection default;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 DELETE FROM t1 WHERE a=4;
+disconnect con1;
 select f1, length(f2), length(f3) from t3;
 f1	length(f2)	length(f3)
 2	30	30
@@ -146,4 +149,20 @@ f1	right(f2, 30)	right(f3, 20)
 check table t3;
 Table	Op	Msg_type	Msg_text
 test.t3	check	status	OK
-DROP TABLE t1,t3;
+DROP TABLE t3;
+BEGIN;
+INSERT INTO t1 (a, b) VALUES (6, REPEAT('a', 4*1024*1024));
+ROLLBACK;
+SET GLOBAL innodb_log_archive=ON;
+begin;
+UPDATE t1 set b = REPEAT('a', 4*1024*1024) where a = 5 ;
+SET GLOBAL innodb_log_archive=OFF;
+connect  con1,localhost,root,,;
+begin;
+UPDATE t1 set b = REPEAT('#', 50000) where a = 1;
+connection default;
+disconnect con1;
+SELECT a, right(b, 50) FROM t1;
+a	right(b, 50)
+5	five
+DROP TABLE t1;

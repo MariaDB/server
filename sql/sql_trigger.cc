@@ -225,7 +225,7 @@ static File_option triggers_file_parameters[]=
     my_offsetof(class Table_triggers_list, sql_paths),
     FILE_OPTIONS_STRLIST
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 File_option sql_modes_parameters=
@@ -268,7 +268,7 @@ static File_option trigname_file_parameters[]=
     offsetof(struct st_trigname, trigger_table),
     FILE_OPTIONS_ESTRING
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 
@@ -955,6 +955,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     DBUG_RETURN(true);
   }
 
+  if (error_if_mysql50_prefix(lex->spname->m_name.str, ER_SP_WRONG_NAME))
+    DBUG_RETURN(true);
+
   if (sp_process_definer(thd))
     DBUG_RETURN(true);
 
@@ -1020,6 +1023,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
                                              lex->spname->m_name.str,
                                              TRN_EXT, 0);
   trigname_file.str= trigname_buff;
+
+  if (!trigname_file.length)
+    DBUG_RETURN(true);
 
   /* Use the filesystem to enforce trigger namespace constraints. */
   trigger_exists= !access(trigname_file.str, F_OK);
@@ -1785,8 +1791,27 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
       thd->lex= &lex;
 
-      save_db= thd->db;
-      thd->reset_db(db);
+      /*
+        Let's set thd->db to a my_alloc-ed copy of "db".
+        We cannot just call thd->reset_db(db) here for the following reasons:
+
+        In case if a trigger uses package TYPEs, e.g.:
+          CREATE TRIGGER db2.trg BEFORE INSERT ON db2.t1 FOR EACH ROW
+          DECLARE
+            r db1.pkg.rec; -- package TYPE
+          BEGIN
+            ...
+          END;
+        we'll call Sp_hadler::db_load_routine() for the PACKAGE db1.pkg when
+        parsing the trigger body. It'll call mysql_change_db() which will:
+        - set thd->db to a my_alloc'ed copy of "db1"
+          (which is the database of the TYPE db1.pkg.rec)
+        - on success, call my_free() to the previous value thd->db.str.
+        So let's set thd->db to a copy of "db", which can be my_free'd.
+      */
+      save_db= thd->db;              // Make a thd->db backup
+      thd->reset_db(&null_clex_str); // Reset thd->db without freeing it
+      thd->set_db(db);               // Set thd->db to a my_alloc copy of "db"
       while ((trg_create_str= it++))
       {
         sp_head *sp;
@@ -2029,7 +2054,14 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         sp->m_trg= trigger;
         lex_end(&lex);
       }
-      thd->reset_db(&save_db);
+      /*
+        Now thd->db should point to a my_alloc-ed copy of "db",
+        even if we loaded PACKAGEs during the parsing of the trigger.
+        See comments about package TYPEs above. Let's my_free thd->db.str
+        and restore the backed copy of thd->db.
+      */
+      thd->set_db(&null_clex_str); // It'll call my_free() for thd->db.str
+      thd->reset_db(&save_db);     // Restore thd->db
       thd->lex= old_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
@@ -3157,7 +3189,7 @@ void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path)
 
 bool check_trn_exists(const LEX_CSTRING *trn_path)
 {
-  return access(trn_path->str, F_OK) != 0;
+  return !trn_path->length || access(trn_path->str, F_OK) != 0;
 }
 
 

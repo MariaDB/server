@@ -255,7 +255,9 @@ GROUP BY t1.a
 HAVING (t1.a>1) AND (a=test.f1());
 eval $no_pushdown $query;
 eval $query;
+--disable_replay next_query Dont support SPs
 eval explain $query;
+--disable_replay next_query Dont support SPs
 --source include/explain-no-costs.inc
 eval explain format=json $query;
 let $query=
@@ -264,6 +266,7 @@ FROM t1
 WHERE (t1.a>1)
 GROUP BY t1.a
 HAVING (a=test.f1());
+--disable_replay next_query Dont support SPs
 --source include/explain-no-costs.inc
 eval $no_pushdown explain format=json $query;
 
@@ -1806,5 +1809,19 @@ execute stmt;
 execute stmt;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-39916: Crash when pushing "NOT col" from HAVING into WHERE
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0), (1);
+
+SELECT a
+FROM t1
+GROUP BY a
+HAVING (NOT a) AND TRUE;
+
+DROP TABLE t1;
 
 --echo # End of 10.11 tests

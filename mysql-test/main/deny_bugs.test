@@ -1,0 +1,159 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-40014 Access to freed/poisoned memory in SHOW GRANTS
+--echo # after REVOKE DENY, if only negative grants are present
+--echo #
+
+CREATE TABLE t1(val int);
+CREATE USER u;
+DENY EXECUTE ON test.* TO u;
+DENY UPDATE (val) ON t1 TO u;
+REVOKE DENY EXECUTE ON test.* FROM u;
+SHOW GRANTS FOR u;
+
+DROP USER u;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40028 Assertion `rights.allow_bits() == merged->cols' failed in int update_role_columns
+--echo #
+CREATE TABLE t (c1 INT, c2 INT, c3 int);
+CREATE ROLE r;
+DENY SELECT (c2) ON t TO r;
+SHOW GRANTS FOR r;
+REVOKE DENY SELECT (c2) ON t FROM r;
+SHOW GRANTS FOR r;
+DROP ROLE r;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-36503 Single routine-level DENY EXECUTE hides other routine metadata in the database
+--echo #
+CREATE DATABASE d1;
+DELIMITER $$;
+CREATE DEFINER=root@localhost PROCEDURE d1.p1() BEGIN SELECT 1; END$$
+CREATE DEFINER=root@localhost PROCEDURE d1.p2() BEGIN SELECT 2; END$$
+DELIMITER ;$$
+CREATE USER u@localhost;
+GRANT EXECUTE ON d1.* TO u@localhost;
+DENY EXECUTE ON PROCEDURE d1.p1 TO u@localhost;
+DENY ALTER ROUTINE ON PROCEDURE d1.p2 TO u@localhost;
+FLUSH PRIVILEGES;
+
+connect (con_bug36503, localhost, u,,d1);
+--echo # p2 must be callable and both p1, p2 must appear in INFORMATION_SCHEMA.ROUTINES
+CALL p2();
+SELECT ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA='d1' ORDER BY ROUTINE_NAME;
+--echo # p1 is denied, calling it must fail
+--error ER_PROCACCESS_DENIED_ERROR
+CALL p1();
+
+disconnect con_bug36503;
+connection default;
+DROP DATABASE d1;
+DROP USER u@localhost;
+
+--echo #
+--echo # MDEV-40116 Column-level DENY SELECT hides accessible columns and table metadata
+--echo #
+CREATE DATABASE d1;
+CREATE TABLE d1.t1 (a INT, b INT, c INT, KEY(a));
+INSERT INTO d1.t1 VALUES (1,2,3);
+CREATE USER u@localhost;
+GRANT SELECT ON d1.t1 TO u@localhost;
+DENY SELECT (b) ON d1.t1 TO u@localhost;
+FLUSH PRIVILEGES;
+
+connect (con_bug40116, localhost, u,,d1);
+--echo # a and c are accessible, b is denied
+SELECT a, c FROM d1.t1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT * FROM d1.t1;
+--echo # metadata commands must work and show a, c (not b)
+SHOW COLUMNS FROM d1.t1;
+SHOW INDEX FROM d1.t1;
+SHOW CREATE TABLE d1.t1;
+SELECT COLUMN_NAME FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA='d1' AND TABLE_NAME='t1' ORDER BY COLUMN_NAME;
+
+disconnect con_bug40116;
+connection default;
+DROP DATABASE d1;
+DROP USER u@localhost;
+
+--echo #
+--echo # MDEV-40026 SIGSEGV in acl_insert_db on FLUSH PRIVILEGES with overlong DENY names
+--echo #
+CREATE USER u@localhost;
+
+CALL mtr.add_suppression('.*Malformed DENY entry in mysql\\.global_priv at array position [0-2] for ''u''@''localhost'' ignored');
+
+UPDATE mysql.global_priv SET Priv= json_set(Priv, '$.denies', json_array(
+  json_object('type','db',  'db',REPEAT('a',300),'bits',1),
+  json_object('type','table','db','d1','table',REPEAT('b',300),'bits',1),
+  json_object('type','column','db','d1','table','t1','column',REPEAT('c',300),'bits',1)
+)) WHERE User='u' AND Host='localhost';
+
+FLUSH PRIVILEGES;
+
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN= Malformed DENY entry in mysql.global_priv at array position 0 for 'u'@'localhost' ignored
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Malformed DENY entry in mysql.global_priv at array position 1 for 'u'@'localhost' ignored
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Malformed DENY entry in mysql.global_priv at array position 2 for 'u'@'localhost' ignored
+--source include/search_pattern_in_file.inc
+
+DROP USER u@localhost;
+
+--echo #
+--echo # MDEV-40131 DENY not reloaded, granted to a ROLEs exclusively
+--echo #
+CREATE DATABASE d1;
+CREATE TABLE d1.t1 (a INT);
+INSERT INTO d1.t1 VALUES (1);
+CREATE ROLE r;
+GRANT SELECT ON d1.* TO r;
+DENY SELECT ON d1.t1 TO r;
+CREATE USER u@localhost;
+GRANT r TO u@localhost;
+SET DEFAULT ROLE r FOR u@localhost;
+
+--echo # BEFORE reload: role DENY correctly enforced
+connect (p, localhost, u,, d1);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM d1.t1;
+connection default;
+disconnect p;
+
+FLUSH PRIVILEGES;
+
+--echo # role DENY must survive the reload
+SHOW GRANTS FOR r;
+
+--echo # AFTER reload: role DENY must still be enforced
+connect (p, localhost, u,, d1);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM d1.t1;
+connection default;
+disconnect p;
+DROP ROLE r;
+DROP DATABASE d1;
+DROP USER u@localhost;
+
+--echo #
+--echo # MDEV-40300 Assertion in update_role_columns on DROP ROLE
+--echo #
+CREATE TABLE t1 (c1 INT,c2 INT,c3 INT);
+CREATE ROLE r1;
+CREATE ROLE r2;
+GRANT r2 TO r1;
+DENY DELETE ON t1 TO r1;
+DENY SELECT (c2) ON t1 TO r1;
+GRANT SELECT (c3) ON t1 TO r2;
+REVOKE DENY ALL PRIVILEGES ON t1 FROM r1;
+DROP ROLE IF EXISTS r2;
+SHOW GRANTS FOR r1;
+DROP ROLE r1;
+DROP TABLE t1;

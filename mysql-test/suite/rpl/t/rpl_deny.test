@@ -1,0 +1,49 @@
+#
+# Verify that DENY statements are replicated correctly to the slave.
+#
+
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+connection master;
+CREATE USER 'u'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON test.* TO 'u'@'localhost';
+sync_slave_with_master;
+
+--echo # Verify baseline GRANT replicated
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+
+--echo # DENY SELECT and verify replication
+connection master;
+DENY SELECT ON test.* TO 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+sync_slave_with_master;
+
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+
+--echo # DENY INSERT and verify replication
+connection master;
+DENY INSERT ON test.* TO 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+sync_slave_with_master;
+
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+
+--echo # REVOKE DENY SELECT and verify replication
+connection master;
+REVOKE DENY SELECT ON test.* FROM 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+sync_slave_with_master;
+
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+
+# Cleanup
+connection master;
+DROP USER 'u'@'localhost';
+sync_slave_with_master;
+
+--source include/rpl_end.inc

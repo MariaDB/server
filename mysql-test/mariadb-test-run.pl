@@ -247,7 +247,7 @@ my $opt_tail_lines= 20;
 my $opt_dry_run;
 
 my $opt_compress;
-my $opt_ssl;
+our $opt_ssl;
 my $opt_skip_ssl;
 my @opt_skip_test_list;
 our $opt_ssl_supported;
@@ -2293,6 +2293,16 @@ sub environment_setup {
     mtr_exe_maybe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
 		   "$path_client_bindir/mariadb-migrate-config-file");
   $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file) if $exe_mariadb_migrate_config_file;
+
+  # ----------------------------------------------------
+  # resolveip (not built on Windows)
+  # ----------------------------------------------------
+  unless (IS_WINDOWS) {
+    my $exe_resolveip=
+      mtr_exe_exists("$bindir/extra$multiconfig/resolveip",
+		     "$path_client_bindir/resolveip");
+    $ENV{'MYSQL_RESOLVEIP'}= native_path($exe_resolveip);
+  }
 
   # ----------------------------------------------------
   # myisam tools
@@ -4842,30 +4852,47 @@ sub check_expected_crash_and_restart {
       # test script to control when the server should start
       # up again. Keep trying for up to 5s at a time.
       my $last_line= mtr_lastlinesfromfile($expect_file, 1);
-      if ($last_line =~ /^wait/ )
+      chomp $last_line;
+      # Skip empty lines: partial writes to the expect file can be observed
+      # before the intended command is fully written.
+      next if $last_line =~ /^\s*$/;
+      # "wait" or "wait-<tag>" (tag is a diagnostic marker, usually the
+      # name of the test that wrote the file).
+      if ($last_line =~ /^wait(-\S+)?\s*$/)
       {
         mtr_verbose("Test says wait before restart") if $waits == 0;
         next;
       }
       delete $ENV{MTR_BINDIR_FORCED};
 
-      # Ignore any partial or unknown command
-      next unless $last_line =~ /^restart/;
       # If last line begins "restart:", the rest of the line is read as
       # extra command line options to add to the restarted mysqld.
-      # Anything other than 'wait' or 'restart:' (with a colon) will
-      # result in a restart with original mysqld options.
-      if ($last_line =~ /restart_bindir\s+(\S+)(:.+)?/) {
+      # "restart" or "restart-<tag>" restarts with the original options.
+      # "restart_bindir <path>[:opts]" additionally forces the mysqld
+      # binary to be picked from <path> (used during development to
+      # test upgrades between two build trees).
+      # Anything else is treated as an error to catch typos in expect
+      # file commands (e.g. MDEV-39153).
+      if ($last_line =~ /^restart_bindir\s+(\S+)(:.+)?/) {
         $ENV{MTR_BINDIR_FORCED}= $1;
         if ($2) {
           my @rest_opt= split(' ', $2);
           $mysqld->{'restart_opts'}= \@rest_opt;
         }
-      } elsif ($last_line =~ /restart:(.+)/) {
-        my @rest_opt= split(' ', $1);
-        $mysqld->{'restart_opts'}= \@rest_opt;
-      } else {
+      } elsif ($last_line =~ /^restart:(.*)$/) {
+        # Empty tail (e.g. bare 'restart:') is equivalent to 'restart'.
+        my $rest_opt_str= $1;
+        if ($rest_opt_str =~ /\S/) {
+          my @rest_opt= split(' ', $rest_opt_str);
+          $mysqld->{'restart_opts'}= \@rest_opt;
+        } else {
+          delete $mysqld->{'restart_opts'};
+        }
+      } elsif ($last_line =~ /^restart(-\S+)?\s*$/) {
         delete $mysqld->{'restart_opts'};
+      } else {
+        mtr_error("Unknown command '$last_line' in expect file " .
+                  "'$expect_file'");
       }
       unlink($expect_file);
 
@@ -5462,8 +5489,13 @@ sub stop_servers($$) {
 # Run a query against a server using mysql client. The output of
 # the query will be written into outfile.
 #
+# If $timeout (seconds) is given, the client is not waited for
+# indefinitely: a server stuck in an unstable state can accept the
+# connection but never answer the query, which would otherwise block forever.
+# In that case the client is killed and a non-zero status is returned.
+#
 sub run_query_output {
-  my ($mysqld, $query, $outfile)= @_;
+  my ($mysqld, $query, $outfile, $timeout)= @_;
   my $args;
 
   mtr_init_args(\$args);
@@ -5472,7 +5504,7 @@ sub run_query_output {
   mtr_add_arg($args, "--silent");
   mtr_add_arg($args, "--execute=%s", $query);
 
-  my $res= My::SafeProcess->run
+  my $proc= My::SafeProcess->new
   (
     name          => "run_query_output -> ".$mysqld->name(),
     path          => $exe_mysql,
@@ -5481,7 +5513,15 @@ sub run_query_output {
     error         => $outfile
   );
 
-  return $res
+  # wait_one() returns 1 while the process is still running,
+  # in which case we kill the hung client.
+  if ($proc->wait_one($timeout))
+  {
+    $proc->kill();
+    return 1;
+  }
+
+  return $proc->exit_status();
 }
 
 
@@ -5499,7 +5539,13 @@ sub wait_wsrep_ready($$) {
   my ($tinfo, $mysqld)= @_;
 
   my $sleeptime= 100; # Milliseconds
-  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  # Bound the whole wait by the server startup timeout. This must be a
+  # wall-clock deadline rather than a simple loop count: a single query
+  # against a wedged server can block indefinitely, which would otherwise
+  # defeat the loop bound and hang MTR until the surrounding suite timeout
+  # fires.
+  my $timeout= start_timer($opt_start_timeout);
 
   my $name= $mysqld->name();
   my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
@@ -5508,11 +5554,17 @@ sub wait_wsrep_ready($$) {
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
-  for (my $loop= 1; $loop <= $loops; $loop++)
+  while (1)
   {
+    # Cap each query by the time left so a hung client cannot exceed the
+    # overall startup budget. Integer seconds, and at least 1 (wait_one()
+    # treats 0 as a non-blocking poll).
+    my $remaining= int($timeout - time);
+    last if $remaining <= 0;
+
     # Careful... if MTR runs with option 'verbose' then the
     # file contains also SafeProcess verbose output
-    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+    if (run_query_output($mysqld, $query, $outfile, $remaining) == 0 &&
         mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
     {
       unlink($outfile);

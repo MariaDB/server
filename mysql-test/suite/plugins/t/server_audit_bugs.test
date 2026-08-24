@@ -1,0 +1,32 @@
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+
+--echo #
+--echo # MDEV-34074 server_audit crashes in get_loc_info() with NULL loc_info
+--echo #
+# THDVAR() could return NULL if the plugin was previously uninstalled -
+# uninstall wipes the session-variable placeholders and they are not
+# reinitialized on re-install. Black magic to reproduce: install and
+# uninstall server_audit, create a new session and touch any plugin session
+# variable (aria_repair_threads), then install server_audit again.
+# The "will be uninstalled on shutdown" warning below is misleading: the
+# plugin is actually reaped as soon as its last reference drops (which is
+# what wipes the placeholders), not on shutdown.
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+UNINSTALL PLUGIN server_audit;
+
+connect (con1,localhost,root,,);
+DO @@session.aria_repair_threads;
+
+connection default;
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+
+connection con1;
+SELECT 1;
+
+connection default;
+disconnect con1;
+UNINSTALL PLUGIN server_audit;

@@ -1992,4 +1992,54 @@ connection default;
 disconnect con1;
 drop user foo@localhost;
 drop schema foo;
+use test;
+#
+# MDEV-40484 ambiguous view frm parsing when username includes \n
+#
+create user 'root
+definer_host=localhost
+suid=1'@localhost;
+grant all privileges on test.* to 'root
+definer_host=localhost
+suid=1'@localhost;
+connect u,localhost,'root
+definer_host=localhost
+suid=1',,test;
+select user(), current_user();
+user()	root
+definer_host=localhost
+suid=1@localhost
+current_user()	root
+definer_host=localhost
+suid=1@localhost
+select group_concat(user,'@',host) from mysql.global_priv;
+ERROR 42000: SELECT command denied to user 'root
+definer_host=localhost
+suid=1'@'localhost' for table `mysql`.`global_priv`
+create function f() returns text sql security invoker
+return (select group_concat(user,'@',host) from mysql.global_priv);
+create view v as select f();
+select * from v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect u;
+connection default;
+select * from information_schema.views where table_schema='test';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	v
+VIEW_DEFINITION	select `f`() AS `f()`
+CHECK_OPTION	NONE
+IS_UPDATABLE	NO
+DEFINER	root
+definer_host=localhost
+suid=1@localhost
+SECURITY_TYPE	DEFINER
+CHARACTER_SET_CLIENT	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+ALGORITHM	UNDEFINED
+drop view v;
+drop function f;
+drop user 'root
+definer_host=localhost
+suid=1'@localhost;
 # End of 10.6 tests

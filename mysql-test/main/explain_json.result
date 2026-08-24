@@ -2305,3 +2305,64 @@ SET optimizer_trace = 'enabled=on';
 SELECT * FROM t1 WHERE a IN ( SELECT b FROM t2 INNER JOIN t1 ON (a = pk) );
 a
 DROP TABLE t1, t2;
+#
+# MDEV-16462: EXPLAIN FORMAT=JSON produces illegal json text in the attached_condition field
+#
+set names utf8mb4;
+create table t1 (
+id int(11) not null auto_increment,
+oid binary(16) not null,
+primary key (id, oid)
+);
+insert into t1 values
+(1,0x02697732663011E39AE220CF3068F21D),
+(2,0x02697732663011E39AE220CF3068F21D);
+create table t2 (
+id int(11) not null,
+oid binary(16) not null,
+primary key (id)
+);
+insert into t2 values
+(1,0x02697732663011E39AE220CF3068F21D),
+(2,0x02697732663011E39AE220CF3068F21D);
+explain format=json
+select t1.id from t1, t2 where t1.oid=t2.oid and t2.id=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.006067082,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["id"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "20",
+          "used_key_parts": ["id", "oid"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.006067082,
+          "filtered": 100,
+          "attached_condition": "t1.oid = 0x02697732663011E39AE220CF3068F21D",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;
+set names default;

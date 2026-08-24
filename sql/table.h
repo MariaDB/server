@@ -355,10 +355,8 @@ typedef struct st_grant_info
      process. In each step the "wanted privilege" is checked against the
      fulfilled privileges. When/if the intersection of these sets is empty,
      access is granted.
-
-     The set is implemented as a bitmap, with the bits defined in sql_acl.h.
    */
-  privilege_t privilege;
+  access_t privilege;
   /**
      @brief the set of privileges that the current user needs to fulfil in
      order to carry out the requested operation.
@@ -383,11 +381,11 @@ typedef struct st_grant_info
 
   inline void refresh(const Security_context *sctx, const char *db,
                      const char *table);
-  inline privilege_t aggregate_privs();
+  inline access_t aggregate_privs();
   inline privilege_t aggregate_cols();
 
   /* OR table and all column privileges */
-  privilege_t all_privilege();
+  access_t all_privilege();
 } GRANT_INFO;
 
 enum tmp_table_type
@@ -575,6 +573,12 @@ typedef enum enum_table_category TABLE_CATEGORY;
 TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
                                   const Lex_ident_table &name);
 
+
+/*
+  Set this bit in TABLE_FIELD_TYPE::type.length to mark a column as nullable.
+  The actual type string length is type.length & ~CAN_BE_NULL.
+*/
+#define CAN_BE_NULL (1UL << 31)
 
 typedef struct st_table_field_type
 {
@@ -2024,6 +2028,8 @@ public:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
+  bool range_interval_check_partition(THD *thd, TABLE_LIST *table_list,
+                                      Open_table_context *ot_ctx);
 #endif
   bool vers_implicit() const;
 
@@ -3643,7 +3649,13 @@ int closefrm(TABLE *table);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
 ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
-void append_unescaped(String *res, const char *pos, size_t length);
+void append_unescaped(String *res, const char *pos, size_t length,
+                      bool in_comment= false);
+static inline void append_unescaped(String *res, const LEX_CSTRING &str,
+                      bool in_comment= false)
+{
+  append_unescaped(res, str.str, str.length, in_comment);
+}
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
 const char *fn_frm_ext(const char *name);

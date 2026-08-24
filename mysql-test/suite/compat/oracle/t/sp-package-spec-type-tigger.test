@@ -1,0 +1,148 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+#--echo #
+#--echo # MDEV-40430 Cross db package type inside a trigger crashes the server
+#--echo #
+#
+#CREATE DATABASE db1;
+#CREATE DATABASE db2;
+#CREATE TABLE db2.t1 (id INT, note VARCHAR(40));
+#DELIMITER $$;
+#CREATE PACKAGE db1.pkg AS
+#  TYPE rec IS RECORD (a INT, b VARCHAR(20));
+#END;
+#$$
+#CREATE TRIGGER db2.trg BEFORE INSERT ON db2.t1
+#FOR EACH ROW
+#DECLARE
+#  r db1.pkg.rec;
+#BEGIN
+#  r.a := :NEW.id;
+#  :NEW.note := 'x';
+#END;
+#$$
+#DELIMITER ;$$
+#INSERT INTO db2.t1 (id) VALUES (1);
+#DROP DATABASE db2;
+#DROP DATABASE db1;
+
+--echo #
+--echo # MDEV-40436 Trigger using a package-defined type is silently lost during mariadb-dump / restore
+--echo #
+
+# Using package types inside triggers is not yet allowed because
+# of dump/restore problems (MDEV-40436)
+
+CREATE DATABASE db1;
+USE db1;
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  TYPE rec IS RECORD (a INT, b VARCHAR(20));
+END;
+$$
+DELIMITER ;$$
+CREATE TABLE t1 (id INT, val VARCHAR(20));
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  r pkg.rec;
+BEGIN
+  :NEW.val := CONCAT('r-', :NEW.id);
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  r db1.pkg.rec;
+BEGIN
+  :NEW.val := CONCAT('r-', :NEW.id);
+END;
+$$
+DELIMITER ;$$
+DROP DATABASE db1;
+USE test;
+
+
+# Package type in a REF CURSOR RETURN
+
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  TYPE rec IS RECORD (a INT);
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  TYPE c IS REF CURSOR RETURN pkg.rec;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  TYPE c IS REF CURSOR RETURN test.pkg.rec;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+DROP PACKAGE pkg;
+
+
+# Package TYPE in a assoc array
+
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  TYPE rec IS RECORD (a INT);
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  TYPE c IS TABLE OF pkg.rec INDEX BY int;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  TYPE c IS TABLE OF test.pkg.rec INDEX BY int;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+DROP PACKAGE pkg;

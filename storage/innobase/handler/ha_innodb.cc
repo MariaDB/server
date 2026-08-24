@@ -915,6 +915,12 @@ static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
   NULL, NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(table_lock_on_full_scan, PLUGIN_VAR_OPCMDARG,
+  "When the SQL layer advises a full scan, acquire a single table lock "
+  "instead of locking each scanned row individually. This is faster, at the "
+  "cost of less granular (table-level instead of record-level) locking",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout",
   NULL, NULL, 50, 0, 100000000, 0);
@@ -3473,30 +3479,15 @@ innobase_quote_identifier(
 	const trx_t*	trx,
 	const char*	id)
 {
-	const int	q = trx != NULL && trx->mysql_thd != NULL
-		? get_quote_char_for_identifier(trx->mysql_thd, id, strlen(id))
-		: '`';
-
-	if (q == EOF) {
-		fputs(id, file);
-	} else {
-		putc(q, file);
-
-		while (int c = *id++) {
-			if (c == q) {
-				putc(c, file);
-			}
-			putc(c, file);
-		}
-
-		putc(q, file);
-	}
+  std::string str = innobase_quote_identifier(trx, id);
+  fputs(str.c_str(), file);
 }
 
-/** Quote a standard SQL identifier like tablespace, index or column name.
+/** Quote a standard SQL identifier
 @param[in]	trx	InnoDB transaction, or NULL
 @param[in]	id	identifier to quote
-@return quoted identifier */
+@return quoted identifier
+Assumes the identifier in utf8mb4 character set (cf. append_identifier()) */
 std::string
 innobase_quote_identifier(
 /*======================*/
@@ -3512,7 +3503,12 @@ innobase_quote_identifier(
 		quoted_identifier.append(id);
 	} else {
 		quoted_identifier += char(q);
-		quoted_identifier.append(id);
+		while (int c = *id++) {
+			if (c == q) {
+				quoted_identifier += char(c);
+			}
+			quoted_identifier += char(c);
+		}
 		quoted_identifier += char(q);
 	}
 
@@ -3969,7 +3965,7 @@ static int innodb_init_params()
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
 
   if ((srv_encrypt_tables || srv_encrypt_log ||
        innodb_encrypt_temporary_tables) &&
@@ -8553,7 +8549,8 @@ calc_row_difference(
 		}
 
 		fts_update_doc_id(
-			innodb_table, ufield, &trx->fts_next_doc_id);
+			innodb_table, ufield, &trx->fts_next_doc_id,
+			trx->mysql_thd);
 
 		++n_changed;
 	} else {
@@ -9834,7 +9831,7 @@ ha_innobase::ft_init_ext(
 	}
 
 	if (!(ft_table->fts->added_synced)) {
-		fts_init_index(ft_table, FALSE);
+		fts_init_index(ft_table, FALSE, ha_thd());
 
 		ft_table->fts->added_synced = true;
 	}
@@ -11487,7 +11484,13 @@ create_table_info_t::check_table_options()
 				" ENCRYPTION_KEY_ID=1");
 			compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
 		}
-		if (srv_encrypt_tables != 2) {
+		/* m_trx is non-NULL because TRUNCATE that
+		passes its own transaction. TRUNCATE recreates
+		the table preserving the original ENCRYPTED=NO
+		attribute; bypass the innodb_encrypt_tables=FORCE
+		check here so the encryption state does not
+		silently change across a TRUNCATE. */
+		if (m_trx || srv_encrypt_tables != 2) {
 			break;
 		}
 		push_warning(
@@ -11639,6 +11642,81 @@ ha_innobase::update_create_info(
 	}
 }
 
+/** Update FTS stopword configuration when reload is enabled
+@param table		  FTS table
+@param trx		  transaction
+@param thd		  current thread
+@param new_stopword_table stopword table name
+@param new_stopword_is_on stopword enable setting
+@return TRUE if success */
+static
+bool innobase_fts_update_stopword_config(dict_table_t *table, trx_t *trx,
+                                         THD *thd,
+                                         const char *new_stopword_table,
+                                         bool new_stopword_is_on)
+{
+  ut_ad(dict_sys.locked());
+  /* Create FTSQueryExecutor for config operations */
+  FTSQueryExecutor executor(trx, table);
+  dberr_t error= DB_SUCCESS;
+  fts_string_t str;
+
+  /* Load CONFIG table directly since we already hold dict_sys.lock() */
+  char config_table_name[MAX_FULL_NAME_LEN];
+  fts_table_t fts_table;
+  FTS_INIT_FTS_TABLE(&fts_table, nullptr, FTS_COMMON_TABLE, table);
+  fts_table.suffix = "CONFIG";
+  fts_get_table_name(&fts_table, config_table_name, true);
+  const span<const char> config_name{
+    config_table_name, strlen(config_table_name)};
+  dict_table_t *config_table= dict_sys.load_table(config_name);
+
+  if (config_table == nullptr)
+    return false;
+
+  /* Assign CONFIG table directly to executor for optimized access */
+  executor.set_config_table(config_table);
+	
+  /* Update FTS_USE_STOPWORD setting in CONFIG table */
+  ulint use_stopword = (ulint) new_stopword_is_on;
+  fts_cache_t *cache= table->fts->cache;
+  error= fts_config_set_ulint(
+    &executor, table, FTS_USE_STOPWORD, use_stopword);
+
+  if (error != DB_SUCCESS)
+    return false;
+
+  if (!use_stopword)
+  {
+    cache->stopword_info.status = STOPWORD_OFF;
+    goto cleanup;
+  }
+
+  /* Validate and update FTS_STOPWORD_TABLE_NAME in CONFIG
+  table if provided */
+  if (new_stopword_table &&
+      fts_load_user_stopword(
+        &executor, table->fts, new_stopword_table,
+	&table->fts->cache->stopword_info))
+  {
+    /* Stopword table is valid, update CONFIG table */
+    str.f_n_char = 0;
+    str.f_str = (byte*) new_stopword_table;
+    str.f_len = strlen(new_stopword_table);
+
+    error = fts_config_set_value(&executor, table, FTS_STOPWORD_TABLE_NAME, &str);
+  }
+  else fts_load_default_stopword(&cache->stopword_info);
+cleanup:
+  if (!cache->stopword_info.cached_stopword)
+    cache->stopword_info.cached_stopword=
+      rbt_create_arg_cmp(
+        sizeof(fts_tokenizer_word_t), innobase_fts_text_cmp,
+        &my_charset_latin1);
+
+  return true;
+}
+
 /*****************************************************************//**
 Initialize the table FTS stopword list
 @return TRUE if success */
@@ -11661,9 +11739,25 @@ innobase_fts_load_stopword(
   }
 
   table->fts->dict_locked= true;
-  bool success= fts_load_stopword(table, trx, stopword_table,
-                                  THDVAR(thd, ft_enable_stopword), false);
+  bool own_trx= (trx == nullptr);
+  if (own_trx)
+  {
+    trx= trx_create();
+    trx->mysql_thd= thd;
+    trx_start_internal(trx);
+  }
+  bool success= innobase_fts_update_stopword_config(
+                  table, trx, thd, stopword_table,
+                  THDVAR(thd, ft_enable_stopword));
+  if (own_trx)
+  {
+    if (success)
+      trx_commit_for_mysql(trx);
+    else trx->rollback();
+    trx->clear_and_free();
+  }
   table->fts->dict_locked= false;
+  DBUG_EXECUTE_IF("fts_load_stopword_fail", success= false;);
   return success;
 }
 
@@ -14089,6 +14183,24 @@ int ha_innobase::truncate()
   if (ib_table->is_temporary())
   {
     info.options|= HA_LEX_CREATE_TMP_TABLE;
+
+    /* Validate the create options before dropping the existing
+    table, so that a validation failure leaves the original table
+    intact instead of dropping it and then failing in create(),
+    which would leave the handler without a table. */
+    {
+      create_table_info_t validate(m_user_thd, table, &info, true, trx);
+      int err= validate.initialize();
+      if (!err)
+        err= validate.prepare_create_table(ib_table->name.m_name, false);
+      if (err)
+      {
+        trx_rollback_for_mysql(trx);
+        trx->free();
+        DBUG_RETURN(err);
+      }
+    }
+
     btr_drop_temporary_table(trx, *ib_table);
     m_prebuilt->table= nullptr;
     row_prebuilt_free(m_prebuilt);
@@ -15419,8 +15531,8 @@ ha_innobase::optimize(
 	if (innodb_optimize_fulltext_only) {
 		if (m_prebuilt->table->fts && m_prebuilt->table->fts->cache
 		    && m_prebuilt->table->space) {
-			fts_sync_table(m_prebuilt->table);
-			fts_optimize_table(m_prebuilt->table);
+			fts_sync_table(m_prebuilt->table, true, thd);
+			fts_optimize_table(m_prebuilt->table, thd);
 		}
 		try_alter = false;
 	}
@@ -16301,6 +16413,33 @@ ha_innobase::extra(
 	return(0);
 }
 
+/** SQL layer calls this function (via init_table_full_scan_if_needed())
+with HA_EXTRA_FULL_SCAN when a statement reads a whole table or
+index with no WHERE condition. When innodb_table_lock_on_full_scan
+is enabled, flag the scan as covering the entire table.
+row_search_mvcc() takes a single table-level lock (LOCK_S/LOCK_X)
+instead of locking each scanned row individually. A bounded
+scan (arg < ULONG_MAX) keeps per-row locking, since it may stop early.
+Every other operation is forwarded unchanged to extra().
+@param  operation  hint to act on
+@param  arg        operation argument; for HA_EXTRA_FULL_SCAN the row
+                   limit, or ULONG_MAX when the scan is unbounded
+@return 0 on success, otherwise the error code returned by extra() */
+int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
+{
+  switch (operation)
+  {
+    case HA_EXTRA_FULL_SCAN:
+      if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
+          !m_prebuilt->skip_locked && arg == ULONG_MAX)
+        m_prebuilt->full_table_scan = true;
+      return 0;
+    default:/* Do nothing */
+      ;
+  }
+  return extra(operation);
+}
+
 /**
 MySQL calls this method at the end of each statement */
 int
@@ -16321,6 +16460,7 @@ ha_innobase::reset()
 	m_prebuilt->autoinc_last_value = 0;
 
 	m_prebuilt->skip_locked = false;
+	m_prebuilt->full_table_scan = false;
 	return(0);
 }
 
@@ -20448,6 +20588,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(lock_wait_timeout),
+  MYSQL_SYSVAR(table_lock_on_full_scan),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),

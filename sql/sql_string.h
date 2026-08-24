@@ -945,6 +945,8 @@ public:
   static bool needs_conversion_on_storage(size_t arg_length,
                                           CHARSET_INFO *cs_from,
                                           CHARSET_INFO *cs_to);
+  static bool is_charset_conversion_lossless(const CHARSET_INFO *from_cs,
+                                             const CHARSET_INFO *to_cs);
   bool copy_aligned(const char *s, size_t arg_length, size_t offset,
 		    CHARSET_INFO *cs);
   bool set_or_copy_aligned(const char *s, size_t arg_length, CHARSET_INFO *cs);

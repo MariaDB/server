@@ -1,3 +1,5 @@
+set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
+set global innodb_lock_wait_timeout=1;
 connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect  con1,localhost,root,,;
@@ -38,6 +40,18 @@ COMMIT;
 # <con1, S, granted>, <con2, X, waiting for con1>,
 # <con1, S, granted>, <con2, X, waiting for con1>, <con3, S, waiting for con2>
 # <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>, <con3, S, waiting for con2>
+connection default;
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=0;
+connection con1;
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=0;
+connection con2;
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=0;
+connection con3;
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=0;
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
@@ -66,6 +80,14 @@ connection con3;
 id
 1
 COMMIT;
+connection default;
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;
+connection con1;
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;
+connection con2;
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;
+connection con3;
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;
 # A variant of the above scenario:
 # <con1, X REC_NOT_GAP, granted>,
 # <con1, X REC_NOT_GAP, granted>, <con2, S, waiting for con1>,
@@ -196,3 +218,4 @@ disconnect con2;
 disconnect con3;
 disconnect stop_purge;
 DROP TABLE t1;
+set global innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;

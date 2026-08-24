@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--disable_replay testfile Need to preserve optimizer trace
 set @tmp_opt_switch= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=on';
 set optimizer_trace='enabled=on';

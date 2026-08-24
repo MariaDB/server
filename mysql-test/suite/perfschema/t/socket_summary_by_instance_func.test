@@ -32,6 +32,7 @@
 --source include/not_windows.inc
 --source include/no_valgrind_without_big.inc
 --source include/have_perfschema.inc
+--source include/not_ssl.inc
 
 # The values in the performance_schema tables depend on how much communication
 # happens per SQL statement within our MTR tests. And there is a significant

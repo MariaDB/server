@@ -37,7 +37,13 @@
 #include <cstdlib>
 #include "debug_sync.h"
 #include "my_rnd.h"
+#if (defined(__GNUC__) && (__GNUC__ < 8) && !defined __clang__)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
 #include <filesystem>
+namespace fs = std::filesystem;
+#endif
 
 #include <my_service_manager.h>
 
@@ -645,9 +651,9 @@ static bool sst_report_progress(const bool      joiner,
     const char *path = (wsrep_sst_tmp_dir_real && strlen(wsrep_sst_tmp_dir_real) != 0) ?
       wsrep_sst_tmp_dir_real : mysql_real_data_home_ptr;
 
-    const std::filesystem::path p(path);
+    const fs::path p(path);
     std::error_code ec;
-    std::filesystem::space_info si = std::filesystem::space(p, ec);
+    fs::space_info si = fs::space(p, ec);
     constexpr std::uintmax_t failed(-1);
     if (si.available == failed)
       si.available= 0;
@@ -2448,11 +2454,24 @@ int wsrep_sst_donate(const std::string& msg,
     addr= data;
   }
 
-  if (remote_auth() &&
-      wsrep_check_request_str(remote_auth(), wsrep_shell_char, true))
+  if (remote_auth())
   {
-    WSREP_ERROR("Bad remote auth string. SST canceled.");
-    return WSREP_CB_FAILURE;
+    /* auth is like localhost:ecee4512990b6a685b5d8df250cb5028 */
+    std::string auth= remote_auth();
+    std::string r_user = auth.substr(0, auth.find(":"));
+    std::string r_pw = auth.substr(auth.find(":")+1, auth.size());
+    if (!r_user.empty() &&
+        wsrep_check_request_str(r_user.c_str(), wsrep_filename_char, true))
+    {
+      WSREP_ERROR("Bad remote auth string. SST canceled.");
+      return WSREP_CB_FAILURE;
+    }
+    if (!r_pw.empty() &&
+        wsrep_check_request_str(r_pw.c_str(), wsrep_filename_char, true))
+    {
+      WSREP_ERROR("Bad remote auth string. SST canceled.");
+      return WSREP_CB_FAILURE;
+    }
   }
 
   if (wsrep_check_request_str(addr, wsrep_address_char, true))

@@ -1619,6 +1619,12 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
+  delete captured_opt_ctx;
+  captured_opt_ctx= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
@@ -1761,6 +1767,10 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -1889,7 +1899,7 @@ THD::~THD()
   set_current_thd(this);
   if (!status_in_global)
     add_status_to_global();
-
+  clean_captured_ctx(this);
   /*
     Other threads may have a lock on LOCK_thd_kill to ensure that this
     THD is not deleted while they access it. The following mutex_lock
@@ -2522,6 +2532,10 @@ void THD::cleanup_after_query()
       (not just in the end of a stored routine individual statement).
     */
     statement_rcontext_reinit();
+    delete opt_ctx_recorder;
+    opt_ctx_recorder= NULL;
+    delete opt_ctx_replay;
+    opt_ctx_replay= NULL;
   }
 
   /*
@@ -4935,10 +4949,10 @@ void Security_context::init()
   host= user= ip= external_user= 0;
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
-  master_access= NO_ACL;
+  master_access= access_t(NO_ACL);
   password_expired= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  db_access= NO_ACL;
+  db_access= access_t(NO_ACL);
 #endif
 }
 
@@ -4973,7 +4987,7 @@ void Security_context::skip_grants()
 {
   /* privileges for the user are unknown everything is allowed */
   host_or_ip= (char *)"";
-  master_access= ALL_KNOWN_ACL;
+  master_access= access_t(ALL_KNOWN_ACL);
   *priv_user= *priv_host= '\0';
   password_expired= false;
 }
@@ -7843,6 +7857,18 @@ int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
 /**
    Remove from read_set spurious columns. The write_set has been
    handled before in table->mark_columns_needed_for_update.
+
+   Then remove any virtual columns, from both read_set and rpl_write_set.
+
+   Notes on unfortunate trickery:
+
+    - The bits for the row after-image come from rpl_write_set, which can be
+      separate from the normal table->write_set (table->def_read_set,
+      table->s->all_set), but need not be.
+
+    - The table->read_set has been saved by the caller, and will be restored
+      later, this function will point it to the table->tmp_set if any bits
+      need to change.
 */
 void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 {
@@ -7895,6 +7921,40 @@ void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
     /* set the temporary read_set */
     table->column_bitmaps_set_no_signal(&table->tmp_set,
                                         table->write_set);
+  }
+
+  /*
+    Do not put virtual column values into the write_set, as they will be
+    re-computed anyway by the slave applier.
+  */
+  if (unlikely(table->vfield))
+  {
+#ifdef HAVE_REPLICATION
+    if (!table->s->online_alter_binlog)
+#endif
+    {
+      if (table->read_set != &table->tmp_set)
+      {
+        bitmap_copy(&table->tmp_set, table->read_set);
+        table->read_set= &table->tmp_set;
+      }
+      /*
+        rpl_write_set is used with pack_row() to define which fields should
+        be written to the binary log
+      */
+      if (table->rpl_write_set != &table->def_rpl_write_set)
+      {
+        bitmap_copy(&table->def_rpl_write_set, table->rpl_write_set);
+        table->rpl_write_set= &table->def_rpl_write_set;
+      }
+      Field **end_vf= table->vfield + table->s->virtual_fields;
+      for (Field **vf_ptr= table->vfield; vf_ptr < end_vf; ++vf_ptr)
+      {
+        Field *vf= *vf_ptr;
+        bitmap_clear_bit(table->read_set, vf->field_index);
+        bitmap_clear_bit(table->rpl_write_set, vf->field_index);
+      }
+    }
   }
 
   DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s",

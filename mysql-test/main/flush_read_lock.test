@@ -74,7 +74,8 @@ create temporary table t1_temp(i int) engine=myisam;
 create temporary table t2_temp(j int) engine=myisam;
 create temporary table t3_temp_trans(i int) engine=innodb;
 create database mysqltest1;
-create database `#mysql50#mysqltest-2`;
+--let $datadir=`select @@datadir`
+--mkdir $datadir/mysqltest-2
 create procedure p1() begin end;
 create function f1() returns int return 0;
 create view v1 as select 1 as i;
@@ -110,7 +111,7 @@ connection default;
 
 let $con_aux1=con1;
 let $con_aux2=con2;
-let $cleanup_stmt2= ;
+let $mkdir_db= ;
 let $skip_3rd_check= ;
 
 --echo #
@@ -144,9 +145,9 @@ let $cleanup_stmt1= alter database mysqltest1 default character set latin1;
 --echo #
 let $statement= alter database `#mysql50#mysqltest-2` upgrade data directory name;
 let $cleanup_stmt1= drop database `mysqltest-2`;
-let $cleanup_stmt2= create database `#mysql50#mysqltest-2`;
+let $mkdir_db= $datadir/mysqltest-2;
 --source include/check_ftwrl_incompatible.inc
-let $cleanup_stmt2= ;
+let $mkdir_db= ;
 
 --echo #
 --echo # 1.4) ALTER PROCEDURE should be incompatible with FTWRL.

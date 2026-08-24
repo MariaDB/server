@@ -82,6 +82,9 @@ INSERT INTO t4 VALUES (2,2,1234);
 --let $wait_condition = SELECT COUNT(*) = 3 FROM test.t1
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.tables where table_schema='test' and table_name='t4'
+--source include/wait_condition.inc
+
 select * from t1;
 select * from t2;
 select * from t3;

@@ -1,0 +1,6 @@
+CREATE DATABASE mdev_40379;
+USE mdev_40379;
+CREATE TEMPORARY TABLE t (c INT KEY) ENGINE=DuckDB;
+ERROR HY000: Table storage engine 'DUCKDB' does not support the create option 'TEMPORARY'
+USE test;
+DROP DATABASE mdev_40379;

@@ -59,13 +59,23 @@
 extern "C" {
 #endif
 
-#ifdef DBUG_OFF
 #if defined(HAVE_STPCPY) && defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))
 #elif defined(HAVE_STPCPY)
 #define strmov(A,B) stpcpy((A),(B))
-#endif
-#endif
+#else
+__attribute__((nonnull))
+static inline char *strmov(char *dst, const char *src)
+{
+  size_t l;
+  DBUG_ASSERT(dst != NULL);
+  DBUG_ASSERT(src != NULL);
+
+  l= strlen(src);
+  memmove(dst, src, l + 1);
+  return dst + l;
+}
+#endif /* strmov */
 
 /* Declared in int2str() */
 extern const char _dig_vec_base62[];
@@ -86,13 +96,15 @@ extern	char *strfill(char * s,size_t len,pchar fill);
 extern	char *strmake(char *dst,const char *src,size_t length);
 
 #if !defined(__GNUC__) || (__GNUC__ < 4)
-#define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
+#define type_assert_buf(D) (D)
 #else
-#define strmake_buf(D,S) ({                             \
+#define type_assert_buf(D) ({                           \
   __typeof__ (D) __x __attribute__((unused)) = { 2 };   \
-  strmake(D, S, sizeof(D) - 1);                         \
+  (D);                                                  \
   })
 #endif
+
+#define strmake_buf(D,S) strmake(type_assert_buf(D), S, sizeof(D) - 1)
 
 #ifndef strmov
 extern	char *strmov(char *dst,const char *src);
@@ -151,23 +163,14 @@ extern char *ullstr(longlong value,char *buff);
 
 extern char *int2str(long val, char *dst, int radix, int upcase);
 extern char *int10_to_str(long val,char *dst,int radix);
-extern char *str2int(const char *src,int radix,long lower,long upper,
-			 long *val);
 longlong my_strtoll10(const char *nptr, char **endptr, int *error);
 #if SIZEOF_LONG == SIZEOF_LONG_LONG
 #define ll2str(A,B,C,D) int2str((A),(B),(C),(D))
 #define longlong10_to_str(A,B,C) int10_to_str((A),(B),(C))
-#undef strtoll
-#define strtoll(A,B,C) strtol((A),(B),(C))
-#define strtoull(A,B,C) strtoul((A),(B),(C))
 #else
 #ifdef HAVE_LONG_LONG
 extern char *ll2str(longlong val,char *dst,int radix, int upcase);
 extern char *longlong10_to_str(longlong val,char *dst,int radix);
-#if defined(NO_STRTOLL_PROTO)
-extern longlong strtoll(const char *str, char **ptr, int base);
-extern ulonglong strtoull(const char *str, char **ptr, int base);
-#endif
 #endif
 #endif
 #define longlong2str(A,B,C) ll2str((A),(B),(C),1)

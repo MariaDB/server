@@ -1,0 +1,2469 @@
+/*
+   Copyright (c) 2025, MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335
+   USA */
+
+#include "sql_plugin.h"
+#include "handler.h"
+#include "set_var.h"
+#include "sql_class.h"
+#include "opt_context_store_replay.h"
+#include "sql_show.h"
+#include "my_json_writer.h"
+#include "hash.h"
+#include "opt_trace.h"
+
+#include "sql_select.h"
+#include "sql_explain.h"
+#include "mysqld_error.h"
+#include "sql_statistics.h"
+#include "sql_json_lib.h"
+#include "opt_histogram_json.h"
+#include "thr_lock.h"
+
+using namespace json_reader;
+
+/**
+  @file
+
+  @brief
+    This file provides mechanism to: -
+    1. Record the range stats while the query is running
+    2. Store/dump the tables/views context including index stats, range stats,
+    and the cost of reading indexes, and ranges into the
+    "optimizer_context" Information Schema table
+    3. During replay, parse the context which is in JSON format, and
+    build an in memory representation of the read stats
+    4. Infuse the read stats into the optimzer.
+
+  @detail
+    1. range_stats are gathered in memory using the class Range_list_recorder
+    2. Stores the tables, and views context (i.e. ddls, and basic stats)
+    that are used in either SELECT, INSERT, DELETE, and UPDATE queries,
+    into the optimizer_context IS table. All these table contexts are stored in
+    one place as a JSON array object with name "tables".
+    The high level json structure looks like: -
+    {
+      "tables": [
+        {
+          "name": "table_name",
+          "file_stat_records" : n
+          "file_stat_records": n,
+          "read_cost_io": n,
+          "read_cost_cpu": n,
+          "indexes": [ //optional
+            {
+              ...
+            }, ...,
+          ],
+          "multi_range_read_info_const_calls": [ //optional
+            {
+              ...
+            }, ...
+          ],
+          "inde_read_cost_calls": [ //optional
+            {
+              ...
+            }, ...,
+          ]
+          "subquery_runs" : [ // optional 
+            { "select_id": NNNN }
+            ...
+          ]
+        }, ...
+      ]
+    }
+    See mysql-test/include/opt_context_schema.inc for its JSON Schema.
+    The function "store_optimizer_context()" is used to dump the
+    all the tables stats into IS table.
+    3. Later, when this JSON structure is given as input to the variable
+    "optimizer_replay_context" in the form of an user defined variable,
+    it is parsed and an in-memory representation of the same structure is built
+    using the class Optimizer_context_replay.
+    4. To infuse the stats into the optimizer, the same class
+    Optimizer_context_replay is used.
+
+    In addition to storing the table contexts in JSON structure;
+    system variables, and EITS stats are also stored. However,
+    these are not included in the JSON structure. Instead, they
+    are stored as "SET sys_var = current_session_value;" statements.
+    Constant tables used in the queries, and EITS stats are recorded
+    as "REPLACE INTO table_name VALUES(...);" statements.
+    The table_name would either be the table referred in the query or
+    one of MYSQL.TABLE_STATS, MYSQL.COLUMN_STATS, MYSQL.INDEX_STATS.
+    functions store_system_variables(), and dump_eits_stats() are used
+    for achieving this purpose. All these statements are also recorded in
+    the "optimizer_context" Information Schema table.
+*/
+
+/*
+   A record of one multi_range_read_info_const() call:
+*/
+class Multi_range_read_const_call_record : public Sql_alloc
+{
+public:
+  char *idx_name;
+  ha_rows rows;
+  List<char> range_list;
+  Cost_estimate cost;
+  uint mrr_mode;
+
+  ha_rows max_index_blocks;
+  ha_rows max_row_blocks;
+  ulong call_number;
+
+  static
+  Multi_range_read_const_call_record *parse(MEM_ROOT *mem_root,
+                                            json_engine_t *je,
+                                            String *err_buf);
+};
+
+/*
+   A record to hold one cost_for_index_read() call:
+*/
+class cost_index_read_call_record : public Sql_alloc
+{
+public:
+  char *idx_name;
+  ha_rows records;
+  bool eq_ref;
+  bool is_covering;
+  ALL_READ_COST cost;
+
+  static
+  cost_index_read_call_record* parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                     String *err_buf);
+};
+
+/*
+   A record to hold one records_in_range() call:
+*/
+class records_in_range_call_record : public Sql_alloc
+{
+public:
+  uint keynr;
+  char *min_key;
+  char *max_key;
+  ha_rows records;
+
+  static
+  records_in_range_call_record* parse(MEM_ROOT *mem_root,
+                                      json_engine_t *je,
+                                      String *err_buf);
+};
+
+/*
+   structure to store all the index range records,
+   and the cost for reading indexes, pertaining to a table
+*/
+class table_context_for_store : public Sql_alloc
+{
+public:
+  /* Full name of the table or view i.e db_name.{table|view}_name */
+  char *name;
+  size_t name_len;
+  List<Multi_range_read_const_call_record> mrr_list;
+  List<cost_index_read_call_record> irc_list;
+  List<records_in_range_call_record> rir_list;
+  List<char> const_tbl_ins_stmt_list;
+};
+
+namespace Show
+{
+extern ST_FIELD_INFO optimizer_costs_fields_info[];
+
+/*
+  Fields for INFORMATION_SCHEMA.OPTIMIZER_CONTEXT.
+
+  CONTEXT uses binary charset so that it is not converted to the client's
+  @@character_set_results.
+*/
+ST_FIELD_INFO optimizer_context_capture_info[]= {
+  Column("QUERY",   Longtext(65535),                  NOT_NULL),
+  Column("CONTEXT", Longtext(65535, &my_charset_bin), NOT_NULL),
+  CEnd()
+};
+
+} // namespace Show
+
+static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf);
+static void append_base_table_name(const TABLE *table, String *buf);
+
+static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
+                                      String *err_buf, Cost_estimate *cost);
+
+static char *strdup_root(MEM_ROOT *root, const String *str)
+{
+  return strmake_root(root, str->ptr(), str->length());
+}
+
+/*
+  helper function to know the key portion of the record
+  that is stored in hash.
+*/
+static const uchar *get_hash_key(const void *entry_, size_t *length,
+                                 my_bool flags)
+{
+  auto entry= static_cast<const LEX_CSTRING *>(entry_);
+  *length= entry->length;
+  return reinterpret_cast<const uchar *>(entry->str);
+}
+
+/*
+  @brief
+    Check whether a table is a regular base table (for which we should
+    dump the ddl) or not.
+
+  @detail
+    Besides base tables, the query may have:
+     - Table functions (Currently it's only JSON_TABLE)
+     - INFORMATION_SCHEMA tables
+     - Tables in PERFORMANCE_SCHEMA and mysql database
+     - Internal temporary ("work") tables
+*/
+static bool is_base_table(const TABLE_LIST *tbl)
+{
+  return (tbl->table && tbl->table->s && !tbl->table_function &&
+          !tbl->schema_table &&
+          get_table_category(tbl->get_db_name(), tbl->get_table_name()) ==
+              TABLE_CATEGORY_USER &&
+          tbl->table->s->tmp_table != INTERNAL_TMP_TABLE &&
+          tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
+}
+
+static
+void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
+                         Json_writer *ctx_writer)
+{
+  Json_writer_array mrr_calls(ctx_writer,
+                              "multi_range_read_info_const_calls");
+  List_iterator irc_li(*mrr_list);
+  while (Multi_range_read_const_call_record *irc= irc_li++)
+  {
+    Json_writer_object irc_wrapper(ctx_writer);
+    irc_wrapper.add("index_name", irc->idx_name);
+
+    {
+      Json_writer_array ranges_wrapper(ctx_writer, "ranges");
+      List_iterator rc_li(irc->range_list);
+      while (const char *range_str= rc_li++)
+        ranges_wrapper.add(range_str, strlen(range_str));
+    }
+
+    irc_wrapper.add("num_rows", irc->rows);
+    {
+      Json_writer_object obj(ctx_writer, "cost");
+      obj.add("avg_io_cost", irc->cost.avg_io_cost);
+      obj.add("cpu_cost", irc->cost.cpu_cost);
+      obj.add("comp_cost", irc->cost.comp_cost);
+      obj.add("copy_cost", irc->cost.copy_cost);
+      obj.add("limit_cost", irc->cost.limit_cost);
+      obj.add("setup_cost", irc->cost.setup_cost);
+      obj.add("index_cost_io", irc->cost.index_cost.io);
+      obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
+      obj.add("row_cost_io", irc->cost.row_cost.io);
+      obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
+    }
+    irc_wrapper.add("mrr_mode", irc->mrr_mode);
+
+    irc_wrapper.add("max_index_blocks", irc->max_index_blocks);
+    irc_wrapper.add("max_row_blocks", irc->max_row_blocks);
+    irc_wrapper.add("call_number", irc->call_number);
+  }
+}
+
+static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
+                                  Json_writer *ctx_writer)
+{
+  Json_writer_array list_irc_wrapper(ctx_writer, "cost_for_index_read_calls");
+  List_iterator irc_li(*irc_list);
+
+  while (cost_index_read_call_record *irc= irc_li++)
+  {
+    Json_writer_object obj(ctx_writer);
+    obj.add("index_name", irc->idx_name);
+    obj.add("num_records", irc->records);
+    obj.add("eq_ref", irc->eq_ref ? 1 : 0);
+    obj.add("covering", irc->is_covering? 1:0);
+
+    obj.add("index_cost_io", irc->cost.index_cost.io);
+    obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
+    obj.add("row_cost_io", irc->cost.row_cost.io);
+    obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
+    obj.add("max_index_blocks", irc->cost.max_index_blocks);
+    obj.add("max_row_blocks", irc->cost.max_row_blocks);
+    obj.add("copy_cost", irc->cost.copy_cost);
+  }
+}
+
+static
+void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
+                                 Json_writer *ctx_writer)
+{
+  Json_writer_array list_irc_wrapper(ctx_writer, "records_in_range_calls");
+  List_iterator rir_li(*rir_list);
+
+  while (records_in_range_call_record *rir= rir_li++)
+  {
+    Json_writer_object obj(ctx_writer);
+    obj.add("key_number", rir->keynr);
+    obj.add("min_key", rir->min_key);
+    obj.add("max_key", rir->max_key);
+    obj.add("num_records", rir->records);
+  }
+}
+
+void Optimizer_context_recorder::dump_recorded_table_calls(
+    table_context_for_store *tbl,
+    Json_writer *writer)
+{
+  dump_mrr_info_calls(&tbl->mrr_list, writer);
+  dump_index_read_calls(&tbl->irc_list, writer);
+  dump_records_in_range_calls(&tbl->rir_list, writer);
+}
+
+/*
+  dump the following table stats to optimizer_context IS table: -
+  1. total number of records in the table
+  2. if there any indexes for the table then
+      their names, and the num of records per key
+  3. range stats on the indexes
+  4. cost of reading indexes
+*/
+void Optimizer_context_recorder::dump_table_stats(
+    TABLE_LIST *tbl, uchar *tbl_name,
+    size_t tbl_name_len,
+    Json_writer_object &ctx_wrapper,
+    Json_writer *ctx_writer)
+{
+  TABLE *table= tbl->table;
+  ha_rows records= table->stat_records();
+  IO_AND_CPU_COST cost= table->file->ha_scan_time(records);
+  ctx_wrapper.add("name", (char *) tbl_name, tbl_name_len);
+  ctx_wrapper.add("file_stat_records", table->file->stats.records);
+  ctx_wrapper.add("data_file_length", table->file->stats.data_file_length);
+  ctx_wrapper.add("index_file_length", table->file->stats.index_file_length);
+  ctx_wrapper.add("mean_rec_length", table->file->stats.mean_rec_length);
+  ctx_wrapper.add("read_cost_io", cost.io);
+  ctx_wrapper.add("read_cost_cpu", cost.cpu);
+  if (!table->key_info)
+    return;
+
+  Json_writer_array indexes_wrapper(ctx_writer, "indexes");
+  for (uint idx= 0; idx < table->s->keys; idx++)
+  {
+    KEY *key= &table->key_info[idx];
+    uint num_key_parts= key->ext_key_parts;
+    Json_writer_object index_wrapper(ctx_writer);
+    index_wrapper.add("index_name", key->name);
+    Json_writer_array rpk_wrapper(ctx_writer, "rec_per_key");
+    for (uint i= 0; i < num_key_parts; i++)
+      rpk_wrapper.add(key->actual_rec_per_key(i));
+    rpk_wrapper.end();
+  }
+  indexes_wrapper.end();
+}
+
+static void get_create_view_stmt(THD *thd, TABLE_LIST *table, String *name,
+                                 String *buf)
+{
+  buf->append(STRING_WITH_LEN("CREATE "));
+  view_store_options(thd, table, buf);
+  buf->append(STRING_WITH_LEN("VIEW "));
+  buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
+  buf->append(*name);
+  buf->append(STRING_WITH_LEN(" AS "));
+  buf->append(table->select_stmt.str, table->select_stmt.length);
+}
+
+
+static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
+{
+  const sql_mode_t bad_modes= MODE_ORACLE|
+                              MODE_NO_TABLE_OPTIONS;
+  bool res= false;
+  bool restore_mode= false;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
+  Table_specification_st create_info;
+  create_info.init(DDL_options_st::OPT_IF_NOT_EXISTS);
+  /*
+    A non-NULL create_info makes show_create_table() print only the clauses
+    whose used_fields bit is set. Set the bits for the clauses we want in the
+    dumped DDL (ENGINE=, DEFAULT CHARSET=, and engine-specific table options),
+    otherwise they are silently omitted.
+  */
+  create_info.used_fields|=
+      HA_CREATE_USED_ENGINE | HA_CREATE_USED_DEFAULT_CHARSET |
+      HA_CREATE_USED_CHARSET | HA_CREATE_PRINT_ALL_OPTIONS;
+
+  /*
+    Some @@sql_mode settings prevent printing of essential table options like
+    ENGINE=....
+    If these are enabled
+    - Temporarily turn them off.
+    - Write appropriate "SET sql_mode=..." into the SQL script we're producing.
+      Note that we've captured @@sql_mode as a "relevant system variable", so
+      that the replay side will have the same value.
+  */
+  if (thd->variables.sql_mode & bad_modes)
+  {
+    sql_mode_t compatible_modes= thd->variables.sql_mode & ~bad_modes;
+    thd->variables.sql_mode= compatible_modes;
+    restore_mode= true;
+    LEX_CSTRING str;
+    sql_mode_string_representation(thd, compatible_modes, &str);
+    ddl->append(STRING_WITH_LEN("SET sql_mode='"));
+    ddl->append(str);
+    ddl->append(STRING_WITH_LEN("';\n"));
+  }
+
+  /* CREATE TABLE should specify the database if it's not the current one */
+  const char *table_db= nullptr;
+  if (!thd->db.str || cmp(&tbl->table->s->db, &thd->db))
+    table_db= tbl->table->s->db.str;
+
+  if (show_create_table_ex(thd, tbl, table_db, tbl->table->s->table_name.str,
+                           ddl, &create_info, /*ignored*/WITH_DB_NAME))
+    res= true;
+
+  if (restore_mode)
+  {
+    thd->variables.sql_mode= saved_mode;
+    LEX_CSTRING str;
+    sql_mode_string_representation(thd, saved_mode, &str);
+
+    ddl->append(STRING_WITH_LEN(";\n"));
+    ddl->append(STRING_WITH_LEN("SET sql_mode='"));
+    ddl->append(str);
+    ddl->append(STRING_WITH_LEN("';\n"));
+  }
+  return res;
+}
+
+/*
+  System variables that are required for the optimizer context,
+  but do not have "optimizer" in their name.
+    TODO: include @@SQL_SELECT_LIMIT here.
+*/
+static const char *opt_ctx_sys_vars[]=
+{
+  "join_cache_level",
+  "join_buffer_size",
+  "timestamp",
+  "time_zone",
+  "old_mode",
+  "sql_mode",
+  "in_predicate_conversion_threshold",
+  "sort_buffer_size",
+  "note_verbosity",
+  "sql_buffer_result",
+  "group_concat_max_len",
+  "max_heap_table_size",
+  "standard_compliant_cte",
+  "innodb_strict_mode",
+  NULL
+};
+
+static const char *read_only_info_sys_vars[]= {
+    "version", "version_source_revision", NULL};
+
+static const char *excluded_sys_vars[]= {"optimizer_replay_context",
+                                         "optimizer_record_context", NULL};
+
+static bool is_var_in_list(const char **sys_vars, const char *var_name)
+{
+  for (uint i= 0; sys_vars[i] != NULL; i++)
+  {
+    if (!strcmp(sys_vars[i], var_name))
+      return true;
+  }
+  return false;
+}
+
+static void store_optimizer_costs(const char *engine,
+                                  const OPTIMIZER_COSTS *costs, String &script)
+{
+  char buf[64];
+  for (uint i= 0; Show::optimizer_costs_fields_info[i + 1].name().str; i++)
+  {
+    const ST_FIELD_INFO *field_info= &Show::optimizer_costs_fields_info[i + 1];
+    double cost_val= ((double *) costs)[i];
+
+    if (strcmp(field_info->name().str, "OPTIMIZER_DISK_READ_RATIO") != 0)
+      cost_val*= 1000.0;
+
+    script.append(STRING_WITH_LEN("SET GLOBAL "));
+    script.append(engine, strlen(engine));
+    script.append(STRING_WITH_LEN("."));
+    script.append(field_info->name());
+    script.append(STRING_WITH_LEN("="));
+
+    size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", cost_val);
+    script.append(buf, len);
+    script.append(STRING_WITH_LEN(";\n"));
+  }
+}
+
+/*
+  @brief
+    Save current values of optimizer variables: append to script
+    a set of "SET variable=value" statements.
+*/
+static void store_system_variables(THD *thd, String &script)
+{
+  CHARSET_INFO *charset_info= system_charset_info;
+
+  // hold the lock until the end of this method.
+  // follows the same pattern as in sql_show.cc#fill_variables()
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
+  if (!thd->variables.dynamic_variables_ptr ||
+      global_system_variables.dynamic_variables_head >
+          thd->variables.dynamic_variables_head)
+    sync_dynamic_session_variables(thd, true);
+  SHOW_VAR *all_session_vars= enumerate_sys_vars(thd, true, SHOW_OPT_SESSION);
+  size_t len;
+  StringBuffer<1024> buf;
+  const char *pos;
+
+  for (SHOW_VAR *show_var= all_session_vars; show_var->name != NULL;
+       show_var++)
+  {
+    if (is_var_in_list(excluded_sys_vars, show_var->name))
+      continue;
+
+    bool is_informative_sys_var= false;
+
+    if (strstr(show_var->name, "optimizer") != NULL ||
+        is_var_in_list(opt_ctx_sys_vars, show_var->name) ||
+        (is_informative_sys_var= is_var_in_list(
+             read_only_info_sys_vars, show_var->name)))
+    {
+      sys_var *var= (sys_var *) show_var->value;
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
+                            NULL, &charset_info, buf.c_ptr_safe(), &len);
+      mysql_mutex_unlock(&LOCK_global_system_variables);
+      if (is_informative_sys_var)
+      {
+        script.append(STRING_WITH_LEN("## "));
+      }
+      else
+      {
+        script.append(STRING_WITH_LEN("SET "));
+
+        if (var->check_type(SHOW_OPT_SESSION))
+          script.append(STRING_WITH_LEN("GLOBAL "));
+      }
+
+      script.append(show_var->name, strlen(show_var->name));
+      script.append(STRING_WITH_LEN("="));
+      switch (var->show_type())
+      {
+      case SHOW_DOUBLE:
+      case SHOW_BOOL:
+      case SHOW_UINT:
+      case SHOW_ULONG:
+      case SHOW_ULONGLONG:
+      case SHOW_SINT:
+      case SHOW_SLONG:
+      case SHOW_SLONGLONG:
+      case SHOW_SIZE_T:
+        script.append(pos, len);
+        break;
+      default:
+        script.append(STRING_WITH_LEN("'"));
+        script.append(pos, len);
+        script.append(STRING_WITH_LEN("'"));
+        break;
+      }
+      script.append(STRING_WITH_LEN(";\n"));
+    }
+  }
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
+}
+
+/*
+  @brief
+    Append the "create database db_name" DDL statement to script, if it is
+    not already present in the db_name_hash.
+    Also, append "use database db_name" if the flag req_use_db_stmt is set.
+
+  @return
+    0  OK
+    1  OOM error
+*/
+static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
+                         const char *db_name, bool req_use_db_stmt)
+{
+  size_t db_name_len= strlen(db_name);
+
+  if (db_name_len &&
+      !my_hash_search(db_name_hash, (uchar *) db_name, db_name_len))
+  {
+    LEX_CSTRING *db_name_key;
+    if (!(db_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))))
+      return true; // OOM
+
+    db_name_key->str= db_name;
+    db_name_key->length= db_name_len;
+
+    if (my_hash_insert(db_name_hash, (uchar *) db_name_key))
+      return true; // OOM
+
+    script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
+    script.append(db_name, db_name_len);
+    script.append(STRING_WITH_LEN(";\n\n"));
+
+    if (req_use_db_stmt)
+    {
+      script.append(STRING_WITH_LEN("USE "));
+      script.append(db_name, db_name_len);
+      script.append(STRING_WITH_LEN(";\n\n"));
+    }
+  }
+
+  return false;
+}
+
+/*
+  @brief
+    Append the @arg json to sql_script, by escaping only backslash,
+    and single quote
+*/
+static void escape_json_for_sql_literal(const String& json, String *sql_script)
+{
+  const char *str= json.ptr();
+  const char *end= str + json.length();
+  for (; str < end; str++)
+  {
+    switch (*str)
+    {
+    case '\\':
+      sql_script->append(STRING_WITH_LEN("\\\\"));
+      break;
+    case '\'':
+      sql_script->append(STRING_WITH_LEN("\\'"));
+      break;
+    default:
+      sql_script->append(*str);
+    }
+  }
+}
+
+bool store_optimizer_context(THD *thd)
+{
+  bool res;
+  if (thd->spcont)
+  {
+    /* This is a sub-statement inside SP. Don't do anything */
+    return false;
+  }
+
+  if (!thd->opt_ctx_recorder)
+  {
+    return false;
+  }
+  String sql_script;
+  res= thd->opt_ctx_recorder->dump_sql_script(thd, sql_script);
+  clean_captured_ctx(thd);
+
+  if (res)
+    return true;
+
+  thd->captured_opt_ctx= new Optimizer_context_capture(thd, sql_script);
+  if (!thd->captured_opt_ctx)
+    res= true; // OOM
+  return res;
+}
+
+/*
+  @brief
+    Dump definitions, basic stats of all tables and views used by the
+    statement into an SQL script.
+    The goal is to eventually save everything that is needed to
+    reproduce the query execution.
+
+  @detail
+    Stores the ddls, stats of the tables, and views that are used
+    in either SELECT, INSERT, DELETE, and UPDATE queries,
+    into an SQL script.
+    Global query_tables are read in reverse order from the thd->lex,
+    and a record with table_name, and ddl of the table are created.
+    Hash is used to store the records, where in no duplicates
+    are stored. db_name.table_name is used as a key to discard any
+    duplicates. If a new record that is created is not in the hash,
+    then that is dumped into the IS table.
+
+  @return
+    false when no error occurred during the computation
+*/
+
+bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
+{
+  String qry_ctx_script;
+  String sys_vars_script;
+  Json_writer ctx_writer;
+  Json_writer_object context(&ctx_writer);
+  Json_writer_array context_list(&ctx_writer, "tables");
+  HASH table_name_hash;
+  HASH used_storage_engines;
+  HASH db_name_hash;
+  List<TABLE_LIST> tables_list;
+  bool res= false;
+
+  /*
+    thd->lex->query_tables lists the VIEWs before their underlying tables.
+    We want to dump them in reverse order: first VIEW's tables, then the VIEW.
+    Create a list in the reverse order.
+  */
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (!tbl->is_view() && !is_base_table(tbl))
+      continue;
+    if (tables_list.push_front(tbl))
+      return true;
+  }
+
+  if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
+                   HASH_UNIQUE) ||
+      my_hash_init(key_memory_trace_ddl_info, &used_storage_engines,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
+                   HASH_UNIQUE) ||
+      my_hash_init(key_memory_trace_ddl_info, &db_name_hash,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
+                   HASH_UNIQUE) ||
+      store_db_ddl(thd, &db_name_hash, qry_ctx_script, thd->get_db(), true))
+  {
+    res= true; // OOM
+  }
+
+  List<TABLE_LIST> uniq_tables_list;
+  List_iterator li(tables_list);
+  for (TABLE_LIST *tbl= li++; !res && tbl; tbl= li++)
+  {
+    String ddl;
+    StringBuffer<256> full_tbl_name;
+    LEX_CSTRING *tbl_name_key;
+    append_table_or_view_name(tbl, &full_tbl_name);
+
+    /*
+      A query can use the same table multiple times. Do not dump the
+      DDL multiple times.
+    */
+    if (my_hash_search(&table_name_hash, (uchar *) full_tbl_name.c_ptr_safe(),
+                       full_tbl_name.length()))
+      continue;
+
+    if (!(tbl_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))) ||
+        !(tbl_name_key->str= strdup_root(thd->mem_root, &full_tbl_name)))
+    {
+      res= true;
+      break;
+    }
+    tbl_name_key->length= strlen(tbl_name_key->str);
+
+    if (my_hash_insert(&table_name_hash, (uchar *) tbl_name_key))
+    {
+      res= true; // OOM
+      break;
+    }
+    uniq_tables_list.push_front(tbl);
+
+    /* Add CREATE DATABASE table_database IF NOT EXISTS */
+    if (store_db_ddl(thd, &db_name_hash, qry_ctx_script,
+                     tbl->get_db_name().str, false))
+    {
+      res= true;
+      break;
+    }
+
+    /* Add CREATE TABLE|VIEW statement */
+    if (tbl->is_view())
+    {
+      get_create_view_stmt(thd, tbl, &full_tbl_name, &ddl);
+    }
+    else
+    {
+      if (get_create_table_stmt(thd, tbl, &ddl))
+      {
+        res= true;
+        break;
+      }
+    }
+    qry_ctx_script.append(ddl);
+    qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
+
+    /* If this is a VIEW we've stored its DDL and we're done. */
+    if (tbl->is_view())
+      continue;
+
+    /*
+      if this is a SEQUENCE table defined as
+        CREATE SEQUENCE s1;
+      then, record the current value of s1 as well, and then we're done.
+      DDL for it has already been recorded.
+      No need to record other stats.
+    */
+    if (tbl->table->s->sequence)
+    {
+      const char *key;
+      uint length= get_table_def_key(tbl, &key); // table def key = hash key
+      SEQUENCE_LAST_VALUE *entry= (SEQUENCE_LAST_VALUE *) my_hash_search(
+          &thd->sequences, (uchar *) key, length);
+      SEQUENCE *seq= tbl->table->s->sequence;
+      longlong value;
+      if (entry && !entry->check_version(tbl->table))
+      {
+        /*
+          Set the sequence so that the next NEXTVAL returns the value that
+          was last handed out (entry->value): SETVAL(x) makes the next
+          NEXTVAL return x + increment, so use entry->value - increment.
+          Keep the argument within the sequence bounds - for an ascending
+          sequence it may fall below min_value, for a descending one it may
+          rise above max_value, and SETVAL rejects out-of-range values.
+        */
+        longlong candidate= entry->value - seq->increment;
+        value= seq->increment > 0 ? MY_MAX(candidate, seq->min_value)
+                                  : MY_MIN(candidate, seq->max_value);
+      }
+      else
+        value= seq->reserved_until;
+
+      qry_ctx_script.append(STRING_WITH_LEN("SELECT SETVAL("));
+      qry_ctx_script.append(full_tbl_name);
+      qry_ctx_script.append(STRING_WITH_LEN(", "));
+      qry_ctx_script.append_longlong(value);
+      qry_ctx_script.append(STRING_WITH_LEN(");\n\n"));
+
+      continue;
+    }
+    else if (tbl->table->s->db_type() &&
+             tbl->table->s->db_type()->discover_table)
+    {
+      /*
+        No need to collect stats, and record const rows for
+        sequence tables such as seq_1_to_10 or
+        other read only engines' (Archive, S3, PerfSchema) tables.
+      */
+      continue;
+    }
+
+    /* No, it's a base table */
+    Json_writer_object ctx_wrapper(&ctx_writer);
+
+    /* Write basic table statistics */
+    dump_table_stats(tbl, (uchar *) tbl_name_key->str, tbl_name_key->length,
+                     ctx_wrapper, &ctx_writer);
+
+    /* Find the table in the captured context */
+    table_context_for_store *table_context=
+        search((uchar *) tbl_name_key->str, tbl_name_key->length);
+
+    if (table_context)
+    {
+      dump_recorded_table_calls(table_context, &ctx_writer);
+
+      List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
+      while (char *stmt= inserts_li++)
+      {
+        qry_ctx_script.append(stmt, strlen(stmt));
+        qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
+      }
+    }
+
+    /*
+      Dump the engine's cost settings into the SET statements for
+      system variables.
+    */
+    handlerton *hton= tbl->table->file->partition_ht();
+    const LEX_CSTRING *engine_name= hton_name(hton);
+    if (!my_hash_search(&used_storage_engines, (uchar *) engine_name->str,
+                        engine_name->length))
+    {
+      if (my_hash_insert(&used_storage_engines, (uchar *) engine_name))
+      {
+        res= true; // OOM
+        break;
+      }
+      store_optimizer_costs(engine_name->str,
+                            (OPTIMIZER_COSTS *) hton->optimizer_costs,
+                            sys_vars_script);
+    }
+  }
+  context_list.end();
+  if (res)
+    goto end;
+
+  if (subquery_runs.size())
+  {
+    Json_writer_array subq_runs_arr(&ctx_writer, "subquery_runs");
+    for (uint i= 0; i < subquery_runs.size(); i++)
+      subq_runs_arr.add((ulonglong) subquery_runs[i]);
+  }
+  context.end();
+
+  if (res)
+    goto end;
+
+  if ((res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script)))
+    goto end;
+
+  sql_script.set_charset(system_charset_info);
+  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
+  store_optimizer_costs("heap", &heap_optimizer_costs, sys_vars_script);
+  store_optimizer_costs("temp_table", &tmp_table_optimizer_costs,
+                        sys_vars_script);
+
+  store_system_variables(thd, sys_vars_script);
+  sql_script.append(sys_vars_script);
+  sql_script.append(qry_ctx_script);
+
+  sql_script.append(STRING_WITH_LEN("set @opt_context=\'\n"));
+
+  // require extra escaping of the opt_ctx so as to counter the
+  // unescaping done by sql parse
+  escape_json_for_sql_literal(*ctx_writer.output.get_string(), &sql_script);
+
+  sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
+  sql_script.append(
+      STRING_WITH_LEN("SET optimizer_replay_context=\'opt_context\'"));
+  sql_script.append(STRING_WITH_LEN(";\n\n"));
+
+  sql_script.append(STRING_WITH_LEN("SET character_set_client="));
+  sql_script.append(thd->variables.character_set_client->cs_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
+
+  sql_script.append(STRING_WITH_LEN("SET character_set_results="));
+  sql_script.append(thd->variables.character_set_results->cs_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
+
+  sql_script.append(STRING_WITH_LEN("SET collation_connection="));
+  sql_script.append(thd->variables.collation_connection->coll_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
+
+  sql_script.append(thd->query(), thd->query_length());
+  sql_script.append(STRING_WITH_LEN(";\n\n"));
+  sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
+
+end:
+  my_hash_free(&table_name_hash);
+  my_hash_free(&used_storage_engines);
+  my_hash_free(&db_name_hash);
+  return res;
+}
+
+/*
+  Create a new table context if it is not already present in the
+  hash.
+  The table context is also persisted in the hash which is to be
+  used later for dumping all the context information into the
+  optimizer_context IS table.
+*/
+table_context_for_store *
+Optimizer_context_recorder::get_table_context(const TABLE *table)
+{
+  String tbl_name;
+  append_base_table_name(table, &tbl_name);
+  table_context_for_store *table_ctx=
+      search((uchar *) tbl_name.c_ptr_safe(), tbl_name.length());
+
+  if (!table_ctx)
+  {
+    if (!(table_ctx= new (mem_root) table_context_for_store))
+      return nullptr; // OOM
+
+    if (!(table_ctx->name= strdup_root(mem_root, &tbl_name)))
+      return nullptr; // OOM
+
+    table_ctx->name_len= tbl_name.length();
+
+    if (my_hash_insert(&tbl_ctx_hash, (uchar *) table_ctx))
+      return nullptr; // OOM
+  }
+
+  return table_ctx;
+}
+
+Optimizer_context_recorder::Optimizer_context_recorder(MEM_ROOT *mem_root_arg)
+    : subquery_runs(mem_root_arg), mem_root(mem_root_arg)
+{
+  my_hash_init(key_memory_trace_ddl_info, &tbl_ctx_hash, system_charset_info,
+               16, 0, 0, &Optimizer_context_recorder::get_tbl_ctx_key, 0,
+               HASH_UNIQUE);
+}
+
+Optimizer_context_recorder::~Optimizer_context_recorder()
+{
+  my_hash_free(&tbl_ctx_hash);
+}
+
+bool Optimizer_context_recorder::has_records()
+{
+  return tbl_ctx_hash.records > 0;
+}
+
+table_context_for_store *
+Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
+{
+  return (table_context_for_store *) my_hash_search(&tbl_ctx_hash, tbl_name,
+                                                    tbl_name_len);
+}
+
+void Optimizer_context_recorder::record_multi_range_read_info_const(
+    const TABLE *table, uint keynr, Range_print_enumerator *ranges,
+    ha_rows rows, const Cost_estimate *cost, uint mrr_flags,
+    const ha_rows *max_index_blocks,
+    const ha_rows *max_row_blocks)
+{
+  /*
+    Do not record calls that are made at execution phase by "Range checked
+    for each record"
+  */
+  if (current_thd->lex->explain->is_query_plan_ready())
+    return;
+
+  mrr_counter++;
+  auto *range_ctx= new (mem_root) Multi_range_read_const_call_record;
+
+  if (unlikely(!range_ctx))
+    return; // OOM
+
+  range_ctx->call_number= mrr_counter;
+  const char *index_name= table->key_info[keynr].name.str;
+  if (!(range_ctx->idx_name= strdup_root(mem_root, index_name)))
+    return; // OOM
+
+  range_ctx->rows= rows;
+  range_ctx->cost= *cost;
+  range_ctx->mrr_mode= mrr_flags;
+  if (rows != HA_POS_ERROR)
+  {
+    range_ctx->max_index_blocks= *max_index_blocks;
+    range_ctx->max_row_blocks= *max_row_blocks;
+  }
+  else
+  {
+    // Not provided. Write 0.
+    range_ctx->max_index_blocks= 0;
+    range_ctx->max_row_blocks= 0;
+  }
+
+  while (!ranges->next())
+  {
+    const String &str= ranges->get_interval_str();
+    const char *range_str;
+
+    if (!(range_str= strdup_root(mem_root, &str)))
+      return;
+    range_ctx->range_list.push_back(range_str, mem_root);
+  }
+
+  table_context_for_store *table_ctx= get_table_context(table);
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  table_ctx->mrr_list.push_back(range_ctx, mem_root);
+}
+
+/*
+  record cost of reading an index, and add it to the index read cost list
+  of the table context.
+*/
+void Optimizer_context_recorder::record_cost_for_index_read(
+    const TABLE *table, uint key, ha_rows records,
+    bool eq_ref, const ALL_READ_COST *cost)
+{
+  cost_index_read_call_record *idx_read_rec=
+      new (mem_root) cost_index_read_call_record;
+
+  bool is_covering= table->covering_keys.is_set(key) && !table->no_keyread;
+  if (unlikely(!idx_read_rec))
+    return; // OOM
+
+  KEY *keyinfo= table->key_info + key;
+  const char *idx_name= keyinfo->name.str;
+  idx_read_rec->idx_name= strdup_root(mem_root, idx_name);
+  idx_read_rec->records= records;
+  idx_read_rec->eq_ref= eq_ref;
+  idx_read_rec->cost= *cost;
+  idx_read_rec->is_covering= is_covering;
+
+  table_context_for_store *table_ctx= get_table_context(table);
+
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  table_ctx->irc_list.push_back(idx_read_rec, mem_root);
+}
+
+/*
+  helper function to know the key portion of the
+  table context that is stored in hash.
+*/
+const uchar *Optimizer_context_recorder::get_tbl_ctx_key(const void *entry_,
+                                                         size_t *length,
+                                                         my_bool flags)
+{
+  auto entry= static_cast<const table_context_for_store *>(entry_);
+  *length= entry->name_len;
+  return reinterpret_cast<const uchar *>(entry->name);
+}
+
+void Optimizer_context_recorder::record_records_in_range(
+    const TABLE *tbl, const KEY_PART_INFO *key_part,
+    uint keynr, const key_range *min_range, const key_range *max_range,
+    ha_rows records)
+{
+  records_in_range_call_record *rec_in_range_ctx=
+      new (mem_root) records_in_range_call_record;
+
+  if (unlikely(!rec_in_range_ctx))
+    return; // OOM
+
+  rec_in_range_ctx->keynr= keynr;
+  String min_key;
+  String max_key;
+  print_key_value(&min_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+
+  if (!(rec_in_range_ctx->min_key= strdup_root(mem_root, &min_key)))
+    return; // OOM
+
+  if (!(rec_in_range_ctx->max_key= strdup_root(mem_root, &max_key)))
+    return; // OOM
+
+  rec_in_range_ctx->records= records;
+
+  table_context_for_store *table_ctx= get_table_context(tbl);
+
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
+}
+
+void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
+{
+  StringBuffer<512> output(&my_charset_utf8mb4_bin);
+
+  /*
+    Due to use of prepare_captured_row_read(), we have values for all
+    table columns.
+
+    However, the row that we're trying to dump might have been inserted into
+    the table with relaxed settings (no strict mode).
+    So, use relaxed @@sql_mode setting here also to make the REPLACE statement
+    is processed (i.e. not fails with an error).
+  */
+  output.append(
+    STRING_WITH_LEN("SET STATEMENT sql_mode="
+                    "REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),"
+                    "'STRICT_TRANS_TABLES','') FOR\n"));
+  output.append(STRING_WITH_LEN("REPLACE INTO "));
+  append_base_table_name(tbl, &output);
+  format_and_store_row(tbl, tbl->record[row_index], true, " VALUES ", false, output);
+  table_context_for_store *table_ctx= get_table_context(tbl);
+
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  char *ins_stmt= strdup_root(mem_root, &output);
+
+  if (unlikely(!ins_stmt))
+    return; // OOM
+
+  table_ctx->const_tbl_ins_stmt_list.push_back(ins_stmt, mem_root);
+}
+
+
+void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
+{
+  /* Do not record subquery executions done after the optimization phase */
+  if (current_thd->lex->explain->is_query_plan_ready())
+    return;
+  
+  /* Subqueries are identified by the select_number of their first SELECT */
+  uint num= subq->unit->first_select()->select_number;
+
+  subquery_runs.append(num);
+}
+
+/*
+  Append the name of base table (in case of single-table VIEWs that "become"
+  tables, take the base table's table, NOT the view).
+*/
+static void append_base_table_name(const TABLE *table, String *buf)
+{
+  // TODO : eventually we'll need quoting.
+  buf->append(table->s->db.str, table->s->db.length);
+  buf->append(STRING_WITH_LEN("."));
+  buf->append(table->s->table_name.str, table->s->table_name.length);
+}
+
+/*
+  Given a table *tbl, store its "db_name.table_name" into buf.
+
+  Note that for single-table UPDATEs turned multi-table UPDATEs
+  we can have TABLE_LIST object representing a VIEW which thas
+  tbl->table representing the table inside the VIEW.
+*/
+static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf)
+{
+  // TODO : eventually we'll need quoting.
+  buf->append(tbl->db.str, tbl->db.length);
+  buf->append(STRING_WITH_LEN("."));
+  buf->append(tbl->table_name.str, tbl->table_name.length);
+}
+
+
+/*
+  This class is used to store the in-memory representation of
+  one index context i.e. read from json
+*/
+class index_context_for_replay : public Sql_alloc
+{
+public:
+  index_context_for_replay() : rec_per_key(current_thd->mem_root) {}
+  char *idx_name= NULL;
+  Mem_root_dynamic_array<double> rec_per_key;
+  static index_context_for_replay *parse(MEM_ROOT *mem_root,
+                                         json_engine_t *je,
+                                         String *err_buf);
+};
+
+/*
+  This class is used to store the in-memory representation of
+  a table context i.e. read from json.
+  A list of index contexts, and range contexts are stored separately.
+*/
+class table_context_for_replay : public Sql_alloc
+{
+public:
+  /* Full name of the table or view i.e db_name.{table|view}_name */
+  char *name;
+  ha_rows total_rows;
+  ha_rows file_stat_records;
+
+  ha_rows data_file_length;
+  ha_rows index_file_length;
+  ulong mean_rec_length;
+
+  double read_cost_io;
+  double read_cost_cpu;
+  List<index_context_for_replay> index_list;
+  List<Multi_range_read_const_call_record> ranges_list;
+  List<cost_index_read_call_record> irc_list;
+  List<records_in_range_call_record> rir_list;
+
+  static
+  table_context_for_replay *parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                  String *err_buf);
+};
+
+/*
+  This class structure is used to temporarily store the old index stats
+  that are in the optimizer, before they are updated by the stats
+  from replay json.
+  They are restored once the query that used replay json stats is done
+  execution.
+*/
+class Saved_index_stats : public Sql_alloc
+{
+public:
+  KEY *key_info;
+  bool original_is_statistics_from_stat_tables;
+  Index_statistics *original_read_stats;
+};
+
+/*
+  This class structure is used to temporarily store the old table stats
+  that are in the optimizer, before they are updated by the stats
+  from replay json.
+  They are restored once the query that used replay json stats is done
+  execution.
+*/
+class Saved_table_stats : public Sql_alloc
+{
+public:
+  TABLE *table;
+  /*
+    We do not restore table->file->stats members:
+    records, data_file_length, index_file_length, mean_rec_length
+    they are read from the storage engine for every query anyway.
+  */
+  List<Saved_index_stats> saved_index_stats;
+};
+
+// psergey: Reads a JSON object
+class Read_range_cost_estimate : public Read_value
+{
+  MEM_ROOT *mem_root;
+  Cost_estimate *ptr;
+
+public:
+  Read_range_cost_estimate(MEM_ROOT *mem_root_arg, Cost_estimate *ptr_arg)
+      : mem_root(mem_root_arg), ptr(ptr_arg)
+  {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    return parse_range_cost_estimate(mem_root, je, err_buf, ptr);
+  }
+};
+
+/*
+  Read JSON array of double values.
+  We support the values being strings (in quotes) that store doubles.
+*/
+class Read_rec_per_key : public Read_array
+{
+  MEM_ROOT *mem_root;
+  Mem_root_dynamic_array<double> *list_values;
+
+public:
+  Read_rec_per_key(MEM_ROOT *mem_root_arg,
+                   Mem_root_dynamic_array<double> *list_values_arg)
+      : mem_root(mem_root_arg), list_values(list_values_arg)
+  {
+  }
+
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+    override
+  {
+    while (je->state != JST_ARRAY_END)
+    {
+      double val;
+      if (read_double(je , name, err_buf, val))
+        return 1;
+
+      if (list_values->append(val) || json_scan_next(je))
+        return 1;
+    }
+    return 0;
+  }
+};
+
+
+/*
+  Parses the table context of the JSON structure
+  of the optimizer context.
+  A single array element of "tables" is parsed
+  in this method.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+table_context_for_replay*
+table_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                String *err_buf)
+{
+  auto *table_ctx= new (mem_root) table_context_for_replay;
+
+  Read_named_member members[]=
+  {
+    {"name", Read_string(mem_root, &table_ctx->name), false},
+    {"file_stat_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
+     false},
+    {"data_file_length",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->data_file_length),
+     false},
+    {"index_file_length",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->index_file_length),
+     false},
+    {"mean_rec_length",
+     Read_non_neg_integer<ulong, ULONG_MAX>(&table_ctx->mean_rec_length),
+     false},
+    {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
+    {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
+    {"indexes",
+     Read_object_array<index_context_for_replay>(
+         mem_root, &table_ctx->index_list, index_context_for_replay::parse),
+     true},
+    {"multi_range_read_info_const_calls",
+     Read_object_array<Multi_range_read_const_call_record>(
+         mem_root, &table_ctx->ranges_list,
+         Multi_range_read_const_call_record::parse),
+     true},
+    {"cost_for_index_read_calls",
+     Read_object_array<cost_index_read_call_record>(
+         mem_root, &table_ctx->irc_list, cost_index_read_call_record::parse),
+     true},
+    {"records_in_range_calls",
+     Read_object_array<records_in_range_call_record>(
+         mem_root, &table_ctx->rir_list, records_in_range_call_record::parse),
+     true},
+    {NULL, Read_double(NULL), true}
+  };
+
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+  return table_ctx;
+}
+
+/*
+  Parses the index context of the JSON structure
+  of the optimizer context.
+  To be specific, single array element of indexes
+  is parsed in this method.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+
+index_context_for_replay*
+index_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                String *err_buf)
+{
+  auto index_ctx= new (mem_root) index_context_for_replay;
+  if (!index_ctx)
+    return NULL;
+
+  Read_named_member members[]= {
+      {"index_name", Read_string(mem_root, &index_ctx->idx_name), false},
+      {"rec_per_key", Read_rec_per_key(mem_root, &index_ctx->rec_per_key),
+       false},
+      {NULL, Read_double(NULL), true}};
+
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+
+  return index_ctx;
+}
+
+/*
+  Parses the range context of the JSON structure
+  of the optimizer context.
+  To be specific, a single array element of multi_range_read_info_const_calls
+  is parsed in this method.
+  Refer to the file opt_context_schema.inc, and the description at the start
+  of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+Multi_range_read_const_call_record *
+Multi_range_read_const_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                          String *err_buf)
+{
+  auto out= new Multi_range_read_const_call_record;
+  if (!out)
+    return NULL;
+
+  Read_named_member members[]=
+  {
+    {"index_name", Read_string(mem_root, &out->idx_name), false},
+    {"ranges", Read_array_of_strings(mem_root, &out->range_list), false},
+    {"num_rows", Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
+     false},
+    {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
+    {"mrr_mode", Read_non_neg_integer<uint, UINT_MAX>(&out->mrr_mode),
+     false},
+    {"max_index_blocks",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_index_blocks),
+     false},
+    {"max_row_blocks",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_row_blocks),
+     false},
+    {"call_number",
+     Read_non_neg_integer<ulong, ULONG_MAX>(&out->call_number), false},
+    {NULL, Read_double(NULL), true}
+  };
+
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+  return out;
+}
+
+/*
+  Parses the cost information present in the
+  range context of the JSON structure.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
+                                      String *err_buf, Cost_estimate *cost)
+{
+  if (json_scan_next(je) || je->state != JST_OBJ_START)
+  {
+    err_buf->append(
+        STRING_WITH_LEN("Expected an object while reading range cost"));
+    return 1;
+  }
+
+  Read_named_member array[]= {
+      {"avg_io_cost", Read_double(&cost->avg_io_cost), false},
+      {"cpu_cost", Read_double(&cost->cpu_cost), false},
+      {"comp_cost", Read_double(&cost->comp_cost), false},
+      {"copy_cost", Read_double(&cost->copy_cost), false},
+      {"limit_cost", Read_double(&cost->limit_cost), false},
+      {"setup_cost", Read_double(&cost->setup_cost), false},
+      {"index_cost_io", Read_double(&cost->index_cost.io), false},
+      {"index_cost_cpu", Read_double(&cost->index_cost.cpu), false},
+      {"row_cost_io", Read_double(&cost->row_cost.io), false},
+      {"row_cost_cpu", Read_double(&cost->row_cost.cpu), false},
+      {NULL, Read_double(NULL), true}};
+
+  return json_read_object(je, array, err_buf);
+}
+
+/*
+  Parses the cost information for reading an index using
+  ref access of the JSON structure of the optimizer context.
+  To be specific, single array element of cost_for_index_read_calls
+  is parsed in this method.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+cost_index_read_call_record*
+cost_index_read_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                   String *err_buf)
+{
+  auto out= new (mem_root) cost_index_read_call_record;
+  if (!out)
+    return NULL;
+
+  Read_named_member members[]=
+  {
+    {"index_name", Read_string(mem_root, &out->idx_name), false},
+    {"num_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
+    {"covering", Read_non_neg_integer<bool, 1>(&out->is_covering), false},
+    {"index_cost_io", Read_double(&out->cost.index_cost.io), false},
+    {"index_cost_cpu", Read_double(&out->cost.index_cost.cpu), false},
+    {"row_cost_io", Read_double(&out->cost.row_cost.io), false},
+    {"row_cost_cpu", Read_double(&out->cost.row_cost.cpu), false},
+    {"max_index_blocks",
+     Read_non_neg_integer<longlong, LONGLONG_MAX>(
+         &out->cost.max_index_blocks),
+     false},
+    {"max_row_blocks",
+     Read_non_neg_integer<longlong, LONGLONG_MAX>(&out->cost.max_row_blocks),
+     false},
+    {"copy_cost", Read_double(&out->cost.copy_cost), false},
+    {NULL, Read_double(NULL), true}
+  };
+
+  if (json_read_object(je, members, err_buf))
+    return NULL; //error
+
+  return out;
+}
+
+/*
+  Parses the cost information for reading records_in_range
+  JSON structure of the optimizer context.
+  To be specific, single array element of records_in_range_calls
+  is parsed in this method.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+records_in_range_call_record*
+records_in_range_call_record::parse(MEM_ROOT *mem_root,
+                                    json_engine_t *je,
+                                    String *err_buf)
+{
+  auto out= new (mem_root) records_in_range_call_record;
+  if (!out)
+    return NULL;
+
+  Read_named_member members[]=
+  {
+    {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr), false},
+    {"min_key", Read_string(mem_root, &out->min_key), false},
+    {"max_key", Read_string(mem_root, &out->max_key), false},
+    {"num_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {NULL, Read_double(NULL), true}
+  };
+  if (json_read_object(je, members, err_buf))
+    return NULL;
+  return out;
+}
+
+Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
+{
+  parse(); // TODO: error handling?
+}
+
+/*
+  @brief
+    Return true if the command uses optimizer capture or recording
+*/
+
+static bool sql_command_uses_opt_context(enum_sql_command sql_command)
+{
+  return (sql_command_flags[sql_command] & CF_CAN_BE_EXPLAINED);
+}
+
+void init_optimizer_context_replay_if_needed(THD *thd)
+{
+  /* If @@optimizer_replay_context is not empty, start the replay  */
+  if (thd->variables.optimizer_replay_context &&
+      strlen(thd->variables.optimizer_replay_context) > 0 &&
+      sql_command_uses_opt_context(thd->lex->sql_command))
+  {
+    thd->opt_ctx_replay= new Optimizer_context_replay(thd);
+  }
+}
+
+void init_optimizer_context_recorder_if_needed(THD *thd,
+                                               const TABLE_LIST *query_tables)
+{
+  if (thd->spcont)
+  {
+    /* This is a sub-statement inside SP. Don't do anything */
+    return;
+  }
+
+  /* Do not record queries that query I_S.OPTIMIZER_{TRACE,CONTEXT} tables */
+  if (list_has_optimizer_trace_table(query_tables))
+    return;
+
+  /*
+    Disable Context Recording for INSERT DELAYED.
+
+    Reason:
+      mysql_insert() has this piece that destroys the table's default value
+      expressions for INSERT DELAYED:
+
+        if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+          table->expr_arena->free_items();
+
+      After this, it is not possible to dump table definitions anymore.
+  */
+  for (const TABLE_LIST *tbl= query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->lock_type == TL_WRITE_DELAYED)
+      return;
+  }
+
+  if (!thd->variables.optimizer_record_context)
+  {
+    clean_captured_ctx(thd);
+    return ;
+  }
+  // Recorder is cleaned up after query in THD::cleanup_after_query()
+  DBUG_ASSERT(!thd->opt_ctx_recorder);
+
+  LEX *lex= thd->lex;
+  if (sql_command_uses_opt_context(lex->sql_command))
+  {
+    thd->opt_ctx_recorder= new Optimizer_context_recorder(thd->mem_root);
+  }
+  else if (lex->sql_command != SQLCOM_SET_OPTION &&
+           lex->sql_command != SQLCOM_SHOW_WARNS)
+  {
+    clean_captured_ctx(thd);
+  }
+}
+
+/*
+  search the in memory representation of the parsed contents
+  of replay json context, and set read_cost for the given table.
+
+  @return
+    false  OK
+    true  Error
+*/
+bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
+                                                   IO_AND_CPU_COST *cost)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  String tbl_name;
+  append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    cost->io= tbl_ctx->read_cost_io;
+    cost->cpu= tbl_ctx->read_cost_cpu;
+    return false;
+  }
+
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), "list of table contexts");
+  return true;
+}
+
+/*
+  search the list of range stats from the in memory representation of the
+  parsed replay json context, for the given table_name, and index_name.
+  If they are found, then compare the ranges one by one until all of them
+  match. If so, load the num_records, and the computation cost associated
+  with it into the arguments passed.
+
+  @return
+    false  OK
+    true  Error
+*/
+bool Optimizer_context_replay::infuse_multi_range_read_info_const(
+    TABLE *table, uint keynr, RANGE_SEQ_IF *seq_if, SEL_ARG_RANGE_SEQ *seq,
+    Cost_estimate *cost, ha_rows *rows, uint *mrr_flags, ha_rows *max_index_blocks,
+    ha_rows *max_row_blocks)
+{
+  if (!has_records() || !is_base_table(table->pos_in_table_list))
+    return true;
+
+  mrr_counter++;
+  KEY *keyinfo= table->key_info + keynr;
+  const char *idx_name= keyinfo->name.str;
+  const KEY_PART_INFO *key_part= keyinfo->key_part;
+  uint n_key_parts= table->actual_n_key_parts(keyinfo);
+  KEY_MULTI_RANGE multi_range;
+  range_seq_t seq_it;
+  List<Multi_range_read_const_call_record> mrr_const_calls;
+  store_range_contexts(table, idx_name, &mrr_const_calls);
+  String act_ranges;
+  seq_it= seq_if->init((void *) seq, 0, 0);
+  act_ranges.append(STRING_WITH_LEN("["));
+  List<char> text_ranges;
+
+  while (!seq_if->next(seq_it, &multi_range))
+  {
+    StringBuffer<128> range_info(system_charset_info);
+    print_range(&range_info, key_part, &multi_range, n_key_parts);
+    char *r1= range_info.c_ptr_safe();
+    text_ranges.push_back(strdup_root(thd->mem_root, &range_info));
+    act_ranges.append(r1, strlen(r1));
+    act_ranges.append(STRING_WITH_LEN(", "));
+  }
+
+  act_ranges.append(STRING_WITH_LEN("]"));
+
+  if (!mrr_const_calls.is_empty())
+  {
+    List_iterator<Multi_range_read_const_call_record> range_ctx_itr(mrr_const_calls);
+    while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
+    {
+      if (range_ctx->call_number != mrr_counter)
+        continue;
+
+      List_iterator<char> range_itr(range_ctx->range_list);
+      List_iterator<char> text_range_it(text_ranges);
+      bool matched= true;
+
+      while (1)
+      {
+        char *r1= text_range_it++;
+        char *r2= range_itr++;
+        if ((r1!=NULL && r2!=NULL && !strcmp(r1, r2)))
+        {
+          // The intervals match. Proceed to next
+          matched= true;
+          continue;
+        }
+        if (!r1 && !r2)
+          matched= true; // Both sequences ended, ok.
+        else
+          matched= false; // Mismatch
+        break;
+      }
+      if (matched)
+      {
+        *cost= range_ctx->cost;
+        *rows= range_ctx->rows;
+        *mrr_flags= range_ctx->mrr_mode;
+        *max_index_blocks= range_ctx->max_index_blocks;
+        *max_row_blocks= range_ctx->max_row_blocks;
+        return false;
+      }
+    }
+
+    String arg1;
+    String arg2;
+    String tbl_name;
+    append_base_table_name(table, &tbl_name);
+    arg1.append(STRING_WITH_LEN("the given list of ranges i.e. "));
+    arg1.append(act_ranges);
+    arg2.append(STRING_WITH_LEN("the list of ranges for table_name "));
+    arg2.append(tbl_name);
+    arg2.append(STRING_WITH_LEN(" and index_name "));
+    arg2.append(idx_name, strlen(idx_name));
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+        arg1.c_ptr_safe(), arg2.c_ptr_safe());
+  }
+  return true;
+}
+
+/*
+  search the index read cost info from the in memory representation of the
+  parsed replay json context, for the given table, keynr, records, and eq_ref,
+  and set it into the cost if found.
+
+  @return
+    false  OK
+    true  Error
+*/
+bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
+                                                          uint keynr,
+                                                          ha_rows records,
+                                                          bool eq_ref,
+                                                          ALL_READ_COST *cost)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  String tbl_name;
+  append_base_table_name(tbl, &tbl_name);
+  KEY *keyinfo= tbl->key_info + keynr;
+  const char *idx_name= keyinfo->name.str;
+
+  bool is_covering= tbl->covering_keys.is_set(keynr) && !tbl->no_keyread;
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<cost_index_read_call_record> irc_itr(tbl_ctx->irc_list);
+    while (cost_index_read_call_record *rec= irc_itr++)
+    {
+      if (!strcmp(rec->idx_name, idx_name) && rec->records == records &&
+          rec->eq_ref == eq_ref && rec->is_covering == is_covering)
+      {
+        *cost= rec->cost;
+        return false;
+      }
+    }
+  }
+
+  String warn_msg(256);
+  warn_msg.append(tbl_name);
+  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
+  warn_msg.q_append(keynr);
+  warn_msg.append(STRING_WITH_LEN(", records:"));
+  warn_msg.q_append_int64(records);
+  warn_msg.append(STRING_WITH_LEN(", eq_ref:"));
+  warn_msg.append(eq_ref);
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      warn_msg.c_ptr_safe(), "cost_for_index_read_calls");
+  return true;
+}
+
+
+/*
+  @brief
+    Infuse saved table statistics for a given table.
+    Current table statistics are saved away to be restored later.
+    #records is not handled by this function, see infuse_table_rows().
+*/
+void Optimizer_context_replay::infuse_table_stats(TABLE *table)
+{
+  if (!has_records() || !is_base_table(table->pos_in_table_list))
+    return;
+
+  Saved_table_stats *saved_ts= new Saved_table_stats();
+
+  if (unlikely(!saved_ts))
+    return; // OOM
+
+  saved_ts->table= table;
+
+  if (saved_table_stats.push_back(saved_ts))
+    return;
+
+  KEY *key_info, *key_info_end;
+  for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
+       key_info < key_info_end; key_info++)
+  {
+    Mem_root_dynamic_array<double> *index_freq_list=
+        get_index_rec_per_key_list(table, key_info->name.str);
+
+    if (!index_freq_list || !index_freq_list->size())
+      continue;
+
+    Saved_index_stats *saved_is= new Saved_index_stats();
+
+    if (unlikely(!saved_is))
+      return; // OOM
+
+    uint num_key_parts= key_info->ext_key_parts;
+    Index_statistics *original_read_stats= key_info->read_stats;
+    bool original_is_statistics_from_stat_tables=
+        key_info->is_statistics_from_stat_tables;
+    Index_statistics *new_read_stats= new Index_statistics();
+
+    if (unlikely(!new_read_stats))
+      return; // OOM
+
+    ulonglong *frequencies=
+        (ulonglong *) thd->alloc(sizeof(ulonglong) * num_key_parts);
+
+    if (unlikely(!frequencies))
+      return; // OOM
+
+    new_read_stats->init_avg_frequency(frequencies);
+    key_info->read_stats= new_read_stats;
+
+    for (uint i= 0; i < num_key_parts && i < index_freq_list->size(); i++)
+    {
+      // Apparently this can be=0 for prefix indexes.
+      // DBUG_ASSERT(freq > 0);
+      double freq= index_freq_list->at(i);
+      key_info->read_stats->set_avg_frequency(i, freq);
+    }
+
+    key_info->is_statistics_from_stat_tables= true;
+    saved_is->key_info= key_info;
+    saved_is->original_is_statistics_from_stat_tables=
+        original_is_statistics_from_stat_tables;
+    saved_is->original_read_stats= original_read_stats;
+    saved_ts->saved_index_stats.push_back(saved_is);
+  }
+}
+
+bool Optimizer_context_replay::infuse_records_in_range(
+    const TABLE *tbl, const KEY_PART_INFO *key_part, uint keynr,
+    const key_range *min_range, const key_range *max_range, ha_rows *records)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  String min_key;
+  String max_key;
+  String tbl_name;
+  print_key_value(&min_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+  append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<records_in_range_call_record> iter(tbl_ctx->rir_list);
+    while (records_in_range_call_record *rec= iter++)
+    {
+      if (rec->keynr == keynr &&
+          !strcmp(rec->min_key, min_key.c_ptr_safe()) &&
+          !strcmp(rec->max_key, max_key.c_ptr_safe()))
+      {
+        *records= rec->records;
+        return false;
+      }
+    }
+  }
+
+  String warn_msg(256);
+  warn_msg.append(tbl_name);
+  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
+  warn_msg.q_append(keynr);
+  warn_msg.append(STRING_WITH_LEN(" with min_key:"));
+  warn_msg.append(min_key);
+  warn_msg.append(STRING_WITH_LEN(" with max_key:"));
+  warn_msg.append(max_key);
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      warn_msg.c_ptr_safe(), "records_in_range_calls");
+  return true;
+}
+
+/*
+  @brief
+    restore the saved stats for the tables, and indexes that were
+    earlier recorded using infuse_table_stats()
+*/
+void Optimizer_context_replay::restore_modified_table_stats()
+{
+  List_iterator<Saved_table_stats> table_li(saved_table_stats);
+  while (Saved_table_stats *saved_ts= table_li++)
+  {
+    List_iterator<Saved_index_stats> index_li(saved_ts->saved_index_stats);
+    while (Saved_index_stats *saved_is= index_li++)
+    {
+      KEY *key= saved_is->key_info;
+      key->is_statistics_from_stat_tables=
+          saved_is->original_is_statistics_from_stat_tables;
+      key->read_stats= saved_is->original_read_stats;
+    }
+  }
+}
+
+/*
+  Returns if the in memory representation of the
+  parsed replay json context contain any records
+*/
+bool Optimizer_context_replay::has_records() { return !ctx_list.is_empty(); }
+
+/*
+  parse the replay json context that abides to the structure defined in
+  opt_context_schema.inc
+
+  @return
+    FALSE  OK
+    TRUE  Parse Error
+*/
+bool Optimizer_context_replay::parse()
+{
+  json_engine_t je;
+  char *context= NULL;
+  String str;
+  String *value;
+  String err_buf;
+  user_var_entry *var;
+  char *var_name= thd->variables.optimizer_replay_context;
+  LEX_CSTRING varname= {var_name, strlen(var_name)};
+
+  Read_named_member members[]=
+  {
+    {"tables",
+      Read_object_array<table_context_for_replay>(thd->mem_root, &ctx_list,
+                                                 table_context_for_replay::parse),
+      false
+    },
+    {NULL, Read_double(NULL), true}
+  };
+
+  DBUG_ENTER("Optimizer_context_replay::parse");
+
+  if ((var= get_variable(&thd->user_vars, &varname, FALSE)))
+  {
+    bool null_value;
+    value= var->val_str(&null_value, &str, 0);
+    if (null_value || !value->length())
+      goto err;
+  }
+  else
+  {
+    goto err;
+  }
+
+  context= value->c_ptr_safe();
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM, &je.stack,
+                              sizeof(int), NULL, JSON_DEPTH_DEFAULT,
+                              JSON_DEPTH_INC, MYF(0));
+
+  json_scan_start(&je, system_charset_info, (const uchar *) context,
+                  (const uchar *) context + strlen(context));
+
+  if (json_scan_next(&je))
+  {
+    err_buf.append(STRING_WITH_LEN("JSON parse error"));
+    goto err;
+  }
+
+  if (je.state != JST_OBJ_START)
+  {
+    err_buf.append(STRING_WITH_LEN("Root JSON element must be a JSON object"));
+    goto err;
+  }
+
+  if (json_read_object(&je, members, &err_buf))
+    goto err;
+
+#ifndef DBUG_OFF
+  dbug_print_read_stats();
+#endif
+  DBUG_RETURN(false); // Ok
+err:
+  ptrdiff_t err_offset;
+  if (context)
+    err_offset= (je.s.c_str - (const uchar *) context);
+  else
+    err_offset= 0; // User var with context data not set.
+                   //
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED),
+      err_buf.c_ptr_safe(), err_offset);
+  DBUG_RETURN(true);
+}
+
+#ifndef DBUG_OFF
+/*
+  Print the contents of the stats that are read from the replay json context
+*/
+void Optimizer_context_replay::dbug_print_read_stats()
+{
+  DBUG_ENTER("Optimizer_context_replay::print()");
+  DBUG_PRINT("info", ("----------Printing Stored Context-------------"));
+  List_iterator<table_context_for_replay> table_itr(ctx_list);
+
+  while (table_context_for_replay *tbl_ctx= table_itr++)
+  {
+    DBUG_PRINT("info", ("New Table Context"));
+    DBUG_PRINT("info", ("-----------------"));
+    DBUG_PRINT("info", ("name: %s", tbl_ctx->name));
+    DBUG_PRINT("info",
+               ("file_stat_records: %llx", tbl_ctx->file_stat_records));
+    DBUG_PRINT("info",
+               ("data_file_length: %llx", tbl_ctx->data_file_length));
+    DBUG_PRINT("info",
+               ("index_file_length: %llx", tbl_ctx->index_file_length));
+    DBUG_PRINT("info",
+               ("mean_rec_length: %lx", tbl_ctx->mean_rec_length));
+
+    List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
+
+    while (index_context_for_replay *idx_ctx= index_itr++)
+    {
+      DBUG_PRINT("info", ("...........New Index Context........."));
+      DBUG_PRINT("info", ("index_name: %s", idx_ctx->idx_name));
+      DBUG_PRINT("info", ("list_rec_per_key: [ "));
+      for (uint i= 0; i < idx_ctx->rec_per_key.size(); i++)
+      {
+        DBUG_PRINT("info", ("%g, ", idx_ctx->rec_per_key[i]));
+      }
+      DBUG_PRINT("info", ("]"));
+    }
+
+    List_iterator<Multi_range_read_const_call_record> range_itr(tbl_ctx->ranges_list);
+
+    while (Multi_range_read_const_call_record *call_rec= range_itr++)
+    {
+      DBUG_PRINT("info", ("...........New Range Context........."));
+      DBUG_PRINT("info", ("index_name: %s", call_rec->idx_name));
+      DBUG_PRINT("info", ("ranges: [ "));
+
+      List_iterator<char> range_itr(call_rec->range_list);
+
+      while (true)
+      {
+        char *range= range_itr++;
+        if (!range)
+          break;
+        DBUG_PRINT("info", ("%s, ", range));
+      }
+
+      DBUG_PRINT("info", ("]"));
+      DBUG_PRINT("info", ("num_rows: %llx", call_rec->rows));
+      {
+        DBUG_PRINT("info", ("avg_io_cost: %f", call_rec->cost.avg_io_cost));
+        DBUG_PRINT("info", ("cpu_cost: %f", call_rec->cost.cpu_cost));
+        DBUG_PRINT("info", ("comp_cost: %f", call_rec->cost.comp_cost));
+        DBUG_PRINT("info", ("copy_cost: %f", call_rec->cost.copy_cost));
+        DBUG_PRINT("info", ("limit_cost: %f", call_rec->cost.limit_cost));
+        DBUG_PRINT("info", ("setup_cost: %f", call_rec->cost.setup_cost));
+        DBUG_PRINT("info",
+                   ("index_cost.io: %f", call_rec->cost.index_cost.io));
+        DBUG_PRINT("info",
+                   ("index_cost.cpu: %f", call_rec->cost.index_cost.cpu));
+        DBUG_PRINT("info", ("row_cost.io: %f", call_rec->cost.row_cost.io));
+        DBUG_PRINT("info", ("row_cost.cpu: %f", call_rec->cost.row_cost.cpu));
+      }
+      DBUG_PRINT("info",
+                 ("max_index_blocks: %llx", call_rec->max_index_blocks));
+      DBUG_PRINT("info", ("max_row_blocks: %llx", call_rec->max_row_blocks));
+    }
+
+    List_iterator<cost_index_read_call_record> irc_itr(tbl_ctx->irc_list);
+
+    for (cost_index_read_call_record *rec= irc_itr++; rec; rec= irc_itr++)
+    {
+      DBUG_PRINT("info", ("...........New Index Read Cost Context........."));
+      DBUG_PRINT("info", ("index_name: %s", rec->idx_name));
+      DBUG_PRINT("info", ("num_records: %llx", rec->records));
+      DBUG_PRINT("info", ("eq_ref: %d", rec->eq_ref));
+      DBUG_PRINT("info", ("is_covering: %d", rec->is_covering));
+      {
+        DBUG_PRINT("info", ("index_cost_io: %f", rec->cost.index_cost.io));
+        DBUG_PRINT("info", ("index_cost_cpu: %f", rec->cost.index_cost.cpu));
+        DBUG_PRINT("info", ("row_cost_io: %f", rec->cost.row_cost.io));
+        DBUG_PRINT("info", ("row_cost_cpu: %f", rec->cost.row_cost.cpu));
+        DBUG_PRINT("info",
+                   ("max_index_blocks: %llx", rec->cost.max_index_blocks));
+        DBUG_PRINT("info", ("max_row_blocks: %llx", rec->cost.max_row_blocks));
+        DBUG_PRINT("info", ("copy_cost: %f", rec->cost.copy_cost));
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+#endif
+
+/*
+  store the extracted contents from the in memory representation of the
+  parsed replay json context, into the variable rows.
+
+  @return
+    false  OK
+    true  Error
+*/
+bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  String tbl_name;
+  append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    // Only infuse this one. table->used_stat_records are set by te SQL layer.
+    tbl->file->stats.records= tbl_ctx->file_stat_records;
+    tbl->file->stats.data_file_length= tbl_ctx->data_file_length;
+    tbl->file->stats.index_file_length= tbl_ctx->index_file_length;
+    tbl->file->stats.mean_rec_length= tbl_ctx->mean_rec_length;
+    return false;
+  }
+
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), "list of table contexts");
+  return true;
+}
+
+/*
+  check the extracted contents from from the in memory representation of the
+  parsed replay json context, and return the List of number of records per key
+  for the given table and index name
+*/
+Mem_root_dynamic_array<double> *
+Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
+                                                     const char *idx_name)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return NULL;
+
+  String tbl_name;
+    append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
+    while (index_context_for_replay *idx_ctx= index_itr++)
+    {
+      if (strcmp(idx_name, idx_ctx->idx_name) == 0)
+      {
+        return &idx_ctx->rec_per_key;
+      }
+    }
+  }
+
+  String name;
+  name.append(tbl_name);
+  name.append(STRING_WITH_LEN("."));
+  name.append(idx_name, strlen(idx_name));
+
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      name.c_ptr_safe(), "list of index contexts");
+  return NULL;
+}
+
+/*
+  check the extracted contents from the in memory representation of the
+  parsed replay json context, and add the range contexts for the given table,
+  and index to the list
+*/
+void Optimizer_context_replay::store_range_contexts(
+    const TABLE *tbl, const char *idx_name,
+    List<Multi_range_read_const_call_record> *out)
+{
+  if (!has_records() || !out)
+    return;
+
+  String tbl_name;
+  append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<Multi_range_read_const_call_record> range_ctx_itr(
+        tbl_ctx->ranges_list);
+    while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
+    {
+      if (!strcmp(idx_name, range_ctx->idx_name))
+        out->push_back(range_ctx);
+    }
+  }
+
+  if (out->is_empty())
+  {
+    String name;
+    name.append(tbl_name);
+    name.append(STRING_WITH_LEN("."));
+    name.append(idx_name, strlen(idx_name));
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+        name.c_ptr_safe(), "list of range contexts");
+  }
+}
+
+table_context_for_replay *
+Optimizer_context_replay::find_table_context(const char *name)
+{
+  List_iterator<table_context_for_replay> table_itr(ctx_list);
+
+  while (table_context_for_replay *tbl_ctx= table_itr++)
+  {
+    if (!strcmp(name, tbl_ctx->name))
+      return tbl_ctx;
+  }
+  return nullptr;
+}
+
+Optimizer_context_capture::Optimizer_context_capture(THD *thd, String &ctx_arg)
+{
+  query.copy(thd->query(), thd->query_length(), thd->query_charset());
+  ctx.copy(ctx_arg);
+}
+
+
+/*
+  @brief
+    Put the SQL script from thd->captured_opt_ctx into I_S.OPTIMIZER_CONTEXT
+    pseudo-table.
+*/
+
+int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tbl, Item *)
+{
+  TABLE *table= tbl->table;
+
+  Optimizer_context_capture *captured_ctx= thd->captured_opt_ctx;
+
+  if (captured_ctx)
+  {
+    table->field[0]->store(captured_ctx->query.c_ptr_safe(),
+                           static_cast<uint>(captured_ctx->query.length()),
+                           captured_ctx->query.charset());
+    table->field[1]->store(captured_ctx->ctx.c_ptr_safe(),
+                           static_cast<uint>(captured_ctx->ctx.length()),
+                           system_charset_info);
+    //  Store in IS
+    if (schema_table_store_record(thd, table))
+      return 1;
+  }
+  return 0;
+}
+
+void clean_captured_ctx(THD *thd)
+{
+  delete thd->captured_opt_ctx;
+  thd->captured_opt_ctx= nullptr;
+}
+
+/*
+  Point table->read_set at a private bitmap (table->tmp_set) covering every
+  stored column, so that a subsequent read/record captures the full row.
+
+  Virtual columns are excluded: they cannot be assigned in REPLACE INTO and are
+  recomputed on read. We copy s->all_set into the per-table tmp_set rather than
+  aliasing s->all_set directly -- s->all_set is shared across the whole
+  TABLE_SHARE and must never be mutated.
+
+  Precondition: table->tmp_set must stay free for the caller's use until
+  read_set is restored. This holds on the const-row and MIN/MAX read paths
+  precisely because we clear the virtual-column bits: with those bits unset,
+  TABLE::update_virtual_fields(VCOL_UPDATE_FOR_READ) skips them during the read
+  and so never reuses tmp_set as its own scratch. A caller on a path that
+  evaluates virtual columns into tmp_set would corrupt the widened read_set.
+
+  @return  the previous read_set, which the caller must restore (via
+           column_bitmaps_set) once the row has been read and recorded.
+*/
+MY_BITMAP *widen_read_set_no_vcols(TABLE *table)
+{
+  MY_BITMAP *saved_read_set= table->read_set;
+  /*
+    We are about to repurpose table->tmp_set as the widened read_set, so it
+    must not already be in use (e.g. as the current read_set). If this fires,
+    the caller is on a path that violates the tmp_set precondition documented
+    above.
+  */
+  DBUG_ASSERT(saved_read_set != &table->tmp_set);
+  bitmap_copy(&table->tmp_set, &table->s->all_set);
+  for (Field **pfield= table->field; *pfield; pfield++)
+  {
+    /* virtual columns need not be stored. */
+    if ((*pfield)->vcol_info)
+      bitmap_clear_bit(&table->tmp_set, (*pfield)->field_index);
+  }
+  table->column_bitmaps_set(&table->tmp_set, table->write_set);
+  return saved_read_set;
+}
+
+
+/*
+  @brief
+    Prepare a TABLE to read a row which will be captured into the optimizer
+    context.
+
+  @detail
+    The query has set up table->read_set to only include columns of interest.
+    However, we need to read all non-virtual columns to produce a valid INSERT
+    statement. This may require disabling 'index-only' read.
+
+  @param  table  IN  Table we're processing
+  @param  state  OUT Save the state here.
+*/
+
+void Optimizer_context_recorder::prepare_captured_row_read(TABLE *table,
+                                                           Opt_ctx_recorder_state *state)
+{
+  state->table= table;
+  state->keyread_state= table->file->ha_end_active_keyread();
+  state->saved_read_set= widen_read_set_no_vcols(table);
+}
+
+
+/*
+  @brief
+    Restore the table state previously saved by prepare_captured_row_read.
+*/
+
+void Optimizer_context_recorder::finish_captured_row_read(Opt_ctx_recorder_state *state)
+{
+  if (state->saved_read_set)
+    state->table->column_bitmaps_set(state->saved_read_set, state->table->write_set);
+
+  state->table->file->ha_restart_keyread(state->keyread_state);
+}

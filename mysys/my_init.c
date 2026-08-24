@@ -62,12 +62,14 @@ ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
 static mode_t atoi_octal(const char *str)
 {
-  long int tmp;
+  long long tmp;
+  int err;
   while (*str && my_isspace(&my_charset_latin1, *str))
     str++;
-  str2int(str,
-	  (*str == '0' ? 8 : 10),       /* Octalt or decimalt */
-	  0, INT_MAX, &tmp);
+  tmp= my_strntoul_8bit(&my_charset_latin1, str, strlen(str),
+                        (*str == '0' ? 8 : 10),       /* Octal or decimal */
+                        NULL, &err);
+
   return (mode_t) tmp;
 }
 

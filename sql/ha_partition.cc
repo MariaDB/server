@@ -2365,7 +2365,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
         /*
-          store_table_definitions_in_trace()/show_create_table() may attempt
+          store_optimizer_context()/show_create_table() may attempt
           to produce DDL for a table which has only some partitions open.
 
           We can't get options for unopened partitions. They are not relevant
@@ -2385,7 +2385,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
       dummy_info.data_file_name= dummy_info.index_file_name= NULL;
       /*
         A partition might not be open, see above note about
-        store_table_definitions_in_trace()
+        store_optimizer_context()
       */
       if (m_file[i]->is_open())
         m_file[i]->update_create_info(&dummy_info);
@@ -2858,8 +2858,10 @@ bool ha_partition::create_handler_file(const char *name)
         part_elem->part_state != PART_TO_BE_ADDED &&
         part_elem->part_state != PART_CHANGED)
       continue;
-    tablename_to_filename(part_elem->partition_name.str, part_name,
-                          FN_REFLEN);
+    if (error_if_mysql50_prefix(part_elem->partition_name.str, ER_WRONG_PARTITION_NAME))
+      DBUG_RETURN(TRUE);
+    if (!tablename_to_filename(part_elem->partition_name.str, part_name, FN_REFLEN))
+      DBUG_RETURN(TRUE);
     part_name_len= strlen(part_name);
     if (!m_is_sub_partitioned)
     {
@@ -2872,9 +2874,11 @@ bool ha_partition::create_handler_file(const char *name)
       for (j= 0; j < m_part_info->num_subparts; j++)
       {
 	subpart_elem= sub_it++;
-        tablename_to_filename(subpart_elem->partition_name.str,
-                              subpart_name,
-                              FN_REFLEN);
+        if (error_if_mysql50_prefix(subpart_elem->partition_name.str, ER_WRONG_PARTITION_NAME))
+          DBUG_RETURN(TRUE);
+        if (!tablename_to_filename(subpart_elem->partition_name.str, subpart_name,
+                                   FN_REFLEN))
+          DBUG_RETURN(TRUE);
 	subpart_name_len= strlen(subpart_name);
 	tot_name_len+= part_name_len + subpart_name_len + 5;
         tot_parts++;
@@ -7676,7 +7680,7 @@ bool ha_partition::check_parallel_search()
       {
         Field *order_field= ((Item_field *)item)->field;
         DBUG_PRINT("info",("partition order_field: %p", order_field));
-        if (order_field && order_field->table == table_list->table)
+        if (order_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
           DBUG_PRINT("info",("partition order_field: %p", order_field));
@@ -7719,7 +7723,7 @@ bool ha_partition::check_parallel_search()
       {
         Field *group_field= ((Item_field *)item)->field;
         DBUG_PRINT("info",("partition group_field: %p", group_field));
-        if (group_field && group_field->table == table_list->table)
+        if (group_field->table == table_list->table)
         {
           Field *part_field= m_part_info->full_part_field_array[0];
           DBUG_PRINT("info",("partition group_field: %p", group_field));
@@ -9745,6 +9749,8 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_ABORT_COPY:
   case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
+  case HA_EXTRA_FULL_SCAN:
+    break;
   default:
   {
     /* Temporary crash to discover what is wrong */
@@ -9821,6 +9827,8 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
       DBUG_RETURN(loop_read_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
+      DBUG_RETURN(0);
+    case HA_EXTRA_FULL_SCAN:
       DBUG_RETURN(0);
     default:
       DBUG_ASSERT(0);

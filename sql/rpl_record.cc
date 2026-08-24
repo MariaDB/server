@@ -453,6 +453,16 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
         DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
       }
 
+        // Validate this external data
+        switch (field->type()) {
+          case MYSQL_TYPE_TIMESTAMP:
+            if (opt_secure_timestamp > SECTIME_REPL && field->unireg_check)
+              field->set_time();
+            break;
+          default:;
+        }
+
+
       /*
         If conv_field is set, then we are doing a conversion. In this
         case, we have unpacked the master data to the conversion

@@ -1,0 +1,16 @@
+!include ../galera_2nodes.cnf
+
+# Role-specific SSL certificates for rsync/stunnel SST: the joiner
+# (stunnel server) uses the server cert/key, the donor (stunnel client)
+# uses the client cert/key. No generic ssl-cert/ssl-key is set, so SST
+# can only succeed if the role-specific options are honored.
+[mysqld]
+wsrep_sst_method=rsync
+ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
+
+[sst]
+ssl-mode=VERIFY_CA
+ssl-server-cert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
+ssl-server-key=@ENV.MYSQL_TEST_DIR/std_data/server-key.pem
+ssl-client-cert=@ENV.MYSQL_TEST_DIR/std_data/client-cert.pem
+ssl-client-key=@ENV.MYSQL_TEST_DIR/std_data/client-key.pem

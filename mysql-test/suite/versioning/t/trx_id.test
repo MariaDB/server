@@ -633,7 +633,30 @@ drop table t1;
 --echo # End of 10.4 tests
 
 --echo #
---echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on master or slave upon CREATE OR REPLACE for partitioned table
+--echo # MDEV-40147 MSAN: use-of-uninitialized-value in my_time_compare
+--echo #
+
+create table t (
+  a int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time (row_start, row_end)
+) with system versioning engine=InnoDB;
+
+insert into t () values ();
+
+analyze table t persistent for all;
+
+--replace_regex /TRX_ID \d+/TRX_ID .../
+--error ER_VERS_NO_TRX_ID
+select * from t where row_end > current_time();
+
+drop table t;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on primary or replica upon CREATE OR REPLACE for partitioned table
 --echo #
 create table t1 (
   a int,

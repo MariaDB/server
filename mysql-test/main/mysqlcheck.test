@@ -140,7 +140,10 @@ drop table t1;
 #             triggers
 #
 SET NAMES utf8;
-CREATE TABLE `#mysql50#@` (a INT) engine=myisam;
+CREATE TABLE at (a INT) engine=myisam;
+--move_file $MYSQLD_DATADIR/test/at.frm $MYSQLD_DATADIR/test/@.frm
+--move_file $MYSQLD_DATADIR/test/at.MYI $MYSQLD_DATADIR/test/@.MYI
+--move_file $MYSQLD_DATADIR/test/at.MYD $MYSQLD_DATADIR/test/@.MYD
 SHOW TABLES;
 # Safer version of SET NAMES DEFAULT:
 set @@character_set_client=@save_character_set_client;
@@ -171,9 +174,12 @@ set @@character_set_client=@save_character_set_client;
 set @@character_set_results=@save_character_set_client;
 set @@collation_connection=@save_collation_connection;
 
-CREATE DATABASE `#mysql50#a@b`;
+--mkdir $MYSQLD_DATADIR/a@b
 USE `#mysql50#a@b`;
-CREATE TABLE `#mysql50#c@d` (a INT) engine=myisam;
+CREATE TABLE cd (a INT) engine=myisam;
+--move_file $MYSQLD_DATADIR/a@b/cd.frm $MYSQLD_DATADIR/a@b/c@d.frm
+--move_file $MYSQLD_DATADIR/a@b/cd.MYI $MYSQLD_DATADIR/a@b/c@d.MYI
+--move_file $MYSQLD_DATADIR/a@b/cd.MYD $MYSQLD_DATADIR/a@b/c@d.MYD
 CREATE TABLE t1 (a INT) engine=myisam;
 
 # Create 5.0 like triggers
@@ -225,12 +231,18 @@ USE test;
 drop table if exists `#mysql50#t1-1`;
 --enable_warnings
 
-create table `#mysql50#t1-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t1-1.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t1-1.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/test/t1-1.MYD
 --exec $MYSQL_CHECK --all-in-1 --fix-table-names --databases test
 show tables like 't1-1';
 drop table `t1-1`;
 
-create table `#mysql50#t1-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t1-1.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t1-1.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/test/t1-1.MYD
 --exec $MYSQL_CHECK --all-in-1 --fix-table-names test "#mysql50#t1-1"
 show tables like 't1-1';
 drop table `t1-1`;
@@ -386,14 +398,17 @@ create table t1(a int);
 drop view v1;
 drop table t1;
 
-create table `#mysql50#t1``1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t1`1.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t1`1.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/test/t1`1.MYD
 --exec $MYSQL_CHECK --fix-table-names --databases test
 show tables;
 drop table `t1``1`;
 
-#
-#     MDEV-9440 mysqlcheck -A --auto-repair selects wrong database when trying to repair broken table
-#
+--echo #
+--echo # MDEV-9440 mysqlcheck -A --auto-repair selects wrong database when trying to repair broken table
+--echo #
 call mtr.add_suppression("ha_myisam");
 call mtr.add_suppression("Checking table");
 create database mysqltest1;

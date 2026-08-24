@@ -60,7 +60,7 @@ static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *,
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
-static void mysql_change_db_impl(THD *, LEX_CSTRING *, privilege_t,
+static void mysql_change_db_impl(THD *, LEX_CSTRING *, const access_t&,
                                  CHARSET_INFO *);
 static bool mysql_rm_db_internal(THD *thd, const Lex_ident_db &db,
                                  bool if_exists, bool silent);
@@ -550,10 +550,10 @@ int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   size_t nbytes;
   myf utf8_flag= thd->get_utf8_flag();
 
-  bzero((char*) create,sizeof(*create));
+  create->init();
 
   /* Check if options for this database are already in the hash */
-  if (!get_dbopt(thd, path, create))
+  if (!*path || !get_dbopt(thd, path, create))
   {
     if (!create->default_table_charset)
       error= -1;                                // db.opt did not exists
@@ -679,9 +679,11 @@ int load_db_opt_by_name(THD *thd, const char *db_name,
     Pass an empty file name, and the database options file name as extension
     to avoid table name to file name encoding.
   */
-  (void) build_table_filename(db_opt_path, sizeof(db_opt_path) - 1,
-                              db_name, "", MY_DB_OPT_FILE, 0);
-
+  if (*db_name)
+    build_table_filename(db_opt_path, sizeof(db_opt_path) - 1,
+                         db_name, "", MY_DB_OPT_FILE, 0);
+  else
+    db_opt_path[0]= 0;
   return load_db_opt(thd, db_opt_path, db_create_info);
 }
 
@@ -759,6 +761,8 @@ mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
     my_error(ER_DB_CREATE_EXISTS, MYF(0), db.str);
     DBUG_RETURN(-1);
   }
+  if (error_if_mysql50_prefix(db.str, ER_WRONG_DB_NAME))
+    DBUG_RETURN(-1);
 
   const DBNameBuffer dbnorm_buffer(db, lower_case_table_names);
   Lex_ident_db_normalized dbnorm(dbnorm_buffer.to_lex_cstring());
@@ -1308,7 +1312,7 @@ exit:
   if (unlikely(thd->db.str &&
                cmp_db_names(Lex_ident_db(thd->db), db) && !error))
   {
-    mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+    mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
   }
 end:
@@ -1563,8 +1567,9 @@ err:
   @param new_db_charset Character set of the new database.
 */
 
-static void mysql_change_db_impl(THD *thd, LEX_CSTRING *new_db_name,
-                                 privilege_t new_db_access,
+static void mysql_change_db_impl(THD *thd,
+                                 LEX_CSTRING *new_db_name,
+                                 const access_t& new_db_access,
                                  CHARSET_INFO *new_db_charset)
 {
   /* 1. Change current database in THD. */
@@ -1713,7 +1718,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   LEX_CSTRING new_db_file_name;
 
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(sctx->db_access);
+  access_t db_access(sctx->db_access);
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
@@ -1730,7 +1735,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
         new_db_name->length == 0.
       */
 
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
       goto done;
     }
@@ -1747,7 +1752,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   {
     /* Switch the current database to INFORMATION_SCHEMA. */
 
-    mysql_change_db_impl(thd, &INFORMATION_SCHEMA_NAME, SELECT_ACL,
+    mysql_change_db_impl(thd, &INFORMATION_SCHEMA_NAME, access_t(SELECT_ACL),
                          system_charset_info);
     goto done;
   }
@@ -1771,7 +1776,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   if (Lex_ident_db::check_name_with_error(new_db_file_name))
   {
     if (force)
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
     DBUG_RETURN(ER_WRONG_DB_NAME);
   }
@@ -1781,16 +1786,16 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
   {
-    db_access= DB_ACLS;
+    db_access= access_t(DB_ACLS);
   }
   else
   {
     db_access= acl_get_all3(sctx, new_db_file_name.str, FALSE);
-    db_access|= sctx->master_access;
+    db_access.merge_with_parent(sctx->master_access);
   }
 
   if (!force&& !(db_access & DB_ACLS) &&
-      check_grant_db(thd, new_db_file_name.str))
+      check_grant_db(thd, db_access, new_db_file_name.str))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user,
@@ -1816,7 +1821,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 
       /* Change db to NULL. */
 
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
       /* The operation succeed. */
       goto done;

@@ -2053,6 +2053,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
 bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
                              uint limit);
+void print_range(String *out, const KEY_PART_INFO *key_part,
+                 KEY_MULTI_RANGE *range, uint n_key_parts);
+
+void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                     const uchar *key, uint used_length);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);
@@ -2067,5 +2072,23 @@ extern String null_string;
 #define SELECTIVITY_SAMPLING_SHARE 0.10
 /* do not check if we are going check less then this number of records */
 #define SELECTIVITY_SAMPLING_THRESHOLD 10
+
+/*
+  An iterator to enumerate string representation of list of ranges.
+
+  Intialization part is intentionally missing as it requires use of data
+  structures internal to opt_range.cc
+*/
+class Range_print_enumerator
+{
+public:
+  virtual bool next()=0;
+  /*
+    Return string representation of the current range, something like
+    "(10) < key1 <= (20)"
+   */
+  virtual const String& get_interval_str()=0;
+  virtual ~Range_print_enumerator(){}
+};
 
 #endif

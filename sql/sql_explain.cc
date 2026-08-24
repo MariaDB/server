@@ -170,6 +170,10 @@ void Explain_query::query_plan_ready()
 #endif
 }
 
+bool Explain_query::is_query_plan_ready()
+{
+  return optimization_time_tracker.get_loops() == 1;
+}
 
 void Explain_query::notify_tables_are_closed()
 {
@@ -211,15 +215,15 @@ int Explain_query::send_explain(THD *thd, bool extended)
     if (extended)
     {
       char buff[1024];
-      String str(buff,(uint32) sizeof(buff), system_charset_info);
-                 str.length(0);
-     /*
-       The warnings system requires input in utf8, @see
-        mysqld_show_warnings().
-     */
-     lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
-                     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                     ER_YES, str.c_ptr_safe());
+      String str(buff, (uint32) sizeof(buff), &my_charset_utf8mb4_bin);
+      str.length(0);
+      /*
+        The warnings system requires input in utf8, @see
+         mysqld_show_warnings().
+      */
+      lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_YES,
+                   str.c_ptr_safe());
     }
   }
   if (res)
@@ -330,7 +334,7 @@ bool Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_a
 void Explain_query::send_explain_json_to_output(Json_writer *writer, 
                                                 select_result_sink *output)
 {
-  CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *cs= &my_charset_utf8mb4_bin;
   List<Item> item_list;
   const String *buf= writer->output.get_string();
   THD *thd= output->thd;
@@ -1287,7 +1291,7 @@ void Explain_aggr_filesort::print_json_members(Json_writer *writer,
                                                bool is_analyze)
 {
   char item_buf[256];
-  String str(item_buf, sizeof(item_buf), &my_charset_bin);
+  String str(item_buf, sizeof(item_buf), &my_charset_utf8mb4_bin);
   str.length(0);
   
   List_iterator_fast<Item> it(sort_items);
@@ -1389,7 +1393,7 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 
 void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
 {
-  CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *cs= &my_charset_utf8mb4_bin;
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
                type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
   LEX_CSTRING hash_key_prefix= { STRING_WITH_LEN("#hash#") };
@@ -1775,7 +1779,7 @@ static void write_item(Json_writer *writer, Item *item)
 {
   THD *thd= current_thd;
   char item_buf[256];
-  String str(item_buf, sizeof(item_buf), &my_charset_bin);
+  String str(item_buf, sizeof(item_buf), &my_charset_utf8mb4_bin);
   str.length(0);
 
   ulonglong save_option_bits= thd->variables.option_bits;
@@ -1784,7 +1788,7 @@ static void write_item(Json_writer *writer, Item *item)
   item->print(&str, QT_EXPLAIN);
 
   thd->variables.option_bits= save_option_bits;
-  writer->add_str(str.c_ptr_safe());
+  writer->add_str(str.c_ptr_safe(), str.length());
 }
 
 static void append_item_to_str(String *out, Item *item)
@@ -2739,10 +2743,10 @@ int Explain_update::print_explain(Explain_query *query,
   else if (key.get_key_name())
   {
     const char *name= key.get_key_name();
-    key_buf.set(name, strlen(name), &my_charset_bin);
+    key_buf.set(name, strlen(name), &my_charset_utf8mb4_bin);
     char buf[64];
     size_t length= longlong10_to_str(key.get_key_len(), buf, 10) - buf;
-    key_len_buf.copy(buf, length, &my_charset_bin);
+    key_len_buf.copy(buf, length, &my_charset_utf8mb4_bin);
   }
 
   if (using_where)

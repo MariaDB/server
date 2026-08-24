@@ -100,11 +100,19 @@ fi
 
 if test -f $init_functions; then
   . $init_functions
-else
+fi
+
+# Newer Red Hat releases no longer define these functions in
+# /etc/init.d/functions (or anywhere else), so provide fallbacks whenever
+# they are still undefined.
+if ! command -v log_success_msg >/dev/null 2>&1; then
   log_success_msg()
   {
     echo " SUCCESS! $@"
   }
+fi
+
+if ! command -v log_failure_msg >/dev/null 2>&1; then
   log_failure_msg()
   {
     echo " ERROR! $@"

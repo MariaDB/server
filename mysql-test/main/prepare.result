@@ -115,3 +115,24 @@ drop table t1,t2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-40006: Prepared Statement Crash in varchar_upper_cmp_transformer() for '?'
+#
+set names utf8mb4;
+CREATE TABLE t1 (
+id INT,
+cs VARCHAR(10),
+KEY(cs)
+) COLLATE=utf8mb4_general_ci;
+INSERT INTO t1 (id, cs) VALUES (1, 'AA1AA'),(2, 'BB2BB'),(3, 'CC3CC');
+PREPARE s FROM 'SELECT id, cs FROM t1 WHERE UPPER(cs) IN (?, ?)';
+EXECUTE s USING 'AA1AA', 'BB2BB';
+id	cs
+1	AA1AA
+2	BB2BB
+deallocate prepare s;
+DROP TABLE t1;
+set names default;
+#
+# End of 11.4 tests
+#

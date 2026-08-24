@@ -736,7 +736,7 @@ select * from v2;
 
 drop view v1,v2;
 
-
+--disable_replay next_query NOTE (Code 1003) difference; todo MDEV-39978
 explain extended
 with recursive 
 ancestors
@@ -2640,7 +2640,9 @@ where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
 select a2 from cte);
 
 eval $q;
+--disable_replay next_query Dont support SPs
 eval explain $q;
+--disable_replay next_query Dont support SPs
 --source include/analyze-format.inc
 eval analyze format=json $q;
 
@@ -2676,6 +2678,7 @@ cte3 AS (SELECT YEAR, COUNT(*)
 SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
 
 eval $q;
+--disable_replay next_query NOTE (Code 1003) difference; todo MDEV-39978
 eval EXPLAIN EXTENDED $q;
 eval PREPARE stmt FROM "$q";
 EXECUTE stmt;

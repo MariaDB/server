@@ -1,0 +1,82 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+# PATH resolving not to CURRENT_SCHEMA
+CREATE DATABASE test1;
+CREATE PACKAGE test1.pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b_test1 VARCHAR(10));
+END;
+$$
+CREATE DATABASE test2;
+CREATE PACKAGE test2.pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b_test2 VARCHAR(10));
+END;
+$$
+CREATE PROCEDURE p1 AS
+a pkg1.rec0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: '`pkg1`.`rec0_t`'
+SET PATH 'CURRENT_SCHEMA,test1,test2';
+CREATE PROCEDURE p1 AS
+a pkg1.rec0_t;
+BEGIN
+a.b_test1:= 10;
+SELECT a.b_test1;
+END;
+$$
+CALL test.p1();
+a.b_test1
+10
+DROP PROCEDURE p1;
+SET PATH 'CURRENT_SCHEMA,test2,test1';
+CREATE PROCEDURE p1 AS
+a pkg1.rec0_t;
+BEGIN
+a.b_test2:= 10;
+SELECT a.b_test2;
+END;
+$$
+CALL p1();
+a.b_test2
+10
+DROP PROCEDURE p1;
+SET PATH DEFAULT;
+DROP DATABASE test1;
+DROP DATABASE test2;
+# PATH resolving to CURRENT_SCHEMA
+CREATE DATABASE test1;
+CREATE PACKAGE test.pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b_test VARCHAR(10));
+END;
+$$
+SET PATH 'test1,CURRENT_SCHEMA';
+CREATE PROCEDURE p1 AS
+a pkg1.rec0_t;
+BEGIN
+a.b_test:= 10;
+SELECT a.b_test;
+END;
+$$
+CALL p1();
+a.b_test
+10
+DROP PROCEDURE p1;
+SET PATH 'CURRENT_SCHEMA,test1';
+CREATE PROCEDURE p1 AS
+a pkg1.rec0_t;
+BEGIN
+a.b_test:= 10;
+SELECT a.b_test;
+END;
+$$
+CALL p1();
+a.b_test
+10
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+DROP DATABASE test1;
+SET PATH DEFAULT;

@@ -185,6 +185,7 @@ row_create_prebuilt(
 					the MySQL format */
 /** Free a prebuilt struct for a TABLE handle. */
 void row_prebuilt_free(row_prebuilt_t *prebuilt);
+
 /*********************************************************************//**
 Updates the transaction pointers in query graphs stored in the prebuilt
 struct. */
@@ -556,6 +557,9 @@ struct row_prebuilt_t {
 					and updates */
 	btr_pcur_t*	clust_pcur;	/*!< persistent cursor used in
 					some selects and updates */
+	mtr_t*		mtr;		/*!< external mini-transaction for
+					DML operations; when set, row_search_mvcc
+					will use this instead of creating its own */
 	que_fork_t*	sel_graph;	/*!< dummy query graph used in
 					selects */
 	dtuple_t*	search_tuple;	/*!< prebuilt dtuple used in selects */
@@ -694,6 +698,11 @@ struct row_prebuilt_t {
 	uint		srch_key_val_len; /*!< Size of search key */
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** If TRUE, the SQL layer has advised that we're doing full scan.
+	A locking read will acquire a table-level lock (X or S) instead
+	of acquiring row-level locks. */
+	bool		full_table_scan;
 
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const

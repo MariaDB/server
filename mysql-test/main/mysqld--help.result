@@ -597,6 +597,8 @@ The following specify which files/extra groups are read (specified before remain
  full_join, full_scan, not_using_index, query_cache, query_cache_miss,
  tmp_table, tmp_table_on_disk, or ALL to set all
  combinations
+ --log-slow-max-query-length=# 
+ Don't write queries to slow log that are longer than that
  --log-slow-max-warnings=# 
  Max numbers of warnings printed to slow query log per
  statement
@@ -936,8 +938,9 @@ The following specify which files/extra groups are read (specified before remain
  plans based on cost and number of retrieved rows eq_ref:
  2 - prune also if we find an eq_ref chain
  --optimizer-record-context 
- Controls storing of optmizer context of all the tables
- that are referenced in a query
+ If set, record the query optimizer context. Recorded
+ context can be later replayed to reproduce the query
+ optimizer behavior
  --optimizer-row-copy-cost=# 
  Cost of copying a row from the engine or the join cache
  to the SQL layer
@@ -1583,7 +1586,6 @@ The following specify which files/extra groups are read (specified before remain
  aborted. Prevents the common mistake of accidentally
  deleting or updating every row in a table
  --stack-trace       Print a symbolic stack trace on failure
- (Defaults to on; use --skip-stack-trace to disable.)
  --standard-compliant-cte 
  Allow only CTEs compliant to SQL standard
  (Defaults to on; use --skip-standard-compliant-cte to disable.)
@@ -1882,6 +1884,7 @@ log-slow-admin-statements TRUE
 log-slow-always-query-time 31536000
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log-slow-max-query-length 18446744073709551615
 log-slow-max-warnings 10
 log-slow-min-examined-row-limit 0
 log-slow-query FALSE
@@ -2136,7 +2139,6 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 sql-safe-updates FALSE
-stack-trace TRUE
 standard-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE

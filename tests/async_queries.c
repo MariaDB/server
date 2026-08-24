@@ -99,7 +99,7 @@ static struct my_option options[] =
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-static void
+static ATTRIBUTE_NORETURN void
 fatal(struct state_data *sd, const char *msg)
 {
   fprintf(stderr, "%s: %s\n", msg, (sd ? mysql_error(&sd->mysql) : ""));

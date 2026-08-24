@@ -13,7 +13,7 @@ Binlog_gtid_index_miss	0
 *** Crash the server, check that GTID index can be used after restart.
 SET debug_dbug="d,crash_shutdown";
 shutdown;
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 Ok
 1

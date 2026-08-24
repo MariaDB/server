@@ -398,6 +398,7 @@ select
     ifnull(h,cast('yet another binary data' as binary))   as h,
     addtime(cast('1:0:0' as time),cast('1:0:0' as time))  as dd
 from t1;
+--disable_replay next_query This is EXPLAIN TABLE.
 explain t2;
 select * from t2;
 drop table t1, t2;
@@ -1179,7 +1180,10 @@ drop table t1,t2,t3;
 # new table creation/renaming is NOT blocked if old encoded table present
 #
 let $MYSQLD_DATADIR= `select @@datadir`;
-create table `#mysql50#t-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t-1.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t-1.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/test/t-1.MYD
 insert into `#mysql50#t-1` values (1);
 show tables;
 create table `t-1` (a int);

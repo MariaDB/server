@@ -94,7 +94,7 @@
 #include "mysql/psi/mysql_sp.h"
 
 #include "my_json_writer.h"
-#include "opt_trace_ddl_info.h"
+#include "opt_context_store_replay.h"
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -999,7 +999,7 @@ int bootstrap(MYSQL_FILE *file)
   thd->bootstrap=1;
   my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
 #ifndef EMBEDDED_LIBRARY
   mysql_thread_set_psi_id(thd->thread_id);
@@ -2611,6 +2611,9 @@ void log_slow_statement(THD *thd)
     if (slow_filter_masked(thd, thd->query_plan_flags))
       goto end;
 
+    if (thd->query_length() > thd->variables.log_slow_max_query_length)
+      goto end;
+
     THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
@@ -3759,6 +3762,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   /* After SET STATEMENT is done, we can initialize the Optimizer Trace: */
   ots.init(thd, all_tables, lex->sql_command, &lex->var_list, thd->query(),
            thd->query_length(), thd->variables.character_set_client);
+
+  init_optimizer_context_replay_if_needed(thd);
+  init_optimizer_context_recorder_if_needed(thd, all_tables);
 
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;
@@ -5927,7 +5933,13 @@ wsrep_error_label:
 
 finish:
   if (!thd->is_error() && !res)
-    res= store_table_definitions_in_trace(thd);
+    res= store_optimizer_context(thd);
+
+  if (thd->opt_ctx_replay)
+    thd->opt_ctx_replay->restore_modified_table_stats();
+
+  if (res || thd->is_error())
+    clean_captured_ctx(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
@@ -6625,17 +6637,17 @@ wsrep_error_label:
 
 bool
 check_access(THD *thd, privilege_t want_access,
-             const char *db, privilege_t *save_priv,
+             const char *db, access_t *save_priv,
              GRANT_INTERNAL_INFO *grant_internal_info,
              bool dont_check_global_grants, bool no_errors)
 {
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
   if (save_priv)
-    *save_priv= GLOBAL_ACLS;
+    *save_priv= access_t(GLOBAL_ACLS);
   return false;
 #else
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(NO_ACL);
+  access_t db_access(NO_ACL);
 
   /*
     GRANT command:
@@ -6647,19 +6659,19 @@ check_access(THD *thd, privilege_t want_access,
     set db_is_pattern according to 'dont_check_global_grants' value.
   */
   bool  db_is_pattern= ((want_access & GRANT_ACL) && dont_check_global_grants);
-  privilege_t dummy(NO_ACL);
+  access_t dummy(NO_ACL);
   DBUG_ENTER("check_access");
   DBUG_PRINT("enter",("db: %s  want_access: %llx  master_access: %llx",
-                      db ? db : "",
-                      (longlong) want_access,
-                      (longlong) sctx->master_access));
+                       db ? db : "",
+                       (longlong) want_access,
+                       (longlong) sctx->master_access.allow_bits()));
 
   if (save_priv)
-    *save_priv= NO_ACL;
+    *save_priv= access_t(NO_ACL);
   else
   {
     save_priv= &dummy;
-    dummy= NO_ACL;
+    dummy= access_t(NO_ACL);
   }
 
   /* check access may be called twice in a row. Don't change to same stage */
@@ -6680,7 +6692,10 @@ check_access(THD *thd, privilege_t want_access,
     access= get_cached_schema_access(grant_internal_info, db);
     if (access)
     {
-      switch (access->check(want_access, save_priv))
+      privilege_t p(save_priv->allow_bits());
+      auto res= access->check(want_access, &p);
+      save_priv->set_allow_bits(p);
+      switch (res)
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         /*
@@ -6731,10 +6746,11 @@ check_access(THD *thd, privilege_t want_access,
         and the intersection of db- and host-privileges,
         plus the internal privileges.
       */
-      *save_priv|= sctx->master_access | db_access;
+      db_access.merge_with_parent(sctx->master_access);
+      save_priv->merge_same_level(db_access);
     }
     else
-      *save_priv|= sctx->master_access;
+      save_priv->merge_same_level(sctx->master_access);
     DBUG_RETURN(FALSE);
   }
   if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) ||
@@ -6768,21 +6784,30 @@ check_access(THD *thd, privilege_t want_access,
   else
     db_access= sctx->db_access;
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
-                     (longlong) db_access, (longlong) want_access));
+              (longlong) db_access.allow_bits(), (longlong) want_access));
 
   /*
     Save the union of User-table and the intersection between Db-table and
     Host-table privileges, with the already saved internal privileges.
   */
-  db_access= (db_access | sctx->master_access);
-  *save_priv|= db_access;
+  db_access.merge_with_parent(sctx->master_access);
+  save_priv->merge_same_level(db_access);
+
+  /*
+    We could check for DENYs here, and do early return, if we find any.
+    But we do not, for the sake of better/more natural error reporting
+
+    ER_TABLEACCESS_DENIED_ERROR and ER_COLUMNACCESS_DENIED_ERROR contain
+    better info.
+  */
 
   /*
     We need to investigate column- and table access if all requested privileges
     belongs to the bit set of .
   */
   bool need_table_or_column_check=
-    (want_access & (TABLE_ACLS | PROC_ACLS | db_access)) == want_access;
+      (want_access & (TABLE_ACLS | PROC_ACLS |
+                      db_access.maybe_allowed(want_access))) == want_access;
 
   /*
     Grant access if the requested access is in the intersection of
@@ -6918,7 +6943,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     not always automatically grant SELECT but use the grant tables.
     See Bug#38837 need a way to disable information_schema for security
   */
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege=access_t(SELECT_ACL);
 
   switch (get_schema_table_idx(table->schema_table)) {
   case SCH_SCHEMATA:
@@ -6939,7 +6964,8 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      &thd->col_access, NULL, FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd, dst_db_name))
+    if (!thd->col_access.maybe_allowed((DB_ACLS | SHOW_DB_ACL) & ~GRANT_ACL) &&
+        check_grant_db(thd, thd->col_access, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -7108,7 +7134,7 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
   */
   DBUG_ASSERT((want_access & CREATE_PROC_ACL) == NO_ACL);
   if ((thd->security_ctx->master_access & want_access) == want_access)
-    tables->grant.privilege= want_access;
+    tables->grant.privilege= access_t(want_access);
   else if (check_access(thd, want_access, db->str,
                         &tables->grant.privilege,
                         &tables->grant.m_internal,
@@ -7135,7 +7161,7 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
                                const Sp_handler *sph)
 {
-  privilege_t save_priv(NO_ACL);
+  access_t save_priv(NO_ACL);
   /*
     The following test is just a shortcut for check_access() (to avoid
     calculating db_access)
@@ -7148,11 +7174,10 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
   if (thd->security_ctx->master_access & SHOW_PROC_WITHOUT_DEFINITION_ACLS)
     return FALSE;
   if (!check_access(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS,
-                    db, &save_priv, NULL, 0, 1) ||
-      (save_priv & SHOW_PROC_WITHOUT_DEFINITION_ACLS))
+                    db, &save_priv, NULL, 0, 1))
     return FALSE;
   return check_routine_level_acl(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS,
-                                 db, name, sph);
+                                 db, name, sph, save_priv);
 }
 
 
@@ -7353,7 +7378,6 @@ __attribute__((optimize("-O0")))
 #endif
 check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 {
-#ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
   DBUG_ASSERT(thd->thread_stack);
@@ -7378,7 +7402,6 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef DBUG_OFF
   max_stack_used= MY_MAX(max_stack_used, stack_used);
 #endif
-#endif /* __SANITIZE_ADDRESS__ */
   return 0;
 }
 
@@ -8046,14 +8069,11 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order= thd->alloc<ORDER>(1))))
+  if (unlikely(!(order= thd->calloc<ORDER>(1))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
-  order->used=0;
-  order->counter_used= 0;
-  order->fast_field_copier_setup= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
@@ -9519,7 +9539,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
     if (table->is_jtbm())
       continue;
     if (table->derived)
-      table->grant.privilege= SELECT_ACL;
+      table->grant.privilege= access_t(SELECT_ACL);
     else if ((check_access(thd, UPDATE_ACL, table->db.str,
                            &table->grant.privilege,
                            &table->grant.m_internal,

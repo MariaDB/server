@@ -25,12 +25,23 @@ SELECT * FROM t2 FOR UPDATE;
 	INSERT INTO t2 VALUES (0);
 
 	-- connection con2
-	INSERT INTO t1 VALUES (0);
+  if (!$insert_deadlock) {
+    INSERT INTO t1 VALUES (0);
+  }
+  if ($insert_deadlock) {
+    --error ER_LOCK_DEADLOCK
+    INSERT INTO t1 VALUES (0);
+  }
 	ROLLBACK;
 
 	-- connection con1
-	-- error ER_LOCK_DEADLOCK
-	-- reap
+  if (!$insert_deadlock) {
+    -- error ER_LOCK_DEADLOCK
+    -- reap
+  }
+  if ($insert_deadlock) {
+    -- reap
+  }
 -- }
 # else
 -- if (!$con1_should_be_rolledback) {

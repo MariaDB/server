@@ -1,0 +1,20 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+#
+# MDEV-40686 Event using a package-defined type is silently lost during mariadb-dump / restore
+#
+CREATE PACKAGE pkg AS
+TYPE rec IS RECORD (a INT);
+END;
+$$
+CREATE EVENT ev ON SCHEDULE EVERY 1 HOUR DO
+DECLARE
+v pkg.rec;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of EVENT and `pkg`.`rec`
+DROP PACKAGE pkg;

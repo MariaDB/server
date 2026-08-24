@@ -79,6 +79,7 @@ xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 
 select * from t1;
 disconnect con1;
+--source include/wait_until_count_sessions.inc
 xa rollback 'testb',0x2030405060,11;
 xa recover;
 
@@ -579,6 +580,7 @@ XA ROLLBACK 'xid1';
 --echo #
 --error ER_PARSE_ERROR
 XA START 'gtrid', 'bqual', 0x80000000;
+--source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # XA states and SHOW commands
@@ -720,6 +722,7 @@ xa prepare '3';
 disconnect con1_ro;
 
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 --error ER_XA_RBROLLBACK
 xa commit '3';
@@ -732,6 +735,7 @@ xa prepare '4';
 disconnect con2_ro;
 
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 --error ER_XA_RBROLLBACK
 xa rollback '4';
@@ -801,6 +805,7 @@ xa end 'c:foo';
 xa prepare 'c:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'c:bar';

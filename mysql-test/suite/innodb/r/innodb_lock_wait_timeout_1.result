@@ -258,7 +258,10 @@ connection con1;
 begin;
 # Since there is another distinct record in the derived table
 # the previous matching record in t1 -- (2,null) -- was unlocked.
+set @old_innodb_lock_wait_timeout=@@innodb_lock_wait_timeout;
+set innodb_lock_wait_timeout=1;
 delete from t1;
+set innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;
 # We will need the contents of the table again.
 rollback;
 select * from t1;

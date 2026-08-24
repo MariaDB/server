@@ -473,15 +473,19 @@ public:
   st_select_lex *new_parent; /* Select we're in */
   void visit_field(Item_field *item) override
   {
-    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
-    //{
-    //  if (tbl->table == field->table)
-    //  {
-        used_tables|= item->field->table->map;
-    //    return;
-    //  }
-    //}
-    //used_tables |= OUTER_REF_TABLE_BIT;
+    DBUG_ASSERT(item->field && item->field->table);
+    if (!item->field->table->pos_in_table_list)
+    {
+      used_tables|= OUTER_REF_TABLE_BIT;
+      return;
+    }
+    st_select_lex *cmp= new_parent;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list->select_lex == cmp)
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
   }
 };
 
@@ -803,7 +807,12 @@ bool Item_subselect::exec()
   if (unlikely(thd->is_error() || thd->killed))
     DBUG_RETURN(true);
 
+  // Record subquery execution (only optimization-time runs are recorded)
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
+    recorder->record_subquery_exec(this);
+
   DBUG_ASSERT(!thd->lex->context_analysis_only);
+
   /*
     Simulate a failure in sub-query execution. Used to test e.g.
     out of memory or query being killed conditions.

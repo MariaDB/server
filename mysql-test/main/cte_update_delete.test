@@ -258,6 +258,7 @@ let $q=
 with cte as (select f1 as a, f1() as b, 2 as d from tf),
   cte2 as (select * from t2 where b < 3 group by a)
 update cte, cte2, t3 set t3.a = cte.a+2 where cte.b = cte2.b and d = t3.a;
+--disable_replay next_query Dont support SPs
 eval explain $q;
 eval $q;
 select * from t3;
@@ -593,6 +594,7 @@ with recursive cte as (select a from t1 union select a from cte where a < 2)
         delete from v1 using v1, cte where v1.a = cte.a;
 select * from t1 order by 1;
 
+drop view v1;
 drop table t1;
 
 --echo # End of 12.2 tests

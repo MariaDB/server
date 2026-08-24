@@ -275,7 +275,7 @@ static my_bool list_open_tables_callback(void *el, void *a)
   /* Check if user has SELECT privilege for any column in the table */
   arg->table_list.db= db;
   arg->table_list.table_name= Lex_cstring_strlen(table_name);
-  arg->table_list.grant.privilege= NO_ACL;
+  arg->table_list.grant.privilege= access_t(NO_ACL);
 
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
     return FALSE;
@@ -2086,8 +2086,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
-      if (!part_names_error
-          && table->vers_switch_partition(thd, table_list, ot_ctx))
+      if (!part_names_error &&
+          (table->vers_switch_partition(thd, table_list, ot_ctx) ||
+           table->range_interval_check_partition(thd, table_list, ot_ctx)))
         DBUG_RETURN(true);
 #endif
       goto reset;
@@ -2124,6 +2125,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
   if (! (flags & MYSQL_OPEN_HAS_MDL_LOCK))
   {
+    DEBUG_SYNC(thd, "before_open_table_get_mdl_lock");
     if (open_table_get_mdl_lock(thd, ot_ctx, &table_list->mdl_request,
                                 flags, &mdl_ticket) ||
         mdl_ticket == NULL)
@@ -2348,7 +2350,8 @@ retry_share:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (!part_names_error &&
-      table->vers_switch_partition(thd, table_list, ot_ctx))
+      (table->vers_switch_partition(thd, table_list, ot_ctx) ||
+       table->range_interval_check_partition(thd, table_list, ot_ctx)))
   {
     MYSQL_UNBIND_TABLE(table->file);
     tc_release_table(table);
@@ -3421,7 +3424,7 @@ Open_table_context::Open_table_context(THD *thd, uint flags)
    m_action(OT_NO_ACTION),
    m_has_locks(thd->mdl_context.has_locks()),
    m_has_protection_against_grl(0),
-   vers_create_count(0)
+   vers_create_count(0), range_interval_create_count(0)
 {}
 
 
@@ -3502,7 +3505,8 @@ request_backoff_action(enum_open_table_action action_arg,
   if (table)
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
-                action_arg == OT_ADD_HISTORY_PARTITION);
+                action_arg == OT_ADD_HISTORY_PARTITION ||
+                action_arg == OT_ADD_RANGE_INTERVAL_PARTITION);
     m_failed_table= m_thd->alloc<TABLE_LIST>(1);
     if (m_failed_table == NULL)
       return TRUE;
@@ -3570,6 +3574,7 @@ Open_table_context::recover_from_failed_open()
       break;
     case OT_DISCOVER:
     case OT_REPAIR:
+    case OT_ADD_RANGE_INTERVAL_PARTITION:
     case OT_ADD_HISTORY_PARTITION:
       DEBUG_SYNC(m_thd, "add_history_partition");
       if (!m_thd->locked_tables_mode)
@@ -3578,7 +3583,8 @@ Open_table_context::recover_from_failed_open()
       else
       {
         DBUG_ASSERT(!result);
-        DBUG_ASSERT(m_action == OT_ADD_HISTORY_PARTITION);
+        DBUG_ASSERT(m_action == OT_ADD_HISTORY_PARTITION ||
+                    m_action == OT_ADD_RANGE_INTERVAL_PARTITION);
       }
       /*
          We are now under MDL_EXCLUSIVE mode. Other threads have no table share
@@ -3611,7 +3617,8 @@ Open_table_context::recover_from_failed_open()
          We don't need to remove share under OT_ADD_HISTORY_PARTITION.
          Moreover fast_alter_partition_table() works with TABLE instance.
       */
-      if (m_action != OT_ADD_HISTORY_PARTITION)
+      if (m_action != OT_ADD_HISTORY_PARTITION &&
+          m_action != OT_ADD_RANGE_INTERVAL_PARTITION)
         tdc_remove_table(m_thd, m_failed_table->db.str,
                         m_failed_table->table_name.str);
 
@@ -3642,6 +3649,7 @@ Open_table_context::recover_from_failed_open()
           result= auto_repair_table(m_thd, m_failed_table);
           break;
         case OT_ADD_HISTORY_PARTITION:
+        case OT_ADD_RANGE_INTERVAL_PARTITION:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         {
           result= false;
@@ -3653,9 +3661,20 @@ Open_table_context::recover_from_failed_open()
             break;
           }
 
-          DBUG_ASSERT(vers_create_count);
-          result= vers_create_partitions(m_thd, m_failed_table, vers_create_count);
-          vers_create_count= 0;
+          if (m_action == OT_ADD_HISTORY_PARTITION)
+          {
+            DBUG_ASSERT(vers_create_count);
+            result= vers_create_partitions(m_thd, m_failed_table,
+                                           vers_create_count);
+            vers_create_count= 0;
+          }
+          else
+          {
+            DBUG_ASSERT(range_interval_create_count);
+            result= range_interval_create_partitions(
+                m_thd, m_failed_table, range_interval_create_count);
+            range_interval_create_count= 0;
+          }
           if (!m_thd->transaction->stmt.is_empty())
             trans_commit_stmt(m_thd);
           DBUG_ASSERT(!result ||
@@ -6399,12 +6418,14 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
           (*ref)->is_old_value_reference)
       {
         Item *real = item->real_item();
+        Item_old_field *old= nullptr;
+
         if (real->type() == Item::FIELD_ITEM)
-        {
-          Item_old_field *old =
-               new (thd->mem_root) Item_old_field(thd, (Item_field*) real);
-          item = old;
-        }
+          old= new (thd->mem_root) Item_old_field(thd, (Item_field*) real);
+        else
+          old= new (thd->mem_root) Item_old_field(thd, real);
+
+        item = old;
       }
 
       /*
@@ -6825,7 +6846,9 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         {
           if (!ref)
             DBUG_RETURN(fld);
+
           Item *it= (*ref)->real_item();
+
           if (it->type() == Item::FIELD_ITEM)
             field_to_set= ((Item_field*)it)->field;
           else

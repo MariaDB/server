@@ -3917,6 +3917,7 @@ bool Vcol_expr_context::init()
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
   thd->stmt_arena= thd;
 
+  table->map= 1;
   inited= true;
   return false;
 }
@@ -5172,7 +5173,7 @@ static field_index_t find_field(Field **fields, uchar *record, uint start,
     May fail with some multibyte charsets though.
 */
 
-void append_unescaped(String *res, const char *pos, size_t length)
+void append_unescaped(String *res, const char *pos, size_t length, bool in_comment)
 {
   const char *end= pos+length;
   res->append('\'');
@@ -5200,6 +5201,14 @@ void append_unescaped(String *res, const char *pos, size_t length)
       res->append('\'');		/* Because of the sql syntax */
       res->append('\'');
       break;
+    case '*':
+      if (in_comment && pos + 1 < end && pos[1] == '/')
+      {
+        res->append('*');
+        res->append('\\');
+        break;
+      }
+      /* fallthrough */
     default:
       res->append(*pos);
       break;
@@ -5429,6 +5438,7 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
   // name length in symbols
   size_t char_length= 0;
   const char *end= name + length;
+  bool valid_filename= true;
 
   if (name[length-1]==' ')
     return 1;
@@ -5439,11 +5449,27 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
     if (len)
     {
       name+= len;
+      valid_filename= 0;
       continue;
     }
-    if (disallow_path_chars &&
-        (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
-      return 1;
+    if (disallow_path_chars)
+    {
+      if (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR)
+        return 1;
+      my_wc_t wc;
+      if (valid_filename)
+      {
+        int flen= my_charset_filename.mb_wc(&wc, (const uchar*)name,
+                                             (const uchar*)end);
+        if (flen > 0)
+        {
+          name+= flen;
+          continue;
+        }
+        else
+          valid_filename= false;
+      }
+    }
     /*
       We don't allow zero byte in table/schema names:
       - Some code still uses NULL-terminated strings.
@@ -5461,6 +5487,8 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
       return 1;
     name++;
   }
+  if (disallow_path_chars && valid_filename)
+    return 1; /* #mysql50# prefix is not allowed on correctly encoded names */
   return char_length > NAME_CHAR_LEN;
 }
 
@@ -5638,8 +5666,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         the new table definition is backward compatible with the
         original one.
        */
-      if (strncmp(sql_type.c_ptr_safe(), field_def->type.str,
-                  field_def->type.length - 1))
+      size_t type_len= field_def->type.length & ~CAN_BE_NULL;
+      if (strncmp(sql_type.c_ptr_safe(), field_def->type.str, type_len - 1))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected column '%s' at position %d to have type "
@@ -5670,6 +5698,16 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->cset.str,
                      field->charset()->cs_name.str);
+        error= TRUE;
+      }
+      bool col_can_be_null= field_def->type.length & CAN_BE_NULL;
+      if (col_can_be_null != field->real_maybe_null())
+      {
+        report_error(0, "Incorrect definition of table %s.%s: "
+                     "expected column '%s' at position %d to be %s.",
+                     table->s->db.str, table->alias.c_ptr(),
+                     field_def->name.str, i,
+                     col_can_be_null ? "nullable" : "NOT NULL");
         error= TRUE;
       }
     }
@@ -5952,6 +5990,9 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
 
   if (thd->lex->need_correct_ident())
     alias_name_used= !s->table_name.streq(tl->alias);
+  else
+    alias_name_used= FALSE;
+
   /* Fix alias if table name changes. */
   if (!alias.alloced_length() || strcmp(alias.c_ptr(), tl->alias.str))
     alias.copy(tl->alias.str, tl->alias.length, alias.charset());
@@ -7120,7 +7161,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
       /* REPAIR needs SELECT_ACL */
       while ((tbl= tb++))
       {
-        tbl->grant.privilege= SELECT_ACL;
+        tbl->grant.privilege= access_t(SELECT_ACL);
         tbl->security_ctx= save_security_ctx;
       }
       DBUG_RETURN(FALSE);
@@ -7151,7 +7192,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   thd->security_ctx= save_security_ctx;
 #else
   while ((tbl= tb++))
-    tbl->grant.privilege= ALL_KNOWN_ACL;
+    tbl->grant.privilege= access_t(ALL_KNOWN_ACL);
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
@@ -7377,7 +7418,6 @@ const Lex_ident_column Field_iterator_view::name()
 {
   return ptr->name;
 }
-
 
 Item *Field_iterator_view::create_item(THD *thd)
 {
@@ -8949,6 +8989,11 @@ void TABLE_LIST::reinit_before_use(THD *thd)
   table= 0;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
+  /*
+    Reset want_privilege: a previous prepare/execute  may have left
+    something here.
+  */
+  grant.want_privilege= NO_ACL;
 
   TABLE_LIST *embedded; /* The table at the current level of nesting. */
   TABLE_LIST *parent_embedding= this; /* The parent nested table reference. */

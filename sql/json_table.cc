@@ -747,6 +747,7 @@ TABLE *Create_json_table::start(THD *thd,
   TABLE_SHARE *share;
   DBUG_ENTER("Create_json_table::start");
 
+  param->table_charset= thd->variables.collation_database;
   param->tmp_name= "json";
   if (!(table= Create_tmp_table::start(thd, param, table_alias)))
     DBUG_RETURN(0);
@@ -799,7 +800,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
   uint fieldnr= 0;
   MEM_ROOT *mem_root_save= thd->mem_root;
   List_iterator_fast<Json_table_column> jc_i(jt->m_columns);
-  Column_derived_attributes da(&my_charset_utf8mb4_general_ci);
+  Column_derived_attributes da(share->table_charset);
   DBUG_ENTER("add_json_table_fields");
 
   thd->mem_root= &table->mem_root;
@@ -923,7 +924,7 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
   table->next= thd->derived_tables;
   thd->derived_tables= table;
   table->s->tmp_table= INTERNAL_TMP_TABLE;
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege= access_t(SELECT_ACL);
 
   sql_table->table= table;
 

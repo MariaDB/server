@@ -1,0 +1,119 @@
+--source ../include/have_duckdb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # UUID data type round-trip in the DuckDB storage engine.
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS duckdb_uuid;
+--enable_warnings
+
+CREATE DATABASE duckdb_uuid CHARACTER SET utf8mb4;
+USE duckdb_uuid;
+
+--echo
+--echo # (1) UUID primary key, non-batch insert (suite default)
+--echo
+CREATE TABLE t1 (id UUID PRIMARY KEY, name VARCHAR(32)) ENGINE=DuckDB;
+SHOW CREATE TABLE t1;
+
+INSERT INTO t1 VALUES
+  ('65297af6-6630-11f1-8ad2-5e1b9081e705', 'a'),
+  ('00000000-0000-0000-0000-000000000001', 'b'),
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'c');
+
+--sorted_result
+SELECT id, name FROM t1;
+SELECT name FROM t1 WHERE id = '65297af6-6630-11f1-8ad2-5e1b9081e705';
+SELECT id FROM t1 ORDER BY id;
+
+--echo
+--echo # (2) UPDATE / DELETE by UUID primary key
+--echo
+UPDATE t1 SET name = 'B' WHERE id = '00000000-0000-0000-0000-000000000001';
+SELECT name FROM t1 WHERE id = '00000000-0000-0000-0000-000000000001';
+DELETE FROM t1 WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+--sorted_result
+SELECT id, name FROM t1;
+DROP TABLE t1;
+
+--echo
+--echo # (3) UUID as non-key column, including NULL
+--echo
+CREATE TABLE t2 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t2 VALUES
+  (1, 'ffffffff-ffff-ffff-ffff-ffffffffffff'),
+  (2, NULL);
+SELECT id, u FROM t2 ORDER BY id;
+DROP TABLE t2;
+
+--echo
+--echo # (4) UUID DEFAULT literal
+--echo
+CREATE TABLE t3 (
+  id INT PRIMARY KEY,
+  u UUID DEFAULT '00000000-0000-0000-0000-000000000000'
+) ENGINE=DuckDB;
+INSERT INTO t3 (id) VALUES (1);
+SELECT id, u FROM t3;
+DROP TABLE t3;
+
+--echo
+--echo # (5) UUID round-trip in batch insert mode
+--echo
+SET @saved_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+CREATE TABLE t4 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t4 VALUES
+  (1, '65297af6-6630-11f1-8ad2-5e1b9081e705'),
+  (2, '00000000-0000-0000-0000-000000000001');
+SELECT id, u FROM t4 ORDER BY id;
+DROP TABLE t4;
+SET GLOBAL duckdb_dml_in_batch = @saved_dml_in_batch;
+
+--echo
+--echo # (6) Cross-engine: InnoDB UUID column scanned via DuckDB join
+--echo
+CREATE TABLE t_duck (id INT PRIMARY KEY, tag VARCHAR(16)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, u UUID) ENGINE=InnoDB;
+INSERT INTO t_duck VALUES (1, 'one'), (2, 'two');
+INSERT INTO t_inno VALUES
+  (1, '65297af6-6630-11f1-8ad2-5e1b9081e705'),
+  (2, '00000000-0000-0000-0000-000000000001');
+
+--sorted_result
+SELECT d.tag, i.u
+  FROM t_duck d JOIN t_inno i ON d.id = i.id
+  ORDER BY d.id;
+
+--echo
+--echo # (7) UUID() function — generate, store, round-trip
+--echo
+CREATE TABLE t5 (id INT PRIMARY KEY, u UUID) ENGINE=DuckDB;
+INSERT INTO t5 VALUES (1, UUID()), (2, UUID()), (3, UUID());
+SELECT COUNT(*) FROM t5 WHERE u IS NOT NULL;
+SELECT COUNT(DISTINCT u) FROM t5;
+
+--echo
+--echo # (8) UUID() as DEFAULT, batch mode
+--echo
+SET @saved_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+CREATE TABLE t6 (id INT PRIMARY KEY, u UUID DEFAULT UUID()) ENGINE=DuckDB;
+INSERT INTO t6 (id) VALUES (1), (2), (3);
+SELECT COUNT(*) FROM t6 WHERE u IS NOT NULL;
+SELECT COUNT(DISTINCT u) FROM t6;
+DROP TABLE t6;
+SET GLOBAL duckdb_dml_in_batch = @saved_dml_in_batch;
+
+--echo
+--echo # (9) Self-join on generated UUID PK
+--echo
+CREATE TABLE t7 (id UUID DEFAULT UUID() PRIMARY KEY, val INT) ENGINE=DuckDB;
+INSERT INTO t7 (val) VALUES (10), (20), (30);
+SELECT COUNT(*) FROM t7 a JOIN t7 b ON a.id = b.id;
+DROP TABLE t7;
+
+DROP TABLE t5;
+DROP DATABASE duckdb_uuid;

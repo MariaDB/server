@@ -2069,6 +2069,7 @@ INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
 let $query=
 SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
 
+--disable_replay next_query MTR Replay harness is fooled by sql_select_limit=0
 eval EXPLAIN EXTENDED $query;
 eval $query;
 
@@ -2651,6 +2652,7 @@ create table t3 as select * from t1;
 analyze table t1,t2,t3;
 select @@expensive_subquery_limit < 200 as DEFAULTS_ARE_SUITABLE;
 flush status;
+--disable_replay testfile Need to preserve counter
 explain select * from t1 where a<3 or (select max(a) from t2) in (select b from t3);
 --echo # Must show 0. If this shows 200, this means subquery was executed and you have a bug:
 show status like 'Handler_read_rnd_next%';

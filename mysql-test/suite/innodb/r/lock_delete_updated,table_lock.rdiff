@@ -1,0 +1,17 @@
+--- lock_delete_updated.result
++++ lock_delete_updated.reject
+@@ -10,13 +10,12 @@
+ UPDATE t SET a = 1;
+ COMMIT;
+ connection con1;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ disconnect con1;
+ connection default;
+ # The above DELETE must delete all the rows in the table, so the
+ # following SELECT must show 0 rows.
+ SELECT count(*) FROM t;
+ count(*)
+-1
++0
+ SET DEBUG_SYNC="reset";
+ DROP TABLE t;

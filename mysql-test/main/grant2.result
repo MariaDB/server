@@ -920,3 +920,90 @@ DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
 set GLOBAL sql_mode=default;
+# End of 10.1 tests
+#
+# MDEV-37951 SHOW TABLES allows users with only GRANT OPTION privilege to read all table names in the database "mysql"
+#
+create user u@localhost;
+grant grant option on *.* to u@localhost;
+connect con1, localhost, u;
+show grants;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost` WITH GRANT OPTION
+show tables from mysql;
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'mysql'
+select * from information_schema.tables where table_schema='mysql';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+disconnect con1;
+connection default;
+revoke grant option on *.* from u@localhost;
+grant select (host) on mysql.user to u@localhost with grant option;
+revoke select (host) on mysql.user from u@localhost;
+connect con1, localhost, u;
+show grants;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT USAGE ON `mysql`.`user` TO `u`@`localhost` WITH GRANT OPTION
+show tables from mysql;
+Tables_in_mysql
+user
+select * from information_schema.tables where table_schema='mysql';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+def	mysql	user	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
+disconnect con1;
+connection default;
+revoke grant option on mysql.user from u@localhost;
+create procedure mysql.p1() select 1;
+grant execute on procedure mysql.p1 to u@localhost with grant option;
+revoke execute on procedure mysql.p1 from u@localhost;
+connect con1, localhost, u;
+show grants;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT USAGE ON PROCEDURE `mysql`.`p1` TO `u`@`localhost` WITH GRANT OPTION
+show tables from mysql;
+Tables_in_mysql
+select * from information_schema.tables where table_schema='mysql';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+disconnect con1;
+connection default;
+drop procedure mysql.p1;
+drop user u@localhost;
+# End of 10.11 tests
+create user u@localhost;
+grant grant option on *.* to u@localhost;
+connect con1, localhost, u;
+show grants;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost` WITH GRANT OPTION
+show create database mysql;
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'mysql'
+select * from information_schema.tables where table_schema='mysql';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+disconnect con1;
+connection default;
+create table mysql.t_mdev37951(a int check (a > 0), key(a));
+grant select (a) on mysql.t_mdev37951 to u@localhost with grant option;
+revoke select (a) on mysql.t_mdev37951 from u@localhost;
+connect con2, localhost, u;
+show grants;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost` WITH GRANT OPTION
+GRANT USAGE ON `mysql`.`t_mdev37951` TO `u`@`localhost` WITH GRANT OPTION
+show tables from mysql like 't_mdev37951';
+Tables_in_mysql (t_mdev37951)
+t_mdev37951
+select * from information_schema.statistics where table_schema='mysql' and table_name='t_mdev37951';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED	CREATE_OPTIONS
+def	mysql	t_mdev37951	1	mysql	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO	
+select * from information_schema.key_column_usage where table_schema='mysql' and table_name='t_mdev37951';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
+select * from information_schema.check_constraints where constraint_schema='mysql' and table_name='t_mdev37951';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
+disconnect con2;
+connection default;
+revoke grant option on *.* from u@localhost;
+revoke grant option on mysql.t_mdev37951 from u@localhost;
+drop table mysql.t_mdev37951;
+drop user u@localhost;
+# End of 13.1 tests

@@ -1091,6 +1091,7 @@ enum enum_schema_tables
   SCH_OPEN_TABLES,
   SCH_OPTIMIZER_COSTS,
   SCH_OPT_TRACE,
+  SCH_OPTIMIZER_CONTEXT,
   SCH_PARAMETERS,
   SCH_PERIODS,
   SCH_PARTITIONS,
@@ -3983,25 +3984,7 @@ protected:
   }
 public:
 
-  /*
-     Time for a full table scan
-
-     @param records   Number of records from the engine or records from
-                      status tables stored by ANALYZE TABLE.
-
-     The TABLE_SCAN_SETUP_COST is there to prefer range scans to full
-     table scans.  This is mainly to make the test suite happy as
-     many tests has very few rows. In real life tables has more than
-     a few rows and the extra cost has no practical effect.
-  */
-
-  inline IO_AND_CPU_COST ha_scan_time(ha_rows rows)
-  {
-    IO_AND_CPU_COST cost= scan_time();
-    cost.cpu+= (TABLE_SCAN_SETUP_COST +
-                (double) rows * (ROW_NEXT_FIND_COST + ROW_COPY_COST));
-    return cost;
-  }
+  IO_AND_CPU_COST ha_scan_time(ha_rows rows);
 
   /*
     Time for a full table scan, fetching the rows from the table and comparing
@@ -6025,6 +6008,7 @@ int get_select_field_pos(Alter_info *alter_info, bool versioned);
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+void init_table_full_scan_if_needed(TABLE *table, Item *cond, ha_rows limit);
 
 /* Struct with info about an event group to be binlogged by a storage engine. */
 struct handler_binlog_event_group_info {

@@ -1,0 +1,129 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE inet6_array IS TABLE OF INET6 INDEX BY INTEGER;
+END;
+$$
+DELIMITER ;$$
+
+--echo # 2-Step + PROCEDURE
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 pkg1.inet6_array;
+BEGIN
+  v0(0):='AA::BB';
+  SELECT v0(0);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # 2-Step + PACKAGE + Declarations in package PROCEDURE
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p1 AS
+    v0 pkg1.inet6_array;
+  BEGIN
+    v0(0):='AA::BB';
+    SELECT v0(0);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+
+--echo # 2-Step + PACKAGE + Declaration in PACKAGE BODY
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  v0 pkg1.inet6_array;
+  PROCEDURE p1 AS
+  BEGIN
+    v0(0):='AA::BB';
+    SELECT v0(0);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+
+
+--echo # 3-Step + PROCEDURE + Declarations in package PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 test.pkg1.inet6_array;
+BEGIN
+  v0(0):='AA::BB';
+  SELECT v0(0);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+
+--echo # 3-Step + PACKAGE
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p1 AS
+    v0 test.pkg1.inet6_array;
+  BEGIN
+    v0(0):='AA::BB';
+    SELECT v0(0);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+
+--echo # 3-Step + PACKAGE + Declaration in PACKAGE BODY
+CREATE DATABASE test1;
+USE test1;
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  v0 test.pkg1.inet6_array;
+  PROCEDURE p1 AS
+  BEGIN
+    v0(0):='AA::BB';
+    SELECT v0(0);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+
+DROP PACKAGE pkg1;

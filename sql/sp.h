@@ -137,6 +137,9 @@ public:
     const Sp_handler *sph= handler(type);
     return sph ? sph->sp_handler_mysql_proc() : NULL;
   }
+  static sp_package *find_package_spec(THD *thd,
+                                       const Lex_ident_db &db,
+                                       const LEX_CSTRING &package);
 
   const char *type_str() const { return type_lex_cstring().str; }
   virtual const char *show_create_routine_col1_caption() const
@@ -211,6 +214,10 @@ public:
                                  const Database_qualified_name *nm,
                                  sp_head **sp) const;
 
+  int sp_cache_routine_reentrant_suppress_errors(THD *thd,
+                                           const Database_qualified_name *nm,
+                                           sp_head **sp) const;
+
   bool sp_exist_routines(THD *thd, TABLE_LIST *procs) const;
   bool sp_show_create_routine(THD *thd,
                               const Database_qualified_name *name) const;
@@ -246,6 +253,44 @@ public:
                               const DDL_options_st ddl_options,
                               sql_mode_t sql_mode) const;
 
+};
+
+
+class Sp_handler_event: public Sp_handler
+{
+public:
+  enum_sp_type type() const override { return SP_TYPE_EVENT; }
+  LEX_CSTRING type_lex_cstring() const override
+  {
+    static LEX_CSTRING m_type_str= { STRING_WITH_LEN("EVENT")};
+    return m_type_str;
+  }
+  enum_sql_command sqlcom_create() const override
+  {
+    DBUG_ASSERT(0);
+    return SQLCOM_CREATE_EVENT;
+  }
+  enum_sql_command sqlcom_drop() const override
+  {
+    DBUG_ASSERT(0);
+    return SQLCOM_DROP_EVENT;
+  }
+  const char *show_create_routine_col1_caption() const override
+  {
+    DBUG_ASSERT(0);
+    return "Event";
+  }
+  const char *show_create_routine_col3_caption() const override
+  {
+    DBUG_ASSERT(0);
+    return "Create Event";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
+  {
+    DBUG_ASSERT(0);
+    return MDL_key::EVENT;
+  }
+  bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const override;
 };
 
 
@@ -499,6 +544,7 @@ extern MYSQL_PLUGIN_IMPORT Sp_handler_package_body sp_handler_package_body;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_package_function sp_handler_package_function;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_package_procedure sp_handler_package_procedure;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_trigger sp_handler_trigger;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_event sp_handler_event;
 
 
 inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)

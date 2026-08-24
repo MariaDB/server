@@ -6773,14 +6773,15 @@ SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *att
     wrapper->set_linkage_and_distinct(wr_unit_type, wr_distinct);
     if (attach_to)
     {
-      wrapper->first_nested= attach_to->first_nested;
+      /* wraps whole prefix -> wrapper heads a fresh chain */
+      bool wraps_whole_prefix= (attach_to->first_nested == first_in_nest);
+      wrapper->first_nested= wraps_whole_prefix ? wrapper
+                                                : attach_to->first_nested;
       wrapper->set_master_unit(attach_to->master_unit());
       attach_to->link_neighbour(wrapper);
     }
     else
-    {
       wrapper->first_nested= wrapper;
-    }
   }
   DBUG_RETURN(wrapper);
 }
@@ -6823,8 +6824,10 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 bool LEX::sp_param_fill_definition(sp_variable *spvar,
                                    const Lex_field_type_st &def)
 {
+  constexpr column_definition_type_t dtype= COLUMN_DEFINITION_ROUTINE_PARAM;
   return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    sphead->check_maybe_foreign_type_context(thd, def, dtype) ||
+    last_field->set_attributes(thd, def, dtype) ||
     sphead->fill_spvar_definition(thd, last_field, &spvar->name);
 }
 
@@ -6883,8 +6886,10 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
 
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
+  constexpr column_definition_type_t dtype= COLUMN_DEFINITION_FUNCTION_RETURN;
   return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    sphead->check_maybe_foreign_type_context(thd, def, dtype) ||
+    last_field->set_attributes(thd, def, dtype) ||
     sphead->fill_field_definition(thd, last_field);
 }
 
@@ -6939,12 +6944,61 @@ void LEX::set_stmt_init()
 };
 
 
+/*
+  Check if the current CREATE PACKAGE statement does not recursively depend on:
+    CREATE PACKAGE db.name
+
+  This method is called to avoid cyclic dependencies:
+
+    CREATE PACKAGE a_pkg AS
+      TYPE arec IS RECORD (x INT, y VARCHAR(10));
+    END;
+    $$
+    CREATE PACKAGE b_pkg AS
+      TYPE brec IS RECORD (p INT, q VARCHAR(10));
+      TYPE bcur IS REF CURSOR RETURN a_pkg.arec; -- b_pkg -> a_pkg
+    END;
+    $$
+    -- The next statement would replace a_pkg and cause a cyclic dependency:
+    CREATE OR REPLACE PACKAGE a_pkg AS
+      TYPE arec IS RECORD (x INT, y VARCHAR(10));
+      TYPE acur IS REF CURSOR RETURN b_pkg.brec; -- a_pkg -> b_pkg -> a_pkg
+    END;
+    $$
+*/
+bool LEX::check_create_package_cycle_dependency(const Lex_ident_sys_st &db,
+                                                const Lex_ident_sys_st &name)
+                                                                       const
+{
+  if (this != stmt_lex &&
+      stmt_lex->sql_command == SQLCOM_CREATE_PACKAGE &&
+      stmt_lex->sphead &&
+      stmt_lex->sphead->m_handler == &sp_handler_package_spec)
+  {
+    if (sphead->m_handler != &sp_handler_package_spec)
+      return false; // e.g. a package routine inside a package specification
+    if (stmt_lex->sphead->m_db.streq(db) &&
+        Lex_ident_routine(stmt_lex->sphead->m_name).streq(name))
+    {
+      /*
+        The exact raised error is not important here.
+        It will be overriden to: Unknown data type: '`pkg`.`type`'
+      */
+      DBUG_ASSERT(thd->get_internal_handler());
+      my_error(ER_UNKNOWN_ERROR, MYF(0), "Cycle found in TYPE definition");
+      return true;
+    }
+  }
+  return false;
+}
+
+
 /**
   Find a local or a package body type declaration by name
   @param IN name - the data type name
   @retval        - the data type (if found), or NULL otherwise.
 */
-const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
+const sp_type_def *LEX::find_type_def(const Lex_ident_sys_st &name) const
 {
   DBUG_ASSERT(spcont);
   const sp_type_def *def= spcont->find_type_def(name, false);
@@ -6953,8 +7007,7 @@ const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
   if (sphead->m_parent)
   {
     // Find a package body type definition
-    return sphead->m_parent->get_parse_context()->
-             child_context(0)->find_type_def(name, true);
+    return sphead->m_parent->find_type_def(name);
   }
   return nullptr;
 }
@@ -7306,7 +7359,7 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
   }
   if (make_sp_instr_copy_struct_for_last_context_variables(thd,
                                                            (uint) nvars,
-                                                           offset))
+                                                           offset, def))
     return true;
   if (unlikely(sp_variable_declarations_set_default(thd, nvars, def,
                                                     expr_str)))
@@ -7928,7 +7981,17 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
 
   return_type_def= dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
                                                get_attr_const_generic_ptr(0));
-  if (return_type_def)
+  row_def_list=
+    return_type_def && return_type_def->def().is_row() ?
+    return_type_def->def().row_field_definitions() : nullptr;
+  /*
+    We allow OPEN c FOR 'dynamic sql' for:
+    - SYS_REFCURSOR
+    - REF CURSOR (weak, without the RETURN clause)
+    Otherwise we have a strong cursor with RETURN.
+    This is not supported. Let's return an error:
+  */
+  if (row_def_list)
   {
      if (stmt->prepared_stmt.code())
      {
@@ -7978,9 +8041,6 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
     A more thorough test (field-by-field assignability) is done
     later, after the cursor has been opened.
   */
-  row_def_list=
-    return_type_def && return_type_def->def().is_row() ?
-    return_type_def->def().row_field_definitions() : nullptr;
   if (!stmt->first_select_lex()->with_wild && row_def_list &&
       row_def_list->elements != stmt->first_select_lex()->item_list.elements)
   {
@@ -8043,7 +8103,8 @@ bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
 
 bool LEX::make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                             uint nvars,
-                                                            uint cursor_offset)
+                                                            uint cursor_offset,
+                                                            Item *def)
 {
   DBUG_ASSERT(nvars <= spcont->context_var_count());
   const sp_pcursor *pcursor= spcont->find_cursor(cursor_offset);
@@ -8057,7 +8118,14 @@ bool LEX::make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                       spcont,
                                                       cursor_offset,
                                                       pcursor->lex(),
-                                                      spvar->offset);
+                                                      spvar->offset,
+                        /*
+                          The first cursor in declaration
+                          of cursor row type variables is responsible for
+                          releasing the Item created on parsing the DEFAULT
+                          clause
+                        */
+                                                      (i == 0) ? def : nullptr);
     if (instr == NULL || sphead->add_instr(instr))
       return true;
   }
@@ -8256,7 +8324,8 @@ sp_lex_local *LEX::package_routine_start(THD *thd,
 
   enum_sp_aggregate_type atype= sublex->sql_command == SQLCOM_CREATE_FUNCTION ?
                                 NOT_AGGREGATE : DEFAULT_AGGREGATE;
-  if (unlikely(!sublex->make_sp_head_no_recursive(thd, spname, sph, atype)))
+  if (unlikely(!sublex->make_sp_head_no_recursive(thd, spname, definer,
+                                                  sph, atype)))
     return NULL;
   sphead->get_package()->m_current_routine= sublex;
   return sublex;
@@ -8296,6 +8365,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
 
 
 sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
+                                        const LEX_USER *definer_arg,
                                         const Sp_handler *sph,
                                         enum_sp_aggregate_type agg_type)
 {
@@ -8314,7 +8384,12 @@ sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
   if (!sphead || (package &&
                   (sph == &sp_handler_package_procedure ||
                    sph == &sp_handler_package_function)))
-    return make_sp_head(thd, name, sph, agg_type);
+  {
+    sp_head *res= make_sp_head(thd, name, sph, agg_type);
+    if (res && definer_arg)
+      res->set_definer(&definer_arg->user, &definer_arg->host);
+    return res;
+  }
   my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
   return NULL;
 }
@@ -9660,8 +9735,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
   */
   bool got_error;
   Item *trigger_specific_item=
-    create_item_ident_trigger_specific(thd,
-                                       Lex_ident_sys(thd, name), &got_error);
+    create_item_ident_trigger_specific(thd, Lex_ident_sys(*name), &got_error);
   if (trigger_specific_item)
     /*
       trigger_specific_item != nullptr if the  argument 'name' equals one of
@@ -11690,31 +11764,12 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   sel1->link_neighbour(sel2);
   sel2->set_linkage_and_distinct(unit_type, distinct);
   sel2->first_nested= sel1->first_nested= sel1;
-  const bool oracle= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
-  if (oracle &&
-      /*
-         Recursive CTE must have anchor defined as non-recursive set attached
-         via UNION, such anchor would be lost in wrapping. But in recursive CTE
-         all set operations either distinct or non-distinct
-         (see ER_NOT_SUPPORTED_YET limitation in st_select_lex_unit::prepare()),
-         so explicit prioritization via wrapping is not required.
-
-         Test: compat/oracle.func_concat
-      */
-      !(curr_with_clause && curr_with_clause->with_recursive) &&
-      !(sel1= create_priority_nest(sel1, NULL)))
-  {
-      return NULL;
-  }
   res= create_unit(sel1);
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
   res->distinct= distinct;
-  if (oracle)
-    push_select(sel1);
-  else
-    push_select(res->fake_select_lex);
+  push_select(res->fake_select_lex);
   return res;
 }
 
@@ -11728,7 +11783,38 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   SELECT_LEX *sel1= s2;
   SELECT_LEX *last= unit->pre_last_parse->next_select();
 
-  int cmp= oracle? 0 : cmp_unit_op(unit_type, last->get_linkage());
+  int cmp;
+  if (oracle)
+  {
+    if (unit_type != last->get_linkage())
+    {
+      /*
+        Oracle: equal-priority, left-to-right. Wrap whole prefix on op change.
+        Recursive CTEs use a single operator, so never wrap here (anchor kept).
+      */
+      SELECT_LEX *first_in_nest= unit->first_select();
+      last->cut_next();
+      if ((last= create_priority_nest(first_in_nest, NULL)) == NULL)
+        return NULL;
+      /*
+        Order matters: register_select_chain() re-points unit->slave at the
+        wrapper. Only then can fix_distinct()/reset_distinct() scan the new
+        outer chain instead of the pre-wrap selects that now belong to the
+        derived table's inner unit. Otherwise union_distinct is left pointing
+        into the inner unit (stale, non-NULL). Since optimize_bag_operation()
+        is skipped in Oracle mode, that value survives to execution and makes
+        the outer result temp table de-duplicating (MY_TEST(union_distinct)),
+        dropping rows that a trailing UNION ALL must keep.
+      */
+      unit->register_select_chain(last);
+      unit->fix_distinct();
+    }
+    cmp= 0;
+  }
+  else
+  {
+    cmp= cmp_unit_op(unit_type, last->get_linkage());
+  }
   if (cmp == 0)
   {
     sel1->first_nested= last->first_nested;
@@ -12810,7 +12896,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
        list of all its conjuncts saved in attach_to_conds. Otherwise,
        the condition is put into attach_to_conds as the only its element.
   */
-  List_iterator_fast<Item> it(attach_to_conds);
+  List_iterator<Item> it(attach_to_conds);
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having);
   if (build_pushable_cond_for_having_pushdown(thd, having))
@@ -12876,7 +12962,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
 
     if (item->walk(&Item::cleanup_excluding_immutables_processor,
                    0, WALK_NO_CACHE_PROCESS)
-        || item->fix_fields(thd, NULL))
+        || item->fix_fields(thd, it.ref()))
     {
       attach_to_conds.empty();
       goto exit;
@@ -12928,7 +13014,7 @@ bool st_select_lex::save_item_list_names(THD *thd)
 
   while ((item= li++))
   {
-    Lex_ident_sys *name= new (thd->mem_root) Lex_ident_sys(thd, &item->name);
+    Lex_ident_sys *name= new (thd->mem_root) Lex_ident_sys(item->name);
     if (unlikely(!name ||
           orig_names_of_item_list_elems->push_back(name,  thd->mem_root)))
     {
@@ -13154,7 +13240,7 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
                                             const sp_name *spname)
 {
   if (stmt_create_function_start(options) ||
-      unlikely(!make_sp_head_no_recursive(thd, spname,
+      unlikely(!make_sp_head_no_recursive(thd, spname, definer,
                                           &sp_handler_function, agg_type)))
     return true;
   return false;
@@ -13376,9 +13462,96 @@ bool LEX::declare_type_assoc_array(THD *thd,
 }
 
 
+/*
+  Declare a new REF CURSOR type with these semantics:
+    TYPE t IS REF CURSOR RETURN db.package.type; -- a 3-step package spec type
+    TYPE t IS REF CURSOR RETURN package.type;    -- a 2-step package spec type
+    TYPE t IS REF CURSOR RETURN type;            -- a 1-step semantic
+  I.e. the data type in RETURN refers to a previously defined TYPE.
+
+  @param thd       - The thd
+  @param type_name - The name of the new data type
+  @param db        - The database name. Can be a null identifier {0,0}.
+  @param package   - The package name. Can be a null identifier {0,0}.
+  @param type      - The type name.
+
+  @retval true     - If could not create a new TYPE. Possible reasons:
+                     * the data type specified by [db.]package.type
+                       was not found
+                     * something went wrong during mysql.proc reading.
+                     * EOM happened
+  @retval false    - If the new TYPE was successfully created.
+*/
+bool LEX::declare_type_ref_cursor_return_typedef(THD *thd,
+                             const Lex_ident_sys_st &type_name,
+                             const Lex_ident_sys_st &db,
+                             const Lex_ident_sys_st &package,
+                             const Lex_ident_sys_st &type)
+{
+  if (sphead->check_maybe_qualified_type_context(db, package, type))
+    return true;
+
+  const Lex_ident_plugin sr= "sys_refcursor"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, sr);
+  if (unlikely(!th))
+    return true;
+
+  const sp_type_def *rt= nullptr; // The typedef of the RETURN type
+  if (db.str) // A 3-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN db1.pkg1.rec1_t;
+    if (check_create_package_cycle_dependency(db, package) ||
+        sphead->get_typedef_package_spec_or_error(thd, &rt, db, package, type))
+      return true;
+  }
+  else if (package.str) // A 2-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN pkg1.rec1_t;
+    if (check_create_package_cycle_dependency(Lex_ident_sys(sphead->m_db),
+                                              package) ||
+        sphead->get_typedef_package_spec_or_error(thd, &rt, package, type))
+      return true;
+  }
+  else // A 1-step RETURN
+  {
+    // TYPE c0 IS REF CURSOR RETURN rec1_t;
+    if (!(rt= find_type_def(type)))
+    {
+      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), type.str);
+      return true;
+    }
+  }
+  const sp_type_def_record *type_def_rec=
+                                   dynamic_cast<const sp_type_def_record*>(rt);
+  if (!type_def_rec ||
+      !dynamic_cast<const Type_handler_row*>(rt->type_handler()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type.str, "REF CURSOR RETURN");
+    return true;
+  }
+  Row_definition_list *row= type_def_rec->field->deep_copy(thd);
+  if (!row)
+    return true; // EOM
+
+  if (check_ref_cursor_components(row))
+    return true;
+
+  const Spvar_definition return_def(&type_handler_row, row);
+  return spcont->type_defs_add_ref_cursor(thd, Lex_ident_column(type_name), th,
+                                          return_def, false/*is_prepared*/);
+}
+
+
+/*
+  Declare a new REF CURSOR type with these semantics:
+    TYPE t IS REF CURSOR;
+    TYPE t IS REF CURSOR RETURN db1.t1%ROWTYPE;
+    TYPE t IS REF CURSOR RETURN t1%ROWTYPE;
+    TYPE t IS REF CURSOR RETURN rec_var%TYPE;
+*/
 bool LEX::declare_type_ref_cursor(THD *thd,
                                   const Lex_ident_sys_st &type_name,
-                                  const Lex_ident_sys_st &return_type_name,
                                   const Qualified_column_ident *rowtype,
                                   const Qualified_column_ident *vartype,
                                   const Lex_ident_cli_st &syntax_error_token)
@@ -13452,41 +13625,9 @@ bool LEX::declare_type_ref_cursor(THD *thd,
       return_def= Spvar_definition(ti, sp_rcontext_addr(nullptr, 0));
     }
   }
-  else if (!return_type_name.is_null())
-  {
-    /*
-      An explicit data type in the RETURN clause:
-        TYPE c0 IS REF CURSOR RETURN rec0_t;
-    */
-    const sp_type_def *rt= find_type_def(return_type_name);
-    if (!rt)
-    {
-      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), return_type_name.str);
-      return true;
-    }
-    if (!dynamic_cast<const Type_handler_row*>(rt->type_handler()))
-    {
-      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-               return_type_name.str, "REF CURSOR RETURN");
-      return true;
-    }
-    Row_definition_list *row= static_cast<const sp_type_def_record*>(rt)->
-                                field->deep_copy(thd);
-    if (!row)
-      return true; // EOM
 
-    if (check_ref_cursor_components(row))
-      return true;
-
-    return_def= Spvar_definition(&type_handler_row, row);
-  }
-  sp_type_def_ref *tdef=
-    new (thd->mem_root) sp_type_def_ref(Lex_ident_column(type_name), th,
-                                        return_def, is_prepared);
-  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
-    return true; // EOM
-
-  return false;
+  return spcont->type_defs_add_ref_cursor(thd, Lex_ident_column(type_name), th,
+                                          return_def, is_prepared);
 }
 
 
@@ -13509,7 +13650,7 @@ bool LEX::check_ref_cursor_components(Row_definition_list *row) const
 
 
 bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                             const LEX_CSTRING &name,
+                             const Lex_ident_sys_st &name,
                              const Lex_length_and_dec_st &attr,
                              const Lex_column_charset_collation_attrs_st &coll)
 {
@@ -13570,7 +13711,7 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
 
 
 bool LEX::set_field_type_typedef(Lex_field_type_st *type,
-                              const LEX_CSTRING &name,
+                              const Lex_ident_sys_st &name,
                               const Lex_length_and_dec_st &attr,
                               const Lex_column_charset_collation_attrs_st &coll,
                               bool *is_typedef)
@@ -13593,6 +13734,78 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
     }
   }
 
+  return false;
+}
+
+
+/*
+  Set a PACKAGE data type to "res" for a 2-step qualified name,
+  consisting by the package name and type name.
+  Handles the following cases:
+  - A PACKAGE refers to its own type using a qualified name
+  - A routine refers to the PACKAGE in the same database with the routine
+    using a qualified type
+  - Otherwise, the database which contains a package "package" with the type
+    "type" is resolved using the @@PATH variable.
+
+  @param OUT res - The data type to write to
+  @param package - The package name
+  @param type    - The data type name
+
+  @retval false  - The package "package" with the data type "type" was found,
+                   and res[0] was set to the found type.
+  @retval true   - The data type was not found, or some error happened
+                   during type resolution.
+*/
+bool LEX::set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                                              const Lex_ident_sys_st &package,
+                                              const Lex_ident_sys_st &type)
+{
+  const sp_type_def *tdef= nullptr;
+  if (sphead->check_maybe_qualified_type_context(Lex_ident_sys(),
+                                                 package, type))
+    return true;
+  if (check_create_package_cycle_dependency(Lex_ident_sys(sphead->m_db),
+                                            package))
+    return true;
+  if (sphead->get_typedef_package_spec_or_error(thd, &tdef, package, type))
+    return true;
+  res->set(tdef->type_handler(), nullptr/*CHARSET_INFO*/);
+  res->set_foreign_module_type(true);
+  last_field->set_attr_const_generic_ptr(0, tdef);
+  return false;
+}
+
+
+/*
+  Set a PACKAGE data type to "res" by a 3-step qualified name,
+  consisting by the database name, package name and type name.
+
+  @param OUT res - The data type to write to
+  @param db      - The database name
+  @param package - The package name
+  @param type    - The data type name
+
+  @retval false  - The package "package" with the data type "type" was found,
+                   and res[0] was set to the found type.
+  @retval true   - The data type was not found, or some error happened
+                   during type resolution.
+*/
+bool LEX::set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                                              const Lex_ident_sys_st &db,
+                                              const Lex_ident_sys_st &package,
+                                              const Lex_ident_sys_st &type)
+{
+  const sp_type_def *tdef= nullptr;
+  if (sphead->check_maybe_qualified_type_context(db, package, type))
+    return true;
+  if (check_create_package_cycle_dependency(db, package))
+    return true;
+  if (sphead->get_typedef_package_spec_or_error(thd, &tdef, db, package, type))
+    return true;
+  res->set(tdef->type_handler(), nullptr/*CHARSET_INFO*/);
+  res->set_foreign_module_type(true);
+  last_field->set_attr_const_generic_ptr(0, tdef);
   return false;
 }
 

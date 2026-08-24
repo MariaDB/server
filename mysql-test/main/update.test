@@ -1005,4 +1005,25 @@ INSERT INTO t1 VALUES('') RETURNING *;
 UPDATE t1 SET a=NULL RETURNING OLD_VALUE(a) AS old, a AS new;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-40125: OLD_VALUE crashes on a view with an expression
+--echo #
+
+CREATE TABLE t ( id INT PRIMARY KEY, a INT );
+INSERT INTO t VALUES (1, 1), (3, 3), (5, 5);
+CREATE VIEW v AS SELECT id, a, a*2 AS a2 FROM t;
+
+SELECT * FROM v;
+UPDATE v SET a = a+1 WHERE id = 1 RETURNING OLD_VALUE(id) as old_id, id,
+                                            OLD_VALUE(a) as old_a, a,
+                                            OLD_VALUE(a2)as old_a2, a2;
+SELECT * FROM v;
+
+UPDATE v SET a = a+1 WHERE id = 20 RETURNING OLD_VALUE(id) as old_id, id,
+                                             OLD_VALUE(a) as old_a, a,
+                                             OLD_VALUE(a2)as old_a2, a2;
+
+DROP TABLE t;
+DROP VIEW v;
+
 --echo # End of 13.0 test

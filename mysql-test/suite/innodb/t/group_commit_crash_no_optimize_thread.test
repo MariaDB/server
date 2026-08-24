@@ -56,7 +56,7 @@ while ($numtests)
   eval call setcrash($numtests);
 
   # Run the crashing query
-  --error 2006,2013
+  --error 2006,2013,2026
   COMMIT;
 
   # Poll the server waiting for it to be back online again.

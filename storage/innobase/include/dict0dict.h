@@ -93,35 +93,38 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
-/** Acquire MDL shared for the table name.
+/** Acquire MDL for the table name.
+By default, acquires MDL_SHARED lock. Use exclusive=true for MDL_EXCLUSIVE.
 @tparam trylock whether to use non-blocking operation
-@param[in,out]  table           table object
+@tparam exclusive Used to take MDL_EXCLUSIVE lock (default: false, MDL_SHARED)
 @param[in,out]  thd             background thread
 @param[out]     mdl             mdl ticket
 @param[in]      table_op        operation to perform when opening
-@return table object after locking MDL shared
+@return table object after locking MDL
 @retval NULL if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock>
+template<bool trylock, bool exclusive= false>
 dict_table_t*
-dict_acquire_mdl_shared(dict_table_t *table,
-                        THD *thd,
-                        MDL_ticket **mdl,
-                        dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
+dict_acquire_mdl(dict_table_t *table,
+                 THD *thd,
+                 MDL_ticket **mdl,
+                 dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
 
-/** Acquire MDL shared for the table name.
+/** Acquire MDL for the table name.
+By default, acquires MDL_SHARED lock. Use exclusive=true for MDL_EXCLUSIVE.
 @tparam trylock whether to use non-blocking operation
+@tparam exclusive Used to take MDL_EXCLUSIVE lock (default: false, MDL_SHARED)
 @param[in,out]  table           table object
 @param[in,out]  mdl_context     MDL context
 @param[out]     mdl             MDL ticket
 @param[in]      table_op        operation to perform when opening
-@return table object after locking MDL shared
+@return table object after locking MDL
 @retval nullptr if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock>
+template<bool trylock, bool exclusive= false>
 __attribute__((nonnull, warn_unused_result))
 dict_table_t*
-dict_acquire_mdl_shared(dict_table_t *table,
-                        MDL_context *mdl_context, MDL_ticket **mdl,
-                        dict_table_op_t table_op);
+dict_acquire_mdl(dict_table_t *table,
+                 MDL_context *mdl_context, MDL_ticket **mdl,
+                 dict_table_op_t table_op);
 
 /** Look up a table by numeric identifier.
 @param[in]      table_id        table identifier
@@ -1322,7 +1325,11 @@ public:
 
   /** @return whether all non-hard-coded system tables exist */
   bool sys_tables_exist() const
-  { return UNIV_LIKELY(sys_foreign && sys_foreign_cols && sys_virtual); }
+  {
+    DBUG_EXECUTE_IF("defer_sys_virtual",
+                    return sys_foreign && sys_foreign_cols;);
+    return UNIV_LIKELY(sys_foreign && sys_foreign_cols && sys_virtual);
+  }
 
   /** list of persistent tables that can be evicted */
   UT_LIST_BASE_NODE_T(dict_table_t) table_LRU;
@@ -1498,9 +1505,9 @@ public:
   bool is_sys_table(table_id_t table_id) const noexcept
   {
     return (table_id > 0 && table_id <= 4) ||
-      table_id == sys_foreign->id ||
-      table_id == sys_foreign_cols->id ||
-      table_id == sys_virtual->id;
+      (sys_foreign && table_id == sys_foreign->id) ||
+      (sys_foreign_cols && table_id == sys_foreign_cols->id) ||
+      (sys_virtual && table_id == sys_virtual->id);
   }
 };
 

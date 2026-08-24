@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
@@ -855,3 +856,17 @@ DROP TABLE t1, t2;
 --echo # End of 10.11 tests
 --echo #
 
+--echo #
+--echo # MDEV-40621 InnoDB: Failing assertion: doc_id == src_node->last_doc_id
+--echo #
+CREATE TABLE t1 (f1 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                 f2 MEDIUMTEXT,
+                 FULLTEXT KEY ftidx (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) SELECT REPEAT('megaword ', 30) FROM seq_1_to_260;
+DELETE FROM t1 WHERE f1 = 1;
+SET GLOBAL innodb_optimize_fulltext_only = ON;
+OPTIMIZE TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only = OFF;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

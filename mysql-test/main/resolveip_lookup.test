@@ -1,0 +1,76 @@
+--source include/not_windows.inc
+
+# Reverse lookups of the loopback addresses.  The names come from /etc/hosts
+# and differ per system (::1 is "localhost" on macOS but "ip6-localhost" on
+# Debian), and whether ::ffff:127.0.0.1 has a name at all depends on the libc
+# (glibc and musl map it to 127.0.0.1; macOS does not).  So probe first, with
+# the same call resolveip makes - getnameinfo(NI_NAMEREQD) - and skip unless
+# every address resolves.  The probe returns the actual names, so the tests
+# below require them exactly instead of accepting any output.
+
+perl;
+  use Socket;
+  my %name;
+  # eval{}: Socket before Perl 5.14 lacks getnameinfo(); then nothing
+  # resolves and the test skips.
+  eval {
+    for my $addr ('127.0.0.1', '::1', '::ffff:127.0.0.1') {
+      my $sa= $addr =~ /:/
+        ? Socket::pack_sockaddr_in6(0, Socket::inet_pton(Socket::AF_INET6, $addr))
+        : Socket::pack_sockaddr_in(0, Socket::inet_pton(Socket::AF_INET, $addr));
+      my ($err, $host)= Socket::getnameinfo($sa, Socket::NI_NAMEREQD());
+      $name{$addr}= $host unless $err;
+    }
+  };
+  open F, '>', "$ENV{MYSQL_TMP_DIR}/rdns.inc" or die $!;
+  print F "let \$rdns_ok= ", (keys %name == 3 ? 1 : 0), ";\n";
+  print F "let \$name_v4= $name{'127.0.0.1'};\n" .
+          "let \$name_v6= $name{'::1'};\n" .
+          "let \$name_mapped= $name{'::ffff:127.0.0.1'};\n" if keys %name == 3;
+  close F;
+EOF
+--source $MYSQL_TMP_DIR/rdns.inc
+--remove_file $MYSQL_TMP_DIR/rdns.inc
+if (!$rdns_ok) {
+  --skip getnameinfo() cannot resolve the loopback addresses on this system
+}
+
+--echo #
+--echo # MDEV-39169: resolveip reverse lookups
+--echo #
+
+--echo #
+--echo # IPv4
+--echo #
+--replace_result $name_v4 HOSTNAME
+--exec $MYSQL_RESOLVEIP 127.0.0.1
+--replace_result $name_v4 HOSTNAME
+--exec $MYSQL_RESOLVEIP -s 127.0.0.1
+
+--echo #
+--echo # IPv6, short and long form
+--echo #
+--replace_result $name_v6 HOSTNAME
+--exec $MYSQL_RESOLVEIP ::1
+--replace_result $name_v6 HOSTNAME
+--exec $MYSQL_RESOLVEIP -s ::1
+--replace_result $name_v6 HOSTNAME
+--exec $MYSQL_RESOLVEIP 0000:0000:0000:0000:0000:0000:0000:0001
+
+--echo #
+--echo # IPv4-mapped IPv6
+--echo #
+--replace_result $name_mapped HOSTNAME
+--exec $MYSQL_RESOLVEIP ::ffff:127.0.0.1
+--replace_result $name_mapped HOSTNAME
+--exec $MYSQL_RESOLVEIP -s ::ffff:127.0.0.1
+
+--echo #
+--echo # An address and a host name in one call
+--echo #
+# localhost may map to either loopback address, hence the regex.
+--replace_regex /^(127\.0\.0\.1|::1)$/LOOPBACK_ADDR/
+--replace_result $name_v4 HOSTNAME
+--exec $MYSQL_RESOLVEIP -s 127.0.0.1 localhost
+
+--echo # End of 13.2 tests

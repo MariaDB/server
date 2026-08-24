@@ -2183,7 +2183,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1i	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
 1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Not exists
 Warnings:
-Note	1003	select 1 AS `K1`,'T1Row1' AS `Name`,`t2a`.`K2` AS `K2`,`t2a`.`K1r` AS `K1r`,`t2a`.`rowTimestamp` AS `rowTimestamp`,`t2a`.`Event` AS `Event`,`test`.`t2i`.`K2` AS `K2B`,`test`.`t2i`.`K1r` AS `K1rB`,`test`.`t2i`.`rowTimestamp` AS `rowTimestampB`,`test`.`t2i`.`Event` AS `EventB` from `test`.`t1` `t1a` join `test`.`t2` `t2a` left join (`test`.`t1` `t1i` left join `test`.`t2` `t2i` on(`test`.`t2i`.`K1r` = 1)) on(`test`.`t1i`.`K1` = 1 and (`test`.`t2i`.`K1r` = 1 and `test`.`t2i`.`rowTimestamp` > `t2a`.`rowTimestamp` or `test`.`t2i`.`rowTimestamp` = `t2a`.`rowTimestamp` and `test`.`t2i`.`K2` > `t2a`.`K2` or `test`.`t2i`.`K2` is null)) where `t2a`.`K1r` = 1 and `test`.`t2i`.`K2` is null
+Note	1003	select 1 AS `K1`,'T1Row1' AS `Name`,`test`.`t2a`.`K2` AS `K2`,`test`.`t2a`.`K1r` AS `K1r`,`test`.`t2a`.`rowTimestamp` AS `rowTimestamp`,`test`.`t2a`.`Event` AS `Event`,`test`.`t2i`.`K2` AS `K2B`,`test`.`t2i`.`K1r` AS `K1rB`,`test`.`t2i`.`rowTimestamp` AS `rowTimestampB`,`test`.`t2i`.`Event` AS `EventB` from `test`.`t1` `t1a` join `test`.`t2` `t2a` left join (`test`.`t1` `t1i` left join `test`.`t2` `t2i` on(`test`.`t2i`.`K1r` = 1)) on(`test`.`t1i`.`K1` = 1 and (`test`.`t2i`.`K1r` = 1 and `test`.`t2i`.`rowTimestamp` > `test`.`t2a`.`rowTimestamp` or `test`.`t2i`.`rowTimestamp` = `test`.`t2a`.`rowTimestamp` and `test`.`t2i`.`K2` > `test`.`t2a`.`K2` or `test`.`t2i`.`K2` is null)) where `test`.`t2a`.`K1r` = 1 and `test`.`t2i`.`K2` is null
 DROP VIEW v1;
 DROP TABLE t1,t2;
 set optimizer_search_depth= @tmp_mdev621;

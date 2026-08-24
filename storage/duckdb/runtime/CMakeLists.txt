@@ -8,7 +8,7 @@ SET(DUCKDB_RUNTIME_SOURCES
   delta_appender.cc
   cross_engine_scan.cc
   duckdb_mysql_compat.cc
-  fiber_context.c
+  fiber_context.cpp
   fiber_scan.cc
 )
 

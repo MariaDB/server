@@ -337,12 +337,93 @@ json_norm_value_string_init(struct json_norm_value *val,
 }
 
 
+static int json_norm_kv_comp(const void *a_, const void *b_);
+
+static int json_norm_value_comp(const struct json_norm_value *a,
+                                const struct json_norm_value *b)
+{
+  if (a->type != b->type)
+    return (int) a->type - b->type;
+
+  switch (a->type)
+  {
+  case JSON_VALUE_OBJECT:
+  {
+    const DYNAMIC_ARRAY *ao= &a->value.object.kv_pairs;
+    const DYNAMIC_ARRAY *bo= &b->value.object.kv_pairs;
+    int ret;
+    if (ao->elements != bo->elements)
+      return ao->elements < bo->elements ? -1 : 1;
+
+    for (size_t i= 0; i < ao->elements; ++i)
+    {
+      const struct json_norm_kv *akv=
+        dynamic_element(ao, i, struct json_norm_kv*);
+      const struct json_norm_kv *bkv=
+        dynamic_element(bo, i, struct json_norm_kv*);
+      if ((ret= json_norm_kv_comp(akv, bkv)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_ARRAY:
+  {
+    const DYNAMIC_ARRAY *aa= &a->value.array.values;
+    const DYNAMIC_ARRAY *ba= &b->value.array.values;
+    int ret;
+
+    if (aa->elements != ba->elements)
+      return aa->elements < ba->elements ? -1 : 1;
+
+    for (size_t i= 0; i < aa->elements; ++i)
+    {
+      const struct json_norm_value *aval=
+        dynamic_element(aa, i, struct json_norm_value*);
+      const struct json_norm_value *bval=
+        dynamic_element(ba, i, struct json_norm_value*);
+      if ((ret= json_norm_value_comp(aval, bval)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_STRING:
+  {
+    const LEX_STRING *as= &a->value.string;
+    const LEX_STRING *bs= &b->value.string;
+    if (as->length != bs->length)
+      return as->length < bs->length ? -1 : 1;
+
+    return my_strnncoll(&my_charset_utf8mb4_bin,
+                        (const uchar *)as->str, as->length,
+                        (const uchar *)bs->str, bs->length);
+  }
+  case JSON_VALUE_NUMBER:
+  {
+    const DYNAMIC_STRING *anum= &a->value.number;
+    const DYNAMIC_STRING *bnum= &b->value.number;
+    if (anum->length != bnum->length)
+      return anum->length < bnum->length ? -1 : 1;
+    return strncmp(anum->str, bnum->str, anum->length);
+  }
+  case JSON_VALUE_NULL:
+  case JSON_VALUE_TRUE:
+  case JSON_VALUE_FALSE:
+  case JSON_VALUE_UNINITIALIZED:
+  default:
+    return 0;
+  }
+}
+
+
 static int json_norm_kv_comp(const void *a_, const void *b_)
 {
   const struct json_norm_kv *a= a_, *b= b_;
-  return my_strnncoll(&my_charset_utf8mb4_bin,
-                      (const uchar *)a->key.str, a->key.length,
-                      (const uchar *)b->key.str, b->key.length);
+  int ret;
+  if (!(ret= my_strnncoll(&my_charset_utf8mb4_bin,
+                          (const uchar *)a->key.str, a->key.length,
+                          (const uchar *)b->key.str, b->key.length)))
+    return json_norm_value_comp(&a->value, &b->value);
+  return ret;
 }
 
 
@@ -750,6 +831,19 @@ json_norm_value_true_init(struct json_norm_value *val)
 }
 
 
+/*
+  Store the raw (unprocessed) string value from the JSON engine
+  into a normalized value. Used as a fallback when escape decoding fails.
+*/
+static int
+json_norm_value_raw_string_init(struct json_norm_value *val, json_engine_t *je)
+{
+  const char *je_value_begin= (const char *)je->value_begin;
+  size_t je_value_len= (size_t)(je->value_end - je->value_begin);
+  return json_norm_value_string_init(val, je_value_begin, je_value_len);
+}
+
+
 static int
 json_norm_value_init(struct json_norm_value *val, json_engine_t *je)
 {
@@ -757,9 +851,88 @@ json_norm_value_init(struct json_norm_value *val, json_engine_t *je)
   switch (je->value_type) {
   case JSON_VALUE_STRING:
   {
-    const char *je_value_begin= (const char *)je->value_begin;
-    size_t je_value_len= (je->value_end - je->value_begin);
-    err= json_norm_value_string_init(val, je_value_begin, je_value_len);
+    if (je->value_escaped)
+    {
+      /*
+        The string contains escape sequences (e.g. \u0041).
+        Decode and re-encode to get a canonical form so that
+        semantically equal strings like "A" and "\u0041" normalize
+        to the same representation.
+      */
+      uchar stack_buf[256];
+      uchar *unescaped= stack_buf;
+      int unesc_len;
+
+      if ((size_t)je->value_len > sizeof(stack_buf))
+      {
+        unescaped= (uchar *) my_malloc(PSI_JSON, je->value_len, MYF(0));
+        if (!unescaped)
+        {
+          err= json_norm_value_raw_string_init(val, je);
+          break;
+        }
+      }
+
+      unesc_len= json_unescape(je->s.cs,
+                                je->value, je->value + je->value_len,
+                                je->s.cs, unescaped,
+                                unescaped + je->value_len);
+      if (unesc_len < 0)
+      {
+        if (unescaped != stack_buf)
+          my_free(unescaped);
+        err= json_norm_value_raw_string_init(val, je);
+      }
+      else
+      {
+        /*
+          Re-escape the decoded string. The escaped form can be at most
+          6x the unescaped length (\uXXXX) plus quotes.
+        */
+        size_t esc_buf_len= (size_t)unesc_len * 6 + 3;
+        uchar esc_stack_buf[1536];
+        uchar *esc_buf= esc_stack_buf;
+        int esc_len;
+
+        if (esc_buf_len > sizeof(esc_stack_buf))
+        {
+          esc_buf= (uchar *) my_malloc(PSI_JSON, esc_buf_len, MYF(0));
+          if (!esc_buf)
+          {
+            if (unescaped != stack_buf)
+              my_free(unescaped);
+            err= json_norm_value_raw_string_init(val, je);
+            break;
+          }
+        }
+
+        esc_buf[0]= '"';
+        esc_len= json_escape(je->s.cs, unescaped, unescaped + unesc_len,
+                             je->s.cs, esc_buf + 1,
+                             esc_buf + esc_buf_len - 1);
+        if (unescaped != stack_buf)
+          my_free(unescaped);
+
+        if (esc_len < 0)
+        {
+          if (esc_buf != esc_stack_buf)
+            my_free(esc_buf);
+          err= json_norm_value_raw_string_init(val, je);
+        }
+        else
+        {
+          esc_buf[1 + esc_len]= '"';
+          err= json_norm_value_string_init(val, (const char *)esc_buf,
+                                           (size_t)(esc_len + 2));
+          if (esc_buf != esc_stack_buf)
+            my_free(esc_buf);
+        }
+      }
+    }
+    else
+    {
+      err= json_norm_value_raw_string_init(val, je);
+    }
     break;
   }
   case JSON_VALUE_NULL:
@@ -888,7 +1061,43 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je, MEM_ROOT *curre
       /* we have the key name */
       /* reset the dynstr: */
       dynstr_trunc(&key, key.length);
-      dynstr_append_mem(&key, (char*)key_start, (key_end - key_start));
+
+      {
+        /*
+          Decode the key to resolve any Unicode escape sequences
+          (e.g. \u006B\u0065\u0079 -> "key"), so that semantically
+          equal keys normalize to the same representation.
+        */
+        size_t raw_len= (size_t)(key_end - key_start);
+        uchar key_stack_buf[256];
+        uchar *decoded= key_stack_buf;
+        int use_heap= (raw_len > sizeof(key_stack_buf));
+
+        if (use_heap)
+        {
+          decoded= (uchar *) my_malloc(PSI_JSON, raw_len, MYF(0));
+          if (!decoded)
+          {
+            dynstr_append_mem(&key, (char*)key_start, raw_len);
+            use_heap= 0;
+          }
+        }
+
+        if (decoded)
+        {
+          int dec_len= json_unescape(je->s.cs, key_start,
+                                     key_start + raw_len,
+                                     je->s.cs, decoded,
+                                     decoded + raw_len);
+          if (dec_len >= 0)
+            dynstr_append_mem(&key, (char*)decoded, (size_t)dec_len);
+          else
+            dynstr_append_mem(&key, (char*)key_start, raw_len);
+        }
+
+        if (use_heap)
+          my_free(decoded);
+      }
 
       /* After reading the key, we have a follow-up value. */
       err = json_read_value(je);
@@ -967,13 +1176,16 @@ json_norm_build(struct json_norm_value *root,
                 MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
   int err= 0;
+  volatile const uint32_t *killed_ptr= je->killed_ptr;
 
   DBUG_ASSERT(s);
 
   memset(root, 0x00, sizeof(struct json_norm_value));
   root->type= JSON_VALUE_UNINITIALIZED;
 
+  /* json_scan_start clears the killed_ptr */
   err= json_scan_start(je, cs, (const uchar *)s, (const uchar *)(s + size));
+  je->killed_ptr= killed_ptr;
   if (json_read_value(je))
   {
     return err;
@@ -1062,8 +1274,11 @@ json_normalize_end:
   if (err)
     dynstr_free(result);
   if (s_utf8)
+  {
+    /* resulting error offset is mapped to original string */
+    if (temp_je->s.error)
+      temp_je->s.c_str= (const uchar *) (s + (ptrdiff_t)(temp_je->s.c_str - (const uchar *) s_utf8));
     my_free(s_utf8);
+  }
   return err;
 }
-
-

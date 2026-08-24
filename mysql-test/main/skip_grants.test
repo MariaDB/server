@@ -192,6 +192,19 @@ SELECT @@skip_grant_tables AS EXPECT_0;
 --sorted_result
 select * from information_schema.table_constraints;
 
+--echo #
+--echo # MDEV-37840 Server crashes when executing FLUSH PRIVILEGES after starting with skip-grant-tables and creating mysql.host table
+--echo #
+call mtr.add_suppression("Cannot load from mysql.host");
+call mtr.add_suppression("Can't open and lock privilege tables");
+create table mysql.host (c int);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+drop table mysql.host;
+
+# uncomment, when adding more tests
+#--source include/restart_mysqld.inc
+
 --echo # End of 10.11 tests
 
 --echo #

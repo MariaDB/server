@@ -522,7 +522,7 @@ thd::thd (my_bool ini, bool system_thread)
     {
       ptr->system_thread= SYSTEM_THREAD_GENERIC;
     }
-    ptr->security_ctx->master_access= ALL_KNOWN_ACL;
+    ptr->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
     lex_start(ptr);
   }
 }
@@ -748,13 +748,6 @@ bool wsrep_address_char(const unsigned char c)
 {
   return wsrep_filename_char(c) ||
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
-}
-
-bool wsrep_shell_char(const unsigned char c)
-{
-  return (c != '`') && (c != '\'') && (c != '$') &&
-         (c != ' ') && (c != '\t') && (c != '\n') &&
-         (c != '\r') && (c != '\v') && (c != '\f');
 }
 
 /* return true if character can be a part of an address string list */

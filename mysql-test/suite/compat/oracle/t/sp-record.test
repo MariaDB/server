@@ -975,3 +975,71 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-40153 Assertion `rec->field->head()->charset == nullptr' failed in virtual bool Type_handler_row::Column_definition_prepare_stage1(THD *, MEM_ROOT *, Column_definition *, column_definition_type_t, const Column_derived_attributes *) const
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (b BLOB);
+  FUNCTION f RETURN rec0_t AS
+  BEGIN
+    RETURN NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (b TEXT CHARACTER SET latin1);
+  FUNCTION f RETURN rec0_t AS
+  BEGIN
+    RETURN NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (b TEXT CHARACTER SET latin1);
+  PROCEDURE p(r0 rec0_t) AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (b BLOB);
+  PROCEDURE p(r0 rec0_t) AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;

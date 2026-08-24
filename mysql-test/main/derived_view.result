@@ -571,7 +571,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11`,`tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#3 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` join (/* select#5 */ select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where `t1`.`f1` < 7 and `t1`.`f1` > 2 and `t1`.`f1` > 2 group by `t1`.`f1`) `tt` where `tt`.`f1` = `tt`.`f1` and `tt`.`f1` > 2 and `tt`.`f1` > 2
+Note	1003	/* select#1 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11`,`tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#3 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` join (/* select#5 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` where `tt`.`f1` = `tt`.`f1` and `tt`.`f1` > 2 and `tt`.`f1` > 2
 explain format=json  select * from 
 (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
 join 
@@ -693,7 +693,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11`,`t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` join `test`.`t1` where `t1`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` < 7
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11`,`test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 and `test`.`t1`.`f1` < 7
 select * from 
 (select * from 
 (select * from t1 where f1 < 7 ) tt where f1 > 2 ) x
@@ -721,7 +721,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `x`.`f1` AS `f1`,`x`.`f11` AS `f11`,`z`.`f1` AS `f1`,`z`.`f11` AS `f11` from (/* select#2 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#3 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` where `tt`.`f1` > 2 group by `tt`.`f1`) `x` join (/* select#4 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#5 */ select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where `t1`.`f1` < 7 and `t1`.`f1` > 2 group by `t1`.`f1`) `tt` where `tt`.`f1` > 2 group by `tt`.`f1`) `z` where `z`.`f1` = `x`.`f1`
+Note	1003	/* select#1 */ select `x`.`f1` AS `f1`,`x`.`f11` AS `f11`,`z`.`f1` AS `f1`,`z`.`f11` AS `f11` from (/* select#2 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#3 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` where `tt`.`f1` > 2 group by `tt`.`f1`) `x` join (/* select#4 */ select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (/* select#5 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where `test`.`t1`.`f1` < 7 and `test`.`t1`.`f1` > 2 group by `test`.`t1`.`f1`) `tt` where `tt`.`f1` > 2 group by `tt`.`f1`) `z` where `z`.`f1` = `x`.`f1`
 explain format=json select * from 
 (select * from 
 (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) x

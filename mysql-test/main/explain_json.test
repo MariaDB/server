@@ -141,6 +141,8 @@ select * from t1 where a in (select max(a) from t1 group by b);
 create table t2 like t1;
 insert into t2 select * from t1;
 --source include/explain-no-costs.inc
+
+--disable_replay next_query Will try to create table for sequence engine
 explain format=json
 select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 
@@ -500,3 +502,33 @@ INSERT INTO t2 VALUES
 SET optimizer_trace = 'enabled=on';
 SELECT * FROM t1 WHERE a IN ( SELECT b FROM t2 INNER JOIN t1 ON (a = pk) );
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16462: EXPLAIN FORMAT=JSON produces illegal json text in the attached_condition field
+--echo #
+set names utf8mb4;
+create table t1 (
+  id int(11) not null auto_increment,
+  oid binary(16) not null,
+  primary key (id, oid)
+);
+
+insert into t1 values
+(1,0x02697732663011E39AE220CF3068F21D),
+(2,0x02697732663011E39AE220CF3068F21D);
+
+create table t2 (
+  id int(11) not null,
+  oid binary(16) not null,
+  primary key (id)
+);
+
+insert into t2 values
+(1,0x02697732663011E39AE220CF3068F21D),
+(2,0x02697732663011E39AE220CF3068F21D);
+
+explain format=json
+select t1.id from t1, t2 where t1.oid=t2.oid and t2.id=1;
+
+drop table t1, t2;
+set names default;

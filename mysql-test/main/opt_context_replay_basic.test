@@ -1,0 +1,494 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/no_protocol.inc
+--echo #enable optimizer_record_context
+set optimizer_trace=0;
+set optimizer_record_context=ON;
+
+--disable_replay testfile Dont replay a replay test
+
+show create table information_schema.optimizer_context;
+
+create database db1;
+use db1;
+
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+);
+
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+select count(*) from t1;
+
+--source include/opt_context_list_sys_vars.inc
+
+select count(*) from t1;
+
+select context into
+    dumpfile "../../tmp/dump1.sql" from information_schema.optimizer_context;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+select context into
+    dumpfile "dump1.sql" from information_schema.optimizer_context;
+
+drop table t1;
+
+--disable_query_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+set optimizer_replay_context='opt_context';
+select count(*) from t1;
+set optimizer_replay_context=NULL;
+
+create table t2( a int);
+--echo #
+--echo # MDEV-39222: Errors shown when inserting data into a new table
+--echo #
+insert into t2 select seq from seq_1_to_10;
+
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-39382: Trace replay produces "Impossible WHERE noticed after reading const tables"
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+set optimizer_record_context=1;
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+
+select context into dumpfile "../../tmp/dump1.sql" 
+from information_schema.optimizer_context;
+drop table t1;
+
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39435: Server crash : Assertion `table_records || !head->file->stats.records' failed
+--echo #
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+
+set optimizer_record_context=ON;
+EXPLAIN SELECT * FROM t1 WHERE a IN
+  ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=OFF;
+drop table t1;
+
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39409: Context replay doesnt handle MIN/MAX optimization
+--echo #
+CREATE TABLE t1 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (2,20), (3,10), (1,10), (0,30), (5,10);
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MAX(a) FROM t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MAX(a) FROM t1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39505: Explain delete all from table shows difference in number of rows
+--echo #
+create table t1 (c1 integer);
+insert into t1 values (1), (2), (3);
+
+set optimizer_record_context=1;
+explain delete from t1 order by c1;
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain delete from t1 order by c1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39410: ucs2 data not stored correctly in the context
+--echo #
+create table t1 (a varchar(5) character set ucs2 collate ucs2_bin);
+insert into t1 values (0x00410000);
+
+set optimizer_record_context=1;
+explain select hex(a) from t1 where a like 'A_';
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain select hex(a) from t1 where a like 'A_';
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39440: Failed to match the stats from replay context with the optimizer stats
+--echo #
+create table t1 (btn char(10) not null, key using HASH (btn)) engine=heap;
+insert into t1 values ("a"),("b"),("c"),("d");
+alter table t1 add column new_col char(1) not null, add key using HASH (btn,new_col), drop key btn;
+update t1 set new_col=left(btn,1);
+
+set optimizer_record_context=1;
+explain select * from t1 where btn="a";
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain select * from t1 where btn="a";
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo #
+--echo #
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+
+--echo #
+--echo # Test 1: Reading optimizer context preserves optimizer trace:
+--echo #
+set optimizer_record_context=1, optimizer_trace=1;
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+select trace like '%foo%' from information_schema.optimizer_trace;
+
+
+--echo # 
+--echo # Test 2: Reading optimizer trace preserves optimizer context:
+--echo #
+explain select * from t1 where a >'foo' or a < 'bar';
+select trace like '%foo%' from information_schema.optimizer_trace;
+select context like '%bar%' from information_schema.optimizer_context;
+drop table t1;
+
+--echo #
+--echo # MDEV-39791: Handle count aggregate optimization for replay purpose
+--echo #
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+
+set optimizer_record_context=1;
+
+explain
+select count(a), count(b), count(c) from t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain
+select count(a), count(b), count(c) from t1;
+
+set optimizer_replay_context='';
+drop table t1;
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+
+set optimizer_record_context=1;
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39538: Different cost when same range is read twice
+--echo #
+create table t1 (pk int primary key, a datetime, c int, key(a));
+ 
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+
+set optimizer_record_context=1;
+explain format=json select * from t1
+  where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain cost:
+explain format=json select * from t1
+  where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+--echo #
+--echo # Error for non-existent variable must show offset 0. 
+--echo #
+set optimizer_replay_context='NO_SUCH_VARIABLE';
+explain select * from t1 where c < 3;
+
+set optimizer_replay_context='';
+drop table t1;
+
+--echo #
+--echo # MDEV-39360: "set statement optimizer_record_context=1 for query" isn't recording context
+--echo #
+set optimizer_record_context=0;
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+
+--echo # Here context should be recorded as it is enabled for this query statement
+set statement optimizer_record_context=1 for explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+--echo # rerun above explain query. Here context shouldn't be recorded as it was disabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+set optimizer_record_context=1;
+
+--echo # Here context shouldn't be recorded as it is disabled for this query statement,
+--echo # even though it is enabled for the session
+set statement optimizer_record_context=0 for explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+--echo # Here context should be recorded as it was already enabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo #
+set optimizer_record_context=0;
+create sequence s1;
+select setval(s1, 10);
+set optimizer_record_context=1;
+select nextval(s1) as nv;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table s1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Get the last recorded value from the sequence; must have same output as above
+select lastval(s1) as nv;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table s1;
+
+--echo #
+--echo # MDEV-40383: innodb_gis.point_basic fails on replay
+--echo #
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  p POINT NOT NULL,
+  l LINESTRING NOT NULL,
+  g GEOMETRY NOT NULL,
+  PRIMARY KEY(p),
+  SPATIAL KEY `idx2` (p),
+  SPATIAL KEY `idx3` (l),
+  SPATIAL KEY `idx4` (g)
+);
+
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+
+INSERT INTO t1 VALUES(
+2, ST_GeomFromText('POINT(20 20)'),
+ST_GeomFromText('LINESTRING(2 3, 7 8, 9 10, 15 16)'),
+ST_GeomFromText('POLYGON((10 30, 30 40, 40 50, 40 30, 30 20, 10 30))'));
+
+set optimizer_record_context=1;
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(20 20)');
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+
+--echo #
+--echo # MIN/MAX recording with geometry fields in the table
+--echo #
+INSERT INTO t1 VALUES(
+1, ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(1 1, 5 5, 10 10)'),
+ST_GeomFromText('POLYGON((30 30, 40 40, 50 50, 30 50, 30 40, 30 30))'));
+
+alter table t1 add index(a);
+
+select a from t1;
+SELECT MIN(a) FROM t1;
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
+drop table t1;
+
+--echo #
+--echo # MIN/MAX recording with a virtual column present.
+--echo #
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b INT NOT NULL,
+  v INT AS (a + 100) VIRTUAL,
+  KEY(a)
+) ENGINE=MyISAM;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20),(3,30),(1,40);
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MIN(a) FROM t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MIN(a) FROM t1;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--echo # MIN(a) row is (1,10); the non-indexed NOT NULL column b must be
+--echo # captured (not defaulted to 0), and v must be recomputed as a+100=101:
+SELECT a, b, v FROM t1;
+drop table t1;
+
+--echo # End of 13.1 tests
+
+drop database db1;

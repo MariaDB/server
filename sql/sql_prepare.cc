@@ -221,7 +221,7 @@ public:
   Query_arena::Type type() const override;
   bool cleanup_stmt(bool restore_set_statement_vars) override;
   bool set_name(const LEX_CSTRING *name);
-  inline void close_cursor() { delete cursor; cursor= 0; }
+  inline void close_cursor() { cdestroy(cursor); cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
   inline bool is_sql_prepare() const { return flags & (uint) IS_SQL_PREPARE; }
   void set_sql_prepare() { flags|= (uint) IS_SQL_PREPARE; }
@@ -1969,7 +1969,7 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   char buff[1024];
   const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
 
-  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename, NULL))
     DBUG_RETURN(1);
 
   if (username)
@@ -3857,7 +3857,7 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   thd->stmt_arena= stmt;
   thd->set_n_backup_statement(stmt, &stmt_backup);
 
-  cursor->fetch(num_rows);
+  cursor->fetch(&stmt->result, num_rows);
 
   if (!thd->get_sent_row_count())
     status_var_increment(thd->status_var.empty_queries);
@@ -4343,7 +4343,7 @@ Prepared_statement::~Prepared_statement()
 
   MYSQL_DESTROY_PS(m_prepared_stmt);
 
-  delete cursor;
+  cdestroy(cursor);
   /*
     We have to call free on the items even if cleanup is called as some items,
     like Item_param, don't free everything until free_items()

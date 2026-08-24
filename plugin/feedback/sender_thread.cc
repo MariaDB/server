@@ -104,8 +104,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->real_id= pthread_self();
   thd->db= null_clex_str;
   thd->security_ctx->host_or_ip= "";
-  thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  thd->security_ctx->db_access= access_t(DB_ACLS);
+  thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
   thd->lex->init_select();

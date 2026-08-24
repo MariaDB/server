@@ -750,7 +750,6 @@ public:
       UNCACHEABLE_RAND
       UNCACHEABLE_SIDEEFFECT
       UNCACHEABLE_EXPLAIN
-      UNCACHEABLE_PREPARE
   */
 
   bool is_linkage_set() const
@@ -1191,7 +1190,13 @@ public:
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /*
+    Pushdown from HAVING into WHERE optimization: conditions from the HAVING
+    clause that should be added into the WHERE.
+  */
   List<Item> attach_to_conds;
+
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* 
@@ -4106,6 +4111,7 @@ public:
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph,
                         enum_sp_aggregate_type agg_type);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
+                                     const LEX_USER *definer,
                                      const Sp_handler *sph,
                                      enum_sp_aggregate_type agg_type);
   bool sp_body_finalize_routine(THD *);
@@ -4146,7 +4152,10 @@ public:
   bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
-  const sp_type_def *find_type_def(const LEX_CSTRING &name) const;
+  const sp_type_def *find_type_def(const Lex_ident_sys_st& name) const;
+  bool check_create_package_cycle_dependency(const Lex_ident_sys_st &db,
+                                             const Lex_ident_sys_st &name)
+                                                                     const;
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -4289,7 +4298,8 @@ public:
 
   bool make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                             uint nvars,
-                                                            uint cursor_offset);
+                                                            uint cursor_offset,
+                                                            Item *def= nullptr);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -5271,19 +5281,31 @@ public:
                                 Spvar_definition *value);
   bool declare_type_ref_cursor(THD *thd,
                                const Lex_ident_sys_st &type_name,
-                               const Lex_ident_sys_st &return_type_name,
                                const Qualified_column_ident *rowtype,
                                const Qualified_column_ident *vartype,
                                const Lex_ident_cli_st &syntax_error_token);
+  bool declare_type_ref_cursor_return_typedef(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &db/*can be null ident*/,
+                               const Lex_ident_sys_st &package,
+                               const Lex_ident_sys_st &type);
   bool set_field_type_typedef(Lex_field_type_st *type,
-                              const LEX_CSTRING &name,
+                              const Lex_ident_sys_st &name,
                               const Lex_length_and_dec_st &attr,
                               const Lex_column_charset_collation_attrs_st &coll,
                               bool *is_typedef);
   bool set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                             const LEX_CSTRING &name,
+                             const Lex_ident_sys_st &name,
                              const Lex_length_and_dec_st &attr,
                              const Lex_column_charset_collation_attrs_st &coll);
+
+  bool set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                              const Lex_ident_sys_st &package,
+                              const Lex_ident_sys_st &type);
+  bool set_field_type_typedef_package_spec(Lex_field_type_st *res,
+                              const Lex_ident_sys_st &db,
+                              const Lex_ident_sys_st &package,
+                              const Lex_ident_sys_st &type);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;

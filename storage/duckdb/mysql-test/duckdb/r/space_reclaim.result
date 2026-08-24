@@ -1,0 +1,46 @@
+#
+# DuckDB space reclaim test
+#
+# Verifies that DROP TABLE + FORCE CHECKPOINT frees DuckDB storage
+# blocks, i.e. the disk-cleanup path reclaims used_blocks.
+#
+# Uses 4 SHA2 columns (incompressible data) over 5000 rows so several
+# 256 KB blocks are allocated (~1.3 MB), keeping the test fast.
+#
+#
+# 1) Create a table and insert incompressible data to allocate blocks
+#
+CREATE DATABASE IF NOT EXISTS db_reclaim;
+USE db_reclaim;
+CREATE TABLE t_big (
+id INT PRIMARY KEY,
+c1 VARCHAR(200),
+c2 VARCHAR(200),
+c3 VARCHAR(200),
+c4 VARCHAR(200)
+) ENGINE = DuckDB;
+SELECT COUNT(*) AS row_count FROM t_big;
+row_count
+5000
+#
+# 2) Force checkpoint to flush the WAL into the main database file
+#    so the data blocks are actually allocated on disk.
+#
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+#
+# 3) Record used_blocks after the initial load.
+#
+#
+# 4) Drop the only table and checkpoint again so its blocks are freed.
+#
+DROP TABLE t_big;
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+#
+# 5) Verify the disk-cleanup path actually reclaimed the blocks.
+#
+PASS: DROP TABLE + FORCE CHECKPOINT reclaimed at least half of used blocks
+#
+# 6) Cleanup
+#
+USE test;
+DROP DATABASE db_reclaim;

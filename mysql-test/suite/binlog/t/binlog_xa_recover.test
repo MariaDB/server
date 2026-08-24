@@ -118,10 +118,10 @@ PURGE BINARY LOGS TO "master-bin.000006";
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait-binlog_xa_recover.test
 EOF
---error 0,2006,2013
+--error 0,2006,2013,2026
 SET DEBUG_SYNC= "now SIGNAL con4_cont";
 connection con4;
---error 2006,2013
+--error 2006,2013,2026
 reap;
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -210,7 +210,7 @@ connection default;
 wait-binlog_xa_recover.test
 EOF
 SET SESSION debug_dbug="+d,crash_commit_after_log";
---error 2006,2013
+--error 2006,2013,2026
 INSERT INTO t1 VALUES (14, NULL);
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -254,7 +254,7 @@ INSERT INTO t1 VALUES (23, REPEAT("x", 4100));
 wait-binlog_xa_recover.test
 EOF
 SET SESSION debug_dbug="+d,crash_before_write_checkpoint_event";
---error 2006,2013
+--error 2006,2013,2026
 INSERT INTO t1 VALUES (24, REPEAT("x", 4100));
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

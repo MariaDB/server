@@ -51,6 +51,30 @@ SET(_DUCKDB_STATIC_LIBS
 MESSAGE(STATUS "=== Building DuckDB from submodule (${DUCKDB_SUBMODULE_DIR}) ===")
 ADD_SUBMODULE(third_parties/duckdb)
 
+# Upstream sets DUCKDB_EXTENSION_JEMALLOC_LINKED via add_extension_definitions(),
+# which runs in extension/ but NOT in src/, so allocator.cpp (in duckdb_static)
+# compiles the glibc malloc() path even though libjemalloc_extension.a is linked.
+# Define it globally + add the jemalloc header dir so the USE_JEMALLOC branch is active.
+SET(_DUCKDB_EXTRA_CXX_FLAGS "-DDUCKDB_EXTENSION_JEMALLOC_LINKED=1 -I${DUCKDB_SUBMODULE_DIR}/extension/jemalloc/include")
+# GCC 16+ warns about DuckDB classes in SFINAE contexts (upstream issue, not ours).
+# Silence it for DuckDB's own ExternalProject build too.
+MY_CHECK_CXX_COMPILER_FLAG("-Wsfinae-incomplete")
+IF(have_CXX__Wsfinae_incomplete)
+  STRING(APPEND _DUCKDB_EXTRA_CXX_FLAGS " -Wno-sfinae-incomplete")
+ENDIF()
+
+IF(WITH_ASAN)
+  SET(ADDRESS_SANITIZER TRUE)
+ELSE()
+  SET(ADDRESS_SANITIZER FALSE)
+ENDIF()
+
+IF(WITH_UBSAN)
+  SET(UB_SANITIZER TRUE)
+ELSE()
+  SET(UB_SANITIZER FALSE)
+ENDIF()
+
 ExternalProject_Add(duckdb_build
   PREFIX          "${_DUCKDB_BUILD_DIR}"
   SOURCE_DIR      "${DUCKDB_SUBMODULE_DIR}"
@@ -68,9 +92,10 @@ ExternalProject_Add(duckdb_build
     -DBUILD_TPCE=OFF
     -DEXTENSION_STATIC_BUILD=1
     "-DDUCKDB_EXTENSION_CONFIGS=${CMAKE_CURRENT_SOURCE_DIR}/cmake/duckdb_extensions.cmake"
-    -DENABLE_SANITIZER=FALSE
-    -DENABLE_UBSAN=OFF
-    -DOVERRIDE_GIT_DESCRIBE=v1.5.2-0-g0000000000
+    "-DCMAKE_CXX_FLAGS=${_DUCKDB_EXTRA_CXX_FLAGS}"
+    -DENABLE_SANITIZER=${ADDRESS_SANITIZER}
+    -DENABLE_UBSAN=${UB_SANITIZER}
+    -DOVERRIDE_GIT_DESCRIBE=v1.5.4-0-g0000000000
   INSTALL_COMMAND  ""
   BUILD_BYPRODUCTS ${_DUCKDB_STATIC_LIBS}
   USES_TERMINAL_BUILD ON

@@ -555,6 +555,16 @@ void Item::print_value(String *str)
   {
     switch (cmp_type()) {
     case STRING_RESULT:
+      if (ptr->charset() == &my_charset_bin && ptr->length())
+      {
+        StringBuffer<64> escaped_val;
+        escaped_val.set_hex(ptr->ptr(), ptr->length());
+        str->append(STRING_WITH_LEN("0x"));
+        str->append(escaped_val);
+      }
+      else
+        append_unescaped(str, ptr->ptr(), ptr->length());
+      break;
     case TIME_RESULT:
       append_unescaped(str, ptr->ptr(), ptr->length());
       break;
@@ -3383,6 +3393,22 @@ void Item_field::set_field(Field *field_par)
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
       field->table->s->tmp_table == INTERNAL_TMP_TABLE)
     set_refers_to_temp_table();
+
+  if (field_par->table->record[1])
+  {
+    field->ptr_old= field_par->table->record[1] +
+                  field_par->offset(field->table->record[0]);
+    if (field_par->null_ptr)
+    {
+      field->null_ptr_old= field_par->table->record[1] +
+                           (field_par->null_ptr -
+                            field_par->table->record[0]);
+    }
+    else
+    {
+      field->null_ptr_old= nullptr;
+    }
+  }
 }
 
 
@@ -6094,6 +6120,48 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   return TRUE;
 }
 
+/**
+  @brief  check to see if we need to wrap this in an Item_outer_ref
+
+  @description
+    If an outer field is resolved in a grouping select then it
+    is replaced for an Item_outer_ref object. Otherwise an
+    Item_field object is used.
+    The new Item_outer_ref object is saved in the inner_refs_list of
+    the outer select. Here it is only created. It can be fixed only
+    after the original field has been fixed and this is done in the
+    fix_inner_refs() function.
+    Called only from Item_field::fix_outer_field, where *reference type
+    will be applicable.
+  @returns
+    false  normal execution
+    true   error
+*/
+static inline bool inner_refs_check(THD *thd,
+                             Name_resolution_context *last_checked_context,
+                             Name_resolution_context *context,
+                             SELECT_LEX *select,
+                             enum_parsing_place place,
+                             Item **reference)
+{
+  Item::Type ref_type= (*reference)->type();
+  if (!last_checked_context->select_lex->having_fix_field &&
+      select->group_list.elements &&
+      (place == SELECT_LIST || place == IN_HAVING))
+  {
+    DBUG_ASSERT(ref_type == Item::REF_ITEM || ref_type == Item::FIELD_ITEM);
+    Item_outer_ref *rf;
+    if (!(rf= new (thd->mem_root)
+                  Item_outer_ref(thd, context,(Item_ident*) (*reference))))
+      return true;
+    thd->change_item_tree(reference, rf);
+    if (select->inner_refs_list.push_back(rf, thd->mem_root))
+      return true;
+    rf->in_sum_func= thd->lex->in_sum_func;
+  }
+  return false;
+}
+
 
 /**
   Resolve the name of an outer select column reference.
@@ -6240,7 +6308,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (select->join)
           {
             marker= select->cur_pos_in_select_list;
-            select->join->non_agg_fields.push_back(this, thd->mem_root);
+            if (!thd->lex->in_sum_func)
+              select->join->non_agg_fields.push_back(this, thd->mem_root);
           }
           else
           {
@@ -6264,27 +6333,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             prev_subselect_item->const_item_cache= 0;
           }
           set_field(*from_field);
-          if (!last_checked_context->select_lex->having_fix_field &&
-              select->group_list.elements &&
-              (place == SELECT_LIST || place == IN_HAVING))
-          {
-            Item_outer_ref *rf;
-            /*
-              If an outer field is resolved in a grouping select then it
-              is replaced for an Item_outer_ref object. Otherwise an
-              Item_field object is used.
-              The new Item_outer_ref object is saved in the inner_refs_list of
-              the outer select. Here it is only created. It can be fixed only
-              after the original field has been fixed and this is done in the
-              fix_inner_refs() function.
-            */
-            ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
-              return -1;
-            thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
-          }
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
           /*
             A reference is resolved to a nest level that's outer or the same as
             the nest level of the enclosing set function : adjust the value of
@@ -6318,6 +6369,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
+
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
+
           if (thd->lex->in_sum_func &&
               last_checked_context->select_lex->parent_lex ==
               context->select_lex->parent_lex &&
@@ -6627,6 +6683,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
             if (unlikely(new_field == NULL))
             {
+              /* Not known if this can happen. Test coverage is missing */
+              DBUG_ASSERT(new_field);
               /* The column to which we link isn't valid. */
               my_error(ER_BAD_FIELD_ERROR, MYF(0), (*res)->name.str,
                        thd_where(thd));
@@ -7230,6 +7288,14 @@ void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
     tmp_field->db_name= db_name;
 }
 
+void Item_old_field::make_send_field(THD *thd, Send_field *tmp_field)
+{
+  if (field)
+    Item_field::make_send_field(thd, tmp_field);
+  else
+    expr->make_send_field(thd, tmp_field);
+}
+
 
 /**
   Save a field value in another field
@@ -7374,6 +7440,32 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 
   field->set_notnull();
   int error= field->store(result->ptr(),result->length(),cs);
+  str_value.set_buffer_if_not_allocated(0, 0, cs);
+  return error;
+}
+
+
+/*
+  Store a hex/bit hybrid value into a field, like the bare 0xHHHH / b'..'
+  literal does (see Item_hex_hybrid::save_in_field): Field::store_hex_hybrid()
+  stores the integer value into a numeric field and the raw bytes into a string
+  field. Used for COALESCE/IF/CASE/... results that stay a hex hybrid.
+*/
+int Item::save_hex_hybrid_in_field(Field *field, bool no_conversions)
+{
+  String *result;
+  CHARSET_INFO *cs= collation.collation;
+  char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
+  str_value.set_buffer_if_not_allocated(buff, sizeof(buff), cs);
+  result= val_str(&str_value);
+  if (null_value)
+  {
+    str_value.set_buffer_if_not_allocated(0, 0, cs);
+    return set_field_to_null_with_conversions(field, no_conversions);
+  }
+
+  field->set_notnull();
+  int error= field->store_hex_hybrid(result->ptr(), result->length());
   str_value.set_buffer_if_not_allocated(0, 0, cs);
   return error;
 }
@@ -7781,22 +7873,6 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 }
 
 
-decimal_digits_t Item_hex_hybrid::decimal_precision() const
-{
-  switch (max_length) {// HEX                                 DEC
-  case 0:              // ----                                ---
-  case 1: return 3;    // 0xFF                                255
-  case 2: return 5;    // 0xFFFF                            65535
-  case 3: return 8;    // 0xFFFFFF                       16777215
-  case 4: return 10;   // 0xFFFFFFFF                   4294967295
-  case 5: return 13;   // 0xFFFFFFFFFF              1099511627775
-  case 6: return 15;   // 0xFFFFFFFFFFFF          281474976710655
-  case 7: return 17;   // 0xFFFFFFFFFFFFFF      72057594037927935
-  }
-  return 20;           // 0xFFFFFFFFFFFFFFFF 18446744073709551615
-}
-
-
 void Item_hex_string::print(String *str, enum_query_type query_type)
 {
   str->append("X'",2);
@@ -8055,55 +8131,27 @@ bool Item_field::send(Protocol *protocol, st_value *buffer)
 
 bool Item_old_field::send(Protocol *protocol, st_value *buffer)
 {
-  bool result;
-
-  change_field_ptr();
-  result= Item_field::send(protocol, buffer);
-  change_field_ptr();
+  bool result= false;
+  if (field)
+  {
+    (void) change_field_ptr(0);
+    result= Item_field::send(protocol, buffer);
+    (void) change_field_ptr(0);
+  }
+  else
+  {
+    expr->walk(&Item::change_field_ptr, 0, 0);
+    result= expr->send(protocol, buffer);
+    expr->walk(&Item::change_field_ptr, 0, 0);
+  }
 
   return result;
 }
 
-void Item_old_field::change_field_ptr()
+bool Item_field::change_field_ptr(void *arg)
 {
   std::swap(field->ptr_old, field->ptr);
   std::swap(field->null_ptr, field->null_ptr_old);
-}
-
-
-bool Item_old_field::fix_fields(THD *thd, Item **reference)
-{
-  if (Item_field::fix_fields(thd, reference))
-    return true;
-  /*
-    Store the pointer to where old values are store before update.
-  */
-  if (field)
-  {
-    field->ptr_old= field->table->record[1] +
-                  field->offset(field->table->record[0]);
-    if (field->null_ptr)
-    {
-      field->null_ptr_old =
-        field->table->record[1] +
-        (field->null_ptr - field->table->record[0]);
-    }
-    else
-    {
-      field->null_ptr_old = nullptr;
-    }
-  }
-  else
-  {
-    /*
-      Field is NULL in case of view. But we need the information to field
-      to return its old value. Hence get the field from the reference item
-      and proceed.
-    */
-    field= ((Item_old_field*)((*reference)->real_item()))->field;
-    field->ptr_old= field->table->record[1] + field->offset(field->table->record[0]);
-  }
-
   return false;
 }
 

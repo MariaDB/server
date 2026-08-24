@@ -55,7 +55,7 @@ extern "C" {
   Maximum character length of a string produced by wc_to_printable().
   Note, wc_to_printable() is currently limited to BMP.
   One non-printable or non-convertable character can produce a string
-  with at most 5 characters: \hhhh.
+  with at most 5 characters: \\hhhh.
   If we ever modify wc_to_printable() to support supplementary characters,
   e.g. \+hhhhhh, this constant should be changed to 8.
   Note, maximum octet length of a wc_to_printable() result can be calculated
@@ -1669,8 +1669,8 @@ extern void my_hasher_hash_num(struct my_hasher_st *hasher,
 /**
   Compare a string to an array of spaces, for PAD SPACE comparison.
   The function iterates through the string and compares every byte to 0x20.
-  @param       - the string
-  @param       - its length
+  @param str      - the string
+  @param length   - its length
   @return <0   - if a byte less than 0x20 was found in the string.
   @return  0   - if all bytes in the string were 0x20, or if length was 0.
   @return >0   - if a byte greater than 0x20 was found in the string.
@@ -2076,8 +2076,29 @@ public:
 
 #endif /* __cplusplus */
 
-
 #ifdef	__cplusplus
+}
+#endif
+
+#ifdef  __cplusplus
+extern "C++" {
+template<typename T> inline char *str2int(const char *s, size_t l, int base, T *val)
+{
+  char *end= const_cast<char*>(s) + l;
+  int err;
+  longlong v= my_strntoll_8bit(&my_charset_latin1, s, l, base, &end, &err);
+  if (!err && static_cast<longlong>(*val= static_cast<T>(v)) != v)
+    err= EDOM;
+  return (errno= err) ? NULL : end;
+}
+
+template<> inline char *str2int<ulonglong>(const char *s, size_t l, int base, ulonglong *val)
+{
+  char *end= const_cast<char*>(s) + l;
+  int err;
+  *val= my_strntoull_8bit(&my_charset_latin1, s, l, base, &end, &err);
+  return (errno= err) ? NULL : end;
+}
 }
 #endif
 

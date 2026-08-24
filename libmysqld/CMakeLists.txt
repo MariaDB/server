@@ -95,7 +95,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
            ../sql/sql_oracle_outer_join.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
-           ../sql/sql_partition.cc ../sql/sql_plugin.cc 
+           ../sql/sql_partition.cc ../sql/sql_partition_auto_interval.cc
+           ../sql/sql_plugin.cc
            ../sql/debug_sync.cc ../sql/debug.cc
            ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
@@ -164,8 +165,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_hints_parser.cc ../sql/opt_hints_parser.h
            ../sql/scan_char.h
            ../sql/opt_hints.cc ../sql/opt_hints.h
-	   ../sql/opt_trace_ddl_info.cc ../sql/opt_trace_ddl_info.h
+           ../sql/opt_context_store_replay.cc ../sql/opt_context_store_replay.h
            ../sql/sql_path.cc
+           ../sql/sql_json_lib.cc ../sql/sql_json_lib.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

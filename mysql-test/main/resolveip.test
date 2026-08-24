@@ -1,0 +1,57 @@
+--source include/not_windows.inc
+
+# Deterministic cases only, so this file never skips.  Lookups that depend on
+# the resolver are in resolveip_lookup.test.
+# No pipes to sed here: a pipe hides resolveip's exit status, which mysqltest
+# checks (no --error means "must exit 0", --error 2 also fails on exit 0).
+
+--echo #
+--echo # MDEV-39169: resolveip IPv6 support
+--echo #
+
+--echo #
+--echo # Special addresses
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255
+--exec $MYSQL_RESOLVEIP 0.0.0.0
+--exec $MYSQL_RESOLVEIP ::
+--exec $MYSQL_RESOLVEIP 0000:0000:0000:0000:0000:0000:0000:0000
+--exec $MYSQL_RESOLVEIP -s 255.255.255.255
+--exec $MYSQL_RESOLVEIP -s ::
+
+--echo #
+--echo # Several addresses in one call, mixed address families
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255 0.0.0.0
+--exec $MYSQL_RESOLVEIP 255.255.255.255 ::
+
+--echo #
+--echo # Address without a host name is reverse-resolved, not treated as a
+--echo # host name ("hostname" in the error, not "hostid")
+--echo #
+# 192.0.2.1 is TEST-NET-1 (RFC 5737): resolvable nowhere, on any OS.
+--replace_result $MYSQL_RESOLVEIP resolveip
+--error 2
+--exec $MYSQL_RESOLVEIP 192.0.2.1 2>&1
+--replace_result $MYSQL_RESOLVEIP resolveip
+--error 2
+--exec $MYSQL_RESOLVEIP ::ffff:192.0.2.1 2>&1
+
+--echo #
+--echo # Unresolvable host name (.invalid never resolves, RFC 6761)
+--echo #
+# Only the resolver's wording after ':' differs between systems.
+--replace_regex /(hostid for 'nonexistent.invalid': )[^\n]*/\1NAME_RESOLUTION_ERROR/
+--replace_result $MYSQL_RESOLVEIP resolveip
+--error 2
+--exec $MYSQL_RESOLVEIP nonexistent.invalid 2>&1
+
+--echo #
+--echo # Unresolvable host name after a valid address
+--echo #
+--replace_regex /(hostid for 'nonexistent.invalid': )[^\n]*/\1NAME_RESOLUTION_ERROR/
+--replace_result $MYSQL_RESOLVEIP resolveip
+--error 2
+--exec $MYSQL_RESOLVEIP 255.255.255.255 nonexistent.invalid 2>&1
+
+--echo # End of 13.2 tests

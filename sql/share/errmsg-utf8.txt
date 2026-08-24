@@ -6928,12 +6928,12 @@ ER_LOAD_FROM_FIXED_SIZE_ROWS_TO_VAR
         spa "No puedo cargar valor desde fichero/archivo con filas de tamaño fijo en variable"
         sw "Haiwezi kupakia thamani kutoka kwa faili iliyo na safu za saizi maalum hadi kutofautisha"
 ER_CANT_CREATE_USER_WITH_GRANT 42000
-        chi "您不允许使用创建用户时给予GRANT"
-        eng "You are not allowed to create a user with GRANT"
-        ger "Sie dürfen keinen Benutzer mit GRANT anlegen"
-        geo "GRANT-ით მომხმარებლის შექმნის უფლება არ გაქვთ"
-        spa "No está autorizado a crear un usuario con GRANT"
-        sw "Hauruhusiwi kuunda mtumiaji na GRANT"
+        chi "您不允许使用创建用户时给予%s"
+        eng "You are not allowed to create a user with %s"
+        ger "Sie dürfen keinen Benutzer mit %s anlegen"
+        geo "%s-ით მომხმარებლის შექმნის უფლება არ გაქვთ"
+        spa "No está autorizado a crear un usuario con %s"
+        sw "Hauruhusiwi kuunda mtumiaji na %s"
 ER_WRONG_VALUE_FOR_TYPE  
         chi "不正确的%-.32s值：'%-.128sT' 函数：%-.32s"
         eng "Incorrect %-.32s value: '%-.128sT' for function %-.32s"
@@ -12135,9 +12135,9 @@ ER_TOO_LONG_DATABASE_COMMENT
         spa "El comentario para la base de datos '%-.64s' es demasiado largo (máx = %u)"
         sw "Maoni kwa hifadhidata '%-.64s' ni ndefu sana (max = %u)"
 ER_UNKNOWN_DATA_TYPE
-        eng "Unknown data type: '%-.64s'"
-        spa "Tipo de datos desconocido: '%-.64s'"
-        sw "Aina ya data isiyojulikana: '%-.64s'"
+        eng "Unknown data type: '%-.384s'"
+        spa "Tipo de datos desconocido: '%-.384s'"
+        sw "Aina ya data isiyojulikana: '%-.384s'"
 ER_UNKNOWN_OPERATOR
         eng "Operator does not exist: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
@@ -12406,3 +12406,15 @@ ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
         eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."
+ER_PARTITION_INTERVAL_NOT_LIST
+        eng "LIST partition type does not support INTERVAL"
+ER_PARTITION_INTERVAL_FINER_THAN_DATE
+        eng "RANGE COLUMN partition by a DATE with INTERVAL smaller than date"
+ER_PARTITION_INTERVAL_MAXVALUE
+        eng "MAXVALUE is not allowed in range partitioning with interval"
+ER_RANGE_INTERVAL_PART_FAILED
+        eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
+        eng "Failed to parse saved optimizer context: %s at offset %d."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"

@@ -988,7 +988,7 @@ protected:
     return rc;
   }
 public:
-    bool is_old_value_reference;
+  bool is_old_value_reference;
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
     expressions with subqueries in the ORDER/GROUP clauses.
@@ -1083,7 +1083,7 @@ public:
   { return (bool) (with_flags & item_with_t::SUM_FUNC); }
   inline bool with_subquery() const
   { return (bool) (with_flags & item_with_t::SUBQUERY); }
-  inline bool with_rownum_func() const
+  virtual inline bool with_rownum_func() const
   { return (bool) (with_flags & item_with_t::ROWNUM_FUNC); }
   inline bool with_param() const
   { return (bool) (with_flags & item_with_t::PARAM); }
@@ -1125,12 +1125,12 @@ public:
     name.length= 0;
 #endif
   }		/*lint -e1509 */
-  void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
-  void set_name(THD *thd, String *str)
+  virtual void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
+  virtual void set_name(THD *thd, String *str)
   {
     set_name(thd, str->ptr(), str->length(), str->charset());
   }
-  void set_name(THD *thd, const LEX_CSTRING &str,
+  virtual void set_name(THD *thd, const LEX_CSTRING &str,
                 CHARSET_INFO *cs= Lex_ident_column::charset_info())
   {
     set_name(thd, str.str, str.length, cs);
@@ -1795,6 +1795,7 @@ public:
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
   int save_str_in_field(Field *field, bool no_conversions);
+  int save_hex_hybrid_in_field(Field *field, bool no_conversions);
   int save_real_in_field(Field *field, bool no_conversions);
   int save_int_in_field(Field *field, bool no_conversions);
   int save_bool_in_field(Field *field, bool no_conversions);
@@ -2289,6 +2290,7 @@ public:
   // FIXME reduce the number of "add field to bitmap" processors
   virtual bool add_field_to_set_processor(void *arg) { return 0; }
   virtual bool register_field_in_read_map(void *arg) { return 0; }
+  virtual bool change_field_ptr(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
@@ -2877,9 +2879,9 @@ protected:
 MEM_ROOT *get_thd_memroot(THD *thd);
 
 template <class T>
-inline Item* get_item_copy (THD *thd, const T* item)
+inline T* get_item_copy (THD *thd, const T* item)
 {
-  Item *copy= new (get_thd_memroot(thd)) T(*item);
+  T *copy= new (get_thd_memroot(thd)) T(*item);
   if (likely(copy))
     copy->register_in(thd);
   return copy;
@@ -3602,6 +3604,10 @@ public:
   {
     return value_item->type_handler();
   }
+  decimal_digits_t decimal_precision() const override
+  {
+    return value_item->decimal_precision();
+  }
 
   bool const_item() const override { return true; }
 
@@ -3768,6 +3774,7 @@ public:
              const LEX_CSTRING &db_name_arg, const LEX_CSTRING &table_name_arg,
              const LEX_CSTRING &field_name_arg);
   Item_ident(THD *thd, Item_ident *item);
+  Item_ident(THD *thd):Item_result_field(thd) {}
   Item_ident(THD *thd, TABLE_LIST *view_arg, const LEX_CSTRING &field_name_arg);
   LEX_CSTRING full_name_cstring() const override;
   void cleanup() override;
@@ -3796,7 +3803,7 @@ class Item_field :public Item_ident,
                   public Load_data_outvar
 {
 protected:
-  void set_field(Field *field);
+  virtual void set_field(Field *field);
 public:
   Field *field;
   Item_equal *item_equal;
@@ -3831,6 +3838,9 @@ public:
              const LEX_CSTRING &field_name_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
   {}
+  Item_field(THD *thd):Item_ident(thd), field(0), item_equal(0),
+                                        have_privileges(NO_ACL),
+                                        any_privileges(0) {}
   Item_field(THD *thd, Name_resolution_context *context_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, null_clex_str)
   {}
@@ -4054,6 +4064,7 @@ public:
   { return field->max_display_length(); }
   Item_field *field_for_view_update() override { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
+  bool change_field_ptr(void *arg) override;
   Item *update_value_transformer(THD *thd, uchar *select_arg) override;
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override;
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override;
@@ -4095,34 +4106,80 @@ public:
                  Name_resolution_context *context_arg,
                  const LEX_CSTRING &db_arg,
                  const LEX_CSTRING &table_name_arg,
-                 const LEX_CSTRING &field_name_arg)
+                 const LEX_CSTRING &field_name_arg, Item *item=nullptr)
     : Item_field(thd, context_arg, db_arg, table_name_arg, field_name_arg)
-  { is_old_value_reference= true; }
+  { is_old_value_reference= true; expr= item;}
 
   Item_old_field(THD *thd,
                  Name_resolution_context *context_arg,
-                 const LEX_CSTRING &field_name_arg)
+                 const LEX_CSTRING &field_name_arg,
+                  Item *item=nullptr)
     : Item_field(thd, context_arg, field_name_arg)
-  { is_old_value_reference= true; }
+  { is_old_value_reference= true; expr= item;}
 
-  Item_old_field(THD *thd, Item_field *item)
+  Item_old_field(THD *thd, Item* item= nullptr):Item_field(thd)
+  { expr= item; is_old_value_reference= true; }
+
+  Item_old_field(THD *thd, Item_field *item, Item *item_expr=nullptr)
     : Item_field(thd, item)
-  { is_old_value_reference= true; }
+  { is_old_value_reference= true; expr= item_expr;}
 
   Item_old_field(THD *thd,
                  Name_resolution_context *context_arg,
-                 Field *field)
+                 Field *field=nullptr, Item *item=nullptr)
     : Item_field(thd, context_arg, field)
-  { is_old_value_reference= true; }
+  { is_old_value_reference= true; expr= item; }
 
-  Item_old_field(THD *thd, Field *field)
+  Item_old_field(THD *thd, Field *field= nullptr, Item *item=nullptr)
     : Item_field(thd, field)
-  { is_old_value_reference= true; }
+  { is_old_value_reference= true; expr= item; }
 
   bool send(Protocol *protocol, st_value *buffer) override;
   Type type() const override { return FIELD_OLD_ITEM; }
-  bool fix_fields(THD *, Item **) override;
-  void change_field_ptr();
+  void make_send_field(THD *thd, Send_field *tmp_field) override;
+  const Type_handler *type_handler() const override
+  {
+    const Type_handler *handler= field ? field->type_handler() : expr->type_handler();
+    return handler->type_handler_for_item_field();
+  }
+  table_map used_tables() const override
+  {
+    return (expr ? expr->used_tables() :
+                    Item_field::used_tables());
+  }
+  bool with_rownum_func() const override
+  {
+    return (expr ? expr->with_rownum_func() :
+                   Item_field::with_rownum_func());
+  }
+  bool walk(Item_processor processor, void *arg,
+                    item_walk_flags flags) override
+  {
+    return (expr ? expr->walk(processor, arg, flags) :
+                   Item_field::walk(processor, arg, flags));
+  }
+  void set_name(THD *thd, const char *str,
+                size_t length, CHARSET_INFO *cs) override
+  {
+     return (expr ? expr->set_name(thd, str, length, cs) :
+                    Item_field::set_name(thd, str, length, cs));
+  }
+  void set_name(THD *thd, const LEX_CSTRING &str,
+                CHARSET_INFO *cs=
+                     Lex_ident_column::charset_info()) override
+  {
+    return expr ? expr->set_name(thd, str.str, str.length, cs) :
+                  Item_field::set_name(thd, str.str, str.length, cs);
+  }
+  void set_name(THD *thd, String *str) override
+  {
+    return (expr ? expr->set_name(thd, str->ptr(),
+                                  str->length(), str->charset()) :
+           Item_field::set_name(thd, str->ptr(),
+                                str->length(), str->charset()));
+  }
+
+  Item *expr;
 
 private:
   uchar *saved_row_ref;
@@ -4868,10 +4925,10 @@ class Item_bool :public Item_int
 {
 public:
   Item_bool(THD *thd, const char *str_arg, longlong i):
-    Item_int(thd, str_arg, i, 1) {}
-  Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
+    Item_int(thd, str_arg, i, 5) {}
+  Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 5) { }
   Item_bool(const char *str_arg, longlong i):
-    Item_int(str_arg, i, 1) {}
+    Item_int(str_arg, i, 5) {}
   bool is_bool_literal() const override { return true; }
   Item *neg_transformer(THD *thd) override;
   const Type_handler *type_handler() const override
@@ -5435,7 +5492,6 @@ public:
     Item_hex_constant(thd, str, str_length) {}
   const Type_handler *type_handler() const override
   { return &type_handler_hex_hybrid; }
-  decimal_digits_t decimal_precision() const override;
   bool val_bool() override
   {
     return longlong_from_hex_hybrid(str_value.ptr(), str_value.length()) != 0;
@@ -6940,7 +6996,7 @@ public:
   bool found_in_select_list;
   bool found_in_group_by;
   Item_outer_ref(THD *thd, Name_resolution_context *context_arg,
-                 Item_field *outer_field_arg):
+                 Item_ident *outer_field_arg):
     Item_direct_ref(thd, context_arg, 0, outer_field_arg->table_name,
                     outer_field_arg->field_name),
     outer_ref(outer_field_arg), in_sum_func(0),
@@ -7550,8 +7606,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   {
-    Item_default_value *new_item=
-      (Item_default_value *) get_item_copy<Item_default_value>(thd, this);
+    Item_default_value *new_item= get_item_copy<Item_default_value>(thd, this);
     // This is a copy so do not manage the field and should not delete it
     new_item->m_share_field= 1;
     return new_item;

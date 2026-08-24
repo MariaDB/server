@@ -3,6 +3,7 @@
 
 --source include/default_optimizer_switch.inc
 
+--disable_replay testfile Don't support SPs.
 --disable_ps2_protocol
 
 flush status;

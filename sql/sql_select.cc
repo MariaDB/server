@@ -46,6 +46,7 @@
 #include "filesort_utils.h"      // get_qsort_sort_cost
 #include "sql_union.h"           // mysql_union
 #include "opt_subselect.h"
+#include "opt_context_store_replay.h"
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
@@ -8383,7 +8384,7 @@ inline double use_found_constraint(double records)
   WHERE_COST cost is not added to any result.
 */
 
-static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
+static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
                                          uint key, ha_rows records,
                                          bool eq_ref)
 {
@@ -8396,7 +8397,13 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
   set_if_bigger(records, 1);
 
-  if (file->is_clustering_key(key))
+  if (thd->opt_ctx_replay && 
+      !thd->opt_ctx_replay->infuse_cost_for_index_read(table, key, records,
+                                                       eq_ref, &cost))
+  {
+    /* Ok, Optimizer_context_replay has provided the cost numbers */
+  }
+  else if (file->is_clustering_key(key))
   {
     cost.index_cost=
       file->ha_keyread_clustered_time(key, 1, records+extra_reads, 0);
@@ -8423,6 +8430,11 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
     cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
     cost.max_row_blocks=   MY_MIN(file->row_blocks(), max_seeks);
     cost.copy_cost= 0;
+  }
+
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
+  {
+    recorder->record_cost_for_index_read(table, key, records, eq_ref, &cost);
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
                             file->cost(cost.index_cost),
@@ -22177,7 +22189,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
-                        &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &m_bitmaps, bitmap_buffer_size(field_count)*5,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {
@@ -23092,7 +23104,7 @@ bool Virtual_tmp_table::init(uint field_count)
                         &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count + 1) * sizeof(uint),
-                        &bitmaps, bitmap_buffer_size(field_count) * 6,
+                        &bitmaps, bitmap_buffer_size(field_count) * 5,
                         NullS))
     DBUG_RETURN(true);
   s->reset();
@@ -25258,7 +25270,6 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   DBUG_RETURN(0);
 }
 
-
 /**
   Read a constant table when there is at most one matching row, using a table
   scan.
@@ -25276,9 +25287,23 @@ join_read_system(JOIN_TAB *tab)
   int error;
   if (table->status & STATUS_GARBAGE)		// If first read
   {
-    if (unlikely((error=
-                  table->file->ha_read_first_row(table->record[0],
-                                                 table->s->primary_key))))
+    /* Prepare to capture the constant row for the Optimizer Context */
+    Opt_ctx_recorder_state state;
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      rec->prepare_captured_row_read(table, &state);
+
+    error= table->file->ha_read_first_row(table->record[0],
+                                          table->s->primary_key);
+
+    /* Capture the constant row for the Optimizer Context. */
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+    {
+      if (!error)
+        rec->record_current_table_row(table);
+      rec->finish_captured_row_read(&state);
+    }
+
+    if (unlikely(error))
     {
       if (error != HA_ERR_END_OF_FILE)
 	return report_error(table, error);
@@ -25287,7 +25312,8 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
-    store_record(table,record[1]);
+
+    store_record(table, record[1]);     // cache the row the optimizer used
   }
   else if (!table->status)			// Only happens with left join
     restore_record(table,record[1]);			// restore old record
@@ -25326,11 +25352,25 @@ join_read_const(JOIN_TAB *tab)
         /* This is probably needed for analyze table */
         tab->index= tab->ref.key;
       }
+
+      /* Prepare to capture the constant row for the Optimizer Context */
+      Opt_ctx_recorder_state state;
+      if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+        rec->prepare_captured_row_read(table, &state);
+
       error= file->
         ha_index_read_idx_map(table->record[0],tab->ref.key,
                               (uchar*) tab->ref.key_buff,
                               make_prev_keypart_map(tab->ref.key_parts),
                               HA_READ_KEY_EXACT);
+
+      /* Capture the constant row for the Optimizer Context */
+      if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      {
+        if (!error)
+          rec->record_current_table_row(table);
+        rec->finish_captured_row_read(&state);
+      }
       file->ha_end_keyread();
     }
     if (unlikely(error))
@@ -25342,7 +25382,7 @@ join_read_const(JOIN_TAB *tab)
 	return report_error(table, error);
       return -1;
     }
-    store_record(table,record[1]);
+    store_record(table, record[1]);      // cache the row the optimizer used
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
   {
@@ -25738,6 +25778,7 @@ int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
 int join_init_read_record(JOIN_TAB *tab)
 {
   bool need_unpacking= FALSE;
+  /* TODO: s/tab->join/join/g in this function */
   JOIN *join= tab->join;
   /* 
     Note: the query plan tree for the below operations is constructed in
@@ -25787,7 +25828,11 @@ int join_init_read_record(JOIN_TAB *tab)
   */
   save_copy=     tab->read_record.copy_field;
   save_copy_end= tab->read_record.copy_field_end;
-  
+
+  init_table_full_scan_if_needed(tab->table,
+                                 tab->select ? tab->select->cond : NULL,
+                                 join->unit->lim.get_select_limit());
+
   /*
     JT_NEXT means that we should use an index scan on index 'tab->index'
     However if filesort is set, the table was already sorted above
@@ -25858,6 +25903,9 @@ join_read_first(JOIN_TAB *tab)
               table->file->keyread == tab->index);
   tab->table->status=0;
   tab->read_record.table=table;
+  init_table_full_scan_if_needed(tab->table,
+                                 tab->select ? tab->select->cond : NULL,
+                                 tab->join->unit->lim.get_select_limit());
   if (tab->index >= table->s->keys)
   {
     ORDER *order= tab->full_index_scan_order;
@@ -25923,6 +25971,9 @@ join_read_last(JOIN_TAB *tab)
   tab->table->status=0;
   tab->read_record.read_record_func= join_read_prev;
   tab->read_record.table=table;
+  init_table_full_scan_if_needed(tab->table,
+                                 tab->select ? tab->select->cond : NULL,
+                                 tab->join->unit->lim.get_select_limit());
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, 1);
   if (likely(!error))

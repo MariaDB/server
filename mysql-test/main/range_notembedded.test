@@ -8,6 +8,8 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+--disable_replay testfile Need to preserve optimizer trace
+
 --echo #
 --echo # MDEV-21958: Query having many NOT-IN clauses running forever
 --echo #

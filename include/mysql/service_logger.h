@@ -46,7 +46,7 @@
 
   Finally the log should be closed with logger_close().
 
-@notes:
+@note
   Implementation checks the size of the log file before it starts new
   printf into it. So the size of the file gets over the limit when it rotates.
 

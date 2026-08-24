@@ -523,6 +523,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+    set_statistics_for_table(thd, table);
     ha_rows const maybe_deleted= table->file->stats.records;
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
@@ -815,6 +816,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   if (select && select->quick && select->quick->reset())
     goto got_error;
 
+  init_table_full_scan_if_needed(table, conds, limit);
   if (query_plan.index == MAX_KEY || (select && select->quick))
     error= init_read_record(&info, thd, table, select, file_sort, 1, 1, FALSE);
   else

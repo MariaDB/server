@@ -1,0 +1,117 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+CREATE PACKAGE pkg1 AS
+TYPE inet6_array IS TABLE OF INET6 INDEX BY INTEGER;
+END;
+$$
+# 2-Step + PROCEDURE
+CREATE PROCEDURE p1 AS
+v0 pkg1.inet6_array;
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+$$
+CALL p1;
+v0(0)
+aa::bb
+DROP PROCEDURE p1;
+# 2-Step + PACKAGE + Declarations in package PROCEDURE
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p1 AS
+v0 pkg1.inet6_array;
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+END;
+$$
+CALL pkg2.p1;
+v0(0)
+aa::bb
+DROP PACKAGE pkg2;
+# 2-Step + PACKAGE + Declaration in PACKAGE BODY
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+v0 pkg1.inet6_array;
+PROCEDURE p1 AS
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+END;
+$$
+CALL pkg2.p1;
+v0(0)
+aa::bb
+DROP PACKAGE pkg2;
+# 3-Step + PROCEDURE + Declarations in package PROCEDURE
+CREATE DATABASE test1;
+USE test1;
+CREATE PROCEDURE p1 AS
+v0 test.pkg1.inet6_array;
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+$$
+CALL p1;
+v0(0)
+aa::bb
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+# 3-Step + PACKAGE
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+PROCEDURE p1 AS
+v0 test.pkg1.inet6_array;
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+END;
+$$
+CALL pkg2.p1;
+v0(0)
+aa::bb
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+# 3-Step + PACKAGE + Declaration in PACKAGE BODY
+CREATE DATABASE test1;
+USE test1;
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+v0 test.pkg1.inet6_array;
+PROCEDURE p1 AS
+BEGIN
+v0(0):='AA::BB';
+SELECT v0(0);
+END;
+END;
+$$
+CALL pkg2.p1;
+v0(0)
+aa::bb
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;

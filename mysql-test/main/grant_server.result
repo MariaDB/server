@@ -86,7 +86,7 @@ GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
 connect  con1,localhost,user1,,;
 SHOW CREATE SERVER srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (USER 'remote_user', HOST 'localhost', PASSWORD 'secret', DATABASE 'test2');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `mysql` OPTIONS (USER 'remote_user', HOST 'localhost', PASSWORD 'secret', DATABASE 'test2');
 disconnect con1;
 connection default;
 DROP SERVER srv;

@@ -1,0 +1,84 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+#
+#
+# MDEV-40436 Trigger using a package-defined type is silently lost during mariadb-dump / restore
+#
+CREATE DATABASE db1;
+USE db1;
+CREATE PACKAGE pkg AS
+TYPE rec IS RECORD (a INT, b VARCHAR(20));
+END;
+$$
+CREATE TABLE t1 (id INT, val VARCHAR(20));
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+r pkg.rec;
+BEGIN
+:NEW.val := CONCAT('r-', :NEW.id);
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `pkg`.`rec`
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+r db1.pkg.rec;
+BEGIN
+:NEW.val := CONCAT('r-', :NEW.id);
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `db1`.`pkg`.`rec`
+DROP DATABASE db1;
+USE test;
+CREATE PACKAGE pkg AS
+TYPE rec IS RECORD (a INT);
+END;
+$$
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+TYPE c IS REF CURSOR RETURN pkg.rec;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `pkg`.`rec`
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+TYPE c IS REF CURSOR RETURN test.pkg.rec;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `test`.`pkg`.`rec`
+DROP TABLE t1;
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg AS
+TYPE rec IS RECORD (a INT);
+END;
+$$
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+TYPE c IS TABLE OF pkg.rec INDEX BY int;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `pkg`.`rec`
+CREATE TRIGGER trg BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+TYPE c IS TABLE OF test.pkg.rec INDEX BY int;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect usage of TRIGGER and `test`.`pkg`.`rec`
+DROP TABLE t1;
+DROP PACKAGE pkg;

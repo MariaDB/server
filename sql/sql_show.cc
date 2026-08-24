@@ -1244,9 +1244,9 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       contains any table-specific privilege.
     */
     DBUG_PRINT("debug", ("table_list->grant.privilege: %llx",
-                         (longlong) (table_list->grant.privilege)));
+                         (longlong) (table_list->grant.privilege.allow_bits())));
     if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
-        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == NO_ACL)
+        table_list->grant.privilege.maybe_allowed(SHOW_CREATE_TABLE_ACLS) == NO_ACL)
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
@@ -1449,7 +1449,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   String buffer(buff, sizeof(buff), system_charset_info);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(NO_ACL);
+  access_t db_access(NO_ACL);
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
@@ -1458,12 +1458,15 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
-    db_access=DB_ACLS;
+    db_access= access_t(DB_ACLS);
   else
-    db_access= acl_get_all3(sctx, dbname->str, FALSE) |
-               sctx->master_access;
+  {
+    db_access= acl_get_all3(sctx, dbname->str, FALSE);
+    db_access.merge_with_parent(sctx->master_access);
+  }
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & (DB_ACLS & ~GRANT_ACL)) &&
+      check_grant_db(thd, db_access, dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -1571,7 +1574,7 @@ bool mysql_show_create_server(THD *thd, LEX_CSTRING *name)
   buffer.append(STRING_WITH_LEN("CREATE SERVER "));
   append_identifier(thd, &buffer, name);
   buffer.append(STRING_WITH_LEN(" FOREIGN DATA WRAPPER "));
-  buffer.append(server->scheme, strlen(server->scheme));
+  append_identifier(thd, &buffer, server->scheme, strlen(server->scheme));
   buffer.append(STRING_WITH_LEN(" OPTIONS ("));
   engine_option_value* option= server->option_list;
   bool first= true;
@@ -1807,7 +1810,7 @@ static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
     }
     filename= winfilename;
 #endif
-    packet->append(filename, length);
+    packet->append_for_single_quote(filename, length);
     packet->append('\'');
   }
 }
@@ -1914,7 +1917,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
           def_value->set(STRING_WITH_LEN("''"), system_charset_info);
       }
     }
-    else if (field->maybe_null() && quoted)
+    else if (field->real_maybe_null() && quoted)
       def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
     else
       return 0;
@@ -1992,10 +1995,7 @@ void append_create_options(THD *thd, String *packet, engine_option_value *opt,
     packet->append(' ');
     append_identifier(thd, packet, &opt->name);
     packet->append('=');
-    if (opt->quoted_value)
-      append_unescaped(packet, opt->value.str, opt->value.length);
-    else
-      packet->append(&opt->value);
+    append_unescaped(packet, opt->value.str, opt->value.length, in_comment);
   }
   if (in_comment)
     packet->append(STRING_WITH_LEN(" */"));
@@ -4743,7 +4743,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      const LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
-  build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
+  if (!build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0))
+    return 0;
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
@@ -5430,12 +5431,14 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
     necessary privileges, but the caller didn't pass down the GRANT_INFO
     object, so we have to rediscover everything again :( 
   */
-  if (thd->col_access & need)
+  if (thd->col_access & need & ~GRANT_ACL)
     return thd->col_access & need;
 
-  privilege_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0);
-  if (all3 & need)
-    return all3 & need;
+  access_t dbacc=
+      merge_with_parent(acl_get_all3(thd->security_ctx, tables->db.str, 0),
+                        thd->security_ctx->master_access);
+  if (dbacc & need & ~GRANT_ACL)
+    return dbacc & need;
 
   check_grant(thd, need, tables, 0, 1, true);
   return (on_any_column ? tables->grant.all_privilege()
@@ -5635,9 +5638,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+    access_t acc= acl_get_all3(sctx, db_name->str, 0).
+                   merge_with_parent(sctx->master_access);       
     if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
-        sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+       (acc.maybe_allowed(DB_ACLS | SHOW_DB_ACL)))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
@@ -5655,14 +5659,15 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-        if (!(thd->col_access & TABLE_ACLS))
+        if (!(thd->col_access & (TABLE_ACLS & ~GRANT_ACL)))
         {
           TABLE_LIST table_acl_check;
           table_acl_check.reset();
           table_acl_check.db= Lex_ident_db(*db_name);
           table_acl_check.table_name= Lex_ident_table(*table_name);
           table_acl_check.grant.privilege= thd->col_access;
-          if (check_grant(thd, TABLE_ACLS, &table_acl_check, TRUE, 1, TRUE))
+          if (check_grant(thd, TABLE_ACLS & ~GRANT_ACL, &table_acl_check, TRUE,
+                          1, TRUE))
             continue;
         }
 #endif
@@ -5783,6 +5788,8 @@ static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
   if (!dbname.str[0])
     DBUG_RETURN(true); // Empty database name: does not exist.
   path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  if (!path_len)
+    DBUG_RETURN(true); // invalid name
   path[path_len - 1]= 0;
   if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
     DBUG_RETURN(true); // The database directory was not found: does not exist.
@@ -5835,9 +5842,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, false) ||
-        !check_grant_db(thd, db_name->str))
+    access_t acc= acl_get_all3(sctx, db_name->str, false)
+                            .merge_with_parent(sctx->master_access);
+    if  (acc.maybe_allowed(DB_ACLS | SHOW_DB_ACL) ||
+        !check_grant_db(thd, acc ,db_name->str))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -6565,7 +6573,7 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
   if (is_temporary_table(tables))
   {
-    tables->grant.privilege|= TMP_TABLE_ACLS;
+    tables->grant.privilege.force_allow(TMP_TABLE_ACLS, true);
   }
 #endif
 
@@ -7042,7 +7050,6 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   CHARSET_INFO *cs= system_charset_info;
   LEX_CSTRING definer, params, returns= empty_clex_str;
   LEX_CSTRING db, name;
-  char path[FN_REFLEN];
   sp_head *sp;
   const Sp_handler *sph;
   bool free_sp_head;
@@ -7052,8 +7059,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
-  (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-  init_tmp_table_share(thd, &share, "", 0, "", path, true);
+  init_tmp_table_share(thd, &share, "", 0, "", "", true);
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
@@ -7239,13 +7245,11 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                                                 &free_sp_head);
         if (sp)
         {
-          char path[FN_REFLEN];
           TABLE_SHARE share;
           TABLE tbl;
 
           bzero((char*) &tbl, sizeof(TABLE));
-          (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-          init_tmp_table_share(thd, &share, "", 0, "", path ,true);
+          init_tmp_table_share(thd, &share, "", 0, "", "", true);
           store_variable_type(thd, sp->m_return_field_def,
                               ""_Lex_ident_column, &tbl, &share, cs, table, 5);
           free_table_share(&share);
@@ -7461,11 +7465,11 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
+          access_t access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         key_part->field->field_name);
 
-          if (!access)
+          if (!(access & COL_ACLS))
             break;
         }
         if (j != key_info->user_defined_key_parts)
@@ -7605,7 +7609,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;
-          privilege_t view_access(get_table_grant(thd, &table_list));
+          access_t view_access(get_table_grant(thd, &table_list));
 	  if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
 	      (SHOW_VIEW_ACL|SELECT_ACL))
 	    tables->allowed_show= TRUE;
@@ -7737,7 +7741,7 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
     TABLE_LIST table_acl_check;
     bzero((char*) &table_acl_check, sizeof(table_acl_check));
 
-    if (!(thd->col_access & TABLE_ACLS))
+    if (!(thd->col_access & (TABLE_ACLS & ~GRANT_ACL)))
     {
       table_acl_check.db= Lex_ident_db(*db_name);
       table_acl_check.table_name= Lex_ident_table(*table_name);
@@ -8110,7 +8114,7 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
                                         table_name->str,
                                         key_part->field->field_name);
 
-          if (!access)
+          if (!(access & COL_ACLS))
             break;
         }
         if (j != key_info->user_defined_key_parts)
@@ -8148,11 +8152,11 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
       {
         while ((r_info= it1++))
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
+          access_t access= get_column_grant(thd, &tables->grant, db_name->str,
                                         table_name->str,
                                         Lex_ident_column(*r_info));
 
-          if (!access)
+          if (!(access & COL_ACLS))
             break;
         }
         if (!it1.at_end())
@@ -9518,7 +9522,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
   if (!(table= create_schema_table(thd, table_list)))
     DBUG_RETURN(1);
   table->s->tmp_table= SYSTEM_TMP_TABLE;
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege= access_t(SELECT_ACL);
   /*
     This test is necessary to make
     case insensitive file systems +
@@ -11000,6 +11004,7 @@ ST_FIELD_INFO slave_status_info[]=
 
 /** For creating fields of information_schema.OPTIMIZER_TRACE */
 extern ST_FIELD_INFO optimizer_trace_info[];
+extern ST_FIELD_INFO optimizer_context_capture_info[];
 
 } //namespace Show
 
@@ -11080,6 +11085,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_optimizer_costs_tables, 0, 0, -1,-1, 0, 0},
   {"OPTIMIZER_TRACE"_Lex_ident_i_s_table, Show::optimizer_trace_info, 0,
      fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
+  {"OPTIMIZER_CONTEXT"_Lex_ident_i_s_table, Show::optimizer_context_capture_info, 0,
+     fill_optimizer_context_capture_info, NULL, NULL, -1, -1, false, 0},
   {"PARAMETERS"_Lex_ident_i_s_table, Show::parameters_fields_info, 0,
    fill_schema_proc, 0, 0, 1, 2, 0, 0},
   {"PARTITIONS"_Lex_ident_i_s_table, Show::partitions_fields_info, 0,

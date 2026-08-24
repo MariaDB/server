@@ -34,7 +34,7 @@ system echo wait-maria_verify_recovery.inc >> $MYSQLTEST_VARDIR/tmp/mysqld.1.exp
 
 eval SET SESSION debug_dbug=$mvr_debug_option;
 --echo * crashing mysqld intentionally
---error 2013
+--error 2013,2026
 eval $mvr_crash_statement; # this will crash (DBUG magic)
 
 if ($mvr_restore_old_snapshot)

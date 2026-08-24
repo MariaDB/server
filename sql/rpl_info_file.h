@@ -131,6 +131,14 @@ namespace Int_IO_CACHE
   Other files may include these files directly.
   [C++20 modules](https://en.cppreference.com/w/cpp/language/modules.html)
   can supercede the header-only design as well as headers' `#include` guards.
+
+  @note
+    It's an old inconsistency that @ref Master_info_file's line count includes
+    the line-count "value" while @ref Relay_log_info_file's excludes it.
+    This is reason that Info_file::load_from_file() and
+    Info_file::save_to_file() defines the line-count lines differently -
+    It is so the two subclasses can implement either interpretation
+    on top of the indifferent common code in this superclass.
 */
 struct Info_file
 {
@@ -250,15 +258,15 @@ protected:
     (Re)load the MySQL line-based section from the @ref file
     @param value_list
       List of wrapped member pointers to values. The first element must be a
-      file name @ref String_value to be unambiguous with the line count line.
+      file name @ref String_value to be unambiguous with the line-count line.
     @param default_line_count
       We cannot simply read lines until EOF as all versions
       of MySQL/MariaDB may generate more lines than needed.
       Therefore, starting with MySQL/MariaDB 4.1.x for @ref Master_info_file and
-      5.6.x for @ref Relay_log_info_file, the first line of the file is number
-      of one-line-per-value lines in the file, including this line count itself.
+      5.6.x/10.0.x for @ref Relay_log_info_file, the first line of the file is
+      the number of one-line-per-value lines (excluding itself) in the file.
       This parameter specifies the number of effective lines before those
-      versions (i.e., not counting the line count line if it was to have one),
+      versions (i.e., not counting the line-count line if it was to have one),
       where the first line is a filename with extension
       (either contains a `.` or is entirely empty) rather than an integer.
     @return `false` if the file has parsed successfully or `true` if error
@@ -272,21 +280,22 @@ protected:
     @param value_list List of wrapped member pointers to values.
     @param total_line_count
       The number of lines to describe the file as on the first line of the file.
-      If this is larger than `value_list.size()`, suffix the file with empty
-      lines until the line count (including the line count line) is this many.
-      This reservation provides compatibility with MySQL,
-      who has added more old-style lines while MariaDB innovated.
+      If this is larger than `size`, suffix the file with empty
+      lines until the line count (*including* the line-count line) is this many.
+      (No correction is done if it is less than `size` + 1 for the line-count.)
+      This reservation provides compatibility
+      with older versions of MySQL and MariaDB.
   */
   template<size_t size> void save_to_file(
     const Mem_fn (&value_list)[size],
-    size_t total_line_count= size + /* line count line */ 1
+    size_t total_line_count= size
   ) { return save_to_file(value_list, size, total_line_count); }
 
 private:
   bool
   load_from_file(const Mem_fn *values, size_t size, size_t default_line_count)
   {
-    long val;
+    int val;
     /**
       The first row is temporarily stored in the first value. If it is a line
       count and not a log name (new format), the second row will overwrite it.
@@ -294,7 +303,7 @@ private:
     auto &line1= dynamic_cast<String_value<> &>(values[0](this));
     if (line1.load_from(&file))
       return true;
-    char *end= str2int(line1.buf, 10, 0, INT32_MAX, &val);
+    char *end= str2int(line1.buf, sizeof(line1.buf), 10, &val);
     /**
       If this first line was not a number - the line count,
       then it was the first value for real,
@@ -336,7 +345,6 @@ private:
 
   void save_to_file(const Mem_fn *values, size_t size, size_t total_line_count)
   {
-    DBUG_ASSERT(total_line_count > size);
     my_b_seek(&file, 0);
     /*
       If the new contents take less space than the previous file contents,
@@ -355,10 +363,10 @@ private:
     }
     /*
       Pad additional reserved lines:
-      (1 for the line count line + line count) inclusive -> max line inclusive
-       = line count exclusive <- max line inclusive
+      (1 for the line count line + line count) exclusive -> max line inclusive
+       = line count exclusive <- max line exclusive
     */
-    for (; total_line_count > size; --total_line_count)
+    while (--total_line_count > size)
       my_b_write_byte(&file, '\n');
   }
 
