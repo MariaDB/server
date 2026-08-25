@@ -139,7 +139,7 @@ static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
 
 namespace
 {
-/** Backup state; protected by log_sys.latch */
+/** Backup state and context; mostly protected by log_sys.latch */
 class InnoDB_backup
 {
 public:
@@ -147,27 +147,36 @@ public:
   ~InnoDB_backup() { mutex.destroy(); }
 
 private:
+  enum State {
+    /** no BACKUP SERVER is in progress */
+    IDLE,
+    /** BACKUP SERVER is active; checkpoint_complete() will fill the queue */
+    PROCESSING,
+    /** BACKUP SERVER is cleaning up, not protected by any MDL */
+    CLEANUP
+  };
+
   /** Backup context */
   struct context
   {
     /** Start LSN of the first backed up log file */
-    const lsn_t first_lsn;
+    const lsn_t first_lsn{};
     /** Start LSN of the last log file, or LSN_MAX if not determined yet */
-    lsn_t max_first_lsn;
+    lsn_t max_first_lsn{};
     /** Final LSN of the backup, or LSN_MAX if not determined yet */
-    lsn_t last_lsn;
+    lsn_t last_lsn{};
     /** size of the first log file */
-    const uint64_t first_size;
+    const uint64_t first_size{};
     /** Checkpoint at the start of the backup */
-    const lsn_t checkpoint;
+    const lsn_t checkpoint{};
     /** Log record pointing to the checkpoint */
-    const lsn_t checkpoint_end_lsn;
+    const lsn_t checkpoint_end_lsn{};
     /** the original state of innodb_log_archive before/after backup */
-    const bool archived;
-    /** whether end() was invoked */
-    bool cleaned_up;
+    const bool archived{};
+    /** state of the operation; protected by log_sys.latch */
+    Atomic_relaxed<State> state{IDLE};
     /** the start LSN of the last hard-linked file, or 0 */
-    std::atomic<lsn_t> last_hardlink;
+    std::atomic<lsn_t> last_hardlink{};
 
     /**
        Note that a log file was hard-linked.
@@ -319,26 +328,33 @@ private:
     */
     int cleanup(const backup_target &target, const backup_sink &sink) noexcept
     {
+      int fail{0};
+      ut_ad(state == CLEANUP);
       const lsn_t hl{last_hardlink.load(std::memory_order_relaxed)};
-      if (hl == LSN_MAX)
-        return 0;
-      log_sys.latch.rd_lock();
-      const lsn_t current_first_lsn{log_sys.get_first_lsn()};
-      log_sys.latch.rd_unlock();
-      if (hl == current_first_lsn)
+      if (hl != LSN_MAX)
       {
-        ut_ad(sink.stream == sink.NO_STREAM);
-        if (int fail= de_hardlink(target, hl))
-          return fail;
+        /* abort() had not been invoked for this backup; finish it */
+        log_sys.latch.rd_lock();
+        const lsn_t current_first_lsn{log_sys.get_first_lsn()};
+        log_sys.latch.rd_unlock();
+
+        if (hl == current_first_lsn)
+        {
+          ut_ad(sink.stream == sink.NO_STREAM);
+          fail= de_hardlink(target, hl);
+        }
+        if (!fail)
+          fail= write_config(target, sink);
       }
-      return write_config(target, sink);
+      state= IDLE; /* unblock init() */
+      return fail;
     }
   };
 
-  /** pointer to backup context, or nullptr if no backup is active */
-  context *ctx;
+  /** backup context */
+  context ctx;
 
-  /** the original innodb_log_file_size, or 0 */
+  /** the original innodb_log_file_size; 0 if innodb_log_archive was enabled */
   uint64_t old_size;
 
   /** mutex protecting queue, non_log */
@@ -358,14 +374,18 @@ public:
   void *init(THD *thd) noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(!ctx);
-    mutex.wr_lock();
+    while (ctx.state != IDLE)
+    {
+      /* A previous BACKUP SERVER has not reached context::cleanup(). */
+      log_sys.latch.wr_unlock();
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      log_sys.latch.wr_lock();
+    }
+
+    ut_d(mutex.wr_lock());
     ut_ad(!non_log);
-    if (!queue.empty())
-      /* A new BACKUP SERVER is being invoked before a previous one
-      had been fully finalized. Clean up any log files. */
-      delete_logs();
-    mutex.wr_unlock();
+    ut_ad(queue.empty());
+    ut_d(mutex.wr_unlock());
 
     if (log_sys.backup_start(&old_size, thd))
     {
@@ -376,6 +396,9 @@ public:
     }
 
     mutex.wr_lock();
+    ut_ad(!non_log);
+    ut_ad(queue.empty());
+    ut_ad(ctx.state == IDLE);
 
     try
     {
@@ -390,9 +413,9 @@ public:
       ut_ad(start_end >= start);
       ut_ad(start >= log_sys.get_first_lsn());
 
-      ctx= new context{
+      new (&ctx) context{
         log_sys.get_first_lsn(), LSN_MAX, LSN_MAX, log_sys.file_size,
-        start, start_end, !old_size, false, 0
+        start, start_end, !old_size, PROCESSING, 0
       };
 
       /* Collect all tablespaces that have been created before our
@@ -433,8 +456,6 @@ public:
     }
     catch (std::bad_alloc&) {
       queue.clear();
-      delete ctx;
-      ctx= nullptr;
       log_sys.backup_stop(old_size, thd);
       goto fail;
     }
@@ -442,7 +463,7 @@ public:
     mutex.wr_unlock();
     log_sys.latch.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
-    return ctx;
+    return &ctx;
   }
 
   /**
@@ -459,11 +480,9 @@ public:
   {
     uint64_t id_limit{0};
     mutex.wr_lock();
-    ut_ad(sink.ha_data);
-    ut_ad(ctx ? ctx == sink.ha_data
-          : phase == BACKUP_PHASE_FINISH || phase == BACKUP_PHASE_NO_COMMIT);
-    ut_ad(static_cast<context*>(sink.ha_data)->last_lsn == LSN_MAX
-          ? phase == BACKUP_PHASE_START : !ctx);
+    ut_ad(&ctx == sink.ha_data);
+    ut_ad(ctx.state != IDLE);
+    ut_ad(ctx.last_lsn != LSN_MAX || phase == BACKUP_PHASE_START);
     const size_t size{queue.size()}, non_log_files{non_log};
     ut_ad(size >= non_log_files);
 
@@ -473,6 +492,7 @@ public:
       return 0;
     }
 
+    ut_ad(ctx.state == PROCESSING);
     non_log-= size == non_log_files;
     id_limit= queue.back();
     queue.pop_back();
@@ -592,8 +612,8 @@ public:
   void commit() noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(ctx);
-    ut_ad(ctx->last_lsn == LSN_MAX);
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(ctx.last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
     lsn_t lsn{log_sys.get_first_lsn()};
     mutex.wr_lock();
@@ -607,80 +627,120 @@ public:
         queue.emplace_back(lsn= next_lsn);
     }
     mutex.wr_unlock();
-    ctx->max_first_lsn= lsn;
-    ctx->last_lsn= last_lsn;
-    ctx= nullptr; /* unsubscribe to checkpoint_complete() */
+    ctx.max_first_lsn= lsn;
+    ctx.last_lsn= last_lsn;
     log_sys.latch.wr_unlock();
   }
 
   /**
-     Finish copying or finalize the backup.
+     Enable SET GLOBAL innodb_log_archive, innodb_log_file_size.
      @param thd     current session
-     @param phase   backup phase
+  */
+  ATTRIBUTE_NOINLINE void backup_stop(THD *thd) noexcept
+  {
+    ut_ad(!non_log);
+    ut_ad(ctx.state == PROCESSING);
+    ctx.state= CLEANUP; /* Unsubscribe from checkpoint_complete() */
+    const uint64_t old_size{this->old_size};
+    mutex.wr_unlock();
+    /* Enable SET GLOBAL innodb_log_archive, innodb_log_file_size */
+    log_sys.backup_stop(old_size, thd);
+  }
+
+  /**
+     Abort the backup.
+     @param thd     current session
+     @param sink    backup worker context
+     @return 0 (always)
+  */
+  ATTRIBUTE_COLD int abort(THD *thd, const backup_sink &sink) noexcept
+  {
+    if (!sink.ha_data)
+      /* init() must have failed; we have nothing to do */
+      return 0;
+    ut_ad(&ctx == static_cast<context*>(sink.ha_data));
+    /* inform cleanup() that we will clean up */
+    ctx.last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
+    mutex.wr_lock();
+    ut_ad(!log_sys.resize_in_progress());
+    ut_ad(log_sys.archive);
+    if (!old_size)
+    {
+      /*
+        The server was running with innodb_log_archive=ON.
+        There is nothing to clean up other than the incomplete backup,
+        which the operator might want to check before deleting.
+      */
+      non_log= 0;
+      queue.clear();
+    }
+    else
+    {
+      ut_ad(ctx.state == PROCESSING);
+      mutex.wr_unlock();
+      /* Restore innodb_log_archive=OFF as it was before init(). */
+      std::ignore= log_sys.backup_stop_archiving(nullptr);
+      log_sys.latch.wr_lock();
+      mutex.wr_lock();
+      delete_logs();
+      log_sys.latch.wr_unlock();
+    }
+
+    backup_stop(thd);
+    return 0;
+  }
+
+  /**
+     Clean up after releasing locks.
+     @param thd     current session
      @param sink    backup worker context
      @return error code
      @retval 0 on success
   */
-  int end(THD *thd, backup_phase phase, const backup_sink &sink) noexcept
+  void *finish_start(THD *thd, const backup_sink &sink) noexcept
   {
-    context *const ctx{static_cast<context*>(sink.ha_data)};
-    if (!ctx /* InnoDB_backup::init() must have failed */ ||
-        ctx->cleaned_up /* aborting after phase=BACKUP_PHASE_NO_COMMIT */)
-      return 0;
-    ctx->cleaned_up= true;
-    if (phase == BACKUP_PHASE_ABORT)
-      ctx->last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
-    log_sys.latch.wr_lock();
-    ut_ad(!this->ctx || this->ctx == ctx);
-    this->ctx= nullptr; /* fini() will delete the object */
-    ut_ad(!log_sys.resize_in_progress());
-    ut_ad(log_sys.archive);
-    int fail{0};
-    if (!old_size)
+    if (!sink.ha_data)
+      return nullptr; /* init() must have failed; nothing to do */
+    void *ret{&ctx};
+    ut_ad(ret == static_cast<context*>(sink.ha_data));
+    mutex.wr_lock();
+    ut_ad(!non_log);
+    if (ctx.state == CLEANUP)
     {
-      mutex.wr_lock();
-      queue.clear();
-      non_log= 0;
+      /* abort() must have been called already */
+      ut_ad(queue.empty());
       mutex.wr_unlock();
-    }
-    else
-    {
-      log_sys.latch.wr_unlock();
-      sql_print_information("stop archiving: " LSN_PF,
-                            log_sys.last_checkpoint_lsn.load());
-      /* FIXME: execute this at a later stage,
-      after MDL_BACKUP_WAIT_COMMIT has been released!
-      This may wait several seconds for some page flushing! */
-      fail= log_sys.backup_stop_archiving(thd);
-      sql_print_information("stopped archiving: " LSN_PF,
-                            log_sys.last_checkpoint_lsn.load());
-      log_sys.latch.wr_lock();
-      mutex.wr_lock();
-      delete_logs();
-      mutex.wr_unlock();
+      return &ctx;
     }
 
-    log_sys.backup_stop(old_size, thd);
-    return fail;
+    ut_ad(!log_sys.resize_in_progress());
+    ut_ad(log_sys.archive);
+
+    if (old_size)
+    {
+      ut_ad(ctx.state == PROCESSING);
+      /* Restore innodb_log_archive=OFF as it was before init() */
+      mutex.wr_unlock();
+      if (log_sys.backup_stop_archiving(thd))
+        ret= reinterpret_cast<void*>(-1);
+      mutex.wr_lock();
+    }
+
+    backup_stop(thd);
+    return ret;
   }
 
   /**
-     Clean up after end().
+     Clean up after finish_start().
      @param target  backup target
      @param sink    backup worker context
      @return error code
      @retval 0 on success
   */
-  int fini(const backup_target &target, const backup_sink &sink) noexcept
+  int finish_end(const backup_target &target, const backup_sink &sink) noexcept
   {
-    if (context *ctx{static_cast<context*>(sink.ha_data)})
-    {
-      ut_ad(ctx != this->ctx);
-      int fail{ctx->cleanup(target, sink)};
-      delete ctx;
-      return fail;
-    }
-    return 0;
+    ut_ad(!sink.ha_data || &ctx == static_cast<context*>(sink.ha_data));
+    return sink.ha_data ? ctx.cleanup(target, sink) : 0;
   }
 
   /**
@@ -689,11 +749,12 @@ public:
   void checkpoint_complete() noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-    if (ctx)
+    if (ctx.state == PROCESSING)
     {
       const lsn_t lsn{log_sys.get_first_lsn() - log_sys.capacity()};
       mutex.wr_lock();
-      queue.emplace_back(lsn);
+      if (ctx.state == PROCESSING)
+        queue.emplace_back(lsn);
       mutex.wr_unlock();
     }
   }
@@ -1512,7 +1573,7 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
 
 void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
 {
-  ut_ad(latch_have_wr());
+  latch.wr_lock();
   /* We will be invoked with old_size=0 after a failed backup_start(),
   or if innodb_log_archive=ON held during a successful backup_start(). */
   ut_ad(!old_size || !resize_in_progress());
@@ -1549,6 +1610,8 @@ void *innodb_backup_start(THD *thd, const backup_target *,
     /* fall through */
   default:
     return sink->ha_data;
+  case BACKUP_PHASE_FINISH:
+    return innodb_backup.finish_start(thd, *sink);
   }
 }
 
@@ -1572,10 +1635,9 @@ int innodb_backup_end(THD *thd, const backup_target *target,
   default:
     return 0;
   case BACKUP_PHASE_FINISH:
-    return innodb_backup.fini(*target, *sink);
-  case BACKUP_PHASE_NO_COMMIT:
+    return innodb_backup.finish_end(*target, *sink);
   case BACKUP_PHASE_ABORT:
-    return innodb_backup.end(thd, phase, *sink);
+    return innodb_backup.abort(thd, *sink);
   }
 }
 
