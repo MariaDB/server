@@ -474,11 +474,11 @@ my_ulonglong federatedx_io_mysql::matched_rows() const
   /*
     For an UPDATE the server returns an info string of the form
       "Rows matched: N  Changed: M  Warnings: W"
-    where N is the matched count. The labels around the numbers are localized
-    by the remote server, but the order of the numbers is fixed, so read the
-    first number rather than search for an English label. For statements that
-    do not report matched rows (e.g. DELETE) mysql_info() is NULL, fall back
-    to the number of affected rows.
+    where N is the matched count. The text around the numbers varies depending
+    on the remote server's locale, but the order of the numbers is fixed, so
+    read the first number rather than search for an English label. For
+    statements that do not report matched rows (e.g. DELETE) mysql_info() is
+    NULL, fall back to the number of affected rows.
   */
   if (mysql.info)
   {
