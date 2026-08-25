@@ -1,0 +1,38 @@
+#
+# Unknown command
+#
+ERROR: unknown command 'nosuchcommand'.
+#
+# A plugin name is required, and only one
+#
+ERROR: 'install' requires exactly one plugin name.
+ERROR: 'uninstall' requires exactly one plugin name.
+ERROR: 'install' requires exactly one plugin name.
+#
+# search takes an optional term, but not more than one
+#
+ERROR: 'search' takes at most one search term.
+#
+# Plugin names are validated, as they become package names
+#
+ERROR: invalid character ';' in plugin name. Use only [a-z0-9_-].
+ERROR: invalid character ' ' in plugin name. Use only [a-z0-9_-].
+ERROR: invalid character '.' in plugin name. Use only [a-z0-9_-].
+ERROR: plugin name cannot be empty.
+ERROR: plugin name is too long (max 64 characters).
+#
+# A command word wins over the deprecated keywords, so that a plugin
+# can be searched for by a name containing them
+#
+ERROR: 'search' takes at most one search term.
+ERROR: 'install' requires exactly one plugin name.
+#
+# --dry-run is accepted as an option
+#
+#
+# The deprecated syntax still reaches the old code path, which
+# asks for its own options
+#
+ERROR: Missing --basedir option.
+ERROR: Missing --basedir option.
+ERROR: Missing --basedir option.
