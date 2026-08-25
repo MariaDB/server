@@ -111,8 +111,7 @@ typedef struct st_rows_event_tracker
   my_off_t last_seen;
   bool stmt_end_seen;
   void update(const char *file_name, my_off_t pos,
-              const uchar *buf,
-              const Format_description_log_event *fdle);
+              const uchar *buf);
   void reset();
   bool check_and_report(const char* file_name, my_off_t pos);
 } Rows_event_tracker;

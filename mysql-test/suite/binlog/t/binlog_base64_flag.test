@@ -62,31 +62,6 @@ select * from t1;
 # show "one-shot" feature of binlog_fragment variables
 SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
 
-# Test that the following fails cleanly: "First, read a
-# Format_description event which has N event types. Then, read an
-# event of type M>N"
---echo ==== Test non-matching FD event and Row event ====
-
-# This is the Format_description_log_event from
-# bug32407.001, encoded in base64. It contains only the old
-# row events (number of event types is 22)
-BINLOG '
-4CdYRw8BAAAAYgAAAGYAAAAAAAQANS4xLjE1LW5kYi02LjEuMjQtZGVidWctbG9nAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAADgJ1hHEzgNAAgAEgAEBAQEEgAATwAEGggICAg=
-';
-
-# The following is a Write_rows_log_event with event type 23, i.e.,
-# not supported by the Format_description_log_event above.  It
-# corresponds to the following query:
-# INSERT INTO t1 VALUES (5)
-error 1149;
-BINLOG '
-Dl1YRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
-Dl1YRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+BQAAAA==
-';
-# the above line should fail and 5 should not be in the binlog.
-select * from t1;
-
 # Test that BUG#37426 is triggered.
 
 CREATE TABLE char128_utf8 ( 

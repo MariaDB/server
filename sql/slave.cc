@@ -6566,9 +6566,7 @@ dbug_gtid_accept:
       is_rows_event= true;
       mi->rows_event_tracker.update(mi->master_log_name,
                                     mi->master_log_pos,
-                                    buf,
-                                    mi->rli.relay_log.
-                                    description_event_for_queue);
+                                    buf);
 
       DBUG_EXECUTE_IF("simulate_stmt_end_rows_event_loss",
                       {
@@ -7875,19 +7873,16 @@ bool rpl_master_erroneous_autoinc(THD *thd)
 }
 
 
-static bool get_row_event_stmt_end(const uchar *buf,
-                                   const Format_description_log_event *fdle)
+static bool get_row_event_stmt_end(const uchar *buf)
 {
-  uint8 const common_header_len= fdle->common_header_len;
-  Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
-
-  uint8 const post_header_len= fdle->post_header_len[event_type-1];
+  uint8 const common_header_len=
+    Format_description_log_event::common_header_len;
   const uchar *flag_start= buf + common_header_len;
   /*
     The term 4 below signifies that master is of 'an intermediate source', see
     Rows_log_event::Rows_log_event.
   */
-  flag_start += RW_MAPID_OFFSET + ((post_header_len == 6) ? 4 : RW_FLAGS_OFFSET);
+  flag_start += RW_MAPID_OFFSET + RW_FLAGS_OFFSET;
 
   return (uint2korr(flag_start) & Rows_log_event::STMT_END_F) != 0;
 }
@@ -7913,8 +7908,7 @@ void Rows_event_tracker::reset()
 */
 
 void Rows_event_tracker::update(const char *file_name, my_off_t pos,
-                                const uchar *buf,
-                                const Format_description_log_event *fdle)
+                                const uchar *buf)
 {
   DBUG_ENTER("Rows_event_tracker::update");
   if (!first_seen)
@@ -7924,7 +7918,7 @@ void Rows_event_tracker::update(const char *file_name, my_off_t pos,
   }
   last_seen= pos;
   DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
-  stmt_end_seen= get_row_event_stmt_end(buf, fdle);
+  stmt_end_seen= get_row_event_stmt_end(buf);
   DBUG_VOID_RETURN;
 };
 
