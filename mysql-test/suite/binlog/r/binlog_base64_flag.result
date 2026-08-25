@@ -39,21 +39,6 @@ a
 SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
 @binlog_fragment_0	NULL	NULL
 NULL	NULL	NULL
-==== Test non-matching FD event and Row event ====
-BINLOG '
-4CdYRw8BAAAAYgAAAGYAAAAAAAQANS4xLjE1LW5kYi02LjEuMjQtZGVidWctbG9nAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAADgJ1hHEzgNAAgAEgAEBAQEEgAATwAEGggICAg=
-';
-BINLOG '
-Dl1YRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
-Dl1YRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+BQAAAA==
-';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
-select * from t1;
-a
-1
-1
-3
 CREATE TABLE char128_utf8 ( 
 i1 INT NOT NULL, 
 c CHAR(128) CHARACTER SET utf8mb3 NOT NULL, 

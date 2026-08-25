@@ -748,17 +748,13 @@ static bool print_partial_row_event(PRINT_EVENT_INFO *print_event_info, Log_even
       header info here for filtering.
     */
     const uchar *rows_data_begin= prle->ev_buffer_base + prle->start_offset;
-    Log_event_type event_type= (Log_event_type)(uchar)rows_data_begin[EVENT_TYPE_OFFSET];
-    uint8 const post_header_len= glob_description_event->post_header_len[event_type-1];
+    uint8 const post_header_len= PARTIAL_ROWS_HEADER_LEN;
     const uchar *table_id_ptr= rows_data_begin +
                                print_event_info->common_header_len +
                                RW_MAPID_OFFSET;
 
     ulonglong table_id;
-    if (post_header_len == 6)
-      table_id= uint4korr(table_id_ptr);
-    else
-      table_id= (ulonglong) uint6korr(table_id_ptr);
+    table_id= (ulonglong) uint6korr(table_id_ptr);
 
     /*
       Cache the flags of the Rows_log_event to use it for the last

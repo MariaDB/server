@@ -2473,7 +2473,7 @@ Format_description_log_event::to_packet(String *packet)
   int4store(p, created);
   p+= 4;
   *p++= common_header_len;
-  memcpy(p, post_header_len, number_of_event_types);
+  memcpy(p, byte_data_for_post_header_len, number_of_event_types);
   p+= number_of_event_types;
 
   /*
