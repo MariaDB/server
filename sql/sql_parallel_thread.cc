@@ -237,6 +237,16 @@ void pwt_worker_base::init_and_run_thread_func()
   thd->pop_internal_handler();       // maybe not needed
   //state.finished= true;
   //
+  /*
+    Null it while we still hold LOCK_worker, and tear the THD down from a local
+    copy afterwards. abort_worker() reads this member under the same lock and
+    calls awake() on it, so it has to see either a THD that is still alive --
+    the lock keeps us out of the teardown below until it has -- or nullptr.
+    Leaving the member set would let it awake() a THD this thread has already
+    destroyed.
+  */
+  THD *worker_thd= thd;
+  thd= nullptr;
   mysql_mutex_unlock(&LOCK_worker);
 
   /*
@@ -245,8 +255,8 @@ void pwt_worker_base::init_and_run_thread_func()
     region on a copy of our THD pointer
   */
   thd_detach_thd(save);
-  server_threads.erase(thd);
-  destroy_background_thd(thd);
+  server_threads.erase(worker_thd);
+  destroy_background_thd(worker_thd);
 }
 
 
