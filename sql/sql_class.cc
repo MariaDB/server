@@ -1805,6 +1805,7 @@ void THD::free_connection()
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
     vio_delete(net.vio);
+  DBUG_EXECUTE_IF("sleep_after_vio_delete", my_sleep(5000000););
   net.vio= nullptr;
   net_end(&net);
   delete(rgi_fake);

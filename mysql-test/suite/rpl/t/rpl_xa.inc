@@ -4,6 +4,7 @@
 # Parameters:
 # --let rpl_xa_check= SELECT ...
 #
+
 connection master;
 source include/count_sessions.inc;
 create table t1 (a int, b int) engine=InnoDB;
@@ -316,7 +317,9 @@ set @@session.sql_log_bin = OFF;
   --eval $query
 --eval xa end '$xid'
 --eval xa prepare '$xid'
-
+--disable_query_log
+set session debug_dbug="+d,sleep_after_vio_delete";
+--enable_query_log
 --disconnect master_$xid
 
 --echo *** $xid must be in the list:
