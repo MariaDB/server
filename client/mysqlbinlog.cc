@@ -3354,7 +3354,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   }
   if (binlog_format == INNODB_BINLOG_FORMAT)
   {
-    if (open_engine_binlog(engine_binlog_reader, start_position, logname, file))
+    if (open_engine_binlog(engine_binlog_reader, start_position, logname))
       goto err;
   }
   for (;;)
