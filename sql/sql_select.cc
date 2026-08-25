@@ -3663,6 +3663,9 @@ int JOIN::optimize_stage2()
     }
   }
 
+  if (worker_side_parallel)
+    recheck_parallel_scan(this);
+
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
@@ -16858,6 +16861,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
+
+  check_parallel_scan(join);
   DBUG_RETURN(FALSE);
 }
 

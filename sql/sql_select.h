@@ -1765,6 +1765,11 @@ public:
     sends them. do_select() dispatches to run_worker_side_join() when this is
     set (see can_run_query_in_workers / sql_parallel_workers.cc). Queries that
     do not qualify run serially.
+
+    Cleared again by optimize_stage2() if the plan changed after the gate ran
+    and the driving table is no longer read a way the workers can divide up, so
+    that what do_select() dispatches on is the decision as it stands at the end
+    of optimization rather than as it stood in the middle of it.
   */
   bool worker_side_parallel{false};
 
