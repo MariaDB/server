@@ -2159,7 +2159,9 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     resize_log.close();
     SetFileAttributesA(get_archive_path(get_first_lsn() - capacity()).c_str(),
                        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+    innodb_backup_checkpoint();
 #else
+    innodb_backup_checkpoint();
     struct stat st;
     if (!fstat(resize_log.m_file, &st))
       st.st_mode&= 0444;
@@ -2170,7 +2172,6 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
                get_archive_path(get_first_lsn() - capacity()).c_str(), errno);
     resize_log.close();
 #endif
-    innodb_backup_checkpoint();
   }
   else
     goto checkpoint_completed;

@@ -492,7 +492,6 @@ public:
       return 0;
     }
 
-    ut_ad(ctx.state == PROCESSING);
     non_log-= size == non_log_files;
     id_limit= queue.back();
     queue.pop_back();
@@ -511,6 +510,7 @@ public:
     }
     else if (fil_space_t *space= fil_space_t::get(uint32_t(id_limit)))
     {
+      ut_ad(ctx.state == PROCESSING);
       ut_ad(phase == BACKUP_PHASE_START);
       int res= -1;
       uint32_t start{0}, limit{uint32_t(id_limit >> 32)};
@@ -612,24 +612,22 @@ public:
   void commit() noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(ctx.state == PROCESSING);
-    ut_ad(ctx.last_lsn == LSN_MAX);
-    const lsn_t last_lsn{log_sys.get_lsn()};
-    lsn_t lsn{log_sys.get_first_lsn()};
     mutex.wr_lock();
     ut_ad(!non_log);
-    if (queue.empty() || queue.back() != lsn)
-    {
-      /* Schedule the remaining log for copying */
-      queue.emplace_back(lsn);
-      const lsn_t next_lsn{lsn + log_sys.capacity()};
-      if (next_lsn < last_lsn)
-        queue.emplace_back(lsn= next_lsn);
-    }
-    mutex.wr_unlock();
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(ctx.last_lsn == LSN_MAX);
+    ut_ad(ctx.max_first_lsn == LSN_MAX);
+    const lsn_t last_lsn{log_sys.get_lsn()};
+    lsn_t lsn{log_sys.get_first_lsn()};
+    /* Schedule the remaining log for copying */
+    queue.emplace_back(lsn);
+    const lsn_t next_lsn{lsn + log_sys.capacity()};
+    if (next_lsn < last_lsn)
+      queue.emplace_back(lsn= next_lsn);
     ctx.max_first_lsn= lsn;
     ctx.last_lsn= last_lsn;
     log_sys.latch.wr_unlock();
+    mutex.wr_unlock();
   }
 
   /**
@@ -659,11 +657,15 @@ public:
       /* init() must have failed; we have nothing to do */
       return 0;
     ut_ad(&ctx == static_cast<context*>(sink.ha_data));
-    /* inform cleanup() that we will clean up */
-    ctx.last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
+    log_sys.latch.wr_lock();
     mutex.wr_lock();
+    ut_ad(ctx.state == PROCESSING);
     ut_ad(!log_sys.resize_in_progress());
     ut_ad(log_sys.archive);
+
+    /* inform cleanup() that we will clean up */
+    ctx.last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
+
     if (!old_size)
     {
       /*
@@ -676,14 +678,12 @@ public:
     }
     else
     {
-      ut_ad(ctx.state == PROCESSING);
+      log_sys.latch.wr_unlock();
       mutex.wr_unlock();
-      /* Restore innodb_log_archive=OFF as it was before init(). */
       std::ignore= log_sys.backup_stop_archiving(nullptr);
       log_sys.latch.wr_lock();
       mutex.wr_lock();
       delete_logs();
-      log_sys.latch.wr_unlock();
     }
 
     backup_stop(thd);
@@ -715,16 +715,18 @@ public:
 
     ut_ad(!log_sys.resize_in_progress());
     ut_ad(log_sys.archive);
+    ut_ad(ctx.state == PROCESSING);
 
-    if (old_size)
-    {
-      ut_ad(ctx.state == PROCESSING);
-      /* Restore innodb_log_archive=OFF as it was before init() */
-      mutex.wr_unlock();
-      if (log_sys.backup_stop_archiving(thd))
-        ret= reinterpret_cast<void*>(-1);
-      mutex.wr_lock();
-    }
+    const uint64_t old_size{this->old_size};
+    mutex.wr_unlock();
+
+    /* Restore innodb_log_archive as it was before init() */
+    if (old_size != 0 && log_sys.backup_stop_archiving(thd))
+      ret= reinterpret_cast<void*>(-1);
+
+    log_sys.latch.wr_lock();
+    mutex.wr_lock();
+    ut_ad(log_sys.get_first_lsn() >= ctx.max_first_lsn);
 
     backup_stop(thd);
     return ret;
@@ -753,8 +755,17 @@ public:
     {
       const lsn_t lsn{log_sys.get_first_lsn() - log_sys.capacity()};
       mutex.wr_lock();
-      if (ctx.state == PROCESSING)
-        queue.emplace_back(lsn);
+      if (ctx.state != PROCESSING);
+      else if (ctx.last_lsn == LSN_MAX)
+        queue.emplace_back(lsn); /* commit() was not invoked yet */
+      else if (lsn > ctx.last_lsn && old_size)
+        /*
+          The server was running with innodb_log_archive=OFF, and this
+          log file covers some changes after the end of the backup.
+          Let us delete the file straight away, to keep step() and
+          delete_logs() simple.
+        */
+        IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
       mutex.wr_unlock();
     }
   }
@@ -1573,7 +1584,7 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
 
 void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
 {
-  latch.wr_lock();
+  ut_ad(latch_have_wr());
   /* We will be invoked with old_size=0 after a failed backup_start(),
   or if innodb_log_archive=ON held during a successful backup_start(). */
   ut_ad(!old_size || !resize_in_progress());
