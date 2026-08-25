@@ -2839,7 +2839,7 @@ protected:
 public:
   Version()
   {
-    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+    clear();
   }
   Version(uchar v0, uchar v1, uchar v2)
   {
@@ -2848,6 +2848,10 @@ public:
     m_ver[2]= v2;
   }
   Version(const char *version, const char **endptr);
+  void clear()
+  {
+    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+  }
   const uchar& operator [] (size_t i) const
   {
     DBUG_ASSERT(i < 3);
@@ -2879,13 +2883,16 @@ public:
      LOG_EVENT_HEADER_LEN), except FORMAT_DESCRIPTION_EVENT and ROTATE_EVENT
      (those have a header of size LOG_EVENT_MINIMAL_HEADER_LEN).
   */
-  uint8 common_header_len;
+  static constexpr uint8 common_header_len= LOG_EVENT_HEADER_LEN;
   uint8 number_of_event_types;
-  /* 
-     The list of post-headers' lengths followed 
-     by the checksum alg description byte
+  /*
+     The list of post-headers' lengths followed
+     by the checksum alg description byte.
+
+     NOTE: This is only to be able to write this data into events for backwards
+     compatibility. This list is no longer used in new code.
   */
-  uint8 *post_header_len;
+  static uint8 byte_data_for_post_header_len[256];
   class master_version_split: public Version {
   public:
     enum {KIND_MYSQL, KIND_MARIADB};
@@ -2906,24 +2913,15 @@ public:
   Format_description_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event);
-  ~Format_description_log_event()
-  {
-    my_free(post_header_len);
-  }
+  ~Format_description_log_event() { }
   Log_event_type get_type_code() override { return FORMAT_DESCRIPTION_EVENT;}
 #ifdef MYSQL_SERVER
   bool write() override;
 #endif
-  bool header_is_valid() const
-  {
-    return ((common_header_len >= ((binlog_version==1) ? OLD_HEADER_LEN :
-                                   LOG_EVENT_MINIMAL_HEADER_LEN)) &&
-            (post_header_len != NULL));
-  }
 
   bool is_valid() const override
   {
-    return header_is_valid() && server_version_split.version_is_valid();
+    return server_version_split.version_is_valid();
   }
 
   int get_data_size() override

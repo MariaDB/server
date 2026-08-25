@@ -2697,7 +2697,7 @@ bool Format_description_log_event::write()
   ret= write_header(rec_size) ||
        write_data(buff, buff_size) ||
        (!DBUG_IF("truncate_fde_post_header_len") &&
-         write_data(post_header_len, number_of_event_types)) ||
+         write_data(byte_data_for_post_header_len, number_of_event_types)) ||
        (!DBUG_IF("truncate_fde_used_checksum_alg") &&
          write_data(&checksum_byte, sizeof(checksum_byte))) ||
        write_footer();

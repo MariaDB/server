@@ -1189,7 +1189,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
 {
   DBUG_ENTER("Old_rows_log_event::Old_Rows_log_event(const char*,...)");
   uint8 const common_header_len= description_event->common_header_len;
-  uint8 const post_header_len= description_event->post_header_len[event_type-1];
+  uint8 const post_header_len= 8;
 
   DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
 		      "post_header_len: %d",
