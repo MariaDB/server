@@ -442,7 +442,19 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     // TODO: move server_threads usage to parallel_thread...
     server_threads.insert(workers[i].thd);  // +information_schema.processlist
 
-    if (workers[i].create_thread())
+    /*
+      Fail the last worker as if its thread could not be created, so a test can
+      reach cleanup_old_workers with the earlier workers already running: that
+      is the only path to abort_worker(), and the only one that tears a partly
+      built team down. Injected here rather than after create_thread() because
+      cleanup_thread_create closes this worker's tables and destroys its THD,
+      which is only safe while it has no thread of its own.
+    */
+    bool inject_create_failure= false;
+    DBUG_EXECUTE_IF("pwt_init_fail_last_worker",
+                    inject_create_failure= (i + 1 == n););
+
+    if (inject_create_failure || workers[i].create_thread())
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to create worker thread");

@@ -27,4 +27,33 @@ Level	Code	Message
 Warning	1037	Parallel worker diagnostics were dropped due to memory allocation failure
 drop table t1;
 set global debug_dbug=@save_dbug;
+#
+# A worker team that fails to start part-way through is torn down, and
+# the statement fails rather than falling back. This is the only path to
+# abort_worker(), which awakes each already-running worker under
+# LOCK_worker while that worker may be exiting and destroying its own
+# THD -- so it is also the only coverage for that hand-off.
+#
+create table t1 (a int) engine=innodb;
+insert into t1 select seq from seq_1_to_2000;
+set global debug_dbug="+d,pwt_init_fail_last_worker";
+# workers already running are blocked handing off a full batch
+set session parallel_worker_threads=4;
+select * from t1;
+ERROR HY000: Internal error: init_parallel_workers: failed to create worker thread
+# and again where they have little to do and may be exiting already
+select * from t1 where a > 1999;
+ERROR HY000: Internal error: init_parallel_workers: failed to create worker thread
+# more workers, more of them to abort
+set session parallel_worker_threads=8;
+select * from t1 where a > 1999;
+ERROR HY000: Internal error: init_parallel_workers: failed to create worker thread
+set global debug_dbug=@save_dbug;
+# the server is unharmed and the query runs in the workers as before
+select * from t1 where a > 1999;
+a
+2000
+ran_in_the_workers
+1
+drop table t1;
 set session parallel_worker_threads=default;
