@@ -3717,7 +3717,7 @@ bool
 Gtid_log_event::peek(const uchar *event_start, size_t event_len,
                      enum enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                     uchar *flags2, const Format_description_log_event *fdev)
+                     uchar *flags2)
 {
   const uchar *p;
 
@@ -3732,10 +3732,11 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < (uint32)fdev->common_header_len + GTID_HEADER_LEN)
+  if (event_len < (uint32)Format_description_log_event::common_header_len +
+      GTID_HEADER_LEN)
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
-  p= event_start + fdev->common_header_len;
+  p= event_start + Format_description_log_event::common_header_len;
   *seq_no= uint8korr(p);
   p+= 8;
   *domain_id= uint4korr(p);
@@ -9015,12 +9016,12 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 #endif
 
 #if defined(HAVE_REPLICATION)
-Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
-                    const Format_description_log_event* description_event)
-  :Log_event(buf, description_event), ident_len(0), log_ident(NULL)
+Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len)
+  :Log_event(buf), ident_len(0), log_ident(NULL)
 {
+  uint8 header_size= Format_description_log_event::common_header_len;
   uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;
-  uint all_headers_len= description_event->common_header_len + sub_header_len;
+  uint all_headers_len= header_size + sub_header_len;
 
   /*
     The comparison is <= rather than <, so an event whose length stops exactly
@@ -9041,7 +9042,7 @@ Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
     return;
 
   if (log_pos == 0)
-    log_pos= uint8korr(buf + description_event->common_header_len);
+    log_pos= uint8korr(buf + header_size);
 
   log_ident= buf + all_headers_len;
   ident_len= event_len - all_headers_len;
