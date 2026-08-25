@@ -3547,6 +3547,9 @@ int JOIN::optimize_stage2()
     }
   }
 
+  if (worker_side_parallel)
+    recheck_parallel_scan(this);
+
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
@@ -16689,57 +16692,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
-  /*
-    Run this query with parallel workers if possible.
 
-    1) Parallel worker threads available
-    2) The first join table must be eligible for a parallel worker scan
-         (a JT_ALL full scan or a JT_RANGE range scan of a parallel-scannable
-         base table)
-    3) the first table will be read by the ordinary record reader, which is
-         the one the worker replaces with the pscan chunk reader
-    4) the access method is one the workers can partition: the whole index,
-         or the key intervals of a primary-key range scan
-         (see parallel_scan_supports_access)
-    5) parallel scan table is of the correct format
-         (see table_can_be_parallel_scanned)
-    6) query allows a parallel scan (select-project query)
-
-    Engine-intrinsic constraints (consistent-read only, record format,
-    discarded tablespace, ...) are enforced later inside
-    parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED so
-    run_worker_side_join() falls back to serial execution. We leave the table's
-    read_first_record as the serial reader: the manager never scans it (it only
-    collects the workers' result rows), and the serial reader is what the
-    fall-back path needs. do_select() dispatches on worker_side_parallel.
-  */
-  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                    WITHOUT_CONST_TABLES);
-  if (join->thd->variables.parallel_worker_threads > 0 &&       //1
-      first && (first->type == JT_ALL ||
-                first->type == JT_RANGE) &&                     //2
-      first->read_first_record == join_init_read_record &&      //3
-      parallel_scan_supports_access(first) &&                   //4
-      table_can_be_parallel_scanned(first->table) &&            //5
-      can_run_query_in_workers(join, first))                    //6
-  {
-    first->use_parallel_scan= join->worker_side_parallel= true;
-    if (unlikely(join->thd->trace_started()))
-    {
-      Json_writer_object trace_pscan(join->thd);
-      trace_pscan.add("chosen_for_parallel_scan", first->table->alias.c_ptr());
-      /*
-        What the workers will divide: the whole clustered index, or the key
-        intervals of the range scan. The two are partitioned the same way, but
-        which one it is decides whether the chunk boundaries are bounded by
-        the range, so say so rather than leaving it to be inferred from the
-        access method shown elsewhere in the trace.
-      */
-      trace_pscan.add("range_scan",
-                      first->select && first->select->quick != NULL);
-    }
-  }
-
+  check_parallel_scan(join);
   DBUG_RETURN(FALSE);
 }
 

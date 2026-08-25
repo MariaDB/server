@@ -46,7 +46,7 @@
     1/N. The index components are left untouched: this only ever discounts a
     full table scan.
 
-    Eligibility mirrors the runtime gate in make_join_readinfo() exactly
+    Eligibility mirrors the table-level half of the runtime gate exactly
     (engine support, no blob-backed columns, not fulltext-searched, a real base
     table, not partitioned), so the optimizer never discounts a scan that will
     not actually run in parallel. The caller is responsible for invoking this
@@ -80,7 +80,8 @@ bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
 
   @description
     Table-level eligibility shared by the optimizer cost hook
-    (scale_cost_for_parallel_scan) and the runtime gate (make_join_readinfo):
+    (scale_cost_for_parallel_scan) and the runtime gate, which reaches it
+    through tab_can_be_parallel_scanned():
 
       - a real base table (not an internal/temporary table);
       - no blob-backed columns (BLOB/TEXT/GEOMETRY/JSON) -- their payload lives
