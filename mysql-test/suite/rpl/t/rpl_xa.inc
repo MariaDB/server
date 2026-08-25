@@ -347,7 +347,19 @@ source include/sync_with_master_gtid.inc;
 
 
 connection master;
---eval drop database test_ign
+
+#if debug
+--echo Expect NONE in the xa-prepared list
+xa recover;
+set @@session.innodb_lock_wait_timeout=5;
+--error 0,ER_LOCK_WAIT_TIMEOUT
+#endif
+drop database test_ign;
+#if debug
+--echo Ditto
+xa recover;
+#endif
+
 drop table t1, t2, t3, tm;
 
 --echo #
