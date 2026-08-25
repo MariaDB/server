@@ -192,6 +192,7 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	stat_value			BIGINT UNSIGNED NOT NULL,
 	sample_size			BIGINT UNSIGNED,
 	stat_description		VARCHAR(1024) NOT NULL,
+	CONSTRAINT innodb_index_stats_stat_value_defined CHECK (stat_value <> 18446744073709551615),
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0";
 
