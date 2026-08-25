@@ -267,22 +267,6 @@ static bool is_supported_by_select_handler(enum_sql_command sql_command)
 
 
 /*
-  Check whether this is a multi-table UPDATE/DELETE.
-
-  The SQL layer looks for a select_handler for an UPDATE/DELETE only when the
-  statement is processed as a multi-table one (see Sql_cmd_dml::execute_inner()
-  and Sql_cmd_update::execute_inner()/Sql_cmd_delete::execute_inner()).
-  Single-table UPDATE/DELETE never reach this point, they are pushed into the
-  engine with handler::direct_update_rows()/direct_delete_rows() instead.
-*/
-static bool is_supported_update_delete(enum_sql_command sql_command)
-{
-  return sql_command == SQLCOM_UPDATE || sql_command == SQLCOM_UPDATE_MULTI ||
-         sql_command == SQLCOM_DELETE || sql_command == SQLCOM_DELETE_MULTI;
-}
-
-
-/*
   Create FederatedX select handler for processing either a single select
   (in this case sel_lex is initialized and lex_unit==NULL)
   or a select that is part of a unit
@@ -315,8 +299,13 @@ create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
 static multi_upddel_handler *
 create_federatedx_multi_upddel_handler(THD *thd, SELECT_LEX *sel_lex)
 {
-  DBUG_ASSERT(is_supported_update_delete(thd->lex->sql_command));
-  if (!use_pushdown)// || !is_supported_update_delete(thd->lex->sql_command))
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_UPDATE ||
+              thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+              thd->lex->sql_command == SQLCOM_DELETE ||
+              thd->lex->sql_command == SQLCOM_DELETE_MULTI);
+
+  /* Is pushdown enabled by @@federatedx_use_pushdown? */
+  if (!use_pushdown)
     return nullptr;
 
   /*
