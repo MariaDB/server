@@ -1461,7 +1461,6 @@ int pwt_worker::execute_and_handoff()
   src->file->parallel_end_worker();
 
   // hand off the final partial batch (ignore a late stop -- we are done)
-  // TODO-note: removed "&& !mgr->fatal_error". Checking it was a race cond anyway.
   if (!err && !killed && batch.count)
     handoff_batch();
 
