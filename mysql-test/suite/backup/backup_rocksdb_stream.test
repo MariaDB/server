@@ -1,0 +1,75 @@
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # BACKUP SERVER WITH ... N CONCURRENT (streamed oldgnu tar)
+--echo #
+
+CREATE TABLE ti(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO ti SET a=1;
+
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+--remove_files_wildcard $MYSQL_TMP_DIR/. stream.bat
+--write_file $MYSQL_TMP_DIR/stream.bat
+#!/bin/sh
+exec cat > $MYSQL_TMP_DIR/$1.tar
+EOF
+--let $script=$MYSQL_TMP_DIR/stream.bat
+if (!$MARIADB_UPGRADE_EXE) {
+# Because we may run on Linux /dev/shm which may be mounted as noexec,
+# we cannot rely on chmod +x, but must explicitly invoke a shell on the script.
+--let $script=/bin/sh $script
+}
+if ($MARIADB_UPGRADE_EXE)
+{
+--exec echo "@cat > %MYSQL_TMP_DIR%\%1.tar" > $MYSQL_TMP_DIR/stream.bat
+}
+--replace_result $script stream.bat
+eval BACKUP SERVER WITH 2 CONCURRENT '$script';
+--remove_file $MYSQL_TMP_DIR/stream.bat
+
+INSERT INTO tr VALUES (4,'r-four');
+INSERT INTO ti VALUES (2,'two');
+
+--let $target_directory=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_stream
+--error 0,1
+--rmdir $target_directory
+--mkdir $target_directory
+--exec tar xf $MYSQL_TMP_DIR/1.tar -C $target_directory
+--exec tar xf $MYSQL_TMP_DIR/2.tar -C $target_directory
+--file_exists $target_directory/#rocksdb
+if ($MARIADB_UPGRADE_EXE) {
+let target_directory=$target_directory;
+perl;
+open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+open OUT, ">>", "$ENV{target_directory}/backup.cnf";
+print OUT while (<IN>);
+close(IN);
+close(OUT);
+EOF
+}
+if (!$MARIADB_UPGRADE_EXE) {
+  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+}
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory --plugin-load-add=$HA_ROCKSDB_SO
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+--remove_file $MYSQL_TMP_DIR/1.tar
+--remove_file $MYSQL_TMP_DIR/2.tar
+
+--echo # restart on the original datadir
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+DROP TABLE ti, tr;
+--rmdir $target_directory

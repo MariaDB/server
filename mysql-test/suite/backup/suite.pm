@@ -13,6 +13,7 @@ my $have_tar = `tar --version 2>&1` =~ /tar .*\d\.\d/;
 sub skip_combinations {
   my %skip;
   $skip{'backup_stream.test'} = 'needs cat,tar' unless $have_cat && $have_tar;
+  $skip{'backup_rocksdb.test'} = 'needs cat,tar' unless $have_cat && $have_tar;
   %skip;
 }
 
