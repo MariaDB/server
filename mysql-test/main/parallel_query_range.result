@@ -21,7 +21,7 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
 FROM information_schema.optimizer_trace;
 chosen	range_scan
-1	[false]
+1	[false, false]
 # a primary-key range: chosen, and a range scan
 EXPLAIN SELECT pk FROM t1 WHERE pk BETWEEN 4000 AND 12000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -31,7 +31,7 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
 FROM information_schema.optimizer_trace;
 chosen	range_scan
-1	[true]
+1	[true, true]
 #
 # EXPLAIN annotates the access method it parallelised, rather than
 # replacing it: ALL_parallel for the whole index, range_parallel for
