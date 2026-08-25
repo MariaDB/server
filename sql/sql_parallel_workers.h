@@ -351,6 +351,9 @@ extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
                                         ALL_READ_COST *cost);
 
 extern bool parallel_scan_supports_access(JOIN_TAB *tab);
+extern bool table_can_be_parallel_scanned(JOIN_TAB *tab);
 extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab);
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
+extern void check_parallel_scan(JOIN *join);
+extern void recheck_parallel_scan(JOIN *join);
 #endif

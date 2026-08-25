@@ -34,6 +34,7 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
+#include "opt_trace.h"
 #include "sql_parallel_workers.h"
 #include "transaction.h"
 
@@ -45,7 +46,7 @@
 *****************************************************************************/
 
 
-/*
+/**
   @brief
     Whether this item can be copied into something a worker can own.
 
@@ -96,7 +97,7 @@ public:
 };
 
 
-/*
+/**
   @brief
     Whether 'item' reads a field of a table the worker will not have a copy of.
 
@@ -131,7 +132,7 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 }
 
 
-/*
+/**
   @brief
     Whether the access method on 'tab' is one the workers can partition.
 
@@ -171,7 +172,164 @@ bool parallel_scan_supports_access(JOIN_TAB *tab)
 }
 
 
-/*
+/**
+  @brief
+    Can the workers be handed disjoint pieces of the way this table is read?
+
+  @description
+    Four things have to hold of the driving table, and each of them can be
+    taken away by a plan decision made after the gate has run, so there is one
+    place that says what they are and both askers come here:
+
+    - the access is a full scan or a range scan (JT_ALL / JT_RANGE). Those are
+      the two the engine partitions: the whole clustered index, or the key
+      intervals of the range;
+
+    - the table is read by the ordinary record reader, which is the one a
+      worker replaces with the pscan chunk reader. An ordered index read
+      (join_read_first -- from a covering key, or from test_if_skip_sort_order()
+      giving the table the GROUP BY or ORDER BY order for free) delivers rows in
+      key order, and rows handed out in chunks do not arrive in key order;
+
+    - the quick select, if there is one, is one the partitioner can map onto
+      chunk boundaries (parallel_scan_supports_access);
+
+    - the table itself is one the workers can read and ship
+      (table_can_be_parallel_scanned).
+
+    NULL is a plan whose tables are all constant, which first_linear_tab()
+    reports that way; it has no driving table to scan.
+
+  @return  true if this table's access path can be divided among the workers.
+*/
+
+bool table_can_be_parallel_scanned(JOIN_TAB *tab)
+{
+  return tab &&
+         (tab->type == JT_ALL || tab->type == JT_RANGE) &&
+         tab->read_first_record == join_init_read_record &&
+         parallel_scan_supports_access(tab) &&
+         table_can_be_parallel_scanned(tab->table);
+}
+
+
+/**
+  @brief
+    Recheck whether we can still run our query in parallel.
+    trace it.
+
+  @description
+    Run this query with parallel workers if possible.
+
+    1) Parallel worker threads available
+    2) the driving table is read a way the workers can be given disjoint
+         pieces of, and the query is one they can run themselves over those
+         pieces (can_run_query_in_workers, which examines both -- it starts
+         with table_can_be_parallel_scanned on the table passed to it)
+
+    Engine-intrinsic constraints (consistent-read only, record format,
+    discarded tablespace, ...) are enforced later inside
+    parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED so
+    run_worker_side_join() falls back to serial execution. We leave the table's
+    read_first_record as the serial reader: the manager never scans it (it only
+    collects the workers' result rows), and the serial reader is what the
+    fall-back path needs. do_select() dispatches on worker_side_parallel.
+*/
+
+void check_parallel_scan(JOIN *join)
+{
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                    WITHOUT_CONST_TABLES);
+  if (join->thd->variables.parallel_worker_threads > 0 &&       //1
+      can_run_query_in_workers(join, first))                    //2
+  {
+    first->use_parallel_scan= join->worker_side_parallel= true;
+    if (unlikely(join->thd->trace_started()))
+    {
+      Json_writer_object trace_pscan(join->thd);
+      /*
+        A candidate and not yet a conclusion: the plan can still change after
+        this and take the parallel scan away again. JOIN::optimize_stage2()
+        re-checks once it has stopped changing and says what became of it.
+      */
+      trace_pscan.add("parallel_scan_candidate", first->table->alias.c_ptr());
+      /*
+        What the workers will divide: the whole clustered index, or the key
+        intervals of the range scan. The two are partitioned the same way, but
+        which one it is decides whether the chunk boundaries are bounded by
+        the range, so say so rather than leaving it to be inferred from the
+        access method shown elsewhere in the trace.
+      */
+      trace_pscan.add("range_scan",
+                      first->select && first->select->quick != NULL);
+    }
+  }
+
+}
+
+/**
+  @brief
+    Recheck whether we can still run our query in parallel.
+    trace it.
+
+  @description
+    make_join_readinfo() decided whether the driving table would be scanned in
+    parallel, and the plan has been able to change since: the
+    test_if_skip_sort_order() calls above may have given that table an ordered
+    index scan so that it supplies the GROUP BY or the ORDER BY order for free,
+    and an ordered scan is not one that can be handed out in chunks.
+
+    So re-check, and clear the decision if it no longer holds. Leaving it set
+    is not a small matter either way: JOIN::worker_side_parallel is what
+    do_select() dispatches on, so a manager would be built and the engine asked
+    to partition the B-tree before something further down declined, and the
+    trace would go on naming a table as chosen for a query that then ran
+    serially -- which sends a reader looking in the wrong place.
+
+    Nothing reaches the abandoned branch as the gate stands today, since it
+    declines GROUP BY and ORDER BY outright and those are the only plans
+    test_if_skip_sort_order() runs for. It goes in with the trace keys that
+    describe it, so that when those plans are let through the decision is
+    already being re-checked rather than being trusted from before the plan
+    settled.
+*/
+
+void recheck_parallel_scan(JOIN *join)
+{
+  THD *thd= join->thd;
+  JOIN_TAB *par= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                    WITHOUT_CONST_TABLES);
+  const bool still_divisible= table_can_be_parallel_scanned(par);
+
+  if (!still_divisible)
+  {
+    if (par)
+      par->use_parallel_scan= false;
+    join->worker_side_parallel= false;
+  }
+  if (unlikely(thd->trace_started()))
+  {
+    Json_writer_object trace_pscan(thd);
+    if (still_divisible)
+      trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
+    else
+    {
+      trace_pscan.add("parallel_scan_abandoned",
+                      par ? par->table->alias.c_ptr() : "");
+      /* Named so it can be grepped for: "cause" is a common trace key. */
+      trace_pscan.add("parallel_scan_abandoned_because",
+                  join->ordered_index_usage == join->ordered_index_group_by ?
+                  "an index now supplies the GROUP BY order" :
+                  join->ordered_index_usage == join->ordered_index_order_by ?
+                  "an index now supplies the ORDER BY order" :
+                  "the access path can no longer be divided in chunks");
+    }
+  }
+
+}
+
+
+/**
   @brief
     The whole condition this table has to be filtered by, whatever the plan did
     with it.
@@ -225,7 +383,9 @@ static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
   True for a streaming select-project[-join] query whose driving table
   'scan_tab' is parallel-scannable and whose remaining tables the workers can
   join themselves:
-    - at least one non-const table (the parallel-scanned driving table);
+    - 'scan_tab' is read a way the workers can be given disjoint pieces of
+      (tab_can_be_parallel_scanned), which also rules out a plan whose tables
+      are all constant and so has no driving table at all;
     - all joins are inner (no outer-join null-complementation, no semijoin),
       and every non-driving table is reached by an index ref/eq_ref lookup or a
       plain full scan -- nothing that needs a join buffer, range/quick, rowid
@@ -249,11 +409,13 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
   DBUG_ENTER("can_run_query_in_workers");
   SELECT_LEX *sl= join->select_lex;
 
-  if (join->table_count - join->const_tables < 1)   // need the driving table
+  if (!table_can_be_parallel_scanned(scan_tab))
   {
-    DBUG_PRINT("info", ("only constant tables"));
+    DBUG_PRINT("info", ("no table this plan reads in a divisible way"));
     DBUG_RETURN(false);
   }
+  /* The loop below reads the driving table as join_tab[const_tables]. */
+  DBUG_ASSERT(scan_tab == join->join_tab + join->const_tables);
   if (join->need_tmp)                             // group/distinct/order/...
   {
     DBUG_PRINT("info", ("group/distinct/order by"));
@@ -340,12 +502,12 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
       DBUG_RETURN(false);
     }
     /*
-      The driving table may be read through a quick select, the tables joined
-      after it may not: a worker's tab keeps the record source
-      make_join_readinfo() chose and reads through no quick select of its own.
+      The driving table may be read through a quick select -- checked above,
+      where the whole access path is -- but the tables joined after it may not:
+      a worker's tab keeps the record source make_join_readinfo() chose and
+      reads through no quick select of its own.
     */
-    if (tab->select && tab->select->quick &&
-        (j > join->const_tables || !parallel_scan_supports_access(tab)))
+    if (j > join->const_tables && tab->select && tab->select->quick)
     {
       DBUG_PRINT("info", ("quick select on %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
