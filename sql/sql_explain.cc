@@ -38,10 +38,10 @@ const char *pushed_unit_operation_text[4]=
   "PUSHED UNIT", "PUSHED UNION", "PUSHED INTERSECT", "PUSHED EXCEPT"
 };
 
-const char *pushed_derived_text= "PUSHED DERIVED";
-const char *pushed_select_text= "PUSHED SELECT";
-const char *pushed_update_text= "PUSHED UPDATE";
-const char *pushed_delete_text= "PUSHED DELETE";
+const char * const pushed_derived_text= "PUSHED DERIVED";
+const char * const pushed_select_text= "PUSHED SELECT";
+const char * const pushed_update_text= "PUSHED UPDATE";
+const char * const pushed_delete_text= "PUSHED DELETE";
 
 /*
   A statement that was taken over by an engine has no local query plan, it is
@@ -50,16 +50,7 @@ const char *pushed_delete_text= "PUSHED DELETE";
   JSON output.
 */
 
-static inline bool is_pushed_down_select_type(const char *select_type)
-{
-  return select_type == pushed_derived_text ||
-         select_type == pushed_select_text ||
-         select_type == pushed_update_text ||
-         select_type == pushed_delete_text;
-}
-
-
-static const char *pushed_down_select_type_message(const char *select_type)
+static const char *get_pushed_down_select_text(const char *select_type)
 {
   if (select_type == pushed_derived_text)
     return "Pushed derived";
@@ -67,8 +58,9 @@ static const char *pushed_down_select_type_message(const char *select_type)
     return "Pushed select";
   if (select_type == pushed_update_text)
     return "Pushed update";
-  DBUG_ASSERT(select_type == pushed_delete_text);
-  return "Pushed delete";
+  if (select_type == pushed_delete_text)
+    return "Pushed delete";
+  return nullptr;
 }
 
 
@@ -1052,8 +1044,9 @@ int Explain_select::print_explain(Explain_query *query,
 {
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
+  const char *pushed_down_msg;
 
-  if (is_pushed_down_select_type(select_type))
+  if ((pushed_down_msg= get_pushed_down_select_text(select_type)))
   {
      print_explain_message_line(output, explain_flags, is_analyze,
                                 select_id /*select number*/,
@@ -1185,8 +1178,8 @@ void Explain_select::print_explain_json(Explain_query *query,
   bool started_cache= print_explain_json_cache(writer, is_analyze);
   bool started_subq_mat= print_explain_json_subq_materialization(writer,
                                                                  is_analyze);
-
-  if (message || is_pushed_down_select_type(select_type))
+  const char *pushed_down_msg= get_pushed_down_select_text(select_type);
+  if (message || pushed_down_msg)
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
@@ -1194,8 +1187,7 @@ void Explain_select::print_explain_json(Explain_query *query,
 
     writer->add_member("table").start_object();
     writer->add_member("message").
-      add_str(is_pushed_down_select_type(select_type) ?
-              pushed_down_select_type_message(select_type) : message);
+      add_str(pushed_down_msg ? pushed_down_msg : message);
     writer->end_object();
 
     print_explain_json_for_children(query, writer, is_analyze);

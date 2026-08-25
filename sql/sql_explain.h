@@ -345,10 +345,10 @@ public:
 
 extern const char *unit_operation_text[4];
 extern const char *pushed_unit_operation_text[4];
-extern const char *pushed_derived_text;
-extern const char *pushed_select_text;
-extern const char *pushed_update_text;
-extern const char *pushed_delete_text;
+extern const char * const pushed_derived_text;
+extern const char * const pushed_select_text;
+extern const char * const pushed_update_text;
+extern const char * const pushed_delete_text;
 
 /*
   Explain structure for a UNION [ALL].
