@@ -1421,7 +1421,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 
       size_t len_to= 0;
       const char* db_to= binlog_filter->get_rewrite_db(map->get_db_name(), &len_to);
-      if (len_to && map->rewrite_db(db_to, len_to, glob_description_event))
+      if (len_to && map->rewrite_db(db_to, len_to))
       {
         error("Could not rewrite database name");
         goto err;

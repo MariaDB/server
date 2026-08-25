@@ -5968,8 +5968,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   case ROTATE_EVENT:
   {
     Rotate_log_event rev(buf, checksum_alg != BINLOG_CHECKSUM_ALG_OFF ?
-                         event_len - BINLOG_CHECKSUM_LEN : event_len,
-                         mi->rli.relay_log.description_event_for_queue);
+                         event_len - BINLOG_CHECKSUM_LEN : event_len);
     bool master_changed= false;
     bool maybe_crashed= false;
     // Exclude server start scenario
@@ -6200,8 +6199,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Heartbeat_log_event hb(buf,
                            mi->rli.relay_log.relay_log_checksum_alg
                            != BINLOG_CHECKSUM_ALG_OFF ?
-                           event_len - BINLOG_CHECKSUM_LEN : event_len,
-                           mi->rli.relay_log.description_event_for_queue);
+                           event_len - BINLOG_CHECKSUM_LEN : event_len);
     if (!hb.is_valid())
     {
       error= ER_SLAVE_HEARTBEAT_FAILURE;
@@ -6327,8 +6325,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
     if (Gtid_log_event::peek(buf, event_len, checksum_alg,
                              &event_gtid.domain_id, &event_gtid.server_id,
-                             &event_gtid.seq_no, &gtid_flag,
-                             rli->relay_log.description_event_for_queue))
+                             &event_gtid.seq_no, &gtid_flag))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;
@@ -6509,8 +6506,7 @@ dbug_gtid_accept:
   */
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
-    if (query_event_uncompress(rli->relay_log.description_event_for_queue,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+    if (query_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                buf, event_len, new_buf_arr, sizeof(new_buf_arr),
                                &is_malloc, &new_buf, &event_len))
     {
@@ -6533,8 +6529,7 @@ dbug_gtid_accept:
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
     inc_pos = event_len;
     {
-      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue,
-                                   checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+      if (row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                    buf, event_len, new_buf_arr,
                                    sizeof(new_buf_arr),
                                    &is_malloc, &new_buf, &event_len))
@@ -6843,8 +6838,7 @@ dbug_gtid_accept:
     if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
         LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]))
     {
-      time_t end_time= query_event_get_end_time(
-          buf, rli->relay_log.description_event_for_queue);
+      time_t end_time= query_event_get_end_time(buf);
       set_if_bigger(rli->newest_master_timestamp, end_time);
     }
     else if (((Log_event_type) buf[EVENT_TYPE_OFFSET]) == XID_EVENT)

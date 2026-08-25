@@ -8566,7 +8566,6 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
                           handler_binlog_reader *reader)
 {
   String packet;
-  Format_description_log_event fd_event(4);
 
   if (reader)
   {
@@ -8586,8 +8585,7 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
       uchar flags2;
       if (Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                BINLOG_CHECKSUM_ALG_OFF, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2,
-                               &fd_event))
+                               &gtid.server_id, &gtid.seq_no, &flags2))
         return true;
       state->update_nolock(&gtid);
     }
