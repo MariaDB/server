@@ -219,7 +219,14 @@ master-bin.000007	#	Gtid_list	1	#	[0-1-25]
 connection slave;
 include/sync_with_master_gtid.inc
 connection master;
+Expect NONE in the xa-prepared list
+xa recover;
+formatID	gtrid_length	bqual_length	data
+set @@session.innodb_lock_wait_timeout=5;
 drop database test_ign;
+Ditto
+xa recover;
+formatID	gtrid_length	bqual_length	data
 drop table t1, t2, t3, tm;
 Ditto
 xa recover;
