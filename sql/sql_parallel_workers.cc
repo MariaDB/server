@@ -124,6 +124,11 @@ void pwt_worker::thread_func()
   // TODO-discuss: note: the following cleanup is now done before
   // destroying and detaching the THD. Before, it was done after.
   // Is this fine?
+  // Yes, and it's an improvement,
+  // It now calls pop_internal_handler() after close_tables() not before.
+  // That means an error raised during closefrm()/update_global_table_stats()
+  // is now captured by PWT_error_handler and relayed, where before it landed
+  // in the worker's own diagnostics area and was discarded with the THD.
 
   /*
     Close our private table copies while we are still attached to our THD
@@ -247,6 +252,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   }
   
   workers= new pwt_worker[n]; // TODO: does this occur on mem_root this way?
+                              // No, this is a normal un-instrumented heap allocation
   if (!workers)
   {
     file->parallel_end_coordinator();
@@ -494,7 +500,7 @@ cleanup_old_workers:
   mysql_mutex_unlock(&LOCK_data);
   for (uint j= 0; j < i; j++)
     workers[j].abort_worker();
-  free_queue();
+  discard_pending_warnings();
   free_result_tables(thd);            // workers reaped; result tables now idle
   // free each worker's row buffer (NULL for those not yet allocated)
   for (uint j= 0; j < n; j++)
