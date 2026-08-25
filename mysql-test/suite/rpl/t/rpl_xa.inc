@@ -358,9 +358,13 @@ drop database test_ign;
 #if debug
 --echo Ditto
 xa recover;
+--error 0,ER_LOCK_WAIT_TIMEOUT
 #endif
-
 drop table t1, t2, t3, tm;
+#if debug
+--echo Ditto
+xa recover;
+#endif
 
 --echo #
 --echo # MDEV-26682 slave lock timeout with XA and gap locks
