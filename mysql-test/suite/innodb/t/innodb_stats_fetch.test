@@ -116,3 +116,14 @@ UPDATE mysql.innodb_index_stats SET stat_value=0 WHERE database_name like "test"
 UPDATE mysql.innodb_table_stats SET clustered_index_size= 0, sum_of_other_index_sizes=0 WHERE database_name like "test" and table_name like 't';
 UPDATE t SET c1=+1 ORDER BY c2;
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-40840: InnoDB: Failing assertion: stat_value != UINT64_UNDEFINED
+--echo #
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+--error ER_CONSTRAINT_FAILED
+UPDATE mysql.innodb_index_stats SET stat_value=18446744073709551615;
+SELECT stat_value FROM mysql.innodb_index_stats WHERE database_name='test' AND table_name='t';
+RENAME TABLE t TO t2;
+SELECT * FROM t2;
+DROP TABLE t2;
