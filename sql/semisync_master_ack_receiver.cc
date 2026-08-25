@@ -137,7 +137,7 @@ void static dbug_verify_no_duplicate_slaves(Slave_ilist *m_slaves, THD *thd)
 #endif
 
 
-bool Ack_receiver::add_slave(THD *thd)
+bool Ack_receiver::add_slave(THD *thd, bool *thd_should_stop)
 {
   Slave *slave;
   DBUG_ENTER("Ack_receiver::add_slave");
@@ -147,6 +147,7 @@ bool Ack_receiver::add_slave(THD *thd)
 
   slave->active= 0;
   slave->thd= thd;
+  slave->should_stop= thd_should_stop;
   slave->vio= *thd->net.vio;
   slave->vio.mysql_socket.m_psi= NULL;
   slave->vio.read_timeout= 1;                   // 1 ms
@@ -356,10 +357,8 @@ void Ack_receiver::run()
                                                         net.read_pos, len);
           if (unlikely(res < 0))
           {
-            /*
-              Slave has sent COM_QUIT or other failure.
-              Delete it from listener
-            */
+            // Slave has sent @ref COM_QUIT. Delete it
+            *(slave->should_stop)= true;
             it.remove();
             m_slaves_changed= true;
           }

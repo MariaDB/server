@@ -31,6 +31,11 @@ struct Slave :public ilink
   uint m_fds_index;
 #endif
   bool active;
+  /**
+    The `binlog_send_info::should_stop` from `sql_repl.cc`.
+    Synchronization not needed because stale values are (relatively) harmless.
+  */
+  bool *should_stop;
   my_socket sock_fd() const { return vio.mysql_socket.fd; }
   uint server_id() const { return thd->variables.server_id; }
 };
@@ -65,7 +70,7 @@ public:
 
      @return it return false if succeeds, otherwise true is returned.
   */
-  bool add_slave(THD *thd);
+  bool add_slave(THD *thd, bool *thd_should_stop);
 
   /**
     Notify ack receiver not to receive ack on the dump session.

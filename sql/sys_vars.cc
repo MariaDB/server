@@ -3775,14 +3775,6 @@ static bool fix_rpl_semi_sync_slave_delay_master(sys_var *self, THD *thd,
   return false;
 }
 
-static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
-                                                      enum_var_type type)
-{
-  repl_semisync_slave.
-    set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
-  return false;
-}
-
 static Sys_var_on_access_global<Sys_var_mybool,
                          PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_ENABLED>
 Sys_semisync_slave_enabled(
@@ -3817,14 +3809,14 @@ static Sys_var_on_access_global<Sys_var_uint,
                PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT>
 Sys_semisync_slave_kill_conn_timeout(
        "rpl_semi_sync_slave_kill_conn_timeout",
-       "Timeout for the mysql connection used to kill the slave io_thread's "
-       "connection on master. This timeout comes into play when stop slave "
-       "is executed.",
+       "Previously, the timeout to kill the slave IO thread's "
+       "connection on master during STOP SLAVE; "
+       "now unused as this kill is now an asynchronous reply just like an ack",
        GLOBAL_VAR(rpl_semi_sync_slave_kill_conn_timeout),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_slave_kill_conn_timeout));
+       ON_UPDATE(0), DEPRECATED(""));
 #endif /* HAVE_REPLICATION */
 
 static Sys_var_on_access_global<Sys_var_ulong,

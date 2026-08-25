@@ -826,14 +826,14 @@ int Repl_semi_sync_master::report_binlog_update(THD *trans_thd,
   return 0;
 }
 
-int Repl_semi_sync_master::dump_start(THD* thd,
+int Repl_semi_sync_master::dump_start(THD* thd, bool *thd_should_stop,
                                    const char *log_file,
                                    my_off_t log_pos)
 {
   if (!thd->semi_sync_slave)
     return 0;
 
-  if (ack_receiver.add_slave(thd))
+  if (ack_receiver.add_slave(thd, thd_should_stop))
   {
     sql_print_error("Failed to register slave to semi-sync ACK receiver "
                     "thread. Turning off semisync");

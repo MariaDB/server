@@ -36,7 +36,6 @@ int Repl_semi_sync_slave::init_object()
   /* References to the parameter works after set_options(). */
   set_trace_level(rpl_semi_sync_slave_trace_level);
   set_delay_master(rpl_semi_sync_slave_delay_master);
-  set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
   return result;
 }
 
@@ -141,7 +140,6 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi);
   }
 
   set_slave_enabled(0);
@@ -157,56 +155,6 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
     slave_start(mi);
 }
 
-
-void Repl_semi_sync_slave::kill_connection(Master_info *mi)
-{
-  MYSQL *mysql= mi->mysql;
-  if (!mysql)
-    return;
-
-  char kill_buffer[30];
-  MYSQL *kill_mysql = NULL;
-  size_t kill_buffer_length;
-
-  kill_mysql = mysql_init(kill_mysql);
-
-  setup_mysql_connection_for_master(kill_mysql, mi, m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
-
-  bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
-            mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
-  if (DBUG_IF("semisync_slave_failed_kill") || ret)
-  {
-    sql_print_information("cannot connect to master to kill slave io_thread's "
-                          "connection");
-    goto failed_graceful_kill;
-  }
-
-  kill_buffer_length= my_snprintf(kill_buffer, 30, "KILL %lu",
-                                mysql->thread_id);
-  if (mysql_real_query(kill_mysql, kill_buffer, (ulong)kill_buffer_length))
-  {
-    sql_print_information(
-        "Failed to gracefully kill our active semi-sync connection with "
-        "primary. Silently closing the connection.");
-    goto failed_graceful_kill;
-  }
-
-end:
-  mysql_close(kill_mysql);
-  return;
-
-failed_graceful_kill:
-  /*
-    If we fail to issue `KILL` on the primary to kill the active semi-sync
-    connection; we need to locally clean up our side of the connection. This
-    is because mysql_close will send COM_QUIT on the active semi-sync
-    connection, causing the primary to error.
-  */
-  net_clear(&(mysql->net), 0);
-  end_server(mysql);
-  goto end;
-}
 
 int Repl_semi_sync_slave::request_transmit(Master_info *mi)
 {

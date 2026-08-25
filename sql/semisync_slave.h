@@ -61,10 +61,6 @@ public:
     m_delay_master = enabled;
   }
 
-  void set_kill_conn_timeout(unsigned int timeout) {
-    m_kill_conn_timeout = timeout;
-  }
-
   /* A slave reads the semi-sync packet header and separate the metadata
    * from the payload data.
    *
@@ -92,14 +88,12 @@ public:
   void slave_stop(Master_info *mi);
   void slave_reconnect(Master_info *mi);
   int request_transmit(Master_info *mi);
-  void kill_connection(Master_info *mi);
 
 private:
   /* True when init_object has been called */
   bool m_init_done;
   bool m_slave_enabled;        /* semi-sync is enabled on the slave */
   bool m_delay_master;
-  unsigned int m_kill_conn_timeout;
 };
 
 

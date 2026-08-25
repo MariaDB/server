@@ -1,0 +1,77 @@
+#
+#   This test verifies that semi-sync setups can stop
+# the replication connection when the IO thread is stopped (e.g. from
+# STOP SLAVE). MDEV-36663 reported an issue where it
+# could not connect to the master when it requires
+# connections to use SSL.
+#
+# References:
+#   MDEV-36663: Semi-sync Slave Can't Kill Dump Thread When Using SSL
+#   MDEV-39583: Replace the slave-side graceful self-KILL with the
+#               master-side COM_QUIT handing in Semi-Synchronous Replication
+#
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--source include/have_ssl_communication.inc
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--echo #
+--echo # Setup
+set @orig_master_enabled= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+--echo # Create some table so slave can be seen as up-to-date and working
+CREATE TABLE t1 (a INT);
+--connection slave
+set @orig_slave_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+
+
+--echo #
+--echo # Test non-SSL
+--echo #
+
+CHANGE MASTER TO master_ssl=0; # to be certain
+
+--source rpl_semi_sync_stop.inc
+
+
+--echo #
+--echo # Test SSL
+--echo #
+
+CREATE USER replssl@localhost;
+GRANT REPLICATION SLAVE on *.* to replssl@localhost REQUIRE SSL;
+
+--connection slave
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval CHANGE MASTER TO
+  master_user='replssl',
+  master_password='',
+  master_ssl=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+
+--source rpl_semi_sync_stop.inc
+
+
+--echo # Cleanup
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @orig_master_enabled;
+DROP USER replssl@localhost;
+DROP TABLE t1;
+
+--connection slave
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
+CHANGE MASTER TO
+  master_user='root',
+  master_ssl=0,
+  master_ssl_ca='',
+  master_ssl_cert='',
+  master_ssl_key='';
+
+--connection slave
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_stop.test

@@ -626,7 +626,7 @@ class Repl_semi_sync_master
   int report_binlog_update(THD *trans_thd, THD *waiter_thd,
                            const char *log_file, my_off_t log_pos);
 
-  int dump_start(THD* thd,
+  int dump_start(THD* thd, bool *thd_should_stop,
                   const char *log_file,
                   my_off_t log_pos);
 
