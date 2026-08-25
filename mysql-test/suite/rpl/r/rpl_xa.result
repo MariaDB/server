@@ -221,6 +221,9 @@ include/sync_with_master_gtid.inc
 connection master;
 drop database test_ign;
 drop table t1, t2, t3, tm;
+Ditto
+xa recover;
+formatID	gtrid_length	bqual_length	data
 #
 # MDEV-26682 slave lock timeout with XA and gap locks
 #

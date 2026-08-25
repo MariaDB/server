@@ -351,7 +351,12 @@ source include/sync_with_master_gtid.inc;
 
 connection master;
 --eval drop database test_ign
+--error 0,ER_LOCK_WAIT_TIMEOUT
 drop table t1, t2, t3, tm;
+#if debug
+--echo Ditto
+xa recover;
+#endif
 
 --echo #
 --echo # MDEV-26682 slave lock timeout with XA and gap locks
