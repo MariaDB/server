@@ -2126,10 +2126,7 @@ void THD::awake_no_mutex(killed_state state_to_set,
     if (this != current_thd && thread_id != shutdown_thread_id)
     {
       if (active_vio)
-      {
         vio_shutdown(active_vio, SHUT_RDWR);
-        active_vio= 0;
-      }
     }
 
     /* Send an event to the scheduler that a thread should be killed. */
