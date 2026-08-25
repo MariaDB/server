@@ -95,6 +95,8 @@ public:
       //TODO: and we don't save which error we've got?
       //  Do we save it right below? If yes, why don't we
       //  enqueue it first?
+      //  An error appears to have multiple elements, so we contain it, then
+      //  queue it.
       manager->notify_fatal_error();
     }
     pwt_queued_event *event;
@@ -211,15 +213,16 @@ void pwt_worker_base::init_and_run_thread_func()
     DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
       "now SIGNAL pwt_worker_paused WAIT_FOR pwt_worker_continue NO_CLEAR_EVENT"
       ))););
-#endif
   
   // TODO: what is this for? Test coverage for the above?
+  // yes
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   if (thd->killed)
   {
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
   }
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
+#endif
 
   thread_func();
 
@@ -398,7 +401,7 @@ pwt_manager_base::~pwt_manager_base()
      Free our message queue, discard the messages
 */
 
-void pwt_manager_base::free_queue()
+void pwt_manager_base::discard_pending_warnings()
 {
   // process queue
   if (!parallel_messages.head())

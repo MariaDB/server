@@ -53,9 +53,8 @@ public:
   }
   void notify_message_dropped();
 
-  //TODO: why would we free the queue and not process warnings there?
-  void free_queue();
-  void process_pending_warnings();
+  void discard_pending_warnings();      // called on initialization failure
+  void process_pending_warnings();      // called at end of normal execution
 
 private:
   mysql_mutex_t            LOCK_pwt_manager;
@@ -107,14 +106,6 @@ struct pwt_worker_info
                                1+THREAD_ID_LENGTH+1];
 };
 
-/* UNUSED:
-struct pwt_worker_state
-{
-  //bool            joined;
-  //bool            finished;
-  //killed_state    killed;
-};
-*/
 
 class pwt_manager;
 
@@ -144,13 +135,11 @@ public:
   mysql_mutex_t   LOCK_worker;
 
   void init_and_run_thread_func();
-  virtual void thread_func()=0 ;
+  virtual void thread_func()= 0;
 
 private:
-  // UNUSED: mysql_cond_t    COND_worker;
-  // UNUSED:pwt_worker_state      state; // Whether running/killed/etc.
   pwt_worker_info       info; // Connection/thread name
-                              //
+
   friend void *pwt_worker_base_thread_func(void *arg);
 };
 
