@@ -671,6 +671,11 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
   if (elements == 0)                       /* the whole tree is in memory */
     return tree_walk(&tree, action, walk_action_arg, left_root_right);
 
+  DBUG_EXECUTE_IF("unique_walk_merge_fail", return 1;);
+  /* A failure that reported itself, as an out of memory one would */
+  DBUG_EXECUTE_IF("unique_walk_merge_error",
+                  { my_error(ER_OUT_OF_RESOURCES, MYF(0)); return 1; });
+
   sort.return_rows= elements+tree.elements_in_tree;
   /* flush current tree to the file to have some memory for merge buffer */
   if (flush())

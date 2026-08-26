@@ -105,3 +105,28 @@ FROM seq_1_to_500 WHERE seq <= JSON_LENGTH(@ja)) split;
 ja_valid	ja_no_duplicates	ja_ascending
 1	1	1
 DROP TABLE t4;
+#
+# Running out of LIMIT stops the walk of the duplicate filter early,
+# but nothing is lost by it. It must not be reported as a cut value.
+#
+CREATE TABLE t5 (a VARCHAR(100));
+INSERT INTO t5 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+SELECT COUNT(DISTINCT a) AS distinct_values FROM t5;
+distinct_values
+200
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a LIMIT 5)) AS gc_len FROM t5;
+gc_len
+504
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5)) AS gc_order_len FROM t5;
+gc_order_len
+504
+SET @@tmp_memory_table_size=0;
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a LIMIT 5)) AS gc_len_spilled FROM t5;
+gc_len_spilled
+504
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5)) AS gc_order_len_spilled
+FROM t5;
+gc_order_len_spilled
+504
+SET @@tmp_memory_table_size=DEFAULT;
+DROP TABLE t5;

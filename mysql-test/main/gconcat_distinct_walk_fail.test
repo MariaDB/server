@@ -1,0 +1,56 @@
+#
+# GROUP_CONCAT(DISTINCT ...) builds its result by walking the Unique that
+# filtered the duplicates. That walk merges back what the Unique spilled to
+# disk, so it can fail on its own, without the callback that appends the
+# rows getting a chance to say anything. The result is then short and the
+# user has to be told about it.
+#
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (a VARCHAR(100));
+INSERT INTO t1 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+
+--echo #
+--echo # Starve the duplicate filter so that it spills and the walk has to
+--echo # merge, then make the merging walk fail.
+--echo #
+SET @@tmp_memory_table_size=0;
+SET SESSION debug_dbug='+d,unique_walk_merge_fail';
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+SET SESSION debug_dbug=DEFAULT;
+SET @@tmp_memory_table_size=DEFAULT;
+
+--echo #
+--echo # The duplicate filter gets the smaller of the two memory limits, so
+--echo # the warning names whichever of them is the one holding it down.
+--echo #
+SET @@max_heap_table_size=16384;
+SET SESSION debug_dbug='+d,unique_walk_merge_fail';
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+SET SESSION debug_dbug=DEFAULT;
+SET @@max_heap_table_size=DEFAULT;
+
+--echo #
+--echo # A walk that failed for a reason it reported itself, an out of
+--echo # memory one for instance, needs no warning of its own: the user has
+--echo # already been told, and the statement is failing anyway.
+--echo #
+SET @@tmp_memory_table_size=0;
+SET SESSION debug_dbug='+d,unique_walk_merge_error';
+--error ER_OUT_OF_RESOURCES
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+SHOW COUNT(*) WARNINGS;
+--error ER_OUT_OF_RESOURCES
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+SHOW COUNT(*) WARNINGS;
+SET SESSION debug_dbug=DEFAULT;
+SET @@tmp_memory_table_size=DEFAULT;
+
+--echo #
+--echo # Without the injected failure the same queries are complete and quiet.
+--echo #
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+DROP TABLE t1;
