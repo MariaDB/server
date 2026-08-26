@@ -628,6 +628,12 @@ public:
     ctx.last_lsn= last_lsn;
     log_sys.latch.wr_unlock();
     mutex.wr_unlock();
+    /*
+      Ensure that all data will be available to replicate(). Some
+      might only reside in log_sys.buf. A durable write is not
+      necessary, because a system crash will make the backup unusable.
+    */
+    log_write_up_to(last_lsn, false);
   }
 
   /**
