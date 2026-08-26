@@ -93,6 +93,16 @@ class pwt_manager;
 class pwt_worker_base : public Sql_alloc
 {
 public:
+  /*
+    A team is built as an array and taken apart again from whatever stage the
+    build reached, so a worker has to be able to say what it holds before
+    anything has been done to it.
+  */
+  pwt_worker_base():
+    thd(nullptr), manager_base(nullptr), inited(false), thread_started(false)
+  {}
+  virtual ~pwt_worker_base() {}
+
   /* Intialize the worker and create its THD (call from master thread) */
   bool init_worker_thd(pwt_manager_base *manager_arg, THD *parent_thd,
                        int worker_nr);
@@ -109,23 +119,46 @@ public:
   /* This will be invoked when a fatal error occurs */
   virtual void on_fatal_error() = 0;
 
-  virtual ~pwt_worker_base() {}
-
-  void abort_worker();
-
-  void join_worker_thread() { pthread_join(pthread, nullptr); }
+  /*
+    Release whatever thread_func() releases at the end of a run, for a worker
+    whose thread never ran and so never got to do it itself.
+  */
+  virtual void cleanup_without_run() {}
 
   /*
-    Do cleanup if init_worker_thd() succeeded but then there was some error.
-    TODO: simpler cleanup.
+    @brief
+      Release this worker: everything init_worker_thd() and create_thread()
+      gave it, from whatever stage its startup reached.
+
+    @description
+      The worker knows which stage that was, so the caller does not have to:
+      one that was never initialised, one holding a THD but no thread, and one
+      with a thread running are all released by the same call. It is also
+      idempotent, so unwinding a half-built team is a loop over every worker
+      rather than a loop that has to be bounded by how far the build got.
+
+      reap_worker() waits for a running thread to finish on its own, which is
+      the normal end of a query -- a worker that stops because it was asked to
+      raises no error. abort_worker() tells it to stop first, and it exits with
+      ER_QUERY_INTERRUPTED. That difference is the caller's to make, which is
+      why it is two names and not a parameter.
   */
-  void destroy_worker_thd();
-  /* This is like a destructor. Called after worker is done. */
-  void cleanup_worker();
+  void reap_worker()  { release_worker(false); }
+  void abort_worker() { release_worker(true); }
 
   THD             *thd;
 private:
   pwt_manager_base     *manager_base;
+
+  /*
+    What this worker holds, and so what release_worker() has to give back.
+    'inited' says init_worker_thd() ran to the end: there is a THD registered
+    in server_threads and LOCK_worker is live. 'thread_started' says
+    create_thread() did too, which changes who destroys the THD -- a worker
+    that ran destroys its own on the way out.
+  */
+  bool            inited;
+  bool            thread_started;
 
   /*
     Guards worker->thd while the worker nulls it on exit, so abort_worker()
@@ -137,6 +170,8 @@ private:
   pwt_worker_info   info; // Connection/thread name
   pthread_t         pthread;
 
+  void release_worker(bool abort);
+  void destroy_worker_thd();
   void init_and_run_thread_func();
   friend void *pwt_worker_base_thread_func(void *arg);
 };
