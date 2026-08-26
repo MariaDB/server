@@ -120,13 +120,28 @@ public:
                        int worker_nr);
   bool create_thread();
 
+  void abort_worker();
+
+  /*
+    This does a cleanup if init_worker_thd() succeeded but then
+    there was some error. TODO: simpler cleanup.
+  */
+  void destroy_worker_thd();
+
+  void join_worker_thread() { pthread_join(pthread, nullptr); }
+
   /* This is like a destructor. Called after worker is done. */
   void cleanup_worker();
+
+
   virtual ~pwt_worker_base() {}
 
   THD             *thd;
   pwt_manager     *manager;
-  pthread_t       pthread;
+
+  virtual void thread_func()= 0;
+
+private:
   /*
     Guards worker->thd while the worker nulls it on exit, so abort_worker()
     sees either a live THD to awake() or nullptr.
@@ -134,12 +149,10 @@ public:
   */
   mysql_mutex_t   LOCK_worker;
 
+  pwt_worker_info   info; // Connection/thread name
+  pthread_t         pthread;
+
   void init_and_run_thread_func();
-  virtual void thread_func()= 0;
-
-private:
-  pwt_worker_info       info; // Connection/thread name
-
   friend void *pwt_worker_base_thread_func(void *arg);
 };
 

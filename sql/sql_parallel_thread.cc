@@ -9,6 +9,10 @@
 #include "debug_sync.h"
 #include "transaction.h"
 
+extern MYSQL_THD create_background_thd();
+extern void *thd_attach_thd(MYSQL_THD thd);
+extern void thd_detach_thd(void *save);
+extern void destroy_background_thd(MYSQL_THD thd);
 
 /**
   @brief
@@ -259,6 +263,7 @@ void pwt_worker_base::init_and_run_thread_func()
   */
   thd_detach_thd(save);
   server_threads.erase(worker_thd);
+
   destroy_background_thd(worker_thd);
 }
 
@@ -374,6 +379,41 @@ bool pwt_worker_base::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
 
   return false; // Ok
 }
+
+void pwt_worker_base::destroy_worker_thd()
+{
+  /*
+    destroy_background_thd() requires current_thd to be NULL because it
+    re-attaches the background THD to this thread's TLS. We are running on
+    the user's query thread (current_thd == manager thd), so save/null/
+    restore around the call. Mirrors the create_background_thd() pattern.
+  */
+  THD *save_thd= current_thd;
+  set_current_thd(nullptr);
+  destroy_background_thd(thd);
+  set_current_thd(save_thd);
+}
+
+/**
+  @brief
+    Abort this worker, called as part of an error condition
+
+  The worker may already be tearing itself down: parallel_worker_thread_func
+  nulls worker->thd and destroys the THD under LOCK_worker. Take that lock
+  and only awake() if the worker hasn't yet entered its exit section; if
+  it has, the worker is on its way out and pthread_join will reap it.
+*/
+
+void pwt_worker_base::abort_worker()
+{
+  mysql_mutex_lock(&LOCK_worker);
+  if (thd)
+    thd->awake(ABORT_QUERY);
+  mysql_mutex_unlock(&LOCK_worker);
+  join_worker_thread();
+  cleanup_worker();
+}
+
 
 void pwt_worker_base::cleanup_worker()
 {
