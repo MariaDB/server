@@ -119,6 +119,11 @@ public:
 
   void thread_func() override;
   void on_fatal_error() override;
+  /*
+    What thread_func() closes at the end of a run. A worker whose thread never
+    started still had its tables opened for it, so somebody has to.
+  */
+  void cleanup_without_run() override { close_tables(); }
 
   /*
     This worker's producing end of the result-row transport, made by the
@@ -129,13 +134,7 @@ public:
   pwt_row_sink          *sink;
   pwt_worker_execution  exec;
 
-  /*
-    The team is default-constructed as an array before anything is set up, and
-    a worker whose setup never got as far as these two is still walked by the
-    failure paths (free_result_tables, the sink release in
-    init_parallel_workers). Neither is a member the compiler would zero.
-  */
-  pwt_worker(): sink(nullptr) { }
+  pwt_worker(): manager(nullptr), sink(nullptr) {}
 
   /* Run this worker's share of the query and stream the result rows out. */
   void execute_and_signal_manager();
