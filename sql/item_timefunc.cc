@@ -3215,6 +3215,16 @@ String *Item_char_typecast::val_str_generic(String *str)
         res= reuse(res, prefix.length());
       goto end;
     }
+    if (res->length() == 0)
+    {
+      /*
+        The most efficient conversion of empty string, is another empty
+        string of the target character set.
+      */
+      static const char empty[MY_CS_MBMAXLEN]= {0};
+      res->set(empty, 0, cs);
+      return res;
+    }
     // Character set conversion, or bad bytes were found.
     if (!(res= copy(res, cs)))
       return 0;
