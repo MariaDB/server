@@ -70,9 +70,11 @@ bool save_error_to_queued_event(THD *thd, pwt_queued_event **event, uint error,
 
 class PWT_error_handler : public Internal_error_handler
 {
-  pwt_manager *manager;
+  pwt_manager_base *manager;
+  pwt_worker_base *worker;
 public:
-  PWT_error_handler(pwt_manager *manager_arg) : manager(manager_arg) {}
+  PWT_error_handler(pwt_manager_base *manager_arg, pwt_worker_base *worker_arg) :
+     manager(manager_arg), worker(worker_arg) {}
 
   bool handle_condition(THD *thd,
                         uint sql_errno,
@@ -101,7 +103,7 @@ public:
       //  enqueue it first?
       //  An error appears to have multiple elements, so we contain it, then
       //  queue it.
-      manager->notify_fatal_error();
+      worker->on_fatal_error();
     }
     pwt_queued_event *event;
     if (save_error_to_queued_event(thd, &event, sql_errno, *level, msg))
@@ -177,7 +179,7 @@ bool pwt_worker_base::create_thread()
 
 void pwt_worker_base::init_and_run_thread_func()
 {
-  PWT_error_handler error_handler(manager);
+  PWT_error_handler error_handler(manager_base, this);
 
   /*
     Set current_thd and thread local storage (my_thread_var) for our new THD
@@ -239,10 +241,8 @@ void pwt_worker_base::init_and_run_thread_func()
     race-free snapshot for the manager.
   */
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  //state.killed= thd->killed; // save this flag, THD is destroyed
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   thd->pop_internal_handler();       // maybe not needed
-  //state.finished= true;
   //
   /*
     Null it while we still hold LOCK_worker, and tear the THD down from a local
@@ -311,9 +311,11 @@ void pwt_manager_base::process_pending_warnings()
 }
 
 
-bool pwt_worker_base::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
+bool pwt_worker_base::init_worker_thd(pwt_manager_base *manager_arg, THD *parent_thd,
                                       int worker_nr)
 {
+  manager_base= manager_arg;
+
   /* First, do things that may fail early. */
   LEX_CSTRING new_db;
   if (parent_thd->db.str)
@@ -339,7 +341,6 @@ bool pwt_worker_base::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
     return true; // Failed
   }
   thd->db= new_db;
-  manager= manager_arg;
   mysql_mutex_init(key_mutex_pwt_LOCK_worker, &LOCK_worker, 
                    MY_MUTEX_INIT_FAST);
   //mysql_cond_init(key_COND_pwt_worker, &COND_worker, nullptr);

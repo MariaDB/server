@@ -115,6 +115,10 @@ class pwt_worker : public pwt_worker_base
 {
   int execute_and_handoff();
 public:
+  pwt_manager *manager;
+
+  void thread_func() override;
+  void on_fatal_error() override;
 
   /*
     This worker's producing end of the result-row transport, made by the
@@ -133,7 +137,6 @@ public:
   */
   pwt_worker(): sink(nullptr) { }
 
-  void thread_func() override;
   /* Run this worker's share of the query and stream the result rows out. */
   void execute_and_signal_manager();
   /* Close this worker's private table copies (called by the worker thread). */
@@ -228,7 +231,6 @@ public:
   uint                     active_workers; // producers still running
   bool                     stop;           // we want the producers to stop
   bool                     fatal_error;    // a producer hit a real engine error
-  void notify_fatal_error();
   bool is_fatal_error() { return fatal_error; }
   /* A worker exited because it was killed; NOT_KILLED if none did. */
   killed_state killed_by_worker() const { return kill_signal; }
