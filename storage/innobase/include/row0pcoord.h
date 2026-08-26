@@ -526,6 +526,14 @@ class Parallel_coordinator::Exec_ctx {
     return m_scan_ctx->m_config.m_index;
   }
 
+  /** @return the scan's own lower bound, nullptr for -infinity.
+
+  This is the caller's bound, not this chunk's start: the two coincide only
+  for the chunk the bound falls in. */
+  [[nodiscard]] const dtuple_t *scan_start() const {
+    return m_scan_ctx->m_config.m_scan_range.m_start;
+  }
+
   /** @return the partition id of the index.
   @note this is std::numeric_limits<size_t>::max() if the index does not
   belong to a partition. */
