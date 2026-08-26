@@ -34,25 +34,6 @@
 */
 static int check_event_type(int type, Relay_log_info *rli)
 {
-  Format_description_log_event *fd_event=
-    rli->relay_log.description_event_for_sql_thread;
-
-  /*
-    Convert event type id of certain old versions (see comment in
-    Format_description_log_event::Format_description_log_event(char*,...)).
-  */
-  if (fd_event && fd_event->event_type_permutation)
-  {
-#ifdef DBUG_TRACE
-    int new_type= fd_event->event_type_permutation[type];
-    DBUG_PRINT("info",
-               ("converting event type %d to %d (%s)",
-                type, new_type,
-                Log_event::get_type_str((Log_event_type)new_type)));
-#endif
-    type= fd_event->event_type_permutation[type];
-  }
-
   switch (type)
   {
   case START_EVENT_V3:

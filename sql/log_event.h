@@ -2640,7 +2640,6 @@ public:
     }
   };
   master_version_split server_version_split;
-  const uint8 *event_type_permutation;
   uint32 options_written_to_bin_log;
   /*
     The checksum algorithm used in the binlog or relaylog following this
