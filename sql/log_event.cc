@@ -1095,25 +1095,6 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   }
 
   {
-    /*
-      In some previuos versions (see comment in
-      Format_description_log_event::Format_description_log_event(char*,...)),
-      event types were assigned different id numbers than in the
-      present version. In order to replicate from such versions to the
-      present version, we must map those event type id's to our event
-      type id's.  The mapping is done with the event_type_permutation
-      array, which was set up when the Format_description_log_event
-      was read.
-    */
-    if (fdle->event_type_permutation)
-    {
-      int new_event_type= fdle->event_type_permutation[event_type];
-      DBUG_PRINT("info", ("converting event type %d to %d (%s)",
-                   event_type, new_event_type,
-                   get_type_str((Log_event_type)new_event_type)));
-      event_type= new_event_type;
-    }
-
     if (alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         (event_type == FORMAT_DESCRIPTION_EVENT ||
          alg != BINLOG_CHECKSUM_ALG_OFF))
@@ -2141,7 +2122,7 @@ uint8 Format_description_log_event::byte_data_for_post_header_len[256]= {
 
 Format_description_log_event::
 Format_description_log_event(uint8 binlog_ver, const char* server_ver)
-  :Start_log_event_v3(), event_type_permutation(0)
+  :Start_log_event_v3()
 {
   binlog_version= binlog_ver;
   switch (binlog_ver) {
@@ -2203,8 +2184,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
 
 Format_description_log_event::
 Format_description_log_event(const uchar *buf, uint event_len)
-  :Start_log_event_v3(buf, event_len),
-    event_type_permutation(0)
+  :Start_log_event_v3(buf, event_len)
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
   if (unlikely(

@@ -2900,7 +2900,6 @@ public:
     }
   };
   master_version_split server_version_split;
-  const uint8 *event_type_permutation;
   uint32 options_written_to_bin_log;
 
   Format_description_log_event(uint8 binlog_ver, const char* server_ver=0);
