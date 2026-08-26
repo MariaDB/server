@@ -863,7 +863,7 @@ group_concat(distinct a, c)
 00,01,10,11,31
 select group_concat(distinct a, c order by a) from t1;
 group_concat(distinct a, c order by a)
-00,01,11,10,31
+01,00,11,10,31
 select group_concat(distinct a, c) from t1;
 group_concat(distinct a, c)
 00,01,10,11,31
