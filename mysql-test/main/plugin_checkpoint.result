@@ -1,0 +1,16 @@
+#
+# MDEV-40038 tp_foreach() crashes on a dying transaction participant
+#
+INSTALL SONAME 'ha_example';
+connect con1,localhost,root;
+SET DEBUG_SYNC= 'ha_finalize_handlerton_before_slot_clear SIGNAL deinit_started WAIT_FOR deinit_go';
+UNINSTALL SONAME 'ha_example';
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR deinit_started';
+RESET MASTER;
+SET DEBUG_SYNC= 'now SIGNAL deinit_go';
+connection con1;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+# End of 11.8 tests

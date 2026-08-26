@@ -1064,6 +1064,34 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 }
 
 
+/**
+  Lock a plugin only if it is PLUGIN_IS_READY.
+
+  Like plugin_lock(), but returns NULL for a plugin that is still being
+  installed, is being deinitialized, or is already freed. The caller must
+  unlock a non-NULL result with plugin_unlock().
+
+  @param[out] failed  Set when the plugin is READY but locking failed
+                      (out of memory in debug builds). The state is read
+                      under LOCK_plugin, so it matches the lock result.
+                      A NULL result with *failed false means the plugin
+                      is not READY.
+*/
+plugin_ref plugin_lock_ready(THD *thd, plugin_ref ptr, bool *failed)
+{
+  LEX *lex= thd ? thd->lex : 0;
+  plugin_ref rc;
+  DBUG_ENTER("plugin_lock_ready");
+
+  mysql_mutex_lock(&LOCK_plugin);
+  plugin_ref_to_int(ptr)->locks_total++;
+  rc= intern_plugin_lock(lex, ptr, PLUGIN_IS_READY);
+  *failed= !rc && (plugin_ref_to_int(ptr)->state == PLUGIN_IS_READY);
+  mysql_mutex_unlock(&LOCK_plugin);
+  DBUG_RETURN(rc);
+}
+
+
 /*
   Notes on lifetime:
 

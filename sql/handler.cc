@@ -616,6 +616,7 @@ int ha_finalize_handlerton(void *plugin_)
     /* Make sure we are not unpluging another plugin */
     DBUG_ASSERT(hton2plugin[hton->slot] == plugin);
     DBUG_ASSERT(hton->slot < MAX_HA);
+    DEBUG_SYNC(current_thd, "ha_finalize_handlerton_before_slot_clear");
     hton2plugin[hton->slot]= NULL;
   }
 
@@ -880,6 +881,17 @@ int ha_end()
 */
 typedef bool (tp_foreach_func)(THD *thd, transaction_participant *tp, void *arg);
 
+/*
+  Call func for each READY transaction participant.
+
+  LOCK_plugin is not held while func runs. func calls into the engine, and
+  the engine can take plugin locks itself or wait for its own threads, which
+  can deadlock with a thread that holds LOCK_plugin. reap_plugins() and
+  plugin_deinitialize() also run without LOCK_plugin for the same reason.
+  Instead, each plugin gets a reference count under LOCK_plugin, which keeps
+  it from being deinitialized or freed while func runs. The state check and
+  the reference count happen in one step, in plugin_lock_ready().
+*/
 static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
 {
   int j=0, err= 0;
@@ -888,7 +900,25 @@ static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
   {
     if (st_plugin_int *pi= hton2plugin[i])
     {
-      locks[j]= plugin_lock(NULL, plugin_int_to_ref(pi));
+      /*
+        Only PLUGIN_IS_READY engines are visited, as plugin_foreach() does.
+        The slot stays set in hton2plugin[] until the end of
+        ha_finalize_handlerton(), so an engine that reap_plugins() is
+        deinitializing (PLUGIN_IS_DYING) is still found here. The lock then
+        fails and the engine is skipped, as is an engine that is not yet
+        READY. A lock failure for a READY engine is out of memory (debug
+        builds only). It must not skip a live participant, so it is an error.
+      */
+      bool failed;
+      if (!(locks[j]= plugin_lock_ready(NULL, plugin_int_to_ref(pi), &failed)))
+      {
+        if (failed)
+        {
+          err= 1;
+          break;
+        }
+        continue;
+      }
       if ((err= func(thd, plugin_hton(locks[j++]), arg)))
         break;
     }
