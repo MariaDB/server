@@ -19,11 +19,13 @@
   @file
 
   The parallel worker threads: creating the team, the THD each worker runs
-  under, the batch channel they ship rows to the manager through, relaying
-  their diagnostics, and reaping them.
+  under, relaying their diagnostics, and reaping them.
 
   What a worker actually runs -- the gate, the per-worker copy of the plan and
-  the join over a worker's chunk -- is in sql_parallel_execution.cc.
+  the join over a worker's chunk -- is in sql_parallel_execution.cc. How a row
+  a worker has finished with reaches the manager is in
+  sql_parallel_transport.cc; this file builds that transport and owns the state
+  its two ends share about the team as a whole.
 */
 
 
@@ -46,12 +48,11 @@ static PSI_mutex_info all_pwt_mutexes[]=
 };
 
 static PSI_cond_key //key_COND_pwt_worker,
-                    key_COND_pwt_data_avail, key_COND_pwt_data_space;
+                    key_COND_pwt_data_avail;
 static PSI_cond_info all_pwt_conds[]=
 {
  // { &key_COND_pwt_worker,      "pwt_worker::COND_worker",                 0},
   { &key_COND_pwt_data_avail,  "pwt_manager::COND_data_avail",      0},
-  { &key_COND_pwt_data_space,  "pwt_manager::COND_data_space",      0},
 };
 
 static PSI_memory_info all_pwt_memory[]=
@@ -59,7 +60,7 @@ static PSI_memory_info all_pwt_memory[]=
   { &key_memory_pwt_queued_event,  "pwt_queued_event",          0},
   { &key_memory_pwt_error_message, "pwt_error_message",         0},
   { &key_memory_pwt_db,            "pwt_worker::db",            0},
-  { &key_memory_pwt_batch_rows,    "pwt_worker::batch.rows",    0},
+  { &key_memory_pwt_batch_rows,    "pwt_batch_sink::rows",      0},
 };
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -73,41 +74,6 @@ void pwt_manager::notify_fatal_error()
   /* This is to notify other workers too */
   mysql_cond_broadcast(&COND_data_avail);
   mysql_mutex_unlock(&LOCK_data);
-}
-
-
-/**
-  @brief
-    Hand this worker's filled batch buffer to the manager (producer side).
-
-  Marks batch.rows ready and blocks until the manager has drained it
-  (clears batch.full) or asks the producers to stop. On return the buffer is
-  the worker's again: either ready to refill, or to be abandoned.
-
-  @return
-    true   the consumer asked us to stop (stop scanning)
-    false  the buffer was drained; refill it
-*/
-
-bool pwt_worker::handoff_batch()
-{
-  DBUG_ENTER("pwt_manager::handoff_batch");
-  mysql_mutex_lock(&manager->LOCK_data);
-  if (manager->drain.stop)
-  {
-    mysql_mutex_unlock(&manager->LOCK_data);
-    DBUG_RETURN(true);
-  }
-  batch.full= true;
-  mysql_cond_signal(&manager->COND_data_avail);          // wake the consumer
-  while (batch.full && !manager->drain.stop)
-  {
-    mysql_cond_wait(&manager->COND_data_space, &manager->LOCK_data);
-    DBUG_PRINT("info", ("worker wakes"));
-  }
-  bool stopped= manager->drain.stop;
-  mysql_mutex_unlock(&manager->LOCK_data);
-  DBUG_RETURN(stopped);
 }
 
 
@@ -274,15 +240,14 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   }
 
   /*
-    Set up the streaming channel before any worker starts: a worker's first
-    action is to hand off a batch through handoff_batch(), which needs
-    LOCK_data and the conds live. active_workers must already equal n so the
-    consumer does not mistake "not started yet" for EOF.
+    Publish the team's state before any worker starts: a worker's first act may
+    be to hand a row to the transport, whose two ends read this under
+    LOCK_data. active_workers must already equal n so the consumer does not
+    mistake "not started yet" for EOF.
   */
   mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
-  mysql_cond_init(key_COND_pwt_data_space, &COND_data_space, nullptr);
-  drain.active_workers= nworkers= n;
+  active_workers= nworkers= n;
 
   /*
     The non-const join tables in join order (exec.jointabs[0] == scan_tab). These
@@ -304,110 +269,19 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   }
 
   /*
-    Build the result containers.
-
-    What a worker ships is every base-table column the query reads, in table
-    order. The manager copies each one back into the field it came from in its
-    own table instances, so that after a row is drained the manager's records
-    hold what a serial scan would have left there and the query's own items read
-    it directly. Shipping the projected select list instead would mean every
-    expression the manager evaluates had to be re-pointed at a shipped value,
-    and re-pointing Items does not reach everything that reads a record --
-    create_tmp_table() builds Copy_field pairs holding raw Field pointers into
-    the base tables, which no Item indirection can redirect.
-
-    result_defn holds clones of the shipped items, so the query's own items are
-    never bound to a tmp field; it defines the columns, and the manager plus
-    every worker create an identical-layout copy.
+    Work out the row shape the workers and this thread will agree on, and build
+    the transport that carries rows in it. Both are described in
+    sql_parallel_transport.h; from here on nothing in this file knows how a row
+    travels, only that a worker has a sink to hand one to and we have a source
+    to take the next one from.
   */
-  {
-    for (uint t= 0; t < exec.n_tables; t++)
-    {
-      TABLE *tbl= exec.tables[t];
-      for (Field **f= tbl->field; *f; f++)
-      {
-        if (!bitmap_is_set(tbl->read_set, (*f)->field_index))
-          continue;
-        Item *itf= new (thd->mem_root) Item_field(thd, *f);
-        if (!itf || transport.ship_list.push_back(itf, thd->mem_root))
-        {
-          my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
-          goto cleanup_old_workers;
-        }
-      }
-    }
-    /*
-      A query reading no column of any table still needs a row shape, because the
-      transport measures its batches in record images. "SELECT COUNT(*)" is that
-      query: it reads no column, and the count is the number of images that
-      arrive.
-    */
-    if (transport.ship_list.is_empty())
-    {
-      Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
-      if (!one || transport.ship_list.push_back(one, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
-        goto cleanup_old_workers;
-      }
-    }
-    if (!(transport.copy_back=
-            new (thd->mem_root) Copy_field[transport.ship_list.elements]))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0),
-               (int) (transport.ship_list.elements * sizeof(Copy_field)));
-      goto cleanup_old_workers;
-    }
-    List_iterator_fast<Item> li(transport.ship_list);
-    Item *sel_item;
-    while ((sel_item= li++))
-    {
-      Item *c= sel_item->deep_copy_with_checks(thd);
-      if (!c || transport.result_defn.push_back(c, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
-        goto cleanup_old_workers;
-      }
-    }
-  }
-  transport.result_tmp_param= new (thd->mem_root) TMP_TABLE_PARAM;
-  if (!transport.result_tmp_param)
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(TMP_TABLE_PARAM));
+  if (layout.build(thd, join, exec.tables, exec.n_tables) ||
+      setup_transport(thd, n))
     goto cleanup_old_workers;
-  }
-  if (make_result_table(thd, transport.result_defn, &transport.result_table))
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "init_parallel_workers: failed to build the result table");
-    goto cleanup_old_workers;
-  }
-  // result-row image size
-  drain.reclength= transport.result_table->s->reclength;
 
-  /*
-    Pair each column of result_table with the base-table field it was projected
-    from, so that draining a row is a copy per column back into the manager's own
-    records. Position i of ship_list is column i of result_table, which is how
-    make_result_table() built it. The one item that is not an Item_field is the
-    filler shipped for a query that reads no column, and it has nowhere to go
-    back to.
-  */
-  {
-    List_iterator_fast<Item> si(transport.ship_list);
-    Item *it;
-    transport.n_copy_back= 0;
-    for (uint i= 0; (it= si++); i++)
-      if (it->type() == Item::FIELD_ITEM)
-        transport.copy_back[transport.n_copy_back++]
-          .set(((Item_field*) it)->field, transport.result_table->field[i],
-               false);
-  }
-  drain.cur_cursor= 0;
   fatal_error= false;
-  drain.stop= false;
+  stop= false;
   reaped= false;
-  drain.cur_worker= nullptr;
 
   for (i= 0; i < n; i++)
   {
@@ -417,18 +291,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     if (workers[i].init_worker_thd(this, thd, /*worker_nr=*/i+1))
       goto cleanup_old_workers;
 
-    workers[i].batch.full= false;
-    workers[i].batch.count= 0;
-    workers[i].batch.rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,
-                                              (size_t) PWT_CHUNK_ROWS*
-                                                drain.reclength,
-                                              MYF(MY_WME));
-    if (!workers[i].batch.rows)
-    {
-      my_error(ER_INTERNAL_ERROR, MYF(0),
-               "init_parallel_workers: failed to allocate worker row buffer");
-      goto cleanup_db_string;
-    }
     workers[i].thd->userstat_running= thd->userstat_running;
 
     /*
@@ -446,12 +308,13 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       clones of the WHERE condition + select list with field references rebound
       to this worker's table copies. At run time the worker scans the driving
       chunk, joins the inner tables, projects exec.proj into
-      result_table and ships that record image.
+      its result container and ships that record image.
     */
     if (setup_worker_join(thd, workers + i) ||
         setup_worker_jointabs(thd, workers + i) ||
-        make_result_table(thd, transport.result_defn,
-                          &workers[i].exec.result_table) ||
+        layout.make_container(thd, &workers[i].exec.result) ||
+        !(workers[i].sink= source->make_sink(thd, i,
+                                             &workers[i].exec.result)) ||
         clone_worker_exprs(thd, workers + i))
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
@@ -504,26 +367,31 @@ cleanup_db_string:
 
 cleanup_old_workers:
   /*
-    A worker spawned before the failure may be blocked in handoff_batch()
-    waiting for the manager to drain its batch. Release them (stop + broadcast)
-    so abort_worker()'s join can complete.
+    A worker spawned before the failure may be blocked inside the transport
+    waiting for the manager to take its rows. Release them so abort_worker()'s
+    join can complete.
   */
   mysql_mutex_lock(&LOCK_data);
-  drain.stop= true;
-  mysql_cond_broadcast(&COND_data_space);
+  request_stop();
   mysql_mutex_unlock(&LOCK_data);
   for (uint j= 0; j < i; j++)
     workers[j].abort_worker();
   discard_pending_warnings();
-  free_result_tables(thd);            // workers reaped; result tables now idle
-  // free each worker's row buffer (NULL for those not yet allocated)
+  /*
+    Release the transport's hold on the containers before freeing them: a sink
+    may still be naming a worker THD that is now gone. Null for a worker whose
+    setup never got that far.
+  */
   for (uint j= 0; j < n; j++)
-    my_free(workers[j].batch.rows);
+    if (workers[j].sink)
+      workers[j].sink->cleanup();
+  if (source)
+    source->cleanup();
+  free_containers(thd);            // workers reaped; containers now idle
   delete[] workers;
   workers= nullptr;
   nworkers= 0;
   mysql_cond_destroy(&COND_data_avail);
-  mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
   file->parallel_end_coordinator();
   return 1;                           // reached only on failure
@@ -540,113 +408,9 @@ void pwt_init_psi_keys(void)
   mysql_cond_register(category, all_pwt_conds, count);
   count= array_elements(all_pwt_memory);
   mysql_memory_register(category, all_pwt_memory, count);
+  pwt_transport_init_psi_keys();
 }
 #endif
-
-
-/*
-  @brief
-    Copy the next worker result-row image into dst (reclength bytes).
-
-  @description
-  Consumer side of the streaming channel. The manager drains one worker's
-  buffer at a time (cur_worker), advancing cur_cursor through its batch.count
-  result rows; when the buffer is exhausted it releases the worker to refill
-  (clears batch.full, signals COND_data_space) and picks the next ready worker.
-  Blocks when no worker batch is momentarily ready. Kill of a worker is
-  propagated to the manager THD; a worker error (fatal_error) aborts.
-
-  @returns
-    0 = row produced into dst,
-   -1 = end of data,
-    1 = error (matching report_error()).
-*/
-int pwt_manager::drain_next_row(uchar *dst)
-{
-  DBUG_ENTER("pwt_manager::drain_next_row");
-  const uint reclen= drain.reclength;
-  struct timespec wait;
-  wait.tv_nsec= 0;
-
-  for (;;)
-  {
-    if (drain.cur_worker)                      // draining a worker's buffer
-    {
-      pwt_worker *w= drain.cur_worker;
-      if (drain.cur_cursor < w->batch.count)
-      {
-        memcpy(dst, w->batch.rows + (size_t) drain.cur_cursor * reclen, reclen);
-        drain.cur_cursor++;
-        DBUG_RETURN(0);
-      }
-      // buffer drained; release the worker so it can refill
-      mysql_mutex_lock(&LOCK_data);
-      drain.cur_worker= nullptr;
-      w->batch.full= false;                     // buffer is the worker's again
-      mysql_cond_broadcast(&COND_data_space);   // wake it to refill
-      mysql_mutex_unlock(&LOCK_data);
-      // fall through and look for the next ready worker
-    }
-
-    // find the next worker whose buffer is filled and ready
-    pwt_worker *next= nullptr;
-    PSI_stage_info old_stage;
-    mysql_mutex_lock(&LOCK_data);
-    for (;;)
-    {
-      for (uint i= 0; i < nworkers; i++)
-        if (workers[i].batch.full)
-        {
-          next= &workers[i];
-          break;
-        }
-      if (next)
-        break;
-      /*
-        A worker exited because it was killed: propagate the kill to the
-        manager's own THD so the query aborts now with ER_QUERY_INTERRUPTED,
-        before any result is sent.
-      */
-      if (kill_signal != NOT_KILLED && !thd->killed)
-      {
-        killed_state ks= kill_signal;
-        mysql_mutex_unlock(&LOCK_data);
-        mysql_mutex_lock(&thd->LOCK_thd_kill);
-        thd->killed= ks;
-        mysql_mutex_unlock(&thd->LOCK_thd_kill);
-        DBUG_RETURN(1);
-      }
-      if (fatal_error)                            // a worker failed
-      {
-        mysql_mutex_unlock(&LOCK_data);
-        DBUG_RETURN(1);
-      }
-      if (!drain.active_workers)              // all producers done, drained
-      {
-        mysql_mutex_unlock(&LOCK_data);
-        DBUG_RETURN(-1);
-      }
-      if (thd->killed)
-      {
-        mysql_mutex_unlock(&LOCK_data);
-        DBUG_RETURN(1);
-      }
-      // wait for a batch, a finishing worker, or a 1s tick to re-check killed.
-      // ENTER_COND/EXIT_COND publish the "Reading data from parallel workers"
-      // stage and register the cond so a KILL of the manager wakes it.
-      wait.tv_sec= time(0) + 1;
-      thd->ENTER_COND(&COND_data_avail, &LOCK_data,
-                      &stage_reading_data_from_parallel_worker, &old_stage);
-      mysql_cond_timedwait(&COND_data_avail, &LOCK_data, &wait);
-      thd->EXIT_COND(&old_stage);                 // unlocks LOCK_data
-      mysql_mutex_lock(&LOCK_data);       // re-lock for the next pass
-    }
-    drain.cur_worker= next;
-    drain.cur_cursor= 0;                        // start of next's buffer
-    mysql_mutex_unlock(&LOCK_data);
-    // loop back to drain next->batch.rows
-  }
-}
 
 
 /**
@@ -672,12 +436,16 @@ void pwt_manager::quiesce_workers()
   if (!workers || reaped)
     DBUG_VOID_RETURN;
 
-  // the consumer may have stopped mid-batch; drop its position (no open scan)
-  drain.cur_worker= nullptr;
+  /*
+    The consumer may have stopped part-way through a producer's rows: drop that
+    position before the producers are reaped, so nothing is left pointing into
+    them.
+  */
+  if (source)
+    source->release_position();
 
   mysql_mutex_lock(&LOCK_data);
-  drain.stop= true;
-  mysql_cond_broadcast(&COND_data_space);
+  request_stop();
   mysql_mutex_unlock(&LOCK_data);
 
   for (uint i= 0; i < nworkers; i++)
@@ -765,14 +533,56 @@ void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
   quiesce_workers();                  // stop + join (no-op if already reaped)
   exec.scan_tab->table->file->parallel_end_coordinator();
   process_pending_warnings();
+  for (uint i= 0; i < nworkers; i++)    // workers are joined; both ends idle
+    if (workers[i].sink)
+      workers[i].sink->cleanup();
+  if (source)
+    source->cleanup();
+  free_containers(thd);              // the transport has let go of them
   mysql_cond_destroy(&COND_data_avail);
-  mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
-  free_result_tables(thd);              // workers joined; result tables idle
-  for (uint i= 0; i < nworkers; i++)    // workers are joined, buffers idle
-    my_free(workers[i].batch.rows);
   delete [] workers;
   workers= nullptr;
   nworkers= 0;
   DBUG_VOID_RETURN;
+}
+
+
+/*
+  @brief
+    Build the result-row transport: the manager's consuming end of it.
+
+  @description
+    One place makes the choice (pwt_create_transport), and the source it
+    returns is what makes the matching sinks, so a worker is never paired with
+    an end of a different kind. Called once the row layout is known; each
+    worker's sink is made later, with the rest of that worker's setup, because
+    a sink may need the container that setup builds.
+
+  @return  true on error (my_error() has been called).
+*/
+
+bool pwt_manager::setup_transport(THD *thd, uint n_workers)
+{
+  return (source= pwt_create_transport(thd, this, n_workers,
+                                       layout.reclength)) == nullptr;
+}
+
+
+/*
+  @brief
+    Ask the producers to stop, and wake any that are waiting on us.
+
+    The request is the team's (a satisfied LIMIT, a KILL, an error, a team that
+    failed to start); the waking is the transport's, and is a no-op for a
+    transport in which a producer never waits for the consumer. Caller holds
+    LOCK_data.
+*/
+
+void pwt_manager::request_stop()
+{
+  mysql_mutex_assert_owner(&LOCK_data);
+  stop= true;
+  if (source)
+    source->wake_producers();
 }

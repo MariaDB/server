@@ -120,6 +120,7 @@ SET (SQL_SOURCE
                opt_group_by_cardinality.cc
                sql_parallel_workers.cc
                sql_parallel_execution.cc
+               sql_parallel_transport.cc
                sql_parallel_costs.cc
                sql_parallel_thread.cc
                opt_rewrite_date_cmp.cc
