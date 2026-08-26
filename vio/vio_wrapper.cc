@@ -250,6 +250,12 @@ HANDLE vio_handle(Vio *vio)
 {
   return vio->handle();
 }
+
+DWORD vio_async_read(Vio *vio, OVERLAPPED *overlapped, void *buf,
+                            DWORD len)
+{
+  return vio_transport(vio)->async_read(overlapped, buf, len);
+}
 #endif
 
 } /* extern "C" */

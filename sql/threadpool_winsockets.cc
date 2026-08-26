@@ -209,9 +209,9 @@ size_t win_aiosocket::buffer_remaining() const
 
 DWORD win_aiosocket::begin_read()
 {
-  DWORD err = ERROR_SUCCESS;
   static char c;
-  WSABUF buf;
+  void *buf;
+  DWORD len;
 
   DBUG_ASSERT(!buffer_remaining());
 
@@ -221,25 +221,17 @@ DWORD win_aiosocket::begin_read()
     pointer for the buffer parameter.
   */
   if (m_prefetched)
-    buf= {(ULONG)m_prefetched->capacity(),
-          reinterpret_cast<char *>(m_prefetched->buffer())};
-  else
-    buf= {0, &c};
-
-
-  if (!m_is_pipe)
   {
-    /* Do async io (sockets). */
-    DWORD flags= 0;
-    if (WSARecv((SOCKET) m_handle, &buf, 1, 0, &flags, &m_overlapped, NULL))
-      err= WSAGetLastError();
+    buf= m_prefetched->buffer();
+    len= (DWORD) m_prefetched->capacity();
   }
   else
   {
-    /* Do async read (named pipe) */
-    if (!ReadFile(m_handle, buf.buf, buf.len, 0, &m_overlapped))
-      err= GetLastError();
+    buf= &c;
+    len= 0;
   }
+
+  DWORD err= vio_async_read(m_vio, &m_overlapped, buf, len);
 
   if (!err || err == ERROR_IO_PENDING)
     return 0;
@@ -256,7 +248,7 @@ void win_aiosocket::end_read(ULONG nbytes, DWORD err)
 
 void win_aiosocket::init(st_vio **vio)
 {
-  m_is_pipe= vio_get_transport(*vio)->type() == VIO_TYPE_NAMEDPIPE;
+  m_vio= *vio;
   m_handle= vio_handle(*vio);
 
   SetFileCompletionNotificationModes(m_handle, FILE_SKIP_SET_EVENT_ON_HANDLE);

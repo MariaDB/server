@@ -26,8 +26,8 @@ struct win_aiosocket
   OVERLAPPED m_overlapped{};
   /** Handle to pipe, or socket */
   HANDLE m_handle{};
-  /** Whether the m_handle refers to pipe*/
-  bool m_is_pipe{};
+  /** VIO whose transport m_handle belongs to. */
+  st_vio *m_vio{};
  
   /* Read buffer handling */
 

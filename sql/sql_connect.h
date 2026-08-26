@@ -39,6 +39,12 @@ public:
   {
     count++;
   }
+  /* Raw OS handle for the not-yet-created Vio (socket or named pipe). */
+  HANDLE handle() const
+  {
+    return vio_type == VIO_TYPE_NAMEDPIPE ? pipe
+                                          : (HANDLE) mysql_socket_getfd(sock);
+  }
 #endif
   enum enum_vio_type vio_type;
   scheduler_functions *scheduler;
