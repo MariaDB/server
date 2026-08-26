@@ -243,7 +243,7 @@ void pwt_worker_base::init_and_run_thread_func()
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   thd->pop_internal_handler();       // maybe not needed
-  //
+
   /*
     Null it while we still hold LOCK_worker, and tear the THD down from a local
     copy afterwards. abort_worker() reads this member under the same lock and
@@ -268,10 +268,12 @@ void pwt_worker_base::init_and_run_thread_func()
   destroy_background_thd(worker_thd);
 }
 
+/**
+  @brief
+    Empty warning/error queue from workers into our manager thread
 
-void pwt_manager_base::process_pending_warnings()
-{
-  /*
+ 
+  @description
     Surface errors/warnings the workers queued via PWT_error_handler. A worker
     error that mattered to the result has already aborted the join during
     execution (fatal_error or a propagated kill), so thd is already in error by
@@ -279,7 +281,13 @@ void pwt_manager_base::process_pending_warnings()
     status" assertion in the diagnostics area. So only raise a queued ERROR
     when thd is not already in error -- otherwise keep it as a warning. Plain
     warnings are always safe to add.
-  */
+
+  @parameters
+    skip_interrupted          whether or not to ignore a deluge of interrupted
+                              errors
+*/
+void pwt_manager_base::process_pending_warnings(bool skip_interrupted)
+{
   bool surface_drop;
   mysql_mutex_lock(&LOCK_pwt_manager);
   surface_drop= messages_dropped;
@@ -289,12 +297,16 @@ void pwt_manager_base::process_pending_warnings()
   {
     if (pwt_error_message *err= event->error)
     {
-      if (err->level == Sql_condition::enum_warning_level::WARN_LEVEL_ERROR &&
-          !thd->is_error())
-        my_message_sql(err->code, err->message, MYF(0));
-      else
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, err->code,
+      // if called during initialization, skip processing
+      if (!skip_interrupted || err->code != ER_QUERY_INTERRUPTED)
+      {
+        if (err->level == Sql_condition::enum_warning_level::WARN_LEVEL_ERROR &&
+            !thd->is_error())
+          my_message_sql(err->code, err->message, MYF(0));
+        else
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, err->code,
                      err->message);
+      }
       my_free(err->message);
       my_free(err);
     }
@@ -336,6 +348,7 @@ bool pwt_worker_base::init_worker_thd(pwt_manager_base *manager_arg, THD *parent
   thd= create_background_thd();
   if (!thd)
   {
+    my_free(const_cast<char*>(new_db.str));
     my_error(ER_INTERNAL_ERROR, MYF(0),
             "init_parallel_workers: failed to create worker thread THD");
     return true; // Failed
@@ -435,29 +448,3 @@ pwt_manager_base::~pwt_manager_base()
 {
   mysql_mutex_destroy(&LOCK_pwt_manager);
 }
-
-/**
-   @brief
-     Free our message queue, discard the messages
-*/
-
-void pwt_manager_base::discard_pending_warnings()
-{
-  // process queue
-  if (!parallel_messages.head())
-    return;
-
-  mysql_mutex_lock(&LOCK_pwt_manager);
-  pwt_queued_event *event;
-  while ((event= parallel_messages.get()))
-  {
-    if (pwt_error_message *err= event->error)
-    {
-      my_free(err->message);
-      my_free(err);
-    }
-    my_free(event);
-  }
-  mysql_mutex_unlock(&LOCK_pwt_manager);
-}
-

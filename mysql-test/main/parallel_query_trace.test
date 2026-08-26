@@ -1,0 +1,80 @@
+#
+# MDEV-39492 Parallel Query: what the optimizer trace says became of the
+# parallel scan.
+#
+# The gate in make_join_readinfo() records the table it picks as
+# "parallel_scan_candidate", and JOIN::optimize_stage2() reports what became of
+# it once the plan has stopped changing: "chosen_for_parallel_scan" if the
+# access path can still be handed out in chunks, "parallel_scan_abandoned" and
+# "parallel_scan_abandoned_because" if the plan took it away. So
+# chosen_for_parallel_scan names only tables that really are scanned in
+# parallel, and a query that is never a candidate says neither.
+#
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--disable_service_connection
+
+SET @save_trace= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+SET SESSION parallel_worker_threads=4;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_2000;
+
+--echo #
+--echo # A plan that keeps its parallel scan reports both keys and abandons
+--echo # nothing (expect 1 1 0)
+--echo #
+EXPLAIN SELECT a, b FROM t1 WHERE b > 19980;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 19980;
+--enable_result_log
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
+       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
+  FROM information_schema.optimizer_trace;
+
+--echo # and it is a table that really is scanned in the workers (expect 1)
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 19980;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo #
+--echo # The gate examines the driving table, so a query it declines is not a
+--echo # candidate in the first place and names no table at all (expect 0 0 0).
+--echo # ORDER BY is declined by the query-shape half of the gate, and the
+--echo # driving table is still a plain full scan
+--echo #
+EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
+--enable_result_log
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
+       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
+  FROM information_schema.optimizer_trace;
+
+--echo # and a covering index read by the driving-table half: the rows arrive in
+--echo # key order from an index the engine is not asked to divide (expect 0 0 0)
+--echo #
+CREATE TABLE t2 (a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq*10 FROM seq_1_to_2000;
+EXPLAIN SELECT a FROM t2;
+--disable_result_log
+SELECT a FROM t2;
+--enable_result_log
+SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
+       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
+  FROM information_schema.optimizer_trace;
+
+DROP TABLE t1, t2;
+SET SESSION parallel_worker_threads=default;
+SET optimizer_trace= @save_trace;

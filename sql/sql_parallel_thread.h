@@ -41,9 +41,7 @@ public:
 
   THD                      *thd; /* Manager thread */
 
-  //TODO: why does this exist, shouldn't we process them all?
-  void discard_pending_warnings();      // called on initialization failure
-  void process_pending_warnings();      // called at end of normal executio
+  void process_pending_warnings(bool skip_interrupted);
 
   // These are used by class PWT_error_handler:
   void record_event(pwt_queued_event *event)
