@@ -67,6 +67,24 @@ set session parallel_worker_threads=8;
 --error ER_INTERNAL_ERROR
 select * from t1 where a > 1999;
 
+--echo #
+--echo # Failing the FIRST worker instead leaves every later one untouched, so
+--echo # the teardown walks workers whose setup never started. Each one knows
+--echo # what it holds, so those are left alone rather than joined or freed.
+--echo #
+set global debug_dbug="+d,pwt_init_fail_first_worker";
+
+set session parallel_worker_threads=4;
+--error ER_INTERNAL_ERROR
+select * from t1;
+
+--error ER_INTERNAL_ERROR
+select * from t1 where a > 1999;
+
+set session parallel_worker_threads=8;
+--error ER_INTERNAL_ERROR
+select * from t1 where a > 1999;
+
 set global debug_dbug=@save_dbug;
 
 --echo # the server is unharmed and the query runs in the workers as before

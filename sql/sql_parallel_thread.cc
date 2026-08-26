@@ -173,6 +173,7 @@ bool pwt_worker_base::create_thread()
   if (mysql_thread_create(key_thread_pwt, &pthread, /*pthread_attr_t*/ nullptr,
                           pwt_worker_base_thread_func, this))
     return 1;
+  thread_started= true;
   return 0;
 }
 
@@ -390,13 +391,39 @@ bool pwt_worker_base::init_worker_thd(pwt_manager_base *manager_arg, THD *parent
                                  thd->query_charset());
 
   // TODO: it is OK that we insert before starting the OS thread, right?
+  /*
+    Visible in the processlist before its thread exists, and so killable before
+    it exists. That is safe, and worth saying why rather than leaving it as a
+    question: create_background_thd() returns a fully built THD, and thread_id
+    and query_string are set above, so nothing here is half-made. A KILL that
+    lands in the window sets thd->killed and little else -- system_thread is
+    SYSTEM_THREAD_GENERIC so awake() leaves mysys_var->abort alone, there is no
+    condition to signal yet, and no engine transaction to interrupt -- and the
+    worker acts on it as soon as it starts, which is what we want it to do.
+
+    What the window costs is that every path out of here has to erase it again.
+    release_worker() is that path, and it is the only one.
+  */
   server_threads.insert(thd);  // +information_schema.processlist
 
+  /*
+    From here the worker holds a THD and LOCK_worker, and only release_worker()
+    gives them back. Nothing between the mutex init above and this line may
+    fail, or the flag would not cover what was taken.
+  */
+  inited= true;
   return false; // Ok
 }
 
+/*
+  Destroy the THD init_worker_thd() built, for a worker whose thread never ran.
+  Nulls it, so it stays true that a null thd means nobody has one to destroy.
+*/
+
 void pwt_worker_base::destroy_worker_thd()
 {
+  if (!thd)
+    return;
   server_threads.erase(thd);
   /*
     destroy_background_thd() requires current_thd to be NULL because it
@@ -408,33 +435,56 @@ void pwt_worker_base::destroy_worker_thd()
   set_current_thd(nullptr);
   destroy_background_thd(thd);
   set_current_thd(save_thd);
+  thd= nullptr;
 }
 
-/**
+/*
   @brief
-    Abort this worker, called as part of an error condition
+    Give back everything this worker holds. See reap_worker()/abort_worker().
 
-  The worker may already be tearing itself down: parallel_worker_thread_func
-  nulls worker->thd and destroys the THD under LOCK_worker. Take that lock
-  and only awake() if the worker hasn't yet entered its exit section; if
-  it has, the worker is on its way out and pthread_join will reap it.
+  @description
+    Three stages of startup, one teardown:
+
+      not initialised    nothing was taken, so there is nothing to give back
+      no thread started  the THD is still ours to destroy, and so is whatever
+                         a run would have released
+      thread started     wait for it; it destroyed its own THD on the way out,
+                         which is what nulling thd told us
 */
 
-void pwt_worker_base::abort_worker()
+void pwt_worker_base::release_worker(bool abort)
 {
-  mysql_mutex_lock(&LOCK_worker);
-  if (thd)
-    thd->awake(ABORT_QUERY);
-  mysql_mutex_unlock(&LOCK_worker);
-  join_worker_thread();
-  cleanup_worker();
-}
+  if (!inited)
+    return;
 
+  if (thread_started)
+  {
+    if (abort)
+    {
+      /*
+        The worker may already be tearing itself down: init_and_run_thread_func
+        nulls thd and destroys the THD under LOCK_worker. Take that lock and
+        only awake() if it has not entered its exit section yet; if it has, it
+        is on its way out and the join below reaps it.
+      */
+      mysql_mutex_lock(&LOCK_worker);
+      if (thd)
+        thd->awake(ABORT_QUERY);
+      mysql_mutex_unlock(&LOCK_worker);
+    }
+    pthread_join(pthread, nullptr);
+    thread_started= false;
+    DBUG_ASSERT(!thd);              // it destroyed its own before it exited
+  }
+  else
+  {
+    cleanup_without_run();
+    destroy_worker_thd();
+  }
 
-void pwt_worker_base::cleanup_worker()
-{
   mysql_mutex_destroy(&LOCK_worker);
   // mysql_cond_destroy(&COND_worker);
+  inited= false;
 }
 
 pwt_manager_base::pwt_manager_base() : 
