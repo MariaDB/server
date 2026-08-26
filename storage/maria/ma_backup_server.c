@@ -32,42 +32,31 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static int dir_error(const char *name)
   return 1;
 }
 
+typedef int (*name_predicate)(const char *file_name, size_t len);
+
 /**
    Determine if a file may be backed up.
    @param file_name   candidate file name
+   @param len         strlen(file_name)
    @retval FALSE   if the file must be excluded
    @retval TRUE    if the file may be included
 */
-static int is_db_file(const char *file_name)
+static int is_db_file(const char *file_name, size_t len)
 {
-  size_t len= strlen(file_name);
   uint32_t suffix;
-  if (len < 4)
-    return FALSE;
-  if (!memcmp(file_name, tmp_file_prefix, tmp_file_prefix_length))
-    /*
-      As noted in MDEV-25854, file names that start with #sql
-      must be excluded from the backup. For example, a call to
-      MDL_context::upgrade_shared_lock() in
-      mysql_inplace_alter_table() could time out, resulting in
-      cleanup_table_after_inplace_alter() deleting a
-      #sql-alter*.frm file before we get a chance to copy it.
-    */
-    return FALSE;
+  DBUG_ASSERT(len >= 4);
   memcpy(&suffix, file_name + len - 4, 4);
   switch (suffix) {
-  default:
-    return len == 6 && !memcmp(file_name, C_STRING_WITH_LEN("db.opt"));
 #ifdef WORDS_BIGENDIAN
   case 0x2e41524d: /* .ARM ENGINE=ARCHIVE metadata */
   case 0x2e41525a: /* .ARZ ENGINE=ARCHIVE compressed data */
   case 0x2e43534d: /* .CSM ENGINE=CSV metadata */
   case 0x2e435356: /* .CSV ENGINE=CSV data ("comma separated values") */
-  case 0x2e4d4144: /* .MAD ENGINE=Aria data heap */
-  case 0x2e4d4149: /* .MAI ENGINE=Aria indexes */
   case 0x2e4d5247: /* .MRG ENGINE=MRG_MyISAM */
   case 0x2e4d5944: /* .MYD ENGINE=MyISAM data heap */
   case 0x2e4d5949: /* .MYI ENGINE=MyISAM indexes */
+  case 0x2e545247: /* .TRG trigger definition */
+  case 0x2e54524e: /* .TRN trigger name */
   case 0x2e66726d: /* .frm form (SHOW CREATE TABLE) */
   case 0x2e706172: /* .par PARTITION metadata */
 #else
@@ -75,16 +64,42 @@ static int is_db_file(const char *file_name)
   case 0x5a52412e: /* .ARZ ENGINE=ARCHIVE compressed data */
   case 0x4d53432e: /* .CSM ENGINE=CSV metadata */
   case 0x5653432e: /* .CSV ENGINE=CSV data ("comma separated values") */
-  case 0x44414d2e: /* .MAD ENGINE=Aria data heap */
-  case 0x49414d2e: /* .MAI ENGINE=Aria indexes */
   case 0x47524d2e: /* .MRG ENGINE=MRG_MyISAM */
   case 0x44594d2e: /* .MYD ENGINE=MyISAM data heap */
   case 0x49594d2e: /* .MYI ENGINE=MyISAM indexes */
+  case 0x4752542e: /* .TRG trigger definition */
+  case 0x4e52542e: /* .TRN trigger name */
   case 0x6d72662e: /* .frm form (SHOW CREATE TABLE) */
   case 0x7261702e: /* .par PARTITION metadata */
 #endif
     return TRUE;
   }
+  return len == 6 && !memcmp(file_name, C_STRING_WITH_LEN("db.opt"));
+}
+
+/**
+   Determine if a file is an ENGINE=Aria file.
+   @param file_name   candidate file name
+   @param len         strlen(file_name)
+   @retval FALSE   if the file must be excluded
+   @retval TRUE    if the file may be included
+*/
+static int is_ma_file(const char *file_name, size_t len)
+{
+  uint32_t suffix;
+  DBUG_ASSERT(len >= 4);
+  memcpy(&suffix, file_name + len - 4, 4);
+  switch (suffix) {
+#ifdef WORDS_BIGENDIAN
+  case 0x2e4d4144: /* .MAD ENGINE=Aria data heap */
+  case 0x2e4d4149: /* .MAI ENGINE=Aria indexes */
+#else
+  case 0x44414d2e: /* .MAD ENGINE=Aria data heap */
+  case 0x49414d2e: /* .MAI ENGINE=Aria indexes */
+#endif
+    return TRUE;
+  }
+  return FALSE;
 }
 
 struct Aria_backup_entry
@@ -94,25 +109,6 @@ struct Aria_backup_entry
   /** file name relative to the directory */
   const char *name;
 };
-
-/** Backup state */
-struct Aria_backup
-{
-  /** whether translog_disable_purge() is in effect */
-  int translog_purge_disabled;
-};
-
-static void aria_backup_init(struct Aria_backup *ab)
-{
-  ab->translog_purge_disabled= TRUE;
-  translog_disable_purge();
-}
-
-static void aria_backup_destroy(const struct Aria_backup *ab)
-{
-  if (ab && ab->translog_purge_disabled)
-    translog_enable_purge();
-}
 
 /*
   Create directory in the target directory if it does not exist.
@@ -253,6 +249,7 @@ static int aria_backup_file(const struct backup_target *target,
 
 static int aria_backup_dir(const struct backup_target *target,
                            const struct backup_sink *sink,
+                           name_predicate include_name,
                            const char *dir_name, size_t prefix)
 {
   int fail= 0;
@@ -274,8 +271,19 @@ static int aria_backup_dir(const struct backup_target *target,
     {
       const struct fileinfo *fi= dir->dir_entry;
       const struct fileinfo *const end= fi + dir->number_of_files;
+      size_t len;
       for (; fi < end; fi++)
-        if (is_db_file(fi->name))
+        if ((len= strlen(fi->name)) >= 4 &&
+            /*
+              As noted in MDEV-25854, file names that start with #sql
+              must be excluded from the backup. For example, a call to
+              MDL_context::upgrade_shared_lock() in
+              mysql_inplace_alter_table() could time out, resulting in
+              cleanup_table_after_inplace_alter() deleting a
+              #sql-alter*.frm file before we get a chance to copy it.
+            */
+            memcmp(fi->name, tmp_file_prefix, tmp_file_prefix_length) &&
+            (*include_name)(fi->name, len))
           if ((fail= aria_backup_file(target, sink, path, fi->name,
                                       prefix, 0)) != 0)
             break;
@@ -285,8 +293,9 @@ static int aria_backup_dir(const struct backup_target *target,
   }
 }
 
-static int aria_backup_scan(const struct backup_target *target,
-                            const struct backup_sink *sink)
+static int aria_backup_data(const struct backup_target *target,
+                            const struct backup_sink *sink,
+                            name_predicate include_name)
 {
   int fail= 0;
   size_t prefix= strlen(mysql_real_data_home) + 1;
@@ -301,34 +310,38 @@ static int aria_backup_scan(const struct backup_target *target,
     for (; fi < end; fi++)
     {
       if ((fi->mystat->st_mode & S_IFMT) == S_IFDIR)
-        if ((fail= aria_backup_dir(target, sink, fi->name, prefix)) != 0)
+        if ((fail= aria_backup_dir(target, sink, include_name,
+                                   fi->name, prefix)) != 0)
           break;
     }
     my_dirend(dir);
   }
-  if (fail)
-    return fail;
-  /* Process the Aria logs. */
-  prefix= strlen(maria_data_root) + 1;
-  fail= aria_backup_file(target, sink, maria_data_root, "aria_log_control",
-                         prefix, 1);
-  if (fail)
-    return fail;
-  translog_flush(translog_get_horizon());
-  dir= my_dir(maria_data_root, MYF(MY_WANT_STAT));
-  if (!dir)
-    return dir_error(maria_data_root);
-  else
+  return fail;
+}
+
+static int aria_backup_logs(const struct backup_target *target,
+                            const struct backup_sink *sink)
+{
+  size_t prefix= strlen(maria_data_root) + 1;
+  int fail= aria_backup_file(target, sink, maria_data_root, "aria_log_control",
+                             prefix, 1);
+  if (!fail)
   {
-    const struct fileinfo *fi= dir->dir_entry;
-    const struct fileinfo *const end= fi + dir->number_of_files;
-    for (; fi < end; fi++)
-      if ((fail=
-           !strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
-           aria_backup_file(target, sink, maria_data_root, fi->name,
-                            prefix, 0)) != 0)
-        break;
-    my_dirend(dir);
+    MY_DIR *dir;
+    translog_flush(translog_get_horizon());
+    dir= my_dir(maria_data_root, MYF(MY_WANT_STAT));
+    if (dir)
+    {
+      const struct fileinfo *fi= dir->dir_entry;
+      const struct fileinfo *const end= fi + dir->number_of_files;
+      for (; fi < end; fi++)
+        if ((fail=
+             !strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
+             aria_backup_file(target, sink, maria_data_root, fi->name,
+                              prefix, 0)) != 0)
+          break;
+      my_dirend(dir);
+    }
   }
   return fail;
 }
@@ -337,43 +350,22 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
                         enum backup_phase phase,
                         const struct backup_sink *sink)
 {
+  DBUG_ASSERT((phase == BACKUP_PHASE_PREPARE_START) ? !sink : !sink->ha_data);
   switch (phase) {
-    struct Aria_backup *aria_backup;
-  case BACKUP_PHASE_PREPARE_START:
-    return 0;
-  default:
-    return sink->ha_data;
-  case BACKUP_PHASE_NO_COMMIT:
-    assert(!sink->ha_data);
-    aria_backup= calloc(1, sizeof *aria_backup);
-    if (!aria_backup)
+    int ret;
+  case BACKUP_PHASE_NO_DDL:
+    if (aria_backup_data(target, sink, is_db_file))
       return (void*) -1;
-    aria_backup_init(aria_backup);
-    return aria_backup;
-  }
-}
-
-int aria_backup_end(THD *thd, const struct backup_target *target,
-                    enum backup_phase phase, const struct backup_sink *sink)
-{
-  struct Aria_backup *aria_backup= sink->ha_data;
-  int ret= 0;
-  switch (phase) {
-    extern void purge_tables(void);
+    break;
   case BACKUP_PHASE_NO_COMMIT:
-    assert(aria_backup);
-    assert(aria_backup->translog_purge_disabled);
-    aria_backup->translog_purge_disabled= FALSE;
-    purge_tables(); // TODO: do not close transactional tables
-    ret= aria_backup_scan(target, sink);
+    translog_disable_purge();
+    ret= aria_backup_data(target, sink, is_ma_file) ||
+      aria_backup_logs(target, sink);
     translog_enable_purge();
-    break;
-  case BACKUP_PHASE_FINISH:
-    aria_backup_destroy(aria_backup);
-    free(aria_backup);
-    break;
+    if (ret)
+      return (void*) -1;
   default:
     break;
   }
-  return ret;
+  return NULL;
 }

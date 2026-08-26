@@ -17,6 +17,7 @@
 #include "mdl.h"
 #include "mysys_err.h"
 #include "sql_class.h"
+#include "sql_base.h"
 #include "sql_backup.h"
 #include "sql_backup_interface.h"
 #include "sql_parse.h"
@@ -717,6 +718,14 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       if (fail)
         break;
     }
+
+    if ((phase == BACKUP_PHASE_NO_DDL || phase == BACKUP_PHASE_NO_COMMIT) &&
+         /* Invoke handler::extra(HA_EXTRA_FLUSH) */
+         (fail= flush_tables(thd, phase == BACKUP_PHASE_NO_DDL
+                             ? FLUSH_NON_TRANS_TABLES
+                             : FLUSH_SYS_TABLES)))
+      break;
+
   backup_phase_start:
     target_phase->phase= backup_phase(phase);
     fail= plugin_foreach_with_mask(thd, backup_start,

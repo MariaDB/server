@@ -321,7 +321,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
    Close all tables that are not in use in table definition cache
 */
 
-extern "C" void purge_tables()
+void purge_tables()
 {
   /*
     Force close of all open tables.

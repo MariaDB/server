@@ -1,0 +1,137 @@
+--source include/have_archive.inc
+--source include/have_aria.inc
+
+#
+# Verify a backup that nominally succeeded while DDL was running.
+#
+# BACKUP SERVER can fail with ER_LOCK_DEADLOCK next to concurrent DDL, which is
+# what backup_ddl_deadlock reproduces. Because of that, the other DDL tests
+# never get as far as checking the backup they produced. This one tolerates the
+# deadlock and retries until a backup completes, so that a backup taken while
+# DDL was in progress is actually read back.
+#
+# Two things could make such a backup wrong:
+#
+#  - flush_tables() skips a table it cannot lock. The deadlock is reported, but
+#    a plain lock wait timeout is swallowed by its error handler, and the
+#    fallback that opens an instance of its own asks for the metadata lock with
+#    a zero timeout. A DDL merely waiting for an exclusive lock is enough to
+#    make that fail, and in that state the table has not been closed yet, so it
+#    can be copied while still marked open.
+#
+#  - MDL_BACKUP_ALTER_COPY is not blocked by any backup phase, so an
+#    ALTER TABLE ... ALGORITHM=COPY keeps writing its #sql- intermediate files
+#    throughout BACKUP_PHASE_NO_DDL. copy_misc_files() selects files by
+#    extension only and does not exclude them.
+#
+
+CREATE TABLE t_myisam (a INT) ENGINE=MyISAM;
+INSERT INTO t_myisam VALUES (1), (2), (3);
+
+CREATE TABLE t_aria (a INT) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO t_aria VALUES (1), (2), (3);
+
+CREATE TABLE t_arch (a INT) ENGINE=ARCHIVE;
+INSERT INTO t_arch VALUES (1), (2), (3);
+
+DELIMITER |;
+# Keeps the tables open, so that flush_tables() has no free TABLE instance and
+# has to take a metadata lock of its own.
+CREATE PROCEDURE reader_churn(IN iterations INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < iterations DO
+    SELECT SLEEP(0.002) INTO @discard
+      FROM t_myisam, t_aria, t_arch LIMIT 1;
+    SET i = i + 1;
+  END WHILE;
+END|
+
+# ADD/DROP INDEX rewrites the index file in place; FORCE with ALGORITHM=COPY
+# rebuilds through a #sql- intermediate table. Row counts are unaffected.
+CREATE PROCEDURE ddl_churn(IN iterations INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < iterations DO
+    ALTER TABLE t_myisam ADD INDEX ix (a);
+    ALTER TABLE t_myisam DROP INDEX ix;
+    ALTER TABLE t_myisam FORCE, ALGORITHM=COPY;
+    SET i = i + 1;
+  END WHILE;
+END|
+DELIMITER ;|
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_ddl_concurrent_verify
+--error 0,1
+--rmdir $target_directory
+
+--connect (r1,localhost,root,,)
+--send CALL reader_churn(800)
+--connect (r2,localhost,root,,)
+--send CALL reader_churn(800)
+--connect (d1,localhost,root,,)
+--send CALL ddl_churn(400)
+
+--connection default
+
+# Do not start before the DDL is actually running, so that the backup that is
+# kept is one that overlapped it.
+--let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE info LIKE 'ALTER TABLE t_myisam%'
+--source include/wait_condition.inc
+
+# Retry until one backup gets through, keeping that one.
+--let $attempts= 40
+--let $have_backup= 0
+--disable_query_log
+while ($attempts)
+{
+  --error 0,1
+  --rmdir $target_directory
+  --error 0,ER_LOCK_DEADLOCK
+  --eval BACKUP SERVER TO '$target_directory'
+  if ($mysql_errno == 0)
+  {
+    --let $have_backup= 1
+    --let $attempts= 1
+  }
+  dec $attempts;
+}
+--enable_query_log
+
+--connection r1
+--reap
+--connection r2
+--reap
+--connection d1
+--reap
+
+--connection default
+--disconnect r1
+--disconnect r2
+--disconnect d1
+
+if (!$have_backup)
+{
+  --skip every BACKUP SERVER attempt hit ER_LOCK_DEADLOCK
+}
+
+# An ALTER TABLE ... ALGORITHM=COPY that was running during the backup must not
+# have left its intermediate table in it.
+--list_files $target_directory/test #sql*
+
+# The tables have to come back without needing repair, so any message about a
+# table being crashed or not closed properly fails the test here.
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+SELECT COUNT(*) FROM t_myisam;
+SELECT COUNT(*) FROM t_aria;
+SELECT COUNT(*) FROM t_arch;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP PROCEDURE reader_churn;
+DROP PROCEDURE ddl_churn;
+DROP TABLE t_myisam, t_aria, t_arch;
+--rmdir $target_directory
