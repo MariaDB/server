@@ -35,15 +35,14 @@ class pwt_worker;
 
 class pwt_manager_base : public Sql_alloc
 {
-protected:
-  pwt_worker               *workers;
-
 public:
   pwt_manager_base();
   ~pwt_manager_base();
 
   THD                      *thd; /* Manager thread */
-  uint                     nworkers;
+
+  void discard_pending_warnings();      // called on initialization failure
+  void process_pending_warnings();      // called at end of normal executio
 
   void record_event(pwt_queued_event *event)
   {
@@ -52,9 +51,6 @@ public:
     mysql_mutex_unlock(&LOCK_pwt_manager);
   }
   void notify_message_dropped();
-
-  void discard_pending_warnings();      // called on initialization failure
-  void process_pending_warnings();      // called at end of normal execution
 
 private:
   mysql_mutex_t            LOCK_pwt_manager;
@@ -66,24 +62,6 @@ private:
     that worker diagnostics were dropped instead of silently disappearing.
   */
   bool                     messages_dropped;
-
-protected: // TODO: can we isolate the following two?
-  /*
-    Set once the workers have been stopped and pthread_join'd (quiesce_workers).
-    Workers read this join's source tables (via their private handlers), so
-    they must be reaped before JOIN::join_free()->cleanup() frees those tables;
-    quiesce_workers is called from join_free, and again (idempotently) from
-    finalize.
-  */
-  bool                     reaped;
-  /*
-    Set (under LOCK_data) to a worker's killed_state when that worker exits
-    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
-    worker. The consumer propagates it to the manager's own THD so the join
-    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
-    sent, rather than completing and trying to raise the error too late.
-  */
-  killed_state             kill_signal;
 };
 
 #define WORKER_NAME                    "Parallel Worker"
@@ -100,46 +78,49 @@ struct pwt_worker_info
     This is displayed in information_schema.processlist.info
     Currently "Parallel Worker {1..N} For Thread M"
   */
-  char            process_list[WORKER_NAME_LENGTH+
-                               1+WORKER_ID_LENGTH+1+
-                               CONNECTION_NAME_THREAD_LENGTH+
-                               1+THREAD_ID_LENGTH+1];
+  char            process_list[WORKER_NAME_LENGTH + 1 +
+                               WORKER_ID_LENGTH   + 1 +
+                               CONNECTION_NAME_THREAD_LENGTH + 1 +
+                               THREAD_ID_LENGTH + 1];
 };
 
 
 class pwt_manager;
 
+/*
+  Inherit from this your worker threads.
+*/
 class pwt_worker_base : public Sql_alloc
 {
 public:
-  /*
-    Intialize the worker and create its THD.
-    (this is called from the master thread)
-  */
+  /* Intialize the worker and create its THD (call from master thread) */
   bool init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
                        int worker_nr);
+
+  /* Create and run the thread */
   bool create_thread();
+
+  /*
+    This will be run by the worker thread with all environment properly set up.
+    One can produce warnings/errors and get them in the master thread.
+  */
+  virtual void thread_func()= 0;
+  virtual ~pwt_worker_base() {}
 
   void abort_worker();
 
-  /*
-    This does a cleanup if init_worker_thd() succeeded but then
-    there was some error. TODO: simpler cleanup.
-  */
-  void destroy_worker_thd();
-
   void join_worker_thread() { pthread_join(pthread, nullptr); }
 
+  /*
+    Do cleanup if init_worker_thd() succeeded but then there was some error.
+    TODO: simpler cleanup.
+  */
+  void destroy_worker_thd();
   /* This is like a destructor. Called after worker is done. */
   void cleanup_worker();
 
-
-  virtual ~pwt_worker_base() {}
-
   THD             *thd;
   pwt_manager     *manager;
-
-  virtual void thread_func()= 0;
 
 private:
   /*
@@ -157,4 +138,4 @@ private:
 };
 
 
-#endif 
+#endif
