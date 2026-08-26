@@ -87,15 +87,6 @@ void pwt_worker::thread_func()
 {
   execute_and_signal_manager();
  
-  // TODO-discuss: note: the following cleanup is now done before
-  // destroying and detaching the THD. Before, it was done after.
-  // Is this fine?
-  // Yes, and it's an improvement,
-  // It now calls pop_internal_handler() after close_tables() not before.
-  // That means an error raised during closefrm()/update_global_table_stats()
-  // is now captured by PWT_error_handler and relayed, where before it landed
-  // in the worker's own diagnostics area and was discarded with the THD.
-
   /*
     Close our private table copies while we are still attached to our THD
     (current_thd == thd) and, crucially, before destroy_background_thd()
@@ -126,26 +117,6 @@ void pwt_worker::thread_func()
   thd->set_status_var_init(clear_for_flush_status);
 }
 
-
-/**
-  @brief
-    Abort this worker, called as part of an error condition
-
-  The worker may already be tearing itself down: parallel_worker_thread_func
-  nulls worker->thd and destroys the THD under LOCK_worker. Take that lock
-  and only awake() if the worker hasn't yet entered its exit section; if
-  it has, the worker is on its way out and pthread_join will reap it.
-*/
-
-void pwt_worker::abort_worker()
-{
-  mysql_mutex_lock(&LOCK_worker);
-  if (thd)
-    thd->awake(ABORT_QUERY);
-  mysql_mutex_unlock(&LOCK_worker);
-  pthread_join(pthread, nullptr);
-  cleanup_worker();
-}
 
 
 /*
@@ -337,18 +308,7 @@ cleanup_thread_create:
   workers[i].close_tables();
 
 cleanup_db_string:
-  /*
-    destroy_background_thd() requires current_thd to be NULL because it
-    re-attaches the background THD to this thread's TLS. We are running on
-    the user's query thread (current_thd == manager thd), so save/null/
-    restore around the call. Mirrors the create_background_thd() pattern.
-  */
-  {
-    THD *save_thd= current_thd;
-    set_current_thd(nullptr);
-    destroy_background_thd(workers[i].thd);
-    set_current_thd(save_thd);
-  }
+  workers[i].destroy_worker_thd();
   workers[i].cleanup_worker();
 
 cleanup_old_workers:
@@ -436,7 +396,7 @@ void pwt_manager::quiesce_workers()
 
   for (uint i= 0; i < nworkers; i++)
   {
-    pthread_join(workers[i].pthread, nullptr);
+    workers[i].join_worker_thread();
     workers[i].cleanup_worker();
   }
   /*

@@ -6,10 +6,6 @@
 #include "mysqld.h"
 #include "sql_error.h"
 
-extern MYSQL_THD create_background_thd();
-extern void destroy_background_thd(MYSQL_THD thd);
-extern void *thd_attach_thd(MYSQL_THD thd);
-extern void thd_detach_thd(void *save);
 
 #include "sql_parallel_thread.h"
 #include "sql_parallel_transport.h"
@@ -142,7 +138,6 @@ public:
   void execute_and_signal_manager();
   /* Close this worker's private table copies (called by the worker thread). */
   void close_tables();
-  void abort_worker();
   /* Copy the engine counters out of the tables before they are closed. */
   void snapshot_table_stats();
 
