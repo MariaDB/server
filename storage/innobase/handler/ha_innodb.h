@@ -517,6 +517,12 @@ protected:
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
 
+	/** Clustered index record that fk_cascade_fetch_row() should convert,
+	and the index it belongs to. Set by fk_cascade_set_cursor() and only
+	valid for the duration of one server capture call. */
+	const rec_t*		m_fk_cascade_rec;
+	dict_index_t*		m_fk_cascade_index;
+
 public:
 	row_prebuilt_t*		innobase_prebuilt() const { return m_prebuilt; }
 
@@ -530,6 +536,27 @@ public:
 	{
 		reset_template();
 	}
+
+	/** Record the FK-cascade cursor position that the next
+	fk_cascade_fetch_row() should materialise.
+
+	Set by row_ins_foreign_check_on_constraint() immediately before it
+	asks the server to capture a row image; the pointers are only valid
+	for the duration of that call, while the caller holds the latch on
+	the page and the cursor is positioned.
+	@param rec	clustered index record to convert
+	@param index	the clustered index 'rec' belongs to */
+	void fk_cascade_set_cursor(const rec_t* rec, dict_index_t* index)
+	{
+		m_fk_cascade_rec = rec;
+		m_fk_cascade_index = index;
+	}
+
+	/** Convert the record set by fk_cascade_set_cursor() into MySQL row
+	format, honouring the column bitmaps the server has already set up.
+	@param buf	destination row buffer, table->s->reclength bytes
+	@return 0 on success, HA_ERR_* otherwise */
+	int fk_cascade_fetch_row(uchar* buf) override;
 
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
