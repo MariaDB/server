@@ -107,6 +107,11 @@ set @@global.debug_dbug= @saved_dbug;
 --source include/stop_slave_sql.inc
 --source include/start_slave.inc
 
+--echo # Ensure the IO thread re-fetches the corrected Rotate before moving on
+--connection master
+--source include/sync_slave_io_with_master.inc
+
+
 --echo #
 --echo # Test Case 2: a Rotate event declaring more bytes than its packet
 --echo #
@@ -154,6 +159,11 @@ set @@global.debug_dbug= @saved_dbug;
 --connection slave
 --source include/stop_slave_sql.inc
 --source include/start_slave.inc
+
+--echo # Ensure the IO thread re-fetches the corrected Rotate before moving on
+--connection master
+--source include/sync_slave_io_with_master.inc
+
 
 --echo #
 --echo # Test Case 3: a packet carrying a second event behind the first
