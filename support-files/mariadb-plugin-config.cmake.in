@@ -16,6 +16,16 @@
 SET(EXTERNAL_PLUGIN TRUE)
 SET(SERVER_VERSION @SERVER_VERSION@)
 GET_FILENAME_COMPONENT(basedir "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+
+# mysqlservices target (real location, not a bare "-lmysqlservices" the
+# linker has to search for); generated alongside this file, so it's
+# relocatable the same way this file's own basedir computation is.
+# Every plugin already TARGET_LINK_LIBRARIES()s it (see plugin.cmake), so
+# hanging the server include dirs off it as a usage requirement gets every
+# plugin its header search path for free, with no per-plugin bookkeeping.
+INCLUDE("${CMAKE_CURRENT_LIST_DIR}/mariadb-plugin-targets.cmake")
+SET_TARGET_PROPERTIES(mysqlservices PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+    "${basedir}/@INSTALL_INCLUDEDIR@/server;${basedir}/@INSTALL_INCLUDEDIR@/server/private")
 SET(CMAKE_C_FLAGS "-DDBUG_OFF ${CMAKE_C_FLAGS}")
 SET(CMAKE_CXX_FLAGS "-DDBUG_OFF ${CMAKE_CXX_FLAGS}")
 
@@ -73,10 +83,6 @@ MACRO(EXTERNAL_PLUGIN_PRE)
       GET_FILENAME_COMPONENT(p "${p}" DIRECTORY)
     ENDWHILE()
   ENDFOREACH()
-
-  IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
-    INCLUDE_DIRECTORIES(${basedir}/@INSTALL_INCLUDEDIR@/server ${basedir}/@INSTALL_INCLUDEDIR@/server/private)
-  ENDIF()
 
   SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_AUTHOR}")
   SET(CPACK_COMPONENTS_ALL TRUE) # for version-fiddling IF in plugin.cmake

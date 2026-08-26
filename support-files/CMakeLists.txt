@@ -266,4 +266,10 @@ IF(NOT WITHOUT_SERVER)
   CONFIGURE_FILE(mariadb-plugin-config.cmake.in mariadb-plugin-config.cmake @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb-plugin-config.cmake DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/
           COMPONENT Development)
+  # mysqlservices (libservices/CMakeLists.txt) is EXPORT'd into this same
+  # set; mariadb-plugin-config.cmake includes the generated targets file
+  # so external plugins get a real, located "mysqlservices" target instead
+  # of a bare library name.
+  INSTALL(EXPORT mariadb-plugin-targets FILE mariadb-plugin-targets.cmake
+          DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/ COMPONENT Development)
 ENDIF()

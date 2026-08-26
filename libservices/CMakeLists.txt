@@ -48,4 +48,12 @@ SET(MYSQLSERVICES_SOURCES
 )
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
-INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
+# EXPORT mariadb-plugin-targets: consumed by external plugins via
+# mariadb-plugin-config.cmake (see support-files/CMakeLists.txt), so
+# TARGET_LINK_LIBRARIES(plugin mysqlservices) resolves to a real path
+# instead of a bare "-lmysqlservices" the linker has to search for.
+# TODO(review): exported targets are conventionally namespaced, e.g.
+# MariaDB::mysqlservices; left unprefixed here to match the rest of
+# this not-yet-namespaced plugin-config API.
+INSTALL(TARGETS mysqlservices EXPORT mariadb-plugin-targets
+        DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
