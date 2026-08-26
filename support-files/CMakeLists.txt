@@ -256,7 +256,11 @@ IF(UNIX AND NOT WITHOUT_SERVER)
                    WORKING_DIRECTORY \$ENV{DESTDIR}${prefix})"
                    COMPONENT SupportFiles)
   ENDIF(INSTALL_SYSCONFDIR)
+ENDIF()
 
+# mariadb-plugin-config.cmake lets out-of-tree plugins build against an
+# installed MariaDB-devel / MariaDB SDK; needed on Windows same as on UNIX.
+IF(NOT WITHOUT_SERVER)
   FILE(READ ${CMAKE_SOURCE_DIR}/cmake/install_layout.cmake install_layout.cmake)
   FILE(READ ${CMAKE_SOURCE_DIR}/cmake/plugin.cmake plugin.cmake)
   CONFIGURE_FILE(mariadb-plugin-config.cmake.in mariadb-plugin-config.cmake @ONLY)
