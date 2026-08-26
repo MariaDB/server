@@ -4096,25 +4096,46 @@ int handler::ha_parallel_get_next_row(Parallel_worker_ctx *ctx)
   int result;
   DBUG_ENTER("handler::ha_parallel_get_next_row");
 
-  TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, MAX_KEY, result,
+  /*
+    A parallel scan reads either the clustered index (inited == RND, like a
+    table scan) or one named index (inited == INDEX). All the bookkeeping below
+    has to match whichever serial reader this plan replaced - ha_rnd_next() or
+    ha_index_next() - otherwise Handler_read_*, the index statistics and the
+    sync points move depending on whether the optimizer parallelized.
+  */
+  const bool index_scan= inited == INDEX;
+
+  TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW,
+                index_scan ? active_index : MAX_KEY, result,
     { result = parallel_get_next_row(ctx); });
+
+  /*
+    increment_statistics() also runs check_limit_rows_examined(),
+    which is what enforces LIMIT ROWS EXAMINED.
+  */
+  increment_statistics(index_scan ? &SSV::ha_read_next_count
+                                  : &SSV::ha_read_rnd_next_count);
 
   if (result == 0)
   {
-    update_rows_read();
+    if (index_scan)
+      update_index_statistics();
+    else
+      update_rows_read();
     if (table->vfield)
       table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
     table->status= 0;
-  }
-  else if (result != HA_ERR_END_OF_FILE)
-  {
-    table->status= STATUS_NOT_FOUND;
   }
   else
   {
     table->status= STATUS_NOT_FOUND;   // EOF also marks not-found
   }
-  status_var_increment(table->in_use->status_var.ha_read_rnd_next_count);
+
+  /* Same sync point the serial reader would have fired */
+  if (index_scan)
+    DEBUG_SYNC(ha_thd(), "handler_ha_index_next_end");
+  else
+    DEBUG_SYNC(ha_thd(), "handler_rnd_next_end");
 
   DBUG_RETURN(result);
 }

@@ -288,7 +288,7 @@ page_no_t Parallel_coordinator::Scan_ctx::search(buf_block_t *block,
   if (key != nullptr)
   {
     auto ps_err = pread_page_cur_search(block, index, key,
-                                        PAGE_CUR_LE, &page_cursor);
+                                        PAGE_CUR_L, &page_cursor);
     if (ps_err != DB_SUCCESS)
     {
       *err = ps_err;
@@ -369,6 +369,7 @@ page_cur_t Parallel_coordinator::Scan_ctx::start_range(
     }
 
     page_cur_t page_cursor;
+    page_cursor.index = index;
 
     if (key != nullptr) {
       auto ps_err = pread_page_cur_search(block, index, key, PAGE_CUR_GE, &page_cursor);
@@ -387,6 +388,47 @@ page_cur_t Parallel_coordinator::Scan_ctx::start_range(
     {
       rec_t *next = page_cur_move_to_next(&page_cursor);
       if (!next)
+      {
+        *err = DB_CORRUPTION;
+        return page_cur_t{};
+      }
+    }
+
+    /* search() descends with the strict PAGE_CUR_L, which can stop one
+    sub-tree short of `key`: it lands on the last leaf whose lowest key is
+    below `key`, and every record on that leaf may still be below `key`. The
+    record we want is then the first one on the following page - the leaf after
+    it starts at or above `key` by construction. */
+    while (page_cur_is_after_last(&page_cursor))
+    {
+      const auto next_no = btr_page_get_next(buf_block_get_frame(block));
+
+      /* End of the level: nothing at or after `key`. The caller sees the
+      supremum and creates no range. */
+      if (next_no == FIL_NULL)
+        break;
+
+      /* Drop the page we are leaving: the record we want is further right */
+      ut_ad(!savepoints.empty() && savepoints.back().second == block);
+      mtr->release(*block);
+      savepoints.pop_back();
+
+      savepoint = mtr->get_savepoint();
+      page_id.set_page_no(next_no);
+
+      block = block_get_s_latched(page_id, mtr, __LINE__);
+
+      if (!block)
+      {
+        *err = DB_CORRUPTION;
+        return page_cur_t{};
+      }
+
+      savepoints.push_back({savepoint, block});
+
+      page_cur_set_before_first(block, &page_cursor);
+
+      if (!page_cur_move_to_next(&page_cursor))
       {
         *err = DB_CORRUPTION;
         return page_cur_t{};
@@ -462,21 +504,13 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
   if (start != nullptr)
   {
-    /* A node pointer key is the *lowest* key of its child sub-tree, so the
-    child that may hold `start` is the last node pointer <= start, not the
-    first one >= start. PAGE_CUR_GE would descend into the child after it
-    and lose every row from `start` up to that child's first key. The
-    leftmost node pointer additionally carries REC_INFO_MIN_REC_FLAG and
-    compares less than any tuple (see cmp_dtuple_rec_with_match_low()), so
-    GE always skips the leftmost sub-tree. Use the same mode Scan_ctx::
-    search() uses to descend, and keep PAGE_CUR_GE once we are on a leaf,
-    where we do want the first record >= start.
-
-    Only Exec_ctx::split() reaches this with a non-NULL start - it
-    re-partitions an existing chunk beginning at that chunk's first key -
-    which is why this only shows up on trees deep enough to be re-split. */
+    /* On a leaf, `start` is where the scan begins, so we want the first record
+    >= start: PAGE_CUR_GE. One level up the same bound asks something else - a
+    node pointer key is the *lowest* key of its sub-tree, so we need the child
+    at or before `start`, and PAGE_CUR_L rather than LE because `start` may be
+    a prefix (see Scan_ctx::search()). */
     const page_cur_mode_t mode= page_is_leaf(buf_block_get_frame(block))
-      ? PAGE_CUR_GE : PAGE_CUR_LE;
+      ? PAGE_CUR_GE : PAGE_CUR_L;
 
     auto err = pread_page_cur_search(block, index, start,
                                      mode, &page_cursor);
@@ -485,6 +519,9 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
     if (page_cur_is_after_last(&page_cursor))
     {
+      /* Only the leaf mode (GE) can land here; L stops at the infimum at
+      worst. `start` is past every record on this leaf, so this sub-tree
+      contributes no range */
       return (DB_SUCCESS);
     }
     else if (page_cur_is_before_first((&page_cursor)))
@@ -602,7 +639,7 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
       create_range(ranges, level_page_cursor);
     }
 
-    /* We've created the persistent cursor, safe to release S latches on
+    /* We've created the range, safe to release S latches on
     the blocks that are in this range (sub-tree). */
     for (auto &savepoint : savepoints)
       mtr->release(*savepoint.second);

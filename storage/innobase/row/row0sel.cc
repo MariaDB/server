@@ -4320,7 +4320,7 @@ bool row_search_with_covering_prefix(
 	return true;
 }
 
-/** Parallel scan: check whether a qualifying record has reached the
+/** Parallel scan: check whether the record the cursor is on has reached the
 exclusive upper bound of the chunk that is being scanned.
 
 The straightforward check is one cmp_dtuple_rec() per fetched record, which
@@ -4339,7 +4339,9 @@ not bump modify_clock), and an old version built in the heap is not covered
 by the verdict of any page.
 
 @param prebuilt	row fetch struct with a non-NULL m_pscan_end_tuple
-@param rec	the record that is about to be returned to the SQL layer
+@param rec	the record the cursor is positioned on. Must belong to the
+		index being scanned - m_pscan_end_tuple is a key of that
+		index, and cmp_dtuple_rec() pairs fields by ordinal.
 @param index	the index that rec belongs to
 @param offsets	rec_get_offsets(rec, index)
 @return whether rec is past the upper bound of the chunk. The bound itself
@@ -5158,6 +5160,15 @@ wrong_offs:
 		}
 	}
 
+	/* Parallel scan: stop at the upper bound of this chunk. Checked here,
+	on the record the cursor is on, because the boundary is a position in
+	`index`. */
+	if (UNIV_UNLIKELY(prebuilt->m_pscan_end_tuple != NULL)
+	    && row_pscan_reached_chunk_end(prebuilt, rec, index, offsets)) {
+		err = DB_RECORD_NOT_FOUND;
+		goto idx_cond_failed;
+	}
+
 	/* Note that we cannot trust the up_match value in the cursor at this
 	place because we can arrive here after moving the cursor! Thus
 	we have to recompare rec and search_tuple to determine if they
@@ -5716,21 +5727,6 @@ use_covering_index:
 				result_rec != rec ? clust_index : index,
 				offsets));
 	ut_ad(!rec_get_deleted_flag(result_rec, comp));
-
-	/* Parallel scan: stop at the exclusive upper bound of the chunk.
-	This runs before the record is returned or prefetched, so the
-	fetch cache never reaches past the chunk boundary. We treat the
-	boundary exactly like end-of-range (DB_RECORD_NOT_FOUND): any
-	rows already buffered in this call are still in range and will be
-	returned; the caller switches to the next chunk on the terminal
-	code. */
-	if (UNIV_UNLIKELY(prebuilt->m_pscan_end_tuple != NULL)
-	    && row_pscan_reached_chunk_end(
-		    prebuilt, result_rec,
-		    result_rec != rec ? clust_index : index, offsets)) {
-		err = DB_RECORD_NOT_FOUND;
-		goto idx_cond_failed;
-	}
 
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected

@@ -519,7 +519,7 @@ protected:
 	}
 
 	/** Implementation of handler API for parallel scans */
-	int parallel_init_coordinator(size_t n_threads,
+	int parallel_init_coordinator(size_t n_threads, uint keynr,
 				      const Dynamic_array<KEY_MULTI_RANGE> &ranges) override;
 
 	/** Convert one MySQL-format key endpoint into an InnoDB tuple.
@@ -597,6 +597,20 @@ protected:
 	const KEY_MULTI_RANGE *m_pscan_ranges{};
 	uint m_pscan_n_ranges{};
 
+	/** table->key_info[] number of the index being scanned in parallel, as
+	passed to parallel_init_coordinator(). MAX_KEY means the clustered
+	index; the range helpers below only run when there are intervals, which
+	always name a real key. */
+	uint m_pscan_keynr{MAX_KEY};
+
+	/** Resolve the index a parallel scan was asked for and check that the
+	partitioner can handle it.
+	@param keynr  table->key_info[] number, or MAX_KEY for the clustered
+	              index
+	@return the index, or NULL if it does not exist or is not supported -
+	        the caller declines the scan and the serial path runs instead */
+	dict_index_t* pscan_resolve_index(uint keynr);
+
 	/** Lower bound of interval 'scan_id', or NULL if it is unbounded or
 	this is a full table scan. The upper bound needs no handler-side state:
 	it is enforced by the chunk clamp inside row_search_mvcc(). */
@@ -609,6 +623,11 @@ protected:
 	of the interval wctx is currently reading. Clears wctx->m_check_start
 	once a row clears the bound. */
 	bool pscan_before_range_start(Parallel_coordinator::Worker_ctx *wctx);
+
+	/** The bound to open 'chunk' on so that an exclusive lower bound costs
+	no wasted reads, or NULL to open on the chunk's own first record. */
+	const dtuple_t *pscan_exclusive_start(
+		const Parallel_coordinator::Exec_ctx &chunk) const;
 };
 
 

@@ -3787,13 +3787,14 @@ public:
     To be called from the master thread to initiate the parallel scanning.
 
     @param n_workers  number of workers to partition the scan for
+    @param keynr      MAX_KEY for full table scan / index number for index scan
     @param ranges     key intervals to scan, in key order, in the same
                       representation the MRR interface uses: an endpoint whose
                       keypart_map is 0 is unbounded, and start_key.flag /
                       end_key.flag say whether the endpoint itself belongs to
                       the interval. Empty means scan the whole table.
   */
-  virtual int parallel_init_coordinator(size_t n_workers,
+  virtual int parallel_init_coordinator(size_t n_workers, uint keynr,
                     const Dynamic_array<KEY_MULTI_RANGE> &ranges)
               __attribute__ ((warn_unused_result))
   {

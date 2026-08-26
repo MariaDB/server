@@ -14581,7 +14581,7 @@ func_exit:
 }
 
 
-int ha_innobase::parallel_init_coordinator(size_t n_threads,
+int ha_innobase::parallel_init_coordinator(size_t n_threads, uint keynr,
 					  const Dynamic_array<KEY_MULTI_RANGE> &ranges)
 {
 	/* Reset any state left by a prior execution (correlateds subquery
@@ -14602,15 +14602,10 @@ int ha_innobase::parallel_init_coordinator(size_t n_threads,
 		return HA_ERR_UNSUPPORTED;
 	}
 
-	/* The partitioner and the end-of-chunk check (cmp_dtuple_rec(...) <= 0)
-	assume ascending physical key order. A descending key column in the
-	clustered index reverses B+Tree traversal, breaking range boundaries
-	and dropping rows. Decline; fall back to the serial scan. */
-	const dict_index_t *clust = m_prebuilt->table->indexes.start;
-	for (unsigned i = dict_index_get_n_unique_in_tree(clust); i--; ) {
-		if (clust->fields[i].descending) {
-			return HA_ERR_UNSUPPORTED;
-		}
+	dict_index_t *index = pscan_resolve_index(keynr);
+
+	if (index == NULL) {
+		return HA_ERR_UNSUPPORTED;
 	}
 
 	/* Refuse the scan if the tablespace is discarded or unreadable. */
@@ -14641,11 +14636,8 @@ int ha_innobase::parallel_init_coordinator(size_t n_threads,
 
 	m_parallel_coordinator.initialize(n_threads);
 
-	// Get the clustered index which is always first in the list
-	dict_index_t *index = m_prebuilt->table->indexes.start;
-	ut_ad(index->is_clust());
-
 	dberr_t err = DB_SUCCESS;
+	m_pscan_keynr = keynr;
 
 	if (ranges.size() == 0) {
 		/* Already cleared by the parallel_end_coordinator() above;
@@ -14703,7 +14695,47 @@ int ha_innobase::parallel_init_coordinator(size_t n_threads,
 		return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
 						   m_user_thd);
 	}
+
 	return 0;
+}
+
+dict_index_t* ha_innobase::pscan_resolve_index(uint keynr)
+{
+	/* keynr indexes table->key_info[].
+	MAX_KEY asks for the clustered index, generated or not. */
+	dict_index_t *index = innobase_get_index(keynr);
+
+	if (index == NULL)
+		return NULL;
+
+	if (index->is_corrupted()
+	    || !row_merge_is_index_usable(m_prebuilt->trx, index)) {
+		/* Being built by online DDL, or flagged corrupt. Unlike the
+		clustered index of an open table, a secondary index can be in
+		this state on its own. */
+		return NULL;
+	}
+
+	/* Index kinds the partitioner cannot reason about:
+	  - spatial: non-leaf records hold MBRs;
+	  - FTS: not a regular B+Tree of table rows;
+	  - virtual columns: records hold computed values which have to be
+	    validated against the clustered row before use. */
+	if (index->is_spatial() || (index->type & DICT_FTS)
+	    || index->has_virtual()) {
+		return NULL;
+	}
+
+	/* The partitioner and the end-of-chunk check (cmp_dtuple_rec(...) <= 0)
+	assume ascending physical key order. A descending key column reverses
+	B+Tree traversal, breaking range boundaries, so decline. */
+	for (unsigned i = dict_index_get_n_unique_in_tree(index); i--; ) {
+		if (index->fields[i].descending) {
+			return NULL;
+		}
+	}
+
+	return index;
 }
 
 const key_range* ha_innobase::pscan_get_start_key(size_t scan_id) const
@@ -14733,14 +14765,12 @@ void ha_innobase::pscan_begin_chunk(Parallel_coordinator::Worker_ctx *wctx)
 
 	if (start_key) {
 		/* pscan_before_range_start() compares table->record[0] against
-		the key through range_key_part. A key range is only ever handed
-		to us for a scan of the primary key, so active_index is a real
-		key number here - unlike a full scan of a table whose clustered
-		index was auto-generated, where ha_rnd_init() leaves it
-		MAX_KEY. */
-		ut_ad(active_index == table->s->primary_key);
-		ut_ad(active_index < MAX_KEY);
-		range_key_part = table->key_info[active_index].key_part;
+		the key through range_key_part. Intervals are only ever handed
+		to us naming a real key, so m_pscan_keynr is not MAX_KEY here -
+		unlike a full scan of a table whose clustered index was
+		auto-generated, where there is no MySQL key to point at. */
+		ut_ad(m_pscan_keynr < MAX_KEY);
+		range_key_part = table->key_info[m_pscan_keynr].key_part;
 	}
 }
 
@@ -14767,6 +14797,53 @@ bool ha_innobase::pscan_before_range_start(
 	return false;
 }
 
+const dtuple_t *ha_innobase::pscan_exclusive_start(
+	const Parallel_coordinator::Exec_ctx &exec_ctx) const
+{
+	/* A chunk is opened at its own first record, and that record belongs to
+	the chunk, so the open has to be PAGE_CUR_GE. That cannot express an
+	exclusive lower bound: for "a > 5" the partitioner's first chunk begins
+	at the first record with a = 5, and pscan_before_range_start() then
+	throws away every record sharing that value - the bound's whole
+	multiplicity, which on a low-cardinality column is most of a chunk.
+	A serial scan never reads them: convert_search_mode_to_innobase() turns
+	HA_READ_AFTER_KEY into PAGE_CUR_G and the descent lands past them.
+
+	So do the same here, for as long as the chunk still holds the bound. */
+	const key_range *start_key = pscan_get_start_key(exec_ctx.scan_id());
+	if (start_key == nullptr || start_key->flag != HA_READ_AFTER_KEY) {
+		return nullptr;
+	}
+
+	// Start bound as requested by the caller, not the actual chunk start:
+	const dtuple_t *start_bound = exec_ctx.scan_start();
+	if (!start_bound)
+		return nullptr;
+
+	const dtuple_t *chunk_start = exec_ctx.m_range.first->m_tuple;
+	const ulint n_cmp = dtuple_get_n_fields_cmp(start_bound);
+
+	ut_ad(n_cmp > 0);
+	ut_ad(n_cmp <= dtuple_get_n_fields(chunk_start));
+
+	for (ulint i = 0; i < n_cmp; i++) {
+		const int cmp = cmp_dfield_dfield(
+			dtuple_get_nth_field(start_bound, i),
+			dtuple_get_nth_field(chunk_start, i));
+
+		if (cmp != 0) {
+			/* cmp < 0: the chunk begins above the bound already. */
+			return cmp < 0 ? nullptr : start_bound;
+		}
+	}
+
+	/* Equal on every named field: this chunk begins inside the start bound's
+	key value, so every record from here up to the first one above the bound
+	is out of range and has to be skipped. Opening on the bound is what
+	skips them. */
+	return start_bound;
+}
+
 dtuple_t* ha_innobase::pscan_convert_key(const key_range *kr,
 					 const dict_index_t *index,
 					 mem_heap_t *heap)
@@ -14782,9 +14859,9 @@ dtuple_t* ha_innobase::pscan_convert_key(const key_range *kr,
 	byte* buf = static_cast<byte*>(
 		mem_heap_alloc(heap, m_prebuilt->srch_key_val_len));
 
-	ut_ad(table->s->primary_key < MAX_KEY);
+	ut_ad(m_pscan_keynr < MAX_KEY);
 	const uint n_key_fields =
-		table->key_info[table->s->primary_key].ext_key_parts;
+		table->key_info[m_pscan_keynr].ext_key_parts;
 
 	dtuple_t* tuple = dtuple_create(heap, n_key_fields);
 	dict_index_copy_types(tuple, index, n_key_fields);
@@ -14823,7 +14900,12 @@ int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
 	  the coordinator releases the chunks. */
 	m_pscan_saved_search_tuple= m_prebuilt->search_tuple;
 
-	if (int err= ha_rnd_init(/*scan*/ true))
+	/* MAX_KEY means the clustered index, which may be auto-generated and so
+	have no table->key_info[] entry for ha_index_init() to name. Any other
+	value names a real key, clustered or not. */
+	if (int err= m_pscan_keynr == MAX_KEY
+		     ? ha_rnd_init(/*scan*/ true)
+		     : ha_index_init(m_pscan_keynr, /*sorted*/ false))
 		return err; // preserve HA_ERR_* (e.g. HA_ERR_TABLE_DEF_CHANGED)
 
 	worker_ctx->m_exec_ctx= exec_ctx;
@@ -14854,19 +14936,28 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 					chunk.m_range.second->m_tuple,
 					chunk.m_end_inclusive);
 
-				if (chunk.m_range.first->m_tuple) {
-					// Position at first record >= start, AND load it.
-					m_prebuilt->search_tuple = const_cast<dtuple_t *>(
-						chunk.m_range.first->m_tuple);
-					err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
-											m_prebuilt, 0, 0 /*opening*/);
-				} else {
-					/* -infinity: empty (0-field) tuple + PAGE_CUR_G =
-					 first user record. */
-					m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
-					err = row_search_mvcc(table->record[0], PAGE_CUR_G,
-											m_prebuilt, 0, 0 /*opening*/);
+				const dtuple_t *open_tuple =
+					chunk.m_range.first->m_tuple;
+				page_cur_mode_t open_mode = PAGE_CUR_GE;
+
+				if (open_tuple == NULL) {
+					/* -infinity:
+					empty (0-field) tuple + PAGE_CUR_G = first user record. */
+					open_tuple = dtuple_create(m_prebuilt->heap, 0);
+					open_mode = PAGE_CUR_G;
+				} else if (const dtuple_t *start_bound =
+					   pscan_exclusive_start(chunk)) {
+					/* Skip the start bound's key value in the descent rather
+					than reading it row by row. */
+					open_tuple = start_bound;
+					open_mode = PAGE_CUR_G;
 				}
+
+				// Position at the first record to read, AND load it.
+				m_prebuilt->search_tuple =
+					const_cast<dtuple_t *>(open_tuple);
+				err = row_search_mvcc(table->record[0], open_mode,
+						      m_prebuilt, 0, 0 /*opening*/);
 			}
 			else {
 				// Continuation: advance from stored position.
@@ -14909,8 +15000,7 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 
 int ha_innobase::parallel_end_worker()
 {
-	if (inited == RND)
-	  ha_rnd_end();
+	ha_index_or_rnd_end();
 	if (m_pscan_saved_search_tuple)
 	{
 		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
@@ -14929,6 +15019,7 @@ int ha_innobase::parallel_end_coordinator()
 	}
 	m_pscan_ranges = nullptr;
 	m_pscan_n_ranges = 0;
+	m_pscan_keynr = MAX_KEY;
 	return 0;
 }
 
