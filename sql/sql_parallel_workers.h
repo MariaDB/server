@@ -12,20 +12,7 @@ extern void *thd_attach_thd(MYSQL_THD thd);
 extern void thd_detach_thd(void *save);
 
 #include "sql_parallel_thread.h"
-
-
-/*
-  Number of rows a worker packs into its batch buffer before handing it to the
-  manager. The worker hands rows to the manager a batch at a time rather than
-  one at a time so the channel mutex is touched once per PWT_CHUNK_ROWS rows
-  instead of once per row. Each worker reuses a single row buffer (see
-  pwt_worker_batch::rows): it fills the buffer with up to PWT_CHUNK_ROWS
-  result-row images (the base-table columns it read for the rows of its chunk
-  that qualified), hands it to the manager and blocks until the manager has
-  drained it, then refills it for the next batch.
-*/
-//#define PWT_CHUNK_ROWS 2048
-#define PWT_CHUNK_ROWS 128
+#include "sql_parallel_transport.h"
 
 class pwt_manager;
 typedef struct st_join_table JOIN_TAB;
@@ -33,35 +20,22 @@ class JOIN;
 class Item;
 class TMP_TABLE_PARAM;
 
-struct pwt_worker_batch
-{
-  /*
-    This worker's single reused row buffer, PWT_CHUNK_ROWS * reclength bytes
-    (reclength == the manager's result_table record size), allocated up front
-    in init_parallel_workers. For each row of its chunk that survives the join
-    and the WHERE filter the worker projects the shipped columns into
-    exec.result_table->record[0] (see exec.proj) and memcpy's that
-    record image into this buffer. The manager and the workers share an
-    identical result_table layout, so a byte-for-byte record copy reconstructs
-    the result row on the manager side. It hands the buffer to the manager,
-    blocks until the manager has drained it, then refills from the top. The
-    worker and the manager never touch it at the same time, so it needs no
-    per-row locking.
-  */
-  uchar           *rows;
-  uint            count;   // rows the worker placed in batch.rows
-  /*
-    Hand-off flag for batch.rows, guarded by pwt_manager::drain.LOCK_data.
-    The worker sets it true once the buffer is filled and ready for the manager;
-    the manager clears it once the buffer is drained, releasing the worker to
-    refill. See pwt_manager::handoff_batch / pwt_manager::drain_next_row.
-  */
-  bool            full;
-};
-
 
 struct pwt_worker_execution
 {
+  /*
+    A team is default-constructed as an array and can be taken apart from any
+    stage of its build, so every member a teardown path reads has to mean
+    "nothing here" before anything is set up. close_tables() reads tables and
+    n_tables, free_containers() reads result, and neither is a member the
+    compiler would zero.
+  */
+  pwt_worker_execution():
+    scan_table(nullptr), tables(nullptr), n_tables(0),
+    proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
+    tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
+  { bzero(&stats, sizeof(stats)); }
+
   /*
     Per-worker copy of the manager's first non-const source table, the
     parallel-scanned driving table (== tables[0]). Gives the worker a private
@@ -83,14 +57,15 @@ struct pwt_worker_execution
   /*
     This worker's private result container: a tmp table whose columns are the
     base-table columns the query reads (built in init_parallel_workers from the
-    manager's result_table layout). The worker only uses its record buffer and
-    fields -- it projects the cloned column list into result_table->record[0]
-    with Item::save_in_field and ships those bytes; it never writes rows
-    through the storage engine.
+    manager's layout), and the column descriptions it was built from. What the
+    worker does with it is the transport's business: the batch transport uses
+    only its record buffer and fields, projecting the cloned column list into
+    record[0] with Item::save_in_field and shipping those bytes, while the
+    temporary-table transport keeps the row by writing it through the engine.
   */
-  TABLE                 *result_table;
+  pwt_row_container     result;
   /*
-    Per-worker deep clone of the shipped column list, one item per result_table
+    Per-worker deep clone of the shipped column list, one item per result
     field, with its Item_field leaves rebound to this worker's table copies.
     Each worker owns its own clones so the threads never share mutable Item
     state (null_value, cached results) while they evaluate concurrently.
@@ -145,9 +120,23 @@ class pwt_worker : public pwt_worker_base
   int execute_and_handoff();
 public:
 
-  pwt_worker_batch      batch;
+  /*
+    This worker's producing end of the result-row transport, made by the
+    manager's source (see pwt_row_source::make_sink). The worker projects a
+    finished row into exec.result.record() and hands the image to this;
+    how it travels from there is the transport's business, not the worker's.
+  */
+  pwt_row_sink          *sink;
   pwt_worker_execution  exec;
-  
+
+  /*
+    The team is default-constructed as an array before anything is set up, and
+    a worker whose setup never got as far as these two is still walked by the
+    failure paths (free_result_tables, the sink release in
+    init_parallel_workers). Neither is a member the compiler would zero.
+  */
+  pwt_worker(): sink(nullptr) { }
+
   void thread_func() override;
   /* Run this worker's share of the query and stream the result rows out. */
   void execute_and_signal_manager();
@@ -165,46 +154,12 @@ public:
   */
   /* Next row of this worker's chunk. Handler error code, 0 on success. */
   int pscan_next_row();
-  /* A fully joined row: project it and add it to the batch.
-     0 = keep going, 1 = error, 2 = the manager asked us to stop. */
+  /* A fully joined row: project it and hand it to the transport.
+     0 = keep going, 1 = error, 2 = the manager asked us to stop
+     (pwt_emit_result). */
   int emit_joined_row();
-
-  bool handoff_batch();
 };
 
-
-/*
-  Streaming channel. Each worker (producer) fills its single reused row
-  buffer (batch.rows) with the result rows it computed for its chunk and hands
-  it to the manager (single consumer) by setting its batch.full flag; the
-  manager (drain_and_send) drains the buffer and sends each result
-  row to the client as the batches arrive, instead of waiting for every worker
-  to finish first.
-
-  LOCK_data guards cur_worker, the workers' batch.full flags, active_workers
-  and the flags below. COND_data_avail wakes the consumer when a worker
-  fills its buffer or finishes; COND_data_space wakes a worker when the
-  manager has drained its buffer so it may refill. Because each worker owns
-  one buffer and blocks until it is drained, at most one batch per worker is
-  ever outstanding -- the single buffer is the natural backpressure bound.
-  EOF for the consumer is the state (no worker has batch.full set &&
-  active_workers == 0).
-*/
-
-struct pwt_manager_drain
-{
-  pwt_worker        *cur_worker;      // worker whose buffer the consumer drains
-  uint              cur_cursor;       // consumer's row index within cur_worker
-  uint              reclength;        // result_table record image size (bytes)
-  uint              active_workers;   // producers still running
-  bool              stop;             // consumer wants producers to stop
-
-  pwt_manager_drain():
-    cur_worker(nullptr),
-    active_workers(0),
-    stop(false)
-  { }
-};
 
 struct pwt_manager_execution
 {
@@ -230,79 +185,41 @@ struct pwt_manager_execution
 
 
 /*
-  How a worker's row reaches the manager's own records: the container the two
-  sides agree on, the columns a worker ships in it, and the copies that put
-  those columns back where the query's items expect to read them.
-*/
-
-struct pwt_manager_transport
-{
-  /*
-    Result container shared (by layout) with every worker's exec.result_table.
-    The manager receives each worker result-row image into
-    result_table->record[0] and copies its columns back into its own
-    base-table records, from where the query's own items read them.
-    result_tmp_param backs the create/instantiate/free of result_table and the
-    per-worker copies.
-  */
-  TABLE             *result_table;
-  TMP_TABLE_PARAM   *result_tmp_param;
-
-  /*
-    What a worker ships per row: every base-table column the query reads, in
-    table order. Not the projected select list -- the manager copies each column
-    back into the field it came from in its own table instances, so everything
-    that reads a record reads what a serial scan would have left there, with
-    nothing redirected. That is required rather than merely tidy: a temp table is
-    filled through the Copy_field pairs create_tmp_table() builds, which hold raw
-    Field pointers into the base tables, so re-pointing Items cannot reach them.
-
-    ship_list holds Item_fields over the manager's own fields. result_defn holds
-    clones of them, and that is what defines the column layout the workers and
-    the manager agree on. copy_back is one Copy_field per shipped column,
-    result_table's field to the base-table field it came from; n_copy_back is
-    ship_list's length less the filler a query reading no column ships, which has
-    no destination.
-  */
-  List<Item>        ship_list;
-  Copy_field        *copy_back;
-  uint              n_copy_back;
-  /*
-    Clones of the shipped columns that define the result_table columns (kept so
-    the manager and every worker build the identical result layout).
-  */
-  List<Item>        result_defn;
-
-  pwt_manager_transport() :
-    result_table(nullptr),
-    result_tmp_param(nullptr),
-    copy_back(nullptr),
-    n_copy_back(0)
-  { };
-};
-
-
-/*
   Class to create, manage and eventually destroy a "team" of worker threads.
 */
 class pwt_manager : public pwt_manager_base
 {
   pwt_manager_execution    exec;
-  pwt_manager_transport    transport;
 
-protected:
-  pwt_manager_drain        drain;
+  /*
+    How a worker's finished rows reach us: the row shape both ends agree on,
+    and our end of the channel that carries it. Each worker holds the other end
+    (pwt_worker::sink), made by this source. See sql_parallel_transport.h.
+  */
+  pwt_row_layout           layout;
+  pwt_row_source           *source;
 
 public:
+  /*
+    The worker team's own state, as distinct from the transport's: who is still
+    running, whether one of them failed, and whether we have had enough. The
+    transport's two ends read it -- a consumer waiting for a row and a consumer
+    waiting for the last worker to exit wait for the same event -- so LOCK_data
+    and COND_data_avail guard it and belong here rather than to any one
+    transport.
+  */
   mysql_mutex_t            LOCK_data;
   mysql_cond_t             COND_data_avail;
-  mysql_cond_t             COND_data_space;
-  bool                     fatal_error;   // a producer hit a real engine error
+  uint                     active_workers; // producers still running
+  bool                     stop;           // we want the producers to stop
+  bool                     fatal_error;    // a producer hit a real engine error
   void notify_fatal_error();
-  bool is_fatal_error() { return fatal_error; } 
+  bool is_fatal_error() { return fatal_error; }
+  /* A worker exited because it was killed; NOT_KILLED if none did. */
+  killed_state killed_by_worker() const { return kill_signal; }
 
   pwt_manager():
-    fatal_error(false)
+    source(nullptr), active_workers(0), stop(false), fatal_error(false)
     {}
   ~pwt_manager()
   {
@@ -321,12 +238,6 @@ public:
 
 private:
 
-  /* Copy the next worker result-row image into dst (reclength bytes).
-     0 = row produced, -1 = end of data, 1 = error. */
-  int drain_next_row(uchar *dst);
-  /* Create + instantiate one result container from the column definition list
-     'defn'. Returns true on error. */
-  bool make_result_table(THD *thd, List<Item> &defn, TABLE **out);
   /* Deep-clone this query's conditions + shipped column list for 'worker',
      rebinding the Item_field leaves to the worker's table copies. Returns
      true on error. */
@@ -340,8 +251,13 @@ private:
   /* Build worker->exec.jointabs: a copy of each of the manager's non-const
      JOIN_TABs, rebound to this worker. */
   bool setup_worker_jointabs(THD *thd, pwt_worker *worker);
-  /* Free the manager and per-worker result containers. */
-  void free_result_tables(THD *thd);
+  /* Free the row containers: the manager's and every worker's. */
+  void free_containers(THD *thd);
+  /* Build the transport and give every worker its producing end. */
+  bool setup_transport(THD *thd, uint n_workers);
+  /* Stop the producers: set the request and wake anyone blocked in the
+     transport waiting for us. Caller holds LOCK_data. */
+  void request_stop();
 
 friend  pwt_worker;
 };

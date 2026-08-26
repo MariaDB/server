@@ -3623,8 +3623,6 @@ void *my_str_realloc_mysqld(void *ptr, size_t size)
 #endif
 
 
-
-
 /**
   This function is used to check for stack overrun for pathological
   cases of  regular expressions and 'like' expressions.
@@ -9859,7 +9857,6 @@ void refresh_status_legacy(THD *thd)
 }
 
 
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_file_info all_server_files[]=
 {
@@ -10146,7 +10143,6 @@ PSI_memory_key key_memory_trace_ddl_info;
 PSI_memory_key key_memory_pwt_queued_event;
 PSI_memory_key key_memory_pwt_error_message;
 PSI_memory_key key_memory_pwt_db;
-PSI_memory_key key_memory_pwt_batch_rows;
 
 #ifdef HAVE_PSI_INTERFACE
 
