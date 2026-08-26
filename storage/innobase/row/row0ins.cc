@@ -29,6 +29,8 @@ Created 4/20/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "trx0rec.h"
 #include "trx0undo.h"
+#include "btr0blink.h"
+#include "btr0blink_alloc.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "mach0data.h"
@@ -2627,6 +2629,56 @@ inline bool dict_table_t::can_bulk_insert(const trx_t &trx) const noexcept
   return !trx.check_foreigns || (foreign_set.empty() && referenced_set.empty());
 }
 
+static dberr_t row_ins_blink_index_entry(
+  ulint flags, btr_cur_t *cursor, rec_offs **offsets, mem_heap_t **heap,
+  dtuple_t *entry, rec_t **rec, big_rec_t **big_rec, ulint n_ext,
+  que_thr_t *thr, mtr_t *mtr)
+{
+  dberr_t err= blink_optimistic_insert(flags, cursor, offsets, heap, entry,
+                                       rec, big_rec, n_ext, thr, mtr);
+  if (err != DB_FAIL || cursor->block()->page.id().page_no() ==
+      cursor->index()->page)
+    return err;
+
+  dict_index_t *index= cursor->index();
+  trx_t *trx= thr_get_trx(thr);
+  mtr->commit();
+
+  uint32_t right_page;
+  if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF, &right_page)) {
+    err= blink_page_pool_refill(index, blink_page_kind::LEAF, trx);
+    if (err != DB_SUCCESS ||
+        !blink_page_pool_try_pop(index, blink_page_kind::LEAF, &right_page)) {
+      ++blink_pool_empty;
+      mtr->start();
+      index->set_modified(*mtr);
+      return err == DB_SUCCESS ? DB_OUT_OF_FILE_SPACE : err;
+    }
+  }
+
+  mtr->start();
+  index->set_modified(*mtr);
+  err= blink_search_leaf(index, entry, PAGE_CUR_LE, RW_X_LATCH, cursor, mtr);
+  if (err != DB_SUCCESS)
+    return err;
+
+  buf_block_t *right= btr_block_get(*index, right_page, RW_X_LATCH, mtr, &err);
+  if (!right)
+    return err;
+
+  const uint32_t left_page= cursor->block()->page.id().page_no();
+  err= blink_split_leaf_and_insert(flags, cursor, right, entry, offsets, heap,
+                                   rec, big_rec, n_ext, thr, mtr);
+  if (err != DB_SUCCESS)
+    return err;
+
+  mtr->commit();
+  err= blink_install_parent(index, left_page, right_page, trx);
+  mtr->start();
+  index->set_modified(*mtr);
+  return err;
+}
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2758,7 +2810,7 @@ err_exit:
 		goto row_level_insert;
 #endif /* WITH_WSREP */
 
-	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
+	if (!use_blink_path(index) && !(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->page.frame)
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->check_unique_secondary && !trx->check_foreigns
@@ -2932,7 +2984,11 @@ row_level_insert:
 do_insert:
 		rec_t*	insert_rec;
 
-		if (mode != BTR_MODIFY_TREE) {
+		if (use_blink_path(index) && mode == BTR_MODIFY_LEAF) {
+			err= row_ins_blink_index_entry(
+				flags, &pcur.btr_cur, &offsets, &offsets_heap,
+				entry, &insert_rec, &big_rec, n_ext, thr, &mtr);
+		} else if (mode != BTR_MODIFY_TREE) {
 			ut_ad(mode == BTR_MODIFY_LEAF
 			      || mode == BTR_MODIFY_LEAF_ALREADY_LATCHED
 			      || mode == BTR_MODIFY_ROOT_AND_LEAF

@@ -11158,7 +11158,8 @@ create_index(
 		ind_type |= DICT_UNIQUE;
 	}
 
-	if (srv_blink_enabled && blink_table_shape_ok(table)) {
+	if (srv_blink_enabled && blink_table_shape_ok(table) &&
+	    key_num == form->s->primary_key && form->s->keys == 1) {
 		ind_type |= DICT_BLINK;
 	}
 

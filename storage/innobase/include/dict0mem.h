@@ -58,6 +58,7 @@ Created 1/8/1996 Heikki Tuuri
 
 /* Forward declaration. */
 struct ib_rbt_t;
+struct blink_page_pool_t;
 
 /** Type flags of an index: OR'ing of the flags is allowed to define a
 combination of types */
@@ -1031,6 +1032,8 @@ struct dict_index_t {
 # define DICT_INDEX_MAGIC_N	76789786
 #endif
 	dict_field_t*	fields;	/*!< array of field descriptions */
+	/** Benchmark-only pool of pages reserved outside B-link split latches. */
+	blink_page_pool_t*	blink_page_pool;
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
 
