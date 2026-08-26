@@ -3103,6 +3103,8 @@ ha_innobase::ha_innobase(
 	TABLE_SHARE*	table_arg)
 	:handler(hton, table_arg),
 	m_prebuilt(),
+	m_fk_cascade_rec(),
+	m_fk_cascade_index(),
 	m_user_thd(),
 	m_int_table_flags(HA_REC_NOT_IN_SEQ
 			  | HA_NULL_IN_KEY
@@ -8696,6 +8698,55 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd,
   return false;
 }
 #endif /* WITH_WSREP */
+
+/** Convert the clustered index record recorded by fk_cascade_set_cursor()
+into MySQL row format.
+
+This is the engine's whole contribution to reporting an FK cascade action:
+the server decides which columns the image consists of (it has already set
+the table's column bitmaps accordingly) and owns 'buf'; all that is left
+that only InnoDB can do is the record conversion itself.
+
+The row template is rebuilt for the server's bitmaps for the duration of the
+conversion and reset afterwards, because the template in force belongs to the
+statement being executed and describes a different set of columns.
+
+@param buf	destination row buffer, table->s->reclength bytes
+@return 0 on success, HA_ERR_GENERIC if the record could not be converted */
+int
+ha_innobase::fk_cascade_fetch_row(uchar* buf)
+{
+	if (m_prebuilt == NULL || m_prebuilt->mysql_template == NULL
+	    || m_fk_cascade_rec == NULL || m_fk_cascade_index == NULL) {
+		return HA_ERR_GENERIC;
+	}
+
+	rebuild_template_for_cascade_binlog_row_image();
+
+	mem_heap_t*	offs_heap = NULL;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets_);
+	const rec_offs*	offsets = rec_get_offsets(
+		m_fk_cascade_rec, m_fk_cascade_index, offsets_,
+		m_fk_cascade_index->n_core_fields, ULINT_UNDEFINED, &offs_heap);
+
+	dict_index_t*	saved_index = m_prebuilt->index;
+	m_prebuilt->index = m_fk_cascade_index;
+
+	const bool	ok = row_sel_store_mysql_rec(
+		buf, m_prebuilt, m_fk_cascade_rec, NULL, true,
+		m_fk_cascade_index, offsets);
+
+	m_prebuilt->index = saved_index;
+
+	if (UNIV_LIKELY_NULL(offs_heap)) {
+		mem_heap_free(offs_heap);
+	}
+
+	reset_template_for_cascade_binlog_row_image();
+
+	return ok ? 0 : HA_ERR_GENERIC;
+}
 
 /**
 Updates a row given as a parameter to a new value. Note that we are given

@@ -3892,6 +3892,18 @@ public:
   void flush_pending_cascade_binlog();
   void discard_pending_cascade_binlog();
 
+  /*
+    Row images of the FK-cascade action currently being reported by a storage
+    engine, materialised by thd_fk_cascade_capture() and consumed by
+    thd_fk_cascade_row(). At most one cascade action is in flight at a time:
+    the engine captures the before-image, performs the cascade, captures the
+    after-image, and reports, all within one call to its cascade routine.
+    See include/mysql/service_thd_fk_cascade.h.
+  */
+  uchar *fk_cascade_before_image= NULL;
+  uchar *fk_cascade_after_image= NULL;
+  void fk_cascade_free_images();
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
