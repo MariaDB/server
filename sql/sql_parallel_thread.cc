@@ -256,13 +256,14 @@ void pwt_worker_base::init_and_run_thread_func()
   thd= nullptr;
   mysql_mutex_unlock(&LOCK_worker);
 
+  // This is similar to what destroy_worker_thd() does:
+  server_threads.erase(worker_thd);
   /*
     executing thd_detach_thd sets my_thread_var to null, stopping our ability
     use the normal mutex mechanisms, so we operate this outside the locked
     region on a copy of our THD pointer
   */
   thd_detach_thd(save);
-  server_threads.erase(worker_thd);
 
   destroy_background_thd(worker_thd);
 }
@@ -373,15 +374,16 @@ bool pwt_worker_base::init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
   thd->query_string= CSET_STRING(info.process_list,
                                  strlen(info.process_list),
                                  thd->query_charset());
-  // Not needed: thd->parallel_worker= this;
-  //state.finished= state.joined= false;
-  //state.killed= NOT_KILLED;
+
+  // TODO: it is OK that we insert before starting the OS thread, right?
+  server_threads.insert(thd);  // +information_schema.processlist
 
   return false; // Ok
 }
 
 void pwt_worker_base::destroy_worker_thd()
 {
+  server_threads.erase(thd);
   /*
     destroy_background_thd() requires current_thd to be NULL because it
     re-attaches the background THD to this thread's TLS. We are running on
@@ -422,10 +424,7 @@ void pwt_worker_base::cleanup_worker()
 }
 
 pwt_manager_base::pwt_manager_base() : 
-    workers(nullptr), nworkers(0),
-    messages_dropped(false),
-    reaped(false),
-    kill_signal(NOT_KILLED)
+    messages_dropped(false)
 {
   mysql_mutex_init(key_mutex_pwt_LOCK_manager, &LOCK_pwt_manager,
                     MY_MUTEX_INIT_SLOW);
