@@ -1,0 +1,107 @@
+#
+# Each block records the answer computed with memory to spare, then
+# recomputes it with the duplicate filter starved, and compares.
+#
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, a VARCHAR(100) NOT NULL);
+INSERT INTO t1 (a) SELECT LPAD(seq, 4, '0') FROM seq_1_to_50;
+INSERT INTO t1 (a) SELECT a FROM t1 ORDER BY pk;
+SELECT COUNT(*) AS rows_in_table, COUNT(DISTINCT a) AS distinct_values FROM t1;
+rows_in_table	distinct_values
+100	50
+SELECT GROUP_CONCAT(DISTINCT a) INTO @gc FROM t1;
+SELECT GROUP_CONCAT(DISTINCT a ORDER BY a) INTO @gc_order FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a) INTO @ja FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a ORDER BY a) INTO @ja_order FROM t1;
+SET @@tmp_memory_table_size=0;
+SELECT GROUP_CONCAT(DISTINCT a) = @gc AS gc_unchanged FROM t1;
+gc_unchanged
+1
+SELECT GROUP_CONCAT(DISTINCT a ORDER BY a) = @gc_order AS gc_order_unchanged FROM t1;
+gc_order_unchanged
+1
+SELECT JSON_ARRAYAGG(DISTINCT a) = @ja AS ja_unchanged FROM t1;
+ja_unchanged
+1
+SELECT JSON_ARRAYAGG(DISTINCT a ORDER BY a) = @ja_order AS ja_order_unchanged FROM t1;
+ja_order_unchanged
+1
+SET @@tmp_memory_table_size=DEFAULT;
+DROP TABLE t1;
+#
+# Values wide enough that the filter flushes on nearly every row.
+# Here the ORDER BY case used to return a single value out of 30.
+#
+CREATE TABLE t2 (a VARCHAR(2000)) AS
+SELECT CONCAT(seq, REPEAT('.', 1990)) AS a FROM seq_1_to_30;
+SELECT COUNT(*) AS rows_in_table, COUNT(DISTINCT a) AS distinct_values FROM t2;
+rows_in_table	distinct_values
+30	30
+SELECT GROUP_CONCAT(DISTINCT a) INTO @gc FROM t2;
+SELECT GROUP_CONCAT(DISTINCT a ORDER BY a) INTO @gc_order FROM t2;
+SET @@tmp_memory_table_size=1000, @@max_heap_table_size=1000;
+Warnings:
+Warning	1292	Truncated incorrect tmp_memory_table_size value: '1000'
+Warning	1292	Truncated incorrect max_heap_table_size value: '1000'
+SELECT GROUP_CONCAT(DISTINCT a) = @gc AS gc_unchanged FROM t2;
+gc_unchanged
+1
+SELECT GROUP_CONCAT(DISTINCT a ORDER BY a) = @gc_order AS gc_order_unchanged FROM t2;
+gc_order_unchanged
+1
+SET @@tmp_memory_table_size=DEFAULT, @@max_heap_table_size=DEFAULT;
+DROP TABLE t2;
+#
+# ORDER BY does not order the rows that tie on the ordering
+# expression. Which of them comes first is not specified, but it
+# must not depend on the memory available or on the order the rows
+# are read in.
+#
+CREATE TABLE t3 (a BIT(2), b VARCHAR(10), c BIT);
+INSERT INTO t3 VALUES (1, 'a', 0), (0, 'b', 1), (0, 'c', 0), (3, 'd', 1),
+(1, 'e', 1), (3, 'f', 1), (0, 'g', 1);
+SELECT GROUP_CONCAT(DISTINCT a, c ORDER BY a) AS at_default FROM t3;
+at_default
+01,00,11,10,31
+SET @@tmp_memory_table_size=0;
+SELECT GROUP_CONCAT(DISTINCT a, c ORDER BY a) AS at_zero FROM t3;
+at_zero
+01,00,11,10,31
+SET @@tmp_memory_table_size=DEFAULT;
+DELETE FROM t3;
+INSERT INTO t3 VALUES (0, 'c', 0), (0, 'b', 1), (1, 'a', 0), (3, 'd', 1),
+(1, 'e', 1), (3, 'f', 1), (0, 'g', 1);
+SELECT GROUP_CONCAT(DISTINCT a, c ORDER BY a) AS reversed_scan_order FROM t3;
+reversed_scan_order
+01,00,11,10,31
+DROP TABLE t3;
+#
+# The sort tree can overflow too. Starving it makes repack_tree()
+# cut rows out of the group, which is expected, but the rows that
+# do come back must still be deduplicated and still be in order.
+#
+CREATE TABLE t4 (pk INT AUTO_INCREMENT PRIMARY KEY, a VARCHAR(20));
+INSERT INTO t4 (a) SELECT LPAD(seq, 6, '0') FROM seq_1_to_200;
+INSERT INTO t4 (a) SELECT a FROM t4 ORDER BY pk;
+SET @@tmp_memory_table_size=0, @@group_concat_max_len=4000;
+SELECT GROUP_CONCAT(DISTINCT a ORDER BY a) INTO @gc FROM t4;
+Warnings:
+Warning	1260	Row # was cut by group_concat()
+SELECT JSON_ARRAYAGG(DISTINCT a ORDER BY a) INTO @ja FROM t4;
+Warnings:
+Warning	1260	Row # was cut by json_arrayagg()
+SET @@tmp_memory_table_size=DEFAULT, @@group_concat_max_len=DEFAULT;
+SELECT COUNT(*) = COUNT(DISTINCT val) AS gc_no_duplicates,
+GROUP_CONCAT(val ORDER BY val) = @gc AS gc_ascending
+FROM (SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(@gc, ',', seq), ',', -1) AS val
+FROM seq_1_to_500
+WHERE seq <= 1 + LENGTH(@gc) - LENGTH(REPLACE(@gc, ',', ''))) split;
+gc_no_duplicates	gc_ascending
+1	1
+SELECT JSON_VALID(@ja) AS ja_valid,
+COUNT(*) = COUNT(DISTINCT val) AS ja_no_duplicates,
+JSON_ARRAYAGG(val ORDER BY val) = @ja AS ja_ascending
+FROM (SELECT JSON_UNQUOTE(JSON_EXTRACT(@ja, CONCAT('$[', seq - 1, ']'))) AS val
+FROM seq_1_to_500 WHERE seq <= JSON_LENGTH(@ja)) split;
+ja_valid	ja_no_duplicates	ja_ascending
+1	1	1
+DROP TABLE t4;
