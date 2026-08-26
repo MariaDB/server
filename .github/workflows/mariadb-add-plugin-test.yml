@@ -1,0 +1,105 @@
+name: MARIADB_ADD_PLUGIN external plugin test
+
+# Builds a minimal server, packages it, then checks that
+# tests/mariadb-add-plugin-test can build dummy plugins against nothing
+# but that package via find_package(mariadb-plugin) + MARIADB_ADD_PLUGIN(),
+# the way an external plugin author would (MDEV-40608).
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'bb-*'
+      - '[0-9]+.[0-9]+'
+      - '*wlad*'
+  pull_request:
+
+jobs:
+  linux:
+    concurrency:
+      group: ${{ github.workflow }}-linux-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install prerequisites
+        run: |
+          # speedup checkout/configure by excluding uninteresting submodules
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/duckdb/third_parties/duckdb.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          sudo apt-get update
+          sudo apt-get install -y libncurses-dev libcurl4-openssl-dev
+
+      - name: Configure
+        run: |
+          mkdir bld
+          cmake -S . -B bld \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DMYSQL_MAINTAINER_MODE=NO \
+            -DWITH_WSREP=NO \
+            -DPLUGIN_S3=NO \
+            -DPLUGIN_CONNECT=NO \
+            -DPLUGIN_DUCKDB=NO \
+            -DPLUGIN_ROCKSDB=NO \
+            -DPLUGIN_INNOBASE=NO \
+            -DPLUGIN_PERFSCHEMA=NO
+
+      - name: Build
+        run: cmake --build bld -- -j$(nproc)
+
+      - name: Package
+        run: cmake --build bld --target package
+
+      - name: Test external plugin build
+        run: |
+          PACKAGE=$(ls bld/mariadb-*.tar.gz | head -1)
+          bash tests/mariadb-add-plugin-test/test.sh "$PACKAGE"
+
+  windows:
+    concurrency:
+      group: ${{ github.workflow }}-windows-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install prerequisites
+        run: |
+          # speedup checkout/configure by excluding uninteresting submodules
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/duckdb/third_parties/duckdb.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          choco install winflexbison3
+
+      - name: Configure
+        run: |
+          mkdir bld
+          cd bld
+          cmake .. `
+            -DPLUGIN_CONNECT=NO `
+            -DPLUGIN_DUCKDB=NO `
+            -DPLUGIN_ROCKSDB=NO `
+            -DPLUGIN_INNOBASE=NO `
+            -DPLUGIN_PERFSCHEMA=NO
+
+      - name: Build
+        run: cmake --build bld --config RelWithDebInfo -- -m
+
+      - name: Package
+        run: cmake --build bld --config RelWithDebInfo --target win_package_zip
+
+      - name: Test external plugin build
+        shell: pwsh
+        run: |
+          $Package = Get-ChildItem bld\mariadb-*.zip | Select-Object -First 1
+          powershell -ExecutionPolicy Bypass -File tests\mariadb-add-plugin-test\test.ps1 -Package $Package.FullName
