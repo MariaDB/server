@@ -95,3 +95,21 @@ SELECT JSON_VALID(@ja) AS ja_valid,
 FROM (SELECT JSON_UNQUOTE(JSON_EXTRACT(@ja, CONCAT('$[', seq - 1, ']'))) AS val
       FROM seq_1_to_500 WHERE seq <= JSON_LENGTH(@ja)) split;
 DROP TABLE t4;
+
+--echo #
+--echo # Running out of LIMIT stops the walk of the duplicate filter early,
+--echo # but nothing is lost by it. It must not be reported as a cut value.
+--echo #
+CREATE TABLE t5 (a VARCHAR(100));
+INSERT INTO t5 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+SELECT COUNT(DISTINCT a) AS distinct_values FROM t5;
+
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a LIMIT 5)) AS gc_len FROM t5;
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5)) AS gc_order_len FROM t5;
+
+SET @@tmp_memory_table_size=0;
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a LIMIT 5)) AS gc_len_spilled FROM t5;
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5)) AS gc_order_len_spilled
+FROM t5;
+SET @@tmp_memory_table_size=DEFAULT;
+DROP TABLE t5;

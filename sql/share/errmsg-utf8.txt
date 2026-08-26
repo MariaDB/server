@@ -12419,3 +12419,5 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
 ER_DDL_ILLEGAL_FK 42000
         eng "Cannot %s a table referenced in a foreign key constraint (%.192s)"
         spa "No puedo %s una tabla referenciada en una restricción de clave foránea (%.192s)"
+ER_RESULT_CUT_BY_LIMIT
+        eng "Result was cut by %s) because of %s limit"
