@@ -1,0 +1,24 @@
+--source include/have_rocksdb.inc
+--source include/have_log_bin.inc
+--disable_abort_on_error
+
+if (!$HA_MROONGA_SO) {
+  skip Needs mroonga loadable plugin;
+}
+INSTALL SONAME 'ha_rocksdb';
+CREATE TABLE t (c INT) ENGINE=MEMORY;
+SET GLOBAL default_storage_engine=RocksDB;
+UNINSTALL SONAME 'ha_rocksdb';
+INSTALL SONAME 'ha_mroonga';
+INSERT DELAYED INTO t VALUES (1);
+SET GLOBAL default_storage_engine=Mroonga;
+FLUSH TABLES;
+RESET MASTER;
+DROP TABLE t;
+SET GLOBAL default_storage_engine=MyISAM;
+UNINSTALL SONAME 'ha_mroonga';
+# Above UNINSTALL happens only on shutdown
+# to preserver MTR's internal check restart
+# server
+--source include/restart_mysqld.inc
+
