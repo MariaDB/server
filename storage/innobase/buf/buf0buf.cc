@@ -1038,6 +1038,12 @@ ATTRIBUTE_COLD void buf_mem_pressure_shutdown() noexcept
 #if defined __linux__ || !defined DBUG_OFF
 inline void buf_pool_t::garbage_collect() noexcept
 {
+  /* The scratch buffer is not covered by innodb_buffer_pool_size, and
+  releasing its page frames is much cheaper than shrinking the buffer pool.
+  Even if the memory pressure event will be disregarded below, this could
+  help to reduce the probability of another pressure event occurring. */
+  scratch_buf.shrink(true);
+
   mysql_mutex_lock(&mutex);
   const size_t old_size{size_in_bytes}, min_size{size_in_bytes_auto_min};
   const size_t reduce_size=
@@ -1519,6 +1525,13 @@ bool buf_pool_t::create() noexcept
 
   io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
                 OS_AIO_N_PENDING_IOS_PER_THREAD);
+  /* The scratch buffer grows on demand and releases the page frames that it
+  stops using, so this only decides how many slots are available before the
+  first growth. A slot costs 32 bytes, and its page frame is allocated when
+  the slot is first reserved, so a generous number of slots is cheap. Debug
+  builds start with a single slot, so that a second concurrent page
+  reorganization exercises the growth path. */
+  scratch_buf.create(IF_DBUG(1, 64));
 
   last_activity_count= srv_get_activity_count();
 
@@ -1624,22 +1637,30 @@ void buf_pool_t::close() noexcept
   page_hash.free();
 
   io_buf.close();
+  scratch_buf.close();
   aligned_free(const_cast<byte*>(field_ref_zero));
   field_ref_zero= nullptr;
 }
 
 void buf_pool_t::io_buf_t::create(ulint n_slots) noexcept
 {
+  ut_ad(n_slots > 0);
   this->n_slots= n_slots;
   slots= static_cast<buf_tmp_buffer_t*>
     (ut_malloc_nokey(n_slots * sizeof *slots));
+  ut_a(slots);
+  /* This clears the slot descriptors only, not any page frame: the reserved
+  flag and the buffer pointers of a slot must start out clear. */
   memset((void*) slots, 0, n_slots * sizeof *slots);
 }
 
 void buf_pool_t::io_buf_t::close() noexcept
 {
+  ut_ad(n_slots > 0);
+  ut_ad(slots);
   for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
   {
+    ut_ad(!s->is_reserved());
     aligned_free(s->crypt_buf);
     aligned_free(s->comp_buf);
   }
@@ -1652,17 +1673,116 @@ buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve(bool wait_for_reads) noexcept
 {
   for (;;)
   {
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
+    if (buf_tmp_buffer_t *s= acquire())
+      return s;
     buf_dblwr.flush_buffered_writes();
     os_aio_wait_until_no_pending_writes(true);
     if (!wait_for_reads)
       continue;
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
+    if (buf_tmp_buffer_t *s= acquire())
+      return s;
     os_aio_wait_until_no_pending_reads(true);
+  }
+}
+
+void buf_pool_t::scratch_buffer::create(size_t n_slots) noexcept
+{
+  mutex.init();
+  /* buf_pool is a zero-initialized global, and this runs once. */
+  ut_ad(!first.next.load(std::memory_order_relaxed));
+  ut_ad(!first.n_frames.load(std::memory_order_relaxed));
+  first.io_buf_t::create(n_slots);
+}
+
+void buf_pool_t::scratch_buffer::close() noexcept
+{
+  for (chunk *c= first.next.load(std::memory_order_relaxed); c;)
+  {
+    chunk *next= c->next.load(std::memory_order_relaxed);
+    ut_ad(c->n_frames_valid());
+    c->io_buf_t::close();
+    ut_free(c);
+    c= next;
+  }
+  first.next.store(nullptr, std::memory_order_relaxed);
+  ut_ad(first.n_frames_valid());
+  first.n_frames.store(0, std::memory_order_relaxed);
+  first.io_buf_t::close();
+  mutex.destroy();
+}
+
+ATTRIBUTE_COLD
+buf_pool_t::scratch_buffer::chunk*
+buf_pool_t::scratch_buffer::grow(chunk *c) noexcept
+{
+  /* This allocates and clears the slots of the new chunk while holding the
+  mutex, and the caller holds a page latch. At the largest chunk size that is
+  half a megabyte of memset, which is why the mutex waits instead of
+  spinning. */
+  mutex.wr_lock();
+  chunk *next= c->next.load(std::memory_order_relaxed);
+  if (!next)
+  {
+    void *mem= ut_malloc_nokey(sizeof *next);
+    ut_a(mem);
+    next= new(mem) chunk{};
+    /* Each chunk holds twice the slots of the previous one, so that few
+    growths suffice and grow() stays rare. The size of one chunk is
+    limited, because a chunk is a single contiguous allocation of 32
+    bytes per slot. Past the limit, growth continues by chunks of that
+    size, so the limit does not bound the number of slots. A thread holds
+    at most one slot, so the limit first applies when more than about
+    32000 page reorganizations are concurrent. */
+    next->io_buf_t::create(std::min<size_t>(c->n_slots * 2, 16 * 1024));
+    /* Publish the chunk only after its slots are usable. */
+    c->next.store(next, std::memory_order_release);
+  }
+  mutex.wr_unlock();
+  return next;
+}
+
+buf_tmp_buffer_t *buf_pool_t::scratch_buffer::reserve() noexcept
+{
+  for (chunk *c= &first;;)
+  {
+    if (buf_tmp_buffer_t *s= c->acquire())
+    {
+      s->mark_used();
+      if (!s->frame())
+      {
+        s->allocate();
+        c->n_frames.fetch_add(1, std::memory_order_relaxed);
+      }
+      return s;
+    }
+    chunk *next= c->next.load(std::memory_order_acquire);
+    c= next ? next : grow(c);
+  }
+}
+
+ATTRIBUTE_COLD void buf_pool_t::scratch_buffer::shrink(bool all) noexcept
+{
+  for (chunk *c= &first; c; c= c->next.load(std::memory_order_acquire))
+  {
+    if (!c->n_frames.load(std::memory_order_relaxed))
+      continue;
+    for (buf_tmp_buffer_t *s= c->slots, *e= s + c->n_slots; s != e; s++)
+      if (s->acquire())
+      {
+        const bool used= s->test_and_clear_used();
+        if (s->frame() && (all || !used))
+        {
+          s->free_frame();
+          /* Both the increment and the decrement happen while the slot is
+          reserved, so the count is exact. */
+          ut_d(const size_t n_frames=)
+          c->n_frames.fetch_sub(1, std::memory_order_relaxed);
+          ut_ad(n_frames);
+        }
+        s->release();
+        if (!c->n_frames.load(std::memory_order_relaxed))
+          break;
+      }
   }
 }
 

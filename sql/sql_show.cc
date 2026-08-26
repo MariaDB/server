@@ -6073,7 +6073,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
           {
               handler *hi= show_table->hlindex->file;
               if (!hi->info(HA_STATUS_VARIABLE))
-                  file->stats.index_file_length+= hi->stats.data_file_length;
+                  file->stats.index_file_length+= hi->stats.data_file_length
+                                                + hi->stats.index_file_length;
           }
       }
 
