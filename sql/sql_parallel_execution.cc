@@ -954,93 +954,12 @@ void pwt_worker::close_tables()
 }
 
 
-/**
-  @brief
-    Create + instantiate one result container in result_defn's column layout.
-
-  Only the record buffer and the fields are ever used (the worker projects into
-  result_table->record[0] and ships its image; the manager receives images and
-  sends from it) -- no rows are written through the storage engine.
-
-  @return
-    true     error
-    false    success (*out set).
-*/
-bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
-{
-  /*
-    Start from a freshly counted param every time. create_tmp_table() overwrites
-    param->func_count with the number of items it actually has to copy, so a
-    second table built from the same param can allocate fewer fields than the
-    layout needs, which is what the assertion in Create_tmp_table::finalize()
-    catches. The manager and every worker build this same layout, so each of
-    them re-counts.
-  */
-  transport.result_tmp_param->init();
-  count_field_types(exec.join->select_lex, transport.result_tmp_param, defn,
-                    false);
-  transport.result_tmp_param->skip_create_table= true;
-
-  /*
-    TMP_TABLE_ALL_COLUMNS makes create_tmp_table() give every item of the list a
-    field, including the constant ones. By default it skips constants, which is
-    right for a query that materialises its result and can evaluate them once
-    outside the table, but wrong here: the layout has to mirror the select list
-    one for one, because the worker projects item i into field i and ships the
-    record image, and the manager sends one Item_field per field to the client.
-    Without this a select list holding a constant, "SELECT 42, a FROM t1", built
-    a table with fewer fields than the projection walks over.
-  */
-  const ulonglong opts= exec.join->select_options | TMP_TABLE_ALL_COLUMNS;
-  TABLE *t= create_tmp_table(thd, transport.result_tmp_param, defn,
-                             nullptr, false, false,
-                             opts, HA_POS_ERROR,
-                             &empty_clex_str, true, false);
-  if (!t)
-    return true;
-  if (instantiate_tmp_table(t, transport.result_tmp_param->keyinfo,
-                            transport.result_tmp_param->start_recinfo,
-                            &transport.result_tmp_param->recinfo,
-                            opts, true /*cross_thread*/))
-  {
-    free_tmp_table(thd, t);
-    return true;
-  }
-  /*
-    The whole transport is positional, so a layout that does not match the
-    select list item for item would have the worker and the manager reading
-    different columns, or walking past the end of the field array. Refuse
-    instead, whatever the reason turns out to be.
-  */
-  DBUG_ASSERT(t->s->fields == defn.elements);
-  if (t->s->fields != defn.elements)
-  {
-    free_tmp_table(thd, t);
-    return true;
-  }
-  *out= t;
-
-  return false;
-}
-
-
-/**
-  @brief  Free the manager and per-worker result containers.
-*/
-void pwt_manager::free_result_tables(THD *thd)
+void pwt_manager::free_containers(THD *thd)
 {
   if (workers)
     for (uint i= 0; i < nworkers; i++)
-      if (workers[i].exec.result_table)
-      {
-        free_tmp_table(thd, workers[i].exec.result_table);
-        workers[i].exec.result_table= nullptr;
-      }
-  if (transport.result_table)
-  {
-    free_tmp_table(thd, transport.result_table);
-    transport.result_table= nullptr;
-  }
+      layout.free_container(thd, &workers[i].exec.result);
+  layout.cleanup(thd);
 }
 
 
@@ -1343,14 +1262,14 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
   TABLE **from= exec.tables;
   TABLE **to= worker->exec.tables;
 
-  // shipped columns -> per-item projection into result_table->field[i]
-  worker->exec.proj_count= transport.ship_list.elements;
+  // shipped columns -> per-item projection into the container's field[i]
+  worker->exec.proj_count= layout.ship_list.elements;
   worker->exec.proj=
     (Item**) thd->alloc(worker->exec.proj_count * sizeof(Item*));
   if (!worker->exec.proj)
     return true;
 
-  List_iterator_fast<Item> li(transport.ship_list);
+  List_iterator_fast<Item> li(layout.ship_list);
   Item *src;
   uint i= 0;
   while ((src= li++))
@@ -1396,11 +1315,15 @@ int pwt_worker::pscan_next_row()
 /*
   @brief
     A fully joined row. Project the worker's clone of the shipped columns into
-    the shared record layout and copy that image into the batch: the manager
-    only concatenates the images, so the projection happens once, on the thread
-    that produced the row.
+    the shared record layout and hand that record to the transport: the manager
+    receives it as it stands, so the projection happens once, on the thread that
+    produced the row.
 
-  @return  0 keep going, 1 error, 2 the manager asked us to stop.
+    Where it goes from here is the transport's business -- see
+    sql_parallel_transport.h.
+
+  @return  pwt_emit_result: 0 keep going, 1 error, 2 the manager asked us to
+           stop.
 */
 int pwt_worker::emit_joined_row()
 {
@@ -1408,25 +1331,17 @@ int pwt_worker::emit_joined_row()
   /*
     Evaluate each cloned select-list item (which reads from the worker's table
     copies, now holding the current matching row of every table) and store it
-    into the matching exec.result_table field. Evaluation errors are
+    into the matching exec.result field. Evaluation errors are
     intercepted by PWT_error_handler, which trips fatal_error; the caller
     checks that.
   */
   for (uint i= 0; i < exec.proj_count; i++)
-    exec.proj[i]->save_in_field(exec.result_table->field[i], false);
+    exec.proj[i]->save_in_field(exec.result.table->field[i], false);
 
   if (manager->is_fatal_error())               // projection raised an error
-    DBUG_RETURN(1);
+    DBUG_RETURN(PWT_EMIT_ERROR);
 
-  memcpy(batch.rows + (size_t) batch.count * manager->drain.reclength,
-         exec.result_table->record[0], manager->drain.reclength);
-  if (++batch.count == PWT_CHUNK_ROWS)
-  {
-    if (handoff_batch())                          // manager asked us to stop
-      DBUG_RETURN(2);
-    batch.count= 0;                               // buffer drained; refill
-  }
-  DBUG_RETURN(0);
+  DBUG_RETURN(sink->emit_row(exec.result.record()));
 }
 
 
@@ -1503,9 +1418,9 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_OK);
 
   switch (pwt_self->emit_joined_row()) {
-  case 0:  DBUG_RETURN(NESTED_LOOP_OK);
-  case 2:  DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
-  default: DBUG_RETURN(NESTED_LOOP_ERROR);
+  case PWT_EMIT_OK:   DBUG_RETURN(NESTED_LOOP_OK);
+  case PWT_EMIT_STOP: DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
+  default:            DBUG_RETURN(NESTED_LOOP_ERROR);
   }
 }
 
@@ -1513,8 +1428,8 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
 /**
   @brief
     Run the query over the worker's private chunk of the driving table, joining
-    the other tables, and stream the *result* rows to the manager a batch at a
-    time through the worker's reused row buffer.
+    the other tables, and hand the *result* rows to the manager through this
+    worker's end of the transport.
 
   The worker scans its own copy of the driving table (exec.scan_table, opened
   with in_use == this worker's thd) so the workers scan concurrently with no
@@ -1522,14 +1437,13 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
   sub_select() is driven over this worker's JOIN_TABs, reading the driving
   table through the engine's chunk reader and every other table through this
   worker's handler, and each fully joined row leaves the last table through
-  pwt_end_send(), which projects the shipped columns into exec.result_table and
-  ships that record image. The manager (drain_and_send) only concatenates these
-  final rows.
+  pwt_end_send(), which projects the shipped columns into exec.result and
+  hands that record to exec's sink. The manager (drain_and_send) only
+  concatenates these final rows.
 
   @return
   0 on success, or a handler error code. A clean stop requested by the manager
-  (handoff_batch -> stop) also returns success: the manager is done, not in
-  error.
+  (PWT_EMIT_STOP) also returns success: the manager is done, not in error.
 */
 
 int pwt_worker::execute_and_handoff()
@@ -1543,7 +1457,14 @@ int pwt_worker::execute_and_handoff()
   bool killed= false;
 
   // the source tables were marked in open_worker_tables; this one is ours
-  exec.result_table->use_all_columns();         // we write every result column
+  exec.result.table->use_all_columns();         // we write every result column
+
+  /*
+    First thing on this thread: let the transport claim whatever it holds per
+    producer. Before this, everything it owns was built by the manager.
+  */
+  if (sink->begin())
+    DBUG_RETURN(HA_ERR_GENERIC);
 
   /*
     Adopt the manager's snapshot before touching any table. We run in our own
@@ -1599,7 +1520,6 @@ int pwt_worker::execute_and_handoff()
   if ((err= src->file->parallel_init_worker(exec.handler_ctx)))
     goto exec_exit;
 
-  batch.count= 0;
   {
     /*
       Run the join the way do_select() runs it: once to produce the rows, then
@@ -1622,9 +1542,9 @@ int pwt_worker::execute_and_handoff()
   }
   src->file->parallel_end_worker();
 
-  // hand off the final partial batch (ignore a late stop -- we are done)
-  if (!err && !killed && batch.count)
-    handoff_batch();
+  // hand over whatever the transport is still holding for us
+  if (!err && !killed)
+    sink->flush();
 
 exec_exit:
   if (err == HA_ERR_END_OF_FILE)
@@ -1681,7 +1601,7 @@ void pwt_worker::execute_and_signal_manager()
     mgr->fatal_error= true;
   if (killed && mgr->kill_signal == NOT_KILLED)
     mgr->kill_signal= killed;
-  mgr->drain.active_workers--;
+  mgr->active_workers--;
   mysql_cond_broadcast(&mgr->COND_data_avail);
   mysql_mutex_unlock(&mgr->LOCK_data);
 
@@ -1698,8 +1618,8 @@ void pwt_worker::execute_and_signal_manager()
 
   @description
   The workers ran the whole select-project query over their disjoint chunks
-  and produced the final result rows; the manager just concatenates them (in
-  arrival order) and sends each to the client. The select-list metadata was
+  and produced the final result rows; the manager just takes them from the
+  transport, in whatever order it delivers them, and sends each to the client. The select-list metadata was
   already sent (from the query's own field list) before do_select() ran, so we
   only supply the row values here -- the select list is evaluated against the
   manager's own records, which the drain has filled from the shipped columns.
@@ -1712,34 +1632,15 @@ void pwt_worker::execute_and_signal_manager()
 int pwt_manager::drain_and_send(JOIN *join)
 {
   DBUG_ENTER("pwt_manager::drain_and_send");
-  uchar *dst= transport.result_table->record[0];
+  uchar *dst= layout.recv_record();
   int ret= 0;
 
-  /*
-    The manager's tables were opened but never read, so clear the flags a reader
-    would have left. Copy_field captures &table->null_row, and a stale null_row
-    would make every copied field read as NULL.
-
-    Writing into these records is not something a SELECT's write_set allows, and
-    Field::store() asserts on that, so mark the fields writable for the drain. A
-    record is being filled here in place of the reader that would normally have
-    filled it, which is what the helper is for.
-  */
-  MY_BITMAP **saved_write_set= (MY_BITMAP**)
-                                thd->alloc(exec.n_tables * sizeof(MY_BITMAP*));
-  if (!saved_write_set)
+  if (layout.begin_receive(thd, exec.tables, exec.n_tables))
     DBUG_RETURN(1);
-  for (uint t= 0; t < exec.n_tables; t++)
-  {
-    exec.tables[t]->status= 0;
-    exec.tables[t]->null_row= false;
-    saved_write_set[t]= dbug_tmp_use_all_columns(exec.tables[t],
-                                                 &exec.tables[t]->write_set);
-  }
 
   for (;;)
   {
-    int rc= drain_next_row(dst);
+    int rc= source->next_row(dst);
     if (rc < 0)
       break;                                      // -1: all rows drained
     if (rc > 0)
@@ -1749,8 +1650,7 @@ int pwt_manager::drain_and_send(JOIN *join)
     }
 
     /* Put the shipped columns back where the query expects to find them. */
-    for (uint i= 0; i < transport.n_copy_back; i++)
-      (*transport.copy_back[i].do_copy)(&transport.copy_back[i]);
+    layout.copy_back_row();
 
     int err= join->result->send_data_with_check(join->fields_list, join->unit,
                                                  join->send_records);
@@ -1767,8 +1667,7 @@ int pwt_manager::drain_and_send(JOIN *join)
     join->accepted_rows++;
   }
 
-  for (uint t= 0; t < exec.n_tables; t++)
-    dbug_tmp_restore_column_map(&exec.tables[t]->write_set, saved_write_set[t]);
+  layout.end_receive(exec.tables, exec.n_tables);
 
   DBUG_PRINT("info", ("join records:%llu", join->send_records));
   DBUG_RETURN(ret);
