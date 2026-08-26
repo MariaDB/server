@@ -65,15 +65,13 @@ static PSI_memory_info all_pwt_memory[]=
 #endif /* HAVE_PSI_INTERFACE */
 
 
-// TODO: this should go into pwt_manager_base.
-//  but the action here goes beyond pwt_manager_base.
-void pwt_manager::notify_fatal_error()
+void pwt_worker::on_fatal_error()
 {
-  mysql_mutex_lock(&LOCK_data);
-  fatal_error= true;
+  mysql_mutex_lock(&manager->LOCK_data);
+  manager->fatal_error= true;
   /* This is to notify other workers too */
-  mysql_cond_broadcast(&COND_data_avail);
-  mysql_mutex_unlock(&LOCK_data);
+  mysql_cond_broadcast(&manager->COND_data_avail);
+  mysql_mutex_unlock(&manager->LOCK_data);
 }
 
 
@@ -255,11 +253,13 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
 
   for (i= 0; i < n; i++)
   {
-    workers[i].exec.handler_ctx= file->parallel_get_worker_context(i);
-    DBUG_ASSERT(workers[i].exec.handler_ctx);
-
     if (workers[i].init_worker_thd(this, thd, /*worker_nr=*/i+1))
       goto cleanup_old_workers;
+
+    workers[i].manager= this;
+
+    workers[i].exec.handler_ctx= file->parallel_get_worker_context(i);
+    DBUG_ASSERT(workers[i].exec.handler_ctx);
 
     workers[i].thd->userstat_running= thd->userstat_running;
 

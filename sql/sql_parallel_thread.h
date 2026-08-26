@@ -41,9 +41,11 @@ public:
 
   THD                      *thd; /* Manager thread */
 
+  //TODO: why does this exist, shouldn't we process them all?
   void discard_pending_warnings();      // called on initialization failure
   void process_pending_warnings();      // called at end of normal executio
 
+  // These are used by class PWT_error_handler:
   void record_event(pwt_queued_event *event)
   {
     mysql_mutex_lock(&LOCK_pwt_manager);
@@ -57,7 +59,7 @@ private:
   I_List<pwt_queued_event> parallel_messages;
 
   /*
-      Set under LOCK_pwt_manager when a worker fails to allocate a queued event.
+    Set under LOCK_pwt_manager when a worker fails to allocate a queued event.
     The manager surfaces a single ER_OUTOFMEMORY warning so the user sees
     that worker diagnostics were dropped instead of silently disappearing.
   */
@@ -94,7 +96,7 @@ class pwt_worker_base : public Sql_alloc
 {
 public:
   /* Intialize the worker and create its THD (call from master thread) */
-  bool init_worker_thd(pwt_manager *manager_arg, THD *parent_thd,
+  bool init_worker_thd(pwt_manager_base *manager_arg, THD *parent_thd,
                        int worker_nr);
 
   /* Create and run the thread */
@@ -105,6 +107,10 @@ public:
     One can produce warnings/errors and get them in the master thread.
   */
   virtual void thread_func()= 0;
+
+  /* This will be invoked when a fatal error occurs */
+  virtual void on_fatal_error() = 0;
+
   virtual ~pwt_worker_base() {}
 
   void abort_worker();
@@ -120,9 +126,9 @@ public:
   void cleanup_worker();
 
   THD             *thd;
-  pwt_manager     *manager;
-
 private:
+  pwt_manager_base     *manager_base;
+
   /*
     Guards worker->thd while the worker nulls it on exit, so abort_worker()
     sees either a live THD to awake() or nullptr.
