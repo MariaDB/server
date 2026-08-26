@@ -3,7 +3,29 @@
 -- source include/have_file_key_management_plugin.inc
 
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
+let $innodb_encrypt_tables_orig=`SELECT @@innodb_encrypt_tables`;
 
+--echo #
+--echo # MDEV 39795 : Assertion `n_reserved > 0' failed
+--echo #
+
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_compression_algorithm = 'none';
+
+CREATE TABLE t1 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col1 INT,
+  col2 INT,
+  col3 INT
+) ENGINE=InnoDB ROW_FORMAT = Compact PAGE_COMPRESSED=1;
+INSERT INTO t1 (col1, col2, col3) VALUES (1, 10, 100);
+FLUSH TABLES t1 FOR EXPORT; UNLOCK TABLES;
+# continue further test after restart
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_encrypt_tables = $innodb_encrypt_tables_orig;
+--enable_query_log
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -71,3 +93,12 @@ drop table innodb_dynamic;
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
 --enable_query_log
+
+# Continuing test for MDEV-39795
+ALTER TABLE t1 ADD INDEX idx_col1 (col1);
+
+--source include/restart_mysqld.inc
+ALTER TABLE t1 ADD INDEX idx_col2_col3 (col2, col3);
+
+--echo # Cleanup
+DROP TABLE t1;

@@ -333,6 +333,8 @@ RC=0
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
+    create_dirs
+
     if [ -n "$STUNNEL" ]; then
         cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
