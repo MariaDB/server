@@ -3828,6 +3828,29 @@ static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 }
 
 
+/*
+  Tell the user that the walk of the duplicate filter could not deliver
+  the whole group.
+
+  The cut value warning would carry a row number here, and that number
+  means nothing in this case: nothing had been written when the walk
+  failed, and how much was lost is not known. Name the limit that held
+  the walk down instead. Unique is given thd->ram_limitation() to work
+  in, which is the smaller of the two variables below.
+*/
+
+static void report_cut_result_error(THD *thd, const char *fname)
+{
+  const char *limit= (thd->variables.tmp_memory_table_size <=
+                      thd->variables.max_heap_table_size ?
+                      "tmp_memory_table_size" : "max_heap_table_size");
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_RESULT_CUT_BY_LIMIT,
+                      ER_THD(thd, ER_RESULT_CUT_BY_LIMIT),
+                      fname, limit);
+}
+
+
 void Item_func_group_concat::cut_max_length(String *result,
         uint old_length, uint max_length) const
 {
@@ -3869,6 +3892,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   if (item->limit_clause && !(*row_limit))
   {
     item->result_finalized= true;
+    item->walk_stopped= true;
     return 1;
   }
 
@@ -3932,6 +3956,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       that the user gets one warning even if several things were cut.
     */
     item->result_cut= true;
+    item->walk_stopped= true;
     return 1;
   }
   return 0;
@@ -3961,7 +3986,8 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    arg_count_field(select_list->elements),
    row_count(0),
    distinct(distinct_arg),
-   warning_for_row(FALSE), result_cut(FALSE), always_null(FALSE),
+   warning_for_row(FALSE), result_cut(FALSE), walk_stopped(FALSE),
+   walk_failed(FALSE), always_null(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
    copy_offset_limit(0), copy_row_limit(0), original(0)
@@ -4029,6 +4055,8 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   distinct(item->distinct),
   warning_for_row(item->warning_for_row),
   result_cut(item->result_cut),
+  walk_stopped(item->walk_stopped),
+  walk_failed(item->walk_failed),
   always_null(item->always_null),
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
@@ -4129,6 +4157,7 @@ void Item_func_group_concat::clear()
   null_value= TRUE;
   warning_for_row= FALSE;
   result_cut= FALSE;
+  walk_failed= FALSE;
   result_finalized= false;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
@@ -4698,7 +4727,28 @@ String* Item_func_group_concat::val_str(String* str)
       }
     }
     else if (distinct)                          // distinct (and no order by)
-      unique_filter->walk(table, &dump_leaf_key, this);
+    {
+      /*
+        walk() returns non-zero both when dump_leaf_key() stopped it and
+        when the walk itself failed. dump_leaf_key() reports what it did:
+        it sets result_cut when it cut the result, and it stops without
+        losing anything when the LIMIT is used up.
+
+        A walk that failed mostly reports itself: the merge buffer is
+        allocated with MY_WME and the spill file is opened with MY_WME,
+        so running out of memory or failing to read raises an error. Only
+        the guard at the top of merge_walk(), which refuses a merge
+        buffer too small to hold one key per chunk, returns quietly. Ask
+        for the warning in that case alone. Where an error was raised the
+        user has already been told and the statement is failing, so a
+        warning about the length of a result nobody will see would only
+        be noise.
+      */
+      walk_stopped= FALSE;
+      if (unique_filter->walk(table, &dump_leaf_key, this) && !walk_stopped &&
+          !current_thd->is_error())
+        walk_failed= TRUE;
+    }
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
       return &result;
     else
@@ -4718,6 +4768,19 @@ String* Item_func_group_concat::val_str(String* str)
     result_cut= false;
     if (table && table->blob_storage)
       table->blob_storage->set_truncated_value(false);
+  }
+
+  /*
+    The walk of the duplicate filter failed, so the group was never
+    delivered. This is a different loss from a result cut to the length
+    the user asked for, and it is undone by a different variable.
+  */
+  if (walk_failed)
+  {
+    warning_for_row= true;
+    report_cut_result_error(current_thd, func_name());
+    /* One warning per group, however often val_str() is called for it */
+    walk_failed= false;
   }
 
   return &result;
