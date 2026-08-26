@@ -228,7 +228,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       !(exec.tables= thd->alloc<TABLE*>(exec.n_tables)))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int) (exec.n_tables * sizeof(void*)));
-    goto cleanup_old_workers;
+    goto cleanup_workers;
   }
   for (uint t= 0; t < exec.n_tables; t++)
   {
@@ -245,7 +245,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   */
   if (layout.build(thd, join, exec.tables, exec.n_tables) ||
       setup_transport(thd, n))
-    goto cleanup_old_workers;
+    goto cleanup_workers;
 
   fatal_error= false;
   stop= false;
@@ -254,7 +254,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   for (i= 0; i < n; i++)
   {
     if (workers[i].init_worker_thd(this, thd, /*worker_nr=*/i+1))
-      goto cleanup_old_workers;
+      goto cleanup_workers;
 
     workers[i].manager= this;
 
@@ -266,11 +266,10 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     /*
       Give this worker its own copy of every non-const join table, opened from
       the shared TABLE_SHARE (open_worker_tables); the driving table is
-      exec.tables[0] / exec.scan_table. Self-cleans on failure, so on
-      error we go to cleanup_db_string (the worker thd is not yet registered).
+      exec.tables[0] / exec.scan_table.
     */
     if (open_worker_tables(thd, workers + i))
-      goto cleanup_db_string;
+      goto cleanup_workers;
 
     /*
       Set up how this worker joins the non-driving tables (access method,
@@ -289,47 +288,54 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to set up worker execution");
-      goto cleanup_thread_create;
+      goto cleanup_workers;
     }
     
     /*
-      Fail the last worker as if its thread could not be created, so a test can
-      reach cleanup_old_workers with the earlier workers already running: that
-      is the only path to abort_worker(), and the only one that tears a partly
-      built team down. Injected here rather than after create_thread() because
-      cleanup_thread_create closes this worker's tables and destroys its THD,
-      which is only safe while it has no thread of its own.
+      Fail one worker as if its thread could not be created, so a test can reach
+      cleanup_workers part-way through building the team: that is the only path
+      that aborts a worker, and the only one that tears a partly built team
+      down. Injected here rather than after create_thread() so the failing
+      worker is one that never started a thread, which is what lets the teardown
+      close its tables and destroy its THD itself.
+
+      Which worker decides which parts of the teardown run. Failing the last
+      leaves every earlier worker running, so they are aborted and joined;
+      failing the first leaves every later one untouched, so the teardown walks
+      workers that were never initialised and has to leave them alone.
     */
     bool inject_create_failure= false;
     DBUG_EXECUTE_IF("pwt_init_fail_last_worker",
                     inject_create_failure= (i + 1 == n););
+    DBUG_EXECUTE_IF("pwt_init_fail_first_worker",
+                    inject_create_failure= (i == 0););
 
     if (inject_create_failure || workers[i].create_thread())
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to create worker thread");
-      goto cleanup_thread_create;
+      goto cleanup_workers;
     }
   }
   return 0;
 
-cleanup_thread_create:
-  workers[i].close_tables();
-
-cleanup_db_string:
-  workers[i].destroy_worker_thd();
-  workers[i].cleanup_worker();
-
-cleanup_old_workers:
+cleanup_workers:
   /*
     A worker spawned before the failure may be blocked inside the transport
-    waiting for the manager to take its rows. Release them so abort_worker()'s
-    join can complete.
+    waiting for the manager to take its rows. Release them so the joins below
+    can complete.
   */
   mysql_mutex_lock(&LOCK_data);
   request_stop();
   mysql_mutex_unlock(&LOCK_data);
-  for (uint j= 0; j < i; j++)
+  /*
+    Every worker, not just the ones we know we started: each one knows what its
+    own startup reached, so the ones with a thread are aborted and joined, the
+    one that failed part-way gives back only what it did take, and the ones
+    after it are left alone. That is what makes this one label instead of one
+    per stage of the build.
+  */
+  for (uint j= 0; j < n; j++)
     workers[j].abort_worker();
   /*
     Release the transport's hold on the containers before freeing them: a sink
@@ -404,10 +410,7 @@ void pwt_manager::quiesce_workers()
   mysql_mutex_unlock(&LOCK_data);
 
   for (uint i= 0; i < nworkers; i++)
-  {
-    workers[i].join_worker_thread();
-    workers[i].cleanup_worker();
-  }
+    workers[i].reap_worker();
   /*
     The work the workers did was this session's work, so its statistics are the
     session's too. Each worker left them in its pwt_worker before its THD was
