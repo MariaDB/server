@@ -108,6 +108,25 @@ ENDMACRO(EXTERNAL_PLUGIN_POST)
 
 @install_layout.cmake@
 
+# Default the plugin's own install prefix to wherever this MariaDB tree
+# actually is (same basedir headers/libs are found through), not whatever
+# generic default a fresh CMake project or the install-layout logic just
+# above picks (e.g. a Program Files path on Windows, /usr/local/mysql on
+# UNIX) - otherwise "cmake --install ." drops the built plugin somewhere
+# the server it was built against never looks. Only when the caller
+# hasn't already set their own prefix. Must run after the install-layout
+# logic above, which on UNIX unconditionally re-forces
+# CMAKE_INSTALL_PREFIX back to its own default whenever
+# CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT is set - the same guard
+# this uses, so ordering is what makes this one win. The INSTALL_*DIR
+# variables above were already computed against the old prefix, but the
+# actual plugin INSTALL() calls use them as relative destinations, which
+# CMake resolves against CMAKE_INSTALL_PREFIX at install time, not
+# configure time - so this still takes effect for them.
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX "${basedir}" CACHE PATH "install prefix" FORCE)
+ENDIF()
+
 @plugin.cmake@
 
 IF (RPM)
