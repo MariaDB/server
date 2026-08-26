@@ -307,6 +307,14 @@ IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
     SET_TARGET_PROPERTIES(server PROPERTIES AIX_EXPORT_ALL_SYMBOLS TRUE)
   ENDIF()
   MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
+  IF(MSVC)
+    # Import library only - not server.dll itself - so external
+    # STORAGE_ENGINE/RECOMPILE_FOR_EMBEDDED plugins can link against it
+    # (see plugin.cmake, TARGET_LINK_LIBRARIES(${target} server)) without
+    # pulling server.dll into the Development package.
+    INSTALL(TARGETS server EXPORT mariadb-plugin-targets
+            ARCHIVE DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
+  ENDIF()
 ENDIF()
 
 ADD_LIBRARY(sql_builtins STATIC ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
