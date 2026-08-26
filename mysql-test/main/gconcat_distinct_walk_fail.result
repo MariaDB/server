@@ -1,0 +1,49 @@
+CREATE TABLE t1 (a VARCHAR(100));
+INSERT INTO t1 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+#
+# Starve the duplicate filter so that it spills and the walk has to
+# merge, then make the merging walk fail.
+#
+SET @@tmp_memory_table_size=0;
+SET SESSION debug_dbug='+d,unique_walk_merge_fail';
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+gc_len
+0
+Warnings:
+Warning	1260	Row 0 was cut by group_concat()
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+ja_len
+0
+Warnings:
+Warning	1260	Row 0 was cut by json_arrayagg()
+SET SESSION debug_dbug=DEFAULT;
+SET @@tmp_memory_table_size=DEFAULT;
+#
+# A walk that failed for a reason it reported itself, an out of
+# memory one for instance, needs no cut value warning: the user has
+# already been told, and the statement is failing anyway.
+#
+SET @@tmp_memory_table_size=0;
+SET SESSION debug_dbug='+d,unique_walk_merge_error';
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+ERROR HY000: Out of memory.
+SHOW COUNT(*) WARNINGS;
+@@session.warning_count
+1
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+ERROR HY000: Out of memory.
+SHOW COUNT(*) WARNINGS;
+@@session.warning_count
+1
+SET SESSION debug_dbug=DEFAULT;
+SET @@tmp_memory_table_size=DEFAULT;
+#
+# Without the injected failure the same queries are complete and quiet.
+#
+SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
+gc_len
+20199
+SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
+ja_len
+200
+DROP TABLE t1;

@@ -2093,6 +2093,11 @@ class Item_func_group_concat : public Item_sum_str
     cut value warning for it.
   */
   bool result_cut;
+  /*
+    Set by dump_leaf_key() when it is the one that stops a walk, so that
+    val_str() can tell that apart from the walk itself having failed.
+  */
+  bool walk_stopped;
   bool always_null;
   bool force_copy_fields;
   /** True if entire result of GROUP_CONCAT has been written to output buffer. */
