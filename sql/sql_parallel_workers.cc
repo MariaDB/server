@@ -317,7 +317,6 @@ cleanup_old_workers:
   mysql_mutex_unlock(&LOCK_data);
   for (uint j= 0; j < i; j++)
     workers[j].abort_worker();
-  discard_pending_warnings();
   /*
     Release the transport's hold on the containers before freeing them: a sink
     may still be naming a worker THD that is now gone. Null for a worker whose
@@ -332,6 +331,7 @@ cleanup_old_workers:
   delete[] workers;
   workers= nullptr;
   nworkers= 0;
+  process_pending_warnings(true);
   mysql_cond_destroy(&COND_data_avail);
   mysql_mutex_destroy(&LOCK_data);
   file->parallel_end_coordinator();
@@ -473,7 +473,7 @@ void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
 
   quiesce_workers();                  // stop + join (no-op if already reaped)
   exec.scan_tab->table->file->parallel_end_coordinator();
-  process_pending_warnings();
+  process_pending_warnings(false);
   for (uint i= 0; i < nworkers; i++)    // workers are joined; both ends idle
     if (workers[i].sink)
       workers[i].sink->cleanup();

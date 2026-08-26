@@ -75,6 +75,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_parallel_workers.cc
            ../sql/sql_parallel_execution.cc
            ../sql/sql_parallel_costs.cc
+           ../sql/sql_parallel_transport.cc
+           ../sql/sql_parallel_thread.cc
            ../sql/opt_rewrite_date_cmp.cc
            ../sql/opt_rewrite_remove_casefold.cc
            ../sql/opt_sargable_left.cc
