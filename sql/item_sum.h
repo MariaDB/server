@@ -2199,6 +2199,9 @@ public:
   qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();
+  bool insert_to_order_tree(uchar *key);
+  static int dump_leaf_key_to_tree(void *key_arg, element_count count,
+                                   void *item_arg);
 
 protected:
   Item *shallow_copy(THD *thd) const override
