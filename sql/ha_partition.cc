@@ -4313,6 +4313,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
 
   if (lock_type == F_UNLCK)
     used_partitions= &m_locked_partitions;
+  else if (lock_type == F_WRLCK && table->s->long_unique_table)
+    used_partitions= &(m_part_info->read_partitions);
   else
     used_partitions= &(m_part_info->lock_partitions);
 
