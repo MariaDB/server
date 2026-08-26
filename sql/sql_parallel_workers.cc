@@ -153,7 +153,6 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
   @brief
     Initialise our parallel worker threads, setting their own new THD objects.
     Set up our mutexs for synchronization.
-    Register our new threads in server_threads.
 
     Called from the management thread for applicable queries at the top level.
   @return
@@ -293,9 +292,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       goto cleanup_thread_create;
     }
     
-    // TODO: move server_threads usage to parallel_thread...
-    server_threads.insert(workers[i].thd);  // +information_schema.processlist
-
     /*
       Fail the last worker as if its thread could not be created, so a test can
       reach cleanup_old_workers with the earlier workers already running: that
@@ -318,7 +314,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   return 0;
 
 cleanup_thread_create:
-  server_threads.erase(workers[i].thd);
   workers[i].close_tables();
 
 cleanup_db_string:
