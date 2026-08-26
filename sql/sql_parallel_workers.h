@@ -184,6 +184,9 @@ struct pwt_manager_execution
 */
 class pwt_manager : public pwt_manager_base
 {
+  pwt_worker               *workers;
+  uint                     nworkers;
+
   pwt_manager_execution    exec;
 
   /*
@@ -194,6 +197,23 @@ class pwt_manager : public pwt_manager_base
   pwt_row_layout           layout;
   pwt_row_source           *source;
 
+  /*
+    Set (under LOCK_data) to a worker's killed_state when that worker exits
+    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
+    worker. The consumer propagates it to the manager's own THD so the join
+    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
+    sent, rather than completing and trying to raise the error too late.
+  */
+  killed_state             kill_signal;
+
+  /*
+    Set once the workers have been stopped and pthread_join'd (quiesce_workers).
+    Workers read this join's source tables (via their private handlers), so
+    they must be reaped before JOIN::join_free()->cleanup() frees those tables;
+    quiesce_workers is called from join_free, and again (idempotently) from
+    finalize.
+  */
+  bool                     reaped;
 public:
   /*
     The worker team's own state, as distinct from the transport's: who is still
@@ -214,7 +234,9 @@ public:
   killed_state killed_by_worker() const { return kill_signal; }
 
   pwt_manager():
-    source(nullptr), active_workers(0), stop(false), fatal_error(false)
+    workers(nullptr), nworkers(0),
+    source(nullptr), kill_signal(NOT_KILLED), reaped(false), active_workers(0),
+    stop(false), fatal_error(false)
     {}
   ~pwt_manager()
   {
