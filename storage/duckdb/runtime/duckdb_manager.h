@@ -28,7 +28,7 @@
 namespace myduck
 {
 
-constexpr char DUCKDB_FILE_NAME[]= "duckdb.db";
+constexpr char DUCKDB_FILE_NAME[]= "__duckdb.db";
 constexpr char DUCKDB_DEFAULT_TMP_NAME[]= "duckdb_tmp";
 
 class DuckdbManager
