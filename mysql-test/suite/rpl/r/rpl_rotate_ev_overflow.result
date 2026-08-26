@@ -1,0 +1,20 @@
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,truncate_fde_post_header_len';
+include/master-slave.inc
+[connection master]
+FLUSH BINARY LOGS;
+CALL mtr.add_suppression('Found invalid event in binary log');
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
+connection slave;
+START SLAVE IO_THREAD;
+CALL mtr.add_suppression('Slave I/O: Relay log write failure');
+include/wait_for_slave_io_error.inc [errno=1595]
+connection master;
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
+CHANGE MASTER TO master_use_gtid=SLAVE_POS;
+SET @@GLOBAL.gtid_slave_pos='';
+include/start_slave.inc
+include/rpl_end.inc

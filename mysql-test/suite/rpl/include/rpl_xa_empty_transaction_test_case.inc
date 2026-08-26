@@ -34,6 +34,10 @@ CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 --source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
 --connection server_3
 --source include/sync_with_master_gtid.inc
 
@@ -125,6 +129,10 @@ FLUSH LOGS;
 # Cleanup
 --connection server_1
 DROP TABLE ti,tm;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
 --source include/save_master_gtid.inc
 
 --connection server_3

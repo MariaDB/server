@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 # Compared with MySQL, duckdb's date functions generally have the following incompatibilities:
 # 1. Conversion between integer type and date/timestamp/time type

@@ -568,12 +568,12 @@ table_schema	table_name	column_name	column_default	is_nullable	data_type	COLUMN_
 VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	
 [ Rows: 7]
 db_alter_col	t	id	NULL	NO	INTEGER	NULL
-db_alter_col	t	a	'6'	YES	INTEGER	NULL
+db_alter_col	t	a	(3 + 3)	YES	INTEGER	NULL
 db_alter_col	t	b	'3+3'	YES	VARCHAR	NULL
-db_alter_col	t	c	'6'	YES	VARCHAR	NULL
-db_alter_col	t	d	'4'	YES	INTEGER	NULL
+db_alter_col	t	c	(3 + 3)	YES	VARCHAR	NULL
+db_alter_col	t	d	(2 + 2)	YES	INTEGER	NULL
 db_alter_col	t	e	'2+2'	YES	VARCHAR	NULL
-db_alter_col	t	f	'4'	YES	VARCHAR	NULL
+db_alter_col	t	f	(2 + 2)	YES	VARCHAR	NULL
 
 
 SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, COLUMN_COMMENT FROM information_schema.columns WHERE TABLE_NAME = 't';
@@ -625,7 +625,7 @@ VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR
 db_alter_col	t	id	NULL	NO	INTEGER	NULL
 db_alter_col	t	B0	CAST('\x00' AS "BLOB")	NO	BLOB	NULL
 db_alter_col	t	B1	CAST('\x00\x00\x0D\x05' AS "BLOB")	NO	BLOB	NULL
-db_alter_col	t	B2	CAST('\x00\x00\x00\x00\x00\x00\x00\x1F' AS "BLOB")	NO	BLOB	NULL
+db_alter_col	t	B2	'\x00\x00\x00\x00\x00\x00\x00\x1F'	NO	BLOB	NULL
 
 
 SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, COLUMN_COMMENT FROM information_schema.columns WHERE TABLE_NAME = 't';
@@ -718,9 +718,9 @@ ALTER TABLE t ADD COLUMN d INT INVISIBLE, ALGORITHM = INSTANT;
 ERROR HY000: Got error 168 'INVISIBLE column is not supported. Try removing INVISIBLE from column 'd'' from DuckDB
 ALTER TABLE t ALTER COLUMN b SET INVISIBLE, ALGORITHM = INSTANT;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INVISIBLE, ALGORITHM = INSTANT' at line 1
-ALTER TABLE t MODIFY COLUMN c INT AUTO_INCREMENT KEY, ALGORITHM = INSTANT;
+ALTER TABLE t MODIFY COLUMN id INT AUTO_INCREMENT, ALGORITHM = INSTANT;
 ERROR 42000: Storage engine DUCKDB doesn't support AUTO_INCREMENT columns
-ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT, ALGORITHM = INSTANT;
+ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT UNIQUE, ALGORITHM = INSTANT;
 ERROR 42000: Storage engine DUCKDB doesn't support AUTO_INCREMENT columns
 CREATE TABLE t1(id INT PRIMARY KEY, a INT) ENGINE = DuckDB ENGINE_ATTRIBUTE='{"KEY":"VALUE"}';
 ERROR HY000: Unknown option 'ENGINE_ATTRIBUTE'
@@ -1446,12 +1446,12 @@ table_schema	table_name	column_name	column_default	is_nullable	data_type	COLUMN_
 VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	
 [ Rows: 7]
 db_alter_col	t	id	NULL	NO	INTEGER	NULL
-db_alter_col	t	a	'6'	YES	INTEGER	NULL
+db_alter_col	t	a	(3 + 3)	YES	INTEGER	NULL
 db_alter_col	t	b	'3+3'	YES	VARCHAR	NULL
-db_alter_col	t	c	'6'	YES	VARCHAR	NULL
-db_alter_col	t	d	'4'	YES	INTEGER	NULL
+db_alter_col	t	c	(3 + 3)	YES	VARCHAR	NULL
+db_alter_col	t	d	(2 + 2)	YES	INTEGER	NULL
 db_alter_col	t	e	'2+2'	YES	VARCHAR	NULL
-db_alter_col	t	f	'4'	YES	VARCHAR	NULL
+db_alter_col	t	f	(2 + 2)	YES	VARCHAR	NULL
 
 
 SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, COLUMN_COMMENT FROM information_schema.columns WHERE TABLE_NAME = 't';
@@ -1503,7 +1503,7 @@ VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR
 db_alter_col	t	id	NULL	NO	INTEGER	NULL
 db_alter_col	t	B0	CAST('\x00' AS "BLOB")	NO	BLOB	NULL
 db_alter_col	t	B1	CAST('\x00\x00\x0D\x05' AS "BLOB")	NO	BLOB	NULL
-db_alter_col	t	B2	CAST('\x00\x00\x00\x00\x00\x00\x00\x1F' AS "BLOB")	NO	BLOB	NULL
+db_alter_col	t	B2	'\x00\x00\x00\x00\x00\x00\x00\x1F'	NO	BLOB	NULL
 
 
 SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, COLUMN_COMMENT FROM information_schema.columns WHERE TABLE_NAME = 't';
@@ -1596,9 +1596,9 @@ ALTER TABLE t ADD COLUMN d INT INVISIBLE, ALGORITHM = INPLACE;
 ERROR HY000: Got error 168 'INVISIBLE column is not supported. Try removing INVISIBLE from column 'd'' from DuckDB
 ALTER TABLE t ALTER COLUMN b SET INVISIBLE, ALGORITHM = INPLACE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INVISIBLE, ALGORITHM = INPLACE' at line 1
-ALTER TABLE t MODIFY COLUMN c INT AUTO_INCREMENT KEY, ALGORITHM = INPLACE;
+ALTER TABLE t MODIFY COLUMN id INT AUTO_INCREMENT, ALGORITHM = INPLACE;
 ERROR 42000: Storage engine DUCKDB doesn't support AUTO_INCREMENT columns
-ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT, ALGORITHM = INPLACE;
+ALTER TABLE t ADD COLUMN d INT AUTO_INCREMENT UNIQUE, ALGORITHM = INPLACE;
 ERROR 42000: Storage engine DUCKDB doesn't support AUTO_INCREMENT columns
 CREATE TABLE t1(id INT PRIMARY KEY, a INT) ENGINE = DuckDB ENGINE_ATTRIBUTE='{"KEY":"VALUE"}';
 ERROR HY000: Unknown option 'ENGINE_ATTRIBUTE'

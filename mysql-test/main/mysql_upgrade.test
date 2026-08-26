@@ -65,7 +65,9 @@ GRANT ALL ON *.* TO mysqltest1@'%';
 --echo Run mysql_upgrade with password protected account
 --exec $MYSQL_UPGRADE --force --user=mysqltest1 --password=sakila 2>&1
 
+--disable_warnings
 DROP USER mysqltest1@'%';
+--enable_warnings
 
 #
 # check that we get proper error messages if wrong user
@@ -128,7 +130,9 @@ GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
 --exec $MYSQL_UPGRADE --force 2>&1
 SHOW GRANTS FOR 'user3'@'%';
 
+--disable_warnings
 DROP USER 'user3'@'%';
+--enable_warnings
 
 --echo # End of 5.1 tests
 
@@ -192,7 +196,9 @@ CREATE PROCEDURE test.pr() BEGIN END;
 
 SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
+--disable_warnings
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
+--enable_warnings
 DROP PROCEDURE test.pr;
 --enable_service_connection
 #
@@ -406,7 +412,9 @@ alter table mysql.db drop column Delete_history_priv;
 --remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 flush privileges;
 SHOW GRANTS FOR 'user3'@'%';
+--disable_warnings
 DROP USER 'user3'@'%';
+--enable_warnings
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
@@ -433,7 +441,9 @@ connect con1,localhost,user3,a_password;
 select current_user();
 disconnect con1;
 connection default;
+--disable_warnings
 drop user user3@localhost;
+--enable_warnings
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
@@ -574,7 +584,9 @@ show grants for foo@bar;
 
 select show_create_routine_priv from mysql.db where user='foo';
 show grants for foo@bar;
+--disable_warnings
 drop user foo@bar;
+--enable_warnings
 
 --echo # End of 11.3 tests
 

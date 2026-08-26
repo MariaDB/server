@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 CREATE TABLE t1_innodb (id INT PRIMARY KEY, col1 JSON) ENGINE=InnoDB;
 CREATE TABLE t1_duckdb (id INT PRIMARY KEY, col1 JSON) ENGINE=DuckDB;

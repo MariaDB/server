@@ -113,7 +113,7 @@ drop table t2;
 --echo # Make sure innodb id disabled, but there's at least one innodb table
 --disable_warnings
 select "yes" from information_schema.tables where engine="innodb" limit 1;
-select plugin_status from information_schema.all_plugins where plugin_name = "innodb";
+select SUPPORT from information_schema.engines where ENGINE='InnoDB';
 select * from information_schema.periods;
 select * from information_schema.key_period_usage;
 --enable_warnings

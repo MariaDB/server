@@ -32,6 +32,24 @@ namespace myduck { extern my_bool use_double_for_decimal; }
 static const uint sizeof_trailing_comma= sizeof(", ") - 1;
 static const uint sizeof_trailing_and= sizeof(" AND ") - 1;
 
+/*
+  Append an SQL identifier to a String, quoted for DuckDB. DuckDB escapes an
+  embedded double quote by doubling it; failing to escape lets a crafted
+  identifier break out of the quoted name and inject SQL (MDEV-40653).
+*/
+static void append_quoted_identifier(String &target, const char *name,
+                                     size_t length)
+{
+  target.append(STRING_WITH_LEN("\""));
+  for (size_t i= 0; i < length; i++)
+  {
+    if (name[i] == '"')
+      target.append(STRING_WITH_LEN("\""));
+    target.append(&name[i], 1);
+  }
+  target.append(STRING_WITH_LEN("\""));
+}
+
 void append_field_value_to_sql(String &target_str, Field *field)
 {
   if (field->is_null())
@@ -165,13 +183,10 @@ static inline void append_table_name(TABLE *table, String &query)
     the temp name.
   */
   DatabaseTableNames dt(table->s->normalized_path.str);
-  query.append(STRING_WITH_LEN("\""));
-  query.append(dt.db_name.c_str(), dt.db_name.length());
-  query.append(STRING_WITH_LEN("\""));
+  append_quoted_identifier(query, dt.db_name.c_str(), dt.db_name.length());
   query.append(STRING_WITH_LEN("."));
-  query.append(STRING_WITH_LEN("\""));
-  query.append(dt.table_name.c_str(), dt.table_name.length());
-  query.append(STRING_WITH_LEN("\""));
+  append_quoted_identifier(query, dt.table_name.c_str(),
+                           dt.table_name.length());
 }
 
 static inline void get_write_fields(TABLE *table, std::vector<Field *> &fields)
@@ -232,9 +247,8 @@ void DMLConvertor::generate_where_clause(String &query)
 
   for (auto field : fields)
   {
-    query.append(STRING_WITH_LEN("\""));
-    query.append(field->field_name.str, field->field_name.length);
-    query.append(STRING_WITH_LEN("\""));
+    append_quoted_identifier(query, field->field_name.str,
+                             field->field_name.length);
     query.append(STRING_WITH_LEN(" = "));
 
     append_where_value(query, field);
@@ -260,9 +274,8 @@ void InsertConvertor::generate_fields_and_values(String &query)
     query.append(STRING_WITH_LEN(" ("));
     for (auto field : fields)
     {
-      query.append(STRING_WITH_LEN("\""));
-      query.append(field->field_name.str, field->field_name.length);
-      query.append(STRING_WITH_LEN("\""));
+      append_quoted_identifier(query, field->field_name.str,
+                               field->field_name.length);
       query.append(STRING_WITH_LEN(", "));
     }
     query.length(query.length() - sizeof_trailing_comma);
@@ -293,9 +306,8 @@ void UpdateConvertor::generate_fields_and_values(String &query)
 
   for (auto field : fields)
   {
-    query.append(STRING_WITH_LEN("\""));
-    query.append(field->field_name.str, field->field_name.length);
-    query.append(STRING_WITH_LEN("\""));
+    append_quoted_identifier(query, field->field_name.str,
+                             field->field_name.length);
     query.append(STRING_WITH_LEN(" = "));
 
     append_field_value_to_sql(query, field);

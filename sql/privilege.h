@@ -662,11 +662,10 @@ constexpr privilege_t PRIV_STMT_SHOW_CREATE_SERVER= FEDERATED_ADMIN_ACL;
 
 
 /* Privileges related to processes */
-constexpr privilege_t PRIV_COM_PROCESS_INFO= PROCESS_ACL;
-// This privilege applies both for SHOW EXPLAIN and SHOW ANALYZE
-constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
+// This privilege is used in thd_visible_in_processlist() and thus applies
+// to SHOW PROCESSLIST, I_S.PROCESSLIST, SHOW EXPLAIN and SHOW ANALYZE
 constexpr privilege_t PRIV_STMT_SHOW_PROCESSLIST= PROCESS_ACL;
 
 

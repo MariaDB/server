@@ -47,6 +47,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       if ((*keydef->delete_key)(info, keydef, old, pos, keydef == p_lastinx) ||
           (*keydef->write_key)(info, keydef, heap_new, pos))
         goto err;
+      key_changed= 1;
       if (share->auto_key == (uint) (keydef - share->keydef + 1))
         auto_key_changed= 1;
     }

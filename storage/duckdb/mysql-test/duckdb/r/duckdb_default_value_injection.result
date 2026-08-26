@@ -1,0 +1,25 @@
+#
+# MDEV-40610: an unescaped column DEFAULT string must not inject DuckDB SQL
+#
+# get_field_default_for_duckdb() wrapped a string DEFAULT in single quotes
+# without doubling an embedded quote, so a crafted default closed the
+# generated DuckDB literal and the rest was parsed as DuckDB SQL. The gate
+# below fails while the injection works and passes once literals are escaped.
+SET NAMES utf8mb4;
+# The crafted DEFAULT closes the generated literal and appends a DuckDB COPY
+# that would write a file in the data directory. With the literal escaped the
+# payload is stored as data and no statement is injected.
+CREATE TABLE t (id INT PRIMARY KEY, c VARCHAR(200) DEFAULT 'a'');COPY(SELECT 2)TO ''zz_def.csv'';--') ENGINE=DuckDB CHARSET=utf8mb4|
+# No injected COPY ran: zz_def.csv must not exist anywhere under the vardir.
+# The default round-trips through MariaDB as plain data.
+INSERT INTO t (id) VALUES (1);
+SELECT c FROM t WHERE id = 1;
+c
+a');COPY(SELECT 2)TO 'zz_def.csv';--
+# A legitimate quote in a DEFAULT is stored and returned verbatim.
+ALTER TABLE t ADD COLUMN d VARCHAR(20) DEFAULT 'a''b';
+INSERT INTO t (id) VALUES (2);
+SELECT d FROM t WHERE id = 2;
+d
+a'b
+DROP TABLE t;

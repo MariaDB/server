@@ -236,7 +236,7 @@ int table_prepared_stmt_instances
       switch(f->field_index)
       {
       case 0: /* OBJECT_INSTANCE_BEGIN */
-        set_field_ulonglong(f, (intptr)m_row.m_identity);
+        set_field_ulonglong(f, m_row.m_identity);
         break;
       case 1: /* STATEMENT_ID */
         set_field_ulonglong(f, m_row.m_stmt_id);
@@ -299,4 +299,3 @@ int table_prepared_stmt_instances
 
   return 0;
 }
-

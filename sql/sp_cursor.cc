@@ -57,8 +57,11 @@ bool sp_cursor::check_for_open(THD *thd, bool check_open_cursor_counter) const
 */
 Type_ref_null sp_cursor_array::append(THD *thd)
 {
-  if (Dynamic_array::append(sp_cursor_array_element()))
+  sp_cursor_array_element *elem= new sp_cursor_array_element();
+  if (!elem || Dynamic_array::append(elem))
   {
+    if (!elem)
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(sp_cursor_array_element));
     DBUG_ASSERT(thd->is_error());
     return Type_ref_null();
   }
@@ -79,7 +82,7 @@ sp_cursor_array_element *sp_cursor_array::get_cursor_by_ref(THD *thd,
 {
   Type_ref_null ref= ref_field->val_ref(thd);
   if (ref < (ulonglong) elements())
-    return &at((size_t) ref.value());// "ref" points to an initialized sp_cursor
+    return at((size_t) ref.value());// "ref" points to an initialized sp_cursor
 
   if (!for_open)
     return nullptr;
@@ -97,8 +100,8 @@ sp_cursor_array_element *sp_cursor_array::get_cursor_by_ref(THD *thd,
       ref_field->store_ref(ref, true/*no_conversions*/))
     return nullptr;
 
-  at((size_t) ref.value()).reset(thd, 1/*ref count*/);
-  return &at((size_t) ref.value());
+  at((size_t) ref.value())->reset(thd, 1/*ref count*/);
+  return at((size_t) ref.value());
 }
 
 #endif // MYSQL_SERVER
