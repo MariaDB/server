@@ -1637,6 +1637,7 @@ public:
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  bool bulk_insert_active=false;           /* mhnsw bulk_insert_started flag */
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1880,6 +1881,8 @@ public:
   int hlindexes_on_update();
   int hlindexes_on_delete(const uchar *buf);
   int hlindexes_on_delete_all(bool truncate);
+  int hlindexes_bulk_insert_begin(ha_rows rows);
+  int hlindexes_bulk_insert_end();
   int unlock_hlindexes();
 
   void prepare_triggers_for_insert_stmt_or_event();
