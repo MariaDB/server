@@ -70,7 +70,7 @@ void pwt_worker::on_fatal_error()
   mysql_mutex_lock(&manager->LOCK_data);
   manager->fatal_error= true;
   /* This is to notify other workers too */
-  mysql_cond_broadcast(&manager->COND_data_avail);
+  mysql_cond_signal(&manager->COND_data_avail);
   mysql_mutex_unlock(&manager->LOCK_data);
 }
 

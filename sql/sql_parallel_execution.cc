@@ -1602,7 +1602,7 @@ void pwt_worker::execute_and_signal_manager()
   if (killed && mgr->kill_signal == NOT_KILLED)
     mgr->kill_signal= killed;
   mgr->active_workers--;
-  mysql_cond_broadcast(&mgr->COND_data_avail);
+  mysql_cond_signal(&mgr->COND_data_avail);
   mysql_mutex_unlock(&mgr->LOCK_data);
 
   if (err)
