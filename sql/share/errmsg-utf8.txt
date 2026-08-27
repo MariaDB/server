@@ -12421,4 +12421,4 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
 ER_FIELD_IN_GROUPING_NOT_GROUP_BY 42000
         eng "Argument '%-.192s' of GROUPING function is not in GROUP BY"
 ER_TOO_MANY_ARGS 42000
-        eng "Too many arguments for function %s: %lu; maximum allowed is %s."
+        eng "Too many arguments for function %s: %u; maximum allowed is %u."
