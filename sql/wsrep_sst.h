@@ -48,6 +48,21 @@
 #define WSREP_SST_OPT_BYPASS   "--bypass"
 #define WSREP_SST_OPT_GTID_DOMAIN_ID "--gtid-domain-id"
 
+/*
+  Wraps the SST command in a retry loop, retrying only on exit 127
+  ("command not found" - see MDEV-40688: sh sometimes transiently fails
+  to resolve wsrep_sst_<method> on PATH). Prefix/suffix only, no new
+  quoting context, so the existing arg escaping is untouched.
+  Sleep is a fraction of a second (GNU coreutils sleep, not strict
+  POSIX) - kept short so 2 retries can't meaningfully eat into mtr's
+  own server-start timeout.
+*/
+#define WSREP_SST_RETRY_PREFIX \
+  "i=0\nwhile :; do\n"
+#define WSREP_SST_RETRY_SUFFIX \
+  "\nrc=$?\ni=$((i+1))\n[ $rc -ne 127 ] && exit $rc\n" \
+  "[ $i -ge 3 ] && exit 127\nsleep 0.2\ndone"
+
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
 #define WSREP_SST_RSYNC        "rsync"
 #define WSREP_SST_SKIP         "skip"
