@@ -17,8 +17,6 @@
 --echo # MDEV-22269: GROUPING function
 --echo #
 
---source include/have_innodb.inc
-
 --disable_warnings
 DROP TABLE IF EXISTS t0,t1,t2,t,t3;
 DROP VIEW IF EXISTS v;
@@ -341,5 +339,37 @@ INSERT INTO t0 VALUES (0);
 SELECT EXISTS (SELECT t0.x FROM t0 a WHERE 1=0 GROUP BY a.x WITH ROLLUP) AS e
   FROM t0;
 DROP TABLE t0;
+
+# Check GROUPING works with 64 arguments
+let $query1= CREATE TABLE t0 (;
+let $col_cnt=63;
+while ($col_cnt)
+{
+  let $query1= $query1 i$col_cnt INTEGER,;
+  dec $col_cnt;
+}
+
+let $query1= $query1 i64 INTEGER);
+eval $query1;
+
+let $query= SELECT GROUPING(;
+let col_cnt=63;
+while ($col_cnt)
+{
+let $query= $query i$col_cnt,;
+dec $col_cnt;
+}
+let $query= $query i64) FROM t0 GROUP BY ;
+let col_cnt=63;
+while ($col_cnt)
+{
+let $query= $query i$col_cnt,;
+dec $col_cnt;
+}
+let $query= $query i64 WITH ROLLUP;
+
+eval $query;
+DROP TABLE t0;
+
 
 --echo # End of 13.1 tests.
