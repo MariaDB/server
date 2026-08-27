@@ -57,15 +57,22 @@ key constraints are loaded into memory.
 @param[in]	name		Table name in the db/tablename format
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
+@param[in]	fk_heap		Heap on which the names appended to
+				fk_tables are allocated
 @param[out]	fk_tables	Related table names that must also be
 				loaded to ensure that all foreign key
 				constraints are loaded.
+@param[in]	hold_latch	Whether to hold the exclusive
+				dict_sys.latch for the whole load; see
+				dict_load_hold_latch()
 @return table, possibly with file_unreadable flag set
 @retval nullptr if the table does not exist */
 static dict_table_t *dict_load_table_one(mtr_t &mtr,
                                          const span<const char> &name,
                                          dict_err_ignore_t ignore_err,
-                                         dict_names_t &fk_tables);
+                                         mem_heap_t *fk_heap,
+                                         dict_names_t &fk_tables,
+                                         bool hold_latch);
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
 @return	error message
@@ -1308,7 +1315,7 @@ static dberr_t dict_load_columns(mtr_t &mtr,
 	btr_pcur_t	pcur;
 	ulint		n_skipped = 0;
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	mtr.start();
 
@@ -1438,7 +1445,7 @@ dict_load_virtual_col(mtr_t &mtr, dict_table_t *table, bool uncommitted,
 	dict_index_t*	sys_virtual_index;
 	btr_pcur_t	pcur;
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	mtr.start();
 
@@ -1685,7 +1692,7 @@ static dberr_t dict_load_fields(mtr_t &mtr, dict_index_t *index,
 {
 	btr_pcur_t	pcur;
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || index->table->is_loader());
 	auto sp = mtr.get_savepoint();
 
 	dict_index_t* sys_index = dict_sys.sys_fields->indexes.start;
@@ -1940,7 +1947,7 @@ dberr_t dict_load_indexes(mtr_t *mtr, dict_table_t *table, bool uncommitted,
 	btr_pcur_t	pcur;
 	byte		table_id[8];
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	mtr->start();
 
@@ -2224,11 +2231,17 @@ void dict_get_and_save_data_dir_path(dict_table_t *table)
     if (strncmp(fil_path_to_mysql_datadir, filepath,
                 strlen(fil_path_to_mysql_datadir)))
     {
-      table->lock_mutex_lock();
+      /* A loading thread already holds lock_latch exclusively (see
+      dict_sys_t::add()) and is the only thread that can reach this
+      table, so it must not re-acquire it here. */
+      const bool need_latch= !table->loading();
+      if (need_latch)
+        table->lock_mutex_lock();
       table->flags|= 1 << DICT_TF_POS_DATA_DIR & ((1U << DICT_TF_BITS) - 1);
       table->data_dir_path= mem_heap_strdup(table->heap, filepath);
       os_file_make_data_dir_path(table->data_dir_path);
-      table->lock_mutex_unlock();
+      if (need_latch)
+        table->lock_mutex_unlock();
     }
   }
 }
@@ -2299,6 +2312,66 @@ dict_load_tablespace(
 	ut_free(filepath);
 }
 
+/** Determine whether a table must be loaded without ever releasing
+the exclusive dict_sys.latch, because it may be referenced by InnoDB
+internal SQL. The non-reentrant internal SQL parser is serialized by
+the exclusive dict_sys.latch, which the callers of que_eval_sql() hold
+across parsing and execution; pars_retrieve_table_def() opens the
+referenced tables in the middle of parsing. Releasing the latch there
+(to publish a loading stub, or to wait for one in
+dict_sys_t::wait_for_load()) would let another thread corrupt the
+parser state. Because every load of such a table holds the latch throughout,
+no loading stub can ever exist for it, and a parse-time lookup can
+never encounter one.
+@param name  table name ("db/table" or an InnoDB system table name)
+@return whether the table must be loaded while holding the latch */
+static bool dict_load_hold_latch(const span<const char> &name)
+{
+	const void*	p = memchr(name.data(), '/', name.size());
+
+	if (!p) {
+		/* InnoDB system tables, such as SYS_FOREIGN, have no
+		database component in their names. */
+		return true;
+	}
+
+	const char*	n = static_cast<const char*>(p) + 1;
+
+	if (name.end() > n + 4
+	    && (n[0] == 'F' || n[0] == 'f')
+	    && (n[1] == 'T' || n[1] == 't')
+	    && (n[2] == 'S' || n[2] == 's')
+	    && n[3] == '_') {
+		/* FULLTEXT INDEX auxiliary tables */
+		return true;
+	}
+
+	/* The persistent statistics tables */
+	return (name.size() == sizeof TABLE_STATS_NAME - 1
+		&& !memcmp(name.data(), TABLE_STATS_NAME, name.size()))
+		|| (name.size() == sizeof INDEX_STATS_NAME - 1
+		    && !memcmp(name.data(), INDEX_STATS_NAME, name.size()));
+}
+
+/** Discard a table stub whose load failed (or is being retried after
+DB_SUCCESS_LOCKED_REC), unlinking it from dict_sys and freeing it.
+@param table   a stub published by this thread via add_to_cache(),
+still holding lock_latch in exclusive mode */
+static void dict_load_table_one_discard(dict_table_t *table) noexcept
+{
+	ut_ad(dict_sys.locked());
+	ut_ad(table->is_loader());
+	table->mark_load_failed();
+	table->lock_mutex_unlock();
+	/* Wait for any wait_for_load() caller that had already pinned the
+	table to notice and release its pin; no new pin is possible once
+	LOAD_FAILED is set, so this can only reach zero, never rise. */
+	while (table->get_ref_count()) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+	dict_sys.remove(table);
+}
+
 /** Loads a table definition and also all its index definitions.
 
 Loads those foreign key constraints whose referenced table is already in
@@ -2319,7 +2392,9 @@ key constraints are loaded into memory.
 static dict_table_t *dict_load_table_one(mtr_t &mtr,
                                          const span<const char> &name,
                                          dict_err_ignore_t ignore_err,
-                                         dict_names_t &fk_tables)
+                                         mem_heap_t *fk_heap,
+                                         dict_names_t &fk_tables,
+                                         bool hold_latch)
 {
 	btr_pcur_t	pcur;
 
@@ -2354,7 +2429,20 @@ static dict_table_t *dict_load_table_one(mtr_t &mtr,
 	pcur.btr_cur.page_cur.index = sys_index;
 
 	bool uncommitted = false;
+	dict_table_t* table = nullptr;
 reload:
+	/* Phase 1 (exclusive dict_sys.latch): locate the SYS_TABLES
+	record, create the table object, and make it visible in the
+	cache as a non-evictable, incomplete stub (dict_table_t::loading()),
+	so that the latch can be released during the I/O below. */
+	if (table) {
+		/* We are retrying after DB_SUCCESS_LOCKED_REC. Discard
+		the previously published stub; a new table object will
+		be created. */
+		dict_load_table_one_discard(table);
+		table = nullptr;
+	}
+
 	mtr.start();
 	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
@@ -2374,7 +2462,6 @@ err_exit:
 		goto err_exit;
 	}
 
-	dict_table_t* table;
 	if (const char* err_msg =
 	    dict_load_table_low(&mtr, uncommitted, rec, &table)) {
 		if (err_msg != dict_load_table_flags) {
@@ -2394,6 +2481,29 @@ err_exit:
 
 	mtr.commit();
 
+	/* Publish the incomplete table object. Any other thread that
+	looks it up will observe dict_table_t::loading() and either treat
+	the table as not cached (dict_sys_t::find_table()) or wait for
+	the load to complete (dict_sys_t::load_table()). add_to_cache()
+	takes lock_latch in exclusive mode on our behalf before the stub
+	becomes reachable. The stub is inserted into table_non_LRU
+	(can_be_evicted=false), so that dict_sys_t::evict_table_LRU()
+	cannot free it. */
+	ut_ad(!table->can_be_evicted);
+	table->start_loading();
+	ut_d(table->load_thread = pthread_self());
+	table->add_to_cache();
+
+	if (!hold_latch) {
+		dict_sys.unlock();
+	}
+
+	/* Phase 2 (no dict_sys.latch): open the tablespace and load the
+	columns and indexes. Only this thread may access the table object;
+	the SYS_ tables and their indexes are non-evictable, and any DDL
+	that would modify this table's SYS_ records must first look up the
+	table in the cache, observe the stub, and wait for it. */
+
 	mem_heap_t* heap = mem_heap_create(32000);
 
 	dict_load_tablespace(table, ignore_err);
@@ -2402,8 +2512,10 @@ err_exit:
 	case DB_SUCCESS_LOCKED_REC:
 		ut_ad(!uncommitted);
 		uncommitted = true;
-		dict_mem_table_free(table);
 		mem_heap_free(heap);
+		if (!hold_latch) {
+			dict_sys.lock(SRW_LOCK_CALL);
+		}
 		goto reload;
 	case DB_SUCCESS:
 		if (!dict_load_virtual(mtr, table, uncommitted)) {
@@ -2411,15 +2523,15 @@ err_exit:
 		}
 		/* fall through */
 	default:
-		dict_mem_table_free(table);
 		mem_heap_free(heap);
+		if (!hold_latch) {
+			dict_sys.lock(SRW_LOCK_CALL);
+		}
+		dict_load_table_one_discard(table);
 		DBUG_RETURN(nullptr);
 	}
 
 	dict_table_add_system_columns(table, heap);
-
-	table->can_be_evicted = true;
-	table->add_to_cache();
 
 	mem_heap_empty(heap);
 
@@ -2439,19 +2551,16 @@ err_exit:
 	err = dict_load_indexes(&mtr, table, uncommitted, heap,
 				index_load_err);
 
+	bool evict_stub = false;
+
 	if (err == DB_TABLE_CORRUPT) {
 		/* Refuse to load the table if the table has a corrupted
 		cluster index */
 		ut_ad(index_load_err != DICT_ERR_IGNORE_DROP);
 		ib::error() << "Refusing to load corrupted table "
 			    << table->name;
-evict:
-		dict_sys.remove(table);
-		mem_heap_free(heap);
-		DBUG_RETURN(nullptr);
-	}
-
-	if (err != DB_SUCCESS || !table->is_readable()) {
+		evict_stub = true;
+	} else if (err != DB_SUCCESS || !table->is_readable()) {
 	} else if (dict_index_t* pk = dict_table_get_first_index(table)) {
 		ut_ad(pk->is_primary());
 		if (pk->is_corrupted()
@@ -2490,8 +2599,36 @@ corrupted:
 		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);
 		if (ignore_err != DICT_ERR_IGNORE_DROP) {
 			err = DB_CORRUPTION;
-			goto evict;
+			evict_stub = true;
 		}
+	}
+
+	if (!hold_latch) {
+		/* When the definition is loaded by a connection thread,
+		allow tests to run other statements while no
+		dict_sys.latch is held. */
+		DEBUG_SYNC_C("dict_load_table_one_no_latch");
+
+		/* Phase 3 (exclusive dict_sys.latch): complete the
+		definition and load the foreign key constraints. */
+		dict_sys.lock(SRW_LOCK_CALL);
+	}
+
+	dict_sys.allow_eviction(table);
+	/* The definition is complete, but the table stays hidden from
+	dict_sys_t::find_table() until our caller dict_sys_t::load_table()
+	has also loaded the tables that are related to this table by
+	FOREIGN KEY constraints, and makes all of them visible atomically.
+	From this point on, constraints may be linked into this table
+	via dict_sys_t::find_table_fk(): the foreign_set/referenced_set
+	are only modified while holding the exclusive latch. */
+	table->advance_to_loading_fk();
+
+	if (evict_stub) {
+evict:
+		dict_load_table_one_discard(table);
+		mem_heap_free(heap);
+		DBUG_RETURN(nullptr);
 	}
 
 	/* We will load the foreign key information only if
@@ -2501,7 +2638,8 @@ corrupted:
 	} else if (err == DB_SUCCESS) {
 		auto i = fk_tables.size();
 		err = dict_load_foreigns(mtr, table->name.m_name, nullptr,
-					 0, true, ignore_err, fk_tables);
+					 0, true, ignore_err, fk_heap,
+					 fk_tables);
 
 		if (err != DB_SUCCESS) {
 			fk_tables.erase(fk_tables.begin() + i, fk_tables.end());
@@ -2548,19 +2686,81 @@ corrupted:
 dict_table_t *dict_sys_t::load_table(const span<const char> &name,
                                      dict_err_ignore_t ignore) noexcept
 {
-  if (dict_table_t *table= find_table(name))
-    return table;
+  for (;;)
+  {
+    dict_table_t *table= find_table_any(name);
+    if (!table)
+      break;
+    if (!table->loading())
+      return table;
+    /* Another thread is loading the table definition. Wait for it
+    to complete or fail, and retry the lookup: the stub may have
+    been removed (and freed) by the time we wake up. */
+    ut_ad(!table->is_loader());
+    wait_for_load(table);
+  }
+
+  mem_heap_t *fk_heap= mem_heap_create(1000);
   dict_names_t fk_list;
   THD* const thd{current_thd};
   mtr_t mtr{thd ? thd_to_trx(thd) : nullptr};
-  dict_table_t *table= dict_load_table_one(mtr, name, ignore, fk_list);
+  /* The tables loaded by this invocation. They remain hidden from
+  other threads (dict_table_t::LOADING_FK) until all of them have
+  been loaded, so that no thread can operate on a table whose
+  foreign key constraints are not fully linked yet. Being hidden,
+  they cannot be referenced, dropped or evicted by any other thread
+  (dict_table_can_be_evicted() also skips them), so the pointers
+  remain valid across the latch releases below. */
+  std::vector<dict_table_t*, ut_allocator<dict_table_t*>> loaded;
+  /* Tables that may be referenced by InnoDB internal SQL must be
+  loaded without ever releasing the exclusive latch, because this may
+  be a parse-time table lookup from pars_retrieve_table_def(), and the
+  non-reentrant internal SQL parser is serialized by the latch. Any
+  tables loaded for their FOREIGN KEY constraints inherit this, so
+  that no latch release can occur in the middle of parsing. */
+  const bool hold_latch= dict_load_hold_latch(name);
+  dict_table_t *table= dict_load_table_one(mtr, name, ignore, fk_heap, fk_list,
+                                           hold_latch);
+  if (table)
+    loaded.emplace_back(table);
   while (!fk_list.empty())
   {
     const char *f= fk_list.front();
-    const span<const char> name{f, strlen(f)};
-    if (!find_table(name))
-      dict_load_table_one(mtr, name, ignore, fk_list);
+    const span<const char> fk_name{f, strlen(f)};
+    if (dict_table_t *t= find_table_any(fk_name))
+    {
+      if (t->loading() == dict_table_t::LOADING_DEF && !hold_latch)
+      {
+        /* Another thread is still loading the definition of this
+        table, so its dict_load_foreigns() has not been invoked yet
+        and the constraints between it and the tables that we loaded
+        may still be missing. Wait for it and retry this name, so
+        that we will not publish a table whose referenced_set is
+        incomplete. */
+        ut_ad(!t->is_loader());
+        wait_for_load(t);
+        continue;
+      }
+    }
+    else if (dict_table_t *fk_table=
+             dict_load_table_one(mtr, fk_name, ignore, fk_heap, fk_list,
+                                 hold_latch || dict_load_hold_latch(fk_name)))
+      loaded.emplace_back(fk_table);
     fk_list.pop_front();
+  }
+  mem_heap_free(fk_heap);
+
+  /* All tables related by foreign key constraints have been loaded
+  and linked; make them visible to other threads, and wake up any
+  dict_sys_t::wait_for_load() callers blocked on each one's
+  lock_latch. They will block on the exclusive dict_sys.latch until
+  our caller releases it, and then retry their lookup. */
+  for (dict_table_t *t : loaded)
+  {
+    ut_ad(t->loading() == dict_table_t::LOADING_FK);
+    ut_ad(t->is_loader());
+    t->finish_loading();
+    t->lock_mutex_unlock();
   }
 
   return table;
@@ -2583,10 +2783,6 @@ dict_load_table_on_id(
 	mtr_t		mtr{nullptr};
 
 	ut_ad(dict_sys.locked());
-
-	/* NOTE that the operation of this function is protected by
-	dict_sys.latch, and therefore no deadlocks can occur
-	with other dictionary operations. */
 
 	mtr.start();
 	/*---------------------------------------------------*/
@@ -2624,16 +2820,46 @@ check_rec:
 
 		/* Check if the table id in record is the one searched for */
 		if (table_id == mach_read_from_8(field)) {
+			char name_buf[MAX_FULL_NAME_LEN + 1];
 			field = rec_get_nth_field_old(rec,
 				DICT_FLD__SYS_TABLE_IDS__NAME, &len);
-			table = dict_sys.load_table(
-				{reinterpret_cast<const char*>(field),
-				 len}, ignore_err);
+			if (UNIV_UNLIKELY(len > sizeof name_buf)) {
+				/* corrupted record */
+				goto func_exit;
+			}
+			/* Copy the name and release the page latch before
+			calling load_table(): it releases the exclusive
+			dict_sys.latch during the load, and it may block
+			waiting for a concurrent load of the same table.
+			Waiting while holding a latched SYS_TABLES page
+			could deadlock with a DDL thread that holds the
+			exclusive dict_sys.latch and is waiting for a
+			latch on this page. */
+			memcpy(name_buf, field, len);
+			ut_d(const auto deleted = rec_get_deleted_flag(rec,
+								       0));
+			btr_pcur_store_position(&pcur, &mtr);
+			mtr.commit();
+
+			table = dict_sys.load_table({name_buf, len},
+						    ignore_err);
 			if (table && table->id != table_id) {
-				ut_ad(rec_get_deleted_flag(rec, 0));
+				/* The record was delete-marked, and the
+				name has been reused by another table. */
+				ut_ad(deleted);
 				table = nullptr;
 			}
-			if (!table) {
+			if (table) {
+				ut_free(pcur.old_rec_buf);
+				return table;
+			}
+
+			/* The SYS_TABLE_IDS record may have been stale.
+			Keep scanning for further records with a
+			matching table id. */
+			mtr.start();
+			if (pcur.restore_position(BTR_SEARCH_LEAF, &mtr)
+			    != btr_pcur_t::CORRUPTED) {
 				while (btr_pcur_move_to_next(&pcur, &mtr)) {
 					rec = btr_pcur_get_rec(&pcur);
 
@@ -2645,7 +2871,9 @@ check_rec:
 		}
 	}
 
+func_exit:
 	mtr.commit();
+	ut_free(pcur.old_rec_buf);
 	return table;
 }
 
@@ -2834,6 +3062,9 @@ dict_load_foreign(
 				/*!< in: foreign constraint id */
 	dict_err_ignore_t	ignore_err,
 				/*!< in: error to be ignored */
+	mem_heap_t*		fk_heap,
+				/*!< in: heap for the names appended
+				to fk_tables */
 	dict_names_t&	fk_tables)
 				/*!< out: the foreign key constraint is added
 				to the dictionary cache only if the referenced
@@ -2982,10 +3213,10 @@ err_exit:
 		goto load_error;
 	}
 
-	ref_table = dict_sys.find_table(
+	ref_table = dict_sys.find_table_fk(
 		{foreign->referenced_table_name_lookup,
 		 strlen(foreign->referenced_table_name_lookup)});
-	for_table = dict_sys.find_table(
+	for_table = dict_sys.find_table_fk(
 		{foreign->foreign_table_name_lookup,
 		 strlen(foreign->foreign_table_name_lookup)});
 
@@ -2993,11 +3224,15 @@ err_exit:
 		/* To avoid recursively loading the tables related through
 		the foreign key constraints, the child table name is saved
 		here.  The child table will be loaded later, along with its
-		foreign key constraint. */
+		foreign key constraint. The name is copied to fk_heap,
+		which the caller keeps valid until fk_tables is drained;
+		ref_table->heap would not do, because ref_table may be
+		evicted while dict_sys.load_table() releases the exclusive
+		dict_sys.latch between the drain iterations. */
 
 		ut_a(ref_table != NULL);
 		fk_tables.push_back(
-			mem_heap_strdupl(ref_table->heap,
+			mem_heap_strdupl(fk_heap,
 					 foreign->foreign_table_name_lookup,
 					 foreign_table_name_len));
 load_error:
@@ -3043,6 +3278,9 @@ dict_load_foreigns(
 	bool			check_charsets,	/*!< in: whether to check
 						charset compatibility */
 	dict_err_ignore_t	ignore_err,	/*!< in: error to be ignored */
+	mem_heap_t*		fk_heap,	/*!< in: heap on which the
+						names appended to fk_tables
+						are allocated */
 	dict_names_t&		fk_tables)
 						/*!< out: stack of table
 						names which must be loaded
@@ -3152,7 +3390,8 @@ loop:
 	err = len < sizeof fk_id
 		? dict_load_foreign(mtr, table_name, false, col_names, trx_id,
 				    check_recursive, check_charsets,
-				    {fk_id, len}, ignore_err, fk_tables)
+				    {fk_id, len}, ignore_err, fk_heap,
+				    fk_tables)
 		: DB_CORRUPTION;
 
 	switch (err) {

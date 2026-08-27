@@ -2832,6 +2832,12 @@ row_rename_table_for_mysql(
 		/* We only want to switch off some of the type checking in
 		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
+		/* The names in fk_tables must survive the temporary
+		release of the exclusive dict_sys.latch inside
+		dict_sys.load_table() in the drain loop below. */
+		if (!heap) {
+			heap = mem_heap_create(1000);
+		}
 		{
 			mtr_t mtr{trx};
 			err = dict_load_foreigns(mtr, new_name, nullptr,
@@ -2841,7 +2847,7 @@ row_rename_table_for_mysql(
 						 fk == RENAME_ALTER_COPY
 						 ? DICT_ERR_IGNORE_NONE
 						 : DICT_ERR_IGNORE_FK_NOKEY,
-						 fk_tables);
+						 heap, fk_tables);
 		}
 		if (err != DB_SUCCESS) {
 			if (old_is_tmp) {
