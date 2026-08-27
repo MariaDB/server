@@ -316,9 +316,12 @@ void pwt_row_layout::end_receive(TABLE **tables, uint n_tables)
 }
 
 
-/*****************************************************************************
-  pwt_batch_sink -- the producing end of the batch transport
-*****************************************************************************/
+/*
+
+  pwt_batch* classes implement streaming from workers to the manager
+  they may be useful in the future, so a left here.
+
+*/
 
 bool pwt_batch_sink::init(pwt_manager *mgr, pwt_batch_source *peer_arg,
                           uint reclength_arg)
@@ -329,7 +332,7 @@ bool pwt_batch_sink::init(pwt_manager *mgr, pwt_batch_source *peer_arg,
   count=     0;
   full=      false;
   rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,
-                           (size_t) PWT_CHUNK_ROWS * reclength, MYF(MY_WME));
+                           (size_t) PWT_ROW_GANULARITY * reclength, MYF(MY_WME));
   return rows == nullptr;
 }
 
@@ -389,7 +392,7 @@ bool pwt_batch_sink::handoff()
 int pwt_batch_sink::emit_row(const uchar *rec)
 {
   memcpy(rows + (size_t) count * reclength, rec, reclength);
-  if (++count == PWT_CHUNK_ROWS)
+  if (++count == PWT_ROW_GANULARITY)
   {
     if (handoff())                                // manager asked us to stop
       return PWT_EMIT_STOP;
@@ -447,7 +450,7 @@ pwt_row_sink *pwt_batch_source::make_sink(THD *thd, uint worker_nr,
   if (!s || s->init(manager, this, reclength))
   {
     my_error(ER_OUTOFMEMORY, MYF(0),
-             (int) (PWT_CHUNK_ROWS * reclength));
+             (int) (PWT_ROW_GANULARITY * reclength));
     return nullptr;
   }
   sinks[worker_nr]= s;
@@ -671,7 +674,7 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
     return PWT_EMIT_ERROR;
   }
 
-  if (++since_check == PWT_CHUNK_ROWS)
+  if (++since_check == PWT_ROW_GANULARITY)
   {
     since_check= 0;
     if (stop_requested())

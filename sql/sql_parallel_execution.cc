@@ -1086,6 +1086,8 @@ bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
     pinning both would mean two magic numbers of which only one is ever
     checked by whoever changes the class. mtr builds debug, so this is where
     the prompt lands.
+
+    TODO: turn this off, doesn't work on windoze, not portable
   */
 #ifndef DBUG_OFF
   static_assert(sizeof(JOIN) == 1552,
