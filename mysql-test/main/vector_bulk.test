@@ -1,0 +1,115 @@
+--echo #
+--echo # Test memory budget fallback during MHNSW bulk insert
+--echo #
+
+--echo # 1. Normal bulk insert works when memory budget is large enough
+create table t1 (id int auto_increment primary key, v vector(3) not null);
+insert into t1 (v) values (x'000000000000000000000000'),
+                          (x'0000803f0000000000000000'),
+                          (x'000000000000803f00000000'),
+                          (x'00000000000000000000803f');
+alter table t1 add vector index (v);
+show warnings;
+
+--echo # Test search using the successfully bulk-built index
+--replace_regex /(\.\d{5})\d+/\1/
+select id, vec_distance_euclidean(v, x'0000803f0000000000000000') d from t1 order by d limit 2;
+
+drop table t1;
+
+--echo # 2. Bulk insert falls back to normal insert when mhnsw_max_cache_size is small
+set @old_cache_size= @@global.mhnsw_max_cache_size;
+set global mhnsw_max_cache_size= 1048576;
+set max_recursive_iterations= 300;
+
+create table t1 (id int auto_increment primary key, v vector(3000) not null);
+
+# Insert 115 rows of 3000-dimensional vectors.
+# Total size: 115 * ~9288 bytes/row (with M=200) = ~1.06 MB, exceeding 1MB.
+insert into t1 (v)
+with recursive cte as (
+  select 1 as n
+  union all
+  select n + 1 from cte where n < 115
+)
+select repeat(x'00', 12000) from cte;
+
+# Insert a unique search target vector with fixed ID 999 to guarantee deterministic results across all engines
+insert into t1 (id, v) values (999, concat(repeat(x'00', 11996), x'0000803f'));
+
+--echo # Adding index with small cache size should trigger fallback and show a warning
+--replace_regex /usage \(\d+\)/usage (estimated_mem)/
+alter table t1 add vector index (v) m=200;
+--replace_regex /usage \(\d+\)/usage (estimated_mem)/
+show warnings;
+
+--echo # Test search using the fallback-built index to ensure it is healthy and correct
+--replace_regex /(\.\d{5})\d+/\1/
+select id, vec_distance_euclidean(v, concat(repeat(x'00', 11996), x'0000803f')) d from t1 order by d limit 1;
+
+drop table t1;
+set global mhnsw_max_cache_size= @old_cache_size;
+
+--echo #
+--echo # 3. Test OPTIMIZE TABLE uses bulk insert and rebuilds vector index
+--echo #
+
+--echo # 3.1 Normal OPTIMIZE TABLE with bulk insert
+create table t1 (id int auto_increment primary key, v vector(3) not null);
+insert into t1 (v) values (x'000000000000000000000000'),
+                          (x'0000803f0000000000000000'),
+                          (x'000000000000803f00000000'),
+                          (x'00000000000000000000803f');
+alter table t1 add vector index (v);
+
+# Delete rows to create deleted nodes in the index
+delete from t1 where id in (1, 3);
+
+optimize table t1;
+
+--echo # Test search query after OPTIMIZE TABLE
+--replace_regex /(\.\d{5})\d+/\1/
+select id, vec_distance_euclidean(v, x'0000803f0000000000000000') d from t1 order by d;
+
+drop table t1;
+
+--echo # 3.2 OPTIMIZE TABLE with small cache size triggers bulk insert fallback warning
+set @old_cache_size= @@global.mhnsw_max_cache_size;
+set global mhnsw_max_cache_size= 1048576;
+set max_recursive_iterations= 300;
+
+create table t1 (id int auto_increment primary key, v vector(3000) not null);
+
+# Insert 100 rows of 3000-dimensional vectors.
+# Total size with M=16: 101 * ~12.3 KB = ~1.24 MB, exceeding 1MB.
+insert into t1 (v)
+with recursive cte as (
+  select 1 as n
+  union all
+  select n + 1 from cte where n < 100
+)
+select repeat(x'00', 12000) from cte;
+
+insert into t1 (id, v) values (999, concat(repeat(x'00', 11996), x'0000803f'));
+
+# Temporarily increase cache size to allow initial index creation via bulk insert
+set global mhnsw_max_cache_size= 104857600;
+alter table t1 add vector index (v) m=16;
+
+# Lower cache size back to trigger fallback during OPTIMIZE TABLE
+set global mhnsw_max_cache_size= 1048576;
+
+--replace_regex /usage \(\d+\)/usage (estimated_mem)/
+optimize table t1;
+--replace_regex /usage \(\d+\)/usage (estimated_mem)/
+show warnings;
+
+--echo # Test search using the index after OPTIMIZE TABLE
+--replace_regex /(\.\d{5})\d+/\1/
+select id, vec_distance_euclidean(v, concat(repeat(x'00', 11996), x'0000803f')) d from t1 order by d limit 1;
+
+drop table t1;
+set global mhnsw_max_cache_size= @old_cache_size;
+
+
+
