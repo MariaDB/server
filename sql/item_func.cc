@@ -847,7 +847,7 @@ bool Item_func_grouping::fix_fields(THD *thd, Item **ref)
   // longlong is 64 bits, so we can represent a maximum of 64 arguments
   if (arg_count > 64)
   {
-    my_error(ER_TOO_MANY_ARGS, MYF(0), "GROUPING", arg_count, "64");
+    my_error(ER_TOO_MANY_ARGS, MYF(0), "GROUPING", arg_count, 64u);
     return true;
   }
 
