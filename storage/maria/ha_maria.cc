@@ -3737,6 +3737,22 @@ aria_backup_start_wrap(THD *thd, const backup_target *target,
   return aria_backup_start(thd, target, phase, sink);
 }
 
+/* A C++ function pointer compatible wrapper of a C function */
+static int
+aria_backup_step_wrap(THD *thd, const backup_target *target,
+                      backup_phase phase, const backup_sink *sink)
+{
+  return aria_backup_step(thd, target, phase, sink);
+}
+
+/* A C++ function pointer compatible wrapper of a C function */
+static int
+aria_backup_end_wrap(THD *thd, const backup_target *target,
+                     backup_phase phase, const backup_sink *sink)
+{
+  return aria_backup_end(thd, target, phase, sink);
+}
+
 #define SHOW_MSG_LEN (FN_REFLEN + 20)
 /**
   @brief show status handler
@@ -3950,6 +3966,8 @@ static int ha_maria_init(void *p)
   maria_hton->end_backup= maria_end_backup;
   maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
   maria_hton->backup_start= aria_backup_start_wrap;
+  maria_hton->backup_step= aria_backup_step_wrap;
+  maria_hton->backup_end= aria_backup_end_wrap;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |

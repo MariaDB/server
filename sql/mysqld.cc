@@ -621,10 +621,8 @@ time_t server_start_time;
 char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
 char *default_tz_name, *opt_path;
 char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
-extern "C" {
-  char mysql_real_data_home[FN_REFLEN];
-}
-char lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
+char mysql_real_data_home[FN_REFLEN],
+     lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
      mysql_charsets_dir[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file, *opt_ddl_recovery_file;
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;

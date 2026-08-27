@@ -22,20 +22,24 @@
 # define tmp_file_prefix_length 4
 #endif
 
-#if 1 /* can't #include "sql/mysqld.h" because it is C++ */
-extern char mysql_real_data_home[];
-#endif
-
-ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static int dir_error(const char *name)
+/**
+   Report that a directory cannot be read.
+   @param name   directory name
+*/
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static void dir_error(const char *name)
 {
   my_error(ER_CANT_READ_DIR, MYF(0), name, my_errno);
-  return 1;
 }
 
+/**
+   Predicate for checking if a file must be included in the backup.
+   @param file_name   file base name to check
+   @param len         strlen(file_name)
+*/
 typedef int (*name_predicate)(const char *file_name, size_t len);
 
 /**
-   Determine if a file may be backed up.
+   Determine if a non-Aria file may be backed up.
    @param file_name   candidate file name
    @param len         strlen(file_name)
    @retval FALSE   if the file must be excluded
@@ -44,7 +48,7 @@ typedef int (*name_predicate)(const char *file_name, size_t len);
 static int is_db_file(const char *file_name, size_t len)
 {
   uint32_t suffix;
-  DBUG_ASSERT(len >= 4);
+  assert(len >= 4);
   memcpy(&suffix, file_name + len - 4, 4);
   switch (suffix) {
 #ifdef WORDS_BIGENDIAN
@@ -87,7 +91,7 @@ static int is_db_file(const char *file_name, size_t len)
 static int is_ma_file(const char *file_name, size_t len)
 {
   uint32_t suffix;
-  DBUG_ASSERT(len >= 4);
+  assert(len >= 4);
   memcpy(&suffix, file_name + len - 4, 4);
   switch (suffix) {
 #ifdef WORDS_BIGENDIAN
@@ -102,17 +106,32 @@ static int is_ma_file(const char *file_name, size_t len)
   return FALSE;
 }
 
-struct Aria_backup_entry
+/** Backup status */
+enum Aria_backup_status { BACKUP_OK, BACKUP_FAIL, TRANSLOG_PURGE_DISABLED };
+
+/** Backup state */
+struct Aria_backup
 {
-  /** directory name */
-  const char *dir;
-  /** file name relative to the directory */
-  const char *name;
+  /** mutex protecting the data in concurrent aria_backup_step() */
+  pthread_mutex_t mutex;
+  /** status */
+  enum Aria_backup_status status;
+  /** directory iterator */
+  MY_DIR *dir;
+  /** number of consumed dir entries */
+  size_t dir_consumed;
+  /** subdirectory iterator, or NULL if iterating to next entry in dir */
+  MY_DIR *subdir;
+  /** number of consumed subdir entries */
+  size_t subdir_consumed;
 };
 
-/*
-  Create directory in the target directory if it does not exist.
-  Return 0 on success, non-0 on failure. Set errno in case of failure
+/**
+   Create a subdirectory unless we are streaming or it pre-exists.
+   @param target    BACKUP SERVER target
+   @param name      base name of subdirectory to create
+   @return error code (also errno will be set)
+   @retval 0 on success (errno might not be touched)
 */
 static int aria_backup_mkdir(const struct backup_target *target,
                              const char *name)
@@ -142,22 +161,22 @@ static int aria_backup_mkdir(const struct backup_target *target,
   return 1;
 }
 
+/**
+   Copy a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param path       file name
+   @param dir_prefix length of the path prefix to omit from the backup
+   @return error code (also errno will be set)
+   @retval 0 on success (errno might not be touched)
+*/
 static int aria_backup_file(const struct backup_target *target,
                             const struct backup_sink *sink,
-                            const char *dir, const char *name,
-                            size_t dir_prefix, int if_exists)
+                            const char *path, size_t dir_prefix)
 {
+  int ret= -1;
 #ifndef _WIN32
   int src, dst= sink->stream;
-#endif
-  int ret= -1;
-  char path[FN_REFLEN * 3 / 2];
-  if ((int) sizeof path <= snprintf(path, sizeof path, "%s/%s", dir, name))
-  {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), name);
-    return -1;
-  }
-#ifndef _WIN32
   src= open(path, O_RDONLY);
   if (src < 0)
   {
@@ -196,7 +215,7 @@ static int aria_backup_file(const struct backup_target *target,
     if ((int) sizeof dstpath <=
         snprintf(dstpath, sizeof dstpath, "%s/%s",
                  target->path, path + dir_prefix))
-      my_error(ER_TOO_LONG_IDENT, MYF(0), name);
+      my_error(ER_TOO_LONG_IDENT, MYF(0), path + dir_prefix);
     else if (!CopyFileEx(path, dstpath, NULL, NULL, NULL,
                          COPY_FILE_NO_BUFFERING))
     {
@@ -247,125 +266,315 @@ static int aria_backup_file(const struct backup_target *target,
 #endif
 }
 
-static int aria_backup_dir(const struct backup_target *target,
-                           const struct backup_sink *sink,
-                           name_predicate include_name,
-                           const char *dir_name, size_t prefix)
-{
-  int fail= 0;
-  char path[FN_REFLEN];
-  if ((int) sizeof path <=
-      snprintf(path, sizeof path, "%s/%s", mysql_real_data_home, dir_name))
-  {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), dir_name);
-    return -1;
-  }
-  else if ((fail= aria_backup_mkdir(target, path + prefix)) != 0)
-    return fail;
-  else
-  {
-    MY_DIR *dir= my_dir(path, MYF(MY_WANT_STAT));
-    if (!dir)
-      return dir_error(path);
-    else
-    {
-      const struct fileinfo *fi= dir->dir_entry;
-      const struct fileinfo *const end= fi + dir->number_of_files;
-      size_t len;
-      for (; fi < end; fi++)
-        if ((len= strlen(fi->name)) >= 4 &&
-            /*
-              As noted in MDEV-25854, file names that start with #sql
-              must be excluded from the backup. For example, a call to
-              MDL_context::upgrade_shared_lock() in
-              mysql_inplace_alter_table() could time out, resulting in
-              cleanup_table_after_inplace_alter() deleting a
-              #sql-alter*.frm file before we get a chance to copy it.
-            */
-            memcmp(fi->name, tmp_file_prefix, tmp_file_prefix_length) &&
-            (*include_name)(fi->name, len))
-          if ((fail= aria_backup_file(target, sink, path, fi->name,
-                                      prefix, 0)) != 0)
-            break;
-      my_dirend(dir);
-      return fail;
-    }
-  }
-}
-
+/**
+   Back up a data file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param include_p  predicate for files to include
+   @return number directories or files left; negative on error
+   @retval 0 on successful completion
+*/
 static int aria_backup_data(const struct backup_target *target,
                             const struct backup_sink *sink,
-                            name_predicate include_name)
+                            name_predicate include_p)
 {
-  int fail= 0;
-  size_t prefix= strlen(mysql_real_data_home) + 1;
-  /* Scan the server data directory for data files. */
-  MY_DIR *dir= my_dir(mysql_real_data_home, MYF(MY_WANT_STAT));
-  if (!dir)
-    return dir_error(mysql_real_data_home);
+  const char *filename= NULL;
+  char path[FN_REFLEN * 2 + 2];
+  struct Aria_backup *const ab= sink->ha_data;
+  int left= 0;
+  MY_DIR *dir= ab->dir;
+  pthread_mutex_lock(&ab->mutex);
+  assert(dir);
+  assert(ab->dir_consumed <= dir->number_of_files);
+  if (ab->status != BACKUP_OK)
+  {
+    assert(ab->status == BACKUP_FAIL);
+  err_exit:
+    left= -1;
+    ab->status= BACKUP_FAIL;
+  }
+  else if (!ab->subdir)
+  {
+    assert(!ab->subdir_consumed);
+    while (ab->dir_consumed < dir->number_of_files)
+    {
+      struct fileinfo *fi= &dir->dir_entry[ab->dir_consumed++];
+      if ((fi->mystat->st_mode & S_IFMT) != S_IFDIR)
+        continue;
+      else if (aria_backup_mkdir(target, fi->name));
+      else if ((ab->subdir= my_dir(fi->name, MYF(MY_WANT_STAT))))
+        goto consume_subdir;
+      else
+        dir_error(fi->name);
+      goto err_exit;
+    }
+  }
   else
   {
-    const struct fileinfo *fi= dir->dir_entry;
-    const struct fileinfo *const end= fi + dir->number_of_files;
-    for (; fi < end; fi++)
+  consume_subdir:
+    assert(ab->dir_consumed > 0);
+    assert(ab->dir_consumed <= ab->dir->number_of_files);
+    dir= ab->subdir;
+    while (ab->subdir_consumed < dir->number_of_files)
     {
-      if ((fi->mystat->st_mode & S_IFMT) == S_IFDIR)
-        if ((fail= aria_backup_dir(target, sink, include_name,
-                                   fi->name, prefix)) != 0)
-          break;
+      size_t len;
+      struct fileinfo *fi= &dir->dir_entry[ab->subdir_consumed++];
+      if ((fi->mystat->st_mode & S_IFMT) != S_IFREG ||
+          (len= strlen(fi->name)) < 4 ||
+          /*
+            As noted in MDEV-25854, file names that start with #sql
+            must be excluded from the backup. For example, a call to
+            MDL_context::upgrade_shared_lock() in
+            mysql_inplace_alter_table() could time out, resulting in
+            cleanup_table_after_inplace_alter() deleting a
+            #sql-alter*.frm file before we get a chance to copy it.
+          */
+          !memcmp(fi->name, tmp_file_prefix, tmp_file_prefix_length) ||
+          !(*include_p)(fi->name, len))
+        continue;
+
+      /* Consume a file name */
+      if ((int) sizeof path <=
+          snprintf(path, sizeof path, "%s/%s",
+                   ab->dir->dir_entry[ab->dir_consumed - 1].name, fi->name))
+      {
+        path[(sizeof path) - 1]= '\0';
+        my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+        goto err_exit;
+      }
+
+      filename= path;
+      break;
     }
-    my_dirend(dir);
+
+    assert(dir == ab->subdir);
+    assert(ab->dir_consumed <= ab->dir->number_of_files);
+    assert(ab->subdir_consumed <= ab->subdir->number_of_files);
+    left= dir->number_of_files - ab->subdir_consumed;
+    if (!left)
+    {
+      left= ab->dir->number_of_files - ab->dir_consumed;
+      my_dirend(ab->subdir);
+      ab->subdir= NULL;
+      ab->subdir_consumed= 0;
+    }
   }
-  return fail;
+
+  pthread_mutex_unlock(&ab->mutex);
+  if (filename && aria_backup_file(target, sink, filename, 0))
+    return -1;
+  return left;
 }
 
-static int aria_backup_logs(const struct backup_target *target,
-                            const struct backup_sink *sink)
+/**
+   Back up an ENGINE=Aria log file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @return number directories or files left; negative on error
+   @retval 0 on successful completion
+*/
+static int aria_backup_log(const struct backup_target *target,
+                           const struct backup_sink *sink)
 {
-  size_t prefix= strlen(maria_data_root) + 1;
-  int fail= aria_backup_file(target, sink, maria_data_root, "aria_log_control",
-                             prefix, 1);
-  if (!fail)
+  struct Aria_backup *const ab= sink->ha_data;
+  int left;
+  const char *filename= NULL;
+  char path[FN_REFLEN * 2 + 2];
+  MY_DIR *dir= ab->dir;
+  pthread_mutex_lock(&ab->mutex);
+  assert(dir);
+  assert(!ab->subdir);
+  assert(!ab->subdir_consumed);
+
+  if (ab->status != TRANSLOG_PURGE_DISABLED)
   {
-    MY_DIR *dir;
-    translog_flush(translog_get_horizon());
-    dir= my_dir(maria_data_root, MYF(MY_WANT_STAT));
-    if (dir)
-    {
-      const struct fileinfo *fi= dir->dir_entry;
-      const struct fileinfo *const end= fi + dir->number_of_files;
-      for (; fi < end; fi++)
-        if ((fail=
-             !strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
-             aria_backup_file(target, sink, maria_data_root, fi->name,
-                              prefix, 0)) != 0)
-          break;
-      my_dirend(dir);
-    }
+    assert(ab->status == BACKUP_FAIL);
+  err_exit:
+    left= -1;
+    ab->status= BACKUP_FAIL;
   }
-  return fail;
+  else
+  {
+    while (ab->dir_consumed < dir->number_of_files)
+    {
+      struct fileinfo *fi= &dir->dir_entry[ab->dir_consumed++];
+      if ((fi->mystat->st_mode & S_IFMT) != S_IFREG ||
+          (strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
+           strcmp(fi->name, "aria_log_control")))
+        continue;
+      else if ((int) sizeof path <=
+               snprintf(path, sizeof path, "%s/%s", maria_data_root, fi->name))
+      {
+        path[(sizeof path) - 1]= '\0';
+        my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+        goto err_exit;
+      }
+      filename= path;
+      break;
+    }
+    left= ab->dir->number_of_files - ab->dir_consumed;
+  }
+
+  pthread_mutex_unlock(&ab->mutex);
+  if (filename && aria_backup_file(target, sink, filename,
+                                   strlen(maria_data_root) + 1))
+    return -1;
+  return left;
 }
 
+/**
+   Start of a BACKUP SERVER phase,
+   when no aria_backup_step() or aria_backup_end() is pending.
+   @param thd     current session
+   @param target  backup target
+   @param phase   BACKUP_PHASE_START, ... (not BACKUP_PHASE_ABORT)
+   @param sink    worker context
+   @return backup context object to be attached to backup_target
+   @retval NULL   if no context needs to be created
+   @retval -1     on failure
+*/
 void *aria_backup_start(THD *thd, const struct backup_target *target,
                         enum backup_phase phase,
                         const struct backup_sink *sink)
 {
-  DBUG_ASSERT((phase == BACKUP_PHASE_PREPARE_START) ? !sink : !sink->ha_data);
   switch (phase) {
-    int ret;
-  case BACKUP_PHASE_NO_DDL:
-    if (aria_backup_data(target, sink, is_db_file))
-      return (void*) -1;
+    struct Aria_backup* ab;
+  case BACKUP_PHASE_PREPARE_START:
+    assert(!sink);
+    return NULL;
+  case BACKUP_PHASE_START:
+  case BACKUP_PHASE_NO_BEGIN_NON_TRANS:
+  case BACKUP_PHASE_NO_DML_NON_TRANS:
+    assert(!sink->ha_data);
     break;
-  case BACKUP_PHASE_NO_COMMIT:
-    translog_disable_purge();
-    ret= aria_backup_data(target, sink, is_ma_file) ||
-      aria_backup_logs(target, sink);
-    translog_enable_purge();
-    if (ret)
+  case BACKUP_PHASE_NO_DDL:
+    assert(!sink->ha_data);
+    if (!(ab= calloc(1, sizeof *ab)))
       return (void*) -1;
-  default:
+    pthread_mutex_init(&ab->mutex, NULL);
+  opendir:
+    assert(!ab->dir);
+    assert(!ab->dir_consumed);
+    assert(!ab->subdir);
+    assert(!ab->subdir_consumed);
+    ab->dir= my_dir(".", MYF(MY_WANT_STAT));
+    if (ab->dir)
+      return ab;
+    dir_error(".");
+    pthread_mutex_destroy(&ab->mutex);
+    free(ab);
+    return (void*) -1;
+  case BACKUP_PHASE_NO_COMMIT:
+    translog_flush(translog_get_horizon());
+    ab= sink->ha_data;
+    goto opendir;
+  case BACKUP_PHASE_FINISH:
+    if (!sink || !sink->ha_data)
+      break;
+    ab= sink->ha_data;
+    assert(!ab->dir);
+    assert(!ab->dir_consumed);
+    assert(!ab->subdir);
+    assert(!ab->subdir_consumed);
+    if (ab->status != BACKUP_OK)
+      assert(ab->status == BACKUP_FAIL);
+    else if (!(ab->dir= my_dir(maria_data_root, MYF(MY_WANT_STAT))))
+    {
+      ab->status= BACKUP_FAIL;
+      return (void*) -1;
+    }
+    else
+    {
+      ab->status= TRANSLOG_PURGE_DISABLED;
+      translog_disable_purge();
+    }
+    break;
+  case BACKUP_PHASE_ABORT:
     break;
   }
-  return NULL;
+  return sink->ha_data;
+}
+
+/**
+   Process a file that was collected in aria_backup_start().
+   @param thd   current session
+   @param target  backup target
+   @param phase   last phase on which backup_start() was successfully invoked
+   @param sink    worker context
+   @return number directories or files left; negative on error
+   @retval 0 on completion
+*/
+int aria_backup_step(THD *thd, const struct backup_target *target,
+                     enum backup_phase phase, const struct backup_sink *sink)
+{
+  switch (phase) {
+  case BACKUP_PHASE_PREPARE_START:
+    assert(!sink);
+    break;
+  case BACKUP_PHASE_START:
+  case BACKUP_PHASE_NO_BEGIN_NON_TRANS:
+  case BACKUP_PHASE_NO_DML_NON_TRANS:
+    assert(!sink->ha_data);
+    break;
+  case BACKUP_PHASE_NO_DDL:
+    return aria_backup_data(target, sink, is_db_file);
+  case BACKUP_PHASE_NO_COMMIT:
+    return aria_backup_data(target, sink, is_ma_file);
+  case BACKUP_PHASE_FINISH:
+    return aria_backup_log(target, sink);
+  case BACKUP_PHASE_ABORT:
+    break;
+  }
+  return 0;
+}
+
+/**
+   Finish a phase, once all calls for the current phase are completed.
+   @param thd   current session
+   @param target  backup target
+   @param phase   last phase on which backup_start() was successfully invoked,
+   or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+   @param sink    worker context
+   @return error code
+   @retval 0 on success
+*/
+int aria_backup_end(THD *thd, const struct backup_target *target,
+                    enum backup_phase phase, const struct backup_sink *sink)
+{
+  switch (phase) {
+    struct Aria_backup* ab;
+  case BACKUP_PHASE_PREPARE_START:
+    assert(!sink);
+    break;
+  case BACKUP_PHASE_START:
+  case BACKUP_PHASE_NO_BEGIN_NON_TRANS:
+  case BACKUP_PHASE_NO_DML_NON_TRANS:
+    assert(!sink->ha_data);
+    break;
+  case BACKUP_PHASE_NO_DDL:
+  case BACKUP_PHASE_NO_COMMIT:
+    ab= sink->ha_data;
+    if (ab)
+    {
+      assert(!ab->subdir);
+      my_dirend(ab->dir);
+      ab->dir= NULL;
+      ab->dir_consumed= 0;
+    }
+    break;
+  case BACKUP_PHASE_ABORT:
+    break;
+  case BACKUP_PHASE_FINISH:
+    ab= sink->ha_data;
+    if (!ab)
+      break;
+    if (ab->status == TRANSLOG_PURGE_DISABLED)
+      translog_enable_purge();
+    my_dirend(ab->dir);
+    my_dirend(ab->subdir);
+    pthread_mutex_destroy(&ab->mutex);
+    free(ab);
+  }
+
+  return 0;
 }

@@ -27,9 +27,41 @@ extern "C"
    @param target  backup target
    @param phase   BACKUP_PHASE_START, ... (not BACKUP_PHASE_ABORT)
    @param sink    worker context
-   @return backup context object to be attached to backup_target, or nullptr
+   @return backup context object to be attached to backup_target
+   @retval NULL   if no context needs to be created
    @retval -1     on failure
 */
 void *aria_backup_start(THD *thd, const struct backup_target *target,
                         enum backup_phase phase,
                         const struct backup_sink *sink);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+/**
+   Process a file that was collected in aria_backup_start().
+   @param thd   current session
+   @param target  backup target
+   @param phase   last phase on which backup_start() was successfully invoked
+   @param sink    worker context
+   @return number directories or files left; negative on error
+   @retval 0 on successful completion
+*/
+int aria_backup_step(THD *thd, const struct backup_target *target,
+                     enum backup_phase phase, const struct backup_sink *sink);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+/**
+   Finish a phase, once all calls for the current phase are completed.
+   @param thd   current session
+   @param target  backup target
+   @param phase   last phase on which backup_start() was successfully invoked,
+   or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+   @param sink    worker context
+   @return error code
+   @retval 0 on success
+*/
+int aria_backup_end(THD *thd, const struct backup_target *target,
+                    enum backup_phase phase, const struct backup_sink *sink);
