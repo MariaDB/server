@@ -5552,7 +5552,7 @@ SET @obj1= '[1, 2, 3, 3, 3.0, "abc", true, true, {"key1":"val1" ]';
 SET @obj2= '[3.0, 3, 5, "abc", "abc", true, {"key2":"val2"}, {"key1":"val1"}, {"key1":"val2"}]';
 select json_array_intersect(@obj1, @obj2);
 json_array_intersect(@obj1, @obj2)
-[3.0, 3, "abc", true]
+NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 53
 # Checking incorrect type for input
@@ -5564,6 +5564,8 @@ SET @bool1= 'true';
 select json_array_intersect(@obj1, @arr1);
 json_array_intersect(@obj1, @arr1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 1
 select json_array_intersect(@arr1, @obj1);
 json_array_intersect(@arr1, @obj1)
 NULL
@@ -5577,6 +5579,8 @@ Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array_int
 select json_array_intersect(@num1, @bool1);
 json_array_intersect(@num1, @bool1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 1
 # JSON_OBJECT_FILTER_KEYS()
 SET @obj1= '{ "a": 1, "b": 2, "c": 3}';
 SET @obj2= '{"b" : 10, "c": 20, "d": 30}';
@@ -5602,14 +5606,20 @@ NULL
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @obj1);
 JSON_OBJECT_FILTER_KEYS(@obj1, @obj1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object_filter_keys' at position 1
 SELECT JSON_OBJECT_FILTER_KEYS(@arr1, @arr1);
 JSON_OBJECT_FILTER_KEYS(@arr1, @arr1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_object_filter_keys' at position 1
 SET @obj1= '{ "a": 1, "b": {"key1": {"key2":"val2"}}, "c": [1, 2, 3] }';
 SET @scalar1='2';
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @scalar1);
 JSON_OBJECT_FILTER_KEYS(@obj1, @scalar1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object_filter_keys' at position 1
 # Checking syntax error
 SET @obj1= '{ "a": 1, "b": 2, "c": 3}';
 SET @obj2= '{"b" : 10, "c": 20, "d"  30}';
@@ -5770,4 +5780,88 @@ SET @value= '
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 JSON_SCHEMA_VALID(@schema, @value)
 1
+#
+# MDEV-39931 JSON_OBJECT_FILTER_KEYS only handle constant
+#
+create table t(c1 JSON, c2 JSON);
+insert into t values ('{"a":1,"b":2}', '["a", "c"]'),
+(NULL, '["a", "b"]'),
+('{"b": 3, "c": [1, 2, 3]}', '["a", "d"]'),
+('{"r": 1}', NULL),
+('{"a": 3, "d": [1, 2, 3]}', '["a", "d"]');
+SELECT c1, JSON_OBJECT_FILTER_KEYS(c1, '["a"]') AS a_s FROM t;
+c1	a_s
+{"a":1,"b":2}	{"a": 1}
+NULL	NULL
+{"b": 3, "c": [1, 2, 3]}	NULL
+{"r": 1}	NULL
+{"a": 3, "d": [1, 2, 3]}	{"a": 3}
+SELECT c2, JSON_OBJECT_FILTER_KEYS('{"a": 13, "d": [1,2,3]}', c2) AS c2_s FROM t;
+c2	c2_s
+["a", "c"]	{"a": 13}
+["a", "b"]	{"a": 13}
+["a", "d"]	{"a": 13, "d": [1, 2, 3]}
+NULL	NULL
+["a", "d"]	{"a": 13, "d": [1, 2, 3]}
+SELECT c1,c2, JSON_OBJECT_FILTER_KEYS(c1, c2) AS c2_s FROM t;
+c1	c2	c2_s
+{"a":1,"b":2}	["a", "c"]	{"a": 1}
+NULL	["a", "b"]	NULL
+{"b": 3, "c": [1, 2, 3]}	["a", "d"]	NULL
+{"r": 1}	NULL	NULL
+{"a": 3, "d": [1, 2, 3]}	["a", "d"]	{"a": 3, "d": [1, 2, 3]}
+DROP TABLE t;
+#
+# MDEV-40185 JSON_ARRAY_INTERSECT error handing incorrect
+#
+create table t (j text);
+insert into t values ('[1, 2, 3]'), ('[3, invalid]');
+select json_array_intersect(j, '[3, 4]') as arg1_invalid from t;
+arg1_invalid
+[3]
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 5
+select json_array_intersect('[3, 4]', j) as arg2_invalid from t;
+arg2_invalid
+[3]
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array_intersect' at position 5
+drop table t;
+create table t (a1 json, a2 json);
+insert into t values ('[1, 2, 3]', '[4, 5, 6]'),
+('[2, 3, 4.0]', '[4.0000, 5, 7]'),
+( NULL, NULL),
+('[1, 2, 3]', '[{"dog": 3, "cat": 4, "fish": 5}]'),
+('[1E0, 2E1, 3E2]', '[1.0, 20.0, 300.0]');
+select a1, a2, json_array_intersect(a1, a2) as jai from t;
+a1	a2	jai
+[1, 2, 3]	[4, 5, 6]	NULL
+[2, 3, 4.0]	[4.0000, 5, 7]	[4.0000]
+NULL	NULL	NULL
+[1, 2, 3]	[{"dog": 3, "cat": 4, "fish": 5}]	NULL
+[1E0, 2E1, 3E2]	[1.0, 20.0, 300.0]	[1.0, 20.0, 300.0]
+select a2, json_array_intersect('[5.0]', a2) as jai from t;
+a2	jai
+[4, 5, 6]	[5]
+[4.0000, 5, 7]	[5]
+NULL	NULL
+[{"dog": 3, "cat": 4, "fish": 5}]	NULL
+[1.0, 20.0, 300.0]	NULL
+select a1, json_array_intersect(a1, '[ 1E0 ]') as jai from t;
+a1	jai
+[1, 2, 3]	[1]
+[2, 3, 4.0]	NULL
+NULL	NULL
+[1, 2, 3]	[1]
+[1E0, 2E1, 3E2]	[1E0]
+select a2, json_array_intersect('[{"dog":  3}', a2) as jai from t;
+a2	jai
+[4, 5, 6]	NULL
+[4.0000, 5, 7]	NULL
+NULL	NULL
+[{"dog": 3, "cat": 4, "fish": 5}]	NULL
+[1.0, 20.0, 300.0]	NULL
+drop table t;
 # End of 11.4 tests

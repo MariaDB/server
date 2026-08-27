@@ -325,7 +325,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   if (nice_js->alloc(je->s.str_end - je->s.c_str + 32))
     goto error;
-  
+
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
@@ -5406,15 +5406,21 @@ bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
 }
 
 
-static bool create_hash(json_engine_t *value, HASH *items, bool &item_hash_inited,
-                        MEM_ROOT *hash_root)
+static bool create_or_reset_hash(json_engine_t *value, HASH *items,
+                                 bool &item_hash_inited,
+                                 MEM_ROOT *hash_root)
 {
   int level= value->stack_p;
   json_engine_t je;
-  if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
-                   get_key_name, NULL, 0))
-    return true;
-  item_hash_inited= true;
+  if (item_hash_inited)
+    my_hash_reset(items);
+  else
+  {
+    if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
+                        get_key_name, NULL, 0))
+      return true;
+    item_hash_inited= true;
+  }
 
   while (json_scan_next(value) == 0 && value->stack_p >= level)
   {
@@ -5512,6 +5518,7 @@ bool Item_func_json_array_intersect::
   int level= value->stack_p;
   json_engine_t je;
 
+  String temp_str;
   temp_str.length(0);
   temp_str.append('[');
 
@@ -5537,17 +5544,6 @@ bool Item_func_json_array_intersect::
       goto error;
     }
 
-    char *new_entry= (char*)malloc(norm_val.length+1);
-    if (!new_entry)
-    {
-      dynstr_free(&norm_val);
-      goto error;
-    }
-    strncpy(new_entry, norm_val.str, norm_val.length);
-    new_entry[norm_val.length]='\0';
-
-    dynstr_free(&norm_val);
-
     /*
       If the same value is found in the hash table, add
       that value to str. At the same time, update the number
@@ -5555,19 +5551,20 @@ bool Item_func_json_array_intersect::
     */
     uchar * found= NULL;
     if ((found= my_hash_search(items,
-                                (const uchar *) new_entry,
-                                strlen(new_entry))))
+                                (const uchar *) norm_val.str,
+                                norm_val.length)))
     {
+      dynstr_free(&norm_val);
       has_value= true;
       temp_str.append( (const char*) value_start, value_len);
       temp_str.append(',');
       if (my_hash_delete(items, found) || my_hash_insert(seen, (const uchar *)found))
       {
-        free(new_entry);
         goto error;
       }
     }
-    free(new_entry);
+    else
+      dynstr_free(&norm_val);
   }
 
   res= value->s.error != 0;
@@ -5591,134 +5588,123 @@ String* Item_func_json_array_intersect::val_str(String *str)
   THD *thd;
   DBUG_ASSERT(fixed());
 
-  json_engine_t je2, res_je, je1;
-  String *js2= args[1]->val_json(&tmp_js2), *js1= args[0]->val_json(&tmp_js1);
-
-  if (!js1 || !js2)
-    goto null_return;
-
-  if (parse_for_each_row)
-  {
-    if (args[0]->null_value)
-      goto null_return;
-    if (item_hash_inited)
-      my_hash_free(&items);
-    if (seen_hash_inited)
-      my_hash_free(&seen);
-    if (root_inited)
-      free_root(&hash_root, MYF(0));
-    root_inited= false;
-    item_hash_inited= false;
-    prepare_json_and_create_hash(&je1, js1);
-  }
-
-  if (!is_array || args[1]->null_value)
-    goto null_return;
-
-  str->set_charset(js2->charset());
-  str->length(0);
-
   thd= current_thd;
-  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
-  json_scan_start(&je2, js2->charset(), (const uchar *) js2->ptr(),
-                  (const uchar *) js2->ptr() + js2->length());
-  je2.killed_ptr= (uint32_t *) &thd->killed;
-
-
-  if (json_read_value(&je2))
-    goto je2_error_return;
-
-  if (je2.value_type != JSON_VALUE_ARRAY)
+  /*
+    Scan value uses the hash table to get the intersection of two arrays.
+  */
+  if (!seen_hash_inited)
   {
-    je2.s.error= JE_SYN;
-    goto je2_error_return;
+    if (my_hash_init(PSI_INSTRUMENT_ME, &seen, nullptr, 0, 0, 0,
+                     get_key_name, NULL, 0))
+    {
+err_oom:
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        goto null_return;
+    }
+    seen_hash_inited= true;
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+    root_inited= true;
+new_arg1:
+    String *js1= args[0]->val_json(&arg1_val);
+    json_engine_t je1;
+    if (!js1 || args[0]->null_value)
+      goto null_return;
+    json_scan_start(&je1, js1->charset(), (const uchar *) js1->ptr(),
+                    (const uchar *) js1->ptr() + js1->length());
+    je1.killed_ptr= (uint32_t *) &thd->killed;
+
+    if (json_read_value(&je1))
+      goto je1_error_return;
+    if (je1.value_type != JSON_VALUE_ARRAY)
+    {
+      je1.s.error= JE_SYN;
+je1_error_return:
+      report_json_error(js1, &je1, swapped ? 1 : 0);
+      goto null_return;
+    }
+    if (create_or_reset_hash(&je1, &items, item_hash_inited, &hash_root))
+    {
+      if (je1.s.error)
+        goto je1_error_return;
+      else
+        goto err_oom;
+    }
+    seen.charset= je1.s.cs;
   }
+  else if (!args[0]->const_item())
+    goto new_arg1;
 
-  if (get_intersect_between_arrays(str, &je2, &items, &seen))
-    goto error_return;
-
-  if (str->length())
   {
-    json_scan_start(&res_je, str->charset(), (const uchar *) str->ptr(),
-                  (const uchar *) str->ptr() + str->length());
-    res_je.killed_ptr= (uint32_t *) &thd->killed;
-    str= &tmp_js1;
-    if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
-      goto error_return;
+    /* arg2 */
+    String tmp_js2;
+    String *js2= args[1]->val_json(&tmp_js2);
+    if (!js2 || args[1]->null_value)
+      goto null_return;
+    json_engine_t je2;
 
-    null_value= 0;
-    return str;
-  }
-  else
-  {
-    goto null_return;
-  }
+    JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+    json_scan_start(&je2, js2->charset(), (const uchar *) js2->ptr(),
+                    (const uchar *) js2->ptr() + js2->length());
+    je2.killed_ptr= (uint32_t *) &thd->killed;
 
-error_return:
-  if (je2.s.error)
+    if (json_read_value(&je2))
+      goto je2_error_return;
+
+    if (je2.value_type != JSON_VALUE_ARRAY)
+    {
+      je2.s.error= JE_SYN;
 je2_error_return:
-    report_json_error(js2, &je2, 1);
+      report_json_error(js2, &je2, swapped ? 0 : 1);
+      goto null_return;
+    }
+
+    {
+      /* result */
+      String res;
+      res.set_charset(js2->charset());
+      if (get_intersect_between_arrays(&res, &je2, &items, &seen))
+      {
+        if (je2.s.error)
+          goto je2_error_return;
+        goto err_oom;
+      }
+
+      json_engine_t res_je;
+      /* and make output nice */
+      if (res.length())
+      {
+        json_scan_start(&res_je, res.charset(), (const uchar *) res.ptr(),
+                        (const uchar *) res.ptr() + res.length());
+        res_je.killed_ptr= (uint32_t *) &thd->killed;
+
+        str->set_charset(js2->charset());
+        str->length(0);
+        if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
+        {
+          report_json_error(str, &res_je, 0);
+          goto null_return;
+        }
+        null_value= 0;
+        return str;
+      }
+    }
+  }
+
 null_return:
   null_value= 1;
   return NULL;
 }
 
-bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
-{
-  THD *thd= current_thd;
-  json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
-                  (const uchar *) js->ptr() + js->length());
-  je1->killed_ptr= (uint32_t *) &thd->killed;
-  /*
-    Scan value uses the hash table to get the intersection of two arrays.
-  */
-
-  if (my_hash_init(PSI_INSTRUMENT_ME, &seen, je1->s.cs, 0, 0, 0,
-                   get_key_name, NULL, 0))
-    return true;
-  seen_hash_inited= true;
-
-  if (!root_inited)
-    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
-  root_inited= true;
-
-  if (json_read_value(je1)
-     || !(is_array= (je1->value_type == JSON_VALUE_ARRAY)) ||
-      create_hash(je1, &items, item_hash_inited, &hash_root))
-    {
-      if (je1->s.error)
-        report_json_error(js, je1, 0);
-    }
-
-  return false;
-}
 
 bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
 {
-  json_engine_t je1;
-  String *js1;
-
-  if (!args[0]->const_item())
+  if (!args[0]->const_item()
+      && args[1]->const_item())
   {
-    if (args[1]->const_item())
-    {
-      std::swap(args[0], args[1]);
-    }
-    else
-    {
-      parse_for_each_row= true;
-      goto end;
-    }
+    swapped= true;
+    std::swap(args[0], args[1]);
   }
 
-  js1= args[0]->val_json(&tmp_js1);
-
-  if (js1 && prepare_json_and_create_hash(&je1, js1))
-  {
-    return TRUE;
-  }
-
-end:
   collation.set(args[0]->collation);
   fix_char_length_ulonglong((ulonglong)
                             2* MY_MIN(args[0]->max_char_length(),
@@ -5728,13 +5714,12 @@ end:
 }
 
 
-static bool filter_keys(json_engine_t *je1, String *str, HASH items)
+static bool filter_keys(json_engine_t *je1, String *res_str, HASH items)
 {
   int level= je1->stack_p;
-  String temp_str(0);
   bool res= true, has_value= false;
 
-  temp_str.append('{');
+  res_str->append('{');
   while (json_scan_next(je1)==0 && level <= je1->stack_p)
   {
     switch(je1->state)
@@ -5763,38 +5748,29 @@ static bool filter_keys(json_engine_t *je1, String *str, HASH items)
 
         str.append((const char*)key_start, (size_t)(key_end-key_start));
         str.append('"');
-        str.append('\0');
 
-        char *curr_key= (char*)malloc((size_t)(str.length()+3));
-        strncpy(curr_key, str.ptr(), str.length());
-
-        if (my_hash_search(&items, (const uchar*)curr_key, strlen(curr_key)))
+        if (my_hash_search(&items, (const uchar*) str.ptr(), str.length()))
         {
           has_value= true;
 
-          temp_str.append('"');
-          temp_str.append((const char*)key_start, (size_t)(key_end-key_start));
-          temp_str.append('"');
-
-          temp_str.append(':');
-
-          temp_str.append((const char*)value_start, value_len);
-
-          temp_str.append(',');
+          res_str->append(str);
+          res_str->append(':');
+          res_str->append((const char*)value_start, value_len);
+          res_str->append(',');
         }
-        free(curr_key);
       }
     }
   }
 
-  res= false;
+  res= je1->s.error != 0;
 
-  if (has_value)
+  if (has_value && !res)
   {
-    temp_str.chop();
-    temp_str.append('}');
-    str->append(temp_str.ptr(), temp_str.length());
+    res_str->chop();
+    res_str->append('}');
   }
+  else
+    res_str->length(0);
 
 error:
   return res;
@@ -5804,44 +5780,96 @@ String* Item_func_json_object_filter_keys::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
 
-  json_engine_t je1, res_je;
-  String *js1= args[0]->val_json(&tmp_js1);
+  THD *thd;
 
-  if (null_value || args[0]->null_value)
-    goto null_return;
+  thd= current_thd;
+  if (!root_inited)
+  {
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+    root_inited= true;
 
-  str->set_charset(js1->charset());
-  str->length(0);
+new_arg2:
+    String *js2= args[1]->val_json(&arg2_val);
+    if (!js2 || args[1]->null_value)
+      goto null_return;
+    json_engine_t je2;
+    json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
+                    (const uchar *) js2->ptr() + js2->length());
+    je2.killed_ptr= (uint32_t *) &thd->killed;
+    if (json_read_value(&je2))
+      goto je2_error_return;
 
-  json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
-                  (const uchar *) js1->ptr() + js1->length());
+    if (je2.value_type != JSON_VALUE_ARRAY)
+    {
+      je2.s.error= JE_SYN;
+je2_error_return:
+      report_json_error(js2, &je2, 1);
+      goto null_return;
+    }
+    if (create_or_reset_hash(&je2, &items, hash_inited, &hash_root))
+    {
+      if (je2.s.error)
+        goto je2_error_return;
+      my_error(ER_OUTOFMEMORY, MYF(0), 64);
+    }
+  }
+  else if (!args[1]->const_item())
+    goto new_arg2;
 
-  if (json_read_value(&je1) || je1.value_type != JSON_VALUE_OBJECT)
-    goto error_return;
+  {
+    json_engine_t je1;
+    String tmp_js1;
+    String *js1= args[0]->val_json(&tmp_js1);
 
-  if(filter_keys(&je1, str, items))
-    goto null_return;
+    if (!js1 || args[0]->null_value)
+      goto null_return;
 
-   if (str->length())
-   {
-    json_scan_start(&res_je, str->charset(), (const uchar *) str->ptr(),
-                  (const uchar *) str->ptr() + str->length());
-    str= &tmp_js1;
-    if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
+    JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+    json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                    (const uchar *) js1->ptr() + js1->length());
+    je1.killed_ptr= (uint32_t *) &thd->killed;
+
+    if (json_read_value(&je1))
       goto error_return;
 
-    null_value= 0;
-    return str;
-  }
-  else
-  {
-    goto null_return;
-  }
-
-
+    if (je1.value_type != JSON_VALUE_OBJECT)
+    {
+      je1.s.error= JE_SYN;
 error_return:
-  if (je1.s.error)
-    report_json_error(js1, &je1, 0);
+      report_json_error(js1, &je1, 0);
+      goto null_return;
+    }
+
+    {
+      String fil_res;
+      fil_res.set_charset(js1->charset());
+      if (filter_keys(&je1, &fil_res, items))
+        goto error_return;
+
+      if (fil_res.length())
+      {
+        json_engine_t res_je;
+        json_scan_start(&res_je, fil_res.charset(), (const uchar *) fil_res.ptr(),
+                      (const uchar *) fil_res.ptr() + fil_res.length());
+        res_je.killed_ptr= (uint32_t *) &thd->killed;
+
+        str->set_charset(js1->charset());
+        str->length(0);
+
+        if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
+        {
+          report_json_error(str, &res_je, 0);
+          goto null_return;
+        }
+
+        null_value= 0;
+        return str;
+      }
+      else
+        goto null_return;
+    }
+  }
+
 null_return:
   null_value= 1;
   return NULL;
@@ -5850,33 +5878,8 @@ null_return:
 
 bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
 {
-  String *js2= args[1]->val_json(&tmp_js2);
-  json_engine_t je2;
-
-  if (args[1]->null_value)
-  {
-    null_value= 1;
-    return FALSE;
-  }
-
-  json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
-                  (const uchar *) js2->ptr() + js2->length());
-  if (!root_inited)
-    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
-  root_inited= true;
-
-  if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY ||
-      create_hash(&je2, &items, hash_inited, &hash_root))
-  {
-    if (je2.s.error)
-      report_json_error(js2, &je2, 0);
-    null_value= 1;
-    return FALSE;
-  }
-
-  max_length= args[0]->max_length;
   set_maybe_null();
-
+  max_length= args[0]->max_length;
   return FALSE;
 }
 
