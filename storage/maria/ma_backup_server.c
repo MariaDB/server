@@ -281,7 +281,7 @@ static int aria_backup_data(const struct backup_target *target,
   const char *filename= NULL;
   char path[FN_REFLEN * 2 + 2];
   struct Aria_backup *const ab= sink->ha_data;
-  int left= 0;
+  size_t left= 0;
   MY_DIR *dir= ab->dir;
   pthread_mutex_lock(&ab->mutex);
   assert(dir);
@@ -290,7 +290,7 @@ static int aria_backup_data(const struct backup_target *target,
   {
     assert(ab->status == BACKUP_FAIL);
   err_exit:
-    left= -1;
+    left= (size_t) -1;
     ab->status= BACKUP_FAIL;
   }
   else if (!ab->subdir)
@@ -363,7 +363,7 @@ static int aria_backup_data(const struct backup_target *target,
   pthread_mutex_unlock(&ab->mutex);
   if (filename && aria_backup_file(target, sink, filename, 0))
     return -1;
-  return left;
+  return (int) left;
 }
 
 /**
@@ -377,7 +377,7 @@ static int aria_backup_log(const struct backup_target *target,
                            const struct backup_sink *sink)
 {
   struct Aria_backup *const ab= sink->ha_data;
-  int left;
+  size_t left;
   const char *filename= NULL;
   char path[FN_REFLEN * 2 + 2];
   MY_DIR *dir= ab->dir;
@@ -390,7 +390,7 @@ static int aria_backup_log(const struct backup_target *target,
   {
     assert(ab->status == BACKUP_FAIL);
   err_exit:
-    left= -1;
+    left= (size_t) -1;
     ab->status= BACKUP_FAIL;
   }
   else
@@ -419,7 +419,7 @@ static int aria_backup_log(const struct backup_target *target,
   if (filename && aria_backup_file(target, sink, filename,
                                    strlen(maria_data_root) + 1))
     return -1;
-  return left;
+  return (int) left;
 }
 
 /**
