@@ -44,12 +44,7 @@
                      delivers -- the manager does not choose it and must not
                      depend on it.
 
-  Both ends are abstract because the transport is changing. Today a row travels
-  as a record image through a per-worker buffer the worker blocks on
-  (pwt_batch_sink / pwt_batch_source below). The intended replacement has each
-  worker materialise its result set into a temporary table that the manager
-  then reads. Everything that differs between those two is behind these three
-  classes; see "The temporary-table transport" at the foot of this file.
+  Both ends are abstract.
 
   What is deliberately NOT here: the state of the worker team as a whole --
   which workers are still running, whether one failed or was killed, whether
@@ -72,12 +67,13 @@ class pwt_worker;
 
 /*
   Number of rows a worker packs into its batch buffer before handing it to the
-  manager, so the channel mutex is touched once per PWT_CHUNK_ROWS rows instead
-  of once per row. Batch transport only: it is the size of the hand-off unit,
-  and the temporary-table transport's hand-off unit is a whole result set.
+  manager, so the channel mutex is touched once per PWT_ROW_GANULARITY rows
+  instead of once per row.
+  For batch transport it is the size of the hand-off unit.
+  For temporary table transport, it is the interval that the worker uses to
+  check the stop signal from the manager.
 */
-//#define PWT_CHUNK_ROWS 2048
-#define PWT_CHUNK_ROWS 128
+#define PWT_ROW_GANULARITY 128
 
 
 /*
@@ -93,7 +89,33 @@ enum pwt_emit_result
 };
 
 
-/*
+/**
+  @brief
+    One container of the layout: the record buffer a row is copied through, and
+    the column descriptions it was built from.
+
+  @description
+    The two are one thing because they cannot be used apart. A heap container
+    that fills has to be rebuilt on disk, and the rebuild is driven from
+    param->start_recinfo/recinfo -- which create_tmp_table() allocates out of
+    the table's own mem_root, so they describe that one table and are freed
+    with it. A TMP_TABLE_PARAM shared between containers would describe only
+    the last one built, point into a mem_root that may already be gone, and be
+    written through by whichever thread rebuilt first. Pairing them is what
+    makes that unrepresentable rather than merely avoided.
+*/
+
+struct pwt_row_container
+{
+  TABLE            *table;
+  TMP_TABLE_PARAM  *param;
+
+  pwt_row_container(): table(nullptr), param(nullptr) {}
+  uchar *record() const { return table->record[0]; }
+};
+
+
+/**
   @brief
     The row shape the producing and consuming ends agree on.
 
@@ -119,32 +141,6 @@ enum pwt_emit_result
     the same order and copies them back the same way. Only reclength's role
     narrows -- see the note at the foot of the file.
 */
-
-/*
-  @brief
-    One container of the layout: the record buffer a row is copied through, and
-    the column descriptions it was built from.
-
-  @description
-    The two are one thing because they cannot be used apart. A heap container
-    that fills has to be rebuilt on disk, and the rebuild is driven from
-    param->start_recinfo/recinfo -- which create_tmp_table() allocates out of
-    the table's own mem_root, so they describe that one table and are freed
-    with it. A TMP_TABLE_PARAM shared between containers would describe only
-    the last one built, point into a mem_root that may already be gone, and be
-    written through by whichever thread rebuilt first. Pairing them is what
-    makes that unrepresentable rather than merely avoided.
-*/
-
-struct pwt_row_container
-{
-  TABLE            *table;
-  TMP_TABLE_PARAM  *param;
-
-  pwt_row_container(): table(nullptr), param(nullptr) {}
-  uchar *record() const { return table->record[0]; }
-};
-
 
 class pwt_row_layout
 {
@@ -317,17 +313,17 @@ public:
 
 
 /*
-  ---------------------------------------------------------------------------
-  The batch transport: rows travel as record images through a per-worker
-  buffer, and a worker blocks until the manager has drained it.
-  ---------------------------------------------------------------------------
+    The batch transport: streaming channel from the worker to the manager
 */
+class pwt_batch_source;
+
 
 /*
   @brief  Producing end of the batch transport.
 
   @description
-    One reused buffer of PWT_CHUNK_ROWS record images. The worker fills it,
+
+    One reused buffer of PWT_ROW_GANULARITY record images. The worker fills it,
     hands it to the manager by setting 'full', and blocks until the manager
     clears the flag; then it refills from the top. Because each worker owns one
     buffer and blocks until it is drained, at most one batch per worker is ever
@@ -337,8 +333,6 @@ public:
     touch it at the same time, which is what 'full' arranges. 'full' itself is
     guarded by the manager's LOCK_data.
 */
-
-class pwt_batch_source;
 
 class pwt_batch_sink : public pwt_row_sink
 {
@@ -415,10 +409,8 @@ public:
 
 
 /*
-  ---------------------------------------------------------------------------
   The temporary-table transport: a worker materialises its whole result set
   into its own container and the manager reads those containers back.
-  ---------------------------------------------------------------------------
 
   The container is the one the worker already projects into, so projecting a
   row and storing it are the same write: save_in_field() fills record[0] and
@@ -445,6 +437,7 @@ public:
 */
 
 class pwt_tmp_table_source;
+
 
 /*
   @brief  Producing end of the temporary-table transport.
