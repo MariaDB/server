@@ -1189,7 +1189,7 @@ static purge_table trx_purge_table_open(table_id_t table_id,
   for (;;)
   {
     dict_sys.freeze(SRW_LOCK_CALL);
-    result.table= dict_sys.find_table(table_id);
+    result.table= dict_sys.find_table(table_id, false);
     if (result.table)
       break;
     dict_sys.unfreeze();
