@@ -105,7 +105,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
 endif()
 
 IF(MSVC)
-  add_definitions(/wd4244)
+  add_definitions(/wd4244 /wd4723)
 ENDIF()
 if(NOT WIN32)
   add_definitions(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX)
