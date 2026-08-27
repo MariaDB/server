@@ -185,8 +185,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     return err;
   }
   
-  workers= new pwt_worker[n]; // TODO: does this occur on mem_root this way?
-                              // No, this is a normal un-instrumented heap allocation
+  workers= new pwt_worker[n];
   if (!workers)
   {
     file->parallel_end_coordinator();
@@ -246,8 +245,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
 
     workers[i].exec.handler_ctx= file->parallel_get_worker_context(i);
     DBUG_ASSERT(workers[i].exec.handler_ctx);
-
-    workers[i].thd->userstat_running= thd->userstat_running;
 
     /*
       Give this worker its own copy of every non-const join table, opened from
