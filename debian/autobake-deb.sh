@@ -142,7 +142,7 @@ in
   "noble"|"oracular"|"plucky")
     remove_columnstore_boost_deps
     ;&
-  "questing"|"resolute")
+  "questing"|"resolute"|"stonking")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.
