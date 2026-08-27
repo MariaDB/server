@@ -390,6 +390,8 @@ bool pwt_worker_base::init_worker_thd(pwt_manager_base *manager_arg, THD *parent
                                  strlen(info.process_list),
                                  thd->query_charset());
 
+  thd->userstat_running= parent_thd->userstat_running;
+
   // TODO: it is OK that we insert before starting the OS thread, right?
   /*
     Visible in the processlist before its thread exists, and so killable before
