@@ -1440,7 +1440,7 @@ The following specify which files/extra groups are read (specified before remain
  Maximum number of table cache instances
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. One of: OFF,
- COMMIT, ROLLBACK
+ COMMIT, ROLLBACK, ROLLBACK_PROCEED
  --tcp-keepalive-interval=# 
  The interval, in seconds, between when successive
  keep-alive packets are sent if no acknowledgement is
