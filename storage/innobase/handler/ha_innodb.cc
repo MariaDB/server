@@ -545,6 +545,7 @@ static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 # ifdef UNIV_PFS_MUTEX
 mysql_pfs_key_t	buf_pool_mutex_key;
 mysql_pfs_key_t	dict_foreign_err_mutex_key;
+mysql_pfs_key_t	dict_load_mutex_key;
 mysql_pfs_key_t	fil_system_mutex_key;
 mysql_pfs_key_t	flush_list_mutex_key;
 mysql_pfs_key_t	fts_cache_mutex_key;
@@ -579,6 +580,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(pending_checkpoint_mutex),
 	PSI_KEY(buf_pool_mutex),
 	PSI_KEY(dict_foreign_err_mutex),
+	PSI_KEY(dict_load_mutex),
 	PSI_KEY(recalc_pool_mutex),
 	PSI_KEY(fil_system_mutex),
 	PSI_KEY(flush_list_mutex),
@@ -12540,6 +12542,19 @@ create_table_info_t::create_foreign_keys()
 		foreign->referenced_table_name = dict_table_lookup(
 			d, t, &foreign->referenced_table, foreign->heap);
 
+		if (foreign->referenced_table) {
+			/* Prevent the eviction of the referenced table:
+			dict_sys.load_table() for a later constraint in
+			this loop may temporarily release the exclusive
+			dict_sys.latch, and dict_sys_t::remove() would not
+			clear the pointer that was stored above, because
+			`foreign` has not yet been added to any
+			referenced_set. The table would become
+			non-evictable anyway when the constraint is added
+			to the dictionary cache. */
+			dict_sys.prevent_eviction(foreign->referenced_table);
+		}
+
 		if (!foreign->referenced_table && m_trx->check_foreigns) {
 			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
 			char* bufend;
@@ -12870,6 +12885,12 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_get_all_fts_indexes(m_table, fts->indexes);
 	}
 
+	/* Pin the newly created table: dict_sys.load_table() inside
+	create_foreign_keys() and in the loop below may temporarily
+	release the exclusive dict_sys.latch, during which
+	dict_sys.evict_table_LRU() could evict an unreferenced table. */
+	m_table->acquire();
+
 	dberr_t err = create_fk ? create_foreign_keys() : DB_SUCCESS;
 
 	if (err == DB_SUCCESS) {
@@ -12878,16 +12899,23 @@ int create_table_info_t::create_table(bool create_fk)
 
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
+		/* The names in fk_tables must survive the temporary
+		release of the exclusive dict_sys.latch inside
+		dict_sys.load_table() in the loop below. */
+		mem_heap_t*	fk_heap = mem_heap_create(1000);
 		err = dict_load_foreigns(m_table_name, nullptr,
 					 m_trx->id, true,
-					 ignore_err, fk_tables);
+					 ignore_err, fk_heap, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
 			dict_sys.load_table(
 				{fk_tables.front(), strlen(fk_tables.front())},
 				ignore_err);
 			fk_tables.pop_front();
 		}
+		mem_heap_free(fk_heap);
 	}
+
+	m_table->release();
 
 	switch (err) {
 	case DB_PARENT_NO_INDEX:
@@ -14044,10 +14072,14 @@ int ha_innobase::truncate()
       m_prebuilt->table->def_trx_id= def_trx_id;
     }
     dict_names_t fk_tables;
+    /* The names in fk_tables must survive the temporary release of the
+    exclusive dict_sys.latch inside dict_sys.load_table() below. */
+    mem_heap_t *fk_heap= mem_heap_create(1000);
     dict_load_foreigns(m_prebuilt->table->name.m_name, nullptr, 1, true,
-                       DICT_ERR_IGNORE_FK_NOKEY, fk_tables);
+                       DICT_ERR_IGNORE_FK_NOKEY, fk_heap, fk_tables);
     for (const char *f : fk_tables)
       dict_sys.load_table({f, strlen(f)});
+    mem_heap_free(fk_heap);
   }
 
   if (fts)

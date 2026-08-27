@@ -2552,6 +2552,7 @@ row_rename_table_for_mysql(
 	dict_table_t*	table			= NULL;
 	dberr_t		err			= DB_ERROR;
 	mem_heap_t*	heap			= NULL;
+	mem_heap_t*	fk_heap			= NULL;
 	const char**	constraints_to_drop	= NULL;
 	ulint		n_constraints_to_drop	= 0;
 	ibool		old_is_tmp, new_is_tmp;
@@ -2848,6 +2849,10 @@ row_rename_table_for_mysql(
 		/* We only want to switch off some of the type checking in
 		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
+		/* The names in fk_tables must survive the temporary
+		release of the exclusive dict_sys.latch inside
+		dict_sys.load_table() in the drain loop below. */
+		fk_heap = mem_heap_create(1000);
 
 		err = dict_load_foreigns(
 			new_name, nullptr, trx->id,
@@ -2855,7 +2860,7 @@ row_rename_table_for_mysql(
 			fk == RENAME_ALTER_COPY
 			? DICT_ERR_IGNORE_NONE
 			: DICT_ERR_IGNORE_FK_NOKEY,
-			fk_tables);
+			fk_heap, fk_tables);
 
 		if (err != DB_SUCCESS) {
 			if (old_is_tmp) {
@@ -2908,6 +2913,10 @@ row_rename_table_for_mysql(
 funct_exit:
 	if (table) {
 		table->release();
+	}
+
+	if (UNIV_LIKELY_NULL(fk_heap)) {
+		mem_heap_free(fk_heap);
 	}
 
 	if (UNIV_LIKELY_NULL(heap)) {
