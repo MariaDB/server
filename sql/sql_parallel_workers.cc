@@ -199,8 +199,12 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     return err;
   }
   
-  workers= new pwt_worker[n];
-  if (!workers)
+  /*
+    Room for the whole team's pointers up front, so that appending the workers
+    below does not grow the array a piece at a time. Failing here is a plain
+    out-of-memory before anything has been set up: fall back to a serial scan.
+  */
+  if (workers.reserve(n))
   {
     file->parallel_end_coordinator();
     return HA_ERR_UNSUPPORTED;
@@ -214,7 +218,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   */
   mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
-  active_workers= nworkers= n;
+  active_workers= n;
 
   /*
     The non-const join tables in join order (exec.jointabs[0] == scan_tab). These
@@ -252,20 +256,37 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
 
   for (i= 0; i < n; i++)
   {
-    if (workers[i].init_worker_thd(this, thd, /*worker_nr=*/i+1))
+    /*
+      One worker object at a time, its pointer appended to the team as soon as
+      it exists: from here on the teardown below finds exactly the workers that
+      were allocated, and each of those says for itself how far it got.
+    */
+    pwt_worker *worker= new pwt_worker;
+    if (!worker || workers.append(worker))
+    {
+      /*
+        Nothing has been done to this worker yet, and it never made it into
+        the team, so it is ours to delete; the teardown below will not see it.
+      */
+      delete worker;
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_worker));
+      goto cleanup_workers;
+    }
+
+    if (worker->init_worker_thd(this, thd, /*worker_nr=*/i+1))
       goto cleanup_workers;
 
-    workers[i].manager= this;
+    worker->manager= this;
 
-    workers[i].exec.handler_ctx= file->parallel_get_worker_context(i);
-    DBUG_ASSERT(workers[i].exec.handler_ctx);
+    worker->exec.handler_ctx= file->parallel_get_worker_context(i);
+    DBUG_ASSERT(worker->exec.handler_ctx);
 
     /*
       Give this worker its own copy of every non-const join table, opened from
       the shared TABLE_SHARE (open_worker_tables); the driving table is
       exec.tables[0] / exec.scan_table.
     */
-    if (open_worker_tables(thd, workers + i))
+    if (open_worker_tables(thd, worker))
       goto cleanup_workers;
 
     /*
@@ -276,12 +297,11 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       chunk, joins the inner tables, projects exec.proj into
       its result container and ships that record image.
     */
-    if (setup_worker_join(thd, workers + i) ||
-        setup_worker_jointabs(thd, workers + i) ||
-        layout.make_container(thd, &workers[i].exec.result) ||
-        !(workers[i].sink= source->make_sink(thd, i,
-                                             &workers[i].exec.result)) ||
-        clone_worker_exprs(thd, workers + i))
+    if (setup_worker_join(thd, worker) ||
+        setup_worker_jointabs(thd, worker) ||
+        layout.make_container(thd, &worker->exec.result) ||
+        !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
+        clone_worker_exprs(thd, worker))
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to set up worker execution");
@@ -298,8 +318,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
 
       Which worker decides which parts of the teardown run. Failing the last
       leaves every earlier worker running, so they are aborted and joined;
-      failing the first leaves every later one untouched, so the teardown walks
-      workers that were never initialised and has to leave them alone.
+      failing the first means the later ones were never allocated, so the
+      teardown walks a team of one.
     */
     bool inject_create_failure= false;
     DBUG_EXECUTE_IF("pwt_init_fail_last_worker",
@@ -307,7 +327,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     DBUG_EXECUTE_IF("pwt_init_fail_first_worker",
                     inject_create_failure= (i == 0););
 
-    if (inject_create_failure || workers[i].create_thread())
+    if (inject_create_failure || worker->create_thread())
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to create worker thread");
@@ -326,28 +346,26 @@ cleanup_workers:
   request_stop();
   mysql_mutex_unlock(&LOCK_data);
   /*
-    Every worker, not just the ones we know we started: each one knows what its
-    own startup reached, so the ones with a thread are aborted and joined, the
-    one that failed part-way gives back only what it did take, and the ones
-    after it are left alone. That is what makes this one label instead of one
-    per stage of the build.
+    Every worker in the team, not just the ones we know we started: each one
+    knows what its own startup reached, so the ones with a thread are aborted
+    and joined and the one that failed part-way gives back only what it did
+    take. That is what makes this one label instead of one per stage of the
+    build.
   */
-  for (uint j= 0; j < n; j++)
-    workers[j].abort_worker();
+  for (uint j= 0; j < nworkers(); j++)
+    workers[j]->abort_worker();
   /*
     Release the transport's hold on the containers before freeing them: a sink
     may still be naming a worker THD that is now gone. Null for a worker whose
     setup never got that far.
   */
-  for (uint j= 0; j < n; j++)
-    if (workers[j].sink)
-      workers[j].sink->cleanup();
+  for (uint j= 0; j < nworkers(); j++)
+    if (workers[j]->sink)
+      workers[j]->sink->cleanup();
   if (source)
     source->cleanup();
   free_containers(thd);            // workers reaped; containers now idle
-  delete[] workers;
-  workers= nullptr;
-  nworkers= 0;
+  destroy_workers();
   process_pending_warnings(true);
   mysql_cond_destroy(&COND_data_avail);
   mysql_mutex_destroy(&LOCK_data);
@@ -391,7 +409,7 @@ void pwt_init_psi_keys(void)
 void pwt_manager::quiesce_workers()
 {
   DBUG_ENTER("pwt_manager::quiesce_workers");
-  if (!workers || reaped)
+  if (!nworkers() || reaped)
     DBUG_VOID_RETURN;
 
   /*
@@ -406,16 +424,16 @@ void pwt_manager::quiesce_workers()
   request_stop();
   mysql_mutex_unlock(&LOCK_data);
 
-  for (uint i= 0; i < nworkers; i++)
-    workers[i].reap_worker();
+  for (uint i= 0; i < nworkers(); i++)
+    workers[i]->reap_worker();
   /*
     The work the workers did was this session's work, so its statistics are the
     session's too. Each worker left them in its pwt_worker before its THD was
     destroyed, and every worker has now been joined, so this thread is the only
     one touching either side and no locking is needed.
   */
-  for (uint i= 0; i < nworkers; i++)
-    add_to_status(&thd->status_var, &workers[i].exec.stats);
+  for (uint i= 0; i < nworkers(); i++)
+    add_to_status(&thd->status_var, &workers[i]->exec.stats);
 
   /*
     Give ANALYZE what the workers did. The manager never runs the driving table's
@@ -435,11 +453,11 @@ void pwt_manager::quiesce_workers()
     Table_access_tracker *tr= exec.jointabs[t]->tracker;
     if (!tr)
       continue;
-    if ((tr->r_rows_per_worker= thd->calloc<ha_rows>(nworkers)))
-      tr->n_workers= nworkers;
+    if ((tr->r_rows_per_worker= thd->calloc<ha_rows>(nworkers())))
+      tr->n_workers= nworkers();
   }
 
-  for (uint i= 0; i < nworkers; i++)
+  for (uint i= 0; i < nworkers(); i++)
     for (uint t= 0; t < exec.n_tables; t++)
     {
       if (Table_access_tracker *tr= exec.jointabs[t]->tracker)
@@ -449,15 +467,15 @@ void pwt_manager::quiesce_workers()
           and the report wants one between them, added below.
         */
         if (t)
-          tr->r_scans+=           workers[i].exec.tab_stats[t].r_scans;
-        tr->r_rows+=              workers[i].exec.tab_stats[t].r_rows;
+          tr->r_scans+=           workers[i]->exec.tab_stats[t].r_scans;
+        tr->r_rows+=              workers[i]->exec.tab_stats[t].r_rows;
         tr->r_rows_after_where+=
-          workers[i].exec.tab_stats[t].r_rows_after_where;
+          workers[i]->exec.tab_stats[t].r_rows_after_where;
         if (tr->r_rows_per_worker)
-          tr->r_rows_per_worker[i]= workers[i].exec.tab_stats[t].r_rows;
+          tr->r_rows_per_worker[i]= workers[i]->exec.tab_stats[t].r_rows;
       }
       if (ha_handler_stats *hs= exec.tables[t]->file->handler_stats)
-        hs->add(&workers[i].exec.tab_hstats[t]);
+        hs->add(&workers[i]->exec.tab_hstats[t]);
     }
   /*
     The chunks are one scan of the driving table between them, so report one,
@@ -482,24 +500,41 @@ void pwt_manager::quiesce_workers()
 void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
 {
   DBUG_ENTER("pwt_manager::finalize_parallel_workers");
-  if (!workers)
+  if (!nworkers())
     DBUG_VOID_RETURN;
 
   quiesce_workers();                  // stop + join (no-op if already reaped)
   exec.scan_tab->table->file->parallel_end_coordinator();
   process_pending_warnings(false);
-  for (uint i= 0; i < nworkers; i++)    // workers are joined; both ends idle
-    if (workers[i].sink)
-      workers[i].sink->cleanup();
+  for (uint i= 0; i < nworkers(); i++)  // workers are joined; both ends idle
+    if (workers[i]->sink)
+      workers[i]->sink->cleanup();
   if (source)
     source->cleanup();
   free_containers(thd);              // the transport has let go of them
   mysql_cond_destroy(&COND_data_avail);
   mysql_mutex_destroy(&LOCK_data);
-  delete [] workers;
-  workers= nullptr;
-  nworkers= 0;
+  destroy_workers();
   DBUG_VOID_RETURN;
+}
+
+
+/*
+  @brief
+    Delete the team's pwt_worker objects and empty workers[], so that the
+    manager reads as having no team again.
+
+  @note
+    Only the objects go: the array itself keeps its buffer until the manager
+    is destroyed. Every caller has already reaped the workers, so nothing is
+    still holding a pointer to one.
+*/
+
+void pwt_manager::destroy_workers()
+{
+  for (uint i= 0; i < nworkers(); i++)
+    delete workers[i];
+  workers.clear();
 }
 
 

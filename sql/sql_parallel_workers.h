@@ -186,8 +186,17 @@ struct pwt_manager_execution
 */
 class pwt_manager : public pwt_manager_base
 {
-  pwt_worker               *workers;
-  uint                     nworkers;
+  /*
+    The worker team, one entry per worker, held by pointer rather than by
+    value: a worker's thread, the sinks the transport made for it and the
+    JOIN_TABs it runs all keep pointers into its pwt_worker, so the object
+    must not move once the team is built -- which an array of objects cannot
+    promise, as growing it relocates every element. Filled one worker at a
+    time by init_parallel_workers and emptied by destroy_workers(); an empty
+    array means "no team", which is what the teardown paths test for.
+  */
+  Dynamic_array<pwt_worker*> workers;
+  uint nworkers() const { return (uint) workers.elements(); }
 
   pwt_manager_execution    exec;
 
@@ -235,7 +244,7 @@ public:
   killed_state killed_by_worker() const { return kill_signal; }
 
   pwt_manager():
-    workers(nullptr), nworkers(0),
+    workers(PSI_INSTRUMENT_MEM, 0, 8),
     source(nullptr), kill_signal(NOT_KILLED), reaped(false), active_workers(0),
     stop(false), fatal_error(false)
     {}
@@ -256,6 +265,8 @@ public:
 
 private:
 
+  /* Delete the team's pwt_worker objects and empty workers[]. */
+  void destroy_workers();
   /* Deep-clone this query's conditions + shipped column list for 'worker',
      rebinding the Item_field leaves to the worker's table copies. Returns
      true on error. */
