@@ -363,10 +363,9 @@ static int aria_backup_data(const struct backup_target *target,
   else
   {
   consume_subdir:
-    DIR *const dir= ab->subdir;
     assert(ab->d);
     assert(ab->d->d_type == DT_DIR || ab->d->d_type == DT_UNKNOWN);
-    while ((d= readdir(dir)) != NULL)
+    while ((d= readdir(ab->subdir)) != NULL)
     {
       const char *const name= d->d_name;
       size_t len;
@@ -377,7 +376,7 @@ static int aria_backup_data(const struct backup_target *target,
       case DT_LNK:
         break;
       case DT_UNKNOWN:
-        if (fstatat(dirfd(dir), name, &sb, 0) ||
+        if (fstatat(dirfd(ab->subdir), name, &sb, 0) ||
             (sb.st_mode & S_IFMT) != S_IFREG)
           continue;
       }
@@ -406,13 +405,12 @@ static int aria_backup_data(const struct backup_target *target,
       break;
     }
 
-    assert(dir == ab->subdir);
     left= 1;
     if (!d)
     {
+      closedir(ab->subdir);
       ab->d= NULL;
       ab->subdir= NULL;
-      closedir(dir);
     }
   }
 #else
@@ -445,10 +443,11 @@ static int aria_backup_data(const struct backup_target *target,
   consume_subdir:
     do
     {
+      const char *const name= ab->sd.cFileName;
       size_t len;
-      struct fileinfo *fi= &dir->dir_entry[ab->subdir_consumed++];
-      if ((fi->mystat->st_mode & S_IFMT) != S_IFREG ||
-          (len= strlen(fi->name)) < 4 ||
+      if (ab->sd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        continue;
+      if ((len= strlen(name)) < 4 ||
           /*
             As noted in MDEV-25854, file names that start with #sql
             must be excluded from the backup. For example, a call to
@@ -457,14 +456,13 @@ static int aria_backup_data(const struct backup_target *target,
             cleanup_table_after_inplace_alter() deleting a
             #sql-alter*.frm file before we get a chance to copy it.
           */
-          !memcmp(fi->name, tmp_file_prefix, tmp_file_prefix_length) ||
-          !(*include_p)(fi->name, len))
+          !memcmp(name, tmp_file_prefix, tmp_file_prefix_length) ||
+          !(*include_p)(name, len))
         continue;
 
       /* Consume a file name */
       if ((int) sizeof path <=
-          snprintf(path, sizeof path, "%s/%s",
-                   ab->d.cFileName, ab->sd.cFileName));
+          snprintf(path, sizeof path, "%s/%s", ab->d.cFileName, name));
         goto name_too_long;
 
       filename= path;
@@ -553,24 +551,24 @@ static int aria_backup_log(const struct backup_target *target,
     }
     left= d != NULL;
 #else
-    while (ab->dir_consumed < dir->number_of_files)
+    do
     {
-      struct fileinfo *fi= &dir->dir_entry[ab->dir_consumed++];
-      if ((fi->mystat->st_mode & S_IFMT) != S_IFREG ||
-          (strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
-           strcmp(fi->name, "aria_log_control")))
+      const char *const name= ab->d.cFileName;
+      if (ab->d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        continue;
+      if (strncmp(name, C_STRING_WITH_LEN("aria_log.")) &&
+          strcmp(name, "aria_log_control"))
         continue;
       else if ((int) sizeof path <=
-               snprintf(path, sizeof path, "%s/%s", maria_data_root, fi->name))
+               snprintf(path, sizeof path, "%s/%s", maria_data_root, name))
       {
         path[(sizeof path) - 1]= '\0';
         my_error(ER_TOO_LONG_IDENT, MYF(0), path);
         goto err_exit;
       }
       filename= path;
-      break;
     }
-    left= ab->dir->number_of_files > ab->dir_consumed;
+    while ((left= FindNextFile(ab->dir, &ab->d)) && !filename);
 #endif
   }
 
