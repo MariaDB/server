@@ -102,8 +102,6 @@ struct pwt_worker_info
 };
 
 
-class pwt_manager;
-
 /*
   Inherit from this your worker threads.
 */
@@ -115,14 +113,14 @@ public:
     build reached, so a worker has to be able to say what it holds before
     anything has been done to it.
   */
-  pwt_worker_base():
-    thd(nullptr), manager_base(nullptr), inited(false), thread_started(false)
+  pwt_worker_base(pwt_manager_base *manager_arg):
+    thd(nullptr), manager_base(manager_arg), inited(false),
+    thread_started(false)
   {}
   virtual ~pwt_worker_base() {}
 
   /* Intialize the worker and create its THD (call from master thread) */
-  bool init_worker_thd(pwt_manager_base *manager_arg, THD *parent_thd,
-                       int worker_nr);
+  bool init_worker_thd(THD *parent_thd, int worker_nr);
 
   /* Create and run the thread */
   bool create_thread();

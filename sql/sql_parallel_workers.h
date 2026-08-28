@@ -134,7 +134,7 @@ public:
   pwt_row_sink          *sink;
   pwt_worker_execution  exec;
 
-  pwt_worker(): manager(nullptr), sink(nullptr) {}
+  pwt_worker(pwt_manager *manager_arg);
 
   /* Run this worker's share of the query and stream the result rows out. */
   void execute_and_signal_manager();

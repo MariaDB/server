@@ -324,11 +324,8 @@ void pwt_manager_base::process_pending_warnings(bool skip_interrupted)
 }
 
 
-bool pwt_worker_base::init_worker_thd(pwt_manager_base *manager_arg, THD *parent_thd,
-                                      int worker_nr)
+bool pwt_worker_base::init_worker_thd(THD *parent_thd, int worker_nr)
 {
-  manager_base= manager_arg;
-
   /* First, do things that may fail early. */
   LEX_CSTRING new_db;
   if (parent_thd->db.str)
