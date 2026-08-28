@@ -75,7 +75,7 @@ void pwt_worker::on_fatal_error()
 }
 
 pwt_worker::pwt_worker(pwt_manager *manager_arg) :
-  pwt_worker_base(manager_arg), manager(manager_arg), sink(nullptr)
+  pwt_worker_base_with_stats(manager_arg), manager(manager_arg), sink(nullptr)
 {}
 
 /**
@@ -98,24 +98,7 @@ void pwt_worker::thread_func()
   snapshot_table_stats();          // while the tables are still open
   close_tables();
 
-  /*
-    Hand our status counters to the manager, which adds them to the session's
-    own once every worker has been joined. Everything we counted was done for
-    the user's statement, so it belongs in that session, and ~THD would
-    otherwise put it straight into the global counters and nowhere else, leaving
-    SHOW SESSION STATUS short by whatever the workers did. Clearing them here
-    stops ~THD adding the same numbers to the global counters a second time,
-    once the manager's session passes them on.
-
-    Only the counters move. Memory accounting stays with this THD, because more
-    of this THD's memory is freed after this point and ~THD has to reconcile the
-    whole of it with the global counters -- clear_for_flush_status is the offset
-    that leaves those fields alone, and the snapshot drops its copies of them.
-  */
-  exec.stats= thd->status_var;
-  exec.stats.global_memory_used= 0;
-  exec.stats.tmp_space_used= 0;
-  thd->set_status_var_init(clear_for_flush_status);
+  thread_func_end();
 }
 
 
@@ -425,7 +408,7 @@ void pwt_manager::quiesce_workers()
     one touching either side and no locking is needed.
   */
   for (uint i= 0; i < nworkers(); i++)
-    add_to_status(&thd->status_var, &workers[i]->exec.stats);
+    workers[i]->save_worker_stats(thd);
 
   /*
     Give ANALYZE what the workers did. The manager never runs the driving table's

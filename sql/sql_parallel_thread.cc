@@ -486,6 +486,28 @@ void pwt_worker_base::release_worker(bool abort)
   inited= false;
 }
 
+void pwt_worker_base_with_stats::thread_func_end()
+{
+  /*
+    Hand our status counters to the manager, which adds them to the session's
+    own once every worker has been joined. Everything we counted was done for
+    the user's statement, so it belongs in that session, and ~THD would
+    otherwise put it straight into the global counters and nowhere else, leaving
+    SHOW SESSION STATUS short by whatever the workers did. Clearing them here
+    stops ~THD adding the same numbers to the global counters a second time,
+    once the manager's session passes them on.
+
+    Only the counters move. Memory accounting stays with this THD, because more
+    of this THD's memory is freed after this point and ~THD has to reconcile the
+    whole of it with the global counters -- clear_for_flush_status is the offset
+    that leaves those fields alone, and the snapshot drops its copies of them.
+  */
+  stats= thd->status_var;
+  stats.global_memory_used= 0;
+  stats.tmp_space_used= 0;
+  thd->set_status_var_init(clear_for_flush_status);
+}
+
 pwt_manager_base::pwt_manager_base() : 
     messages_dropped(false)
 {

@@ -131,6 +131,9 @@ public:
   */
   virtual void thread_func()= 0;
 
+  // Every descendant must call at the end of thread_func():
+  void thread_func_end();
+
   /* This will be invoked when a fatal error occurs */
   virtual void on_fatal_error() = 0;
 
@@ -164,7 +167,6 @@ public:
   THD             *thd;
 private:
   pwt_manager_base     *manager_base;
-
   /*
     What this worker holds, and so what release_worker() has to give back.
     'inited' says init_worker_thd() ran to the end: there is a THD registered
@@ -189,7 +191,33 @@ private:
   void destroy_worker_thd();
   void init_and_run_thread_func();
   friend void *pwt_worker_base_thread_func(void *arg);
+  friend class pwt_worker_base_with_stats;
 };
 
 
+class pwt_worker_base_with_stats : public pwt_worker_base
+{
+public:
+  pwt_worker_base_with_stats(pwt_manager_base *arg) :
+    pwt_worker_base(arg)
+  {
+    bzero(&stats, sizeof(stats));  // TODO: is this really needed?
+  }
+
+  void thread_func_end();
+
+  // Call from the main thread after worker is done
+  void save_worker_stats(THD *parent_thd)
+  {
+    DBUG_ASSERT(!thread_started);
+    add_to_status(&parent_thd->status_var, &stats);
+  }
+private:
+  /*
+    This worker's status counters, copied out of its THD just before the THD is
+    destroyed, so the manager can add them to the session's own once the
+    workers have been joined. See quiesce_workers().
+  */
+  STATUS_VAR            stats;
+};
 #endif
