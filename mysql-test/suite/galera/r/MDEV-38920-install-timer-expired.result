@@ -1,0 +1,22 @@
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_4;
+SET SESSION wsrep_sync_wait = 0;
+connection node_3;
+SET SESSION wsrep_sync_wait = 0;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+include/assert_grep.inc [node_4 did not time out the EVS view-install protocol (no NON_PRIM on single-node failure)]
+include/assert_grep.inc [node_3 did not time out the EVS view-install protocol (no NON_PRIM on single-node failure)]
+include/assert_grep.inc [node_2 did not time out the EVS view-install protocol (no NON_PRIM on single-node failure)]
+include/assert_grep.inc [node_1 did not time out the EVS view-install protocol (no NON_PRIM on single-node failure)]
