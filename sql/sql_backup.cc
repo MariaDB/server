@@ -299,7 +299,7 @@ int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
   const int pipe_size{fcntl(stream, F_GETPIPE_SZ)};
 # elif defined __FreeBSD__ || defined __APPLE__
   // https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
-  constexpr int pipe_size{65535};
+  constexpr int pipe_size{65536};
 # else
   constexpr int pipe_size{0};
 # endif
