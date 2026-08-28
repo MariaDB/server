@@ -12,7 +12,12 @@
 # the very statements this test needs to run.  It is released at the
 # post-downgrade point and only made to wait once it is replaying.
 #
+# The embedded server never runs an ALTER online: the online alter log is
+# part of the replication code, which is not built there, so the source
+# lock is not downgraded and the sync points below are never reached.
+#
 --source include/have_debug_sync.inc
+--source include/not_embedded.inc
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB) ENGINE=MEMORY;
 INSERT INTO t1 VALUES (1, REPEAT('x', 300)), (2, REPEAT('y', 300)),
