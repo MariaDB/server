@@ -158,26 +158,35 @@ static int aria_backup_mkdir(const struct backup_target *target,
 #ifdef _WIN32
   if (!target->path)
     return 0;
-  char path[FN_REFLEN];
-  if ((int) sizeof path <=
-      snprintf(path, sizeof path, "%s/%s", target->path, name))
+  int ret= snprintf(NULL, 0, "%s/%s", target->path, name) + 1;
+  char *path= malloc(ret);
+  if (!path)
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), name);
-    return -1;
+    return 1;
   }
+  snprintf(path, ret, "%s/%s", target->path, name);
   if (CreateDirectory(path, NULL))
-    return 0;
-  DWORD err= GetLastError();
-  if (err == ERROR_ALREADY_EXISTS)
-    return 0;
-  my_osmaperr(err);
+    ret= 0;
+  else
+  {
+    DWORD err= GetLastError();
+    if (err != ERROR_ALREADY_EXISTS)
+    {
+      my_osmaperr(err);
+      my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
+      ret= 1;
+    }
+  }
+  free(path);
+  return ret;
 #else
   if (target->fd == -1 || likely(!mkdirat(target->fd, name, 0777)) ||
       errno == EEXIST)
     return 0;
-#endif
   my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
   return 1;
+#endif
 }
 
 #ifndef _WIN32
@@ -242,19 +251,23 @@ static int aria_backup_file(const struct backup_target *target,
   int ret= -1;
   if (sink->stream == INVALID_HANDLE_VALUE)
   {
-    char dstpath[FN_REFLEN * 3 / 2];
-    if ((int) sizeof dstpath <=
-        snprintf(dstpath, sizeof dstpath, "%s/%s",
-                 target->path, path + dir_prefix))
+    int len= snprintf(NULL, 0, "%s/%s", target->path, path + dir_prefix) + 1;
+    char *dstpath= malloc(len);
+    if (!dstpath)
       my_error(ER_TOO_LONG_IDENT, MYF(0), path + dir_prefix);
-    else if (!CopyFileEx(path, dstpath, NULL, NULL, NULL,
-                         COPY_FILE_NO_BUFFERING))
-    {
-      my_osmaperr(GetLastError());
-      my_error(ER_CANT_CREATE_FILE, MYF(0), dstpath, errno);
-    }
     else
-      return 0;
+    {
+      snprintf(dstpath, len, "%s/%s", target->path, path + dir_prefix);
+      if (CopyFileEx(path, dstpath, NULL, NULL, NULL,
+                     COPY_FILE_NO_BUFFERING))
+        ret= 0;
+      else
+      {
+        my_osmaperr(GetLastError());
+        my_error(ER_CANT_CREATE_FILE, MYF(0), dstpath, errno);
+      }
+      free(dstpath);
+    }
   }
   else
   {
