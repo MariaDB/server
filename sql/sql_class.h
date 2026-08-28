@@ -373,6 +373,227 @@ typedef struct st_copy_info {
 } COPY_INFO;
 
 
+namespace mbd
+{
+/* Convert STL exceptions to my_error() */
+template <class Base>
+class exception_wrapper : protected Base
+{
+public:
+  /*
+     Base is inherited protected on purpose: only the wrapped mutators below and
+     the non-throwing members re-exposed here are callable, so a throwing STL
+     method (operator[], at, resize, emplace_back, ...) cannot be used by
+     accident and escape the noexcept boundary. Container-specific lookups
+     (find, back, ...) are re-exposed in the derived adapters.
+
+     NB: any methods from different classes can be added here,
+     as templates are instantiated on demand.
+     Both lvalue and rvalue types are covered by perfect forwarding.
+  */
+  using Base::begin;
+  using Base::end;
+  using Base::size;
+  using Base::empty;
+  using Base::max_size;
+  using Base::erase;
+  using Base::clear;
+  using Base::swap;
+  using typename Base::iterator;
+  using typename Base::const_iterator;
+  using typename Base::value_type;
+  using typename Base::size_type;
+  template <class T>
+  typename Base::iterator insert(T&& value, bool &inserted) noexcept
+  {
+    try
+    {
+      auto ret= Base::insert(std::forward<T>(value));
+      inserted= ret.second;
+      return ret.first;
+    }
+    catch (const std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return Base::end();
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+      return Base::end();
+    }
+    return Base::end();
+  }
+  template <class T>
+  bool push_back(T&& value) noexcept
+  {
+    try
+    {
+      Base::push_back(std::forward<T>(value));
+    }
+    catch (const std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+      return true;
+    }
+    return false;
+  }
+  template <class... Args>
+  typename Base::iterator emplace(bool &inserted, Args&&... args) noexcept
+  {
+    try
+    {
+      auto ret= Base::emplace(std::forward<Args>(args)...);
+      inserted= ret.second;
+      return ret.first;
+    }
+    catch (const std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+    }
+    return Base::end();
+  }
+  bool reserve(typename Base::size_type n) noexcept
+  {
+    try
+    {
+      Base::reserve(n);
+      return false;
+    }
+    catch (const std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+    }
+    return true;
+  }
+};
+
+
+/* std::vector adapter for returning true instead of throwing exception */
+
+template <class T, class Allocator = std::allocator<T> >
+class vector :
+  public exception_wrapper<std::vector<T, Allocator> >
+{
+  typedef exception_wrapper<std::vector<T, Allocator> > wrapper_t;
+public:
+  using wrapper_t::back;
+  bool push_back(const T& value)
+  {
+    return exception_wrapper<std::vector<T, Allocator> >::
+      push_back(value);
+  }
+  bool push_back(T&& value)
+  {
+    return exception_wrapper<std::vector<T, Allocator> >::
+      push_back(std::forward<T>(value));
+  }
+};
+
+
+/* std::set adapter for returning NULL instead of throwing exception */
+
+template <class Key, class Compare = std::less<Key>,
+  class Allocator = std::allocator<Key> >
+class set :
+  public exception_wrapper<std::set<Key, Compare, Allocator> >
+{
+  typedef exception_wrapper<std::set<Key, Compare, Allocator> > wrapper_t;
+public:
+  using wrapper_t::find;
+  using wrapper_t::count;
+  using wrapper_t::lower_bound;
+  using wrapper_t::upper_bound;
+  using wrapper_t::equal_range;
+  const Key* insert(const Key& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      insert(value, ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+  const Key* insert(Key&& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      insert(std::forward<Key>(value), ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+  template <class... Args>
+  const Key* emplace(bool *inserted, Args&&... args)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      emplace(ins, std::forward<Args>(args)...);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+};
+
+
+/* std::map adapter for returning NULL instead of throwing exception */
+
+template<class Key, class T, class Compare = std::less<Key>,
+  class Allocator = std::allocator<std::pair<const Key, T> > >
+class map :
+  public exception_wrapper<std::map<Key, T, Compare, Allocator> >
+{
+  typedef exception_wrapper<std::map<Key, T, Compare, Allocator> > wrapper_t;
+public:
+  using wrapper_t::find;
+  using wrapper_t::count;
+  using wrapper_t::lower_bound;
+  using wrapper_t::upper_bound;
+  using wrapper_t::equal_range;
+  T* insert(const Key& key, const T& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
+      insert(std::make_pair(key, value), ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::map<Key, T, Compare, Allocator>::end())
+      return NULL;
+    return &ret->second;
+  }
+  T* insert(const Key& key, T&& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
+      insert(std::make_pair(key, std::forward<T>(value)), ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::map<Key, T, Compare, Allocator>::end())
+      return NULL;
+    return &ret->second;
+  }
+};
+} // namespace mbd
+
 class Key_part_spec :public Sql_alloc {
 public:
   Lex_ident_column field_name;
