@@ -893,8 +893,7 @@ bool Item_func_grouping::resolve_args(THD *thd, ORDER *group_list)
 
 longlong Item_func_grouping::val_int()
 {
-  if (!min_rollup_levels)
-    return 0;
+  DBUG_ASSERT(min_rollup_levels);
 
   longlong result= 0;
   for (uint i= 0; i < arg_count; i++)
