@@ -1,0 +1,43 @@
+#
+# MDEV-38920: the EVS layer must not silently accept a misconfigured set of
+# timeouts. Both nodes are started (see .cnf) with:
+#   evs.install_timeout       (PT5S) < evs.suspect_timeout   (PT16S)
+#   evs.inactive_check_period (PT5S) > evs.keepalive_period  (PT1S)
+#
+# A correct provider clamps each offending value and logs a warning, so the
+# cluster still comes up. This test FAILS if the cluster comes up with either
+# bad value silently accepted (i.e. with no warning) - which is what an
+# un-sanitized provider does.
+#
+--source include/have_innodb.inc
+--let $galera_cluster_size = 2
+--source include/galera_cluster.inc
+
+# Reaching this point means the cluster formed - galera_cluster.inc waits for
+# both nodes to be a Primary Component of size 2 - so "the cluster starts up"
+# holds. The two warnings below are expected; suppress them so that MTR itself
+# does not fail the test for finding warnings in the error log.
+--disable_query_log
+--connection node_1
+CALL mtr.add_suppression("WSREP: Ignoring configured evs.install_timeout");
+CALL mtr.add_suppression("WSREP: Ignoring configured evs.inactive_check_period");
+--connection node_2
+CALL mtr.add_suppression("WSREP: Ignoring configured evs.install_timeout");
+CALL mtr.add_suppression("WSREP: Ignoring configured evs.inactive_check_period");
+--enable_query_log
+
+# Verdict: the provider must have warned about each misconfiguration. If a
+# warning is absent, $assert_select selects no lines, the concatenated string is
+# empty and $assert_match cannot match, so assert_grep.inc fails the test - which
+# is exactly the "started up but accepted the bad value silently" case.
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--let $assert_text = provider must warn that evs.install_timeout is below evs.suspect_timeout
+--let $assert_select = Ignoring configured evs.install_timeout
+--let $assert_match = Ignoring configured evs.install_timeout=.*it must be between evs.suspect_timeout
+--source include/assert_grep.inc
+
+--let $assert_text = provider must warn that evs.inactive_check_period exceeds evs.keepalive_period
+--let $assert_select = Ignoring configured evs.inactive_check_period
+--let $assert_match = Ignoring configured evs.inactive_check_period=.*it must not exceed evs.keepalive_period
+--source include/assert_grep.inc
