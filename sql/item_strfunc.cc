@@ -5640,6 +5640,171 @@ null:
   return NULL;
 }
 
+/* TODO: this duplicates logic in Item_func_json_extract::val_int */
+static longlong json_value_to_longlong(enum json_value_types type,
+                                       CHARSET_INFO *cs,
+                                       char* value, int value_len)
+{
+  switch (type)
+  {
+    case JSON_VALUE_NUMBER:
+    case JSON_VALUE_STRING:
+    {
+      char *end;
+      int err;
+      return cs->strntoll(value, value_len, 10, &end, &err);
+    }
+    case JSON_VALUE_TRUE:
+      return 1;
+    default:
+      return 0;
+  };
+}
+
+/* Lifted from Type_handler method of the same name */
+static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
+                                    longlong value)
+{
+  to[7]= (uchar) value;
+  to[6]= (uchar) (value >> 8);
+  to[5]= (uchar) (value >> 16);
+  to[4]= (uchar) (value >> 24);
+  to[3]= (uchar) (value >> 32);
+  to[2]= (uchar) (value >> 40);
+  to[1]= (uchar) (value >> 48);
+  to[0]= (uchar) (value >> 56) ^ (unsigned_flag ? 0 : 128);
+}
+
+
+String *Item_func_mvi_encode::val_str_ascii(String *buf)
+{
+  String *value= args[0]->val_json(&tmp_js);
+  CHARSET_INFO *cs= value->charset();
+  const Type_handler *cast_th= m_cast_type.type_handler();
+  enum_field_types cast_ftype= cast_th->field_type();
+  bool is_unsigned= cast_th->is_unsigned();
+  bool end_ok= false;
+  StringBuffer<42> sorted;
+  const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
+  const uchar *end= start + value->length();
+  DBUG_ASSERT(fixed());
+  buf->length(0);
+  buf->set_charset(&my_charset_latin1_bin);
+
+  if (json_scan_start(&je, cs, start, end) ||
+      json_read_value(&je))
+    goto json_error;
+
+  if (je.value_type != JSON_VALUE_ARRAY)
+    goto error_format;
+
+  /* TODO: deduplicate, so that ["34567", 34567] yield only one token */
+  do {
+    switch (je.state)
+    {
+      case JST_ARRAY_START:
+        continue;
+      case JST_ARRAY_END:
+        buf->length(buf->length() - 1);
+        end_ok = true;
+        break;
+      case JST_VALUE:
+      {
+        if (json_read_value(&je))
+          goto json_error;
+
+        /* 1. sort_string */
+        sorted.length(0);
+        /* TODO: handle temporal types and decimal */
+        switch(cast_ftype)
+        {
+          case MYSQL_TYPE_TINY:
+          case MYSQL_TYPE_SHORT:
+          case MYSQL_TYPE_INT24:
+          case MYSQL_TYPE_LONG:
+          case MYSQL_TYPE_LONGLONG:
+            store_sort_key_longlong(
+              (uchar *) sorted.c_ptr(), is_unsigned,
+              json_value_to_longlong(je.value_type, cs,
+                                     (char *) je.value, je.value_len));
+            sorted.length(8);
+            break;
+          /* TODO: unquote? */
+          /* CHAR(n) => LONG BLOB */
+          case MYSQL_TYPE_LONG_BLOB:
+          {
+            /* Trim trailing whitespaces if possible */
+            if (!(cs->state & MY_CS_NOPAD))
+              je.value_len= (int) cs->lengthsp((const char *) je.value,
+                                               je.value_len);
+            if (my_binary_compare(cs))
+              sorted.set((char *) je.value, je.value_len,
+                         &my_charset_latin1_bin);
+            else
+            {
+              my_strnxfrm_ret_t rc= cs->strnxfrm(
+                (uchar *) sorted.c_ptr(), 42, 42, je.value, je.value_len, 0);
+              sorted.length(rc.m_result_length);
+            }
+            break;
+          }
+          default:
+            break;
+        }
+
+        /* 2. hex */
+        buf->append_hex(sorted.c_ptr(), sorted.length());
+
+        /* 3. pad */
+        if (sorted.length() == 0)
+          buf->append(STRING_WITH_LEN("xxxx"));
+        else if (sorted.length() == 1)
+          buf->append(STRING_WITH_LEN("xx"));
+
+        /* 4. space */
+        buf->append(STRING_WITH_LEN(" "));
+        break;
+      }
+      default:
+        goto error_format;
+    }
+  } while (json_scan_next(&je) == 0);
+
+  if (end_ok)
+    return buf;
+
+error_format:
+  {
+    int position= (int) ((const char *) je.s.c_str - value->ptr());
+    /* TODO: fix error */
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_VECTOR_FORMAT_INVALID, ER(ER_VECTOR_FORMAT_INVALID),
+                        position, value->c_ptr_safe());
+    null_value= true;
+    return nullptr;
+  }
+
+json_error:
+  report_json_error_ex(value->ptr(), &je, func_name(),
+                       0, Sql_condition::WARN_LEVEL_WARN);
+  null_value= true;
+  return nullptr;
+}
+
+bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
+{
+  /* TODO: validate args[0] is a json array */
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  decimals= 0;
+  fix_length_and_charset(args[0]->max_char_length() * 2,
+                         &my_charset_latin1_bin);
+  set_maybe_null();
+  return false;
+}
+
+
 Item_temptable_rowid::Item_temptable_rowid(TABLE *table_arg)
   : Item_str_func(table_arg->in_use), table(table_arg)
 {

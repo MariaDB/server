@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+
+--echo # basic test
+SET SESSION debug = '+d,test_invisible_index,test_completely_invisible';
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+SHOW CREATE TABLE t1;
+show index from t1;
+
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set global innodb_ft_aux_table='test/t1';
+
+insert into t1 values (1, '{"tags": [1, "abcde", "34567", "", 34567]}');
+
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+
+DROP TABLE t1;
+
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+
+--echo # direct call of mvi_encode
+select mvi_encode('[1, 42, "3"]', int);
+select mvi_encode('[1, 42, "3"]', unsigned);
+select mvi_encode('[1, 42, "3   "]', char(6));
+select mvi_encode('[1, 42, "   "]', char(6));
+select mvi_encode('[1, 42, "3   "]', binary(6));
