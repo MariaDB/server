@@ -357,19 +357,10 @@ cleanup_workers:
     workers[j]->abort_worker();
   /*
     Release the transport's hold on the containers before freeing them: a sink
-    may still be naming a worker THD that is now gone. Null for a worker whose
-    setup never got that far.
+    may still be naming a worker THD that is now gone.
   */
-  for (uint j= 0; j < nworkers(); j++)
-    if (workers[j]->sink)
-      workers[j]->sink->cleanup();
-  if (source)
-    source->cleanup();
-  free_containers(thd);            // workers reaped; containers now idle
-  destroy_workers();
+  destroy_transport();
   process_pending_warnings(true);
-  mysql_cond_destroy(&COND_data_avail);
-  mysql_mutex_destroy(&LOCK_data);
   file->parallel_end_coordinator();
   return 1;                           // reached only on failure
 }
@@ -489,6 +480,36 @@ void pwt_manager::quiesce_workers()
 }
 
 
+/*
+  @brief
+    Give back everything setup_transport() and the team's shared state took:
+    both ends of the transport, the row containers, LOCK_data/COND_data_avail
+    and the pwt_worker objects.
+
+  @description
+    The one teardown tail, reached both when the team failed to build and when
+    the query finished with it. Every worker has been joined by the time we get
+    here -- reaped on the finishing path, aborted on the failing one -- so both
+    ends of the transport are idle and nothing else can be waiting on the mutex
+    or the condition. A half-built worker may have no sink at all, which is why
+    each one is checked; free_containers() reads workers[], so it has to come
+    before the objects go.
+*/
+
+void pwt_manager::destroy_transport()
+{
+  for (uint i= 0; i < nworkers(); i++)
+    if (workers[i]->sink)
+      workers[i]->sink->cleanup();
+  if (source)
+    source->cleanup();
+  free_containers(thd);              // the transport has let go of them
+  mysql_cond_destroy(&COND_data_avail);
+  mysql_mutex_destroy(&LOCK_data);
+  destroy_workers();
+}
+
+
 /**
   @brief
     Reap the workers (if not already) and tear the channel down.
@@ -507,15 +528,7 @@ void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
   quiesce_workers();                  // stop + join (no-op if already reaped)
   exec.scan_tab->table->file->parallel_end_coordinator();
   process_pending_warnings(false);
-  for (uint i= 0; i < nworkers(); i++)  // workers are joined; both ends idle
-    if (workers[i]->sink)
-      workers[i]->sink->cleanup();
-  if (source)
-    source->cleanup();
-  free_containers(thd);              // the transport has let go of them
-  mysql_cond_destroy(&COND_data_avail);
-  mysql_mutex_destroy(&LOCK_data);
-  destroy_workers();
+  destroy_transport();
   DBUG_VOID_RETURN;
 }
 
