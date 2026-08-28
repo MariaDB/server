@@ -33,7 +33,10 @@
 */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static void dir_error(const char *name)
 {
-  my_error(ER_CANT_READ_DIR, MYF(0), name, my_errno);
+#ifdef _WIN32
+  my_osmaperr(GetLastError());
+#endif
+  my_error(ER_CANT_READ_DIR, MYF(0), name, errno);
 }
 
 /**
@@ -117,26 +120,28 @@ enum Aria_backup_status { BACKUP_OK, BACKUP_FAIL, TRANSLOG_PURGE_DISABLED };
 /** Backup state */
 struct Aria_backup
 {
-  /** mutex protecting the data in concurrent aria_backup_step() */
-  pthread_mutex_t mutex;
-  /** status */
-  enum Aria_backup_status status;
 #ifndef _WIN32
   /** directory stream */
   DIR *dir;
-  /** the readdir(dir) for which subdir was opened */
+  /** the readdir(dir) result for which subdir was opened */
   const struct dirent *d;
   /** subdirectory stream, or NULL if iterating to next entry in dir */
   DIR *subdir;
 #else
   /** directory iterator */
-  MY_DIR *dir;
-  /** number of consumed dir entries */
-  size_t dir_consumed;
-  /** subdirectory iterator, or NULL if iterating to next entry in dir */
-  MY_DIR *subdir;
-  /** number of consumed subdir entries */
-  size_t subdir_consumed;
+  HANDLE dir;
+  /** subdirectory iterator, or INVALID_HANDLE_VALUE */
+  HANDLE subdir;
+#endif
+  /** status */
+  enum Aria_backup_status status;
+  /** mutex protecting d, subdir, status in concurrent aria_backup_step() */
+  pthread_mutex_t mutex;
+#ifdef _WIN32
+  /** FindFirstFileA()/FindNextFile() buffer for dir */
+  WIN32_FIND_DATAA d;
+  /** FindFirstFileA()/FindNextFile() buffer for subdir */
+  WIN32_FIND_DATAA sd;
 #endif
 };
 
@@ -309,18 +314,13 @@ static int aria_backup_data(const struct backup_target *target,
   struct Aria_backup *const ab= sink->ha_data;
   int left= 0;
 #ifndef _WIN32
-  DIR *dir;
   struct dirent *d;
   struct stat sb;
+  assert(ab->dir);
 #else
-  MY_DIR *dir;
+  assert(ab->dir != INVALID_HANDLE_VALUE);
 #endif
   pthread_mutex_lock(&ab->mutex);
-  dir= ab->dir;
-  assert(dir);
-#ifdef _WIN32
-  assert(ab->dir_consumed <= dir->number_of_files);
-#endif
 
   if (ab->status != BACKUP_OK)
   {
@@ -329,9 +329,10 @@ static int aria_backup_data(const struct backup_target *target,
     left= -1;
     ab->status= BACKUP_FAIL;
   }
+#ifndef _WIN32
   else if (!ab->subdir)
   {
-#ifndef _WIN32
+    DIR *const dir= ab->dir;
     while ((d= readdir(dir)) != NULL)
     {
       switch (d->d_type) {
@@ -358,29 +359,13 @@ static int aria_backup_data(const struct backup_target *target,
       }
       goto err_exit;
     }
-#else
-    assert(!ab->subdir_consumed);
-    while (ab->dir_consumed < dir->number_of_files)
-    {
-      struct fileinfo *fi= &dir->dir_entry[ab->dir_consumed++];
-      if ((fi->mystat->st_mode & S_IFMT) != S_IFDIR)
-        continue;
-      else if (aria_backup_mkdir(target, fi->name));
-      else if ((ab->subdir= my_dir(fi->name, MYF(MY_WANT_STAT))))
-        goto consume_subdir;
-      else
-        dir_error(fi->name);
-      goto err_exit;
-    }
-#endif
   }
   else
   {
   consume_subdir:
-#ifndef _WIN32
+    DIR *const dir= ab->subdir;
     assert(ab->d);
     assert(ab->d->d_type == DT_DIR || ab->d->d_type == DT_UNKNOWN);
-    dir= ab->subdir;
     while ((d= readdir(dir)) != NULL)
     {
       const char *const name= d->d_name;
@@ -392,7 +377,7 @@ static int aria_backup_data(const struct backup_target *target,
       case DT_LNK:
         break;
       case DT_UNKNOWN:
-        if (fstatat(dirfd(ab->subdir), name, &sb, 0) ||
+        if (fstatat(dirfd(dir), name, &sb, 0) ||
             (sb.st_mode & S_IFMT) != S_IFREG)
           continue;
       }
@@ -425,15 +410,40 @@ static int aria_backup_data(const struct backup_target *target,
     left= 1;
     if (!d)
     {
-      closedir(ab->subdir);
       ab->d= NULL;
       ab->subdir= NULL;
+      closedir(dir);
     }
+  }
 #else
-    dir= ab->subdir;
-    assert(ab->dir_consumed > 0);
-    assert(ab->dir_consumed <= ab->dir->number_of_files);
-    while (ab->subdir_consumed < dir->number_of_files)
+  else if (ab->subdir == INVALID_HANDLE_VALUE)
+  {
+    do
+    {
+      if (!(ab->d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        continue;
+
+      if ((int) sizeof path <=
+          snprintf(path, sizeof path, "%s/*.*", ab->d.cFileName))
+      {
+      name_too_long:
+        path[(sizeof path) - 1]= '\0';
+        my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+      }
+      else if (aria_backup_mkdir(target, ab->d.cFileName));
+      else if ((ab->subdir= FindFirstFileA(path, &ab->sd)) !=
+               INVALID_HANDLE_VALUE)
+        goto consume_subdir;
+      else
+        dir_error(path);
+      goto err_exit;
+    }
+    while (FindNextFile(ab->dir, &ab->d));
+  }
+  else
+  {
+  consume_subdir:
+    do
     {
       size_t len;
       struct fileinfo *fi= &dir->dir_entry[ab->subdir_consumed++];
@@ -454,30 +464,21 @@ static int aria_backup_data(const struct backup_target *target,
       /* Consume a file name */
       if ((int) sizeof path <=
           snprintf(path, sizeof path, "%s/%s",
-                   ab->dir->dir_entry[ab->dir_consumed - 1].name, fi->name))
-      {
-        path[(sizeof path) - 1]= '\0';
-        my_error(ER_TOO_LONG_IDENT, MYF(0), path);
-        goto err_exit;
-      }
+                   ab->d.cFileName, ab->sd.cFileName));
+        goto name_too_long;
 
       filename= path;
-      break;
     }
+    while ((left= FindNextFile(ab->subdir, &ab->sd)) && !filename);
 
-    assert(dir == ab->subdir);
-    assert(ab->dir_consumed <= ab->dir->number_of_files);
-    assert(ab->subdir_consumed <= ab->subdir->number_of_files);
-    left= dir->number_of_files > ab->subdir_consumed;
     if (!left)
     {
-      left= ab->dir->number_of_files > ab->dir_consumed;
-      my_dirend(ab->subdir);
-      ab->subdir= NULL;
-      ab->subdir_consumed= 0;
+      FindClose(ab->subdir);
+      ab->subdir= INVALID_HANDLE_VALUE;
+      left= FindNextFile(ab->dir, &ab->d);
     }
-#endif
   }
+#endif
 
   pthread_mutex_unlock(&ab->mutex);
   if (filename &&
@@ -506,17 +507,15 @@ static int aria_backup_log(const struct backup_target *target,
   const char *filename= NULL;
 #ifdef _WIN32
   char path[FN_REFLEN * 2 + 2];
-  MY_DIR *const dir= ab->dir;
-#else
-  DIR *const dir= ab->dir;
 #endif
   pthread_mutex_lock(&ab->mutex);
-  assert(dir);
-  assert(!ab->subdir);
-#ifdef _WIN32
-  assert(!ab->subdir_consumed);
-#else
+#ifndef _WIN32
   assert(!ab->d);
+  assert(ab->dir);
+  assert(!ab->subdir);
+#else
+  assert(ab->dir != INVALID_HANDLE_VALUE);
+  assert(ab->subdir == INVALID_HANDLE_VALUE);
 #endif
 
   if (ab->status != TRANSLOG_PURGE_DISABLED)
@@ -532,7 +531,7 @@ static int aria_backup_log(const struct backup_target *target,
   {
 #ifndef _WIN32
     struct dirent *d;
-    while ((d= readdir(dir)) != NULL)
+    while ((d= readdir(ab->dir)) != NULL)
     {
       struct stat sb;
       switch (d->d_type) {
@@ -619,8 +618,9 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
       return (void*) -1;
     pthread_mutex_init(&ab->mutex, NULL);
 #ifdef _WIN32
-    ab->dir= my_dir(mysql_data_home, MYF(MY_WANT_STAT));
-    if (ab->dir)
+    ab->subdir= INVALID_HANDLE_VALUE;
+    ab->dir= FindFirstFileA("*.*", &ab->d);
+    if (ab->dir != INVALID_HANDLE_VALUE)
       return ab;
 #else
     {
@@ -662,9 +662,9 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
       assert(ab->status == BACKUP_FAIL);
       break;
     }
+#ifndef _WIN32
     assert(!ab->dir);
     assert(!ab->subdir);
-#ifndef _WIN32
     assert(!ab->d);
     {
       int dfd= open(maria_data_root, O_DIRECTORY);
@@ -680,15 +680,22 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
       }
     }
 #else
-    assert(!ab->dir_consumed);
-    assert(!ab->subdir_consumed);
-    if ((ab->dir= my_dir(maria_data_root, MYF(MY_WANT_STAT))))
+    assert(ab->dir == INVALID_HANDLE_VALUE);
+    assert(ab->subdir == INVALID_HANDLE_VALUE);
     {
-      ab->status= TRANSLOG_PURGE_DISABLED;
-      translog_disable_purge();
-      break;
+      char path[FN_REFLEN * 2 + 2];
+      if ((int) sizeof path >
+          snprintf(path, sizeof path, "%s/aria_log*", maria_data_root) &&
+          (ab->dir= FindFirstFileA(path, &ab->d)) !=
+          INVALID_HANDLE_VALUE)
+      {
+        ab->status= TRANSLOG_PURGE_DISABLED;
+        translog_disable_purge();
+        break;
+      }
     }
 #endif
+    dir_error(maria_data_root);
     ab->status= BACKUP_FAIL;
     return (void*) -1;
   case BACKUP_PHASE_ABORT:
@@ -757,32 +764,40 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     ab= sink->ha_data;
     if (!ab)
       break;
-    assert(!ab->subdir);
-    assert(ab->dir);
     /* Rewind the directory for BACKUP_PHASE_NO_COMMIT */
 #ifndef _WIN32
     assert(!ab->d);
+    assert(!ab->subdir);
+    assert(ab->dir);
     rewinddir(ab->dir);
 #else
-    assert(!ab->subdir_consumed);
-    ab->dir_consumed= 0;
+    assert(ab->subdir == INVALID_HANDLE_VALUE);
+    assert(ab->dir != INVALID_HANDLE_VALUE);
+    FindClose(ab->dir);
+    ab->dir= FindFirstFileA("*.*", &ab->d);
+    if (ab->dir == INVALID_HANDLE_VALUE)
+    {
+      dir_error(mysql_data_home);
+      return -1;
+    }
 #endif
     break;
   case BACKUP_PHASE_NO_COMMIT:
     ab= sink->ha_data;
     if (!ab)
       break;
+#ifndef _WIN32
     assert(ab->dir);
     assert(!ab->subdir);
-#ifndef _WIN32
     assert(!ab->d);
     closedir(ab->dir);
-#else
-    assert(!ab->subdir_consumed);
-    my_dirend(ab->dir);
-    ab->dir_consumed= 0;
-#endif
     ab->dir= NULL;
+#else
+    assert(ab->dir != INVALID_HANDLE_VALUE);
+    assert(ab->subdir == INVALID_HANDLE_VALUE);
+    FindClose(ab->dir);
+    ab->dir= INVALID_HANDLE_VALUE;
+#endif
     break;
   case BACKUP_PHASE_ABORT:
     break;
@@ -793,11 +808,15 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     if (ab->status == TRANSLOG_PURGE_DISABLED)
       translog_enable_purge();
 #ifndef _WIN32
-    closedir(ab->dir);
-    closedir(ab->subdir);
+    if (ab->dir)
+      closedir(ab->dir);
+    if (ab->subdir)
+      closedir(ab->subdir);
 #else
-    my_dirend(ab->dir);
-    my_dirend(ab->subdir);
+    if (ab->dir != INVALID_HANDLE_VALUE)
+      FindClose(ab->dir);
+    if (ab->subdir != INVALID_HANDLE_VALUE)
+      FindClose(ab->subdir);
 #endif
     pthread_mutex_destroy(&ab->mutex);
     free(ab);
