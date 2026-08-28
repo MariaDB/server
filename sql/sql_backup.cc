@@ -125,18 +125,26 @@ static ssize_t mmap_copy(const void *p, int out_fd, uint64_t o, uint64_t end)
 */
 template<bool stream>
 static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
-                           uint64_t o, uint64_t end)
-  noexcept
+                           uint64_t o, uint64_t end) noexcept
 {
-  constexpr size_t READ_WRITE_SIZE= 65536;
-  char *b= static_cast<char*>(aligned_malloc(READ_WRITE_SIZE, 4096));
+  assert(end >= o);
+  uint64_t count{end - o};
+#if SIZEOF_SIZE_T < 8
+  size_t size{65536};
+#else
+  constexpr size_t max_size{1 << 20};
+  /* An integer multiple of 4096 bytes, up to max_size */
+  size_t size{count >= max_size ? max_size : (size_t(count) + 4095) & 4095};
+#endif
+  char *b= static_cast<char*>(aligned_malloc(size, 4096));
   if (!b)
     return -1;
   ssize_t ret;
-  for (uint64_t count{end - o};; o+= ret)
+  for (;; o+= ret)
   {
-    ret= pread(in_fd, b,
-               ssize_t(std::min<uint64_t>(count, READ_WRITE_SIZE)), o);
+    if (count < size)
+      size= count;
+    ret= pread(in_fd, b, ssize_t(size), o);
     if (ret > 0)
     {
       if (!stream)
@@ -276,6 +284,7 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
 {
   assert(stream != backup_sink::NO_STREAM);
+  assert(end >= start);
   /*
     It is not safe to send from an mmap(2) on src, because we cannot
     guarantee that the receiving end of the pipe has consumed
@@ -285,9 +294,36 @@ int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
     It is unspecified whether changes made to the file after the
     mmap() call are visible in the mapped region.
   */
+#ifndef _WIN32
+# ifdef __linux__
+  const int pipe_size{fcntl(stream, F_GETPIPE_SZ)};
+# elif defined __FreeBSD__ || defined __APPLE__
+  // https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+  constexpr int pipe_size{65535};
+# else
+  constexpr int pipe_size{0};
+# endif
+  if (pipe_size > 0)
+  {
+    /*
+      It is safe to invoke the zero-copy path if we can guarantee that
+      the recipient will drain the buffer before the final
+      nonzero-copy path completes. We assume that this is guaranteed
+      by writing at least pipe_size bytes via the nonzero-copy path
+      after this shortcut.
+    */
+    const uint64_t fast_end{start + uint64_t(pipe_size)};
+    if (fast_end < end)
+    {
+      if (int ret= backup_stream_append_async(src, stream, start, fast_end))
+        return ret;
+      start= fast_end;
+    }
+  }
+#endif
   return int(pread_write<true>(src, stream, start, end));
 }
-};
+}
 
 extern "C" int backup_stream_append_plain(backup_fd src, backup_fd stream,
                                           uint64_t start, uint64_t end)
