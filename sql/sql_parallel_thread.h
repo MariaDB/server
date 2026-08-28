@@ -33,6 +33,23 @@ public:
 
 class pwt_worker;
 
+/*
+  This is a manager for worker threads.
+
+  One can create worker threads (inherited from pwt_worker_base).
+  - Worker threads will have the minimum THD environment
+  - They will be visible in the INFORMATION_SCHEMA.PROCESSLIST
+  - Warnings/errors emitted in the worker thread are recorded and can be
+    replayed in their manager using process_pending_warnings().
+
+  Not included here are:
+  - pwt_manager_base doesn't keep track of the child threads.
+  - We don't record if there was a fatal error, it just calls
+      virtual pwt_worker_base->on_fatal_error().
+  - Implementation of "error in a worker causes all others to stop"
+    is also out of scope.
+*/
+
 class pwt_manager_base : public Sql_alloc
 {
 public:
