@@ -1,0 +1,228 @@
+#
+# Reproduce: in a multi-segment Galera cluster a single ungraceful (silent /
+# black-holed) node failure drives the surviving quorum into NON_PRIM even
+# though a majority is still up, and the cluster cannot self-heal.
+#
+# Topology (see .cnf): 5 nodes in 2 segments, modelling "4 data + 1 arbitrator"
+# (the arbitrator is an ordinary node from the gcomm layer's point of view):
+#   segment 1: node_1, node_2, node_5 (arbitrator-like)
+#   segment 2: node_3, node_4
+#
+# Findings that shape this test:
+#   * Only the failure of a node in the segment that holds the arbitrator
+#     (segment 1: node_2 / node_5) triggers the bug; failing a segment-2 node
+#     is always handled cleanly.
+#   * A single failure triggers it only some of the time (it is timing
+#     dependent): quite often EVS instead waits out the 60s inactive timeout and
+#     evicts the peer cleanly. So we retry, freezing the segment-1 nodes in turn
+#     and stopping as soon as a survivor loses its Primary Component.
+#   * No client load is needed - the failure is purely in the gcomm
+#     view-install path, so this test runs no load at all.
+#
+# The failure is injected with SIGSTOP (freeze): the process keeps its TCP
+# connections but stops all EVS traffic, so peers fall back on the (long, 60s)
+# suspect/inactive timers while the (short, ~22.5s) view-install protocol runs.
+#
+# Verdict: the presence of "install timer expired" in any node's error log is
+# the signature of the reported failure (it precedes "no install message
+# received" and the NON_PRIM transition). assert_grep at the end fails the test
+# whenever that signature is found.
+#
+
+--source include/have_innodb.inc
+
+--let $galera_cluster_size = 4
+--source include/galera_cluster.inc
+
+# All four nodes must see a Primary Component of size 4.
+--let $i = $galera_cluster_size
+while ($i)
+{
+  --connection node_$i
+  --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+  --source include/wait_condition.inc
+  --dec $i
+}
+
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--let $node_4=node_4
+#--let $node_5=node_5
+--disable_query_log
+--source ../include/auto_increment_offset_save.inc
+--enable_query_log
+
+
+# Do not let status reads block on wsrep sync-wait during a view change, and
+# suppress the gcomm/EVS noise a silent-node failure legitimately produces.
+--let $i = $galera_cluster_size
+while ($i)
+{
+  --connection node_$i
+  SET SESSION wsrep_sync_wait = 0;
+  --disable_query_log
+  CALL mtr.add_suppression("WSREP: .*install timer expired");
+  CALL mtr.add_suppression("WSREP: no install message received");
+  CALL mtr.add_suppression("WSREP: .* timed out");
+  CALL mtr.add_suppression("WSREP: evs::proto.*");
+  CALL mtr.add_suppression("WSREP: New COMPONENT: primary = no");
+  CALL mtr.add_suppression("WSREP: Suspecting node");
+  CALL mtr.add_suppression("WSREP: .*declaring .* inactive");
+  CALL mtr.add_suppression("WSREP: .*(non-Primary|NON_PRIM).*");
+  CALL mtr.add_suppression("WSREP: .*Failed to report last committed");
+  CALL mtr.add_suppression("WSREP: gcs.*");
+  CALL mtr.add_suppression("WSREP: .*overriding.*");
+  CALL mtr.add_suppression("WSREP: user message in state LEAVING");
+  CALL mtr.add_suppression("WSREP: .*max install timeouts reached.*");
+  CALL mtr.add_suppression("WSREP: .*going to give up.*");
+  CALL mtr.add_suppression("WSREP: Failed to send SYNC signal.*");
+  --enable_query_log
+  --dec $i
+}
+
+#
+# Retry loop over the segment-1 nodes (node_2, node_5), alternating. node_1 is
+# the observer. Freeze the victim, poll the survivors for loss of the Primary
+# Component (under the 60s inactive window so a healthy cluster would not yet
+# evict the frozen peer), resume, reconverge. Stop as soon as a survivor is seen
+# non-Primary *and* the "install timer expired" signature has been logged - i.e.
+# the actual reported failure, not a transient view-change blip.
+#
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+
+# Silence the loop's connection switches / status polls: their count depends on
+# how long each freeze takes to bite, which must not leak into the recorded
+# result (otherwise a clean run - e.g. on a fixed build - would falsely differ).
+# Re-disabled at the top of every iteration because wait_condition.inc below
+# re-enables the query log. The --echo markers are still emitted.
+--let $reproduced = 0
+# Paths for the per-round error-log check below, handed to the perl block via
+# UPPER-CASE --let names (those are exported into the perl %ENV, the same
+# mechanism as KILL_NODE_PIDFILE below).
+--let MTR_ITE_LOGS = $MYSQLTEST_VARDIR/log/mysqld.*.err
+--let MTR_ITE_INC = $MYSQLTEST_VARDIR/tmp/ite_found.inc
+--let $round = 4
+while ($round)
+{
+  if (!$reproduced)
+  {
+    --disable_query_log
+    --let $victim = `SELECT IF(MOD($round,2) = 0, 2, 3)`
+
+    --connection node_$victim
+    --let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+
+#    --echo # freeze segment-1 node (SIGSTOP)
+    --perl
+        my $pid = `cat $ENV{'KILL_NODE_PIDFILE'}`;
+        chomp($pid);
+        system("kill -STOP $pid");
+        exit(0);
+    EOF
+
+    --let $saw_np = 0
+    --let $poll = 20 # make sure 16s suspect timeout is triggered
+    while ($poll)
+    {
+      --let $j = $galera_cluster_size
+      while ($j)
+      {
+        if ($j != $victim)
+        {
+          --connection node_$j
+          --let $np = `SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'`
+          if ($np)
+          {
+            # A survivor lost the Primary Component. Just record it and stop
+            # polling; whether this is the real failure or a transient
+            # view-change blip is decided after reconverge by grepping the error
+            # log for the "install timer expired" signature (see below). The log
+            # check is deliberately done there, not here: mysqltest does not run
+            # a --perl block nested this deep inside the poll loops.
+            --let $saw_np = 1
+            --let $poll = 1
+            --let $j = 1
+          }
+        }
+        --dec $j
+      }
+      if (!$reproduced)
+      {
+        --real_sleep 1
+      }
+      --dec $poll
+    }
+
+#    --echo # resume segment-1 node (SIGCONT)
+    --perl
+        my $pid = `cat $ENV{'KILL_NODE_PIDFILE'}`;
+        chomp($pid);
+        system("kill -CONT $pid");
+        exit(0);
+    EOF
+
+    --connection node_1
+    --let $wait_timeout = 120
+    --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+    --source include/wait_condition.inc
+    --let $wait_timeout = 120
+    --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+    --source include/wait_condition.inc
+
+    # Grep every node's error log for the "install timer expired" signature (the
+    # same one the final assert checks) and read the count back into $ite_found.
+    # The --perl block is kept at this nesting depth on purpose: mysqltest does
+    # not execute a --perl block nested inside a second, inner if-block.
+    --let $ite_found = 0
+    --perl
+        my @logs = glob($ENV{MTR_ITE_LOGS});
+        my $found = 0;
+        foreach my $f (@logs) {
+            open(my $fh, '<', $f) or next;
+            while (my $line = <$fh>) {
+                if (index($line, 'install timer expired') >= 0) { $found = 1; last; }
+            }
+            close($fh);
+            last if $found;
+        }
+        open(my $out, '>', $ENV{MTR_ITE_INC}) or die $!;
+        print $out "--let \$ite_found = $found\n";
+        close($out);
+    EOF
+    --source $MYSQLTEST_VARDIR/tmp/ite_found.inc
+
+    # A genuine reproduction = a survivor lost the Primary Component this round
+    # *and* the signature was logged. A survivor can briefly go non-Primary in a
+    # normal view change (no signature) - that is not what we are after. Plain
+    # if/--let nest to any depth, so the decision is safe to make here.
+    if ($saw_np)
+    {
+      if ($ite_found)
+      {
+        --let $reproduced = 1
+      }
+    }
+  }
+  --dec $round
+}
+--enable_query_log
+
+#
+# Verdict: no node may have run the EVS view-install protocol to exhaustion.
+#
+--let $n = $galera_cluster_size
+while ($n)
+{
+  --let $assert_text = node_$n did not time out the EVS view-install protocol (no NON_PRIM on single-node failure)
+  --let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.$n.err
+  --let $assert_select = install timer expired
+  --let $assert_count = 0
+  --source include/assert_grep.inc
+  --dec $n
+}
+
+--disable_query_log
+--source ../include/auto_increment_offset_restore.inc
+--enable_query_log
