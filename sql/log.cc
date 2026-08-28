@@ -580,8 +580,11 @@ public:
   /* Truncate temporary files if needed. Used with change_user */
   void truncate_tmp_files()
   {
-    stmt_cache.truncate_cache_file();
-    trx_cache.truncate_cache_file();
+    if (!opt_binlog_engine_hton)
+    {
+      stmt_cache.truncate_cache_file();
+      trx_cache.truncate_cache_file();
+    }
   }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
