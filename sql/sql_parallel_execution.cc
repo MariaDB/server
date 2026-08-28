@@ -956,9 +956,8 @@ void pwt_worker::close_tables()
 
 void pwt_manager::free_containers(THD *thd)
 {
-  if (workers)
-    for (uint i= 0; i < nworkers; i++)
-      layout.free_container(thd, &workers[i].exec.result);
+  for (uint i= 0; i < nworkers(); i++)
+    layout.free_container(thd, &workers[i]->exec.result);
   layout.cleanup(thd);
 }
 
