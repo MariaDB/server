@@ -267,6 +267,20 @@ private:
 
   /* Delete the team's pwt_worker objects and empty workers[]. */
   void destroy_workers();
+
+  /* Build the transport and give every worker its producing end. */
+  bool setup_transport(THD *thd, uint n_workers);
+  /* Undo setup_transport() and the team's state: release both ends of the
+     transport, free the containers, destroy LOCK_data/COND_data_avail and the
+     worker objects. Callers have already reaped or aborted every worker. */
+  void destroy_transport();
+
+  /* Free the row containers: the manager's and every worker's. */
+  void free_containers(THD *thd);
+  /* Stop the producers: set the request and wake anyone blocked in the
+     transport waiting for us. Caller holds LOCK_data. */
+  void request_stop();
+
   /* Deep-clone this query's conditions + shipped column list for 'worker',
      rebinding the Item_field leaves to the worker's table copies. Returns
      true on error. */
@@ -280,13 +294,6 @@ private:
   /* Build worker->exec.jointabs: a copy of each of the manager's non-const
      JOIN_TABs, rebound to this worker. */
   bool setup_worker_jointabs(THD *thd, pwt_worker *worker);
-  /* Free the row containers: the manager's and every worker's. */
-  void free_containers(THD *thd);
-  /* Build the transport and give every worker its producing end. */
-  bool setup_transport(THD *thd, uint n_workers);
-  /* Stop the producers: set the request and wake anyone blocked in the
-     transport waiting for us. Caller holds LOCK_data. */
-  void request_stop();
 
 friend  pwt_worker;
 };
