@@ -640,13 +640,13 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
 #ifndef NDEBUG
     ab= sink->ha_data;
 #endif
+#ifndef _WIN32
     assert(ab->dir);
     assert(!ab->subdir);
-#ifndef _WIN32
     assert(!ab->d);
 #else
-    assert(!ab->dir_consumed);
-    assert(!ab->subdir_consumed);
+    assert(ab->dir != INVALID_HANDLE_VALUE);
+    assert(ab->subdir == INVALID_HANDLE_VALUE);
 #endif
     break;
   case BACKUP_PHASE_FINISH:
