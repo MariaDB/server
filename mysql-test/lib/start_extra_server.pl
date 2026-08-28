@@ -16,10 +16,13 @@
 
 use strict;
 use warnings;
-use File::Path qw(make_path remove_tree);
 use File::Basename;
 use File::Copy;
 use POSIX ":sys_wait_h";
+use lib dirname(__FILE__);   # mysql-test/lib, for My::ExtraServer
+# Where this server keeps its files and how it is started - shared with
+# mariadb-test-run.pl, see lib/My/ExtraServer.pm
+use My::ExtraServer;
 
 # Parse arguments
 my $vardir = $ENV{MYSQLTEST_VARDIR} or die "MYSQLTEST_VARDIR not set\n";
@@ -27,64 +30,25 @@ my $server_num = shift @ARGV or die "Usage: $0 <server_num> [port] [socket]\n";
 my $custom_port = shift @ARGV;
 my $custom_socket = shift @ARGV;
 
-# Calculate port (base + 10 + server_num if not custom)
-my $base_port = $ENV{MASTER_MYPORT} || 10000;
-my $port = $custom_port || ($base_port + 10 + $server_num);
-my $socket = $custom_socket || "$vardir/tmp/extra_server_$server_num.sock";
+my $port = $custom_port ||
+           extra_server_port($ENV{MASTER_MYPORT}, $server_num);
+my $socket = $custom_socket ||
+             extra_server_default_socket($vardir, $server_num);
 
 # Create data directory
-my $datadir = "$vardir/extra_server_$server_num/data";
-my $install_db = "$vardir/install.db";
-
-die "install.db not found at $install_db\n" unless -d $install_db;
-
-# Create parent directory if needed
-my $server_dir = "$vardir/extra_server_$server_num";
-make_path($server_dir) unless -d $server_dir;
-
-# Copy install.db to new datadir
-if (-d $datadir) {
-    print "Removing existing datadir: $datadir\n";
-    remove_tree($datadir);
-}
-
-print "Copying $install_db to $datadir...\n";
-# Use cp -a to preserve permissions and attributes
-system("cp", "-a", $install_db, $datadir) == 0
-    or die "Failed to copy $install_db to $datadir: $!\n";
-
-# Ensure proper permissions on the datadir
-system("chmod", "-R", "u+rwX", $datadir) == 0
-    or warn "Warning: Failed to set permissions on $datadir\n";
+my $datadir = extra_server_prepare_datadir($vardir, $server_num,
+                                           sub { print "$_[0]\n" });
 
 # Start mysqld
 my $mysqld = $ENV{MYSQLD} or die "MYSQLD environment variable not set\n";
 die "mysqld binary not found at $mysqld\n" unless -x $mysqld;
 
-my $pid_file = "$server_dir/mysqld.pid";
-my $log_file = "$vardir/log/extra_server_$server_num.err";
-my $general_log_file = "$vardir/log/extra_server_$server_num.log";
+my $pid_file = extra_server_pid_file($vardir, $server_num);
+my $log_file = extra_server_err_log($vardir, $server_num);
+my $general_log_file = extra_server_general_log($vardir, $server_num);
 
-# Ensure log directory exists
-make_path("$vardir/log") unless -d "$vardir/log";
-
-my @mysqld_args = (
-    $mysqld,
-    "--no-defaults",
-    "--datadir=$datadir",
-    "--port=$port",
-    "--socket=$socket",
-    "--pid-file=$pid_file",
-    "--log-error=$log_file",
-    "--general-log=1",
-    "--general-log-file=$general_log_file",
-    "--skip-networking=0",
-    "--skip-grant-tables",
-    "--key-buffer-size=1M",
-    "--sort-buffer-size=256K",
-    "--max-heap-table-size=1M",
-    "--gdb",
-);
+my @mysqld_args = extra_server_mysqld_args($mysqld, $vardir, $server_num,
+                                           $port, $socket);
 
 print "Starting mysqld on port $port with socket $socket...\n";
 print "Command: " . join(" ", @mysqld_args) . "\n";
@@ -132,7 +96,7 @@ if ($waited >= $max_wait) {
 sleep 2;
 
 # Write connection info to file
-my $info_file = "$vardir/tmp/extra_server_$server_num.info";
+my $info_file = extra_server_info_file($vardir, $server_num);
 open my $fh, '>', $info_file or die "Cannot write $info_file: $!\n";
 print $fh "HOST=127.0.0.1\n";
 print $fh "PORT=$port\n";
