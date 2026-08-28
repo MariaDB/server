@@ -122,10 +122,6 @@ struct Aria_backup
   /** status */
   enum Aria_backup_status status;
 #ifndef _WIN32
-  /** directory file descriptor */
-  int dirfd;
-  /** subdirectory file descriptor */
-  int subdirfd;
   /** directory stream */
   DIR *dir;
   /** the readdir(dir) for which subdir was opened */
@@ -336,7 +332,6 @@ static int aria_backup_data(const struct backup_target *target,
   else if (!ab->subdir)
   {
 #ifndef _WIN32
-    assert(ab->subdirfd < 0);
     while ((d= readdir(dir)) != NULL)
     {
       switch (d->d_type) {
@@ -345,21 +340,19 @@ static int aria_backup_data(const struct backup_target *target,
       case DT_DIR:
         break;
       case DT_UNKNOWN:
-        if (fstatat(ab->dirfd, d->d_name, &sb, 0) ||
+        if (fstatat(dirfd(dir), d->d_name, &sb, 0) ||
             (sb.st_mode & S_IFMT) != S_IFDIR)
           continue;
       }
       if (!aria_backup_mkdir(target, d->d_name))
       {
+        int dfd= openat(dirfd(dir), d->d_name, O_DIRECTORY);
         ab->d= d;
-        if ((ab->subdirfd= openat(ab->dirfd, d->d_name, O_DIRECTORY)) >= 0)
+        if (dfd >= 0)
         {
-          int d= dup(ab->subdirfd);
-          if ((ab->subdir= fdopendir(d)))
+          if ((ab->subdir= fdopendir(dfd)))
             goto consume_subdir;
-          close(d);
-          close(ab->subdirfd);
-          ab->subdirfd= -1;
+          close(dfd);
         }
         dir_error(d->d_name);
       }
@@ -399,7 +392,7 @@ static int aria_backup_data(const struct backup_target *target,
       case DT_LNK:
         break;
       case DT_UNKNOWN:
-        if (fstatat(ab->subdirfd, name, &sb, 0) ||
+        if (fstatat(dirfd(ab->subdir), name, &sb, 0) ||
             (sb.st_mode & S_IFMT) != S_IFREG)
           continue;
       }
@@ -433,10 +426,8 @@ static int aria_backup_data(const struct backup_target *target,
     if (!d)
     {
       closedir(ab->subdir);
-      close(ab->subdirfd);
       ab->d= NULL;
       ab->subdir= NULL;
-      ab->subdirfd= -1;
     }
 #else
     dir= ab->subdir;
@@ -491,7 +482,7 @@ static int aria_backup_data(const struct backup_target *target,
   pthread_mutex_unlock(&ab->mutex);
   if (filename &&
 #ifndef _WIN32
-      aria_backup_file(target, sink, ab->dirfd, filename) &&
+      aria_backup_file(target, sink, dirfd(ab->dir), filename) &&
 #else
       aria_backup_file(target, sink, filename, 0) &&
 #endif
@@ -525,7 +516,6 @@ static int aria_backup_log(const struct backup_target *target,
 #ifdef _WIN32
   assert(!ab->subdir_consumed);
 #else
-  assert(ab->subdirfd < 0);
   assert(!ab->d);
 #endif
 
@@ -552,7 +542,7 @@ static int aria_backup_log(const struct backup_target *target,
       case DT_LNK:
         break;
       case DT_UNKNOWN:
-        if (fstatat(ab->dirfd, d->d_name, &sb, 0) ||
+        if (fstatat(dirfd(ab->dir), d->d_name, &sb, 0) ||
             (sb.st_mode & S_IFMT) != S_IFREG)
           continue;
       }
@@ -588,7 +578,7 @@ static int aria_backup_log(const struct backup_target *target,
   pthread_mutex_unlock(&ab->mutex);
   if (filename &&
 #ifndef _WIN32
-      aria_backup_file(target, sink, ab->dirfd, filename) &&
+      aria_backup_file(target, sink, dirfd(ab->dir), filename) &&
 #else
       aria_backup_file(target, sink, filename,
                        strlen(maria_data_root) + 1) &&
@@ -633,15 +623,14 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     if (ab->dir)
       return ab;
 #else
-    ab->subdirfd= -1;
-    if ((ab->dirfd= open(mysql_data_home, O_DIRECTORY)) >= 0)
     {
-      int d= dup(ab->dirfd);
-      if ((ab->dir= fdopendir(d)))
-        return ab;
-      close(d);
-      close(ab->dirfd);
-      ab->dirfd= -1;
+      int dfd= open(mysql_data_home, O_DIRECTORY);
+      if (dfd >= 0)
+      {
+        if ((ab->dir= fdopendir(dfd)))
+          return ab;
+        close(dfd);
+      }
     }
 #endif
     dir_error(mysql_data_home);
@@ -657,8 +646,6 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     assert(!ab->subdir);
 #ifndef _WIN32
     assert(!ab->d);
-    assert(ab->subdirfd == -1);
-    assert(ab->dirfd >= 0);
 #else
     assert(!ab->dir_consumed);
     assert(!ab->subdir_consumed);
@@ -679,20 +666,18 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     assert(!ab->subdir);
 #ifndef _WIN32
     assert(!ab->d);
-    assert(ab->subdirfd == -1);
-    assert(ab->dirfd == -1);
-    if ((ab->dirfd= open(maria_data_root, O_DIRECTORY)) >= 0)
     {
-      int d= dup(ab->dirfd);
-      if ((ab->dir= fdopendir(d)))
+      int dfd= open(maria_data_root, O_DIRECTORY);
+      if (dfd >= 0)
       {
-        ab->status= TRANSLOG_PURGE_DISABLED;
-        translog_disable_purge();
-        break;
+        if ((ab->dir= fdopendir(dfd)))
+        {
+          ab->status= TRANSLOG_PURGE_DISABLED;
+          translog_disable_purge();
+          break;
+        }
+        close(dfd);
       }
-      close(d);
-      close(ab->dirfd);
-      ab->dirfd= -1;
     }
 #else
     assert(!ab->dir_consumed);
@@ -776,8 +761,6 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     assert(ab->dir);
     /* Rewind the directory for BACKUP_PHASE_NO_COMMIT */
 #ifndef _WIN32
-    assert(ab->dirfd >= 0);
-    assert(ab->subdirfd == -1);
     assert(!ab->d);
     rewinddir(ab->dir);
 #else
@@ -793,11 +776,7 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     assert(!ab->subdir);
 #ifndef _WIN32
     assert(!ab->d);
-    assert(ab->dirfd >= 0);
-    assert(ab->subdirfd == -1);
     closedir(ab->dir);
-    close(ab->dirfd);
-    ab->dirfd= -1;
 #else
     assert(!ab->subdir_consumed);
     my_dirend(ab->dir);
@@ -816,8 +795,6 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
 #ifndef _WIN32
     closedir(ab->dir);
     closedir(ab->subdir);
-    close(ab->dirfd);
-    close(ab->subdirfd);
 #else
     my_dirend(ab->dir);
     my_dirend(ab->subdir);
