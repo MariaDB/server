@@ -74,6 +74,9 @@ void pwt_worker::on_fatal_error()
   mysql_mutex_unlock(&manager->LOCK_data);
 }
 
+pwt_worker::pwt_worker(pwt_manager *manager_arg) :
+  pwt_worker_base(manager_arg), manager(manager_arg), sink(nullptr)
+{}
 
 /**
   @brief
@@ -261,7 +264,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       it exists: from here on the teardown below finds exactly the workers that
       were allocated, and each of those says for itself how far it got.
     */
-    pwt_worker *worker= new pwt_worker;
+    pwt_worker *worker= new pwt_worker(this);
     if (!worker || workers.append(worker))
     {
       /*
@@ -273,10 +276,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       goto cleanup_workers;
     }
 
-    if (worker->init_worker_thd(this, thd, /*worker_nr=*/i+1))
+    if (worker->init_worker_thd(thd, /*worker_nr=*/i+1))
       goto cleanup_workers;
-
-    worker->manager= this;
 
     worker->exec.handler_ctx= file->parallel_get_worker_context(i);
     DBUG_ASSERT(worker->exec.handler_ctx);
