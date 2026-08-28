@@ -30,7 +30,7 @@ struct pwt_worker_execution
     scan_table(nullptr), tables(nullptr), n_tables(0),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
     tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
-  { bzero(&stats, sizeof(stats)); }
+  {}
 
   /*
     Per-worker copy of the manager's first non-const source table, the
@@ -98,12 +98,6 @@ struct pwt_worker_execution
   */
   Table_access_tracker  *tab_stats;
   ha_handler_stats      *tab_hstats;
-  /*
-    This worker's status counters, copied out of its THD just before the THD is
-    destroyed, so the manager can add them to the session's own once the
-    workers have been joined. See quiesce_workers().
-  */
-  STATUS_VAR            stats;
   Parallel_worker_ctx   *handler_ctx;
 };
 
@@ -111,7 +105,7 @@ struct pwt_worker_execution
 /*
   Parallel Worker Thread specific attributes
 */
-class pwt_worker : public pwt_worker_base
+class pwt_worker : public pwt_worker_base_with_stats
 {
   int execute_and_handoff();
 public:
