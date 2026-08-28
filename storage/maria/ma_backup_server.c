@@ -116,6 +116,10 @@ struct Aria_backup
   pthread_mutex_t mutex;
   /** status */
   enum Aria_backup_status status;
+#ifndef _WIN32
+  /** directory file descriptor */
+  int dirfd;
+#endif
   /** directory iterator */
   MY_DIR *dir;
   /** number of consumed dir entries */
@@ -161,6 +165,52 @@ static int aria_backup_mkdir(const struct backup_target *target,
   return 1;
 }
 
+#ifndef _WIN32
+/**
+   Copy a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param dirfd      source directory
+   @param path       file name
+   @return error code (also errno will be set)
+   @retval 0 on success (errno might not be touched)
+*/
+static int aria_backup_file(const struct backup_target *target,
+                            const struct backup_sink *sink,
+                            int dirfd, const char *path)
+{
+  int ret= -1, src= openat(dirfd, path, O_RDONLY), dst= sink->stream;
+  if (src < 0)
+  {
+    my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno);
+    return ret;
+  }
+  if (dst < 0)
+  {
+    dst= openat(target->fd, path, O_CREAT | O_EXCL | O_WRONLY, 0666);
+    if (dst < 0)
+      my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
+    else
+    {
+      ret= copy_entire_file(src, dst) | close(dst);
+      if (ret)
+      write_error:
+        my_error(ER_ERROR_ON_WRITE, MYF(0), path, errno);
+    }
+  }
+  else
+  {
+    uint64_t end= (uint64_t) lseek(src, 0, SEEK_END);
+    ret= backup_stream_start(dst, path, 0644, end, NULL, 0) ||
+      backup_stream_append_plain(src, dst, 0, end) ||
+      backup_stream_zeropad(dst, (size_t) end);
+    if (ret)
+      goto write_error;
+  }
+  close(src);
+  return ret;
+}
+#else
 /**
    Copy a file.
    @param target     BACKUP SERVER target (possibly, a directory)
@@ -175,40 +225,6 @@ static int aria_backup_file(const struct backup_target *target,
                             const char *path, size_t dir_prefix)
 {
   int ret= -1;
-#ifndef _WIN32
-  int src, dst= sink->stream;
-  src= open(path, O_RDONLY);
-  if (src < 0)
-  {
-    my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno);
-    return ret;
-  }
-  if (dst < 0)
-  {
-    dst= openat(target->fd, path + dir_prefix,
-                O_CREAT | O_EXCL | O_WRONLY, 0666);
-    if (dst < 0)
-      my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
-    else
-    {
-      ret= copy_entire_file(src, dst) | close(dst);
-      if (ret)
-      write_error:
-        my_error(ER_ERROR_ON_WRITE, MYF(0), path + dir_prefix, errno);
-    }
-  }
-  else
-  {
-    uint64_t end= (uint64_t) lseek(src, 0, SEEK_END);
-    ret= backup_stream_start(dst, path + dir_prefix, 0644, end, NULL, 0) ||
-      backup_stream_append_plain(src, dst, 0, end) ||
-      backup_stream_zeropad(dst, (size_t) end);
-    if (ret)
-      goto write_error;
-  }
-  close(src);
-  return ret;
-#else
   if (sink->stream == INVALID_HANDLE_VALUE)
   {
     char dstpath[FN_REFLEN * 3 / 2];
@@ -263,8 +279,8 @@ static int aria_backup_file(const struct backup_target *target,
     }
   }
   return ret;
-#endif
 }
+#endif
 
 /**
    Back up a data file.
@@ -361,7 +377,13 @@ static int aria_backup_data(const struct backup_target *target,
   }
 
   pthread_mutex_unlock(&ab->mutex);
-  if (filename && aria_backup_file(target, sink, filename, 0))
+  if (filename &&
+#ifndef _WIN32
+      aria_backup_file(target, sink, ab->dirfd, filename) &&
+#else
+      aria_backup_file(target, sink, filename, 0) &&
+#endif
+      TRUE)
     return -1;
   return (int) left;
 }
@@ -379,7 +401,9 @@ static int aria_backup_log(const struct backup_target *target,
   struct Aria_backup *const ab= sink->ha_data;
   size_t left;
   const char *filename= NULL;
+#ifdef _WIN32
   char path[FN_REFLEN * 2 + 2];
+#endif
   MY_DIR *dir= ab->dir;
   pthread_mutex_lock(&ab->mutex);
   assert(dir);
@@ -389,7 +413,9 @@ static int aria_backup_log(const struct backup_target *target,
   if (ab->status != TRANSLOG_PURGE_DISABLED)
   {
     assert(ab->status == BACKUP_FAIL);
+#ifdef _WIN32
   err_exit:
+#endif
     left= (size_t) -1;
     ab->status= BACKUP_FAIL;
   }
@@ -402,6 +428,9 @@ static int aria_backup_log(const struct backup_target *target,
           (strncmp(fi->name, C_STRING_WITH_LEN("aria_log.")) &&
            strcmp(fi->name, "aria_log_control")))
         continue;
+#ifndef _WIN32
+      filename= fi->name;
+#else
       else if ((int) sizeof path <=
                snprintf(path, sizeof path, "%s/%s", maria_data_root, fi->name))
       {
@@ -410,14 +439,21 @@ static int aria_backup_log(const struct backup_target *target,
         goto err_exit;
       }
       filename= path;
+#endif
       break;
     }
     left= ab->dir->number_of_files - ab->dir_consumed;
   }
 
   pthread_mutex_unlock(&ab->mutex);
-  if (filename && aria_backup_file(target, sink, filename,
-                                   strlen(maria_data_root) + 1))
+  if (filename &&
+#ifndef _WIN32
+      aria_backup_file(target, sink, ab->dirfd, filename) &&
+#else
+      aria_backup_file(target, sink, filename,
+                       strlen(maria_data_root) + 1) &&
+#endif
+      TRUE)
     return -1;
   return (int) left;
 }
@@ -452,22 +488,36 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     if (!(ab= calloc(1, sizeof *ab)))
       return (void*) -1;
     pthread_mutex_init(&ab->mutex, NULL);
-  opendir:
     assert(!ab->dir);
     assert(!ab->dir_consumed);
     assert(!ab->subdir);
     assert(!ab->subdir_consumed);
-    ab->dir= my_dir(".", MYF(MY_WANT_STAT));
-    if (ab->dir)
-      return ab;
-    dir_error(".");
+#ifndef _WIN32
+    if ((ab->dirfd= open(mysql_data_home, O_DIRECTORY)) >= 0)
+    {
+#endif
+      ab->dir= my_dir(mysql_data_home, MYF(MY_WANT_STAT));
+      if (ab->dir)
+        return ab;
+#ifndef _WIN32
+      close(ab->dirfd);
+      ab->dirfd= -1;
+    }
+#endif
+    dir_error(mysql_data_home);
     pthread_mutex_destroy(&ab->mutex);
     free(ab);
     return (void*) -1;
   case BACKUP_PHASE_NO_COMMIT:
     translog_flush(translog_get_horizon());
+#ifndef NDEBUG
     ab= sink->ha_data;
-    goto opendir;
+#endif
+    assert(ab->dir);
+    assert(!ab->dir_consumed);
+    assert(!ab->subdir);
+    assert(!ab->subdir_consumed);
+    break;
   case BACKUP_PHASE_FINISH:
     if (!sink || !sink->ha_data)
       break;
@@ -477,18 +527,27 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     assert(!ab->subdir);
     assert(!ab->subdir_consumed);
     if (ab->status != BACKUP_OK)
+    {
       assert(ab->status == BACKUP_FAIL);
-    else if (!(ab->dir= my_dir(maria_data_root, MYF(MY_WANT_STAT))))
-    {
-      ab->status= BACKUP_FAIL;
-      return (void*) -1;
+      break;
     }
-    else
+#ifndef _WIN32
+    if ((ab->dirfd= open(maria_data_root, O_DIRECTORY)) >= 0)
     {
-      ab->status= TRANSLOG_PURGE_DISABLED;
-      translog_disable_purge();
+#endif
+      if ((ab->dir= my_dir(maria_data_root, MYF(MY_WANT_STAT))))
+      {
+        ab->status= TRANSLOG_PURGE_DISABLED;
+        translog_disable_purge();
+        break;
+      }
+#ifndef _WIN32
+      close(ab->dirfd);
+      ab->dirfd= -1;
     }
-    break;
+#endif
+    ab->status= BACKUP_FAIL;
+    return (void*) -1;
   case BACKUP_PHASE_ABORT:
     break;
   }
@@ -552,15 +611,24 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     assert(!sink->ha_data);
     break;
   case BACKUP_PHASE_NO_DDL:
+    ab= sink->ha_data;
+    if (!ab)
+      break;
+    assert(!ab->subdir);
+    assert(!ab->subdir_consumed);
+    /* Rewind the directory for BACKUP_PHASE_NO_COMMIT */
+    assert(ab->dir);
+    ab->dir_consumed= 0;
+    break;
   case BACKUP_PHASE_NO_COMMIT:
     ab= sink->ha_data;
-    if (ab)
-    {
-      assert(!ab->subdir);
-      my_dirend(ab->dir);
-      ab->dir= NULL;
-      ab->dir_consumed= 0;
-    }
+    if (!ab)
+      break;
+    assert(!ab->subdir);
+    assert(!ab->subdir_consumed);
+    my_dirend(ab->dir);
+    ab->dir= NULL;
+    ab->dir_consumed= 0;
     break;
   case BACKUP_PHASE_ABORT:
     break;
@@ -572,6 +640,9 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
       translog_enable_purge();
     my_dirend(ab->dir);
     my_dirend(ab->subdir);
+#ifndef _WIN32
+    close(ab->dirfd);
+#endif
     pthread_mutex_destroy(&ab->mutex);
     free(ab);
   }
