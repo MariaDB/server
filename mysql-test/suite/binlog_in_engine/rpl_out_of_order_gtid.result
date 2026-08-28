@@ -38,7 +38,7 @@ DROP TABLE t2_slave;
 SET GLOBAL gtid_strict_mode= @old_strict;
 CALL mtr.add_suppression('Slave: ORDER BY ignored');
 CALL mtr.add_suppression('Slave: An attempt was made to binlog GTID .* which would create an out-of-order sequence number with existing GTID');
-CALL mtr.add_suppression('Slave: Error writing file .*"Unknown error 1950"');
+CALL mtr.add_suppression('Slave: Error writing file .* 1950');
 SET GLOBAL slave_parallel_threads= @old_parallel;
 include/start_slave.inc
 connection master;
