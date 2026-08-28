@@ -94,6 +94,7 @@ use My::Find;
 use My::SysInfo;
 use My::CoreDump;
 use My::Debugger;
+use My::ExtraServer;
 use mtr_cases;
 use mtr_report;
 use mtr_match;
@@ -176,7 +177,7 @@ END {
   # Only run in the parent process that started it; safe to call even if
   # already stopped (stop_replay_server clears REPLAY_SERVER_PID).
   if (defined $replay_server_parent_pid and $replay_server_parent_pid == $$
-      and ($opt_replay_server || $opt_replay_server_manual))
+      and _replay_server_enabled())
   {
     eval { stop_replay_server(); };
   }
@@ -449,16 +450,10 @@ sub main {
     # Refuse if --parallel > 1 was explicitly requested; the replay server is
     # a single shared instance and cannot serve multiple concurrent workers.
     # (The "auto" case is resolved later and re-checked below.)
-    if ( $opt_replay_server || $opt_replay_server_manual )
+    if (_replay_server_enabled() &&
+        $opt_parallel ne "auto" && $opt_parallel > 1)
     {
-      if ($opt_parallel ne "auto" && $opt_parallel > 1)
-      {
-        mtr_error("--replay-server / --replay-server-manual cannot be used " .
-                  "together with --parallel > 1 (parallel=$opt_parallel). " .
-                  "The replay server is a single shared instance and cannot " .
-                  "serve multiple concurrent workers. " .
-                  "Re-run with --parallel=1.");
-      }
+      _replay_parallel_error();
     }
     if ( $opt_replay_server )
     {
@@ -512,19 +507,14 @@ sub main {
     $opt_parallel= 1;
   }
 
-  if ($opt_parallel > 1 && ($opt_replay_server || $opt_replay_server_manual)) {
-    mtr_error("--replay-server and --replay-server-manual cannot be used " .
-              "together with --parallel > 1 (parallel=$opt_parallel). " .
-              "The replay server is a single shared instance and cannot " .
-              "serve multiple concurrent workers. " .
-              "Re-run with --parallel=1.");
+  # The "auto" case above may have resolved to more than one worker
+  if ($opt_parallel > 1 && _replay_server_enabled()) {
+    _replay_parallel_error();
   }
 
   # Propagate --replay-server-trace to mysqltest via environment variable.
-  # Handling on the mysqltest side will be added in a follow-up step.
   if ($opt_replay_server_trace) {
     $ENV{REPLAY_SERVER_TRACE} = 1;
-    #mtr_warning("SETTING REPLAY_SERVER_TRACE=1");
   }
 
   # Propagate --replay-server-no-cleanup to mysqltest. By default mysqltest
@@ -662,7 +652,7 @@ sub main {
   remove_vardir_subs() if $opt_clean_vardir;
 
   # Stop replay server if it was started
-  stop_replay_server() if ($opt_replay_server || $opt_replay_server_manual);
+  stop_replay_server() if _replay_server_enabled();
 
   exit(0);
 }
@@ -1087,7 +1077,7 @@ sub run_worker ($) {
   # would call check_ports_free() and fail because of that listener. Since
   # parallel must be 1 in this mode, the parent's allocation is exactly what
   # this single worker needs - just inherit it.
-  if (($opt_replay_server || $opt_replay_server_manual) && defined $baseport) {
+  if (_replay_server_enabled() && defined $baseport) {
     mtr_verbose("Worker inheriting baseport=$baseport from parent " .
                 "(--replay-server active)");
   } else {
@@ -3115,6 +3105,55 @@ sub initialize_servers {
 }
 
 
+#
+# The replay server: how long to wait for it, how to reach it, where its
+# files are.
+#
+# The file layout and the mysqld command line are shared with
+# lib/start_extra_server.pl through My::ExtraServer. The environment variables
+# are the ones client/mysqltest.cc reads (REPLAY_ENV_* over there); each is
+# named here once, in the accessor below it.
+#
+# Constants, not variables: main() runs before file-scope assignments do.
+use constant {
+  REPLAY_PING_TIMEOUT         =>   5,  # seconds one liveness ping may take
+  REPLAY_STALE_KILL_WAIT      =>   5,  # ... to wait for a stale server to go
+  REPLAY_STOP_TERM_WAIT       =>  10,  # ... for SIGTERM to stop the server
+  REPLAY_STOP_KILL_WAIT       =>   3,  # ... for SIGKILL to do the same
+  REPLAY_MANUAL_START_TIMEOUT => 300,  # ... for a manually started server
+  REPLAY_MANUAL_REPORT_EVERY  =>  10,  # ... between "still waiting" reports
+  REPLAY_MANUAL_POLL_EVERY    =>   2,  # ... between pings while waiting
+  REPLAY_SETTLE_WAIT          =>   2,  # ... after the socket shows up, before
+                                       #     the server is talked to
+};
+
+# True when this run has a replay server, started by us or by the user
+sub _replay_server_enabled {
+  return ($opt_replay_server || $opt_replay_server_manual);
+}
+
+# The socket mysqltest connects to the replay server on
+sub _replay_socket     { return $ENV{REPLAY_SERVER_SOCKET}; }
+sub _set_replay_socket { $ENV{REPLAY_SERVER_SOCKET}= $_[0]; }
+
+# Where the replay server keeps its files - it is extra server
+# EXTRA_SERVER_NUM, see lib/My/ExtraServer.pm
+sub _replay_socket_path  { extra_server_socket($opt_vardir, EXTRA_SERVER_NUM) }
+sub _replay_server_pid_file
+                       { extra_server_pid_file($opt_vardir, EXTRA_SERVER_NUM) }
+sub _replay_info_file    { extra_server_info_file($opt_vardir,
+                                                  EXTRA_SERVER_NUM) }
+
+# Refuse the run: a single replay server cannot serve several workers
+sub _replay_parallel_error {
+  mtr_error("--replay-server / --replay-server-manual cannot be used " .
+            "together with --parallel > 1 (parallel=$opt_parallel). " .
+            "The replay server is a single shared instance and cannot " .
+            "serve multiple concurrent workers. " .
+            "Re-run with --parallel=1.");
+}
+
+
 sub _install_replay_server_signal_handlers {
   # Ensure END block (which stops the replay server) runs on common
   # termination signals. Perl END blocks don't run on uncaught signals;
@@ -3127,16 +3166,17 @@ sub _install_replay_server_signal_handlers {
 
 #
 # Shared PID file so worker-process restarts of the replay server are visible
-# to the parent's stop logic (END block).
+# to the parent's stop logic (END block). Not to be confused with the server's
+# own --pid-file, _replay_server_pid_file().
 #
-sub _replay_pid_file {
+sub _replay_current_pid_file {
   return "$opt_vardir/tmp/replay_server.current_pid";
 }
 
 sub _write_replay_pid_file {
   my ($pid) = @_;
   return unless defined $pid;
-  my $path = _replay_pid_file();
+  my $path = _replay_current_pid_file();
   if (open my $fh, '>', $path) {
     print $fh "$pid\n";
     close $fh;
@@ -3146,7 +3186,7 @@ sub _write_replay_pid_file {
 }
 
 sub _read_replay_pid_file {
-  my $path = _replay_pid_file();
+  my $path = _replay_current_pid_file();
   return undef unless -f $path;
   open my $fh, '<', $path or return undef;
   my $pid = <$fh>;
@@ -3157,12 +3197,31 @@ sub _read_replay_pid_file {
 }
 
 #
+# The pid of the replay server. It is kept in the environment, for the workers,
+# and in the shared file, for the parent's stop logic; the file may be the
+# fresher of the two, so it wins.
+#
+sub _replay_server_pid {
+  return _read_replay_pid_file() // $ENV{REPLAY_SERVER_PID};
+}
+
+sub _set_replay_server_pid {
+  my ($pid) = @_;
+  $ENV{REPLAY_SERVER_PID} = $pid;
+  _write_replay_pid_file($pid);
+}
+
+# Forget the pid, marking the server stopped for the calls that follow
+sub _clear_replay_server_pid { delete $ENV{REPLAY_SERVER_PID}; }
+
+#
 # Ping the replay server with SELECT '<test_name>' AS next_testcase, enforcing
-# a 5-second timeout. Returns 1 on success, 0 on failure/timeout.
+# a REPLAY_PING_TIMEOUT second timeout. Returns 1 on success, 0 on
+# failure/timeout.
 #
 sub _ping_replay_server {
   my ($test_name) = @_;
-  my $sock = $ENV{REPLAY_SERVER_SOCKET};
+  my $sock = _replay_socket();
   return 0 unless $sock && -S $sock;
 
   my $mysql_exe = mtr_exe_maybe_exists("$path_client_bindir/mariadb");
@@ -3194,12 +3253,12 @@ sub _ping_replay_server {
       or POSIX::_exit(127);
   }
 
-  # Parent: wait up to 5 seconds.
+  # Parent: wait for the ping to come back.
   my $status;
   my $timed_out = 0;
   eval {
     local $SIG{ALRM} = sub { die "timeout\n" };
-    alarm(5);
+    alarm(REPLAY_PING_TIMEOUT);
     waitpid($pid, 0);
     $status = $?;
     alarm(0);
@@ -3222,8 +3281,8 @@ sub _ping_replay_server {
 #
 sub check_replay_server {
   my ($test_name) = @_;
-  return unless ($opt_replay_server || $opt_replay_server_manual);
-  return unless $ENV{REPLAY_SERVER_SOCKET};
+  return unless _replay_server_enabled();
+  return unless _replay_socket();
 
   return if _ping_replay_server($test_name);
 
@@ -3231,12 +3290,12 @@ sub check_replay_server {
                "before test '$test_name'\n";
 
   # Kill any stale process from the old PID.
-  my $old_pid = _read_replay_pid_file() // $ENV{REPLAY_SERVER_PID};
+  my $old_pid = _replay_server_pid();
   if (defined $old_pid && $old_pid =~ /^\d+$/ && kill(0, $old_pid)) {
     print STDERR "mysql-test-run: killing stale replay server (pid $old_pid)\n";
     kill 'TERM', $old_pid;
     my $waited = 0;
-    while ($waited < 5 && kill(0, $old_pid)) {
+    while ($waited < REPLAY_STALE_KILL_WAIT && kill(0, $old_pid)) {
       sleep 1;
       $waited++;
     }
@@ -3247,36 +3306,32 @@ sub check_replay_server {
   }
 
   # Remove stale socket / pid / info so restart can succeed.
-  my $dir = "$opt_vardir/extra_server_1";
-  unlink "$dir/mysqld.sock" if -e "$dir/mysqld.sock";
-  unlink "$dir/mysqld.pid"  if -e "$dir/mysqld.pid";
-  unlink "$opt_vardir/tmp/extra_server_1.info"
-    if -f "$opt_vardir/tmp/extra_server_1.info";
+  for my $stale (_replay_socket_path(), _replay_server_pid_file(),
+                 _replay_info_file()) {
+    unlink $stale if -e $stale;
+  }
 
   if ($opt_replay_server) {
     print STDERR "mysql-test-run: restarting replay server...\n";
     start_replay_server();
-    _write_replay_pid_file($ENV{REPLAY_SERVER_PID});
     print STDERR "mysql-test-run: replay server restarted (pid " .
-                 ($ENV{REPLAY_SERVER_PID} // "?") . ")\n";
+                 (_replay_server_pid() // "?") . ")\n";
   } else {
     # --replay-server-manual: can't auto-restart. Wait for the user.
     print STDERR "mysql-test-run: --replay-server-manual is set; " .
                  "waiting for you to restart the replay server on socket " .
-                 "$ENV{REPLAY_SERVER_SOCKET} ...\n";
+                 _replay_socket() . " ...\n";
     while (!_ping_replay_server($test_name)) {
-      sleep 2;
+      sleep REPLAY_MANUAL_POLL_EVERY;
     }
     # Try to refresh the PID from the pid file written by the user's server.
-    my $pid_file = "$opt_vardir/extra_server_1/mysqld.pid";
+    my $pid_file = _replay_server_pid_file();
     if (-f $pid_file && open my $fh, '<', $pid_file) {
       my $new_pid = <$fh>;
       close $fh;
       chomp $new_pid if defined $new_pid;
-      if (defined $new_pid && $new_pid =~ /^\d+$/) {
-        $ENV{REPLAY_SERVER_PID} = $new_pid;
-        _write_replay_pid_file($new_pid);
-      }
+      _set_replay_server_pid($new_pid)
+        if defined $new_pid && $new_pid =~ /^\d+$/;
     }
     print STDERR "mysql-test-run: replay server is responsive again, " .
                  "continuing with test '$test_name'\n";
@@ -3301,13 +3356,12 @@ sub start_replay_server {
     $opt_build_thread = $build_thread;
   }
 
-  my $replay_server_num = 1;
   my $script = "$glob_mysql_test_dir/lib/start_extra_server.pl";
-  
+
   unless (-f $script) {
     mtr_error("Replay server script not found: $script");
   }
-  
+
   # Set required environment variables for the script
   # (environment_setup() has already been called, so most are already set)
   $ENV{MYSQLTEST_VARDIR} = $opt_vardir unless $ENV{MYSQLTEST_VARDIR};
@@ -3315,24 +3369,24 @@ sub start_replay_server {
   $ENV{MYSQL_TEST_DIR} = $glob_mysql_test_dir unless $ENV{MYSQL_TEST_DIR};
   # MYSQLD should already be set by environment_setup(), but set it if not
   $ENV{MYSQLD} = find_mysqld($basedir) unless $ENV{MYSQLD};
-  
-  # Use a custom socket path in the replay server directory to avoid cleanup
-  my $replay_socket = "$opt_vardir/extra_server_$replay_server_num/mysqld.sock";
-  
-  # Call the start_extra_server.pl script with custom socket
-  my $cmd = "perl $script $replay_server_num '' $replay_socket";
+
+  # Pass the socket in the server's own directory rather than letting the
+  # script default to one in the tmp directory, which is cleaned up while the
+  # tests run. Empty port: the script derives it from MASTER_MYPORT.
+  my $cmd = "perl $script " . EXTRA_SERVER_NUM . " '' " .
+            _replay_socket_path();
   my $result = system($cmd);
-  
+
   if ($result != 0) {
     mtr_error("Failed to start replay server (exit code: $result)");
   }
-  
+
   # Read connection info
-  my $info_file = "$opt_vardir/tmp/extra_server_$replay_server_num.info";
+  my $info_file = _replay_info_file();
   unless (-f $info_file) {
     mtr_error("Replay server info file not found: $info_file");
   }
-  
+
   open my $fh, '<', $info_file or mtr_error("Cannot read $info_file: $!");
   my %info;
   while (<$fh>) {
@@ -3344,9 +3398,8 @@ sub start_replay_server {
   close $fh;
   
   # Store for cleanup and export to environment
-  $ENV{REPLAY_SERVER_SOCKET} = $info{SOCKET};
-  $ENV{REPLAY_SERVER_PID} = $info{PID};
-  _write_replay_pid_file($info{PID});
+  _set_replay_socket($info{SOCKET});
+  _set_replay_server_pid($info{PID});
 
   mtr_report("Replay server started on socket: $info{SOCKET}");
 }
@@ -3364,68 +3417,28 @@ sub start_replay_server_manual {
     $opt_build_thread = $build_thread;
   }
 
-  my $replay_server_num = 1;
-  
   # Set required environment variables
   $ENV{MYSQLTEST_VARDIR} = $opt_vardir unless $ENV{MYSQLTEST_VARDIR};
   $ENV{MASTER_MYPORT} = $baseport unless $ENV{MASTER_MYPORT};
   $ENV{MYSQL_TEST_DIR} = $glob_mysql_test_dir unless $ENV{MYSQL_TEST_DIR};
   $ENV{MYSQLD} = find_mysqld($basedir) unless $ENV{MYSQLD};
-  
+
   my $mysqld = $ENV{MYSQLD};
   die "mysqld binary not found at $mysqld\n" unless -x $mysqld;
-  
-  # Calculate paths
-  my $base_port = $ENV{MASTER_MYPORT} || 10000;
-  my $port = $base_port + 10 + $replay_server_num;
-  my $socket = "$opt_vardir/extra_server_$replay_server_num/mysqld.sock";
-  my $server_dir = "$opt_vardir/extra_server_$replay_server_num";
-  my $datadir = "$server_dir/data";
-  my $install_db = "$opt_vardir/install.db";
-  my $pid_file = "$server_dir/mysqld.pid";
-  my $log_file = "$opt_vardir/log/extra_server_$replay_server_num.err";
-  my $general_log_file = "$opt_vardir/log/extra_server_$replay_server_num.log";
-  
-  die "install.db not found at $install_db\n" unless -d $install_db;
-  
-  # Create server directory
-  use File::Path qw(make_path remove_tree);
-  make_path($server_dir) unless -d $server_dir;
-  make_path("$opt_vardir/log") unless -d "$opt_vardir/log";
-  
-  # Prepare datadir
-  if (-d $datadir) {
-    mtr_report("Removing existing datadir: $datadir");
-    remove_tree($datadir);
-  }
-  
-  mtr_report("Copying $install_db to $datadir...");
-  system("cp", "-a", $install_db, $datadir) == 0
-    or die "Failed to copy $install_db to $datadir: $!\n";
-  
-  # Ensure proper permissions
-  system("chmod", "-R", "u+rwX", $datadir) == 0
-    or warn "Warning: Failed to set permissions on $datadir\n";
-  
-  # Build command line
-  my @mysqld_args = (
-    $mysqld,
-    "--no-defaults",
-    "--datadir=$datadir",
-    "--port=$port",
-    "--socket=$socket",
-    "--pid-file=$pid_file",
-    "--log-error=$log_file",
-    "--general-log=1",
-    "--general-log-file=$general_log_file",
-    "--skip-networking=0",
-    "--skip-grant-tables",
-    "--key-buffer-size=1M",
-    "--sort-buffer-size=256K",
-    "--max-heap-table-size=1M",
-    "--gdb",
-  );
-  
+
+  # The same paths, port and command line start_extra_server.pl would use, so
+  # that the server the user starts by hand is the one mtr expects.
+  my $port = extra_server_port($ENV{MASTER_MYPORT}, EXTRA_SERVER_NUM);
+  my $socket = _replay_socket_path();
+  my $pid_file = _replay_server_pid_file();
+
+  extra_server_prepare_datadir($opt_vardir, EXTRA_SERVER_NUM,
+                               sub { mtr_report($_[0]) });
+
+  my @mysqld_args = extra_server_mysqld_args($mysqld, $opt_vardir,
+                                             EXTRA_SERVER_NUM,
+                                             $port, $socket);
+
   # Write a gdb init file so the user can run:
   #   gdb -x var/tmp/gdbinit-replay <mysqld>
   # The file contains a single "set args ..." line with all mysqld arguments
@@ -3450,37 +3463,35 @@ sub start_replay_server_manual {
   mtr_report("    gdb -x $gdbinit_file $mysqld");
   mtr_report("");
   mtr_report("Waiting for socket file to appear: $socket");
-  mtr_report("(Timeout: 300 seconds)");
+  mtr_report("(Timeout: " . REPLAY_MANUAL_START_TIMEOUT . " seconds)");
   mtr_report("=" x 70);
-  
+
   # Wait for socket file to appear
-  my $max_wait = 300;  # 5 minutes
   my $waited = 0;
   my $last_msg = 0;
-  
-  while ($waited < $max_wait) {
+
+  while ($waited < REPLAY_MANUAL_START_TIMEOUT) {
     if (-S $socket) {
       mtr_report("Socket file detected: $socket");
       last;
     }
-    
+
     sleep 1;
     $waited++;
-    
-    # Print progress every 10 seconds
-    if ($waited - $last_msg >= 10) {
+
+    if ($waited - $last_msg >= REPLAY_MANUAL_REPORT_EVERY) {
       mtr_report("Still waiting for socket... ($waited seconds elapsed)");
       $last_msg = $waited;
     }
   }
-  
-  if ($waited >= $max_wait) {
+
+  if ($waited >= REPLAY_MANUAL_START_TIMEOUT) {
     die "Timeout waiting for replay server socket to appear: $socket\n";
   }
-  
+
   # Give server a moment to be fully ready
-  sleep 2;
-  
+  sleep REPLAY_SETTLE_WAIT;
+
   # Detect PID
   my $pid;
   
@@ -3514,9 +3525,8 @@ sub start_replay_server_manual {
   }
   
   # Store for cleanup and export to environment
-  $ENV{REPLAY_SERVER_SOCKET} = $socket;
-  $ENV{REPLAY_SERVER_PID} = $pid;
-  _write_replay_pid_file($pid);
+  _set_replay_socket($socket);
+  _set_replay_server_pid($pid);
 
   mtr_report("Replay server detected with PID: $pid");
   mtr_report("Socket: $socket");
@@ -3525,10 +3535,8 @@ sub start_replay_server_manual {
 
 
 sub stop_replay_server {
-  return unless ($opt_replay_server || $opt_replay_server_manual);
-  # Prefer the PID from the shared file (it may be fresher than our env var
-  # if a worker restarted the server).
-  my $pid = _read_replay_pid_file() // $ENV{REPLAY_SERVER_PID};
+  return unless _replay_server_enabled();
+  my $pid = _replay_server_pid();
   return unless $pid;
 
   mtr_report("Stopping replay server...");
@@ -3540,10 +3548,9 @@ sub stop_replay_server {
   if (kill 0, $pid) {
     kill 'TERM', $pid;
 
-    # Wait for process to exit (up to 10 seconds)
-    my $max_wait = 10;
+    # Wait for process to exit
     my $waited = 0;
-    while ($waited < $max_wait && kill(0, $pid)) {
+    while ($waited < REPLAY_STOP_TERM_WAIT && kill(0, $pid)) {
       sleep 1;
       $waited++;
     }
@@ -3553,21 +3560,20 @@ sub stop_replay_server {
       kill 'KILL', $pid;
       # Wait briefly for KILL to take effect
       my $kill_waited = 0;
-      while ($kill_waited < 3 && kill(0, $pid)) {
+      while ($kill_waited < REPLAY_STOP_KILL_WAIT && kill(0, $pid)) {
         sleep 1;
         $kill_waited++;
       }
     }
   }
-  
+
   # Cleanup info file and shared pid file
-  my $info_file = "$opt_vardir/tmp/extra_server_1.info";
-  unlink $info_file if -f $info_file;
-  my $pid_file = _replay_pid_file();
-  unlink $pid_file if -f $pid_file;
+  for my $file (_replay_info_file(), _replay_current_pid_file()) {
+    unlink $file if -f $file;
+  }
 
   # Mark as stopped so subsequent calls (e.g. from END block) are no-ops
-  delete $ENV{REPLAY_SERVER_PID};
+  _clear_replay_server_pid();
 
   mtr_report("Replay server stopped");
 }

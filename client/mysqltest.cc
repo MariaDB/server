@@ -271,6 +271,58 @@ static const char *opt_plugin_dir;
 static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
+/*
+  ReplayTest mode: names and literals shared with the outside world.
+
+  Everything the replay code has to spell exactly right is defined here rather
+  than at the point of use: the environment variables are set by
+  mariadb-test-run.pl, the system variables and the @-variable are those the
+  recorded context script uses, and the file names are what a test run leaves
+  in vardir / next to the .result file.
+*/
+/* Environment variables exported by mtr --replay-server & friends */
+#define REPLAY_ENV_SOCKET         "REPLAY_SERVER_SOCKET"
+#define REPLAY_ENV_TRACE          "REPLAY_SERVER_TRACE"
+#define REPLAY_ENV_NO_CLEANUP     "REPLAY_SERVER_NO_CLEANUP"
+/* Log of everything sent to the replay server, relative to MYSQLTEST_VARDIR */
+#define REPLAY_QUERY_LOG_SUBPATH  "/log/replay_queries.log"
+/* Marker written to that log before each replayed context script */
+#define REPLAY_LOG_SESSION_MARKER "### REPLAY SESSION ###"
+/* Extensions of the two optimizer_trace dumps, replacing the .result one */
+#define REPLAY_TRACE_EXT_ORIGINAL ".opt_trace.original"
+#define REPLAY_TRACE_EXT_REPLAY   ".opt_trace.replay"
+/* Database mysqltest connects the replay server with, and returns to after
+   cleanup. Never dropped by the cleanup, see replay_capture_snapshot(). */
+#define REPLAY_DEFAULT_DB         "test"
+/* System variable that makes the test server record an optimizer context */
+#define REPLAY_RECORD_SYSVAR      "optimizer_record_context"
+/* System variable that feeds a recorded context to the replay server */
+#define REPLAY_CONTEXT_SYSVAR     "optimizer_replay_context"
+/* User variable the recorded script keeps the context in */
+#define REPLAY_CONTEXT_USERVAR    "@opt_context"
+/* User variable holding the test server's optimizer_trace setting while
+   REPLAY_ENV_TRACE has it forced on for one EXPLAIN. Deliberately not the one
+   enable_optimizer_trace() uses, so that a test doing --enable_optimizer_trace
+   under REPLAY_ENV_TRACE still restores its own value. */
+#define REPLAY_SAVED_TRACE_USERVAR "@mtr_save_opt_trace"
+/* Where the recorded context and the optimizer traces are read from */
+#define REPLAY_IS_CONTEXT_TABLE   "information_schema.optimizer_context"
+#define REPLAY_IS_TRACE_TABLE     "information_schema.optimizer_trace"
+/* Schemas the cleanup must never look at, and the extra ones that are only
+   excluded from the database list - their contents are still tracked */
+#define REPLAY_ENGINE_SCHEMAS     "'information_schema','performance_schema'"
+#define REPLAY_KEPT_SCHEMAS       REPLAY_ENGINE_SCHEMAS ",'mysql','sys','" \
+                                  REPLAY_DEFAULT_DB "'"
+/* The recorded context script separates its statements with this */
+static const char replay_stmt_separator[]= ";\n";
+#define REPLAY_STMT_SEPARATOR_LEN (sizeof(replay_stmt_separator) - 1)
+/* Scope keywords accepted by "disable_replay <scope> <reason>" */
+static const LEX_CSTRING replay_scope_next_query=
+  {STRING_WITH_LEN("next_query")};
+static const LEX_CSTRING replay_scope_testfile= {STRING_WITH_LEN("testfile")};
+#define DISABLE_REPLAY_SYNTAX "Syntax: disable_replay next_query|testfile " \
+                              "<reason>"
+
 /* ReplayTest mode variables */
 static MYSQL *replay_server_mysql= NULL;
 static const char *replay_server_socket= NULL;
@@ -8412,7 +8464,8 @@ static int ensure_replay_server_connection()
     DBUG_RETURN(1);
   }
   
-  if (!mysql_real_connect(replay_server_mysql, NULL, NULL, NULL, "test", 0,
+  if (!mysql_real_connect(replay_server_mysql, NULL, NULL, NULL,
+                          REPLAY_DEFAULT_DB, 0,
                           replay_server_socket, CLIENT_MULTI_STATEMENTS))
   {
     fprintf(stdout, "ReplayTest: Failed to connect to replay server at socket '%s': %d %s\n",
@@ -8423,7 +8476,8 @@ static int ensure_replay_server_connection()
     DBUG_RETURN(1);
   }
   
-  verbose_msg("ReplayTest: Connected to replay server (database: test)");
+  verbose_msg("ReplayTest: Connected to replay server (database: %s)",
+              REPLAY_DEFAULT_DB);
 
   /*
     Replay server runs against arbitrary recorded contexts; disable FK
@@ -8508,7 +8562,7 @@ static void log_replay_session_start()
 {
   if (replay_log_file)
   {
-    fprintf(replay_log_file, "### REPLAY SESSION ###\n");
+    fprintf(replay_log_file, "%s\n", REPLAY_LOG_SESSION_MARKER);
     fflush(replay_log_file);
   }
 }
@@ -8527,6 +8581,28 @@ static void log_replay_query(const char *query, size_t query_len)
 
 
 /*
+  Append the "Warnings:" block of the last statement run on `conn` to `ds`,
+  in the same format run_query_normal() uses. Does nothing when the test has
+  warnings disabled or when there are none.
+*/
+static void replay_append_warnings(MYSQL *conn, DYNAMIC_STRING *ds)
+{
+  DYNAMIC_STRING ds_warn;
+
+  if (disable_warnings)
+    return;
+
+  init_dynamic_string(&ds_warn, "", 256, 256);
+  if (append_warnings(&ds_warn, conn) || ds_warn.length)
+  {
+    dynstr_append_mem(ds, STRING_WITH_LEN("Warnings:\n"));
+    dynstr_append_mem(ds, ds_warn.str, ds_warn.length);
+  }
+  dynstr_free(&ds_warn);
+}
+
+
+/*
   REPLAY_SERVER_TRACE helper: fetch the current optimizer_trace from `conn`
   and append the trace JSON (one row per result row, one newline each) into
   `out`. On error appends a "-- ERROR: <msg>\n" line. Drains any extra result
@@ -8537,11 +8613,11 @@ static void capture_optimizer_trace(MYSQL *conn, DYNAMIC_STRING *out)
   if (!conn || !out)
     return;
   if (mysql_real_query(conn,
-                       STRING_WITH_LEN(
-                         "SELECT trace FROM information_schema.optimizer_trace")))
+                       STRING_WITH_LEN("SELECT trace FROM "
+                                       REPLAY_IS_TRACE_TABLE)))
   {
     const char *err= mysql_error(conn);
-    dynstr_append_mem(out, "-- ERROR: ", 10);
+    dynstr_append_mem(out, STRING_WITH_LEN("-- ERROR: "));
     dynstr_append_mem(out, err, strlen(err));
     dynstr_append_mem(out, "\n", 1);
     return;
@@ -8722,10 +8798,10 @@ static int replay_capture_snapshot(DYNAMIC_ARRAY *dbs, DYNAMIC_ARRAY *objects)
 {
   static const char db_query[]=
     "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME "
-    "NOT IN ('information_schema','performance_schema','mysql','sys','test')";
+    "NOT IN (" REPLAY_KEPT_SCHEMAS ")";
   static const char obj_query[]=
     "SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.TABLES WHERE "
-    "TABLE_SCHEMA NOT IN ('information_schema','performance_schema')";
+    "TABLE_SCHEMA NOT IN (" REPLAY_ENGINE_SCHEMAS ")";
   MYSQL_RES *res;
   MYSQL_ROW row;
   DBUG_ENTER("replay_capture_snapshot");
@@ -8982,19 +9058,29 @@ static void replay_restore_baseline()
     large and it stays in the connection's memory until the next script
     overwrites it.
   */
-  replay_exec_cleanup_query(STRING_WITH_LEN("SET @opt_context=NULL"));
+  replay_exec_cleanup_query(STRING_WITH_LEN("SET " REPLAY_CONTEXT_USERVAR
+                                            "=NULL"));
 
   /*
     The script's USE may have selected a database that we have just dropped.
     Get back to a database that exists: run_explain_directly_on_replay()
     runs its EXPLAIN with whatever default database is current.
   */
-  replay_exec_cleanup_query(STRING_WITH_LEN("USE test"));
+  replay_exec_cleanup_query(STRING_WITH_LEN("USE " REPLAY_DEFAULT_DB));
 
   dynstr_free(&stmt);
   delete_dynamic(&extra_dbs);
   free_replay_snapshot(&cur_dbs, &cur_objects);
   DBUG_VOID_RETURN;
+}
+
+
+/* TRUE if the `tok_len` bytes at `tok` are exactly the keyword `word` */
+
+static my_bool replay_token_eq(const char *tok, size_t tok_len,
+                               const LEX_CSTRING *word)
+{
+  return tok_len == word->length && !strncmp(tok, word->str, tok_len);
 }
 
 
@@ -9037,19 +9123,19 @@ static void do_disable_replay(struct st_command *command)
     p++;
   tok_len= (size_t)(p - tok);
 
-  if (tok_len == 10 && strncmp(tok, "next_query", 10) == 0)
+  if (replay_token_eq(tok, tok_len, &replay_scope_next_query))
     is_testfile= FALSE;
-  else if (tok_len == 8 && strncmp(tok, "testfile", 8) == 0)
+  else if (replay_token_eq(tok, tok_len, &replay_scope_testfile))
     is_testfile= TRUE;
   else
-    die("Syntax: disable_replay next_query|testfile <reason>");
+    die(DISABLE_REPLAY_SYNTAX);
 
   /* Skip whitespace between the scope token and the reason */
   while (p < end && my_isspace(charset_info, *p))
     p++;
 
   if (p >= end)
-    die("Syntax: disable_replay next_query|testfile <reason>  (reason missing)");
+    die(DISABLE_REPLAY_SYNTAX "  (reason missing)");
 
   if (is_testfile)
   {
@@ -9093,7 +9179,7 @@ static void do_disable_replay(struct st_command *command)
 
 /*
   Execute queries from SQL script on replay server
-  Split by ";\n" and execute each query
+  Split by replay_stmt_separator and execute each query
   Append output from last query to ds
 */
 static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
@@ -9113,7 +9199,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
   /* Single-pass execution: stop at first EXPLAIN FORMAT=JSON */
   while (*p)
   {
-    if (p[0] == ';' && p[1] == '\n')
+    if (!strncmp(p, replay_stmt_separator, REPLAY_STMT_SEPARATOR_LEN))
     {
       size_t query_len= p - query_start;
       const char *q= query_start;
@@ -9199,17 +9285,8 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         } while (mysql_next_result(replay_server_mysql) == 0);
 
         /* Collect warnings from the EXPLAIN query (replay server) */
-        if (is_explain && !disable_warnings)
-        {
-          DYNAMIC_STRING ds_warn;
-          init_dynamic_string(&ds_warn, "", 256, 256);
-          if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
-          {
-            dynstr_append_mem(&result, "Warnings:\n", 10);
-            dynstr_append_mem(&result, ds_warn.str, ds_warn.length);
-          }
-          dynstr_free(&ds_warn);
-        }
+        if (is_explain)
+          replay_append_warnings(replay_server_mysql, &result);
 
         /* If this was EXPLAIN, we're done - stop processing */
         if (is_explain)
@@ -9226,7 +9303,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         }
       }
       
-      p += 2;
+      p+= REPLAY_STMT_SEPARATOR_LEN;
       query_start= p;
     }
     else
@@ -9293,21 +9370,10 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         }
       } while (mysql_next_result(replay_server_mysql) == 0);
 
-      /* Collect warnings from the EXPLAIN query (replay server) */
-      if (is_explain && !disable_warnings)
-      {
-        DYNAMIC_STRING ds_warn;
-        init_dynamic_string(&ds_warn, "", 256, 256);
-        if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
-        {
-          dynstr_append_mem(&result, "Warnings:\n", 10);
-          dynstr_append_mem(&result, ds_warn.str, ds_warn.length);
-        }
-        dynstr_free(&ds_warn);
-      }
-
       if (is_explain)
       {
+        /* Collect warnings from the EXPLAIN query (replay server) */
+        replay_append_warnings(replay_server_mysql, &result);
         found_explain= TRUE;
         /* REPLAY_SERVER_TRACE: capture replay server's optimizer_trace
            BEFORE the cleanup reset below overwrites it. The caller decides
@@ -9334,21 +9400,15 @@ cleanup:
   if (replay_server_mysql)
   {
     if (mysql_real_query(replay_server_mysql,
-                         "set optimizer_replay_context=''", 31))
+                         STRING_WITH_LEN("SET " REPLAY_CONTEXT_SYSVAR "=''")))
     {
-      fprintf(stdout, "ReplayTest: Warning - failed to reset optimizer_replay_context: %d %s\n",
+      fprintf(stdout, "ReplayTest: Warning - failed to reset %s: %d %s\n",
+              REPLAY_CONTEXT_SYSVAR,
               mysql_errno(replay_server_mysql),
               mysql_error(replay_server_mysql));
     }
     else
-    {
-      do
-      {
-        MYSQL_RES *res= mysql_store_result(replay_server_mysql);
-        if (res)
-          mysql_free_result(res);
-      } while (mysql_next_result(replay_server_mysql) == 0);
-    }
+      replay_drain_results();
 
     /* Drop what this script has created, so that the next replay run starts
        from the same state as this one did. */
@@ -9418,17 +9478,7 @@ static void run_explain_directly_on_replay(const char *query, size_t query_len,
   } while (mysql_next_result(replay_server_mysql) == 0);
 
   /* Append warnings from the EXPLAIN query */
-  if (!disable_warnings)
-  {
-    DYNAMIC_STRING ds_warn;
-    init_dynamic_string(&ds_warn, "", 256, 256);
-    if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
-    {
-      dynstr_append_mem(ds, "Warnings:\n", 10);
-      dynstr_append_mem(ds, ds_warn.str, ds_warn.length);
-    }
-    dynstr_free(&ds_warn);
-  }
+  replay_append_warnings(replay_server_mysql, ds);
 
   /* REPLAY_SERVER_TRACE: capture the replay server's optimizer_trace for
      this directly-run EXPLAIN. The caller decides later whether to flush. */
@@ -9441,7 +9491,432 @@ static void run_explain_directly_on_replay(const char *query, size_t query_len,
 
 
 /*
-  Handle situation where query is sent but there is no active connection 
+  Run one statement on the test server and discard whatever it returns.
+
+  Used for the SET statements that bracket a replayed EXPLAIN. Returns TRUE
+  on error; `errmsg` is then printed if it is not NULL - pass NULL for the
+  statements whose failure we deliberately ignore.
+*/
+static my_bool replay_exec_on_test_server(MYSQL *mysql, const char *stmt,
+                                          size_t len, const char *errmsg)
+{
+  MYSQL_RES *res;
+  if (mysql_real_query(mysql, stmt, (ulong) len))
+  {
+    if (errmsg)
+      fprintf(stdout, "ReplayTest: %s: %d %s\n", errmsg,
+              mysql_errno(mysql), mysql_error(mysql));
+    return TRUE;
+  }
+  if ((res= mysql_store_result(mysql)))
+    mysql_free_result(res);
+  return FALSE;
+}
+
+
+/*
+  Undo on the test server what replay_hook_pre_query() set up for this
+  EXPLAIN: stop recording optimizer contexts and put optimizer_trace back to
+  the value saved in @mtr_save_opt_trace.
+*/
+static void replay_undo_test_server_setup(MYSQL *mysql)
+{
+  replay_exec_on_test_server(mysql,
+                       STRING_WITH_LEN("SET " REPLAY_RECORD_SYSVAR "=0"),
+                       NULL);
+  if (replay_server_trace)
+    replay_exec_on_test_server(mysql,
+                       STRING_WITH_LEN("SET optimizer_trace="
+                                       REPLAY_SAVED_TRACE_USERVAR),
+                       NULL);
+}
+
+
+/*
+  Make the EXPLAIN query available to the replay-side helpers and, when
+  REPLAY_SERVER_TRACE is on, grab the test server's optimizer_trace for it and
+  arm the replay-side capture buffer.
+
+  Must be called before anything else runs on the test server's connection,
+  as that would overwrite the trace we are after.
+*/
+static void replay_arm_trace_capture(MYSQL *mysql, const char *query,
+                                     size_t query_len,
+                                     DYNAMIC_STRING *orig_trace,
+                                     DYNAMIC_STRING *replay_trace)
+{
+  replay_current_explain= query;
+  replay_current_explain_len= query_len;
+  if (replay_server_trace)
+  {
+    capture_optimizer_trace(mysql, orig_trace);
+    replay_trace_capture_buf= replay_trace;
+  }
+}
+
+
+static void replay_disarm_trace_capture()
+{
+  replay_current_explain= NULL;
+  replay_current_explain_len= 0;
+  replay_trace_capture_buf= NULL;
+}
+
+
+/*
+  Collect the test server's own EXPLAIN output - headings, rows and warnings -
+  into `ds`, formatted the way the replay side formats it so that the two can
+  be compared. Consumes *res.
+*/
+static void replay_collect_primary_explain(MYSQL *mysql, MYSQL_RES **res,
+                                           MYSQL_FIELD *fields,
+                                           uint num_fields,
+                                           DYNAMIC_STRING *ds)
+{
+  if (!display_result_vertically)
+    append_table_headings(ds, fields, num_fields);
+  append_result(ds, *res);
+  mysql_free_result(*res);
+  *res= 0;
+
+  replay_append_warnings(mysql, ds);
+}
+
+
+enum replay_context_status
+{
+  REPLAY_CONTEXT_FOUND,   /* a context script was recorded, `script` has it */
+  REPLAY_CONTEXT_EMPTY,   /* the EXPLAIN recorded no context                */
+  REPLAY_CONTEXT_ERROR    /* the context could not be read at all           */
+};
+
+
+/*
+  Read the optimizer context that the test server recorded for the EXPLAIN
+  that has just run, into `script`.
+*/
+static enum replay_context_status replay_fetch_context(MYSQL *mysql,
+                                                      DYNAMIC_STRING *script)
+{
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  enum replay_context_status status= REPLAY_CONTEXT_EMPTY;
+  DBUG_ENTER("replay_fetch_context");
+
+  fprintf(stdout, "ReplayTest: Loading context \n");
+  if (mysql_real_query(mysql, STRING_WITH_LEN("SELECT context FROM "
+                                              REPLAY_IS_CONTEXT_TABLE)))
+  {
+    fprintf(stdout, "ReplayTest: Failed to query %s: %d %s\n",
+            REPLAY_IS_CONTEXT_TABLE, mysql_errno(mysql), mysql_error(mysql));
+    DBUG_RETURN(REPLAY_CONTEXT_ERROR);
+  }
+
+  if (!(res= mysql_store_result(mysql)))
+    DBUG_RETURN(REPLAY_CONTEXT_EMPTY);
+
+  if (mysql_num_rows(res) > 0 && (row= mysql_fetch_row(res)) && row[0])
+  {
+    dynstr_set(script, row[0]);
+    status= REPLAY_CONTEXT_FOUND;
+  }
+  mysql_free_result(res);
+  DBUG_RETURN(status);
+}
+
+
+/*
+  If the recorded context contains a marker that we know cannot be replayed
+  correctly, return that marker, otherwise NULL.
+*/
+static const char *replay_context_stop_word(const char *script)
+{
+  for (const char **sw= replay_context_stop_words; *sw; sw++)
+    if (strstr(script, *sw))
+      return *sw;
+  return NULL;
+}
+
+
+static my_bool replay_explains_match(const DYNAMIC_STRING *a,
+                                     const DYNAMIC_STRING *b)
+{
+  return a->length == b->length && memcmp(a->str, b->str, a->length) == 0;
+}
+
+
+/*
+  Produce, in `ds_replay`, the EXPLAIN output of the replay server for the
+  EXPLAIN that has just run on the test server.
+
+    ds_primary       the test server's own output, used as the fallback and as
+                     the comparison base for the trace dump
+    ds_orig_trace,
+    ds_replay_trace  receive the optimizer traces of the two servers, but only
+                     when REPLAY_SERVER_TRACE is on
+
+  On return the test server is back in the state it was in before
+  replay_hook_pre_query() ran.
+*/
+static void replay_explain_on_replay_server(MYSQL *mysql, const char *query,
+                                            size_t query_len,
+                                            const DYNAMIC_STRING *ds_primary,
+                                            DYNAMIC_STRING *ds_replay,
+                                            DYNAMIC_STRING *ds_orig_trace,
+                                            DYNAMIC_STRING *ds_replay_trace)
+{
+  DYNAMIC_STRING script;
+  enum replay_context_status status;
+  const char *stop_word= NULL;
+  DBUG_ENTER("replay_explain_on_replay_server");
+
+  init_dynamic_string(&script, "", 1024, 1024);
+  status= replay_fetch_context(mysql, &script);
+
+  if (status == REPLAY_CONTEXT_FOUND)
+    stop_word= replay_context_stop_word(script.str);
+
+  if (status == REPLAY_CONTEXT_ERROR)
+  {
+    /*
+      We could not read the context, so there is nothing to replay: leave
+      `ds_replay` empty and let the test fail on the missing EXPLAIN output
+      rather than pass on the test server's result.
+    */
+  }
+  else if (stop_word)
+  {
+    /* Something we know we cannot replay: report the test server's result. */
+    verbose_msg("ReplayTest: stop word '%s' found in optimizer_context, "
+                "using primary EXPLAIN result", stop_word);
+    dynstr_append_mem(ds_replay, ds_primary->str, ds_primary->length);
+  }
+  else
+  {
+    replay_arm_trace_capture(mysql, query, query_len,
+                             ds_orig_trace, ds_replay_trace);
+    if (status == REPLAY_CONTEXT_FOUND)
+    {
+      if (ensure_replay_server_connection() == 0)
+        execute_replay_queries(script.str, ds_replay);
+      else
+        fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
+    }
+    else
+    {
+      /* No context recorded: run the EXPLAIN on the replay server as it is. */
+      verbose_msg("ReplayTest: empty optimizer_context, running EXPLAIN "
+                  "directly on replay server");
+      run_explain_directly_on_replay(query, query_len, ds_replay);
+    }
+    replay_disarm_trace_capture();
+  }
+
+  replay_undo_test_server_setup(mysql);
+  dynstr_free(&script);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Consume the one-shot "disable_replay next_query" flag. It applies to exactly
+  one query executed through run_query_normal(), whether or not it is an
+  EXPLAIN. Returns TRUE if this query is the one it applies to.
+*/
+static my_bool replay_consume_disable_next_query()
+{
+  if (!disable_replay_next_query)
+    return FALSE;
+  verbose_msg("ReplayTest: replay disabled for this query (reason: %s)",
+              disable_replay_reason);
+  disable_replay_next_query= FALSE;
+  disable_replay_reason[0]= '\0';
+  return TRUE;
+}
+
+
+/*
+  Pre-query hook of the replay-server mode: decide whether this query is to be
+  replayed and, if it is, make the test server record its optimizer context.
+
+  Returns TRUE when the replay hook is active for this query, that is, when
+  its first result set is to be replaced with the replay server's output.
+*/
+static my_bool replay_hook_pre_query(MYSQL *mysql, int flags,
+                                     const char *query, size_t query_len)
+{
+  DBUG_ENTER("replay_hook_pre_query");
+  my_bool disabled= replay_consume_disable_next_query();
+
+  if (!replay_test_mode || disabled || disable_replay_testfile ||
+      !(flags & QUERY_SEND_FLAG) || !(flags & QUERY_REAP_FLAG) ||
+      !is_explain_query(query, query_len))
+    DBUG_RETURN(FALSE);
+
+  verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, "
+              "activating replay mode");
+
+  /*
+    Clear any context left over from an earlier query (e.g. a prior EXPLAIN
+    whose context must not leak into this one), then record ours.
+  */
+  replay_exec_on_test_server(mysql,
+                       STRING_WITH_LEN("SET " REPLAY_RECORD_SYSVAR "=0"),
+                       NULL);
+  if (replay_exec_on_test_server(mysql,
+                       STRING_WITH_LEN("SET " REPLAY_RECORD_SYSVAR "=1"),
+                       "Failed to set " REPLAY_RECORD_SYSVAR))
+    DBUG_RETURN(FALSE);
+
+  /*
+    REPLAY_SERVER_TRACE: enable optimizer_trace on the test server too, saving
+    its current value into REPLAY_SAVED_TRACE_USERVAR so that
+    replay_undo_test_server_setup() can restore it. The replay side is enabled
+    once per connection in ensure_replay_server_connection().
+  */
+  if (replay_server_trace)
+    replay_exec_on_test_server(mysql,
+              STRING_WITH_LEN("SET " REPLAY_SAVED_TRACE_USERVAR
+                              "=@@optimizer_trace, "
+                              "optimizer_trace='enabled=on'"),
+              "Warning - failed to enable optimizer_trace on test server");
+
+  DBUG_RETURN(TRUE);
+}
+
+
+/*
+  Result hook of the replay-server mode: replace the EXPLAIN result of the test
+  server with the one the replay server produces from the recorded optimizer
+  context, and, under REPLAY_SERVER_TRACE, dump both optimizer traces when the
+  two EXPLAINs disagree.
+*/
+static void replay_hook_result(MYSQL *mysql, MYSQL_RES **res,
+                               MYSQL_FIELD *fields, uint num_fields,
+                               const char *query, size_t query_len,
+                               DYNAMIC_STRING *ds)
+{
+  DYNAMIC_STRING ds_primary, ds_replay, ds_orig_trace, ds_replay_trace;
+  DBUG_ENTER("replay_hook_result");
+
+  init_dynamic_string(&ds_primary, "", 1024, 1024);
+  init_dynamic_string(&ds_replay, "", 1024, 1024);
+  init_dynamic_string(&ds_orig_trace, "", 1024, 1024);
+  init_dynamic_string(&ds_replay_trace, "", 1024, 1024);
+
+  replay_collect_primary_explain(mysql, res, fields, num_fields, &ds_primary);
+  replay_explain_on_replay_server(mysql, query, query_len, &ds_primary,
+                                  &ds_replay, &ds_orig_trace,
+                                  &ds_replay_trace);
+
+  /* The replay-side output is what the test sees. */
+  dynstr_append_mem(ds, ds_replay.str, ds_replay.length);
+
+  /*
+    REPLAY_SERVER_TRACE: the traces are only worth keeping when the two
+    EXPLAINs (rows + warnings) differ.
+  */
+  if (replay_server_trace && !replay_explains_match(&ds_primary, &ds_replay))
+  {
+    flush_trace_block(&replay_opt_trace_original_file,
+                      replay_opt_trace_original_path,
+                      query, query_len, &ds_orig_trace);
+    flush_trace_block(&replay_opt_trace_replay_file,
+                      replay_opt_trace_replay_path,
+                      query, query_len, &ds_replay_trace);
+  }
+
+  dynstr_free(&ds_primary);
+  dynstr_free(&ds_replay);
+  dynstr_free(&ds_orig_trace);
+  dynstr_free(&ds_replay_trace);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Pre/post query hooks
+  ~~~~~~~~~~~~~~~~~~~~
+  run_query_normal() sends a query to the test server, reads its result sets
+  and formats them into `ds`. Optional features need to do work around that:
+  before the query is sent, in place of its first result set, and after it is
+  done. Instead of spreading such code through run_query_normal(), it is
+  reached through the four query_hooks_*() entry points below.
+
+  The only hook today is the replay-server mode of mtr --replay-server: it
+  makes the test server record the optimizer context of an EXPLAIN, replays
+  that context on a second ("replay") server and puts the replay server's
+  EXPLAIN output into the test result in place of the test server's own.
+
+  struct st_query_hooks holds the per-query state of the hooks. It lives on
+  run_query_normal()'s stack and starts out all-FALSE, i.e. "no hook is
+  active for this query".
+*/
+struct st_query_hooks
+{
+  /* The replay hook is active and owns this query's first result set */
+  my_bool replay_active;
+};
+
+
+/*
+  Called once per query, just before it is sent to the test server. Also
+  called for queries that end up not being sent, so that one-shot flags such
+  as "disable_replay next_query" are consumed exactly once per query.
+*/
+static void query_hooks_pre_query(struct st_query_hooks *hooks, MYSQL *mysql,
+                                  int flags, const char *query,
+                                  size_t query_len)
+{
+  hooks->replay_active= replay_hook_pre_query(mysql, flags, query, query_len);
+}
+
+
+/*
+  TRUE if a hook produces the output of result set number `counter` itself.
+  run_query_normal() must then append neither the table headings nor the rows
+  of that result set, and call query_hooks_result() instead.
+*/
+static my_bool query_hooks_own_result(const struct st_query_hooks *hooks,
+                                      int counter)
+{
+  return hooks->replay_active && counter == 0;
+}
+
+
+/*
+  Append the output of a result set claimed by query_hooks_own_result() to
+  `ds`. Consumes *res: it is up to the hook how much, if any, of the test
+  server's own result ends up in `ds`.
+*/
+static void query_hooks_result(struct st_query_hooks *hooks, MYSQL *mysql,
+                               MYSQL_RES **res, MYSQL_FIELD *fields,
+                               uint num_fields, const char *query,
+                               size_t query_len, DYNAMIC_STRING *ds)
+{
+  DBUG_ASSERT(hooks->replay_active);
+  replay_hook_result(mysql, res, fields, num_fields, query, query_len, ds);
+  hooks->replay_active= FALSE;
+}
+
+
+/*
+  Called on every exit path of run_query_normal(), including the error ones.
+  A hook that is still active here never got to see a result set, so this is
+  where it undoes what it did in query_hooks_pre_query().
+*/
+static void query_hooks_post_query(struct st_query_hooks *hooks, MYSQL *mysql)
+{
+  if (hooks->replay_active)
+  {
+    replay_undo_test_server_setup(mysql);
+    hooks->replay_active= FALSE;
+  }
+}
+
+
+/*
+  Handle situation where query is sent but there is no active connection
   (e.g directly after disconnect).
 
   We emulate MySQL-compatible behaviour of sending something on a closed
@@ -9485,7 +9960,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   MYSQL_RES *res= 0;
   MYSQL *mysql= cn->mysql;
   int err= 0, counter= 0;
-  my_bool replay_mode_active= FALSE;
+  struct st_query_hooks hooks= { FALSE };
   DBUG_ENTER("run_query_normal");
   DBUG_PRINT("enter",("flags: %d", flags));
   DBUG_PRINT("enter", ("query: '%-.60s'", query));
@@ -9522,70 +9997,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
     break;
   }
 
-  /* Consume the one-shot "disable_replay next_query" flag: it applies to
-     exactly one SQL query executed via this function, whether or not it is
-     an EXPLAIN. */
-  {
-    my_bool skip_replay_this_query= disable_replay_next_query;
-    if (disable_replay_next_query)
-    {
-      verbose_msg("ReplayTest: replay disabled for this query (reason: %s)",
-                  disable_replay_reason);
-      disable_replay_next_query= FALSE;
-      disable_replay_reason[0]= '\0';
-    }
-
-    /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
-    if (replay_test_mode && !skip_replay_this_query &&
-        !disable_replay_testfile &&
-        (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
-        is_explain_query(query, query_len))
-    {
-      replay_mode_active= TRUE;
-      verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
-
-      /* Clear any previously-recorded context left over from an earlier query
-         (e.g. a prior EXPLAIN whose context must not leak into this one). */
-      (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
-
-      /* Step 1: Set optimizer_record_context=1 */
-      if (mysql_real_query(mysql, "SET optimizer_record_context=1", 30))
-      {
-        fprintf(stdout, "ReplayTest: Failed to set optimizer_record_context: %d %s\n",
-                mysql_errno(mysql), mysql_error(mysql));
-        replay_mode_active= FALSE;
-      }
-      else
-      {
-        MYSQL_RES *tmp_res= mysql_store_result(mysql);
-        if (tmp_res)
-          mysql_free_result(tmp_res);
-      }
-
-      /* REPLAY_SERVER_TRACE: enable optimizer_trace on the test server too.
-         Save its current value into @mtr_save_opt_trace so we can restore it
-         after the EXPLAIN. The replay-side trace is enabled once-per-connection
-         in ensure_replay_server_connection(). */
-      if (replay_server_trace && replay_mode_active)
-      {
-        if (mysql_real_query(mysql,
-              STRING_WITH_LEN("SET @mtr_save_opt_trace=@@optimizer_trace, "
-                              "optimizer_trace='enabled=on'")))
-        {
-          fprintf(stdout,
-                  "ReplayTest: Warning - failed to enable optimizer_trace "
-                  "on test server: %d %s\n",
-                  mysql_errno(mysql), mysql_error(mysql));
-        }
-        else
-        {
-          MYSQL_RES *tmp_res= mysql_store_result(mysql);
-          if (tmp_res)
-            mysql_free_result(tmp_res);
-        }
-      }
-    }
-  }
+  query_hooks_pre_query(&hooks, mysql, flags, query, query_len);
 
   if (flags & QUERY_SEND_FLAG)
   {
@@ -9641,174 +10053,16 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	if (display_metadata)
           append_metadata(ds, fields, num_fields);
 
-	/* In replay mode, headings come from the replay server's result */
+	/* A hook that owns this result set supplies the headings itself */
 	if (!display_result_vertically &&
-	    !(replay_mode_active && counter == 0))
+	    !query_hooks_own_result(&hooks, counter))
 	  append_table_headings(ds, fields, num_fields);
 
-	/* ReplayTest mode: Replace EXPLAIN result with replay server output */
-	if (replay_mode_active && counter == 0)
-	{
-	  /* Buffer the primary EXPLAIN's rows + warnings so we can compare
-	     against the replay server's output for conditional trace dumping. */
-	  DYNAMIC_STRING ds_primary_explain;
-	  DYNAMIC_STRING ds_replay_explain;
-	  DYNAMIC_STRING ds_orig_trace;
-	  DYNAMIC_STRING ds_replay_trace;
-	  init_dynamic_string(&ds_primary_explain, "", 1024, 1024);
-	  init_dynamic_string(&ds_replay_explain, "", 1024, 1024);
-	  init_dynamic_string(&ds_orig_trace, "", 1024, 1024);
-	  init_dynamic_string(&ds_replay_trace, "", 1024, 1024);
-
-	  /* Match the replay-side formatting: headings then rows. */
-	  if (!display_result_vertically)
-	    append_table_headings(&ds_primary_explain, fields, num_fields);
-	  append_result(&ds_primary_explain, res);
-	  mysql_free_result(res);
-	  res= 0;
-
-	  /* Append primary-side warnings, mirroring the replay-side format. */
-	  if (!disable_warnings)
-	  {
-	    DYNAMIC_STRING ds_warn;
-	    init_dynamic_string(&ds_warn, "", 256, 256);
-	    if (append_warnings(&ds_warn, mysql) || ds_warn.length)
-	    {
-	      dynstr_append_mem(&ds_primary_explain, "Warnings:\n", 10);
-	      dynstr_append_mem(&ds_primary_explain, ds_warn.str, ds_warn.length);
-	    }
-	    dynstr_free(&ds_warn);
-	  }
-
-	  /* Step 2: Query optimizer_context */
-	  fprintf(stdout, "ReplayTest: Loading context \n");
-	  if (mysql_real_query(mysql, 
-	      "SELECT context FROM information_schema.optimizer_context", 56))
-	  {
-	    fprintf(stdout, "ReplayTest: Failed to query optimizer_context: %d %s\n",
-	            mysql_errno(mysql), mysql_error(mysql));
-	  }
-	  else
-	  {
-	    MYSQL_RES *context_res= mysql_store_result(mysql);
-	    my_bool have_context= FALSE;
-	    if (context_res && mysql_num_rows(context_res) > 0)
-	    {
-	      MYSQL_ROW context_row= mysql_fetch_row(context_res);
-	      if (context_row && context_row[0])
-	      {
-	        const char *sql_script= context_row[0];
-	        have_context= TRUE;
-
-	        /* Stop words: if the captured context contains a known marker
-	           that we cannot replay correctly, skip the replay server and
-	           fall back to the primary's EXPLAIN result. */
-	        const char *stop_hit= NULL;
-	        for (const char **sw= replay_context_stop_words; *sw; sw++)
-	        {
-	          if (strstr(sql_script, *sw))
-	          {
-	            stop_hit= *sw;
-	            break;
-	          }
-	        }
-
-	        if (stop_hit)
-	        {
-	          verbose_msg("ReplayTest: stop word '%s' found in "
-	                      "optimizer_context, using primary EXPLAIN result",
-	                      stop_hit);
-	          dynstr_append_mem(&ds_replay_explain,
-	                            ds_primary_explain.str,
-	                            ds_primary_explain.length);
-	        }
-	        else
-	        {
-	          /* Make the EXPLAIN query available to the replay-side helpers
-	             and arm the trace-capture buffer. */
-	          replay_current_explain= query;
-	          replay_current_explain_len= query_len;
-	          if (replay_server_trace)
-	          {
-	            /* Capture the primary server's optimizer_trace for this
-	               EXPLAIN before we run anything else on this connection. */
-	            capture_optimizer_trace(mysql, &ds_orig_trace);
-	            replay_trace_capture_buf= &ds_replay_trace;
-	          }
-
-	          /* Step 3: Connect to replay server and execute queries */
-	          if (ensure_replay_server_connection() == 0)
-	          {
-	            execute_replay_queries(sql_script, &ds_replay_explain);
-	          }
-	          else
-	          {
-	            fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
-	          }
-	        }
-	      }
-	    }
-	    if (context_res)
-	      mysql_free_result(context_res);
-
-	    if (!have_context)
-	    {
-	      /* Empty context: fall back to running the EXPLAIN directly on the
-	         replay server. */
-	      verbose_msg("ReplayTest: empty optimizer_context, running EXPLAIN "
-	                  "directly on replay server");
-	      replay_current_explain= query;
-	      replay_current_explain_len= query_len;
-	      if (replay_server_trace)
-	      {
-	        capture_optimizer_trace(mysql, &ds_orig_trace);
-	        replay_trace_capture_buf= &ds_replay_trace;
-	      }
-	      run_explain_directly_on_replay(query, query_len, &ds_replay_explain);
-	    }
-
-	    /* Clear the test server's recorded context so it doesn't leak into
-	       the next EXPLAIN. */
-	    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
-	    /* REPLAY_SERVER_TRACE: restore optimizer_trace to whatever it was
-	       before we enabled it for this EXPLAIN. */
-	    if (replay_server_trace)
-	      (void) mysql_real_query(mysql,
-	            STRING_WITH_LEN("SET optimizer_trace=@mtr_save_opt_trace"));
-	    replay_current_explain= NULL;
-	    replay_current_explain_len= 0;
-	    replay_trace_capture_buf= NULL;
-	  }
-
-	  /* The replay-side output is what the test sees. */
-	  dynstr_append_mem(ds, ds_replay_explain.str, ds_replay_explain.length);
-
-	  /* REPLAY_SERVER_TRACE: only persist the two traces if the primary and
-	     replay EXPLAINs (rows + warnings) differ. */
-	  if (replay_server_trace &&
-	      (ds_primary_explain.length != ds_replay_explain.length ||
-	       memcmp(ds_primary_explain.str, ds_replay_explain.str,
-	              ds_primary_explain.length) != 0))
-	  {
-	    flush_trace_block(&replay_opt_trace_original_file,
-	                      replay_opt_trace_original_path,
-	                      query, query_len, &ds_orig_trace);
-	    flush_trace_block(&replay_opt_trace_replay_file,
-	                      replay_opt_trace_replay_path,
-	                      query, query_len, &ds_replay_trace);
-	  }
-
-	  dynstr_free(&ds_primary_explain);
-	  dynstr_free(&ds_replay_explain);
-	  dynstr_free(&ds_orig_trace);
-	  dynstr_free(&ds_replay_trace);
-
-	  replay_mode_active= FALSE;
-	}
+	if (query_hooks_own_result(&hooks, counter))
+	  query_hooks_result(&hooks, mysql, &res, fields, num_fields,
+	                     query, query_len, ds);
 	else
-	{
 	  append_result(ds, res);
-	}
       }
 
       /*
@@ -9860,12 +10114,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 end:
 
   cn->pending= FALSE;
-  if (replay_mode_active)
-  {
-    /* Clear the test server's recorded context so it doesn't leak into
-     the next EXPLAIN. */
-    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
-  }
+  query_hooks_post_query(&hooks, mysql);
   /*
     We save the return code (mysql_errno(mysql)) from the last call sent
     to the server into the mysqltest builtin variable $mysql_errno. This
@@ -11708,22 +11957,22 @@ int main(int argc, char **argv)
   init_re();
 
   /* Check for ReplayTest mode */
-  replay_server_socket= getenv("REPLAY_SERVER_SOCKET");
+  replay_server_socket= getenv(REPLAY_ENV_SOCKET);
   if (replay_server_socket && replay_server_socket[0])
   {
     replay_test_mode= TRUE;
-    verbose_msg("ReplayTest mode enabled, replay server socket: %s", 
+    verbose_msg("ReplayTest mode enabled, replay server socket: %s",
                 replay_server_socket);
-    
+
     /* Initialize replay query log file */
     const char *vardir= getenv("MYSQLTEST_VARDIR");
     if (vardir)
     {
-      size_t path_len= strlen(vardir) + 30;  /* room for "/log/replay_queries.log" */
+      size_t path_len= strlen(vardir) + sizeof(REPLAY_QUERY_LOG_SUBPATH);
       char *log_path= (char*)my_malloc(PSI_NOT_INSTRUMENTED, path_len, MYF(0));
       if (log_path)
       {
-        snprintf(log_path, path_len, "%s/log/replay_queries.log", vardir);
+        snprintf(log_path, path_len, "%s" REPLAY_QUERY_LOG_SUBPATH, vardir);
         replay_log_path= log_path;
         /* Use append mode - MTR cleans var directory on each run */
         replay_log_file= fopen(replay_log_path, "a");
@@ -11739,30 +11988,30 @@ int main(int argc, char **argv)
       }
     }
 
-    /* REPLAY_SERVER_NO_CLEANUP: keep whatever the replay scripts create on
+    /* REPLAY_ENV_NO_CLEANUP: keep whatever the replay scripts create on
        the replay server, for post-mortem inspection. */
-    const char *no_cleanup_env= getenv("REPLAY_SERVER_NO_CLEANUP");
+    const char *no_cleanup_env= getenv(REPLAY_ENV_NO_CLEANUP);
     if (no_cleanup_env && no_cleanup_env[0])
     {
       replay_cleanup= FALSE;
-      fprintf(stderr, "mysqltest: REPLAY_SERVER_NO_CLEANUP is ON, the replay "
-                      "server will not be cleaned up between runs\n");
+      fprintf(stderr, "mysqltest: %s is ON, the replay server will not be "
+                      "cleaned up between runs\n", REPLAY_ENV_NO_CLEANUP);
     }
 
-    /* REPLAY_SERVER_TRACE: also dump optimizer_trace from both servers. */
-    const char *trace_env= getenv("REPLAY_SERVER_TRACE");
+    /* REPLAY_ENV_TRACE: also dump optimizer_trace from both servers. */
+    const char *trace_env= getenv(REPLAY_ENV_TRACE);
     if (trace_env && trace_env[0])
     {
       replay_server_trace= TRUE;
-      fprintf(stderr, "mysqltest: REPLAY_SERVER_TRACE is ON\n");
+      fprintf(stderr, "mysqltest: %s is ON\n", REPLAY_ENV_TRACE);
       if (result_file_name)
       {
         char buf[FN_REFLEN];
-        fn_format(buf, result_file_name, "", ".opt_trace.original",
+        fn_format(buf, result_file_name, "", REPLAY_TRACE_EXT_ORIGINAL,
                   MY_REPLACE_EXT);
         replay_opt_trace_original_path=
             my_strdup(PSI_NOT_INSTRUMENTED, buf, MYF(MY_WME));
-        fn_format(buf, result_file_name, "", ".opt_trace.replay",
+        fn_format(buf, result_file_name, "", REPLAY_TRACE_EXT_REPLAY,
                   MY_REPLACE_EXT);
         replay_opt_trace_replay_path=
             my_strdup(PSI_NOT_INSTRUMENTED, buf, MYF(MY_WME));
@@ -11774,13 +12023,14 @@ int main(int argc, char **argv)
         verbose_msg("ReplayTest: optimizer_trace dumps -> %s , %s",
                     replay_opt_trace_original_path,
                     replay_opt_trace_replay_path);
-        fprintf(stderr, "mysqltest: REPLAY_SERVER_TRACE: %s\n",replay_opt_trace_original_path);
+        fprintf(stderr, "mysqltest: %s: %s\n", REPLAY_ENV_TRACE,
+                replay_opt_trace_original_path);
       }
       else
       {
         fprintf(stderr,
-                "Warning: REPLAY_SERVER_TRACE is set but no --result-file "
-                "was given; optimizer_trace dumps will be skipped.\n");
+                "Warning: %s is set but no --result-file was given; "
+                "optimizer_trace dumps will be skipped.\n", REPLAY_ENV_TRACE);
       }
     }
   }
