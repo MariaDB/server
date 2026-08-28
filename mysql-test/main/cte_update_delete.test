@@ -594,6 +594,7 @@ with recursive cte as (select a from t1 union select a from cte where a < 2)
         delete from v1 using v1, cte where v1.a = cte.a;
 select * from t1 order by 1;
 
+drop view v1;
 drop table t1;
 
 --echo # End of 12.2 tests
