@@ -11,6 +11,11 @@
 # The binary log must be off: with statement binlogging INSERT DELAYED is
 # downgraded to an ordinary write lock and the delayed thread never runs.
 #
+# The embedded server has no delayed insert thread at all: the facility is
+# compiled out there, INSERT DELAYED is an ordinary insert, and no lock
+# cycle takes place.
+#
+--source include/not_embedded.inc
 
 CREATE TABLE t1 (a INT, b BLOB) ENGINE=MEMORY;
 
