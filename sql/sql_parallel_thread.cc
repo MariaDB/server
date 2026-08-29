@@ -70,10 +70,10 @@ bool save_error_to_queued_event(THD *thd, pwt_queued_event **event, uint error,
 
 class PWT_error_handler : public Internal_error_handler
 {
-  pwt_manager_base *manager;
-  pwt_worker_base *worker;
+  pwt_thread_manager *manager;
+  pwt_thread *worker;
 public:
-  PWT_error_handler(pwt_manager_base *manager_arg, pwt_worker_base *worker_arg) :
+  PWT_error_handler(pwt_thread_manager *manager_arg, pwt_thread *worker_arg) :
      manager(manager_arg), worker(worker_arg) {}
 
   bool handle_condition(THD *thd,
@@ -124,7 +124,7 @@ public:
 };
 
 
-void pwt_manager_base::notify_message_dropped()
+void pwt_thread_manager::notify_message_dropped()
 {
   mysql_mutex_lock(&LOCK_pwt_manager);
   messages_dropped= true;
@@ -159,26 +159,26 @@ void pwt_threads_init_psi_keys(void)
 #endif
 
 
-void *pwt_worker_base_thread_func(void *arg)
+void *pwt_thread_func(void *arg)
 {
   DBUG_ENTER("parallel_worker_thread_func");
-  pwt_worker_base *worker= (pwt_worker_base*) arg;
-  worker->init_and_run_thread_func();
+  pwt_thread *thread= (pwt_thread*) arg;
+  thread->init_and_run_thread_func();
   return nullptr;
 }
 
 
-bool pwt_worker_base::create_thread()
+bool pwt_thread::create_thread()
 {
   if (mysql_thread_create(key_thread_pwt, &pthread, /*pthread_attr_t*/ nullptr,
-                          pwt_worker_base_thread_func, this))
+                          pwt_thread_func, this))
     return 1;
   thread_started= true;
   return 0;
 }
 
 
-void pwt_worker_base::init_and_run_thread_func()
+void pwt_thread::init_and_run_thread_func()
 {
   PWT_error_handler error_handler(manager_base, this);
 
@@ -287,7 +287,7 @@ void pwt_worker_base::init_and_run_thread_func()
     skip_interrupted          whether or not to ignore a deluge of interrupted
                               errors
 */
-void pwt_manager_base::process_pending_warnings(bool skip_interrupted)
+void pwt_thread_manager::process_pending_warnings(bool skip_interrupted)
 {
   bool surface_drop;
   mysql_mutex_lock(&LOCK_pwt_manager);
@@ -324,7 +324,7 @@ void pwt_manager_base::process_pending_warnings(bool skip_interrupted)
 }
 
 
-bool pwt_worker_base::init_worker_thd(THD *parent_thd, int worker_nr)
+bool pwt_thread::init_worker_thd(THD *parent_thd, int worker_nr)
 {
   /* First, do things that may fail early. */
   LEX_CSTRING new_db;
@@ -419,7 +419,7 @@ bool pwt_worker_base::init_worker_thd(THD *parent_thd, int worker_nr)
   Nulls it, so it stays true that a null thd means nobody has one to destroy.
 */
 
-void pwt_worker_base::destroy_worker_thd()
+void pwt_thread::destroy_worker_thd()
 {
   if (!thd)
     return;
@@ -451,7 +451,7 @@ void pwt_worker_base::destroy_worker_thd()
                          which is what nulling thd told us
 */
 
-void pwt_worker_base::release_worker(bool abort)
+void pwt_thread::release_worker(bool abort)
 {
   if (!inited)
     return;
@@ -487,7 +487,7 @@ void pwt_worker_base::release_worker(bool abort)
   inited= false;
 }
 
-void pwt_worker_base_with_stats::thread_func_end()
+void pwt_thread_with_stats::thread_func_end()
 {
   /*
     Hand our status counters to the manager, which adds them to the session's
@@ -507,17 +507,17 @@ void pwt_worker_base_with_stats::thread_func_end()
   stats.global_memory_used= 0;
   stats.tmp_space_used= 0;
   thd->set_status_var_init(clear_for_flush_status);
-  pwt_worker_base::thread_func_end();
+  pwt_thread::thread_func_end();
 }
 
-pwt_manager_base::pwt_manager_base() : 
+pwt_thread_manager::pwt_thread_manager() : 
     messages_dropped(false)
 {
   mysql_mutex_init(key_mutex_pwt_LOCK_manager, &LOCK_pwt_manager,
                     MY_MUTEX_INIT_SLOW);
 }
 
-pwt_manager_base::~pwt_manager_base()
+pwt_thread_manager::~pwt_thread_manager()
 {
   mysql_mutex_destroy(&LOCK_pwt_manager);
 }
