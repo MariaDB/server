@@ -10,6 +10,85 @@
 #include "sql_parallel_thread.h"
 #include "sql_parallel_transport.h"
 
+/*
+  Manager for a team of workers.
+
+  Worker are threads that work towards some goal.
+  If one worker fails or is killed, or the manager is killed, then all workers
+  should stop working and be killed.
+
+  When the manager finishes work, it waits for all workers to finish.
+
+  Note that this class doesn't define what "work" is.
+*/
+
+class pwt_manager_base2 : public pwt_manager_base
+{
+  /*
+    Set (under LOCK_data) to a worker's killed_state when that worker exits
+    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
+    worker. The consumer propagates it to the manager's own THD so the join
+    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
+    sent, rather than completing and trying to raise the error too late.
+  */
+  killed_state             kill_signal;
+
+  uint                     active_workers; // producers still running
+public:
+  bool                     fatal_error;    // a producer hit a real engine error
+  pwt_manager_base2();
+  ~pwt_manager_base2();
+
+  void register_worker()
+  {
+    active_workers++;
+  }
+
+  bool locked__no_active_workers()
+  {
+    mysql_mutex_assert_owner(&LOCK_data);
+    return (active_workers == 0);
+  }
+
+  bool is_fatal_error() { return fatal_error; }
+  void report_worker_final_state(killed_state state, bool err);
+
+  /* A worker exited because it was killed; NOT_KILLED if none did. */
+  killed_state killed_by_worker() const { return kill_signal; }
+
+  /*
+    The worker team's own state, as distinct from the transport's: who is still
+    running, whether one of them failed, and whether we have had enough. The
+    transport's two ends read it -- a consumer waiting for a row and a consumer
+    waiting for the last worker to exit wait for the same event -- so LOCK_data
+    and COND_data_avail guard it and belong here rather than to any one
+    transport.
+  */
+  mysql_mutex_t            LOCK_data;
+
+  /* This is to signal the manager to wake up and check its state. */
+  mysql_cond_t             COND_data_avail;
+};
+
+class pwt_worker_base2 : public pwt_worker_base_with_stats
+{
+public:
+  pwt_worker_base2(pwt_manager_base2 *mgr_arg) :
+    pwt_worker_base_with_stats(mgr_arg),
+    mgr2(mgr_arg)
+  {
+    mgr2->register_worker();
+  }
+
+  pwt_manager_base2 *mgr2;
+  void thread_func_end();
+  void on_fatal_error() override;
+
+  int err;
+};
+
+
+
 class pwt_manager;
 typedef struct st_join_table JOIN_TAB;
 class JOIN;
@@ -105,14 +184,13 @@ struct pwt_worker_execution
 /*
   Parallel Worker Thread specific attributes
 */
-class pwt_worker : public pwt_worker_base_with_stats
+class pwt_worker : public pwt_worker_base2
 {
   int execute_and_handoff();
 public:
   pwt_manager *manager;
 
   void thread_func() override;
-  void on_fatal_error() override;
   /*
     What thread_func() closes at the end of a run. A worker whose thread never
     started still had its tables opened for it, so somebody has to.
@@ -175,10 +253,12 @@ struct pwt_manager_execution
 };
 
 
+
+
 /*
   Class to create, manage and eventually destroy a "team" of worker threads.
 */
-class pwt_manager : public pwt_manager_base
+class pwt_manager : public pwt_manager_base2
 {
   /*
     The worker team, one entry per worker, held by pointer rather than by
@@ -202,14 +282,6 @@ class pwt_manager : public pwt_manager_base
   pwt_row_layout           layout;
   pwt_row_source           *source;
 
-  /*
-    Set (under LOCK_data) to a worker's killed_state when that worker exits
-    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
-    worker. The consumer propagates it to the manager's own THD so the join
-    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
-    sent, rather than completing and trying to raise the error too late.
-  */
-  killed_state             kill_signal;
 
   /*
     Set once the workers have been stopped and pthread_join'd (quiesce_workers).
@@ -220,27 +292,12 @@ class pwt_manager : public pwt_manager_base
   */
   bool                     reaped;
 public:
-  /*
-    The worker team's own state, as distinct from the transport's: who is still
-    running, whether one of them failed, and whether we have had enough. The
-    transport's two ends read it -- a consumer waiting for a row and a consumer
-    waiting for the last worker to exit wait for the same event -- so LOCK_data
-    and COND_data_avail guard it and belong here rather than to any one
-    transport.
-  */
-  mysql_mutex_t            LOCK_data;
-  mysql_cond_t             COND_data_avail;
-  uint                     active_workers; // producers still running
   bool                     stop;           // we want the producers to stop
-  bool                     fatal_error;    // a producer hit a real engine error
-  bool is_fatal_error() { return fatal_error; }
-  /* A worker exited because it was killed; NOT_KILLED if none did. */
-  killed_state killed_by_worker() const { return kill_signal; }
 
   pwt_manager():
     workers(PSI_INSTRUMENT_MEM, 0, 8),
-    source(nullptr), kill_signal(NOT_KILLED), reaped(false), active_workers(0),
-    stop(false), fatal_error(false)
+    source(nullptr), reaped(false),
+    stop(false)
     {}
   ~pwt_manager()
   {

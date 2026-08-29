@@ -533,7 +533,7 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
       mysql_mutex_unlock(&manager->LOCK_data);
       return 1;
     }
-    if (!manager->active_workers)         // nothing unread, nobody running
+    if (manager->locked__no_active_workers())  // nothing unread, nobody running
     {
       mysql_mutex_unlock(&manager->LOCK_data);
       return -1;
