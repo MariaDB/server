@@ -36,25 +36,25 @@ class pwt_worker;
 /*
   This is a manager for worker threads.
 
-  One can create worker threads (inherited from pwt_worker_base).
+  One can create worker threads (inherited from pwt_thread).
   - Worker threads will have the minimum THD environment
   - They will be visible in the INFORMATION_SCHEMA.PROCESSLIST
   - Warnings/errors emitted in the worker thread are recorded and can be
     replayed in their manager using process_pending_warnings().
 
   Not included here are:
-  - pwt_manager_base doesn't keep track of the child threads.
+  - pwt_thread_manager doesn't keep track of the child threads.
   - We don't record if there was a fatal error, it just calls
-      virtual pwt_worker_base->on_fatal_error().
+      virtual pwt_thread->on_fatal_error().
   - Implementation of "error in a worker causes all others to stop"
     is also out of scope.
 */
 
-class pwt_manager_base : public Sql_alloc
+class pwt_thread_manager : public Sql_alloc
 {
 public:
-  pwt_manager_base();
-  ~pwt_manager_base();
+  pwt_thread_manager();
+  ~pwt_thread_manager();
 
   THD                      *thd; /* Manager thread */
 
@@ -105,7 +105,7 @@ struct pwt_worker_info
 /*
   Inherit from this your worker threads.
 */
-class pwt_worker_base : public Sql_alloc
+class pwt_thread : public Sql_alloc
 {
 public:
   /*
@@ -113,11 +113,11 @@ public:
     build reached, so a worker has to be able to say what it holds before
     anything has been done to it.
   */
-  pwt_worker_base(pwt_manager_base *manager_arg):
+  pwt_thread(pwt_thread_manager *manager_arg):
     thd(nullptr), manager_base(manager_arg), inited(false),
     thread_started(false)
   {}
-  virtual ~pwt_worker_base() {}
+  virtual ~pwt_thread() {}
 
   /* Intialize the worker and create its THD (call from master thread) */
   bool init_worker_thd(THD *parent_thd, int worker_nr);
@@ -168,7 +168,7 @@ public:
 
   THD             *thd;
 private:
-  pwt_manager_base     *manager_base;
+  pwt_thread_manager     *manager_base;
   /*
     What this worker holds, and so what release_worker() has to give back.
     'inited' says init_worker_thd() ran to the end: there is a THD registered
@@ -192,16 +192,16 @@ private:
   void release_worker(bool abort);
   void destroy_worker_thd();
   void init_and_run_thread_func();
-  friend void *pwt_worker_base_thread_func(void *arg);
-  friend class pwt_worker_base_with_stats;
+  friend void *pwt_thread_func(void *arg);
+  friend class pwt_thread_with_stats;
 };
 
 
-class pwt_worker_base_with_stats : public pwt_worker_base
+class pwt_thread_with_stats : public pwt_thread
 {
 public:
-  pwt_worker_base_with_stats(pwt_manager_base *arg) :
-    pwt_worker_base(arg)
+  pwt_thread_with_stats(pwt_thread_manager *arg) :
+    pwt_thread(arg)
   {
     bzero(&stats, sizeof(stats));  // TODO: is this really needed?
   }
