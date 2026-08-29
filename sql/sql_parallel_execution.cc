@@ -1570,8 +1570,7 @@ void pwt_worker::execute_and_signal_manager()
 {
   DBUG_ENTER("pwt_worker::execute_and_signal_manager");
 
-  pwt_manager *mgr= manager;
-  int err= execute_and_handoff();
+  err= execute_and_handoff();
 
   /*
     End the worker's read transaction now, while we are still on the worker
@@ -1583,28 +1582,6 @@ void pwt_worker::execute_and_signal_manager()
   trans_commit_stmt(thd);
   trans_commit(thd);
 
-  /*
-    Mark this producer done so the consumer can detect EOF, and wake it in
-    case it is blocked waiting for data. A real engine error trips fatal_error
-    so the consumer aborts the join instead of returning a truncated result.
-    If this worker was killed (e.g. a user KILL aimed at it), record the kill
-    so the consumer can propagate it to the manager's THD and abort the join
-    with ER_QUERY_INTERRUPTED before any result is sent.
-  */
-  mysql_mutex_lock(&thd->LOCK_thd_kill);
-  killed_state killed= thd->killed;
-  mysql_mutex_unlock(&thd->LOCK_thd_kill);
-  
-  // TODO: this propagates the "killed" signal to the manager... 
-  // TODO:  also propagates the "error" signal there.
-  mysql_mutex_lock(&mgr->LOCK_data);
-  if (err)
-    mgr->fatal_error= true;
-  if (killed && mgr->kill_signal == NOT_KILLED)
-    mgr->kill_signal= killed;
-  mgr->active_workers--;
-  mysql_cond_signal(&mgr->COND_data_avail);
-  mysql_mutex_unlock(&mgr->LOCK_data);
 
   if (err)
     exec.scan_table->file->print_error(err, MYF(0));
