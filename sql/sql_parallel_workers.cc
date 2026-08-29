@@ -97,7 +97,7 @@ void pwt_worker_base2::thread_func_end()
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
   mgr2->report_worker_final_state(killed, err);
-  pwt_worker_base_with_stats::thread_func_end();
+  pwt_thread_with_stats::thread_func_end();
 }
 
 
