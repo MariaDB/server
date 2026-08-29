@@ -22,7 +22,7 @@
   Note that this class doesn't define what "work" is.
 */
 
-class pwt_manager_base2 : public pwt_manager_base
+class pwt_manager_base2 : public pwt_thread_manager
 {
   /*
     Set (under LOCK_data) to a worker's killed_state when that worker exits
@@ -70,11 +70,11 @@ public:
   mysql_cond_t             COND_data_avail;
 };
 
-class pwt_worker_base2 : public pwt_worker_base_with_stats
+class pwt_worker_base2 : public pwt_thread_with_stats
 {
 public:
   pwt_worker_base2(pwt_manager_base2 *mgr_arg) :
-    pwt_worker_base_with_stats(mgr_arg),
+    pwt_thread_with_stats(mgr_arg),
     mgr2(mgr_arg)
   {
     mgr2->register_worker();
