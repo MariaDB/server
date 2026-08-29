@@ -558,7 +558,7 @@ int pwt_batch_source::next_row(uchar *dst)
         mysql_mutex_unlock(&manager->LOCK_data);
         DBUG_RETURN(1);
       }
-      if (!manager->active_workers)             // all producers done, drained
+      if (manager->locked__no_active_workers())    // all producers done, drained
       {
         mysql_mutex_unlock(&manager->LOCK_data);
         DBUG_RETURN(-1);
@@ -817,7 +817,7 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
       mysql_mutex_unlock(&manager->LOCK_data);
       return 1;
     }
-    if (!manager->active_workers)         // nothing unread, nobody running
+    if (manager->locked__no_active_workers())  // nothing unread, nobody running
     {
       mysql_mutex_unlock(&manager->LOCK_data);
       return -1;

@@ -128,11 +128,13 @@ public:
   /*
     This will be run by the worker thread with all environment properly set up.
     One can produce warnings/errors and get them in the master thread.
+
+    At the end, one must call thread_func_end().
   */
   virtual void thread_func()= 0;
 
   // Every descendant must call at the end of thread_func():
-  void thread_func_end();
+  void thread_func_end() {};
 
   /* This will be invoked when a fatal error occurs */
   virtual void on_fatal_error() = 0;

@@ -32,6 +32,7 @@
 #include "mariadb.h"
 #include "mysqld_error.h"
 #include "sql_class.h"
+#include "sql_parallel_thread.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -65,17 +66,43 @@ static PSI_memory_info all_pwt_memory[]=
 #endif /* HAVE_PSI_INTERFACE */
 
 
-void pwt_worker::on_fatal_error()
+void pwt_worker_base2::on_fatal_error()
 {
-  mysql_mutex_lock(&manager->LOCK_data);
-  manager->fatal_error= true;
+  mysql_mutex_lock(&mgr2->LOCK_data);
+  mgr2->fatal_error= true;
   /* This is to notify other workers too */
-  mysql_cond_signal(&manager->COND_data_avail);
-  mysql_mutex_unlock(&manager->LOCK_data);
+  mysql_cond_signal(&mgr2->COND_data_avail);
+  mysql_mutex_unlock(&mgr2->LOCK_data);
 }
 
+void pwt_manager_base2::report_worker_final_state(killed_state state, bool err)
+{
+  mysql_mutex_lock(&LOCK_data);
+  if (state && kill_signal == NOT_KILLED)
+    kill_signal= state;
+  if (err)
+    fatal_error= true;
+  active_workers--;
+  mysql_cond_signal(&COND_data_avail);
+  mysql_mutex_unlock(&LOCK_data);
+}
+
+/*
+  This is run after the thread func has finished.
+*/
+void pwt_worker_base2::thread_func_end()
+{
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  killed_state killed= thd->killed;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+
+  mgr2->report_worker_final_state(killed, err);
+  pwt_worker_base_with_stats::thread_func_end();
+}
+
+
 pwt_worker::pwt_worker(pwt_manager *manager_arg) :
-  pwt_worker_base_with_stats(manager_arg), manager(manager_arg), sink(nullptr)
+  pwt_worker_base2(manager_arg), manager(manager_arg), sink(nullptr)
 {}
 
 /**
@@ -131,7 +158,19 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
 }
 
 
+pwt_manager_base2::pwt_manager_base2() : 
+  kill_signal(NOT_KILLED), active_workers(0), fatal_error(false)
+{
+  mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
+}
 
+
+pwt_manager_base2::~pwt_manager_base2()
+{
+  mysql_cond_destroy(&COND_data_avail);
+  mysql_mutex_destroy(&LOCK_data);
+}
 
 /**
   @brief
@@ -197,16 +236,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   }
 
   /*
-    Publish the team's state before any worker starts: a worker's first act may
-    be to hand a row to the transport, whose two ends read this under
-    LOCK_data. active_workers must already equal n so the consumer does not
-    mistake "not started yet" for EOF.
-  */
-  mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
-  active_workers= n;
-
-  /*
     The non-const join tables in join order (exec.jointabs[0] == scan_tab). These
     plus each worker's table copies form the manager->worker table map used to
     rebind the cloned conditions/refs/select list. No semijoin bushes here (the
@@ -236,7 +265,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       setup_transport(thd, n))
     goto cleanup_workers;
 
-  fatal_error= false;
   stop= false;
   reaped= false;
 
@@ -487,8 +515,6 @@ void pwt_manager::destroy_transport()
   if (source)
     source->cleanup();
   free_containers(thd);              // the transport has let go of them
-  mysql_cond_destroy(&COND_data_avail);
-  mysql_mutex_destroy(&LOCK_data);
   destroy_workers();
 }
 

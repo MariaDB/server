@@ -474,6 +474,7 @@ void pwt_worker_base::release_worker(bool abort)
     pthread_join(pthread, nullptr);
     thread_started= false;
     DBUG_ASSERT(!thd);              // it destroyed its own before it exited
+    // TODO: assert that the master has got the error condition?
   }
   else
   {
@@ -506,6 +507,7 @@ void pwt_worker_base_with_stats::thread_func_end()
   stats.global_memory_used= 0;
   stats.tmp_space_used= 0;
   thd->set_status_var_init(clear_for_flush_status);
+  pwt_worker_base::thread_func_end();
 }
 
 pwt_manager_base::pwt_manager_base() : 
