@@ -22,7 +22,6 @@ log-basename=            master
 log-basename=               slave
 # relay-log=                  slave-relay-bin
 
-init-rpl-role=              slave
 log-slave-updates
 master-retry-count=         10
 
