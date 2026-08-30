@@ -7695,7 +7695,11 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-static int wsrep_after_row(THD *thd)
+/*
+  If skip_streaming is true, the row is counted against wsrep_max_ws_rows
+  and validated as usual, but no streaming fragment is replicated for it.
+*/
+static int wsrep_after_row(THD *thd, bool skip_streaming= false)
 {
   DBUG_ENTER("wsrep_after_row");
 #ifdef WITH_WSREP
@@ -7718,7 +7722,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row_internal(thd))
+  else if (wsrep_after_row_internal(thd, skip_streaming))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -8133,9 +8137,20 @@ int handler::ha_write_row(const uchar *buf)
   error= binlog_log_row(0, buf,
                         Write_rows_log_event::binlog_row_logging_function);
 
+  /*
+    Sequence tables are written with SEQUENCE::mutex held (see
+    SEQUENCE::next_value() and ha_sequence::write_row()). For a streaming
+    transaction the streaming step would replicate a fragment and block
+    waiting for certification and commit order, while an applier may be
+    waiting for the same mutex in SEQUENCE::set_value(). That deadlocks
+    the node, so skip only that step here. The row has already been
+    appended to the write set and will be replicated with the following
+    fragment, or at commit. Everything else wsrep_after_row() does, in
+    particular counting the row against wsrep_max_ws_rows, still applies.
+  */
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
       ht->flags & HTON_WSREP_REPLICATION && !error)
-    error= wsrep_after_row(ha_thd());
+    error= wsrep_after_row(ha_thd(), table_share->sequence != NULL);
 
 err:
   DEBUG_SYNC_C("ha_write_row_end");

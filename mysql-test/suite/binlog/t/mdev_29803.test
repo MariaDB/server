@@ -1,0 +1,36 @@
+--source include/have_log_bin.inc
+
+#
+# MDEV-29803: Unexpected ERROR: Found out of order GTID after replaying
+# binlog read from remote server, then reading the resulting local binlog.
+#
+# When mysqlbinlog replays a remote binlog into a server, and we then
+# read back the local binlog files, the replayed events reset the GTID
+# sequence, which causes a "Found out of order GTID" error if
+# --gtid-strict-mode is enabled.
+#
+# The fix is to change the default of --gtid-strict-mode to OFF so that
+# mysqlbinlog does not refuse to display events by default.
+#
+
+reset master;
+create table t1 (a int);
+create table t2 (a int);
+drop table t1, t2;
+flush binary logs;
+
+# Replay remote binlog into this server
+--exec $MYSQL_BINLOG --read-from-remote-server -uroot --protocol=tcp --port=$MASTER_MYPORT master-bin.000001 | $MYSQL test 2>&1
+
+drop table if exists t1, t2;
+flush binary logs;
+
+--let $datadir= `select @@datadir`
+
+# With the fix, the default --gtid-strict-mode=OFF allows reading both binlog
+# files without error, even though replayed events create out-of-order GTIDs.
+--exec $MYSQL_BINLOG $datadir/master-bin.000001 $datadir/master-bin.000002 > /dev/null 2>&1
+
+# Explicitly enabling --gtid-strict-mode should still produce an error
+--error 1
+--exec $MYSQL_BINLOG --gtid-strict-mode $datadir/master-bin.000001 $datadir/master-bin.000002 > /dev/null 2>&1

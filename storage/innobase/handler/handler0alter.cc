@@ -918,6 +918,10 @@ my_error_innodb(dberr_t error, const char *table, ulint flags)
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
+	case DB_DECRYPTION_FAILED:
+		my_error(ER_GET_ERRMSG, MYF(0), error,
+		         ut_strerr(error), "InnoDB");
+		break;
 	case DB_TOO_BIG_RECORD: {
 		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
 		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or

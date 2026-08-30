@@ -150,3 +150,34 @@ x int,
 y int
 ) engine=connect table_type=FIX file_name='test.txt' with system versioning;
 ERROR HY000: System-versioned tables do not support CONNECT storage engine
+#
+# MDEV-40867 Stack buffer overflow in TDBTBL::TestFil()
+#
+CREATE TABLE t1 (a INT NOT NULL, message CHAR(10)) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+INSERT INTO t1 VALUES (1, 'hello');
+CREATE TABLE t2 (a INT NOT NULL, message CHAR(10)) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t2.dos
+INSERT INTO t2 VALUES (2, 'world');
+CREATE TABLE total (
+tabname CHAR(8) NOT NULL SPECIAL='TABID',
+ta TINYINT NOT NULL FLAG=1,
+message CHAR(20)
+) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2';
+SELECT * FROM total WHERE tabname = 't1';
+tabname	ta	message
+t1	1	hello
+SELECT * FROM total WHERE tabname = REPEAT('A', 300);
+tabname	ta	message
+SELECT * FROM total WHERE tabname IN (REPEAT('B', 300));
+tabname	ta	message
+SELECT * FROM total WHERE tabname NOT IN (REPEAT('C', 300));
+tabname	ta	message
+t1	1	hello
+t2	2	world
+DROP TABLE total, t1, t2;
+# End of 10.11 tests
