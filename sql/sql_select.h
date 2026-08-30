@@ -775,6 +775,7 @@ enum_nested_loop_state
 sub_select(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 enum_nested_loop_state
 sub_select_postjoin_aggr(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
+ORDER *pwt_plan_group_key(JOIN *join);
 
 enum_nested_loop_state
 end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
@@ -1202,6 +1203,7 @@ public:
     @return return one of enum_nested_loop_state values.
   */
   enum_nested_loop_state end_send();
+  Next_select_func get_write_func() const { return write_func; }
   /** write_func setter */
   void set_write_func(Next_select_func new_write_func)
   {

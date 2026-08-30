@@ -1,0 +1,231 @@
+CREATE TABLE t1 (col1 INT, col2 INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq MOD 10, seq FROM seq_1_to_5000;
+#
+# The same answer as a serial plan, for each of the four.
+#
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+FROM t1 GROUP BY col1 ORDER BY NULL;
+col1	COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)
+0	500	1252500	10	5000
+1	500	1248000	1	4991
+2	500	1248500	2	4992
+3	500	1249000	3	4993
+4	500	1249500	4	4994
+5	500	1250000	5	4995
+6	500	1250500	6	4996
+7	500	1251000	7	4997
+8	500	1251500	8	4998
+9	500	1252000	9	4999
+# ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+FROM t1 GROUP BY col1 ORDER BY NULL;
+col1	COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)
+0	500	1252500	10	5000
+1	500	1248000	1	4991
+2	500	1248500	2	4992
+3	500	1249000	3	4993
+4	500	1249500	4	4994
+5	500	1250000	5	4995
+6	500	1250500	6	4996
+7	500	1251000	7	4997
+8	500	1251500	8	4998
+9	500	1252000	9	4999
+ran_in_the_workers
+1
+#
+# And it really is per group, not per row: 5000 rows become one row per
+# group per worker, so what the manager sees is 40 rows and what the
+# workers did to get there is an update per row.
+#
+FLUSH STATUS;
+SELECT col1, COUNT(col2) FROM t1 GROUP BY col1 ORDER BY NULL;
+rows_written_is_per_group	rows_folded_in
+1	1
+#
+# NULLs. A worker whose chunk holds no non-NULL value for a group ships a
+# NULL partial, which has to be skipped rather than read as a zero or
+# taken as the extreme. Here col2 is NULL for a whole group, and NULL for
+# scattered rows of the others.
+#
+CREATE TABLE t2 (col1 INT, col2 INT) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq MOD 10,
+IF(seq MOD 10 = 7 OR seq MOD 3 = 0, NULL, seq)
+FROM seq_1_to_5000;
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+FROM t2 GROUP BY col1 ORDER BY NULL;
+col1	COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)
+0	334	836670	10	5000
+1	334	833664	1	4991
+2	333	830666	2	4982
+3	333	832669	13	4993
+4	334	834666	4	4994
+5	333	831665	5	4985
+6	333	833668	16	4996
+7	0	NULL	NULL	NULL
+8	333	832664	8	4988
+9	333	834667	19	4999
+# ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+FROM t2 GROUP BY col1 ORDER BY NULL;
+col1	COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)
+0	334	836670	10	5000
+1	334	833664	1	4991
+2	333	830666	2	4982
+3	333	832669	13	4993
+4	334	834666	4	4994
+5	333	831665	5	4985
+6	333	833668	16	4996
+7	0	NULL	NULL	NULL
+8	333	832664	8	4988
+9	333	834667	19	4999
+#
+# A group key of more than one column, and one that is nullable.
+#
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT col1, col2 MOD 3, COUNT(*), SUM(col2)
+FROM t2 GROUP BY col1, col2 MOD 3 ORDER BY NULL;
+col1	col2 MOD 3	COUNT(*)	SUM(col2)
+0	1	167	417500
+0	2	167	419170
+0	NULL	166	NULL
+1	1	167	415997
+1	2	167	417667
+1	NULL	166	NULL
+2	1	166	414502
+2	2	167	416164
+2	NULL	167	NULL
+3	1	167	418001
+3	2	166	414668
+3	NULL	167	NULL
+4	1	167	416498
+4	2	167	418168
+4	NULL	166	NULL
+5	1	166	415000
+5	2	167	416665
+5	NULL	167	NULL
+6	1	167	418502
+6	2	166	415166
+6	NULL	167	NULL
+7	NULL	500	NULL
+8	1	166	415498
+8	2	167	417166
+8	NULL	167	NULL
+9	1	167	419003
+9	2	166	415664
+9	NULL	167	NULL
+# ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+SELECT col1, col2 MOD 3, COUNT(*), SUM(col2)
+FROM t2 GROUP BY col1, col2 MOD 3 ORDER BY NULL;
+col1	col2 MOD 3	COUNT(*)	SUM(col2)
+0	1	167	417500
+0	2	167	419170
+0	NULL	166	NULL
+1	1	167	415997
+1	2	167	417667
+1	NULL	166	NULL
+2	1	166	414502
+2	2	167	416164
+2	NULL	167	NULL
+3	1	167	418001
+3	2	166	414668
+3	NULL	167	NULL
+4	1	167	416498
+4	2	167	418168
+4	NULL	166	NULL
+5	1	166	415000
+5	2	167	416665
+5	NULL	167	NULL
+6	1	167	418502
+6	2	166	415166
+6	NULL	167	NULL
+7	NULL	500	NULL
+8	1	166	415498
+8	2	167	417166
+8	NULL	167	NULL
+9	1	167	419003
+9	2	166	415664
+9	NULL	167	NULL
+#
+# A 2 table join executed in the worker
+#
+create index ixt2 on t2 (col1);
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+explain SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
+COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
+GROUP BY t1.col1 ORDER BY t1.col1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5000	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	500	Using index
+SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
+COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
+GROUP BY t1.col1 ORDER BY t1.col1;
+col1	COUNT(t1.col2)	SUM(t1.col2)	MIN(t1.col2)	MAX(t1.col2)	COUNT(t2.col1)
+0	250000	626250000	10	5000	250000
+1	250000	624000000	1	4991	250000
+2	250000	624250000	2	4992	250000
+3	250000	624500000	3	4993	250000
+4	250000	624750000	4	4994	250000
+5	250000	625000000	5	4995	250000
+6	250000	625250000	6	4996	250000
+7	250000	625500000	7	4997	250000
+8	250000	625750000	8	4998	250000
+9	250000	626000000	9	4999	250000
+# ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+explain SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
+COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
+GROUP BY t1.col1 ORDER BY t1.col1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	5000	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	500	Using index
+SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
+COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
+GROUP BY t1.col1 ORDER BY t1.col1;
+col1	COUNT(t1.col2)	SUM(t1.col2)	MIN(t1.col2)	MAX(t1.col2)	COUNT(t2.col1)
+0	250000	626250000	10	5000	250000
+1	250000	624000000	1	4991	250000
+2	250000	624250000	2	4992	250000
+3	250000	624500000	3	4993	250000
+4	250000	624750000	4	4994	250000
+5	250000	625000000	5	4995	250000
+6	250000	625250000	6	4996	250000
+7	250000	625500000	7	4997	250000
+8	250000	625750000	8	4998	250000
+9	250000	626000000	9	4999	250000
+DROP TABLE t2;
+#
+# What is not accepted. Each of these still runs, serially: the gate
+# declines the plan rather than the query.
+#
+SET @st= @@optimizer_trace;
+SET optimizer_trace=1;
+# AVG -- a partial average cannot be averaged
+chosen
+0
+# STDDEV -- same, with more state
+chosen
+0
+# BIT_XOR -- self-composing, but has no direct_add
+chosen
+0
+# COUNT(DISTINCT) -- the set has to be complete before it is counted
+chosen
+0
+# HAVING -- refused by the gate outright
+chosen
+0
+# a real ORDER BY -- the rows would have to come back in order
+chosen
+1
+SET optimizer_trace= @st;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

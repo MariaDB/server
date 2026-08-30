@@ -30,14 +30,14 @@ ran_in_the_workers
 #
 EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2000	Using where; Using filesort
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	2000	Using where; Using filesort
 SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
 SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
 JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
 JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
 FROM information_schema.optimizer_trace;
 candidate	chosen	abandoned
-0	0	0
+1	1	0
 # and a covering index read by the driving-table half: the rows arrive in
 # key order from an index the engine is not asked to divide (expect 0 0 0)
 #
