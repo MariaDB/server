@@ -107,6 +107,7 @@ struct pwt_worker_execution
   */
   pwt_worker_execution():
     scan_table(nullptr), tables(nullptr), n_tables(0),
+    sums(nullptr), group_list(nullptr), group_buff(nullptr),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
     tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
   {}
@@ -139,6 +140,30 @@ struct pwt_worker_execution
     temporary-table transport keeps the row by writing it through the engine.
   */
   pwt_row_container     result;
+  /*
+    Pre-aggregation: this worker's own grouping table, keyed on the GROUP BY,
+    holding one row per group of its chunk rather than one per source row. The
+    projection goes here and the aggregates accumulate into its partial
+    columns; at end of records the worker scans it and ships a row per group
+    through 'result' like any other. Empty container when the query does not
+    pre-aggregate.
+  */
+  pwt_row_container     group_container;
+  /*
+    This worker's clones of the query's aggregates, accumulating into the
+    partial columns of group_container rather than into themselves, the same
+    binding create_tmp_table() makes for the query's own aggregates, and what
+    reset_field() and update_field() read and write. layout.n_sums of them.
+  */
+  Item_sum              **sums;
+  /*
+    Its own copy of the group key, pointed at group_container's columns,
+    and the key buffer create_tmp_table() built alongside.
+    Every worker needs a copy: an ORDER entry carries the key field and its
+    offset in that buffer, so an entry belongs to one table.
+  */
+  ORDER                 *group_list;
+  uchar                 *group_buff;
   /*
     Per-worker deep clone of the shipped column list, one item per result
     field, with its Item_field leaves rebound to this worker's table copies.
@@ -227,6 +252,10 @@ public:
      0 = keep going, 1 = error, 2 = the manager asked us to stop
      (pwt_emit_result). */
   int emit_joined_row();
+  /* Fold one joined row into this worker's grouping table. */
+  int accumulate_group();
+  /* Ship one row per group once the chunk is done. */
+  int flush_groups();
 };
 
 
@@ -313,6 +342,11 @@ public:
     Returns 0 on success (all rows sent), 1 on error.
   */
   int drain_and_send(JOIN *join);
+  /*
+    The row shape both ends agree on; the worker paths read the partial set
+     and the group key out of it.
+  */
+  pwt_row_layout &row_layout() { return layout; }
 
 private:
 
@@ -332,6 +366,12 @@ private:
      transport waiting for us. Caller holds LOCK_data. */
   void request_stop();
 
+  /*
+    Give this worker its grouping table, its own copies of the query's
+    aggregates, and a group key pointed at that table. Returns true on
+    error.
+  */
+  bool setup_worker_preagg(THD *thd, pwt_worker *worker);
   /* Deep-clone this query's conditions + shipped column list for 'worker',
      rebinding the Item_field leaves to the worker's table copies. Returns
      true on error. */
@@ -356,6 +396,7 @@ extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
 extern bool parallel_scan_supports_access(JOIN_TAB *tab);
 extern bool table_can_be_parallel_scanned(JOIN_TAB *tab);
 extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab);
+extern ORDER *pwt_preagg_group(JOIN *join);
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
 extern void check_parallel_scan(JOIN *join);
 extern void recheck_parallel_scan(JOIN *join);

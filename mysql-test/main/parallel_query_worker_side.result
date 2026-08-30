@@ -202,7 +202,7 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
 AS chosen
 FROM information_schema.optimizer_trace;
 chosen
-0
+1
 SET optimizer_trace= @save_ot;
 SET SESSION parallel_worker_threads= @save;
 DROP TABLE t1;
