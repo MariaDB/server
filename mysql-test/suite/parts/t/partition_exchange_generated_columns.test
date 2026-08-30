@@ -1,0 +1,117 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # Test EXCHANGE PARTITION with generated columns containing AND/OR conditions
+--echo # This verifies that Item_cond::eq() correctly performs set-based comparison
+--echo # for commutative AND/OR operations, allowing partition exchange to succeed
+--echo # even when condition order differs between original and re-parsed expressions.
+--echo # verifies MDEV-38757
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t1_working;
+--enable_warnings
+
+--echo # Test 1: Generated column with OR condition
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  userId INT NOT NULL,
+  col1 INT NOT NULL,
+  vcol1 TINYINT(1) GENERATED ALWAYS AS (col1 > 80 OR col1 < 20) STORED,
+  PRIMARY KEY (id, userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+PARTITION BY LIST (userId)
+(PARTITION p1 VALUES IN (1) ENGINE = InnoDB,
+ PARTITION p2 VALUES IN (2) ENGINE = InnoDB);
+
+CREATE TABLE t1_working LIKE t1;
+ALTER TABLE t1_working REMOVE PARTITIONING;
+
+INSERT INTO t1_working (userId, col1) VALUES (1, 10), (1, 50), (1, 90);
+
+--echo # This should succeed: EXCHANGE PARTITION with OR condition
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t1_working;
+
+SELECT id, userId, col1, vcol1 FROM t1 ORDER BY id;
+DROP TABLE t1_working;
+DROP TABLE t1;
+
+--echo # Test 2: Generated column with AND condition
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  userId INT NOT NULL,
+  col1 INT NOT NULL,
+  col2 INT NOT NULL,
+  vcol2 TINYINT(1) GENERATED ALWAYS AS (col1 > 10 AND col2 < 100) STORED,
+  PRIMARY KEY (id, userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+PARTITION BY LIST (userId)
+(PARTITION p1 VALUES IN (1) ENGINE = InnoDB);
+
+CREATE TABLE t1_working LIKE t1;
+ALTER TABLE t1_working REMOVE PARTITIONING;
+
+INSERT INTO t1_working (userId, col1, col2) VALUES (1, 20, 50), (1, 5, 200);
+
+--echo # This should succeed: EXCHANGE PARTITION with AND condition
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t1_working;
+
+SELECT id, userId, col1, col2, vcol2 FROM t1 ORDER BY id;
+DROP TABLE t1_working;
+DROP TABLE t1;
+
+--echo # Test 3: Multiple generated columns with different AND/OR combinations
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  userId INT NOT NULL,
+  col1 INT NOT NULL,
+  col2 INT NOT NULL,
+  vcol1 TINYINT(1) GENERATED ALWAYS AS (col1 > 80 OR col1 < 20) STORED,
+  vcol2 TINYINT(1) GENERATED ALWAYS AS (col1 > 10 AND col2 < 100) STORED,
+  vcol3 TINYINT(1) GENERATED ALWAYS AS (col2 > 50 OR col2 < 10) STORED,
+  PRIMARY KEY (id, userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+PARTITION BY LIST (userId)
+(PARTITION p1 VALUES IN (1) ENGINE = InnoDB,
+ PARTITION p2 VALUES IN (2) ENGINE = InnoDB);
+
+CREATE TABLE t1_working LIKE t1;
+ALTER TABLE t1_working REMOVE PARTITIONING;
+
+INSERT INTO t1_working (userId, col1, col2) VALUES (1, 15, 75), (1, 90, 5), (1, 50, 200);
+
+--echo # This should succeed: EXCHANGE PARTITION with multiple AND/OR conditions
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t1_working;
+
+SELECT id, userId, col1, col2, vcol1, vcol2, vcol3 FROM t1 ORDER BY id;
+DROP TABLE t1_working;
+DROP TABLE t1;
+
+--echo # Test 4: Nested AND/OR conditions
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  userId INT NOT NULL,
+  col1 INT NOT NULL,
+  col2 INT NOT NULL,
+  col3 INT NOT NULL,
+  vcol4 TINYINT(1) GENERATED ALWAYS AS ((col1 > 10 AND col2 < 100) OR col3 > 50) STORED,
+  PRIMARY KEY (id, userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+PARTITION BY LIST (userId)
+(PARTITION p1 VALUES IN (1) ENGINE = InnoDB);
+
+CREATE TABLE t1_working LIKE t1;
+ALTER TABLE t1_working REMOVE PARTITIONING;
+
+INSERT INTO t1_working (userId, col1, col2, col3) VALUES (1, 20, 50, 30), (1, 5, 200, 60);
+
+--echo # This should succeed: EXCHANGE PARTITION with nested AND/OR conditions
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t1_working;
+
+SELECT id, userId, col1, col2, col3, vcol4 FROM t1 ORDER BY id;
+DROP TABLE t1_working;
+
+DROP TABLE t1;
+
+--echo # End of test
