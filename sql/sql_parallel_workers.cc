@@ -66,7 +66,7 @@ static PSI_memory_info all_pwt_memory[]=
 #endif /* HAVE_PSI_INTERFACE */
 
 
-void pwt_worker_base2::on_fatal_error()
+void pwt_worker_base::on_fatal_error()
 {
   mysql_mutex_lock(&mgr2->LOCK_data);
   mgr2->fatal_error= true;
@@ -75,7 +75,7 @@ void pwt_worker_base2::on_fatal_error()
   mysql_mutex_unlock(&mgr2->LOCK_data);
 }
 
-void pwt_manager_base2::report_worker_final_state(killed_state state, bool err)
+void pwt_manager_base::report_worker_final_state(killed_state state, bool err)
 {
   mysql_mutex_lock(&LOCK_data);
   if (state && kill_signal == NOT_KILLED)
@@ -90,7 +90,7 @@ void pwt_manager_base2::report_worker_final_state(killed_state state, bool err)
 /*
   This is run after the thread func has finished.
 */
-void pwt_worker_base2::thread_func_end()
+void pwt_worker_base::thread_func_end()
 {
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   killed_state killed= thd->killed;
@@ -102,7 +102,7 @@ void pwt_worker_base2::thread_func_end()
 
 
 pwt_worker::pwt_worker(pwt_manager *manager_arg) :
-  pwt_worker_base2(manager_arg), manager(manager_arg), sink(nullptr)
+  pwt_worker_base(manager_arg), manager(manager_arg), sink(nullptr)
 {}
 
 /**
@@ -158,7 +158,7 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
 }
 
 
-pwt_manager_base2::pwt_manager_base2() : 
+pwt_manager_base::pwt_manager_base() : 
   kill_signal(NOT_KILLED), active_workers(0), fatal_error(false)
 {
   mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
@@ -166,7 +166,7 @@ pwt_manager_base2::pwt_manager_base2() :
 }
 
 
-pwt_manager_base2::~pwt_manager_base2()
+pwt_manager_base::~pwt_manager_base()
 {
   mysql_cond_destroy(&COND_data_avail);
   mysql_mutex_destroy(&LOCK_data);
