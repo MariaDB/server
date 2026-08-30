@@ -165,8 +165,57 @@ public:
   uint              reclength;      // record image size, bytes
   JOIN              *join;          // the join this layout serves
 
+  /*
+    The partial-aggregate set: what a worker computes per group and the manager
+    folds back into the query's own aggregates.
+
+    When the workers pre-aggregate, a shipped row is the base columns *and* one
+    column per aggregate holding that worker's partial for the group --
+    n_ship_base of the first kind, then n_sums of the second. The base columns
+    still travel because the manager's terminal builds the group key from its
+    own base-table records, which copy_back fills; the partials travel beside
+    them because that is what makes a worker's row worth one group rather than
+    one source row.
+
+    mgr_sums are the query's own aggregates, not clones: they are what the
+    result is finally read from. partial_items read the shipped partials out of
+    recv, for the direct_add() overload that takes an Item.
+
+    n_sums is the partial-aggregate set size, and is what anything that has to
+    walk the partials counts with -- the shipped columns after n_ship_base, the
+    per-worker aggregate clones, and the merge.
+  */
+  uint              n_ship_base;
+  uint              n_sums;
+  Item_sum          **mgr_sums;
+  Item              **partial_items;
+
+  /*
+    The GROUP BY key definition the workers accumulate on.
+    create_tmp_table() writes the key field and its offset in the key buffer
+    into each ORDER entry, so an entry belongs to one table and
+    every container needs a copy of its own (clone_group_defn).
+
+    group_pos[k] says which shipped column key part k covers letting a copy
+    be re-pointed at its own container's fields.
+
+    Determine group_parts, group_length, group_null_parts now rather than
+    during create_tmp_table(), avoiding the need to re-derive them from
+    re-pointed items.
+  */
+  ORDER             *group_defn;
+  uint              *group_pos;
+  uint              n_group;
+  uint              group_parts, group_length, group_null_parts;
+
+  /* Whether the workers pre-aggregate per group at all. */
+  bool              grouped;
+
   pwt_row_layout():
     copy_back(nullptr), n_copy_back(0), reclength(0), join(nullptr),
+    n_ship_base(0), n_sums(0), mgr_sums(nullptr), partial_items(nullptr),
+    group_defn(nullptr), group_pos(nullptr), n_group(0),
+    group_parts(0), group_length(0), group_null_parts(0), grouped(false),
     saved_write_set(nullptr)
   {}
 
@@ -174,13 +223,31 @@ public:
     Work out what travels, build the definition, and build the manager's
     receiving container from it. Returns true on error (my_error() called).
   */
-  bool build(THD *thd, JOIN *join_arg, TABLE **tables, uint n_tables);
+  bool build(THD *thd, JOIN *join_arg, TABLE **tables, uint n_tables,
+             ORDER *plan_group);
+
+  /*
+    One private copy of group_defn, for one container to key on. Returns
+    nullptr on error; only called when there is a key.
+  */
+  ORDER *clone_group_defn(THD *thd);
+
+  /* Define the partial columns and the key they accumulate per. */
+  bool build_aggregates(THD *thd, ORDER *plan_group);
+
+  /*
+    Hand each of the query's own aggregates the partial now in recv, so that
+    whatever consumes a direct value next -- the plan's terminal, per group --
+    folds it in instead of counting the row.
+  */
+  void direct_add_partials();
 
   /*
     One more container of this same layout, for a worker to project into, with
     column descriptions of its own. Returns true on error.
   */
-  bool make_container(THD *thd, pwt_row_container *out);
+  bool make_container(THD *thd, pwt_row_container *out,
+                      ORDER *group= nullptr);
   void free_container(THD *thd, pwt_row_container *c);
 
   /* Where the consumer receives a record image. */
