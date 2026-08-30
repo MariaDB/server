@@ -60,6 +60,9 @@
 #include "sql_class.h"
 #include "opt_hints.h"
 
+bool global_frm_parser_mode = false;
+
+
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
 #define MYSQL57_GCOL_HEADER_SIZE 4
@@ -92,7 +95,7 @@ struct extra2_fields
 };
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
-              TABLE *, String *, Virtual_column_info **, bool *);
+              TABLE *, String *, Virtual_column_info **, bool *, bool);
 
 /*
   Lex_ident_db does not have operator""_Lex_ident_db,
@@ -1174,7 +1177,7 @@ static void update_vcol_key_covering(Field *vcol_field)
     expression
 */
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported, vcol_init_mode mode)
+                     bool *error_reported, vcol_init_mode mode, bool frm_parser_mode)
 {
   struct check_vcol_forward_refs
   {
@@ -1270,7 +1273,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     case VCOL_GENERATED_VIRTUAL:
     case VCOL_GENERATED_STORED:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
-                                    &((*field_ptr)->vcol_info), error_reported);
+                                    &((*field_ptr)->vcol_info), error_reported, frm_parser_mode);
       *(vfield_ptr++)= *field_ptr;
       DBUG_ASSERT(table->map == 0);
       /*
@@ -1296,7 +1299,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
-                                      error_reported);
+                                      error_reported, frm_parser_mode);
       if (vcol &&
           field_ptr[0]->check_assignability_from(vcol->expr->type_handler(),
                                                  false))
@@ -1311,12 +1314,12 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     case VCOL_CHECK_FIELD:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->check_constraint),
-                                      error_reported);
+                                      error_reported, frm_parser_mode);
       *check_constraint_ptr++= (*field_ptr)->check_constraint;
       break;
     case VCOL_CHECK_TABLE:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
-                                      check_constraint_ptr, error_reported);
+                                      check_constraint_ptr, error_reported, frm_parser_mode);
       check_constraint_ptr++;
       break;
     }
@@ -1395,7 +1398,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       expr_str.append(')');
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
-                                      error_reported);
+                                      error_reported, frm_parser_mode);
       *(dfield_ptr++)= *field_ptr;
       if (!field->default_value->expr)
         goto end;
@@ -1844,7 +1847,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                             const uchar *frm_image,
                                             size_t frm_length,
                                             const uchar *par_image,
-                                            size_t par_length)
+                                            size_t par_length, bool frm_parser_mode)
 {
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
@@ -3619,6 +3622,8 @@ err:
 
 void TABLE_SHARE::update_optimizer_costs(handlerton *hton)
 {
+  if (global_frm_parser_mode)
+    return;
   if (hton != view_pseudo_hton && !(hton->flags & HTON_HIDDEN))
   {
     mysql_mutex_lock(&LOCK_optimizer_costs);
@@ -4124,7 +4129,7 @@ bool Virtual_column_info::check_access(THD *thd)
 static Virtual_column_info *
 unpack_vcol_info_from_frm(THD *thd, TABLE *table,
                           String *expr_str, Virtual_column_info **vcol_ptr,
-                          bool *error_reported)
+                          bool *error_reported, bool frm_parser_mode=false)
 {
   Create_field vcol_storage; // placeholder for vcol_info
   Parser_state parser_state;
@@ -4136,7 +4141,21 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
-  
+
+  if (frm_parser_mode)
+  {
+    Frm_parser_item *frm_item= new(thd->mem_root) Frm_parser_item(thd, expr_str->c_ptr_safe(),
+                                                   expr_str->length());
+    vcol_info= new Virtual_column_info();
+    vcol_info->expr= frm_item;
+    vcol_info->set_vcol_type(vcol->get_vcol_type());
+    vcol_info->name= vcol->name;
+    vcol_info->utf8= vcol->utf8;
+    *vcol_ptr= vcol_info;
+    DBUG_RETURN(vcol_info);
+  }
+
+
   if (parser_state.init(thd, expr_str->c_ptr_safe(), expr_str->length()))
     goto end;
 
@@ -4385,7 +4404,7 @@ void TABLE::update_keypart_vcol_info()
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
-                       bool is_create_table, List<String> *partitions_to_open)
+                       bool is_create_table, List<String> *partitions_to_open, bool frm_parser_mode)
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
@@ -4579,7 +4598,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     }
 
     if (parse_vcol_defs(thd, &outparam->mem_root, outparam,
-                        &error_reported, mode))
+                        &error_reported, mode, frm_parser_mode))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;

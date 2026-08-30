@@ -3234,6 +3234,77 @@ public:
 };
 
 
+/**
+  Frm_parser_item - placeholder Item for FRM parser mode.
+
+  Stores a raw expression string without parsing or evaluating it.
+  The standalone mariadb-frm tool uses this to represent virtual column
+  expressions so the full SQL parser is not invoked.
+*/
+class Frm_parser_item: public Item
+{
+  String *expr_str;
+  uint expr_length;
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  {
+    return new(get_thd_memroot(thd)) Frm_parser_item(thd, expr_str->ptr(), expr_length);
+  }
+
+  Item *deep_copy(THD *thd) const override
+  {
+    return shallow_copy(thd);
+  }
+
+public:
+  Frm_parser_item(THD *thd, const char *expr, uint length) : Item(thd)
+  {
+    expr_str= new String();
+    expr_str->copy(expr, length, &my_charset_utf8mb3_general_ci);
+    expr_length= length;
+  }
+
+  enum Type type() const override { return CONST_ITEM; }
+
+  void print(String *str, enum_query_type query_type) override
+  {
+    if (!expr_str || expr_str->length() == 0)
+      return;
+
+    const char *prefix= "PARSE_VCOL_EXPR ";
+    const uint prefix_len= 16;
+
+    if (expr_str->length() > prefix_len &&
+        memcmp(expr_str->ptr(), prefix, prefix_len) == 0)
+      str->append(expr_str->ptr() + prefix_len,
+                  expr_str->length() - prefix_len);
+    else
+      str->append(expr_str->ptr(), expr_str->length());
+  }
+
+  const char *full_name() { return "frm_parser_expression"; }
+
+  double val_real() override { return 0.0; }
+  longlong val_int() override { return 0; }
+  String *val_str(String *) override { return expr_str; }
+  void fix_length_and_dec() {}
+
+  const Type_handler *type_handler() const override { return &type_handler_varchar; }
+  my_decimal *val_decimal(my_decimal *) override { return NULL; }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    bzero((char*) ltime, sizeof(*ltime));
+    return 1;
+  }
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param) override
+  {
+    return tmp_table_field_from_field_type_maybe_null(root, table, src, param, false);
+  }
+};
+
+
 /*****************************************************************************
   The class is a base class for representation of stored routine variables in
   the Item-hierarchy. There are the following kinds of SP-vars:

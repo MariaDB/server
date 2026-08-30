@@ -1,0 +1,123 @@
+--echo MariaDB frm parser test - Default Values
+--echo Testing various DEFAULT expressions and values
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+# Test basic default values
+CREATE TABLE t_basic_defaults (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) DEFAULT 'Anonymous',
+  status VARCHAR(20) DEFAULT 'pending',
+  priority INT DEFAULT 1,
+  score DECIMAL(5,2) DEFAULT 0.00,
+  is_active BOOLEAN DEFAULT TRUE,
+  is_deleted BOOLEAN DEFAULT FALSE
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_basic_defaults.frm
+DROP TABLE t_basic_defaults;
+
+# Test numeric defaults
+CREATE TABLE t_numeric_defaults (
+  tiny_val TINYINT DEFAULT 127,
+  small_val SMALLINT DEFAULT -32768,
+  int_val INT DEFAULT 2147483647,
+  big_val BIGINT DEFAULT 9223372036854775807,
+  float_val FLOAT DEFAULT 3.14159,
+  double_val DOUBLE DEFAULT 2.718281828,
+  decimal_val DECIMAL(10,3) DEFAULT 999.999
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_numeric_defaults.frm
+DROP TABLE t_numeric_defaults;
+
+# Test timestamp defaults (special case)
+CREATE TABLE t_timestamp_defaults (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  modified_time TIMESTAMP DEFAULT NOW(),
+  current_date_col DATE DEFAULT CURRENT_DATE,
+  current_time_col TIME DEFAULT CURRENT_TIME
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_timestamp_defaults.frm
+DROP TABLE t_timestamp_defaults;
+
+# Test expression defaults
+CREATE TABLE t_expression_defaults (
+  id INT,
+  calculated INT DEFAULT (1 + 2 * 3),
+  random_val INT DEFAULT (FLOOR(RAND() * 100)),
+  uuid_val VARCHAR(36) DEFAULT (UUID()),
+  connection_id_val INT DEFAULT (CONNECTION_ID()),
+  math_result DECIMAL(10,4) DEFAULT (PI() * 2)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_expression_defaults.frm
+DROP TABLE t_expression_defaults;
+
+# Test string defaults with special characters
+CREATE TABLE t_string_defaults (
+  simple_text VARCHAR(50) DEFAULT 'Hello World',
+  quoted_text VARCHAR(100) DEFAULT 'It''s a "quoted" string',
+  empty_string VARCHAR(10) DEFAULT '',
+  null_default VARCHAR(50) DEFAULT NULL,
+  json_default TEXT DEFAULT '{"status": "new", "count": 0}',
+  multiline_default TEXT DEFAULT 'Line 1\nLine 2\nLine 3'
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_string_defaults.frm
+DROP TABLE t_string_defaults;
+
+# Test enum and set defaults
+CREATE TABLE t_enum_set_defaults (
+  status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
+  permissions SET('read', 'write', 'delete', 'admin') DEFAULT 'read',
+  priority ENUM('low', 'medium', 'high') DEFAULT 'medium',
+  flags SET('flag1', 'flag2', 'flag3') DEFAULT 'flag1,flag2'
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_enum_set_defaults.frm
+DROP TABLE t_enum_set_defaults;
+
+# Test date/time defaults
+CREATE TABLE t_datetime_defaults (
+  birth_date DATE DEFAULT '1970-01-01',
+  appointment_time TIME DEFAULT '09:00:00',
+  event_datetime DATETIME DEFAULT '2024-01-01 00:00:00',
+  year_val YEAR DEFAULT 2024,
+  created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  zero_date DATE DEFAULT '0000-00-00',
+  zero_datetime DATETIME DEFAULT '0000-00-00 00:00:00'
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_datetime_defaults.frm
+DROP TABLE t_datetime_defaults;
+
+# Test auto increment with specific start value
+CREATE TABLE t_auto_increment_defaults (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) DEFAULT 'Item'
+) AUTO_INCREMENT = 1000;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_auto_increment_defaults.frm
+DROP TABLE t_auto_increment_defaults;
+
+# Test complex expression defaults
+CREATE TABLE t_complex_defaults (
+  id INT,
+  hash_val VARCHAR(64) DEFAULT (SHA2(RAND(), 256)),
+  formatted_date VARCHAR(20) DEFAULT (DATE_FORMAT(NOW(), '%Y-%m-%d')),
+  case_result VARCHAR(10) DEFAULT (CASE WHEN RAND() > 0.5 THEN 'HIGH' ELSE 'LOW' END),
+  conditional_val INT DEFAULT (IF(RAND() > 0.5, 100, 0)),
+  substr_result VARCHAR(10) DEFAULT (SUBSTRING('HelloWorld', 1, 5))
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_complex_defaults.frm
+DROP TABLE t_complex_defaults;
+
+--echo Default values test completed

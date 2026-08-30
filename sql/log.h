@@ -1449,6 +1449,8 @@ typedef void (*sql_print_message_func)(const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
 extern sql_print_message_func sql_print_message_handlers[];
 
+extern int (*error_log_print_hook)(enum loglevel level, const char *format, va_list args);
+
 int error_log_print(enum loglevel level, const char *format,
                     va_list args) ATTRIBUTE_FORMAT(printf, 2, 0);
 
