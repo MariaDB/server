@@ -4056,15 +4056,6 @@ err:
   retval= ERROR_STOP;
 
 end:
-  if (output_legacy_binlog_file)
-  {
-    if (my_fclose(output_legacy_binlog_file, MYF(0)))
-    {
-      error("Could not close converted binlog file '%s'", out_file_name);
-      retval= ERROR_STOP;
-    }
-    output_legacy_binlog_file= NULL;
-  }
   if (fd >= 0)
     my_close(fd, MYF(MY_WME));
   /*
@@ -4348,6 +4339,15 @@ int main(int argc, char** argv)
       my_fclose(result_file, MYF(0));
     else
       fflush(result_file);
+  }
+  if (output_legacy_binlog_file)
+  {
+    if (my_fclose(output_legacy_binlog_file, MYF(0)))
+    {
+      error("Could not close converted binlog file '%s'", out_file_name);
+      retval= ERROR_STOP;
+    }
+    output_legacy_binlog_file= NULL;
   }
 
   /*

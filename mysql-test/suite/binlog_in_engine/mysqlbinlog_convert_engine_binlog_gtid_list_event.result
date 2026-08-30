@@ -34,11 +34,9 @@ FLUSH BINARY LOGS;
 *** Convert the generated InnoDB binlogs to legacy format
 *** Verify synthesized Gtid_list events in converted legacy binlogs
 FOUND 1 /Gtid list \[\]/ in gtid_conv_listing.txt
-FOUND 1 /Gtid list \[0-1-1,\n# 1-2-1\]/ in gtid_conv_listing.txt
-FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]/ in gtid_conv_listing.txt
-FOUND 1 /Rotate to gtid_conv.000004/ in gtid_conv_listing.txt
+FOUND 1 /Rotate to gtid_conv.000002/ in gtid_conv_listing.txt
 FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]/ in gtid_conv_listing.txt
-*** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format in random order
+*** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format from random start
 *** Verify synthesized Gtid_list events in converted legacy binlogs
 FOUND 1 /Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]/ in gtid_conv_listing.txt
 FOUND 1 /Rotate to gtid_conv.000002/ in gtid_conv_listing.txt

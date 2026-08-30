@@ -67,7 +67,7 @@ SET @@session.gtid_domain_id= 1;
 SET @@session.server_id= 2;
 INSERT INTO t2 VALUES (1);
 
-# end of binlog-000000.ibb which will be converted to gtid_conv.000001
+# end of binlog-000000.ibb 
 
 FLUSH BINARY LOGS;
 
@@ -81,7 +81,7 @@ SET @@session.gtid_domain_id= 2;
 SET @@session.server_id= 3;
 INSERT INTO t3 VALUES (1);
 
-# end of binlog-000001.ibb which will be converted to gtid_conv.000002
+# end of binlog-000001.ibb
 
 FLUSH BINARY LOGS;
 
@@ -96,16 +96,16 @@ SET @@session.server_id= 4;
 INSERT INTO t4 VALUES (1);
 
 # this will trigger a FORMAT_DESCRIPTION_EVENT which on conversion will trigger
-# a ROTATE_EVENT
+# a ROTATE_EVENT and lead to start of new output file (gtid_conv.000002)
 --source include/restart_mysqld.inc
 
-# start of converted gtid_conv.000004
+# start of converted gtid_conv.000002
 
 SET @@session.gtid_domain_id= 0;
 SET @@session.server_id= 1;
 INSERT INTO t1 VALUES (3);
 
-# end of binlog-000002.ibb which will be converted to gtid_conv.000004
+# end of binlog-000002.ibb
 FLUSH BINARY LOGS;
 
 --let $binlog_name= binlog-000004.ibb
@@ -122,29 +122,19 @@ FLUSH BINARY LOGS;
 --let SEARCH_PATTERN= Gtid list \[\]
 --source include/search_pattern_in_file.inc
 
+--let SEARCH_PATTERN= Rotate to gtid_conv.000002
+--source include/search_pattern_in_file.inc
+
 --exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000002 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
---let SEARCH_PATTERN= Gtid list \[0-1-1,\n# 1-2-1\]
---source include/search_pattern_in_file.inc
-
---exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000003 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
---let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]
---source include/search_pattern_in_file.inc
-
---let SEARCH_PATTERN= Rotate to gtid_conv.000004
---source include/search_pattern_in_file.inc
-
---exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000004 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
 --let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]
 --source include/search_pattern_in_file.inc
 
 --remove_file $MYSQL_TMP_DIR/gtid_conv_listing.txt
 --remove_file $MYSQL_TMP_DIR/gtid_conv.000001
 --remove_file $MYSQL_TMP_DIR/gtid_conv.000002
---remove_file $MYSQL_TMP_DIR/gtid_conv.000003
---remove_file $MYSQL_TMP_DIR/gtid_conv.000004
 
 
---echo *** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format in random order
+--echo *** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format from random start
 --exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000002.ibb
 
 --echo *** Verify synthesized Gtid_list events in converted legacy binlogs
@@ -203,6 +193,8 @@ FLUSH BINARY LOGS;
 --source include/wait_for_engine_binlog.inc
 --enable_query_log
 
+# we are only converting the binlog-000001.ibb and not the binlog-000000.ibb file and therefore
+# it will fetch the gtid list from the first page of binlog-000001.ibb
 --exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/large_gtid_conv $datadir/binlog-000001.ibb
 --exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/large_gtid_conv.000001 > $MYSQL_TMP_DIR/large_gtid_conv_listing.txt
 --let SEARCH_FILE= $MYSQL_TMP_DIR/large_gtid_conv_listing.txt
