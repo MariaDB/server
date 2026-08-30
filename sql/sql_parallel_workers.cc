@@ -261,7 +261,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     travels, only that a worker has a sink to hand one to and we have a source
     to take the next one from.
   */
-  if (layout.build(thd, join, exec.tables, exec.n_tables) ||
+  if (layout.build(thd, join, exec.tables, exec.n_tables,
+                   pwt_preagg_group(join)) ||
       setup_transport(thd, n))
     goto cleanup_workers;
 
@@ -312,6 +313,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     if (setup_worker_join(thd, worker) ||
         setup_worker_jointabs(thd, worker) ||
         layout.make_container(thd, &worker->exec.result) ||
+        setup_worker_preagg(thd, worker) ||
         !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
         clone_worker_exprs(thd, worker))
     {
