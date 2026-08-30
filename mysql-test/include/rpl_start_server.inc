@@ -54,6 +54,6 @@ if ($rpl_server_parameters)
 if (!$rpl_server_error)
 {
   --source include/rpl_reconnect.inc
-  --let $include_filename= rpl_start_server.inc $_rpl_start_server_args
-  --source include/end_include_file.inc
 }
+--let $include_filename= rpl_start_server.inc $_rpl_start_server_args
+--source include/end_include_file.inc
