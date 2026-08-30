@@ -57,11 +57,67 @@
   @return  true on error (my_error() has been called).
 */
 
+/*
+  @brief
+    result_defn := one clone per shipped column.
+
+  @description
+    Clones, so that the query's own items are never bound to a container field,
+    and so that the definition can be rebuilt from scratch -- which is what the
+    fall-back out of pre-aggregation does, having appended partial columns to a
+    definition it then has to take them back off.
+
+  @return true on error (my_error() called).
+*/
+
+bool pwt_row_layout::clone_base_defn(THD *thd)
+{
+  result_defn.empty();
+  List_iterator_fast<Item> li(ship_list);
+  Item *sel_item;
+  while ((sel_item= li++))
+  {
+    Item *c= sel_item->deep_copy_with_checks(thd);
+    if (!c || result_defn.push_back(c, thd->mem_root))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
+      return true;
+    }
+  }
+  n_ship_base= result_defn.elements;
+  return false;
+}
+
+
+/*
+  Forget that the workers were going to pre-aggregate. Everything downstream
+  reads 'grouped' -- the worker's terminal, its setup, and the manager's drain
+  -- so clearing it here is the whole of the decision. The allocations stay on
+  the statement's mem_root, which outlives all of this.
+*/
+
+void pwt_row_layout::forget_aggregates()
+{
+  /* plan_aggregates stays: the query still groups, the manager just does it. */
+  grouped=          false;
+  n_sums=           0;
+  mgr_sums=         nullptr;
+  partial_items=    nullptr;
+  group_defn=       nullptr;
+  group_pos=        nullptr;
+  n_group=          0;
+  group_parts=      0;
+  group_length=     0;
+  group_null_parts= 0;
+}
+
+
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
-                           uint n_tables)
+                           uint n_tables, ORDER *plan_group)
 {
   DBUG_ENTER("pwt_row_layout::build");
   join= join_arg;
+  plan_aggregates= grouped= (plan_group != nullptr);
 
   for (uint t= 0; t < n_tables; t++)
   {
@@ -102,25 +158,73 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
     DBUG_RETURN(true);
   }
 
-  {
-    List_iterator_fast<Item> li(ship_list);
-    Item *sel_item;
-    while ((sel_item= li++))
-    {
-      Item *c= sel_item->deep_copy_with_checks(thd);
-      if (!c || result_defn.push_back(c, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
-        DBUG_RETURN(true);
-      }
-    }
-  }
-
-  if (make_container(thd, &recv))
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "parallel query: failed to build the result row container");
+  if (clone_base_defn(thd))
     DBUG_RETURN(true);
+
+  /*
+    Define grouping information in our per worker aggregate container.
+    Create and instantiate our temporary tables
+  */
+
+  if (grouped && build_aggregates(thd, plan_group))
+    DBUG_RETURN(true);
+
+  /*
+    Twice at most: once wanting to pre-aggregate, and once more having found
+    that this plan cannot. See the foot of the loop.
+  */
+  for (;;)
+  {
+    ORDER *group= nullptr;
+    if (grouped && !(group= clone_group_defn(thd)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+      DBUG_RETURN(true);
+    }
+    if (make_container(thd, &recv, group))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "parallel query: failed to build the result row container");
+      DBUG_RETURN(true);
+    }
+
+    /*
+      A group key create_tmp_table() could not build as an index is not one a
+      worker can look a group up in: it falls back to a unique constraint, which
+      is a hash of the row in a hidden column, enforced on write, with nothing
+      to read a group back out of. accumulate_group() needs the index.
+
+      Whether it managed one can only be asked here, of the finished table.
+      can_run_query_in_workers() asks what it can of the SQL -- the key parts
+      are plain columns, none wider than a varchar, the whole no wider than a
+      blob -- but whether that becomes an index depends on the engine
+      create_tmp_table() picked and that engine's own key limits, and it picks
+      the engine from the row it is building.
+
+      So give up pre-aggregating and build the layout the query would have had
+      without it. The query still runs in the workers; they ship their rows and
+      the manager groups them, which is what every query did before there were
+      partials to ship.
+    */
+    bool no_group_index= !(recv.table->group && recv.table->s->keys == 1 &&
+                           !recv.table->s->have_unique_constraint());
+    /*
+      Nothing this tree can express reaches the real thing: the gate already
+      refuses the two shapes that make create_tmp_table() fall back for a heap
+      container, and its engine-limit test is only in the on-disk branch. So
+      the fall-back is reached on demand instead, or it would never be run.
+    */
+    DBUG_EXECUTE_IF("pwt_no_group_index", no_group_index= true;);
+
+    if (!grouped || !no_group_index)
+      break;
+
+    DBUG_PRINT("info", ("no group index on the result container, "
+                        "shipping rows instead"));
+    free_container(thd, &recv);
+    forget_aggregates();
+    if (clone_base_defn(thd))
+      DBUG_RETURN(true);
   }
   reclength= recv.table->s->reclength;
 
@@ -141,7 +245,127 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
         copy_back[n_copy_back++].set(((Item_field*) it)->field,
                                      recv.table->field[i], false);
   }
+
+  /* add our Item_field partial_items, for MIN/MAX's direct_add(). */
+  for (uint i= 0; i < n_sums; i++)
+    if (!(partial_items[i]= new (thd->mem_root)
+                          Item_field(thd, recv.table->field[n_ship_base + i])))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+      DBUG_RETURN(true);
+    }
   DBUG_RETURN(false);
+}
+
+
+/*
+  @brief
+    Define the partial columns and the group accumulation key
+
+  @return true on error (my_error() called).
+*/
+
+bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
+{
+  n_sums= 0;
+  for (Item_sum **s= join->sum_funcs; *s; s++)
+    n_sums++;
+  if (!(mgr_sums= thd->alloc<Item_sum*>(n_sums)) ||
+      !(partial_items= thd->alloc<Item*>(n_sums)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sums * sizeof(void*)));
+    return true;
+  }
+
+  uint i= 0;
+  for (Item_sum **s= join->sum_funcs; *s; s++, i++)
+  {
+    mgr_sums[i]= *s;
+    Item *c= (*s)->deep_copy_with_checks(thd);
+    if (!c || result_defn.push_back(c, thd->mem_root))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
+      return true;
+    }
+  }
+
+  /*
+    The key. Each entry has to name a result_defn item while create_tmp_table()
+    runs, because that is how it finds which column of the table it is building
+    the key part covers; group_pos remembers which column that was, so a copy
+    of the key can later be re-pointed at a container's own fields.
+  */
+  n_group= 0;
+  for (ORDER *g= plan_group; g; g= g->next)
+    n_group++;
+  if (!(group_defn= thd->alloc<ORDER>(n_group)) ||
+      !(group_pos= thd->alloc<uint>(n_group)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+    return true;
+  }
+
+  uint k= 0;
+  for (ORDER *g= plan_group; g; g= g->next, k++)
+  {
+    Field *want= ((Item_field *) (*g->item)->real_item())->field;
+
+    uint pos= 0;
+    Item *it;
+    List_iterator_fast<Item> si(ship_list);
+    while ((it= si++))
+    {
+      if (it->type() == Item::FIELD_ITEM && ((Item_field *) it)->field == want)
+        break;
+      pos++;
+    }
+    if (!it)
+    {
+      DBUG_ASSERT(0);            // every column the query reads is shipped
+      return true;
+    }
+
+    List_iterator_fast<Item> di(result_defn);
+    Item *defn_item= nullptr;
+    for (uint j= 0; j <= pos; j++)
+      defn_item= di++;
+
+    bzero((char *) &group_defn[k], sizeof(ORDER));
+    group_defn[k].item_ptr=  defn_item;
+    group_defn[k].item=      &group_defn[k].item_ptr;
+    group_defn[k].direction= ORDER::ORDER_ASC;
+    group_defn[k].next=      k + 1 < n_group ? &group_defn[k + 1] : nullptr;
+    group_pos[k]=            pos;
+  }
+
+  /*
+    Measure the key once, here, and hand the sizes to every container.
+    create_tmp_table() would otherwise re-derive them per container from items
+    that have since been re-pointed at that container's own fields.
+  */
+  TMP_TABLE_PARAM measure;
+  measure.init();
+  calc_group_buffer(&measure, group_defn);
+  group_parts=      measure.group_parts;
+  group_length=     measure.group_length;
+  group_null_parts= measure.group_null_parts;
+  return false;
+}
+
+
+ORDER *pwt_row_layout::clone_group_defn(THD *thd)
+{
+  DBUG_ASSERT(group_defn && n_group);
+  ORDER *copy= thd->alloc<ORDER>(n_group);
+  if (!copy)
+    return nullptr;
+  for (uint k= 0; k < n_group; k++)
+  {
+    copy[k]= group_defn[k];
+    copy[k].item= &copy[k].item_ptr;             // at this copy's own storage
+    copy[k].next= k + 1 < n_group ? &copy[k + 1] : nullptr;
+  }
+  return copy;
 }
 
 
@@ -158,7 +382,16 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
   @return  true on error, false on success (*out set).
 */
 
-bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out)
+bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out,
+                                    ORDER *group)
+{
+  return make_container_from(thd, result_defn, out, group);
+}
+
+
+bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
+                                         pwt_row_container *out,
+                                         ORDER *group)
 {
   /*
     A param of its own, per container. Two reasons, and the second is the one
@@ -177,8 +410,12 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out)
     return true;
   }
   param->init();
-  count_field_types(join->select_lex, param, result_defn, false);
+  count_field_types(join->select_lex, param, defn, false);
   param->skip_create_table= true;
+  /* The key sizes measured once in build_aggregates(), not re-derived here. */
+  param->group_parts=      group_parts;
+  param->group_length=     group_length;
+  param->group_null_parts= group_null_parts;
 
   /*
     TMP_TABLE_ALL_COLUMNS makes create_tmp_table() give every item of the list a
@@ -191,8 +428,8 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out)
     than the projection walks over.
   */
   const ulonglong opts= join->select_options | TMP_TABLE_ALL_COLUMNS;
-  TABLE *t= create_tmp_table(thd, param, result_defn,
-                             nullptr, false, false,
+  TABLE *t= create_tmp_table(thd, param, defn,
+                             group, false, grouped,
                              opts, HA_POS_ERROR,
                              &empty_clex_str, true, false);
   if (!t)
@@ -209,11 +446,31 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out)
     or walking past the end of the field array. Refuse instead, whatever the
     reason turns out to be.
   */
-  DBUG_ASSERT(t->s->fields == result_defn.elements);
-  if (t->s->fields != result_defn.elements)
+  DBUG_ASSERT(t->s->fields == defn.elements);
+  if (t->s->fields != defn.elements)
   {
     free_tmp_table(thd, t);
     return true;
+  }
+  /*
+    Bind each aggregate of the definition to its column. create_tmp_table()
+    used to do this for every table it built; since MDEV-32401 it binds only a
+    table built without TMP_TABLE_ALL_COLUMNS, because one select list can be
+    materialised in several tables and the query's aggregates must be read
+    back from the right one. That concern does not arise here: the definition
+    list is this container's own, and its aggregates belong to no other table.
+    A pre-aggregating worker's clones accumulate into its grouping table
+    through reset_field()/update_field(), which go by result_field, and a
+    clone keeps the manager's binding from deep_copy() until it is pointed
+    here -- at a table another thread owns, which the in_use assertion in
+    Field::val_int() catches.
+  */
+  {
+    List_iterator_fast<Item> di(defn);
+    Item *item;
+    for (uint i= 0; (item= di++); i++)
+      if (item->type() == Item::SUM_FUNC_ITEM)
+        ((Item_sum *) item)->result_field= t->field[i];
   }
   out->table= t;
   out->param= param;
@@ -252,6 +509,59 @@ void pwt_row_layout::cleanup(THD *thd)
     projected from. After this the manager's records hold what a serial scan
     would have left there.
 */
+
+/*
+  @brief
+    Hand each of the query's aggregates the partial now in recv.
+
+  @description
+    One direct_add() per aggregate, choosing the overload by what the aggregate
+    is. A NULL partial comes from a worker that saw no non-NULL value in this
+    group, and has to be skipped rather than read as a zero or taken as the
+    extreme -- which is what each overload does with it, given that it is told.
+    The two SUM overloads are told differently: the real one by a flag, the
+    decimal one by a null pointer, where a pointer to decimal zero would mean
+    the value 0.
+
+    The value stays pending on the aggregate until something consumes it, which
+    here is the plan's own terminal: the update_field() or reset_field() it
+    calls once it knows which group the row belongs to takes the direct value
+    in place of the row.
+*/
+
+void pwt_row_layout::direct_add_partials()
+{
+  for (uint i= 0; i < n_sums; i++)
+  {
+    Item_sum *a= mgr_sums[i];
+    Field *f= recv.table->field[n_ship_base + i];
+
+    switch (a->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+      ((Item_sum_count *) a)->direct_add(f->is_null() ? 0 : f->val_int());
+      break;
+    case Item_sum::SUM_FUNC:
+      if (a->result_type() == DECIMAL_RESULT)
+      {
+        my_decimal buf;
+        ((Item_sum_sum *) a)->direct_add(f->is_null() ? (my_decimal *) NULL
+                                                      : f->val_decimal(&buf));
+      }
+      else
+        ((Item_sum_sum *) a)->direct_add(f->is_null() ? 0.0 : f->val_real(),
+                                         f->is_null());
+      break;
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+      ((Item_sum_min_max *) a)->direct_add(partial_items[i]);
+      break;
+    default:
+      DBUG_ASSERT(0);                     // the gate accepts no others
+      break;
+    }
+  }
+}
+
 
 void pwt_row_layout::copy_back_row()
 {

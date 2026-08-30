@@ -229,8 +229,6 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_write(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
-end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
-static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
@@ -2849,6 +2847,47 @@ setup_subq_exit:
     (scale_cost_for_parallel_scan) asks only the table-level one, and a copy
     here would be free to drift from it.
 */
+
+/*
+  @brief
+    The GROUP BY key the plan's own aggregation table is built on, if the
+    terminal that reads it is the one that looks a group up by that key.
+
+  @description
+    end_update() reads a row, builds the group key from table->group and folds
+    the row into whichever group it finds -- the one terminal whose answer does
+    not depend on the order rows arrive in, which is what lets the driving scan
+    be handed out in chunks at all. It is also the one a partial can be merged
+    through, because the update_field() it calls per aggregate consumes a
+    direct value in place of the row.
+
+    The key is taken from the aggregation table rather than from
+    join->group_list, and not only because that is the one end_update() will
+    actually key on: make_aggr_tables_info() sets join->group_list to NULL once
+    the temp table has taken the grouping over, so by this point it is gone.
+
+    Lives here because end_update() is static to this file.
+
+  @return the key, or nullptr if this plan's terminal is not that one.
+
+    TODO: shift this out by whatever means is reqd.
+      rewrite the above into something less convoluted
+*/
+
+ORDER *pwt_plan_group_key(JOIN *join)
+{
+  if (!join->aggr_tables)
+    return nullptr;
+  JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+  if (last->next_select != sub_select_postjoin_aggr)
+    return nullptr;
+  JOIN_TAB *aggr_tab= last + 1;
+  if (!aggr_tab->aggr || aggr_tab->aggr->get_write_func() != end_update ||
+      !aggr_tab->table)
+    return nullptr;
+  return aggr_tab->table->group;
+}
+
 
 static bool is_parallel_scan_applicable(JOIN_TAB *join_tab)
 {
@@ -27564,9 +27603,8 @@ convert_heap_to_aria_update(JOIN *join, JOIN_TAB *join_tab,
 }
 
 
-static enum_nested_loop_state
-end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
-	   bool end_of_records)
+enum_nested_loop_state end_update(JOIN *join, JOIN_TAB *join_tab,
+                                  bool end_of_records)
 {
   TABLE *const table= join_tab->table;
   ORDER   *group;
