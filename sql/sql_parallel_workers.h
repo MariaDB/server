@@ -22,7 +22,7 @@
   Note that this class doesn't define what "work" is.
 */
 
-class pwt_manager_base2 : public pwt_thread_manager
+class pwt_manager_base : public pwt_thread_manager
 {
   /*
     Set (under LOCK_data) to a worker's killed_state when that worker exits
@@ -36,8 +36,8 @@ class pwt_manager_base2 : public pwt_thread_manager
   uint                     active_workers; // producers still running
 public:
   bool                     fatal_error;    // a producer hit a real engine error
-  pwt_manager_base2();
-  ~pwt_manager_base2();
+  pwt_manager_base();
+  ~pwt_manager_base();
 
   void register_worker()
   {
@@ -70,17 +70,17 @@ public:
   mysql_cond_t             COND_data_avail;
 };
 
-class pwt_worker_base2 : public pwt_thread_with_stats
+class pwt_worker_base : public pwt_thread_with_stats
 {
 public:
-  pwt_worker_base2(pwt_manager_base2 *mgr_arg) :
+  pwt_worker_base(pwt_manager_base *mgr_arg) :
     pwt_thread_with_stats(mgr_arg),
     mgr2(mgr_arg)
   {
     mgr2->register_worker();
   }
 
-  pwt_manager_base2 *mgr2;
+  pwt_manager_base *mgr2;
   void thread_func_end();
   void on_fatal_error() override;
 
@@ -184,7 +184,7 @@ struct pwt_worker_execution
 /*
   Parallel Worker Thread specific attributes
 */
-class pwt_worker : public pwt_worker_base2
+class pwt_worker : public pwt_worker_base
 {
   int execute_and_handoff();
 public:
@@ -258,7 +258,7 @@ struct pwt_manager_execution
 /*
   Class to create, manage and eventually destroy a "team" of worker threads.
 */
-class pwt_manager : public pwt_manager_base2
+class pwt_manager : public pwt_manager_base
 {
   /*
     The worker team, one entry per worker, held by pointer rather than by
