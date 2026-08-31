@@ -655,19 +655,19 @@ bool pwt_batch_sink::handoff()
 {
   DBUG_ENTER("pwt_batch_sink::handoff");
   mysql_mutex_lock(&manager->LOCK_data);
-  if (manager->stop)
+  if (manager->workers_must_stop)
   {
     mysql_mutex_unlock(&manager->LOCK_data);
     DBUG_RETURN(true);
   }
   full= true;
   mysql_cond_signal(&manager->COND_data_avail);          // wake the consumer
-  while (full && !manager->stop)
+  while (full && !manager->workers_must_stop)
   {
     mysql_cond_wait(&peer->COND_data_space, &manager->LOCK_data);
     DBUG_PRINT("info", ("worker wakes"));
   }
-  bool stopped= manager->stop;
+  bool stopped= manager->workers_must_stop;
   mysql_mutex_unlock(&manager->LOCK_data);
   DBUG_RETURN(stopped);
 }
@@ -899,7 +899,7 @@ bool pwt_tmp_table_sink::begin()
 bool pwt_tmp_table_sink::stop_requested()
 {
   mysql_mutex_lock(&manager->LOCK_data);
-  bool stop= manager->stop;
+  bool stop= manager->workers_must_stop;
   mysql_mutex_unlock(&manager->LOCK_data);
   return stop;
 }
