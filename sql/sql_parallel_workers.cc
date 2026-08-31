@@ -65,14 +65,18 @@ static PSI_memory_info all_pwt_memory[]=
 };
 #endif /* HAVE_PSI_INTERFACE */
 
+void pwt_manager_base::report_fatal_error()
+{
+  mysql_mutex_lock(&LOCK_data);
+  fatal_error= true;
+  /* This is to notify other workers too */
+  mysql_cond_signal(&COND_data_avail);
+  mysql_mutex_unlock(&LOCK_data);
+}
 
 void pwt_worker_base::on_fatal_error()
 {
-  mysql_mutex_lock(&mgr2->LOCK_data);
-  mgr2->fatal_error= true;
-  /* This is to notify other workers too */
-  mysql_cond_signal(&mgr2->COND_data_avail);
-  mysql_mutex_unlock(&mgr2->LOCK_data);
+  mgr2->report_fatal_error();
 }
 
 void pwt_manager_base::report_worker_final_state(killed_state state, bool err)
@@ -85,6 +89,32 @@ void pwt_manager_base::report_worker_final_state(killed_state state, bool err)
   active_workers--;
   mysql_cond_signal(&COND_data_avail);
   mysql_mutex_unlock(&LOCK_data);
+}
+
+
+int pwt_manager_base::locked__process_manager_wakeup()
+{
+  /*
+    A worker exited because it was killed: propagate the kill to the
+    manager's own THD so the query aborts now with ER_QUERY_INTERRUPTED,
+    before any result is sent.
+  */
+  if (killed_by_worker() != NOT_KILLED && !thd->killed)
+  {
+    mysql_mutex_assert_owner(&LOCK_data);
+    killed_state ks= killed_by_worker();
+    // TODO: the following was done when not holding LOCK_data. Does it matter?
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    thd->killed= ks;
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    return 1;
+  }
+  if (fatal_error)                       // a worker failed
+    return 1;
+  if (locked__no_active_workers())  // nothing unread, nobody running
+    return -1;
+
+  return 0;
 }
 
 /*
