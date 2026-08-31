@@ -171,7 +171,8 @@ add_plugin(MYSQL *mysql, struct st_mysql_client_plugin *plugin, void *dlhandle,
     goto err1;
   }
 
-  if (plugin->interface_version >> 8 != plugin_version[plugin->type] >> 8)
+  if (plugin->interface_version < (~0xFF & plugin_version[plugin->type]) ||
+      plugin->interface_version > plugin_version[plugin->type])
   {
     errmsg= "Incompatible client plugin interface";
     goto err1;

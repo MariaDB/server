@@ -161,7 +161,8 @@ static const char *plugin_interface_version_sym=
 static const char *sizeof_st_plugin_sym=
                    "_mysql_sizeof_struct_st_plugin_";
 static const char *plugin_declarations_sym= "_mysql_plugin_declarations_";
-static int min_plugin_interface_version= MYSQL_PLUGIN_INTERFACE_VERSION & ~0xFF;
+static int min_plugin_interface_version=
+                   ~0xFF & MYSQL_PLUGIN_INTERFACE_VERSION;
 static const char *maria_plugin_interface_version_sym=
                    "_maria_plugin_interface_version_";
 static const char *maria_sizeof_st_plugin_sym=
@@ -169,7 +170,7 @@ static const char *maria_sizeof_st_plugin_sym=
 static const char *maria_plugin_declarations_sym=
                    "_maria_plugin_declarations_";
 static int min_maria_plugin_interface_version=
-                   MARIA_PLUGIN_INTERFACE_VERSION & ~0xFF;
+                   ~0xFF & MARIA_PLUGIN_INTERFACE_VERSION;
 #endif
 
 /* Note that 'int version' must be the first field of every plugin
@@ -178,17 +179,17 @@ static int min_maria_plugin_interface_version=
 static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0x0000,
-  MYSQL_HANDLERTON_INTERFACE_VERSION,
-  MYSQL_FTPARSER_INTERFACE_VERSION,
-  MYSQL_DAEMON_INTERFACE_VERSION,
-  MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION,
-  MYSQL_AUDIT_INTERFACE_VERSION,
-  MYSQL_REPLICATION_INTERFACE_VERSION,
-  MIN_AUTHENTICATION_INTERFACE_VERSION,
-  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
-  MariaDB_ENCRYPTION_INTERFACE_VERSION,
-  MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  MariaDB_FUNCTION_INTERFACE_VERSION
+  ~0xFF & MYSQL_HANDLERTON_INTERFACE_VERSION,
+  ~0xFF & MYSQL_FTPARSER_INTERFACE_VERSION,
+  ~0xFF & MYSQL_DAEMON_INTERFACE_VERSION,
+  ~0xFF & MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION,
+  ~0xFF & MYSQL_AUDIT_INTERFACE_VERSION,
+  ~0xFF & MYSQL_REPLICATION_INTERFACE_VERSION,
+  ~0xFF & MIN_AUTHENTICATION_INTERFACE_VERSION,
+  ~0xFF & MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
+  ~0xFF & MariaDB_ENCRYPTION_INTERFACE_VERSION,
+  ~0xFF & MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  ~0xFF & MariaDB_FUNCTION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -554,7 +555,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   plugin_dl->mysqlversion= *(int *)sym;
   /* Versioning */
   if (plugin_dl->mysqlversion < min_plugin_interface_version ||
-      (plugin_dl->mysqlversion >> 8) > (MYSQL_PLUGIN_INTERFACE_VERSION >> 8))
+      plugin_dl->mysqlversion > MYSQL_PLUGIN_INTERFACE_VERSION)
   {
     my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC,
                  "plugin interface version mismatch");
@@ -675,7 +676,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
   plugin_dl->mysqlversion= 0;
   /* Versioning */
   if (plugin_dl->mariaversion < min_maria_plugin_interface_version ||
-      (plugin_dl->mariaversion >> 8) > (MARIA_PLUGIN_INTERFACE_VERSION >> 8))
+      plugin_dl->mariaversion > MARIA_PLUGIN_INTERFACE_VERSION)
   {
     my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC,
                  "plugin interface version mismatch");
@@ -821,7 +822,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
       void **ptr= (void **)sym;
       uint ver= (uint)(intptr)*ptr;
       if (ver > list_of_services[i].version ||
-        (ver >> 8) < (list_of_services[i].version >> 8))
+          ver < (~0xFF & list_of_services[i].version))
       {
         char buf[MYSQL_ERRMSG_SIZE];
         my_snprintf(buf, sizeof(buf),
@@ -1168,10 +1169,8 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
       continue; // already installed
     }
     struct st_plugin_int *tmp_plugin_ptr;
-    if (*(int*)plugin->info <
-        min_plugin_info_interface_version[plugin->type] ||
-        ((*(int*)plugin->info) >> 8) >
-        (cur_plugin_info_interface_version[plugin->type] >> 8))
+    if (*(int*)plugin->info < min_plugin_info_interface_version[plugin->type] ||
+        *(int*)plugin->info > cur_plugin_info_interface_version[plugin->type])
     {
       char buf[256];
       strxnmov(buf, sizeof(buf) - 1, "API version for ",
