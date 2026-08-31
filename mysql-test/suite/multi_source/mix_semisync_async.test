@@ -38,13 +38,13 @@ eval CHANGE MASTER 'master2' TO
 
 
 --echo # Test semi-sync replication during async replication
-SET @mode1= 0;
-SET @mode2= 1;
+--let $mode1= 0
+--let $mode2= 1
 --source mix_semisync_async.inc
 
 --echo # Test the other order
-SET @mode1= 1;
-SET @mode2= 0;
+--let $mode1= 1
+--let $mode2= 0
 --source mix_semisync_async.inc
 
 
