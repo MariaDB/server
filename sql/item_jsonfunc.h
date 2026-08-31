@@ -376,6 +376,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
+  bool mvi_ft_processor(void *arg) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override

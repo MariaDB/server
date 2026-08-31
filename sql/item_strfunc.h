@@ -2649,41 +2649,11 @@ class Item_func_mvi_encode : public Item_str_ascii_func
   String tmp_js;
   json_engine_t je;
 public:
-  void print(String *str, enum_query_type query_type) override
-  {
-    char buf[32];
-    size_t length;
-    str->append(func_name_cstring());
-    str->append('(');
-    args[0]->print(str, query_type);
-    str->append(',');
-    const Name name= m_cast_type.type_handler()->name();
-    switch (m_cast_type.type_handler()->field_type())
-    {
-      case MYSQL_TYPE_LONG_BLOB:
-        str->append(STRING_WITH_LEN("char"));
-        str->append('(');
-        length= (size_t) (longlong10_to_str(m_cast_type.length(), buf, -10) - buf);
-        str->append(buf, length);
-        str->append(')');
-        break;
-      default:
-        str->append(name.ptr(), name.length());
-        break;
-    }
-    if (decimals && decimals != NOT_FIXED_DEC)
-    {
-      str->append('(');
-      length= (size_t) (longlong10_to_str(decimals, buf, -10) - buf);
-      str->append(buf, length);
-      str->append(')');
-    }
-    str->append(')');
-  }
-
+  void print(String *str, enum_query_type query_type) override;
   Item_func_mvi_encode(THD* thd, Item *expr, const Lex_cast_type_st &cast_type):
     Item_str_ascii_func(thd, expr), m_cast_type(cast_type) {}
   String *val_str_ascii(String *buf) override;
+  enum Functype functype() const override { return MVI_ENCODE_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("mvi_encode")};
@@ -2694,6 +2664,7 @@ public:
   {
     return get_item_copy<Item_func_mvi_encode>(thd, this);
   }
+  Lex_cast_type_st &cast_type() { return m_cast_type; }
 };
 
 
