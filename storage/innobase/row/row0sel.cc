@@ -4345,7 +4345,8 @@ row_search_mvcc(
 	page_cur_mode_t	mode,
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
-	ulint		direction)
+	ulint		direction,
+	btr_read_ahead_t* read_ahead)
 {
 	DBUG_ENTER("row_search_mvcc");
 	DBUG_ASSERT(prebuilt->index->table == prebuilt->table);
@@ -4796,7 +4797,7 @@ wait_table_again:
 		} else {
 			err = btr_pcur_open_with_no_init(search_tuple, mode,
 							 BTR_SEARCH_LEAF,
-							 pcur, &mtr);
+							 pcur, &mtr, read_ahead);
 		}
 
 		if (err != DB_SUCCESS) {
@@ -4843,7 +4844,7 @@ page_corrupted:
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
 		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
-				      BTR_SEARCH_LEAF, &mtr);
+				      BTR_SEARCH_LEAF, &mtr, read_ahead);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {

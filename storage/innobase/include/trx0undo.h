@@ -106,15 +106,13 @@ trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
                            uint32_t page_no, uint16_t offset);
 /** Get the previous record in an undo log.
 @param[in,out]  block   undo log page
+@param[in]	undo	undo log object
 @param[in]      rec     undo record offset in the page
-@param[in]      page_no undo log header page number
-@param[in]      offset  undo log header offset on page
-@param[in]      shared  latching mode: true=RW_S_LATCH, false=RW_X_LATCH
 @param[in,out]  mtr     mini-transaction
 @return undo log record, the page latched, NULL if none */
 trx_undo_rec_t*
-trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
-                      uint16_t offset, bool shared, mtr_t *mtr);
+trx_undo_get_prev_rec(buf_block_t *&block, const trx_undo_t &undo,
+                      uint16_t rec, mtr_t *mtr);
 
 /** Get the first undo log record on a page.
 @param[in]	block	undo log page
