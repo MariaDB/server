@@ -286,50 +286,62 @@ int digest_to_binary(const char *hash, size_t hash_length,
   return 0;
 }
 
-static
-int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
+union scramble_pair_u
 {
-  union
+  struct
   {
-    struct
-    {
-      uchar server[CHALLENGE_SCRAMBLE_LENGTH];
-      uchar client[CHALLENGE_SCRAMBLE_LENGTH];
-    };
-    uchar start[1];
-  } scramble_pair;
+    uchar server[CHALLENGE_SCRAMBLE_LENGTH];
+    uchar client[CHALLENGE_SCRAMBLE_LENGTH];
+  };
+  uchar start[1];
+};
+
+static bool bad_signature(scramble_pair_u &scramble_pair,
+                          Client_signed_response *client_response,
+                          uchar *pub_key)
+{
+  memcpy(scramble_pair.client, client_response->client_scramble,
+         CHALLENGE_SCRAMBLE_LENGTH);
+
+  return verify_ed25519(pub_key, client_response->signature,
+                        scramble_pair.start, sizeof(scramble_pair));
+}
+
+static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
+{
+  scramble_pair_u scramble_pair;
 
   my_random_bytes(scramble_pair.server, CHALLENGE_SCRAMBLE_LENGTH);
 
   if (vio->write_packet(vio, scramble_pair.server, sizeof(scramble_pair.server)))
     return CR_ERROR;
 
-  // Begin with reading the handshake packet. It should be empty (for now).
-  uchar *dummy;
-  int bytes_read= vio->read_packet(vio, &dummy);
-  if (bytes_read != 0)
+  Client_signed_response *client_response;
+  int bytes_read= vio->read_packet(vio, (uchar**)&client_response);
+  if (bytes_read < 0)
     return CR_ERROR;
 
   auto passwd= (Passwd_in_memory*)info->auth_string;
 
+  /* A client, that already knows the salt, can send a signature now */
+  if (bytes_read == sizeof *client_response &&
+      !bad_signature(scramble_pair, client_response, passwd->pub_key))
+    return CR_OK;
+
+  /* otherwise send the salt */
   if (vio->write_packet(vio, (uchar*)info->auth_string, 2 + CHALLENGE_SALT_LENGTH))
     return CR_ERROR;
 
-  Client_signed_response *client_response;
   bytes_read= vio->read_packet(vio, (uchar**)&client_response);
   if (bytes_read < 0)
     return CR_ERROR;
   if (bytes_read != sizeof *client_response)
     return CR_AUTH_HANDSHAKE;
 
-  memcpy(scramble_pair.client, client_response->client_scramble,
-         CHALLENGE_SCRAMBLE_LENGTH);
+  if (!bad_signature(scramble_pair, client_response, passwd->pub_key))
+    return CR_OK;
 
-  if (verify_ed25519(passwd->pub_key, client_response->signature,
-                     scramble_pair.start, sizeof(scramble_pair)))
-    return CR_AUTH_HANDSHAKE;
-
-  return CR_OK;
+  return CR_AUTH_HANDSHAKE;
 }
 
 static struct st_mysql_auth info =

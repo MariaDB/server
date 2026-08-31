@@ -24,10 +24,10 @@ disconnect u;
 # Round-trips: 4
 connect u,127.0.0.1,u,pwd4,,$port,,NOSSL;
 disconnect u;
-# Round-trips: 3
+# Round-trips: 2
 connect u,127.0.0.1,u,pwd4,,$port,,NOSSL;
 disconnect u;
-# Round-trips: 3
+# Round-trips: 2
 connection default;
 #  5. ssl parsec
 create or replace user u@'%' identified with parsec using password('pwd5');
@@ -38,7 +38,7 @@ connection default;
 #  6. ssl parsec repeated
 connect u,127.0.0.1,u,pwd5,,$port,,SSL;
 disconnect u;
-# Round-trips: 3
+# Round-trips: 2
 connection default;
 #  7. native->native change user
 create or replace user u@'%' identified with mysql_native_password using password('pwd7');
