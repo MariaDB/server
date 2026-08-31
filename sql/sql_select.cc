@@ -13974,6 +13974,107 @@ bool JOIN::record_full_join_nest_spans()
 
 
 /*
+  Open a run for the SJ-Materialization semi-join nest at tablenr.
+
+  Note that this can't be done recursively, semi-joins are not allowed to
+  be nested.
+
+  1. Put into main join order a JOIN_TAB that represents a lookup or scan
+     in the temp table.
+  2. Proceed with processing the SJM nest's join tabs, putting them into
+     the sub-order, the way open_full_join_nest_run() does for a FULL JOIN
+     operand nest.
+
+  RETURN
+    FALSE  OK, *j advanced to the placeholder's bush_children.start
+    TRUE   Out of memory
+*/
+
+static bool
+open_sjm_run(THD *thd, JOIN *join, JOIN_TAB *&j, uint tablenr,
+             SJ_MATERIALIZATION_INFO *sjm,
+             JOIN_TAB **run_root, uint *run_last_pos, uint &run_depth)
+{
+  JOIN_TAB *jt;
+
+  bzero((void*) j, sizeof(JOIN_TAB));
+  j->join= join;
+  j->table= NULL; //temporary way to tell SJM tables from others.
+  j->ref.key= -1;
+  j->on_expr_ref= (Item**) &null_ptr;
+  j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
+  /* The unique index is always in 'possible keys' in EXPLAIN */
+  j->keys= key_map(1);
+
+  j->records_read= (sjm->is_sj_scan ? sjm->rows : 1.0);
+  j->records_init= j->records_out= j->records_read;
+  j->records= (ha_rows) j->records_read;
+  j->cond_selectivity= 1.0;
+  j->join_read_time= 0.0; /* Not saved currently */
+  j->join_loops= 0.0;
+  if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)))
+    return TRUE;
+  j->bush_children.start= jt;
+  j->bush_children.end= jt + sjm->tables;
+  j->bush_children.kind= JOIN_TAB_RANGE_SJM;
+  join->join_tab_ranges.push_back(&j->bush_children, thd->mem_root);
+  DBUG_ASSERT(run_depth < MAX_TABLES);
+  run_root[run_depth]= j;
+  run_last_pos[run_depth]= tablenr + sjm->tables - 1;
+  run_depth++;
+
+  j= jt;
+  return FALSE;
+}
+
+
+/*
+  Open a run for the FULL JOIN operand nest whose span starts at tablenr.
+
+  Allocates the nest's JOIN_TABs, links them under a placeholder JOIN_TAB
+  the way an SJ-Materialization nest is linked under its own placeholder,
+  and pushes a new entry onto the run stack (run_root/run_last_pos), so
+  that further tables and any runs opened at the tables to follow are
+  read as being inside this nest.
+
+  RETURN
+    FALSE  OK, *j advanced to the placeholder's bush_children.start
+    TRUE   Out of memory
+*/
+
+static bool
+open_full_join_nest_run(THD *thd, JOIN *join, JOIN_TAB *&j, uint tablenr,
+                         Full_join_nest_span *span,
+                         JOIN_TAB **run_root, uint *run_last_pos,
+                         uint &run_depth)
+{
+  JOIN_TAB *jt;
+
+  if (!(jt= thd->alloc<JOIN_TAB>(span->count)))
+    return TRUE;
+  bzero((void*) j, sizeof(JOIN_TAB));
+  j->join= join;
+  j->table= NULL;
+  j->ref.key= -1;
+  j->on_expr_ref= (Item**) &null_ptr;
+  j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
+  j->bush_children.start= jt;
+  j->bush_children.end= jt + span->count;
+  j->bush_children.kind= JOIN_TAB_RANGE_FULL_JOIN;
+  j->bush_children.nest= span->nest;
+  j->bush_children.nest->nested_join->materialized_full_join= TRUE;
+  if (join->join_tab_ranges.push_back(&j->bush_children, thd->mem_root))
+    return TRUE;
+  DBUG_ASSERT(run_depth < MAX_TABLES);
+  run_root[run_depth]= j;
+  run_last_pos[run_depth]= tablenr + span->count - 1;
+  run_depth++;
+  j= jt;
+  return FALSE;
+}
+
+
+/*
   Set up join struct according to the picked join order in
 
   SYNOPSIS
@@ -14123,72 +14224,18 @@ bool JOIN::get_best_combination()
     */
     for (uint i= 0; i <= fj_nest_span_count; i++)
     {
-      JOIN_TAB *jt;
-
       if (sjm && i == sjm_at)
       {
-        /*
-          Ok, we've entered an SJ-Materialization semi-join (note that
-          this can't be done recursively, semi-joins are not allowed to
-          be nested).
-          1. Put into main join order a JOIN_TAB that represents a lookup
-             or scan in the temptable.
-        */
-        bzero((void*)j, sizeof(JOIN_TAB));
-        j->join= this;
-        j->table= NULL; //temporary way to tell SJM tables from others.
-        j->ref.key = -1;
-        j->on_expr_ref= (Item**) &null_ptr;
-        j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
-        /* The unique index is always in 'possible keys' in EXPLAIN */
-        j->keys= key_map(1);
-
-        /*
-          2. Proceed with processing SJM nest's join tabs, putting them
-             into the sub-order
-        */
-        j->records_read= (sjm->is_sj_scan? sjm->rows : 1.0);
-        j->records_init= j->records_out= j->records_read;
-        j->records= (ha_rows) j->records_read;
-        j->cond_selectivity= 1.0;
-        j->join_read_time= 0.0; /* Not saved currently */
-        j->join_loops= 0.0;
-        if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)))
+        if (open_sjm_run(thd, this, j, tablenr, sjm, run_root, run_last_pos,
+                          run_depth))
           goto error;
-        j->bush_children.start= jt;
-        j->bush_children.end= jt + sjm->tables;
-        j->bush_children.kind= JOIN_TAB_RANGE_SJM;
-        join_tab_ranges.push_back(&j->bush_children, thd->mem_root);
-        DBUG_ASSERT(run_depth < MAX_TABLES);
-        run_root[run_depth]= j;
-        run_last_pos[run_depth]= tablenr + sjm->tables - 1;
-        run_depth++;
-
-        j= jt;
       }
 
       if (i == fj_nest_span_count || fj_nest_spans[i].first != tablenr)
         continue;
-      if (!(jt= thd->alloc<JOIN_TAB>(fj_nest_spans[i].count)))
+      if (open_full_join_nest_run(thd, this, j, tablenr, &fj_nest_spans[i],
+                                   run_root, run_last_pos, run_depth))
         goto error;
-      bzero((void*) j, sizeof(JOIN_TAB));
-      j->join= this;
-      j->table= NULL;
-      j->ref.key= -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      j->bush_root_tab= run_depth ? run_root[run_depth-1] : NULL;
-      j->bush_children.start= jt;
-      j->bush_children.end= jt + fj_nest_spans[i].count;
-      j->bush_children.kind= JOIN_TAB_RANGE_FULL_JOIN;
-      j->bush_children.nest= fj_nest_spans[i].nest;
-      j->bush_children.nest->nested_join->materialized_full_join= TRUE;
-      if (join_tab_ranges.push_back(&j->bush_children, thd->mem_root))
-        goto error;
-      DBUG_ASSERT(run_depth < MAX_TABLES);
-      run_root[run_depth]= j;
-      run_last_pos[run_depth]= tablenr + fj_nest_spans[i].count - 1;
-      run_depth++;
-      j= jt;
     }
 
     *j= *cur_pos->table;
