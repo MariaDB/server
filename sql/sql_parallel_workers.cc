@@ -109,13 +109,29 @@ int pwt_manager_base::locked__process_manager_wakeup()
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
     return 1;
   }
-  if (fatal_error)                       // a worker failed
+  if (fatal_error)     // a worker failed
     return 1;
-  if (locked__no_active_workers())  // nothing unread, nobody running
+  if (!active_workers) // All workers have finished.
     return -1;
 
   return 0;
 }
+
+
+pwt_manager_base::pwt_manager_base() : 
+  kill_signal(NOT_KILLED), fatal_error(false), active_workers(0)
+{
+  mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
+}
+
+
+pwt_manager_base::~pwt_manager_base()
+{
+  mysql_cond_destroy(&COND_data_avail);
+  mysql_mutex_destroy(&LOCK_data);
+}
+
 
 /*
   This is run after the thread func has finished.
@@ -134,6 +150,7 @@ void pwt_worker_base::thread_func_end()
 pwt_worker::pwt_worker(pwt_manager *manager_arg) :
   pwt_worker_base(manager_arg), manager(manager_arg), sink(nullptr)
 {}
+
 
 /**
   @brief
@@ -187,20 +204,6 @@ static bool parallel_build_key_ranges(JOIN_TAB *tab,
   return false;
 }
 
-
-pwt_manager_base::pwt_manager_base() : 
-  kill_signal(NOT_KILLED), active_workers(0), fatal_error(false)
-{
-  mysql_mutex_init(key_mutex_pwt_LOCK_data, &LOCK_data, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
-}
-
-
-pwt_manager_base::~pwt_manager_base()
-{
-  mysql_cond_destroy(&COND_data_avail);
-  mysql_mutex_destroy(&LOCK_data);
-}
 
 /**
   @brief
@@ -296,7 +299,6 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       setup_transport(thd, n))
     goto cleanup_workers;
 
-  stop= false;
   reaped= false;
 
   for (i= 0; i < n; i++)
@@ -627,7 +629,7 @@ bool pwt_manager::setup_transport(THD *thd, uint n_workers)
 void pwt_manager::request_stop()
 {
   mysql_mutex_assert_owner(&LOCK_data);
-  stop= true;
+  workers_must_stop= true;
   if (source)
     source->wake_producers();
 }

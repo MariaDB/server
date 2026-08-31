@@ -17,51 +17,15 @@
   If one worker fails or is killed, or the manager is killed, then all workers
   should stop working and be killed.
 
-  When the manager finishes work, it waits for all workers to finish.
-
-  Note that this class doesn't define what "work" is.
   When the workers need the manager's attention, they note it under LOCK_data
   and signal COND_data_avail.
 */
 
 class pwt_manager_base : public pwt_thread_manager
 {
-  /*
-    Set (under LOCK_data) to a worker's killed_state when that worker exits
-    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
-    worker. The consumer propagates it to the manager's own THD so the join
-    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
-    sent, rather than completing and trying to raise the error too late.
-  */
-  killed_state             kill_signal;
-
-  uint                     active_workers; // # workers who haven't finished.
 public:
-  bool                     fatal_error;    // a producer hit a real engine error
   pwt_manager_base();
   ~pwt_manager_base();
-
-  void register_worker()
-  {
-    active_workers++;
-  }
-
-  int locked__process_manager_wakeup();
-
-  bool is_fatal_error() { return fatal_error; }
-
-  void report_fatal_error();
-  void report_worker_final_state(killed_state state, bool err);
-
-private:
-  bool locked__no_active_workers()
-  {
-    mysql_mutex_assert_owner(&LOCK_data);
-    return (active_workers == 0);
-  }
-  /* A worker exited because it was killed; NOT_KILLED if none did. */
-  killed_state killed_by_worker() const { return kill_signal; }
-public:
 
   /*
     The worker team's own state, as distinct from the transport's: who is still
@@ -75,6 +39,37 @@ public:
 
   /* This is to signal the manager to wake up and check its state. */
   mysql_cond_t             COND_data_avail;
+
+  int locked__process_manager_wakeup();
+
+  // TODO: this is checked without locks now?
+  bool is_fatal_error() { return fatal_error; }
+
+
+  /* Called by pwt_worker_base only: */
+  void register_worker()
+  {
+    active_workers++;
+  }
+  void report_fatal_error();
+  void report_worker_final_state(killed_state state, bool err);
+
+private:
+  /*
+    Set (under LOCK_data) to a worker's killed_state when that worker exits
+    because it was killed -- e.g. a user KILL [QUERY] aimed at a parallel
+    worker. The consumer propagates it to the manager's own THD so the join
+    aborts with the right error (ER_QUERY_INTERRUPTED) before any result is
+    sent, rather than completing and trying to raise the error too late.
+  */
+  killed_state             kill_signal;
+
+  /* A worker exited because it was killed; NOT_KILLED if none did. */
+  killed_state killed_by_worker() const { return kill_signal; }
+
+  bool                     fatal_error;    // a producer hit a real engine error
+
+  uint                     active_workers; // # workers who haven't finished.
 };
 
 class pwt_worker_base : public pwt_thread_with_stats
@@ -86,6 +81,10 @@ public:
   {
     mgr2->register_worker();
   }
+  /*
+    Currently, workers check master's workers_must_stop under
+    master's LOCK_data.
+  */
 
   void thread_func_end();
   void on_fatal_error() override;
@@ -333,12 +332,16 @@ class pwt_manager : public pwt_manager_base
   */
   bool                     reaped;
 public:
-  bool                     stop;           // we want the producers to stop
+  /*
+    If true, workers must stop and exit. Currently, this is protected by
+    master's LOCK_data.
+  */
+  bool                     workers_must_stop;
 
   pwt_manager():
     workers(PSI_INSTRUMENT_MEM, 0, 8),
     source(nullptr), reaped(false),
-    stop(false)
+    workers_must_stop(false)
     {}
   ~pwt_manager()
   {
