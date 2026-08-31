@@ -1940,13 +1940,15 @@ static void generate_output_legacy_binlog_name(char *out_name, size_t out_name_l
 }
 
 static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
-                                      size_t out_name_len)
+                                      size_t out_name_len,
+                                      Format_description_log_event *fdev)
 {
   /* Reset the log_file_pos to 0 for the new output legacy binlog file */
   log_file_pos= 0;
   log_file_pos_overflow_warning_printed= false;
 
-  generate_output_legacy_binlog_name(out_name, out_name_len, ++convert_engine_output_index);
+  generate_output_legacy_binlog_name(out_name, out_name_len,
+                                     ++convert_engine_output_index);
 
   if (!(*out_file= my_fopen(out_name, O_WRONLY | O_BINARY, MYF(MY_WME))))
   {
@@ -1966,8 +1968,7 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
   log_file_pos+= BIN_LOG_HEADER_SIZE;
 
   // Write the FORMAT_DESCRIPTION_EVENT to the output legacy binlog file
-  if (write_format_description_event_to_legacy_binlog(*out_file,
-                                                      glob_description_event))
+  if (write_format_description_event_to_legacy_binlog(*out_file, fdev))
   {
     error("Could not write FORMAT_DESCRIPTION_EVENT to output legacy binlog "
           "file");
@@ -1999,7 +2000,8 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
 }
 
 static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
-                                        size_t out_name_len)
+                                        size_t out_name_len,
+                                        Format_description_log_event *fdev)
 {
   char next_out_file_name[FN_REFLEN + 1];
   generate_output_legacy_binlog_name(next_out_file_name,
@@ -2019,7 +2021,7 @@ static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
     return true;
   }
 
-  return init_output_legacy_binlog(out_file, out_name, out_name_len);
+  return init_output_legacy_binlog(out_file, out_name, out_name_len, fdev);
 }
 
 /*
@@ -2029,28 +2031,31 @@ static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
 */
 static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 {
-  /* 
+  /*
       Update the global server_id and timestamp variables
   */
   generated_event_server_id= ev->server_id;
   generated_event_timestamp= (uint32) ev->when;
 
-  // if event type is FORMAT_DESCRIPTION_EVENT, store the event in global
-  // variable glob_description_event
+  /*
+    A FORMAT_DESCRIPTION_EVENT in an engine binlog indicates a server restart.
+    Use this FDE only for the restart-triggered rotation. Do not store it in
+    glob_description_event, as reusing it for normal rotations would
+    incorrectly clear the temporary tables.
+  */
   if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
-
-    delete glob_description_event;
-    glob_description_event= (Format_description_log_event *) ev;
 
     // close the output legacy binlog file if it is open
     if (output_legacy_binlog_file)
     {
       if (rotate_output_legacy_binlog(&output_legacy_binlog_file,
-                                      out_file_name, sizeof(out_file_name)))
+                                      out_file_name, sizeof(out_file_name),
+                                      (Format_description_log_event *) ev))
         goto err;
     }
 
+    delete ev;
     return OK_CONTINUE;
   }
 
@@ -2062,18 +2067,19 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
   if (!output_legacy_binlog_file)
   {
     if (init_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
-                                  sizeof(out_file_name)))
+                                  sizeof(out_file_name),
+                                  glob_description_event))
       goto err;
   }
 
   /*
     Rotate the output legacy binlog file once the max binlog size is reached.
   */
-  if (ev->get_type_code() == GTID_EVENT &&
-      log_file_pos >= opt_max_binlog_size)
+  if (ev->get_type_code() == GTID_EVENT && log_file_pos >= opt_max_binlog_size)
   {
     if (rotate_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
-                                    sizeof(out_file_name)))
+                                    sizeof(out_file_name),
+                                    glob_description_event))
       goto err;
   }
 
