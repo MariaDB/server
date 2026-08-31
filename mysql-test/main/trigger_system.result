@@ -246,3 +246,16 @@ a
 DROP TRIGGER c1;
 DROP TRIGGER c2;
 DROP TABLE t1;
+#
+# MDEV-40106 Sever crashes in store_trigger_metadata after 2nd
+#            execution of ps with create system trigger
+#
+PREPARE stmt FROM 'CREATE TRIGGER tr1 AFTER STARTUP SET @x=1';
+EXECUTE stmt;
+DROP TRIGGER tr1;
+# Without the fix, the second execution of create trigger in PS mode
+# would result in crash
+EXECUTE stmt;
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TRIGGER tr1;

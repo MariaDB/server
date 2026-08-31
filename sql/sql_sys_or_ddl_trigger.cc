@@ -488,61 +488,29 @@ static void register_system_triggers(Sys_trigger *sys_trg,
   {
     if (tk & 0x01)
       register_trigger(sys_trg->inc_ref_count(), trg_when,
-                       Event_parse_data::enum_kind(trg_event_for_reg));
+                       trg_event_for_reg);
   }
 }
 
 
 /**
-   Remove the trigger being dropped from the sys_triggers array.
-   System triggers to be fired for some combination of type/time are searched
-   in this array, before a trigger be considering as deleted it should be
-   removed from this array.
+  RAII class to release the acquired mutex on any return path
+  from a function where this guard class is instantiated.
+*/
 
-   @param spname  name of trigger to be removed from the sys_triggers array
- */
-
-void unregister_trigger(sp_name *spname)
+class LckGuard
 {
-  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
-  if (run_on_shutdown_triggers)
+public:
+  explicit LckGuard(mysql_mutex_t *lock)
+  : m_lock(lock)
+  {}
+  ~LckGuard()
   {
-    /*
-      Don't attempt to remove a system trigger from the sys_triggers array
-      at the same time the shutdown is in progress since it could result in
-      race condition on accessing the array from different threads
-    */
-    mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
-    return;
+    mysql_mutex_unlock(m_lock);
   }
-
-  for (int i= 0; i < TRG_ACTION_MAX; i++)
-  {
-    for (int j= 0; j < TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP; j++)
-    {
-      Sys_trigger *sys_trg= sys_triggers[i][j];
-      Sys_trigger *prev_sys_trg= nullptr;
-      while (sys_trg)
-      {
-        if (sys_trg->compare_name(spname))
-        {
-          if (prev_sys_trg)
-            /* Exclude the trigger being dropped from the list */
-            prev_sys_trg->next= sys_trg->next;
-          else
-            sys_triggers[i][j]= sys_trg->next;
-
-          sys_trg->destroy();
-          mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
-          return;
-        }
-        prev_sys_trg= sys_trg;
-        sys_trg= sys_trg->next;
-      }
-    }
-  }
-  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
-}
+private:
+  mysql_mutex_t *m_lock;
+};
 
 
 /**
@@ -630,6 +598,16 @@ bool mysql_create_sys_trigger(THD *thd)
   if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
     return true;
 
+  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
+
+  LckGuard grd(&LOCK_firing_on_shutdown_triggers);
+
+  if (run_on_shutdown_triggers)
+  {
+    my_error(ER_SYSTEM_TRG_CREATE_TRG_FAIL, MYF(0));
+    return true;
+  }
+
   if (!fetch_trigger_record_by_name(event_table, thd->lex->spname))
   {
     if (thd->lex->create_info.if_not_exists())
@@ -647,7 +625,6 @@ bool mysql_create_sys_trigger(THD *thd)
         event_table->file->print_error(ret, MYF(0));
         return true;
       }
-      unregister_trigger(thd->lex->spname);
     }
     else
     {
@@ -670,54 +647,6 @@ bool mysql_create_sys_trigger(THD *thd)
   /* Binlog the create trigger statement. */
   if (write_bin_log(thd, false, thd->query(), thd->query_length()))
     return true;
-
-  char definer_buf[USER_HOST_BUFF_SIZE];
-  LEX_CSTRING definer;
-  thd->lex->definer->set_lex_string(&definer, definer_buf);
-
-  thd->lex->sphead->set_definer(definer.str, definer.length);
-  thd->lex->sphead->init_psi_share();
-
-  /*
-    First move to 3 bits by right to ignore DML trigger events.
-    After that events_mask must be shifted to 1 bit by right to get a value
-    compatible with Event_parse_data::enum_kind
-  */
-  trg_all_events_set events_mask= thd->lex->trg_chistics.events >> 3;
-
-  events_mask = events_mask << 1;
-
-  mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
-  /*
-    Check under the lock LOCK_firing_on_shutdown_triggers that
-    shutdown is not in progress. Do it here and not in the function
-    register_system_triggers, since thd_for_sys_triggers is destroyed
-    on shutdown.
-  */
-  if (run_on_shutdown_triggers)
-  {
-    mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
-    my_ok(thd);
-    return false;
-  }
-
-  Sys_trigger *sys_trg=
-    new (thd_for_sys_triggers->mem_root) Sys_trigger(thd_for_sys_triggers,
-                                                     thd->lex->sphead);
-
-  /*
-    Stop destroy of sp_head for just handled CREATE TRIGGER statement
-    that else would happened on running
-      mysql_parse() -> THD::end_statement() -> lex_end() ->
-       lex_end_nops() -> sp_head::destroy
-  */
-  thd->lex->sphead= nullptr;
-
-  register_system_triggers(
-    sys_trg, thd->lex->trg_chistics.action_time,
-    Event_parse_data::enum_kind(events_mask));
-
-  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
 
   my_ok(thd);
   return false;
@@ -863,7 +792,6 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
     if (write_bin_log(thd, false, thd->query(), thd->query_length()))
       return true;
 
-    unregister_trigger(thd->lex->spname);
     my_ok(thd);
   }
 
@@ -1382,14 +1310,17 @@ static bool check_valid_trigger_metadata(const LEX_STRING &trg_name,
 
 
 /**
-  Load system triggers from the table mysql.event
+  Load system triggers of the specified type from the table mysql.event
 
   @param thd  Thread handler
+  @param trg_type_to_load  type of system triggers to load (ON STARTUP,
+                           ON SHUTDOWN, etc)
 
   @return false on success, true on error
 */
 
-static bool load_system_triggers(THD *thd)
+static bool load_system_triggers(THD *thd,
+                                 Event_parse_data::enum_kind trg_type_to_load)
 {
   TABLE *event_table;
   start_new_trans new_trans(thd);
@@ -1441,6 +1372,12 @@ static bool load_system_triggers(THD *thd)
     */
     if ((Event_parse_data::enum_kind)trg_kind_in ==
           Event_parse_data::SCHEDULE_EVENT)
+      continue;
+
+    /*
+      Skip records not matching the requested trigger type
+    */
+    if ((Event_parse_data::enum_kind)trg_kind_in != trg_type_to_load)
       continue;
 
     trg_status= (Event_parse_data::enum_status)
@@ -1560,12 +1497,13 @@ bool run_after_startup_triggers(bool bootstrap_or_noacl)
   init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
   /*
-    First, load all available system triggers from the table mysql.event and
+    First, load on startup triggers from the table mysql.event and
     store them in the two dimensional array based on trigger's action time and
     event type. Any memory allocation is performed on the memory root of
     thd_for_sys_triggers.
   */
-  if (load_system_triggers(thd_for_sys_triggers))
+  if (load_system_triggers(thd_for_sys_triggers,
+                           Event_parse_data::SYS_TRG_ON_STARTUP))
   {
     delete thd_for_sys_triggers;
     thd_for_sys_triggers= nullptr;
@@ -1626,6 +1564,22 @@ static void destroy_sys_triggers()
 
 
 /**
+  Release any resource allocated in runtime for support of system triggers.
+*/
+
+static void release_resources()
+{
+  close_thread_tables(thd_for_sys_triggers);
+  destroy_sys_triggers();
+  lex_end_nops(thd_for_sys_triggers->lex);
+  delete thd_for_sys_triggers;
+  thd_for_sys_triggers= nullptr;
+
+  set_current_thd(original_thd);
+}
+
+
+/**
   Run ON SHUTDOWN triggers
 
   @param bootstrap_or_noacl  true in case server is run either with bootstrap
@@ -1638,6 +1592,7 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
     return;
 
   mysql_mutex_lock(&LOCK_firing_on_shutdown_triggers);
+  LckGuard grd(&LOCK_firing_on_shutdown_triggers);
   /*
     Set the flag to avoid adding/removing system triggers in
     the sys_triggers array at the same moment as server shutdown
@@ -1651,6 +1606,13 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
   original_thd= current_thd;
   set_current_thd(thd_for_sys_triggers);
 
+  if (load_system_triggers(thd_for_sys_triggers,
+                           Event_parse_data::SYS_TRG_ON_SHUTDOWN))
+  {
+    release_resources();
+    return;
+  }
+
   Sys_trigger *trg=
     get_trigger_by_type(TRG_ACTION_BEFORE, TRG_EVENT_SHUTDOWN);
   while (trg)
@@ -1659,15 +1621,7 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
     trg= trg->next;
   }
 
-  close_thread_tables(thd_for_sys_triggers);
-  destroy_sys_triggers();
-  lex_end_nops(thd_for_sys_triggers->lex);
-  delete thd_for_sys_triggers;
-  thd_for_sys_triggers= nullptr;
-
-  mysql_mutex_unlock(&LOCK_firing_on_shutdown_triggers);
-
-  set_current_thd(original_thd);
+  release_resources();
 }
 
 
