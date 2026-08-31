@@ -1588,8 +1588,8 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
   if (!shallow_hints && (s->referenced_keys.elements != rk_count))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
-                        "Expected %u refenced keys but found %lu",
-                        s->referenced_keys.elements, rk_count);
+                        "Expected %lu referenced keys but found %u",
+                        (ulong) rk_count, s->referenced_keys.elements);
   }
   return p.pos < p.end; // Error if some data is still left
 }
