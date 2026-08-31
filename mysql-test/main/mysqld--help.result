@@ -1223,8 +1223,13 @@ The following specify which files/extra groups are read (specified before remain
  query cache
  --query-cache-type=name 
  OFF = Don't cache or retrieve results. ON = Cache all
- results except SELECT SQL_NO_CACHE ... queries. DEMAND =
- Cache only SELECT SQL_CACHE ... queries
+ results except for queries marked with SQL_NO_CACHE.
+ DEMAND = Cache only queries marked with SQL_CACHE.
+ DEMAND_STRICT = Like DEMAND but only check for 'SELECT
+ SQL_CACHE' at start of query (to avoid locks that ON and
+ DEMAND have to take). TABLES = Cache only queries marked
+ with SQL_CACHE or queries where all tables are created
+ with SQL_CACHE=1
  --query-cache-wlock-invalidate 
  Invalidate queries in query cache on LOCK for write
  --query-prealloc-size=# 

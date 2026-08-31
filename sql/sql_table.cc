@@ -8684,6 +8684,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!(used_fields & HA_CREATE_USED_TRANSACTIONAL))
     create_info->transactional= table->s->transactional;
 
+  if (!(used_fields & HA_CREATE_USED_QUERY_CACHE))
+    create_info->query_cache= table->s->query_cache;
+
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
 

@@ -1242,7 +1242,6 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   table->query_id= query_id;
   share->tmp_table= (table->file->has_transaction_manager() ?
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
-  share->not_usable_by_query_cache= 1;
 
   /* Add table to the head of table list. */
   share->all_tmp_tables.push_front(table);

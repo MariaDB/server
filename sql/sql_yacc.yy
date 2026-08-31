@@ -6155,6 +6155,11 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_TRANSACTIONAL;
             Lex->create_info.transactional= $3;
           }
+        | SQL_CACHE_SYM opt_equal choice
+          {
+            Lex->create_info.used_fields|= HA_CREATE_USED_QUERY_CACHE;
+            Lex->create_info.query_cache= $3;
+          }
         | engine_defined_option
           {
             $1->link(&Lex->create_info.option_list, &Lex->option_list_last);
