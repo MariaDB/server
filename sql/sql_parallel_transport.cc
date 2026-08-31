@@ -656,7 +656,7 @@ bool pwt_tmp_table_sink::begin()
 bool pwt_tmp_table_sink::stop_requested()
 {
   mysql_mutex_lock(&manager->LOCK_data);
-  bool stop= manager->stop;
+  bool stop= manager->workers_must_stop;
   mysql_mutex_unlock(&manager->LOCK_data);
   return stop;
 }
