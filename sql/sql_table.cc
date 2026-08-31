@@ -3694,7 +3694,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         {
           DBUG_ASSERT(key->ignore_reason);
           fk= new (thd->mem_root) FK_info();
-          fk->assign(fkey, new_name);
+          if (!fk || fk->assign(fkey, new_name))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            DBUG_RETURN(true);
+          }
           if (!fk->name.str)
           {
             fk->name= make_unique_key_name(thd, new_name.name, fkey_names,
