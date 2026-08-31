@@ -920,12 +920,12 @@ struct TABLE_SHARE
   uchar frm_version;
 
   enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
+  enum ha_choice query_cache;
   enum_v_keys check_set_initialized;
 
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
-  bool not_usable_by_query_cache;
   bool online_backup;                   /* Set if on-line backup supported */
   /*
     This is used by log tables, for tables that have their own internal

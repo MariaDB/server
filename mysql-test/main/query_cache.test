@@ -1061,7 +1061,7 @@ set GLOBAL query_cache_size= default;
 # Bug #29053 SQL_CACHE in UNION causes non-deterministic functions to be cached
 #
 
-# This syntax is no longer allowed, therefore the test case has been commented 
+# This syntax is no longer allowed, therefore the test case has been commented
 # out.
 # See test for Bug#35020 below.
 #set GLOBAL query_cache_size=1000000;
@@ -1070,7 +1070,7 @@ set GLOBAL query_cache_size= default;
 #insert into t1 values ('c');
 #
 #let $q1= `select RAND() from t1 union select sql_cache 1 from t1;`;
-#let $q2= `select RAND() from t1 union select sql_cache 1 from t1;`; 
+#let $q2= `select RAND() from t1 union select sql_cache 1 from t1;`;
 #
 # disabling the logging of the query because the times are different each run.
 #--disable_query_log
@@ -1249,7 +1249,7 @@ set session query_cache_type=on;
  select * from db3.t1;
  show status like 'Qcache_queries_in_cache';
  create database db2;
- rename table db1.t1 to db2.t2; 
+ rename table db1.t1 to db2.t2;
  drop database db1;
  show status like 'Qcache_queries_in_cache';
  drop database db2;
@@ -1553,7 +1553,7 @@ SELECT * FROM t1 UNION SELECT SQL_NO_CACHE * FROM t1;
 --error ER_CANT_USE_OPTION_HERE
 SELECT * FROM t1 WHERE a IN (SELECT SQL_NO_CACHE a FROM t1);
 --error ER_CANT_USE_OPTION_HERE
-SELECT * FROM t1 WHERE a IN 
+SELECT * FROM t1 WHERE a IN
   (SELECT a FROM t1 UNION SELECT SQL_NO_CACHE a FROM t1);
 --error ER_WRONG_USAGE
 SELECT SQL_CACHE SQL_NO_CACHE * FROM t1;
@@ -1568,10 +1568,10 @@ SELECT SQL_NO_CACHE * FROM t1 UNION SELECT SQL_CACHE * FROM t1;
 --error ER_CANT_USE_OPTION_HERE
 SELECT SQL_NO_CACHE * FROM t1 UNION SELECT SQL_NO_CACHE * FROM t1;
 --error ER_CANT_USE_OPTION_HERE
-SELECT SQL_CACHE * FROM t1 WHERE a IN 
+SELECT SQL_CACHE * FROM t1 WHERE a IN
   (SELECT SQL_NO_CACHE a FROM t1);
 --error ER_CANT_USE_OPTION_HERE
-SELECT SQL_CACHE * FROM t1 WHERE a IN 
+SELECT SQL_CACHE * FROM t1 WHERE a IN
   (SELECT a FROM t1 UNION SELECT SQL_NO_CACHE a FROM t1);
 
 DROP TABLE t1;
@@ -1953,5 +1953,156 @@ drop table t1, t2, t3, t4, t5, t6, t7;
 set global query_cache_type= @qcache;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-39949 Add per-table "SQL_CACHE" option
+--echo #
+
+set global query_cache_type= TABLES;
+set query_cache_type=TABLES;
+FLUSH query cache;
+flush global status;
+create table t1 (a int) engine=myisam;
+select create_options from information_schema.tables where table_name='t1';
+create table t2 (a int) engine=myisam, sql_cache=0;
+insert into t1 values (1),(2);
+insert into t2 values (1),(2);
+select * from t1;
+show status like "Qcache_inserts";
+alter table t1 sql_cache=1;
+show create table t1;
+select create_options from information_schema.tables where table_name='t1';
+select * from t1;
+show status like "Qcache_inserts";
+select * from t1;
+show status like "Qcache_hits";
+select * from t1,t2 where t1.a=t2.a;
+select * from t2;
+show status like "Qcache_inserts";
+alter table t2 sql_cache=1;
+select * from t1,t2 where t1.a=t2.a;
+show status like "Qcache_inserts";
+alter table t1 sql_cache=default;
+show create table t1;
+select a from t1;
+select * from t1,t2 where t1.a=t2.a;
+show status like "Qcache_inserts";
+select sql_cache a from t1;
+show status like "Qcache_inserts";
+drop table t1,t2;
+
+--echo #
+--echo # Check SHOW SQL_CACHE
+--echo #
+
+create temporary table t1 (a int) sql_cache=1;
+show create table t1;
+drop table t1;
+
+create table mysql.t1 (a int) sql_cache=1;
+show create table mysql.t1;
+drop table mysql.t1;
+
+create sequence s1;
+alter table s1 sql_cache=1;
+show create table s1;
+drop sequence s1;
+
+set sql_mode='IGNORE_BAD_TABLE_OPTIONS';
+create temporary table t1 (a int) sql_cache=1;
+show create table t1;
+drop table t1;
+set sql_mode=default;
+
+--echo #
+--echo # Difference between DEMAND and DEMAND_STRICT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+create view v1 as select sql_cache * from t1;
+
+--echo # DEMAND: SQL_CACHE is found by the parser, anywhere in the query
+set global query_cache_type=DEMAND;
+set query_cache_type=DEMAND;
+reset query cache;
+flush global status;
+--disable_result_log
+select sql_cache * from t1;
+select sql_cache * from t1;
+select distinct sql_cache * from t1;
+select distinct sql_cache * from t1;
+with cte as (select * from t1) select sql_cache * from cte;
+with cte as (select * from t1) select sql_cache * from cte;
+select * from v1;
+select * from v1;
+--enable_result_log
+--echo # All 4 queries are cached
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+--echo # DEMAND_STRICT: SQL_CACHE has to follow SELECT directly
+set global query_cache_type=DEMAND_STRICT;
+set query_cache_type=DEMAND_STRICT;
+reset query cache;
+flush global status;
+--disable_result_log
+select sql_cache * from t1;
+select sql_cache * from t1;
+select distinct sql_cache * from t1;
+select distinct sql_cache * from t1;
+with cte as (select * from t1) select sql_cache * from cte;
+with cte as (select * from t1) select sql_cache * from cte;
+select * from v1;
+select * from v1;
+--enable_result_log
+--echo # Only the first query is cached
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+--echo # DEMAND_STRICT skips comments before SELECT and handles (SELECT ...)
+reset query cache;
+flush global status;
+--disable_result_log
+/* comment */ select sql_cache * from t1;
+/* comment */ select sql_cache * from t1;
+(select sql_cache * from t1) union (select * from t1);
+(select sql_cache * from t1) union (select * from t1);
+--enable_result_log
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+--echo # In DEMAND_STRICT a query without SQL_CACHE is never looked up
+reset query cache;
+flush global status;
+set query_cache_type=ON;
+--disable_result_log
+select * from t1;
+--enable_result_log
+set query_cache_type=DEMAND_STRICT;
+--disable_result_log
+select * from t1;
+--enable_result_log
+--echo # 1 insert (done by ON), no hit
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+--echo # SQL_NO_CACHE is honoured in any position in all modes
+set query_cache_type=ON;
+reset query cache;
+flush global status;
+--disable_result_log
+select sql_no_cache * from t1;
+select distinct sql_no_cache * from t1;
+--enable_result_log
+show status like "Qcache_inserts";
+
+drop view v1;
+drop table t1;
+set query_cache_type=default;
+
+set global query_cache_type= @qcache;
+
+--echo # End of 13.3 tests
 
 --enable_ps2_protocol

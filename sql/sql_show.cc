@@ -2162,6 +2162,22 @@ static void add_table_options(THD *thd, TABLE *table,
     packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
     packet->append_ulonglong(table->s->key_block_size);
   }
+  if (share->query_cache != HA_CHOICE_UNDEF)
+  {
+    /*
+      Comment out SQL_CACHE if the table can never be query cached.
+      Test is same as in Query_cache::process_and_count_tables().
+     */
+    bool do_comment=
+      ((table->file->table_cache_type() & HA_CACHE_TBL_NOCACHE) ||
+       table->s->table_category != TABLE_CATEGORY_USER) && check_options;
+    if (do_comment)
+      packet->append(STRING_WITH_LEN(" /*"));
+    packet->append(STRING_WITH_LEN(" SQL_CACHE="));
+    packet->append(ha_choice_values[(uint) share->query_cache]);
+    if (do_comment)
+      packet->append(STRING_WITH_LEN(" */"));
+  }
   table->file->append_create_info(packet);
 
 end_options:
@@ -6073,6 +6089,12 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(STRING_WITH_LEN(" transactional="));
       str.qs_append(&ha_choice_values[choice]);
     }
+    if (share->query_cache != HA_CHOICE_UNDEF)
+    {
+      str.qs_append(STRING_WITH_LEN(" sql_cache="));
+      str.qs_append(&ha_choice_values[share->query_cache]);
+    }
+
     append_create_options(thd, &str, share->option_list, false, 0);
 
     if (file)

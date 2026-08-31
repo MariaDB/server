@@ -387,9 +387,6 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->can_do_row_logging= 1;
     if (share->table_category == TABLE_CATEGORY_LOG)
       share->no_replicate= 1;
-    if (key_length > 6 &&
-        table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
-      share->not_usable_by_query_cache= 1;
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
@@ -466,7 +463,6 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->normalized_path.str=    (char*) path;
   share->path.length= share->normalized_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_CURRENT;
-  share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
 
   /*
@@ -2000,6 +1996,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       share->sequence= new (&share->mem_root) SEQUENCE();
       share->non_determinstic_insert= true;
     }
+    share->query_cache= (ha_choice)
+      enum_value_with_check(thd, share, "query_cache",
+                            (frm_image[39] >> 6) & 3, HA_CHOICE_MAX);
     share->row_type= (enum row_type)
       enum_value_with_check(thd, share, "row_format", frm_image[40], ROW_TYPE_MAX);
 
@@ -4768,8 +4767,6 @@ partititon_err:
                            HA_BINLOG_ROW_CAPABLE)) ||
         MY_TEST(flags & HA_HAS_OWN_BINLOGGING))
       share->no_replicate= TRUE;
-    if (outparam->file->table_cache_type() & HA_CACHE_TBL_NOCACHE)
-      share->not_usable_by_query_cache= TRUE;
     if (outparam->file->ha_table_flags() & HA_CAN_ONLINE_BACKUPS)
       share->online_backup= 1;
   }
@@ -5287,7 +5284,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   fileinfo[38]= (uchar) csid;
   fileinfo[39]= (uchar) ((uint) create_info->transactional |
                          ((uint) create_info->page_checksum << 2) |
-                         ((create_info->sequence ? HA_CHOICE_YES : 0) << 4));
+                         ((create_info->sequence ? HA_CHOICE_YES : 0) << 4) |
+                         (create_info->query_cache << 6));
   fileinfo[40]= (uchar) create_info->row_type;
   /* Bytes 41-46 were for RAID support; now reused for other purposes */
   fileinfo[41]= (uchar) (csid >> 8);

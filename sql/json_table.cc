@@ -754,7 +754,6 @@ TABLE *Create_json_table::start(THD *thd,
   share= table->s;
   share->db= any_db;
   share->table_name= { STRING_WITH_LEN("json_table") };
-  share->not_usable_by_query_cache= FALSE;
   share->db_plugin= NULL;
   if (!(table->file= new (&table->mem_root) ha_json_table(share, jt)))
     DBUG_RETURN(NULL);

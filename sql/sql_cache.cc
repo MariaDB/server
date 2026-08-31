@@ -573,8 +573,8 @@ insert_space:
 
 void inline fix_local_query_cache_mode(THD *thd)
 {
-  if (global_system_variables.query_cache_type == 0)
-    thd->variables.query_cache_type= 0;
+  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
+    thd->variables.query_cache_type= QUERY_CACHE_TYPE_OFF;
 }
 
 
@@ -772,19 +772,18 @@ void Query_cache::unlock(void)
   Helper function for determine if a SELECT statement has a SQL_NO_CACHE
   directive.
   
-  @param sql A pointer to the first white space character after SELECT
+  @param sql A pointer to the first non space character after SELECT/WITH
+  @param end End pointer of query
   
   @return
    @retval TRUE The character string contains SQL_NO_CACHE
    @retval FALSE No directive found.
 */
  
-static bool has_no_cache_directive(const char *sql)
+static bool has_no_cache_directive(const char *sql, const char *end)
 {
-  while (is_white_space(*sql))
-    sql++;
-    
-  if (my_toupper(system_charset_info, sql[0])  == 'S' &&
+  if ((end - sql) >= 13 &&
+      my_toupper(system_charset_info, sql[0])  == 'S' &&
       my_toupper(system_charset_info, sql[1])  == 'Q' &&
       my_toupper(system_charset_info, sql[2])  == 'L' &&
       my_toupper(system_charset_info, sql[3])  == '_' &&
@@ -800,6 +799,29 @@ static bool has_no_cache_directive(const char *sql)
     return TRUE;
   
   return FALSE;       
+}
+
+
+/**
+  Helper function for determine if a SELECT statement has a SQL_CACHE
+  directive.
+*/
+
+static bool has_cache_directive(const char *sql, const char *end)
+{
+  if ((end - sql) >= 10 &&
+      my_toupper(system_charset_info, sql[0])  == 'S' &&
+      my_toupper(system_charset_info, sql[1])  == 'Q' &&
+      my_toupper(system_charset_info, sql[2])  == 'L' &&
+      my_toupper(system_charset_info, sql[3])  == '_' &&
+      my_toupper(system_charset_info, sql[4])  == 'C' &&
+      my_toupper(system_charset_info, sql[5])  == 'A' &&
+      my_toupper(system_charset_info, sql[6])  == 'C' &&
+      my_toupper(system_charset_info, sql[7])  == 'H' &&
+      my_toupper(system_charset_info, sql[8])  == 'E' &&
+      my_isspace(system_charset_info, sql[9]))
+    return TRUE;
+  return FALSE;
 }
 
 
@@ -1338,7 +1360,8 @@ size_t Query_cache::resize(size_t query_cache_size_arg)
     m_cache_status is internal query cache switch so switching it on/off
     will not be reflected on global_system_variables.query_cache_type
   */
-  if (new_query_cache_size && global_system_variables.query_cache_type != 0)
+  if (new_query_cache_size &&
+      global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF)
   {
     DBUG_EXECUTE("check_querycache",check_integrity(1););
     m_cache_status= OK;                         // size > 0 => enable cache
@@ -1718,7 +1741,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   Query_cache_block_table *block_table, *block_table_end;
   size_t tot_length;
   Query_cache_query_flags flags;
-  const char *sql, *sql_end, *found_brace= 0;
+  const char *sql, *sql_end, *found_brace= 0, *cache_pos;
   DBUG_ENTER("Query_cache::send_result_to_client");
 
   /*
@@ -1728,8 +1751,8 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
 
     See also a note on double-check locking usage above.
   */
-  if (is_disabled() || thd->locked_tables_mode ||
-      thd->variables.query_cache_type == 0)
+  if (likely(thd->variables.query_cache_type == QUERY_CACHE_TYPE_OFF) ||
+      is_disabled() || thd->locked_tables_mode)
     goto err;
 
   /*
@@ -1843,7 +1866,16 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     goto err;
   }
 
-  if ((sql_end - sql) > 20 && has_no_cache_directive(sql+6))
+  /* check if query has a SQL_CACHE or SQL_NOCACHE directive */
+  cache_pos= sql+3;
+  while (cache_pos < sql_end && !is_white_space(*cache_pos))
+    cache_pos++;
+  while (cache_pos < sql_end && is_white_space(*cache_pos))
+    cache_pos++;
+
+  if (has_no_cache_directive(cache_pos, sql_end) ||
+      (thd->variables.query_cache_type == QUERY_CACHE_TYPE_DEMAND_STRICT &&
+       !has_cache_directive(cache_pos, sql_end)))
   {
     /*
       We do not increase 'refused' statistics here since it will be done
@@ -2578,7 +2610,7 @@ void Query_cache::init()
     time. This is because we want to avoid locking the QC specific
     mutex if query cache isn't going to be used.
   */
-  if (global_system_variables.query_cache_type == 0)
+  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
   {
     m_cache_status= DISABLE_REQUEST;
     free_cache();
@@ -4044,22 +4076,38 @@ void Query_cache::double_linked_list_join(Query_cache_block *head_tail,
 
   SYNOPSIS
     process_and_count_tables()
+    thd             Thread id
     tables_used     table list for processing
     tables_type     pointer to variable for table types collection
+    only_sqlcache_tables
+                    Set if query_cache_type == TABLES && SQL_CACHE was
+                    not set for the query.
+                    In this case we only cache queries where all tables
+                    are defined with SQL_CACHE=1
 
   RETURN
     0   error
     >0  number of tables
+
+  Notes:
+    MERGE TABLE childs are not tested for SQL_CACHE=1.
+    The assumption is that main table's SQL_CACHE is inhertied by
+    all children.
 */
 
 TABLE_COUNTER_TYPE
 Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
-                                      uint8 *tables_type)
+                                      uint8 *tables_type,
+                                      bool only_sqlcache_tables)
 {
   DBUG_ENTER("process_and_count_tables");
   TABLE_COUNTER_TYPE table_count = 0;
   for (; tables_used; tables_used= tables_used->next_global)
   {
+    TABLE *table;
+    uint8 cache_type;
+    bool no_cache;
+
     table_count++;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS 
     /*
@@ -4107,24 +4155,28 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
       continue;
     }
 
+    table= tables_used->table;
     DBUG_PRINT("qcache", ("table: %s  db:  %s  type: %u",
-                          tables_used->table->s->table_name.str,
-                          tables_used->table->s->db.str,
-                          tables_used->table->s->db_type()->db_type));
-    *tables_type|= tables_used->table->file->table_cache_type();
+                          table->s->table_name.str,
+                          table->s->db.str,
+                          table->s->db_type()->db_type));
+    cache_type= table->file->table_cache_type();
+    *tables_type|= cache_type;
 
-    /*
-      table_alias_charset used here because it depends of
-      lower_case_table_names variable
-    */
-    table_count+= tables_used->table->file->
-      count_query_cache_dependant_tables(tables_type);
+    table_count+= table->file->count_query_cache_dependant_tables(tables_type);
 
-    if (tables_used->table->s->not_usable_by_query_cache)
+    if ((no_cache= ((cache_type & HA_CACHE_TBL_NOCACHE) ||
+                    table->s->table_category != TABLE_CATEGORY_USER ||
+                    table->s->query_cache == HA_CHOICE_NO)) ||
+        (only_sqlcache_tables && table->s->query_cache != HA_CHOICE_YES))
     {
       DBUG_PRINT("qcache",
                  ("select not cacheable: temporary, system or "
                   "other non-cacheable table(s)"));
+      thd->query_cache_is_applicable= 0;        // Query can't be cached
+      /* For prepared statements */
+      if (no_cache)
+        thd->lex->safe_to_cache_query= 0;
       DBUG_RETURN(0);
     }
   }
@@ -4154,12 +4206,18 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
                           TABLE_LIST *tables_used, uint8 *tables_type)
 {
   TABLE_COUNTER_TYPE table_count;
+  bool sql_cache_forced= (lex->first_select_lex()->options &
+                          OPTION_TO_QUERY_CACHE);
+  bool sql_cache_tables= (thd->variables.query_cache_type ==
+                          QUERY_CACHE_TYPE_TABLES);
   DBUG_ENTER("Query_cache::is_cacheable");
 
   if (thd->lex->safe_to_cache_query &&
-      (thd->variables.query_cache_type == 1 ||
-       (thd->variables.query_cache_type == 2 &&
-        (lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE))) &&
+      (thd->variables.query_cache_type == QUERY_CACHE_TYPE_ON ||
+       sql_cache_tables ||
+       (thd->variables.query_cache_type >= QUERY_CACHE_TYPE_DEMAND &&
+        thd->variables.query_cache_type <= QUERY_CACHE_TYPE_DEMAND_STRICT &&
+        sql_cache_forced)) &&
       qc_is_able_to_intercept_result(thd))
   {
     DBUG_PRINT("qcache", ("options: %lx  %lx  type: %u",
@@ -4168,7 +4226,9 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
                           (int) thd->variables.query_cache_type));
 
     if (!(table_count= process_and_count_tables(thd, tables_used,
-                                                tables_type)))
+                                                tables_type,
+                                                sql_cache_tables &&
+                                                !sql_cache_forced)))
       DBUG_RETURN(0);
 
     if (thd->in_multi_stmt_transaction_mode() &&

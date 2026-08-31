@@ -5064,10 +5064,10 @@ static int init_server_components()
   query_cache_result_size_limit(query_cache_limit);
   /* if we set size of QC non zero in config then probably we want it ON */
   if (query_cache_size != 0 &&
-      global_system_variables.query_cache_type == 0 &&
+      global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF &&
       !IS_SYSVAR_AUTOSIZE(&query_cache_size))
   {
-    global_system_variables.query_cache_type= 1;
+    global_system_variables.query_cache_type= QUERY_CACHE_TYPE_ON;
   }
   query_cache_init();
   DBUG_ASSERT(query_cache_size < ULONG_MAX);
