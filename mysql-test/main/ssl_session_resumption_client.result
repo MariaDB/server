@@ -32,4 +32,17 @@ Variable_name	Value
 Ssl_sessions_reused	1
 disconnect ssl5;
 connection default;
+create user u1@localhost;
+connect user1,localhost,u1,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+Variable_name	Value
+Ssl_sessions_reused	0
+disconnect user1;
+connect user2,localhost,u1,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+Variable_name	Value
+Ssl_sessions_reused	1
+disconnect user2;
+connection default;
+drop user u1@localhost;
 # End of 13.2 tests

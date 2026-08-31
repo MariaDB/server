@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2442,6 +2442,9 @@ static void client_mpvio_info(MYSQL_PLUGIN_VIO *vio,
   mpvio_info(mpvio->mysql->net.vio, info);
 }
 
+#define free_plugin_data(M) do { free((M)->plugin_data); /* NOT my_free! */ \
+                                 (M)->plugin_data=0; } while(0)
+
 
 /**
   Client side of the plugin driver authentication.
@@ -2476,7 +2479,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     auth_plugin_name= mysql->options.extension->default_auth;
     if (!(auth_plugin= (auth_plugin_t*) mysql_client_find_plugin(mysql,
                        auth_plugin_name, MYSQL_CLIENT_AUTHENTICATION_PLUGIN)))
-      DBUG_RETURN (1); /* oops, not found */
+      goto err; /* oops, not found */
   }
   else
   {
@@ -2531,7 +2534,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     else
       if (!mysql->net.last_errno)
         set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
-    DBUG_RETURN (1);
+    goto err;
   }
 
   /* read the OK packet (or use the cached value in mysql->net.read_pos */
@@ -2548,7 +2551,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
                                ER(CR_SERVER_LOST_EXTENDED),
                                "reading authorization packet",
                                errno);
-    DBUG_RETURN (1);
+    goto err;
   }
 
   if (mysql->net.read_pos[0] == 254)
@@ -2576,17 +2579,18 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
     if (!(auth_plugin= (auth_plugin_t *) mysql_client_find_plugin(mysql,
                          auth_plugin_name, MYSQL_CLIENT_AUTHENTICATION_PLUGIN)))
-      DBUG_RETURN (1);
+      goto err;
 
     /* refuse insecure plugin if TLS is in doubt */
     if (mysql->tls_self_signed_error && !auth_plugin->hash_password_bin)
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                   ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
-      DBUG_RETURN (1);
+      goto err;
     }
 
     mpvio.plugin= auth_plugin;
+    free_plugin_data(mysql);
     res= auth_plugin->authenticate_user((struct st_plugin_vio *)&mpvio, mysql);
 
     DBUG_PRINT ("info", ("second authenticate_user returned %s", 
@@ -2601,7 +2605,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       else
         if (!mysql->net.last_errno)
           set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
-      DBUG_RETURN (1);
+      goto err;
     }
 
     if (res != CR_OK_HANDSHAKE_COMPLETE)
@@ -2614,7 +2618,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
                                    ER(CR_SERVER_LOST_EXTENDED),
                                    "reading final connect information",
                                    errno);
-        DBUG_RETURN (1);
+        goto err;
       }
     }
   }
@@ -2623,9 +2627,9 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     the protocol correctly
   */
   if (mysql->net.read_pos[0] != 0)
-    DBUG_RETURN(1);
+    goto err;
   if (!mysql->tls_self_signed_error)
-    DBUG_RETURN(0);
+    goto ok;
 
   /* Last attempt to validate the cert: compare cert info packet */
   DBUG_ASSERT(mysql->options.use_ssl);
@@ -2654,12 +2658,18 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
     octet2hex(hexdigest, digest, sizeof(digest));
     if (strcmp(hexdigest, hexsig) == 0)
-      DBUG_RETURN(0); /* phew. self-signed certificate is validated! */
+      goto ok;        /* phew. self-signed certificate is validated! */
   }
 
   set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                     ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+
+err:
+  free_plugin_data(mysql);
   DBUG_RETURN(1);
+ok:
+  free_plugin_data(mysql);
+  DBUG_RETURN(0);
 }
 
 

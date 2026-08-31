@@ -36,4 +36,18 @@ disconnect ssl5;
 
 connection default;
 
+# nor with a different user, the session is bound to the account
+create user u1@localhost;
+connect user1,localhost,u1,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+disconnect user1;
+
+# the same user resumes again
+connect user2,localhost,u1,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+disconnect user2;
+
+connection default;
+drop user u1@localhost;
+
 --echo # End of 13.2 tests

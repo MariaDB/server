@@ -265,6 +265,14 @@ typedef struct character_set
 struct st_mysql_methods;
 struct st_mysql_stmt;
 
+/*
+  Plugin specific data in libmariadb, but unused in the server.
+*/
+typedef struct st_ma_plugin_data
+{
+  size_t length;                /* of the whole block, this field included */
+} MA_PLUGIN_DATA;
+
 typedef struct st_mysql
 {
   NET		net;			/* Communication parameters */
@@ -293,7 +301,8 @@ typedef struct st_mysql
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
   my_bool       auto_local_infile;
-  void          *unused2, *unused3;
+  MA_PLUGIN_DATA *plugin_data;
+  void          *unused3;
   MYSQL_FIELD	*fields;
   const char    *tls_self_signed_error;
 
