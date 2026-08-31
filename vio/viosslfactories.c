@@ -132,6 +132,8 @@ static X509 *vio_gencert(EVP_PKEY *pkey)
 
   if (!X509_set_version(x, X509_VERSION_3))
     goto err;
+  if (!ASN1_INTEGER_set(X509_get_serialNumber(x), 1))
+    goto err;
   if (!(name= X509_get_subject_name(x)))
     goto err;
   if (!X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
