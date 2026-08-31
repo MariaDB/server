@@ -3375,11 +3375,11 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	QUERY_CACHE_TYPE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	OFF = Don't cache or retrieve results. ON = Cache all results except SELECT SQL_NO_CACHE ... queries. DEMAND = Cache only SELECT SQL_CACHE ... queries
+VARIABLE_COMMENT	OFF = Don't cache or retrieve results. ON = Cache all results except for queries marked with SQL_NO_CACHE. DEMAND = Cache only queries marked with SQL_CACHE. DEMAND_STRICT = Like DEMAND but only check for 'SELECT SQL_CACHE' at start of query (to avoid locks that ON and DEMAND have to take). TABLES = Cache only queries marked with SQL_CACHE or queries where all tables are created with SQL_CACHE=1
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON,DEMAND
+ENUM_VALUE_LIST	OFF,ON,DEMAND,DEMAND_STRICT,TABLES
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	QUERY_CACHE_WLOCK_INVALIDATE

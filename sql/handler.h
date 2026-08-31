@@ -675,6 +675,7 @@ given at all. */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 /* Tell binlog_show_create_table to print all engine options */
 #define HA_CREATE_PRINT_ALL_OPTIONS       (1UL << 26)
+#define HA_CREATE_USED_QUERY_CACHE        (1UL << 27)
 
 typedef ulonglong alter_table_operations;
 
@@ -2434,6 +2435,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   */
   enum row_type row_type;
   enum ha_choice transactional;
+  enum ha_choice query_cache;
   enum ha_storage_media storage_media;  ///< DEFAULT, DISK or MEMORY
   enum ha_choice page_checksum;         ///< If we have page_checksums
   engine_option_value *option_list;     ///< list of table create options

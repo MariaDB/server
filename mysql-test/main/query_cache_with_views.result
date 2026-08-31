@@ -7,6 +7,7 @@ set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 flush global status;
 create table t1 (a int, b int);
+insert into t1 values (1,1), (2,2);
 create view v1 (c,d) as select sql_no_cache a,b from t1;
 create view v2 (c,d) as select a+rand(),b from t1;
 show status like "Qcache_queries_in_cache";
@@ -20,7 +21,9 @@ Variable_name	Value
 Qcache_hits	0
 select * from v1;
 c	d
-select * from v2;
+1	1
+2	2
+select * from v2 where d > 10;
 c	d
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
@@ -33,7 +36,9 @@ Variable_name	Value
 Qcache_hits	0
 select * from v1;
 c	d
-select * from v2;
+1	1
+2	2
+select * from v2 where d > 10;
 c	d
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
@@ -59,6 +64,8 @@ Variable_name	Value
 Qcache_hits	0
 select * from v1;
 c	d
+1	1
+2	2
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -70,6 +77,8 @@ Variable_name	Value
 Qcache_hits	0
 select * from t1;
 a	b
+1	1
+2	2
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -81,6 +90,8 @@ Variable_name	Value
 Qcache_hits	0
 select * from v1;
 c	d
+1	1
+2	2
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -92,6 +103,8 @@ Variable_name	Value
 Qcache_hits	1
 select * from t1;
 a	b
+1	1
+2	2
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -101,6 +114,14 @@ Qcache_inserts	1
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	1
+set query_cache_type=demand_strict;
+select d from v1;
+d
+1
+2
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	1
 drop view v1;
 set query_cache_type=default;
 drop table t1;

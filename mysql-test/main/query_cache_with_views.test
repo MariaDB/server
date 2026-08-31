@@ -17,6 +17,7 @@ set GLOBAL query_cache_size=1355776;
 --disable_ps2_protocol
 flush global status;
 create table t1 (a int, b int);
+insert into t1 values (1,1), (2,2);
 
 --disable_cursor_protocol
 # queries with following views should not be in query cache
@@ -26,12 +27,12 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
 select * from v1;
-select * from v2;
+select * from v2 where d > 10;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
 select * from v1;
-select * from v2;
+select * from v2 where d > 10;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
@@ -64,6 +65,10 @@ select * from t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
+
+set query_cache_type=demand_strict;
+select d from v1;
+show status like "Qcache_inserts";
 drop view v1;
 set query_cache_type=default;
 --enable_ps2_protocol

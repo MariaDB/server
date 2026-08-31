@@ -3541,7 +3541,8 @@ static Sys_var_ulong Sys_query_cache_min_res_unit(
        BLOCK_SIZE(8), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_qcache_min_res_unit));
 
-static const char *query_cache_type_names[]= { "OFF", "ON", "DEMAND", 0 };
+static const char *query_cache_type_names[]=
+{ "OFF", "ON", "DEMAND", "DEMAND_STRICT", "TABLES", 0};
 
 static bool check_query_cache_type(sys_var *self, THD *thd, set_var *var)
 {
@@ -3551,7 +3552,8 @@ static bool check_query_cache_type(sys_var *self, THD *thd, set_var *var)
     return true;
   }
 
-  if (var->type != OPT_GLOBAL && global_system_variables.query_cache_type == 0)
+  if (var->type != OPT_GLOBAL &&
+      global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
   {
     if (var->value)
     {
@@ -3571,23 +3573,30 @@ static bool fix_query_cache_type(sys_var *self, THD *thd, enum_var_type type)
   if (type != OPT_GLOBAL)
     return false;
 
-  if (global_system_variables.query_cache_type != 0 &&
-      query_cache.is_disabled())
+  if (global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF)
   {
-    /* if disabling in progress variable will not be set */
-    DBUG_ASSERT(!query_cache.is_disable_in_progress());
-    /* Enable query cache because it was disabled */
-    fix_query_cache_size(0, thd, type);
+    if (query_cache.is_disabled())
+    {
+      /* if disabling in progress variable will not be set */
+      DBUG_ASSERT(!query_cache.is_disable_in_progress());
+      /* Enable query cache because it was disabled */
+      fix_query_cache_size(0, thd, type);
+    }
   }
-  else if (global_system_variables.query_cache_type == 0)
+  else
     query_cache.disable_query_cache(thd);
   return false;
 }
+
 static Sys_var_enum Sys_query_cache_type(
        "query_cache_type",
-       "OFF = Don't cache or retrieve results. ON = Cache all results "
-       "except SELECT SQL_NO_CACHE ... queries. DEMAND = Cache only "
-       "SELECT SQL_CACHE ... queries",
+       "OFF = Don't cache or retrieve results. "
+       "ON = Cache all results except for queries marked with SQL_NO_CACHE. "
+       "DEMAND = Cache only queries marked with SQL_CACHE. "
+       "DEMAND_STRICT = Like DEMAND but only check for 'SELECT SQL_CACHE' "
+       "at start of query (to avoid locks that ON and DEMAND have to take). "
+       "TABLES = Cache only queries marked with SQL_CACHE or queries where all "
+       "tables are created with SQL_CACHE=1",
        NO_SET_STMT SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
        query_cache_type_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_query_cache_type),

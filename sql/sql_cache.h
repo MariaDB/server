@@ -49,7 +49,12 @@ typedef struct st_changed_table_list CHANGED_TABLE_LIST;
 */
 #define QUERY_CACHE_MIN_ESTIMATED_QUERIES_NUMBER 3
 
-
+/* Define query_cache_type values */
+#define QUERY_CACHE_TYPE_OFF           0
+#define QUERY_CACHE_TYPE_ON            1
+#define QUERY_CACHE_TYPE_DEMAND        2
+#define QUERY_CACHE_TYPE_DEMAND_STRICT 3
+#define QUERY_CACHE_TYPE_TABLES        4
 
 /* memory bins size spacing (see at Query_cache::init_cache (sql_cache.cc)) */
 #define QUERY_CACHE_MEM_BIN_FIRST_STEP_PWR2	4
@@ -442,7 +447,8 @@ protected:
                                   uint8 *tables_type);
   TABLE_COUNTER_TYPE process_and_count_tables(THD *thd,
                                               TABLE_LIST *tables_used,
-                                              uint8 *tables_type);
+                                              uint8 *tables_type,
+                                              bool only_sqlcache_tables);
 
   static my_bool ask_handler_allowance(THD *thd, TABLE_LIST *tables_used);
  public:
@@ -587,7 +593,7 @@ struct Query_cache_query_flags
   query_cache.invalidate_locked_for_write(A, B)
 /* note the "maybe": it's a read without mutex */
 #define query_cache_maybe_disabled(T)                                 \
-  (T->variables.query_cache_type == 0 || query_cache.query_cache_size == 0)
+  (T->variables.query_cache_type == QUERY_CACHE_TYPE_OFF || query_cache.query_cache_size == 0)
 #define query_cache_is_cacheable_query(L) \
   (((L)->sql_command == SQLCOM_SELECT) && (L)->safe_to_cache_query)
 
