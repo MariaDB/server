@@ -20,6 +20,8 @@
   When the manager finishes work, it waits for all workers to finish.
 
   Note that this class doesn't define what "work" is.
+  When the workers need the manager's attention, they note it under LOCK_data
+  and signal COND_data_avail.
 */
 
 class pwt_manager_base : public pwt_thread_manager
@@ -33,7 +35,7 @@ class pwt_manager_base : public pwt_thread_manager
   */
   killed_state             kill_signal;
 
-  uint                     active_workers; // producers still running
+  uint                     active_workers; // # workers who haven't finished.
 public:
   bool                     fatal_error;    // a producer hit a real engine error
   pwt_manager_base();
@@ -44,17 +46,22 @@ public:
     active_workers++;
   }
 
+  int locked__process_manager_wakeup();
+
+  bool is_fatal_error() { return fatal_error; }
+
+  void report_fatal_error();
+  void report_worker_final_state(killed_state state, bool err);
+
+private:
   bool locked__no_active_workers()
   {
     mysql_mutex_assert_owner(&LOCK_data);
     return (active_workers == 0);
   }
-
-  bool is_fatal_error() { return fatal_error; }
-  void report_worker_final_state(killed_state state, bool err);
-
   /* A worker exited because it was killed; NOT_KILLED if none did. */
   killed_state killed_by_worker() const { return kill_signal; }
+public:
 
   /*
     The worker team's own state, as distinct from the transport's: who is still
@@ -80,11 +87,12 @@ public:
     mgr2->register_worker();
   }
 
-  pwt_manager_base *mgr2;
   void thread_func_end();
   void on_fatal_error() override;
 
   int err;
+private:
+  pwt_manager_base *mgr2;
 };
 
 
