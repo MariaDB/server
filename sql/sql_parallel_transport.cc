@@ -829,34 +829,13 @@ int pwt_batch_source::next_row(uchar *dst)
         }
       if (next)
         break;
-      /*
-        A worker exited because it was killed: propagate the kill to the
-        manager's own THD so the query aborts now with ER_QUERY_INTERRUPTED,
-        before any result is sent.
-      */
-      if (manager->killed_by_worker() != NOT_KILLED && !thd->killed)
-      {
-        killed_state ks= manager->killed_by_worker();
-        mysql_mutex_unlock(&manager->LOCK_data);
-        mysql_mutex_lock(&thd->LOCK_thd_kill);
-        thd->killed= ks;
-        mysql_mutex_unlock(&thd->LOCK_thd_kill);
-        DBUG_RETURN(1);
-      }
-      if (manager->fatal_error)                     // a worker failed
+
+      int res;
+      if ((res= manager->locked__process_manager_wakeup()) ||
+          (res=(thd->killed != NOT_KILLED)))
       {
         mysql_mutex_unlock(&manager->LOCK_data);
-        DBUG_RETURN(1);
-      }
-      if (manager->locked__no_active_workers())    // all producers done, drained
-      {
-        mysql_mutex_unlock(&manager->LOCK_data);
-        DBUG_RETURN(-1);
-      }
-      if (thd->killed)
-      {
-        mysql_mutex_unlock(&manager->LOCK_data);
-        DBUG_RETURN(1);
+        DBUG_RETURN(res);
       }
       // wait for a batch, a finishing worker, or a 1s tick to re-check killed.
       // ENTER_COND/EXIT_COND publish the "Reading data from parallel workers"
@@ -1081,6 +1060,7 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
   for (;;)
   {
     for (uint i= 0; i < n_sinks; i++)
+    {
       if (sinks[i] && sinks[i]->done && !sinks[i]->taken)
       {
         sinks[i]->taken= true;
@@ -1088,34 +1068,14 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
         *out= sinks[i];
         return 0;
       }
-    /*
-      A worker exited because it was killed: propagate the kill to the
-      manager's own THD so the query aborts now with ER_QUERY_INTERRUPTED,
-      before any result is sent.
-    */
-    if (manager->killed_by_worker() != NOT_KILLED && !thd->killed)
-    {
-      killed_state ks= manager->killed_by_worker();
-      mysql_mutex_unlock(&manager->LOCK_data);
-      mysql_mutex_lock(&thd->LOCK_thd_kill);
-      thd->killed= ks;
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
-      return 1;
     }
-    if (manager->fatal_error)                       // a worker failed
+
+    int res;
+    if ((res= manager->locked__process_manager_wakeup()) ||
+        (res=(thd->killed != NOT_KILLED)))
     {
       mysql_mutex_unlock(&manager->LOCK_data);
-      return 1;
-    }
-    if (manager->locked__no_active_workers())  // nothing unread, nobody running
-    {
-      mysql_mutex_unlock(&manager->LOCK_data);
-      return -1;
-    }
-    if (thd->killed)
-    {
-      mysql_mutex_unlock(&manager->LOCK_data);
-      return 1;
+      return res;
     }
     // wait for a result set, a finishing worker, or a 1s tick to re-check
     // killed. ENTER_COND/EXIT_COND publish the "Reading data from parallel
