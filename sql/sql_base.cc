@@ -41,6 +41,7 @@
 #include "sql_partition.h"                      // ALTER_PARTITION_PARAM_TYPE
 #include "log_event.h"                          // Query_log_event
 #include "sql_select.h"
+#include "opt_full_join.h"
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
@@ -7869,130 +7870,6 @@ err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(result);
-}
-
-
-static inline bool is_coalesce_item(Item *item)
-{
-  return item->type() == Item::FUNC_ITEM &&
-         ((Item_func*) item)->functype() == Item_func::COALESCE_FUNC;
-}
-
-
-/*
-  Append 'item' to 'list', flattening it when it is itself a COALESCE so
-  COALESCE(a, b) contributes its arguments a, b rather than a nested
-  COALESCE.  'item' is only read, never mutated--it may be shared by an
-  already-built equi-join condition (see natural_join_eq_operand).
-
-  @return TRUE on out-of-memory, FALSE on success.
-*/
-
-static bool append_coalesce_or_item(THD *thd, List<Item> *list, Item *item)
-{
-  if (is_coalesce_item(item))
-  {
-    Item_func *fc= (Item_func*) item;
-    for (Item **a= fc->arguments(), **end= a + fc->argument_count();
-         a < end; a++)
-    {
-      if (list->push_back(*a, thd->mem_root))
-        return TRUE;
-    }
-    return FALSE;
-  }
-  return list->push_back(item, thd->mem_root);
-}
-
-
-/*
-  Build COALESCE(first, second).  When either operand is already a
-  COALESCE, return a single flattened COALESCE over all of the operands
-  instead of nesting one COALESCE inside another, so that a chain such as
-    (t1 natural full join t2) natural full join t3
-  yields COALESCE(t1.x, t2.x, t3.x) rather than
-  COALESCE(COALESCE(t1.x, t2.x), t3.x).  Neither operand is mutated, since
-  an operand may be shared by an equi-join condition built earlier.
-
-  @return the COALESCE item, or NULL on out-of-memory.
-*/
-
-static Item_func_coalesce *coalesce_items(THD *thd, Item *first, Item *second)
-{
-  if (!is_coalesce_item(first) && !is_coalesce_item(second))
-    return new (thd->mem_root) Item_func_coalesce(thd, first, second);
-
-  List<Item> list;
-  if (append_coalesce_or_item(thd, &list, first) ||
-      append_coalesce_or_item(thd, &list, second))
-    return NULL;
-  return new (thd->mem_root) Item_func_coalesce(thd, list);
-}
-
-
-/*
-  For some pair of tables (t1, t2) such that
-    t1 NATURAL FULL JOIN t2
-  generate a set of output columns
-    COALESCE(t1.x_1, t2.y_1), ..., COALESCE(t1.x_n, t2.y_n)
-  such that NULL results won't appear in the NATURAL FULL JOIN.
-
-  @param thd                 the current thread
-  @param left_tab_col        common columns originating in t1
-  @param right_tab_col       common columns originating in t2
-  @return TRUE on out-of-memory, FALSE on success.
-*/
-
-static int coalesce_natural_full_join(THD *thd,
-                                      List<Natural_join_column> *left_tab_col,
-                                      List<Natural_join_column> *right_tab_col)
-{
-  /*
-    It's a NATURAL JOIN so the number of columns from the left table better
-    match the number from the right table.
-  */
-  DBUG_ASSERT(left_tab_col->elements == right_tab_col->elements);
-
-  /*
-    Walk the left table and right table columns in lock-step, creating a
-    new COALESCE() over each pair of columns.  The calling function relies
-    on the state of left_join_columns, so set the COALESCE() item instance
-    on members of that list.
-   */
-  List_iterator<Natural_join_column> left(*left_tab_col);
-  List_iterator<Natural_join_column> right(*right_tab_col);
-  Natural_join_column *left_col= nullptr;
-  Natural_join_column *right_col= nullptr;
-  while ((left_col= left++) && (right_col= right++))
-  {
-    /*
-      When an operand is itself a NATURAL FULL JOIN its common column is the
-      COALESCE built for that join.  coalesce_items() flattens such operands
-      so a chain such as
-        (t1 natural full join t2) natural full join t3
-      yields
-        COALESCE(t1.x, t2.x, t3.x)
-      rather than a nested COALESCE(COALESCE(t1.x, t2.x), t3.x).
-
-      TODO (future improvement):
-        Create a new function 'coalesce_items()'.  If first item is of
-        type Item_func_coalesce() then just add the item to the arg list
-        otherwise call Item_func_coalesce(thd, a, b);
-    */
-    Item *left_field=  left_col->get_item();
-    Item *right_field= right_col->get_item();
-    Item_func_coalesce *coal= coalesce_items(thd, left_field, right_field);
-    if (!coal)
-      return TRUE;  // out of memory
-
-    // Makes the field `COALESCE(left, right) AS left`.
-    coal->set_name(thd, left_field->name);
-
-    // Save the result into the set of left_join_columns.
-    left_col->natural_full_join_field= coal;
-  }
-
-  return FALSE;
 }
 
 

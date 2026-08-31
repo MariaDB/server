@@ -470,6 +470,18 @@ Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 TABLE_LIST *embedding_materialized_nest(Field *field);
+JOIN_TAB *first_depth_first_tab(JOIN* join);
+JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
+void add_cond_and_fix(THD *thd, Item **e1, Item *e2);
+COND *add_found_match_trig_cond(THD *thd, JOIN_TAB *tab, COND *cond,
+                                JOIN_TAB *root_tab);
+COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
+                           COND *conds, bool in_sj,
+                           TABLE_LIST *fj_operand,
+                           bool fj_left_operand,
+                           table_map *used_tables,
+                           table_map *not_null_tables);
+bool join_transform_enabled(THD *thd, ulonglong switch_flag);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,

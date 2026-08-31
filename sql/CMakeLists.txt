@@ -172,6 +172,7 @@ SET (SQL_SOURCE
                opt_histogram_json.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
+               opt_full_join.cc
                gcalc_slicescan.cc gcalc_tools.cc
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc json_schema.cc json_schema_helper.cc
