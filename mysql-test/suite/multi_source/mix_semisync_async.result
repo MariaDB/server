@@ -1,0 +1,105 @@
+# Setup
+connect  master1, 127.0.0.1, root, , , $SERVER_MYPORT_1;
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+SET @@SESSION.gtid_domain_id= 1;
+RESET MASTER;
+connect  master2, 127.0.0.1, root, , , $SERVER_MYPORT_2;
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+SET @@SESSION.gtid_domain_id= 2;
+RESET MASTER;
+connect  slave, 127.0.0.1, root, , , $SERVER_MYPORT_3;
+SET @@GLOBAL.gtid_slave_pos= '';
+CHANGE MASTER 'master1' TO
+master_host='127.0.0.1', master_port=SERVER_MYPORT_1,
+master_user='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER 'master2' TO
+master_host='127.0.0.1', master_port=SERVER_MYPORT_2,
+master_user='root', master_ssl_verify_server_cert=0;
+# Test semi-sync replication during async replication
+SET @mode1= 0;
+SET @mode2= 1;
+SET @@SESSION.default_master_connection= 'master1';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @mode1;
+include/start_slave.inc
+SET @@SESSION.default_master_connection= 'master2';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @mode2;
+include/start_slave.inc
+connection master2;
+CREATE TABLE t2 (a INT);
+DROP TABLE t2;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+connection slave;
+connection master1;
+CREATE TABLE t1 (a INT);
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+connection slave;
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+include/stop_slave.inc
+connection master1;
+DROP TABLE t1;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+connection slave;
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+SET @@SESSION.default_master_connection= 'master1';
+include/stop_slave.inc
+# Test the other order
+SET @mode1= 1;
+SET @mode2= 0;
+SET @@SESSION.default_master_connection= 'master1';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @mode1;
+include/start_slave.inc
+SET @@SESSION.default_master_connection= 'master2';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @mode2;
+include/start_slave.inc
+connection master2;
+CREATE TABLE t2 (a INT);
+DROP TABLE t2;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+connection slave;
+connection master1;
+CREATE TABLE t1 (a INT);
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+connection slave;
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	1
+include/stop_slave.inc
+connection master1;
+DROP TABLE t1;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+connection slave;
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+SET @@SESSION.default_master_connection= 'master1';
+include/stop_slave.inc
+# Cleanup
+RESET SLAVE 'master1' ALL;
+RESET SLAVE 'master2' ALL;
+disconnect slave;
+connection master1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 1;
+disconnect master1;
+connection master2;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 1;
+disconnect master2;
