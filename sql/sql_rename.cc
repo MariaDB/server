@@ -617,7 +617,11 @@ revert_rename:
 
 
 FK_rename_backup::FK_rename_backup(Share_acquire&& _sa) :
-  FK_ddl_backup(std::forward<Share_acquire>(_sa)),
-  old_name(sa.share->db, sa.share->table_name),
-  new_name(sa.share->db, sa.share->table_name)
-{}
+  FK_ddl_backup(std::forward<Share_acquire>(_sa))
+{
+  if (sa.share)
+  {
+    old_name= Table_name(sa.share->db, sa.share->table_name);
+    new_name= old_name;
+  }
+}
