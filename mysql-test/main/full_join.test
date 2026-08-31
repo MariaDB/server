@@ -7615,6 +7615,100 @@ drop table t3;
 drop table t4;
 
 --echo # ====================================================================
+--echo # Section 37: A FULL JOIN operand nest shrunk by table elimination
+--echo # ====================================================================
+--echo #
+--echo # A FULL JOIN's ON expression hangs on its right operand, which
+--echo # leaves the left operand a join nest with no ON of its own.  Table
+--echo # elimination never removes such a nest, but it does descend into
+--echo # it, so a LEFT JOIN written inside the left operand loses its inner
+--echo # table when a unique key makes that table functionally dependent
+--echo # and no other part of the query reads it.
+--echo #
+--echo # What is left is an operand nest with one surviving table.  Such a
+--echo # nest gets no run of its own in the join order, because a run
+--echo # holding one table is that table, so the search for the table that
+--echo # starts the FULL JOIN's left side finds neither a single base table
+--echo # nor a materialized nest and walks the join order backward from the
+--echo # right side instead.  An eliminated table becomes a const table and
+--echo # const tables come first in the join order, ahead of where that
+--echo # walk begins, so the walk finds the surviving table.
+--echo #
+--echo # The right operand is the one the FULL JOIN's ON hangs on, and
+--echo # table elimination declines a nest under a FULL JOIN outright, so a
+--echo # LEFT JOIN written on the right side keeps its inner table.  The
+--echo # second query has that shape.
+--echo #
+--echo # The optimizer trace is probed instead of a plan being printed.
+--echo # Which tables the plan lists is what matters here, and the access
+--echo # methods a plan reports change with the engine and with the added
+--echo # indexes this file runs under, while the trace entry does not.
+
+create table t1 (a int);
+create table t2 (pk int primary key, b int);
+create table t3 (a int);
+create table t4 (pk int primary key, d int);
+insert into t1 values (1),(2);
+insert into t2 values (1,10),(3,30);
+insert into t3 values (2),(4);
+insert into t4 values (2,20),(5,50);
+--source include/full_join_add_indexes.inc
+
+set @save_optimizer_trace= @@optimizer_trace;
+set optimizer_trace='enabled=on';
+
+--echo # The left operand loses t2 and is left holding t1 alone.
+--sorted_result
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+  full join t3 on t1.a = t3.a;
+select trace like '%"eliminated_tables": ["t2"]%' as t2_eliminated
+  from information_schema.optimizer_trace;
+--sorted_result
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+  left join t3 on t1.a = t3.a
+  union
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+  right join t3 on t1.a = t3.a;
+
+--echo # The same LEFT JOIN on the right side of the FULL JOIN, where t4
+--echo # stays.
+--sorted_result
+select t1.a, t3.a from t1
+  full join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a;
+select trace like '%"eliminated_tables": []%' as nothing_eliminated
+  from information_schema.optimizer_trace;
+--sorted_result
+select t1.a, t3.a from t1
+  left join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a
+  union
+select t1.a, t3.a from t1
+  right join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a;
+
+--echo # Two tables eliminated from one operand, which arrives at the same
+--echo # nest of one table.
+--sorted_result
+select t1.a, t3.a from
+  ((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+  full join t3 on t1.a = t3.a;
+select trace like '%"eliminated_tables": ["t4", "t2"]%' as both_eliminated
+  from information_schema.optimizer_trace;
+--sorted_result
+select t1.a, t3.a from
+  ((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+  left join t3 on t1.a = t3.a
+  union
+select t1.a, t3.a from
+  ((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+  right join t3 on t1.a = t3.a;
+
+set optimizer_trace= @save_optimizer_trace;
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+--echo # ====================================================================
 --echo # Section 38: An eliminated table inside a FULL JOIN operand nest
 --echo # ====================================================================
 --echo #

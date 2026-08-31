@@ -3548,6 +3548,12 @@ typedef struct st_nested_join
   */
   bool              materialized_full_join;
   /*
+    The placeholder JOIN_TAB that stands for this nest's run when
+    materialized_full_join is set, i.e., the same JOIN_TAB that
+    open_full_join_nest_run() built for it.  NULL otherwise.
+  */
+  struct st_join_table *materialized_full_join_tab;
+  /*
     The ON expressions of the inner joins inside this nest, which is only
     collected when the nest is an operand of a FULL JOIN.  Simplifying the
     join tree moves such an expression into the enclosing FULL JOIN's ON,

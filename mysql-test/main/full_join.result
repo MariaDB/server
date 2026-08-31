@@ -11550,6 +11550,115 @@ drop table t2;
 drop table t3;
 drop table t4;
 # ====================================================================
+# Section 37: A FULL JOIN operand nest shrunk by table elimination
+# ====================================================================
+#
+# A FULL JOIN's ON expression hangs on its right operand, which
+# leaves the left operand a join nest with no ON of its own.  Table
+# elimination never removes such a nest, but it does descend into
+# it, so a LEFT JOIN written inside the left operand loses its inner
+# table when a unique key makes that table functionally dependent
+# and no other part of the query reads it.
+#
+# What is left is an operand nest with one surviving table.  Such a
+# nest gets no run of its own in the join order, because a run
+# holding one table is that table, so the search for the table that
+# starts the FULL JOIN's left side finds neither a single base table
+# nor a materialized nest and walks the join order backward from the
+# right side instead.  An eliminated table becomes a const table and
+# const tables come first in the join order, ahead of where that
+# walk begins, so the walk finds the surviving table.
+#
+# The right operand is the one the FULL JOIN's ON hangs on, and
+# table elimination declines a nest under a FULL JOIN outright, so a
+# LEFT JOIN written on the right side keeps its inner table.  The
+# second query has that shape.
+#
+# The optimizer trace is probed instead of a plan being printed.
+# Which tables the plan lists is what matters here, and the access
+# methods a plan reports change with the engine and with the added
+# indexes this file runs under, while the trace entry does not.
+create table t1 (a int);
+create table t2 (pk int primary key, b int);
+create table t3 (a int);
+create table t4 (pk int primary key, d int);
+insert into t1 values (1),(2);
+insert into t2 values (1,10),(3,30);
+insert into t3 values (2),(4);
+insert into t4 values (2,20),(5,50);
+set @save_optimizer_trace= @@optimizer_trace;
+set optimizer_trace='enabled=on';
+# The left operand loses t2 and is left holding t1 alone.
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+full join t3 on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+select trace like '%"eliminated_tables": ["t2"]%' as t2_eliminated
+from information_schema.optimizer_trace;
+t2_eliminated
+1
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+left join t3 on t1.a = t3.a
+union
+select t1.a, t3.a from (t1 left join t2 on t1.a = t2.pk)
+right join t3 on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+# The same LEFT JOIN on the right side of the FULL JOIN, where t4
+# stays.
+select t1.a, t3.a from t1
+full join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+select trace like '%"eliminated_tables": []%' as nothing_eliminated
+from information_schema.optimizer_trace;
+nothing_eliminated
+1
+select t1.a, t3.a from t1
+left join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a
+union
+select t1.a, t3.a from t1
+right join (t3 left join t4 on t3.a = t4.pk) on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+# Two tables eliminated from one operand, which arrives at the same
+# nest of one table.
+select t1.a, t3.a from
+((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+full join t3 on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+select trace like '%"eliminated_tables": ["t4", "t2"]%' as both_eliminated
+from information_schema.optimizer_trace;
+both_eliminated
+1
+select t1.a, t3.a from
+((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+left join t3 on t1.a = t3.a
+union
+select t1.a, t3.a from
+((t1 left join t2 on t1.a = t2.pk) left join t4 on t1.a = t4.pk)
+right join t3 on t1.a = t3.a;
+a	a
+1	NULL
+2	2
+NULL	4
+set optimizer_trace= @save_optimizer_trace;
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+# ====================================================================
 # Section 38: An eliminated table inside a FULL JOIN operand nest
 # ====================================================================
 #

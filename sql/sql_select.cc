@@ -13937,6 +13937,7 @@ record_full_join_nest_spans(JOIN *join, List<TABLE_LIST> *lst)
         nothing here.
       */
       tl->nested_join->materialized_full_join= FALSE;
+      tl->nested_join->materialized_full_join_tab= NULL;
       record_full_join_nest_span(join, tl);
     }
     record_full_join_nest_spans(join, &tl->nested_join->join_list);
@@ -14063,6 +14064,7 @@ open_full_join_nest_run(THD *thd, JOIN *join, JOIN_TAB *&j, uint tablenr,
   j->bush_children.kind= JOIN_TAB_RANGE_FULL_JOIN;
   j->bush_children.nest= span->nest;
   j->bush_children.nest->nested_join->materialized_full_join= TRUE;
+  j->bush_children.nest->nested_join->materialized_full_join_tab= j;
   if (join->join_tab_ranges.push_back(&j->bush_children, thd->mem_root))
     return TRUE;
   DBUG_ASSERT(run_depth < MAX_TABLES);
@@ -27180,10 +27182,19 @@ static bool table_on_full_join_left_side(TABLE_LIST *target,
   stopping at the first tab outside it.  The last collected tab is the
   left-most JOIN_TAB.
 
-  One might ask "why not just look at foj_partner" but that ignores
-  the case when the left side is a join nest (or nest of nest, etc)
-  wherein there may be many tables before we get to the left-most
-  JOIN_TAB in the join order.
+  A left side of a single base table has no run of its own, so its own
+  JOIN_TAB is the answer directly.  A left side of two or more tables
+  always gets a run of its own (see open_full_join_nest_run(), called
+  from get_best_combination()), whose placeholder JOIN_TAB is recorded
+  on the nest as materialized_full_join_tab, so that is the answer for
+  that case, again directly.
+
+  The one case a run does not cover is a nest that table elimination
+  shrank to a single surviving table, which leaves record_full_join_nest_span()
+  declining it a run of its own (see its count < 2 check) since a run
+  holding one table is that table.  There, fall back to walking
+  backward from right_tab, because the surviving table can be
+  anywhere in what is left of the nest's original span.
 */
 static JOIN_TAB *find_left_most_join_tab(JOIN *join, JOIN_TAB *right_tab)
 {
@@ -27192,6 +27203,12 @@ static JOIN_TAB *find_left_most_join_tab(JOIN *join, JOIN_TAB *right_tab)
 
   TABLE_LIST *left_side= right_tab->tab_list->foj_partner;
   DBUG_ASSERT(left_side);
+
+  if (!left_side->nested_join)
+    return left_side->table->reginfo.join_tab;
+
+  if (left_side->is_materialized_full_join())
+    return left_side->nested_join->materialized_full_join_tab;
 
   /*
     right_tab lives in either join->join_tab or, when the FULL JOIN is
