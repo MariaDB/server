@@ -40,36 +40,24 @@ Created 1/8/1996 Heikki Tuuri
 #include "sql_class.h"
 #include "sql_table.h"
 
-#include "btr0btr.h"
 #include "btr0cur.h"
-#include "btr0sea.h"
 #include "buf0buf.h"
-#include "buf0flu.h"
 #include "data0type.h"
 #include "dict0boot.h"
 #include "dict0load.h"
 #include "dict0crea.h"
 #include "dict0mem.h"
-#include "dict0stats.h"
 #include "fts0fts.h"
 #include "fts0types.h"
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "mem0mem.h"
-#include "page0page.h"
-#include "page0zip.h"
-#include "pars0pars.h"
-#include "pars0sym.h"
 #include "que0que.h"
 #include "rem0cmp.h"
 #include "row0log.h"
-#include "row0merge.h"
-#include "row0mysql.h"
 #include "row0upd.h"
 #include "srv0mon.h"
 #include "srv0start.h"
-#include "trx0undo.h"
-#include "trx0purge.h"
 
 #include <vector>
 #include <algorithm>
@@ -831,13 +819,8 @@ retry:
     if (!dict_locked)
     {
       if (thd)
-      {
         table= dict_acquire_mdl<false>(table, thd, mdl, table_op);
-        if (table)
-          goto acquire;
-      }
-      else
-      acquire:
+      if (table)
         table->acquire();
       dict_sys.unfreeze();
     }
@@ -3819,6 +3802,38 @@ dict_index_set_merge_threshold(
 func_exit:
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
+}
+
+bool dict_index_persist_type(dict_index_t *index)
+{
+  ut_ad(dict_sys.locked());
+  mem_heap_t *heap= mem_heap_create(256);
+  mtr_t mtr{nullptr};
+  mtr.start();
+  dict_index_t *sys_index= UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
+  dtuple_t *tuple= dtuple_create(heap, 2);
+  byte *table_id= static_cast<byte*>(mem_heap_alloc(heap, 8));
+  mach_write_to_8(table_id, index->table->id);
+  dfield_set_data(dtuple_get_nth_field(tuple, 0), table_id, 8);
+  byte *index_id= static_cast<byte*>(mem_heap_alloc(heap, 8));
+  mach_write_to_8(index_id, index->id);
+  dfield_set_data(dtuple_get_nth_field(tuple, 1), index_id, 8);
+  dict_index_copy_types(tuple, sys_index, 2);
+  btr_cur_t cursor;
+  cursor.page_cur.index= sys_index;
+  bool success= cursor.search_leaf(tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF, &mtr)
+    == DB_SUCCESS && cursor.up_match == dtuple_get_n_fields(tuple);
+  if (success) {
+    ulint len;
+    byte *field= rec_get_nth_field_old(
+      btr_cur_get_rec(&cursor), DICT_FLD__SYS_INDEXES__TYPE, &len);
+    success= len == 4;
+    if (success)
+      mtr.write<4>(*btr_cur_get_block(&cursor), field, index->type);
+  }
+  mtr.commit();
+  mem_heap_free(heap);
+  return success;
 }
 
 #ifdef UNIV_DEBUG

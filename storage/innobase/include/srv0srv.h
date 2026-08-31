@@ -284,6 +284,7 @@ extern my_bool			srv_stats_auto_recalc;
 extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
+extern my_bool srv_blink_enabled;
 
 extern ulong	srv_checksum_algorithm;
 

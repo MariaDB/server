@@ -55,6 +55,12 @@ dict_mem_fill_index_struct(
 	}
 
 	index->type = type & ((1U << DICT_IT_BITS) - 1);
+#ifdef BTR_CUR_HASH_ADAPT
+	if (index->type & DICT_BLINK)
+		index->search_info.set_enabled_fixed_mask(
+			dict_index_t::ahi::AHI_INDEX_FORCE_DISABLED,
+			false, false, false, 0, 0, false);
+#endif
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 	index->n_fields = static_cast<unsigned>(n_fields)

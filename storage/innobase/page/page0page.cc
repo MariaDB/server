@@ -29,7 +29,6 @@ Created 2/2/1994 Heikki Tuuri
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"
-#include "buf0checksum.h"
 #include "btr0btr.h"
 #include "srv0srv.h"
 #include "lock0lock.h"
@@ -1240,7 +1239,9 @@ page_rec_get_prev_const(
 		case REC_STATUS_INFIMUM:
 			break;
 		case REC_STATUS_NODE_PTR:
-			if (!page_is_leaf(page)) {
+			if (!page_is_leaf(page)
+			    || page_rec_get_next_const(prev_rec)
+			       == page_get_supremum_rec(page)) {
 				break;
 			}
 			/* fall through */

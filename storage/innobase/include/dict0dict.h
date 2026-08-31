@@ -1548,6 +1548,8 @@ dict_index_set_merge_threshold(
 	dict_index_t*	index,
 	ulint		merge_threshold);
 
+bool dict_index_persist_type(dict_index_t *index);
+
 #ifdef UNIV_DEBUG
 /** Sets merge_threshold for all indexes in dictionary cache for debug.
 @param[in]	merge_threshold_all	value to set for all indexes */

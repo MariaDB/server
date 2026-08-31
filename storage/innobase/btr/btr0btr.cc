@@ -27,19 +27,18 @@ Created 6/2/1994 Heikki Tuuri
 
 #include "btr0btr.h"
 
+#include "page0blink.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "gis0rtree.h"
 
 #include "btr0cur.h"
 #include "btr0sea.h"
-#include "btr0pcur.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "que0que.h"
-#include "gis0geo.h"
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 #include "log.h"
@@ -1317,6 +1316,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
   /* Copy the old page to temporary space */
   memcpy_aligned<UNIV_PAGE_SIZE_MIN>(old->page.frame, block->page.frame,
                                      srv_page_size);
+  const bool incomplete_split= page_has_incomplete_split(old->page.frame);
 
   const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
 
@@ -1551,6 +1551,8 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
     }
   }
 
+  if (incomplete_split)
+    page_set_incomplete_split(block, mtr);
   buf_block_free(old);
 
   MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);

@@ -40,30 +40,21 @@ Created 10/8/1995 Heikki Tuuri
 *******************************************************/
 
 #include "my_global.h"
-#include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
 #include "btr0sea.h"
-#include "buf0flu.h"
 #include "buf0lru.h"
-#include "dict0boot.h"
-#include "dict0load.h"
 #include "lock0lock.h"
 #include "log0recv.h"
-#include "mem0mem.h"
-#include "pars0pars.h"
 #include "que0que.h"
-#include "row0mysql.h"
 #include "row0log.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "ut0mem.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
-#include "fil0pagecompress.h"
 #include "trx0types.h"
 #include "row0purge.h"
 #include <list>
@@ -294,6 +285,7 @@ unsigned long long srv_stats_modified_counter;
 /** innodb_stats_traditional; enable traditional statistic calculation
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
+my_bool srv_blink_enabled;
 
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;

@@ -163,6 +163,7 @@ constexpr uint16_t PAGE_RIGHT= 2;
 constexpr uint16_t PAGE_SAME_REC= 3;
 constexpr uint16_t PAGE_SAME_PAGE= 4;
 constexpr uint16_t PAGE_NO_DIRECTION= 5;
+constexpr uint16_t PAGE_INCOMPLETE_SPLIT= 6;
 
 #ifndef UNIV_INNOCHECKSUM
 

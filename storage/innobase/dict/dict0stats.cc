@@ -34,7 +34,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include "btr0btr.h"
 #include "btr0sea.h"
 #include "que0que.h"
-#include "scope.h"
 #include "debug_sync.h"
 #ifdef WITH_WSREP
 # include <mysql/service_wsrep.h>
@@ -43,7 +42,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include <algorithm>
 #include <map>
 #include <vector>
-#include <thread>
 
 /* Sampling algorithm description @{
 
@@ -2608,7 +2606,8 @@ dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 
 	if (index == NULL
 	    || index->is_corrupted()
-	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
+	    || ((index->type & ~DICT_BLINK) | DICT_UNIQUE) !=
+	       (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
 		dict_stats_empty_table(table);
@@ -2712,7 +2711,6 @@ dberr_t dict_stats_update_persistent_try(trx_t *trx, dict_table_t *table)
   return DB_SUCCESS;
 }
 
-#include "mysql_com.h"
 /** Save an individual index's statistic into the persistent statistics
 storage.
 @param[in]	index			index to be updated

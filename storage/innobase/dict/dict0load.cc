@@ -29,14 +29,10 @@ Created 4/24/1996 Heikki Tuuri
 
 #include "log.h"
 #include "btr0pcur.h"
-#include "btr0btr.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
-#include "dict0stats.h"
 #include "ibuf0ibuf.h"
-#include "fsp0file.h"
-#include "fts0priv.h"
 #include "mach0data.h"
 #include "page0page.h"
 #include "rem0cmp.h"
@@ -44,6 +40,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "fts0opt.h"
 #include "row0vers.h"
+#include "trx0sys.h"
 
 /** Loads a table definition and also all its index definitions.
 
@@ -2046,7 +2043,7 @@ dberr_t dict_load_indexes(mtr_t *mtr, dict_table_t *table, bool uncommitted,
 
 		/* We check for unsupported types first, so that the
 		subsequent checks are relevant for the supported types. */
-		if (index->type & ~(DICT_CLUSTERED | DICT_UNIQUE
+		if (index->type & ~(DICT_CLUSTERED | DICT_UNIQUE | DICT_BLINK
 				    | DICT_CORRUPT | DICT_FTS
 				    | DICT_SPATIAL | DICT_VIRTUAL)) {
 

@@ -40,7 +40,6 @@ Created 2011-05-26 Marko Makela
 
 #include <sql_class.h>
 #include <algorithm>
-#include <map>
 
 Atomic_counter<ulint> onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
@@ -1589,7 +1588,7 @@ row_log_table_apply_insert_low(
 
 	ut_ad(dict_index_is_clust(index));
 
-	for (n_index += index->type != DICT_CLUSTERED;
+	for (n_index += !index->is_gen_clust();
 	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
@@ -2036,7 +2035,7 @@ func_exit_committed:
 		dtuple_big_rec_free(big_rec);
 	}
 
-	for (n_index += index->type != DICT_CLUSTERED;
+	for (n_index += !index->is_gen_clust();
 	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (!index->is_btree()) {
 			continue;

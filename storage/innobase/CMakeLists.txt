@@ -133,6 +133,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
 
 SET(INNOBASE_SOURCES
+	btr/btr0blink.cc
 	btr/btr0btr.cc
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
@@ -378,6 +379,7 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
+	page/page0blink.cc
 	page/page0cur.cc
 	page/page0page.cc
 	page/page0zip.cc

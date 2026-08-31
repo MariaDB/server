@@ -66,6 +66,7 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
+#define DICT_BLINK	4	/*!< B-link tree index */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -1386,7 +1387,10 @@ public:
 	bool is_primary() const { return is_clust(); }
 
 	/** @return whether this is a generated clustered index */
-	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+	bool is_gen_clust() const
+	{
+		return (type & ~DICT_BLINK) == DICT_CLUSTERED;
+	}
 
 	/** @return whether this is a clustered index */
 	bool is_clust() const { return type & DICT_CLUSTERED; }
@@ -2818,7 +2822,8 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields > 0);
 	ut_ad(n_core_fields <= n_fields || table->n_dropped());
 	ut_ad(n_core_fields == n_fields
-	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
+	      || (type & ~(DICT_UNIQUE | DICT_BLINK | DICT_CORRUPT)) ==
+	      DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	ut_ad(!table->instant || !table->is_temporary());

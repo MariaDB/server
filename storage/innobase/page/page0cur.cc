@@ -26,10 +26,9 @@ Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
 
 #include "page0cur.h"
+#include "page0blink.h"
 #include "page0zip.h"
-#include "btr0btr.h"
 #include "mtr0log.h"
-#include "log0recv.h"
 #include "rem0cmp.h"
 #include "gis0rtree.h"
 #ifdef UNIV_DEBUG
@@ -710,7 +709,6 @@ bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
       if (!rec)
         return true;
       if (uintptr_t(rec - page) == PAGE_NEW_SUPREMUM)
-      le_supremum:
         /* If we matched the full key at the end of a page (but not the index),
         the adaptive hash index was successful. */
         return page_has_next(page) && match < uniq;
@@ -728,7 +726,7 @@ bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
       if (!rec)
         return true;
       if (uintptr_t(rec - page) == PAGE_OLD_SUPREMUM)
-        goto le_supremum;
+        return page_has_next(page) && match < uniq;
     }
     return page_cur_dtuple_cmp(tuple, rec, *index(), &up_match, comp) >= 0;
   }
@@ -1638,7 +1636,8 @@ use_heap:
                   insert_buf + extra_size - block->page.frame);
 
   /* Update PAGE_DIRECTION_B, PAGE_N_DIRECTION if needed */
-  if (block->page.frame[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE))
+  if (block->page.frame[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE) &&
+      !page_has_incomplete_split(block->page.frame))
   {
     byte *dir= &block->page.frame[PAGE_DIRECTION_B + PAGE_HEADER];
     byte *n= my_assume_aligned<2>
@@ -2244,7 +2243,7 @@ use_heap:
         rec_get_node_ptr_flag(insert_rec));
   mach_write_to_2(last_insert, insert_rec - page);
 
-  if (!index->is_spatial())
+  if (!index->is_spatial() && !page_has_incomplete_split(page))
   {
     byte *dir= &page_zip->data[PAGE_HEADER + PAGE_DIRECTION_B];
     ut_ad(!(*dir & ~((1U << 3) - 1)));
@@ -2770,7 +2769,8 @@ corrupted:
                       REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
 
   /* Update PAGE_DIRECTION_B, PAGE_N_DIRECTION if needed */
-  if (page[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE))
+  if (page[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE) &&
+      !page_has_incomplete_split(page))
   {
     byte *dir= &page[PAGE_DIRECTION_B + PAGE_HEADER];
     byte *n_dir= my_assume_aligned<2>
@@ -2996,7 +2996,8 @@ corrupted:
                       REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
 
   /* Update PAGE_DIRECTION_B, PAGE_N_DIRECTION if needed */
-  if (page[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE))
+  if (page[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE) &&
+      !page_has_incomplete_split(page))
   {
     byte *dir= &page[PAGE_DIRECTION_B + PAGE_HEADER];
     byte *n_dir= my_assume_aligned<2>(&page[PAGE_N_DIRECTION + PAGE_HEADER]);

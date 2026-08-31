@@ -34,12 +34,12 @@ Smart ALTER TABLE
 #include <strfunc.h>
 
 /* Include necessary InnoDB headers */
+#include "btr0blink.h"
 #include "btr0sea.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
 #include "dict0load.h"
 #include "dict0stats.h"
-#include "dict0stats_bg.h"
 #include "log0log.h"
 #include "rem0types.h"
 #include "row0log.h"
@@ -52,14 +52,11 @@ Smart ALTER TABLE
 #include "handler0alter.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
-#include "fts0priv.h"
-#include "fts0plugin.h"
 #include "pars0pars.h"
+#include "que0que.h"
 #include "row0sel.h"
 #include "ha_innodb.h"
 #include "ut0stage.h"
-#include <thread>
-#include <sstream>
 
 /** File format constraint for ALTER TABLE */
 extern ulong innodb_instant_alter_column_allowed;
@@ -11732,6 +11729,12 @@ foreign_fail:
 						    altered_table, table,
 						    trx)) {
 				fk_fail = true;
+			}
+
+			if (!fk_fail && srv_blink_enabled &&
+			    blink_table_shape_ok(ctx->new_table)) {
+				for (ulint i= 0; i < ctx->num_to_add_index; ++i)
+					blink_stamp_empty_tree(ctx->add_index[i]);
 			}
 
 			if (fk_fail && m_prebuilt->trx->check_foreigns) {
