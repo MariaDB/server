@@ -285,11 +285,19 @@ class Parallel_coordinator
   /** Indicates the status of the coordinator */
   bool m_is_initialized{false};
 
-  /** Mutex protecting m_ctxs. */
+  /** Mutex protecting m_ctxs and m_n_resplitting. */
   mutable mysql_mutex_t m_mutex;
+
+  /** Signalled when a context is added to m_ctxs and when a splitter
+  retires. Paired with m_mutex. */
+  mysql_cond_t m_cond;
 
   /** Contexts that must be executed. */
   Exec_ctxs m_ctxs{};
+
+  /** Contexts taken off m_ctxs that are being re-partitioned and have not
+  enqueued their sub-contexts yet. Protected by m_mutex. */
+  size_t m_n_resplitting{};
 
   /** Scan contexts. */
   Scan_ctxs m_scan_ctxs{};
@@ -437,12 +445,12 @@ class Parallel_coordinator::Scan_ctx {
   /** Create an execution context for a range and add it to
   the Parallel_coordinator's run queue.
   @param[in] range              Range for which to create the context.
-  @param[in] split              true if the sub-tree should be split further.
+  @param[in] resplit            true if the sub-tree should be split further.
   @param[in] end_inclusive      true if records equal to the range's end
                                 belong to it. Only ever true for the chunk
                                 that ends at the caller's own upper bound.
   @return DB_SUCCESS or error code. */
-  [[nodiscard]] dberr_t create_context(const Range &range, bool split,
+  [[nodiscard]] dberr_t create_context(const Range &range, bool resplit,
                                        bool end_inclusive= false);
 
   /** Create the execution contexts based on the ranges.
@@ -569,8 +577,8 @@ private:
   /** Context ID. */
   size_t m_id{std::numeric_limits<size_t>::max()};
 
-  /** If true then split the context at the block level. */
-  bool m_split{};
+  /** If true then re-split the context into smaller chunks. */
+  bool m_to_be_resplit{};
 
   friend class Parallel_coordinator;
 };
