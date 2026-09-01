@@ -2041,10 +2041,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
                              uint limit);
 void print_range(String *out, const KEY_PART_INFO *key_part,
-                 KEY_MULTI_RANGE *range, uint n_key_parts);
+                 KEY_MULTI_RANGE *range, uint n_key_parts,
+                 Field::imagetype image_type);
 
 void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                     const uchar *key, uint used_length);
+                     const uchar *key, uint used_length,
+                     Field::imagetype image_type);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

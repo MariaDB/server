@@ -669,5 +669,107 @@ SELECT a, b, v FROM t1;
 a	b	v
 1	10	101
 drop table t1;
+#
+# MDEV-40553: unprintable gis ranges in trace and context
+#
+CREATE TABLE t1 (
+id INT,
+g GEOMETRY NOT NULL,
+KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# The ranges must match the recorded ones, so no warning is produced
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+set optimizer_replay_context='';
+drop table t1;
+# The same, replayed from the context read straight out of
+# INFORMATION_SCHEMA.OPTIMIZER_CONTEXT rather than from the script.
+# The literal in the script must read back as the JSON itself, so
+# both ways of getting at it produce the same ranges.
+CREATE TABLE t1 (
+id INT,
+g GEOMETRY NOT NULL,
+KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\';#opt_context_ends)')
+from information_schema.optimizer_context);
+set optimizer_record_context=0;
+set optimizer_replay_context='opt_context';
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+set optimizer_replay_context='';
+drop table t1;
+#
+# A key value may hold a single quote (0x27). It must not end the
+# string literal that carries the context in the recorded script.
+#
+create table t1 (a varbinary(10), key a_idx(a)) engine=myisam;
+insert into t1 values
+(0x2700),(0x2701),(0x2702),(0x2703),(0x2704),(0x2705),(0x2706),(0x2707);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+explain select * from t1 where a=0x2700 or a=0x2701 or a=0x2702 or a=0x2703;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_idx	a_idx	13	NULL	4	Using where; Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\';#opt_context_ends)')
+from information_schema.optimizer_context);
+set optimizer_record_context=0;
+# The quote is recorded as its JSON escape:
+select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.ranges')) as ranges_in_ctx;
+ranges_in_ctx
+[
+    [
+        "(\u0027\\x00) <= (a) <= (\u0027\\x00)",
+        "(\u0027\\x01) <= (a) <= (\u0027\\x01)",
+        "(\u0027\\x02) <= (a) <= (\u0027\\x02)",
+        "(\u0027\\x03) <= (a) <= (\u0027\\x03)"
+    ]
+]
+set optimizer_replay_context='opt_context';
+explain select * from t1 where a=0x2700 or a=0x2701 or a=0x2702 or a=0x2703;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_idx	a_idx	13	NULL	4	Using where; Using index
+set optimizer_replay_context='';
+drop table t1;
 # End of 13.1 tests
 drop database db1;

@@ -12,10 +12,14 @@ set @opt_context=
          context,
          '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
          from information_schema.optimizer_context);
+# The DDLs run up to the first REPLACE INTO, or, when there are none, up to
+# the block that carries the context: "set @opt_ctx_sql_mode=..." followed
+# by "set @opt_context='...". Stop at "set @opt_ctx" so that neither of
+# those two statements is reported as a DDL.
 set @ddls=
     (select REGEXP_SUBSTR(
          context,
-         '(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
+         '(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_ctx))')
          from information_schema.optimizer_context);
 set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
 select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
