@@ -6688,7 +6688,7 @@ static Create_func *
 function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
 {
   plugin_ref plugin;
-  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_FUNCTION_PLUGIN)))
+  if ((plugin= plugin_lock_by_name(thd, &name, MariaDB_FUNCTION_PLUGIN)))
   {
     Create_func *builder=
       reinterpret_cast<Plugin_function*>(plugin_decl(plugin)->info)->

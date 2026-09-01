@@ -2193,8 +2193,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         parser_name.str= (char*) next_chunk;
         parser_name.length= strlen((char*) next_chunk);
         next_chunk+= parser_name.length + 1;
-        keyinfo->parser= my_plugin_lock_by_name(NULL, &parser_name,
-                                                MYSQL_FTPARSER_PLUGIN);
+        keyinfo->parser= plugin_lock_by_name(NULL, &parser_name,
+                                             MYSQL_FTPARSER_PLUGIN);
         if (! keyinfo->parser)
         {
           my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), parser_name.str);

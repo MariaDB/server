@@ -396,7 +396,7 @@ static void bg_gtid_pos_auto_create(void *hton)
   {
     if (plugin_hton(*auto_engines) == hton)
     {
-      engine= my_plugin_lock(NULL, *auto_engines);
+      engine= plugin_lock(NULL, *auto_engines);
       break;
     }
   }

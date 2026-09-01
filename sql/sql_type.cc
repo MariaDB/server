@@ -231,7 +231,7 @@ const Type_handler *
 Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
 {
   plugin_ref plugin;
-  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_DATA_TYPE_PLUGIN)))
+  if ((plugin= plugin_lock_by_name(thd, &name, MariaDB_DATA_TYPE_PLUGIN)))
   {
     /*
       Data type plugins do not maintain ref_count yet.

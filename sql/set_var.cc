@@ -1536,7 +1536,7 @@ copy_engine_list(plugin_ref *list)
     return NULL;
   }
   for (i= 0; i < count; ++i)
-    p[i]= my_plugin_lock(NULL, list[i]);
+    p[i]= plugin_lock(NULL, list[i]);
   p[i] = NULL;
   return p;
 }
@@ -1561,7 +1561,7 @@ temp_copy_engine_list(THD *thd, plugin_ref *list)
     return NULL;
   }
   for (i= 0; i < count; ++i)
-    p[i]= my_plugin_lock(thd, list[i]);
+    p[i]= plugin_lock(thd, list[i]);
   p[i] = NULL;
   return p;
 }

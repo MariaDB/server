@@ -9074,7 +9074,7 @@ static my_bool find_schema_table_in_plugin(THD *thd, plugin_ref plugin,
 
   if (p_schema_table->table_name.streq(schema_table->table_name))
   {
-    my_plugin_lock(thd, plugin);
+    plugin_lock(thd, plugin);
     p_schema_table->schema_table= schema_table;
     DBUG_RETURN(1);
   }

@@ -1682,7 +1682,7 @@ public:
       if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
         plugin= ha_resolve_by_name(thd, &pname, false);
       else
-        plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
+        plugin= plugin_lock_by_name(thd, &pname, plugin_type);
       if (unlikely(!plugin))
       {
         // historically different error code
@@ -1702,7 +1702,7 @@ public:
     plugin_ref oldval= *valptr;
     if (oldval != newval)
     {
-      *valptr= newval ? my_plugin_lock(NULL, newval) : 0;
+      *valptr= newval ? plugin_lock(NULL, newval) : 0;
       plugin_unlock(NULL, oldval);
     }
   }
@@ -1721,7 +1721,7 @@ public:
   void session_save_default(THD *thd, set_var *var) override
   {
     plugin_ref plugin= global_var(plugin_ref);
-    var->save_result.plugin= plugin ? my_plugin_lock(thd, plugin) : 0;
+    var->save_result.plugin= plugin ? plugin_lock(thd, plugin) : 0;
   }
   plugin_ref get_default(THD *thd) const
   {
@@ -1735,9 +1735,9 @@ public:
     if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
       plugin= ha_resolve_by_name(thd, &pname, false);
     else
-      plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
+      plugin= plugin_lock_by_name(thd, &pname, plugin_type);
     DBUG_ASSERT(plugin);
-    return my_plugin_lock(thd, plugin);
+    return plugin_lock(thd, plugin);
   }
 
   void global_save_default(THD *thd, set_var *var) override

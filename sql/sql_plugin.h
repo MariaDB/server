@@ -46,14 +46,6 @@ extern ulong dlopen_count;
 #include <my_sys.h>
 #include "sql_list.h"
 
-#ifdef DBUG_OFF
-#define plugin_ref_to_int(A) A
-#define plugin_int_to_ref(A) A
-#else
-#define plugin_ref_to_int(A) (A ? A[0] : NULL)
-#define plugin_int_to_ref(A) &(A)
-#endif
-
 /*
   the following flags are valid for plugin_init()
 */
@@ -167,8 +159,6 @@ extern int plugin_init(int *argc, char **argv, int init_flags);
 extern void plugin_shutdown(void);
 void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root);
 extern bool plugin_is_ready(const LEX_CSTRING *name, int type);
-#define my_plugin_lock_by_name(A,B,C) plugin_lock_by_name(A,B,C)
-#define my_plugin_lock(A,B) plugin_lock(A,B)
 extern plugin_ref plugin_lock(THD *thd, plugin_ref ptr);
 extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name,
                                       int type);

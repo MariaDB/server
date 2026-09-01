@@ -207,7 +207,7 @@ static plugin_ref ha_default_plugin(THD *thd)
 {
   if (thd->variables.table_plugin)
     return thd->variables.table_plugin;
-  return my_plugin_lock(thd, global_system_variables.table_plugin);
+  return plugin_lock(thd, global_system_variables.table_plugin);
 }
 
 static plugin_ref ha_default_tmp_plugin(THD *thd)
@@ -215,7 +215,7 @@ static plugin_ref ha_default_tmp_plugin(THD *thd)
   if (thd->variables.tmp_table_plugin)
     return thd->variables.tmp_table_plugin;
   if (global_system_variables.tmp_table_plugin)
-    return my_plugin_lock(thd, global_system_variables.tmp_table_plugin);
+    return plugin_lock(thd, global_system_variables.tmp_table_plugin);
   return ha_default_plugin(thd);
 }
 
@@ -270,7 +270,7 @@ redo:
   if (thd && "DEFAULT"_Lex_ident_engine.streq(*name))
     return tmp_table ?  ha_default_tmp_plugin(thd) : ha_default_plugin(thd);
 
-  if ((plugin= my_plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
+  if ((plugin= plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
   {
     handlerton *hton= plugin_hton(plugin);
     if (hton && !(hton->flags & HTON_NOT_USER_SELECTABLE))
@@ -340,7 +340,7 @@ plugin_ref ha_lock_engine(THD *thd, const handlerton *hton)
   if (hton)
   {
     st_plugin_int *plugin= hton2plugin[hton->slot];
-    return my_plugin_lock(thd, plugin_int_to_ref(plugin));
+    return plugin_lock(thd, plugin_int_to_ref(plugin));
   }
   return NULL;
 }

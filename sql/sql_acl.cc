@@ -116,7 +116,7 @@ static plugin_ref get_auth_plugin(THD *thd, const LEX_CSTRING &name, bool *locke
   if (name.str == native_password_plugin_name.str)
     return native_password_plugin;
   *locked=true;
-  return my_plugin_lock_by_name(thd, &name, MYSQL_AUTHENTICATION_PLUGIN);
+  return plugin_lock_by_name(thd, &name, MYSQL_AUTHENTICATION_PLUGIN);
 }
 
 /* Classes */
@@ -3026,7 +3026,7 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
     (st_mariadb_password_validation *)plugin_decl(plugin)->info;
   if (handler->validate_password(data->user, data->password, data->host))
   {
-    my_error(ER_NOT_VALID_PASSWORD, MYF(0), plugin_ref_to_int(plugin)->name.str);
+    my_error(ER_NOT_VALID_PASSWORD, MYF(0), plugin_name(plugin)->str);
     return true;
   }
   return false;
@@ -3286,7 +3286,7 @@ bool acl_init(bool dont_read_acl_tables)
     cache built-in native authentication plugin,
     to avoid hash searches and a global mutex lock on every connect
   */
-  native_password_plugin= my_plugin_lock_by_name(0,
+  native_password_plugin= plugin_lock_by_name(0,
            &native_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
 
   if (!native_password_plugin)
@@ -15892,8 +15892,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 
   if (passwd >= end)
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-               MYF(0));
+    my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
     DBUG_RETURN (1);
   }
 
@@ -15917,12 +15916,10 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   {
     if (thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA)
     {
-      ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
-                                              end - passwd);
+      ulonglong len= safe_net_field_length_ll((uchar**)&passwd, end - passwd);
       if (!passwd || len > (ulonglong)(end - passwd))
       {
-        my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-                   MYF(0));
+        my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
         DBUG_RETURN(1);
       }
       passwd_len= (size_t)len;
@@ -15931,8 +15928,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
       passwd_len= (uchar)(*passwd++);
     if (passwd_len > (size_t)(end - passwd))
     {
-      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-                 MYF(0));
+      my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
       DBUG_RETURN(1);
     }
     db= passwd + passwd_len;
@@ -15943,8 +15939,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   */
   if (db >= end)
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-               MYF(0));
+    my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
     DBUG_RETURN (1);
   }
 
@@ -16002,8 +15997,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   {
     if (next_field >= end)
     {
-      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-                 MYF(0));
+      my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
       DBUG_RETURN(1);
     }
     client_plugin= Lex_cstring_strlen(next_field);
@@ -16028,8 +16022,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, end, thd))
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-               MYF(0));
+    my_error(ER_UNKNOWN_COM_ERROR, MYF(0));
     DBUG_RETURN(1);
   }
 

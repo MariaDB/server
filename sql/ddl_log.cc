@@ -1062,8 +1062,7 @@ static handler *create_handler(THD *thd, MEM_ROOT *mem_root,
 {
   handlerton *hton;
   handler *file;
-  plugin_ref plugin= my_plugin_lock_by_name(thd, name,
-                                            MYSQL_STORAGE_ENGINE_PLUGIN);
+  plugin_ref plugin= plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN);
   if (!plugin)
   {
     my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(ME_ERROR_LOG), name->str);
