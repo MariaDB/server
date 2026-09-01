@@ -5,22 +5,23 @@
 create or replace table t1(a json);
 show create table t1;
 
---error ER_PARSE_ERROR
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
 create or replace table t1(a json character set utf8);
 
-create or replace table t1(a json default '{a:1}');
+create or replace table t1(a json default '{"a":1}');
 show create table t1;
+
 
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert t1 values ('a');
 
 create or replace table t1(a json not null);
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert t1 values ('a');
 
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
@@ -45,7 +46,15 @@ drop table t1;
 
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+create table t2 (t json) select t from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+drop table t1;
+
+create table t1 (t text) engine=myisam;
+insert into t1 values (""),("{}");
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 create table t2 (t json) select t from t1;
 --error ER_NO_SUCH_TABLE
 select * from t2;
@@ -54,16 +63,113 @@ drop table t1;
 create or replace table t1(a json default(json_object('now', 1)) check (json_valid(a)));
 insert into t1 values ();
 insert into t1 values ("{}");
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert into t1 values ("xxx");
 select * from t1;
 show create table t1;
 drop table t1;
 
+# Casting
+
+# Basic valid cast
+SELECT CAST('{"a":1}' AS JSON);
+SELECT CAST('[]' AS JSON);
+
+
+# null with warning
+SELECT CAST('xxx' AS JSON);
+SHOW WARNINGS;
+
+# Null
+SELECT CAST(NULL AS JSON);
+
+--disable_view_protocol
+--enable_metadata
+SELECT CAST('{"a":1}' AS JSON);
+--disable_metadata
+--enable_view_protocol
+
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 SELECT CAST('{"x":1}' AS JSON);
+SELECT * FROM t1;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 SELECT CAST('bad' AS JSON);
+DROP TABLE t1;
+
+
+# test failing to assign charset even it's utf8
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+SELECT CAST('{}' AS JSON CHARACTER SET utf8);
+
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('{"ok":1}'), ('bad');
+SELECT a FROM t1 WHERE CAST(a AS JSON) IS NOT NULL;
+DROP TABLE t1;
+
+SELECT CAST('{"a":1}' AS JSON) UNION ALL SELECT CAST('{"b":2}' AS JSON);
+
+EXPLAIN EXTENDED SELECT CAST('{}' AS JSON);
+EXPLAIN EXTENDED SELECT `JSON`('{}');
+
+
+# test make_constructor_item
+
+SELECT `JSON`('{"a":1}');
+SELECT `JSON`('[]');
+
+# Invalid JSON returns NULL and throws a warning
+SELECT `JSON`('not-json');
+SHOW WARNINGS;
+
 --error ER_PARSE_ERROR
 select cast('{a:1}' as text);
---error ER_PARSE_ERROR
+
 select cast('{a:1}' as json);
+
+
+--echo #
+--echo # Prohibit numeric aggregate functions and arithmetic on JSON data type
+--echo #
+
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a": 10}'), ('{"a": 20}'), ('[1, 2, 3]');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT SUM(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT AVG(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT VARIANCE(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT VAR_SAMP(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT STD(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT STDDEV_SAMP(j) FROM t1;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_AND(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_OR(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_XOR(j) FROM t1;
+
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT -j FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ABS(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ROUND(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT TRUNCATE(j, 1) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CEIL(j) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT FLOOR(j) FROM t1;
+
+DROP TABLE t1;
 
 --echo #
 --echo # Start of 10.5 tests
@@ -134,6 +240,13 @@ create view v1 as select json_object(_latin1 'a', _latin1'b') as v1_json;
 select v1_json from v1;
 select json_arrayagg(v1_json) from v1;
 drop view v1;
+
+create table t1 (a json);
+insert into t1 values (777);
+insert into t1 values (123.45);
+insert into t1 values (true);
+select * from t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.5 tests

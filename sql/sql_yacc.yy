@@ -6731,7 +6731,7 @@ field_type_all_builtin:
 
 field_type_all:
           field_type_all_builtin
-        | udt_name float_options srid_option opt_binary
+        | udt_name float_options srid_option opt_binary_and_compression
           {
             if (Lex->set_field_type_udt(&$$, $1, $2, $4))
               MYSQL_YYABORT;
@@ -6931,10 +6931,6 @@ field_type_lob:
           { $$.set(&type_handler_long_blob, $2); }
         | LONG_SYM opt_binary_and_compression
           { $$.set(&type_handler_medium_blob, $2); }
-        | JSON_SYM opt_compressed
-          {
-            $$.set(&type_handler_long_blob_json, &MY_CHARSET_UTF8MB4_BIN);
-          }
         ;
 
 field_type_misc:
@@ -12507,6 +12503,12 @@ json_table_field_type:
         | field_type_temporal
         | field_type_string
         | field_type_lob
+        | JSON_SYM opt_binary_and_compression
+          {
+            if (Lex->set_field_type_udt(&$$, Lex_cstring("json", 4),
+                                        Lex_length_and_dec_st(), $2))
+              MYSQL_YYABORT;
+          }
         ;
 
 json_opt_on_empty_or_error:
@@ -17510,6 +17512,7 @@ reserved_keyword_udt_not_param_type:
         | IS
         | ITERATE_SYM
         | JOIN_SYM
+        | JSON_SYM
         | KEYS
         | KEY_SYM
         | KILL_SYM
