@@ -880,6 +880,7 @@ bool pwt_tmp_table_sink::init(pwt_manager *mgr, pwt_tmp_table_source *peer_arg,
 bool pwt_tmp_table_sink::begin()
 {
   container->table->in_use= current_thd;
+  container->table->file->rebind_to_thread();
   return false;
 }
 
@@ -925,22 +926,48 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
     if (err == HA_ERR_RECORD_FILE_FULL)
     {
       /*
-        Where the heap-to-disk conversion would go, and what it would need is
-        now here: create_internal_tmp_table_from_heap() is driven from
-        container->param->start_recinfo, which describes this container and no
-        other. What is still missing is a thread it can run on -- it re-opens
-        the table, and Aria's open binds the handle to the opening thread's
-        my_thread_var, which for a worker is freed as soon as that worker's THD
-        is destroyed. So this still fails the statement rather than pretending,
-        and a result set has to fit the session's tmp table limit.
+        The heap container is full: rebuild it on disk and carry on there. The
+        column descriptions it is driven from are this container's own, which
+        is what pairing each container with its own TMP_TABLE_PARAM was for --
+        a shared one would describe some other container, in a mem_root that
+        may already be gone.
+
+        The row that did not fit is written by the conversion itself, from
+        record[0], so there is nothing to re-emit here.
+
+        Run on this worker's thread and with this worker's THD, which is what
+        makes the thread questions live: the conversion re-opens the table, and
+        Aria binds an open handle to the opening thread's my_thread_var, freed
+        when this worker's THD is destroyed. The manager reads this container
+        afterwards. Being worked through.
       */
-      my_error(ER_INTERNAL_ERROR, MYF(0),
-               "parallel query: the worker's result table is full "
-               "(spilling a worker result set to disk is not implemented)");
+      THD *worker_thd= current_thd;
+      const int64 before= worker_thd->status_var.local_memory_used;
+
+      if (create_internal_tmp_table_from_heap(worker_thd, table,
+                                              container->param->start_recinfo,
+                                              &container->param->recinfo,
+                                              err, 0, NULL,
+                                              /*cross_thread=*/ true))
+        return PWT_EMIT_ERROR;              // already reported
+
+      /*
+        What the rebuild allocated into the container is thread-specific memory
+        charged to this thread, and the manager is the thread that will free it.
+        Move the charge with the thing it accounts for: take it off our books,
+        so ~THD finds them square, and hand it to the manager in cleanup(),
+        which runs with every worker joined and before free_containers().
+        Adding to the manager's counter from here would race with the manager,
+        which is draining at the same time.
+      */
+      spilled_memory+= worker_thd->status_var.local_memory_used - before;
+      worker_thd->status_var.local_memory_used= before;
     }
     else
+    {
       table->file->print_error(err, MYF(0));
-    return PWT_EMIT_ERROR;
+      return PWT_EMIT_ERROR;
+    }
   }
 
   if (++since_check == PWT_ROW_GANULARITY)
@@ -982,7 +1009,18 @@ void pwt_tmp_table_sink::cleanup()
   {
     if (container->table)
       container->table->in_use= manager->thd;
+      container->table->file->rebind_to_thread();
     container= nullptr;
+  }
+  /*
+    The memory the worker allocated into the container and the manager is about
+    to free. Safe to touch the manager's counter here: every worker has been
+    joined, so this runs on the manager's own thread.
+  */
+  if (spilled_memory && manager->thd)
+  {
+    manager->thd->status_var.local_memory_used+= spilled_memory;
+    spilled_memory= 0;
   }
 }
 
@@ -1139,6 +1177,7 @@ int pwt_tmp_table_source::next_row(uchar *dst)
     */
     TABLE *t= next->container->table;
     t->in_use= manager->thd;
+    t->file->rebind_to_thread();
     if (int err= t->file->ha_rnd_init(true))
     {
       t->file->print_error(err, MYF(0));

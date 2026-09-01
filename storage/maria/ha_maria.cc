@@ -2752,6 +2752,21 @@ int ha_maria::info(uint flag)
 }
 
 
+/*
+  This handle is now being used by the calling thread. maria_open() cached a
+  pointer into the opening thread's my_thread_var for the stack-overflow guard
+  that alloc_on_stack() uses on the key, write, delete and blob paths; that
+  thread may since have gone, taking the my_thread_var with it. Point it at the
+  thread that is using the handle now.
+*/
+
+void ha_maria::rebind_to_thread()
+{
+  if (file)
+    file->stack_end_ptr= &my_thread_var->stack_ends_here;
+}
+
+
 int ha_maria::extra(enum ha_extra_function operation)
 {
   int tmp;

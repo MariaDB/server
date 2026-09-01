@@ -550,6 +550,13 @@ class pwt_tmp_table_sink : public pwt_row_sink
   pwt_row_container     *container;
   uint                  since_check; // rows written since we last read 'stop'
   /*
+    Thread-specific memory this worker allocated into the container while
+    rebuilding it on disk, and that the manager will free. Charged here on the
+    worker's THD, owed to the manager's, and handed over in cleanup() -- see
+    emit_row().
+  */
+  int64                 spilled_memory;
+  /*
     Under the manager's LOCK_data. 'done' is this producer saying its result
     set is complete and may be read; 'taken' is the consumer saying it has
     picked it up, so it is not picked twice. The batch transport's 'full' is
@@ -564,7 +571,7 @@ class pwt_tmp_table_sink : public pwt_row_sink
 public:
   pwt_tmp_table_sink():
     manager(nullptr), peer(nullptr), container(nullptr), since_check(0),
-    done(false), taken(false)
+    spilled_memory(0), done(false), taken(false)
   {}
 
   bool init(pwt_manager *mgr, pwt_tmp_table_source *peer_arg,
