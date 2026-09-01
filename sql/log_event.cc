@@ -930,11 +930,21 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
 err:
   if (unlikely(error))
   {
-    DBUG_ASSERT(!res);
 #ifdef MYSQL_CLIENT
+    /*
+      read_log_event(char*,...) may return a best-effort Unknown_log_event
+      together with an error string when reading with --force-read.  Such an
+      event cannot be used (it carries no format information), so free it and
+      report a generic unknown event instead.  The "no result on error"
+      assertion below only applies to the non-force-read case.
+    */
     if (force_opt)
+    {
+      delete res;
       DBUG_RETURN(new Unknown_log_event());
+    }
 #endif
+    DBUG_ASSERT(!res);
 
     /*
       The SQL slave thread will check *out_error to know
