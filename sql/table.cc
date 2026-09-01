@@ -768,7 +768,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
   ulong *rec_per_key= NULL;
-  KEY_PART_INFO *first_key_part= NULL, *key_part_end;
+  KEY_PART_INFO *first_key_part= NULL, *key_part_end= NULL;
   uint first_key_parts= 0;
 
   if (!keys)
