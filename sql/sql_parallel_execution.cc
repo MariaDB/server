@@ -1934,6 +1934,7 @@ int pwt_worker::execute_and_handoff()
   if (manager->row_layout().grouped)
   {
     exec.group_container.table->in_use= thd;
+    exec.group_container.table->file->rebind_to_thread();
     exec.group_container.table->use_all_columns();
   }
 
