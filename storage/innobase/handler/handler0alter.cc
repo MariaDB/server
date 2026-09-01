@@ -4310,20 +4310,19 @@ created_clustered:
 
 	if (add_fts_doc_idx) {
 		index_def_t*	index = indexdef++;
-		uint nfields = 1;
-
-		if (altered_table->versioned())
-			++nfields;
+		const uint	nfields = altered_table->versioned() + 1;
 		index->fields = static_cast<index_field_t*>(
-			mem_heap_alloc(heap, sizeof(*index->fields) * nfields));
+			mem_heap_alloc(heap, nfields * sizeof *index->fields));
 		index->n_fields = nfields;
 		index->fields[0].col_no = fts_doc_id_col;
 		index->fields[0].prefix_len = 0;
 		index->fields[0].descending = false;
 		index->fields[0].is_v_col = false;
 		if (nfields == 2) {
-			index->fields[1].col_no
-				= altered_table->s->vers.end_fieldno;
+			/* FTS_DOC_ID_INDEX(FTS_DOC_ID,row_end) */
+			index->fields[1].col_no = innodb_col_no(
+				altered_table->field[
+					altered_table->s->vers.end_fieldno]);
 			index->fields[1].prefix_len = 0;
 			index->fields[1].descending = false;
 			index->fields[1].is_v_col = false;
