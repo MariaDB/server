@@ -1,1 +1,1 @@
---loose-innodb_lock_waits
+--loose-innodb_lock_waits --log-bin --binlog-format=statement
