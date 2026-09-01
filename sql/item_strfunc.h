@@ -2643,6 +2643,30 @@ protected:
   { return get_item_copy<Item_temptable_rowid>(thd, this); }
 };
 
+class Item_func_mvi_encode : public Item_str_ascii_func
+{
+  Lex_cast_type_st m_cast_type;
+  String tmp_js;
+  json_engine_t je;
+public:
+  void print(String *str, enum_query_type query_type) override;
+  Item_func_mvi_encode(THD* thd, Item *expr, const Lex_cast_type_st &cast_type):
+    Item_str_ascii_func(thd, expr), m_cast_type(cast_type) {}
+  String *val_str_ascii(String *buf) override;
+  enum Functype functype() const override { return MVI_ENCODE_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("mvi_encode")};
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Item_func_mvi_encode>(thd, this);
+  }
+  Lex_cast_type_st &cast_type() { return m_cast_type; }
+};
+
 
 class Item_func_format_pico_time : public Item_str_ascii_func
 {

@@ -419,6 +419,7 @@ SYMBOL symbols[] = {
   { "MONITOR",          SYM(MONITOR_SYM)},
   { "MONTH",		SYM(MONTH_SYM)},
   { "MUTEX",  SYM(MUTEX_SYM)},
+  { "MVI_ENCODE",       SYM(MVI_ENCODE_SYM)},
   { "MYSQL",            SYM(MYSQL_SYM)},
   { "MYSQL_ERRNO",      SYM(MYSQL_ERRNO_SYM)},
   { "NAME",             SYM(NAME_SYM)},
