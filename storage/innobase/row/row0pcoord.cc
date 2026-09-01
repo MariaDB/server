@@ -42,7 +42,7 @@ Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 #include "ut0new.h"
 
 /** Tree depth at which we decide to split blocks further. */
-static constexpr size_t SPLIT_THRESHOLD{3};
+static constexpr size_t SPLIT_THRESHOLD{2};
 
 [[nodiscard]]
 static dberr_t pread_page_cur_search(buf_block_t *block,
@@ -218,6 +218,7 @@ void Parallel_coordinator::enqueue(std::shared_ptr<Exec_ctx> ctx)
 {
   mysql_mutex_lock(&m_mutex);
   m_ctxs.push_back(ctx);
+  mysql_cond_signal(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
 
@@ -225,13 +226,22 @@ std::shared_ptr<Parallel_coordinator::Exec_ctx> Parallel_coordinator::dequeue()
 {
   mysql_mutex_lock(&m_mutex);
 
-  if (m_ctxs.empty()) {
+  /* An empty queue does not always mean the scan is finished: a context
+  flagged m_to_be_resplit may not have yet enqueued its sub-contexts,
+  so wait until the re-split is finished. */
+  while (m_ctxs.empty() && m_n_resplitting > 0 && !is_error_set())
+    mysql_cond_wait(&m_cond, &m_mutex);
+
+  if (m_ctxs.empty() || is_error_set()) {
     mysql_mutex_unlock(&m_mutex);
     return (nullptr);
   }
 
   auto ctx = m_ctxs.front();
   m_ctxs.pop_front();
+
+  if (ctx->m_to_be_resplit)
+    ++m_n_resplitting;
 
   mysql_mutex_unlock(&m_mutex);
 
@@ -241,12 +251,12 @@ std::shared_ptr<Parallel_coordinator::Exec_ctx> Parallel_coordinator::dequeue()
 std::shared_ptr<Parallel_coordinator::Exec_ctx>
 Parallel_coordinator::get_job_for_worker(Worker_ctx *worker_ctx)
 {
-  /* Pull the next scannable context. A context flagged m_split is not
+  /* Pull the next scannable context. A context flagged m_to_be_resplit is not
   itself scanned: split() re-partitions its sub-tree one level deeper and
   enqueues the finer sub-contexts (for this worker and others), then we
-  pull again. This is the pull-based equivalent of the m_split handling in
-  Parallel_coordinator::worker() (which we don't use here) — it is what turns
-  the few coarse root-subtree ranges into one-leaf-page chunks on deep
+  pull again. This is the pull-based equivalent of the m_to_be_resplit handling
+  in Parallel_coordinator::worker() (which we don't use here) — it is what
+  turns the few coarse root-subtree ranges into one-leaf-page chunks on deep
   trees. Without it, a deep B-tree with a narrow root yields only a handful
   of huge chunks and almost no worker parallelism. */
   for (;;)
@@ -259,14 +269,25 @@ Parallel_coordinator::get_job_for_worker(Worker_ctx *worker_ctx)
     if (ctx->m_scan_ctx->is_error_set())
       return nullptr;
 
-    if (ctx->m_split)
+    if (ctx->m_to_be_resplit)
     {
-      dberr_t err = ctx->split();
+      const dberr_t err = ctx->split();
+
       if (err != DB_SUCCESS)
       {
         ctx->m_scan_ctx->set_error_state(err);
-        return nullptr;
+        set_error_state(err);
       }
+
+      mysql_mutex_lock(&m_mutex);
+      ut_ad(m_n_resplitting > 0);
+      --m_n_resplitting;
+      mysql_cond_broadcast(&m_cond);
+      mysql_mutex_unlock(&m_mutex);
+
+      if (err != DB_SUCCESS)
+        return nullptr;
+
       /* The sub-contexts are now queued; pull one for this worker. */
       continue;
     }
@@ -710,7 +731,7 @@ dberr_t Parallel_coordinator::Scan_ctx::partition(
 }
 
 dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
-                                                       bool split,
+                                                       bool resplit,
                                                        bool end_inclusive)
 {
   auto ctx_id =
@@ -729,7 +750,7 @@ dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
   }
   else
   {
-    ctx->m_split = split;
+    ctx->m_to_be_resplit = resplit;
     ctx->m_end_inclusive = end_inclusive;
     m_coordinator->enqueue(ctx);
   }
@@ -744,7 +765,11 @@ dberr_t Parallel_coordinator::Scan_ctx::create_contexts(const Ranges &ranges)
   {
     const auto n = std::max(num_workers(), size_t{1});
 
-    if (ranges.size() > n) {
+    /* m_depth <= 1 means the initial partition already reached the leaves, so
+    the ranges are one per leaf page and re-splitting does not make sense. */
+    if (m_depth <= 1)
+      split_point = ranges.size();          // flag nothing
+    else if (ranges.size() > n) {
       split_point = (ranges.size() / n) * n;
     } else if (m_depth < SPLIT_THRESHOLD) {
       /* If the tree is not very deep then don't split. For smaller tables
@@ -822,6 +847,9 @@ int Parallel_coordinator::initialize(size_t n_workers)
   if (err != 0)
     return err;
 
+  mysql_cond_init(PSI_NOT_INSTRUMENTED, &m_cond, nullptr);
+  m_n_resplitting= 0;
+
   m_worker_ctxs.reserve(n_workers);
   for (size_t i = 0; i < n_workers; ++i)
   {
@@ -830,6 +858,7 @@ int Parallel_coordinator::initialize(size_t n_workers)
     {
       for (auto *p : m_worker_ctxs) UT_DELETE(p);
       m_worker_ctxs.clear();
+      mysql_cond_destroy(&m_cond);
       mysql_mutex_destroy(&m_mutex);
       return HA_ERR_OUT_OF_MEM;
     }
@@ -859,9 +888,11 @@ Parallel_coordinator::get_worker_ctx(size_t worker_idx) const
     m_scan_ctx_id = 0;
     m_ctx_id.store(0, std::memory_order_relaxed);
     m_n_workers = 0;
+    m_n_resplitting = 0;
 
     m_err.store(DB_SUCCESS, std::memory_order_relaxed);
 
+    mysql_cond_destroy(&m_cond);
     mysql_mutex_destroy(&m_mutex);
 
     m_is_initialized = false;
