@@ -59,6 +59,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "page0cur.h"
 #include "trx0trx.h"
 #include "trx0sys.h"
+#include "btr0blink_alloc.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "rem0rec.h"
@@ -1050,6 +1051,7 @@ static void srv_shutdown_threads(bool init_abort= false)
 static void srv_shutdown_bg_undo_sources()
 {
   srv_shutdown_state= SRV_SHUTDOWN_INITIATED;
+  blink_page_pool_thread_stop();
 
   if (srv_undo_sources)
   {
@@ -2036,6 +2038,8 @@ skip_monitors:
 #endif /* WITH_WSREP */
 
 		dict_stats_init();
+		if (!srv_read_only_mode)
+			blink_page_pool_thread_start();
 
 		/* Create thread(s) that handles key rotation. This is
 		needed already here as log_preflush_pool_modified_pages

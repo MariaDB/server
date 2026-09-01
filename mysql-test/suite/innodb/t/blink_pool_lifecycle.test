@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,10),(2,20),(3,30);
+--sleep 1
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+--sleep 1
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

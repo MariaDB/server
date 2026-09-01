@@ -155,6 +155,8 @@ enum dberr_t {
 
 	DB_PAGE_CORRUPTED,		/* Page read from tablespace is
 					corrupted. */
+	DB_BLINK_RETRY = 200,
+	DB_BLINK_RETRY_POOL_EMPTY,
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,

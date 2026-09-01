@@ -112,6 +112,7 @@ bool blink_write_high_key_record(buf_block_t *block, const dtuple_t *key,
   ut_ad(index->type & DICT_BLINK);
   ut_ad(btr_page_get_next(block->page.frame) != FIL_NULL);
   ut_ad(!block->zip_size());
+  const byte direction= page_get_direction(block->page.frame);
   mem_heap_t *heap= mem_heap_create(512);
   rec_t *supremum= page_get_supremum_rec(block->page.frame);
   rec_t *previous= page_rec_get_prev(supremum);
@@ -143,6 +144,7 @@ bool blink_write_high_key_record(buf_block_t *block, const dtuple_t *key,
   if (inserted)
     mtr->write<2>(*block,
                   block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
+  page_set_split_direction(block, direction, mtr);
   const bool success= inserted && rec_is_high_key_structural(
     block->page.frame, inserted, index);
   mem_heap_free(heap);

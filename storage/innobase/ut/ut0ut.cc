@@ -309,6 +309,10 @@ ut_strerr(
 		return("Cannot allocate memory");
 	case DB_OUT_OF_FILE_SPACE:
 		return("Out of disk space");
+	case DB_BLINK_RETRY:
+		return("Retry B-link operation");
+	case DB_BLINK_RETRY_POOL_EMPTY:
+		return("Retry B-link operation after pool refill");
 	case DB_LOCK_WAIT:
 		return("Lock wait");
 	case DB_DEADLOCK:

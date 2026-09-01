@@ -932,6 +932,8 @@ system clustered index when there is no primary key. */
 static constexpr
 Lex_cstring GEN_CLUST_INDEX = "GEN_CLUST_INDEX"_LEX_CSTRING;
 
+struct blink_page_pool_t;
+
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
@@ -1302,6 +1304,7 @@ struct dict_index_t {
 				during online index creation;
 				valid when online_status is
 				ONLINE_INDEX_CREATION */
+	blink_page_pool_t* blink_page_pool;
 	/*----------------------*/
 	/** Statistics for query optimization */
 	/* @{ */

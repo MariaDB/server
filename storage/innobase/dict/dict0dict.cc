@@ -40,6 +40,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "sql_class.h"
 #include "sql_table.h"
 
+#include "btr0blink_alloc.h"
 #include "btr0cur.h"
 #include "buf0buf.h"
 #include "data0type.h"
@@ -1254,6 +1255,7 @@ dict_index_t *dict_index_t::clone() const
   dict_index_t *index= static_cast<dict_index_t*>
     (mem_heap_alloc(heap, sizeof *this));
   *index= *this;
+  index->blink_page_pool= nullptr;
   index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
   index->heap= heap;
   index->name= mem_heap_strdup(heap, name);
@@ -1281,6 +1283,9 @@ dict_index_t *dict_index_t::clone_if_needed()
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
+  blink_page_pool_unregister(this);
+  if (index->type & DICT_BLINK)
+    blink_page_pool_register(index);
   set_freed();
   if (prev)
     UT_LIST_INSERT_AFTER(table->indexes, prev, index);
@@ -1880,6 +1885,9 @@ dict_index_add_to_cache(
 
 	new_index->n_core_fields = new_index->n_fields;
 
+	if (new_index->type & DICT_BLINK)
+		blink_page_pool_register(new_index);
+
 	dict_mem_index_free(index);
 	index = new_index;
 	return DB_SUCCESS;
@@ -1907,6 +1915,8 @@ dict_index_remove_from_cache_low(
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */
+
+	blink_page_pool_unregister(index);
 
 	if (index->online_log) {
 		row_log_free(index->online_log);
