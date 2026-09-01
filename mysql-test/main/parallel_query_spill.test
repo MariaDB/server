@@ -1,0 +1,73 @@
+#
+# MDEV-39492 Parallel Query: a worker result set that outgrows its heap
+# container is rebuilt on disk and carries on there.
+#
+# The container a worker ships its rows through is a temporary table, and when
+# it fills, pwt_tmp_table_sink::emit_row() hands it to the server's own
+# create_internal_tmp_table_from_heap(). What makes that usable from a worker
+# is that the container is opened cross-thread, so Aria does not tie its own
+# allocations to the thread that opened it, and that the handle is rebound to
+# whichever thread is using it (handler::rebind_to_thread) -- the worker while
+# it writes, the manager when it reads the rows back.
+#
+# Created_tmp_disk_tables is what shows the rebuild really happened: one per
+# worker that filled. Row counts are read from status rather than computed,
+# because an aggregate over the query under test would run it serially and
+# measure nothing, and the statements they are read for run with the
+# prepared-statement protocol disabled: it executes a statement twice and the
+# counters would then read double.
+#
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--disable_service_connection
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, CONCAT(REPEAT('x',180), seq) FROM seq_1_to_400;
+SET SESSION parallel_worker_threads=4;
+SET SESSION tmp_memory_table_size=16384;
+SET SESSION max_heap_table_size=16384;
+
+# The output is narrow but the query reads b, so it is b that fills the
+# containers: what travels is the columns read, not the ones sent. LENGTH(b)
+# is evaluated by the manager, from the bytes that came back through a rebuilt
+# container, so the rows below check the content and not only the count.
+--echo # every row back from containers that had to be rebuilt
+--disable_ps_protocol
+FLUSH STATUS;
+--sorted_result
+SELECT a, LENGTH(b) FROM t1;
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers, all 400 rows, containers rebuilt (expect 1 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 400 AS every_row_arrived, $dt > 0 AS rebuilt_on_disk
+--enable_query_log
+
+# And at a size that used to fail the statement outright: 20000 rows of 200
+# bytes against a 64K heap container.
+SET SESSION tmp_memory_table_size=65536;
+SET SESSION max_heap_table_size=65536;
+INSERT INTO t1 SELECT seq, CONCAT(REPEAT('x',180), seq)
+  FROM seq_401_to_20000;
+--disable_ps_protocol
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers, all 20000 rows, containers rebuilt (expect 1 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 20000 AS every_row_arrived, $dt > 0 AS rebuilt_on_disk
+--enable_query_log
+
+SET SESSION tmp_memory_table_size=default;
+SET SESSION max_heap_table_size=default;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

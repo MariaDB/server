@@ -23565,13 +23565,23 @@ bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
 }
 
 
+/*
+  'cross_thread' says this table is not confined to one thread: more than one
+  will use it, and the thread that frees it need not be the one that opened it.
+  That drops HA_OPEN_INTERNAL_TABLE, so the share is a real one rather than a
+  private one, and adds HA_OPEN_GLOBAL_TMP_TABLE, which is what stops the
+  engine allocating its own structures MY_THREAD_SPECIFIC -- replication opens
+  its temporary tables the same way, for the same reason.
+*/
+
 bool open_tmp_table(TABLE *table, bool cross_thread)
 {
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            (cross_thread? 0 :
-                                                       HA_OPEN_INTERNAL_TABLE) |
+                                            (cross_thread
+                                             ? HA_OPEN_GLOBAL_TMP_TABLE
+                                             : HA_OPEN_INTERNAL_TABLE) |
                                             HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
@@ -24049,7 +24059,8 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                     TMP_ENGINE_COLUMNDEF **recinfo, 
                                     int error,
                                     bool ignore_last_dupp_key_error,
-                                    bool *is_duplicate)
+                                    bool *is_duplicate,
+                                    bool cross_thread)
 {
   TABLE new_table;
   TABLE_SHARE share;
@@ -24092,7 +24103,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                 thd->lex->first_select_lex()->options |
 			        thd->variables.option_bits))
     goto err2;
-  if (open_tmp_table(&new_table))
+  if (open_tmp_table(&new_table, cross_thread))
   {
     TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
     goto err2;

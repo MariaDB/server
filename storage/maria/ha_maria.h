@@ -112,6 +112,7 @@ public:
   int info(uint) override final;
   int info(uint, my_bool);
   int extra(enum ha_extra_function operation) override final;
+  void rebind_to_thread() override final;
   int extra_opt(enum ha_extra_function operation, ulong cache_size) override final;
   int reset(void) override final;
   int external_lock(THD * thd, int lock_type) override;

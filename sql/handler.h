@@ -3621,6 +3621,19 @@ private:
 public:
   virtual void unbind_psi();
   virtual void rebind_psi();
+
+  /*
+    Tell the engine that this open handle is now being used by the calling
+    thread.
+
+    An engine may have cached something about the thread that opened it.
+    Aria caches a pointer into that thread's my_thread_var, for the
+    stack-overflow guard its key and record paths use, and that pointer is
+    freed when the thread it belongs to goes. TABLE::in_use is the SQL layer
+    saying who owns the table; this says the same thing to the engine, and
+    belongs beside it.
+  */
+  virtual void rebind_to_thread() {}
   /* Return error if definition doesn't match for already opened table */
   virtual int discover_check_version() { return 0; }
 
