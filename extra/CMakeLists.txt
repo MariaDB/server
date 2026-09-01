@@ -66,18 +66,19 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT WITH_ASAN AND TARGET mariadbd)
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${my_plugin_dir}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${my_plugin_dir}"
   )
+
+  # Symlinks need a privilege not granted by default on Windows; use hardlinks there.
+  IF(WIN32)
+    SET(linktype hard)
+  ELSE()
+    SET(linktype sym)
+  ENDIF()
   FOREACH(target ${dynamic_plugins})
     LIST(APPEND plugin_load "$<TARGET_FILE_NAME:${target}>")
-     IF(WIN32)
-       SET(maybe_create_hardlink  || ${CMAKE_COMMAND} -E create_hardlink
-          $<TARGET_FILE:${target}>
-          "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>")
-     ENDIF()
-     LIST(APPEND populate_plugin_dir
-     COMMAND ${CMAKE_COMMAND} -E create_symlink
-     $<TARGET_FILE:${target}>
-     "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>"
-     ${maybe_create_hardlink})
+    LIST(APPEND populate_plugin_dir
+    COMMAND ${CMAKE_COMMAND} -E create_${linktype}link
+    $<TARGET_FILE:${target}>
+    "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>")
   ENDFOREACH()
 
   IF(NOT plugin_load)
