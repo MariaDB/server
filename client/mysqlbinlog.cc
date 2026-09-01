@@ -134,6 +134,7 @@ my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
+static bool offset_given= false;
 static char* host = 0;
 static int opt_mysql_port= 0;
 static uint my_end_arg;
@@ -176,6 +177,7 @@ static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
 static bool opt_skip_annotate_row_events= 0;
+static bool rewrite_db_used= false;
 
 static my_bool opt_flashback;
 static bool opt_print_table_metadata;
@@ -1977,6 +1979,11 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
 
   /* Write the GTID_LIST_EVENT to the output legacy binlog file */
   Gtid_list_log_event gle= Gtid_list_log_event(gtid_state);
+  if (!gle.is_valid())
+  {
+    error("Failed to create GTID_LIST_EVENT");
+    return true;
+  }
   if (write_gtid_list_event_to_legacy_binlog(*out_file, &gle))
   {
     error("Could not write GTID_LIST_EVENT to output legacy binlog file");
@@ -2807,6 +2814,9 @@ get_one_option(const struct my_option *opt, const char *argument,
   case 'd':
     one_database = 1;
     break;
+  case 'o':
+    offset_given= true;
+    break;
   case 'p':
     if (argument == disabled_my_option)
       argument= (char*) "";                     // Don't require password
@@ -2867,6 +2877,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       sql_print_error("Bad syntax in rewrite-db. Expected syntax is FROM->TO.");
       return 1;
     }
+    rewrite_db_used= true;
     break;
   }
   case OPT_PRINT_ROW_COUNT:
@@ -4045,11 +4056,13 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
           ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
         old_off + ev->data_written == my_b_tell(file));
 
-    if (opt_convert_engine_binlog) {
+    if (opt_convert_engine_binlog)
+    {
       if ((retval= write_event_to_legacy_binlog(ev)) != OK_CONTINUE)
         goto end;
     }
-    else {
+    else
+    {
       if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
           OK_CONTINUE)
         goto end;
@@ -4153,6 +4166,30 @@ int main(int argc, char** argv)
             "with --flashback");
       die(1);
     }
+    if (one_database)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --database");
+      die(1);
+    }
+    if (one_table)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --table");
+      die(1);
+    }
+    if (start_pos_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --start-position");
+      die(1);
+    }
+    if (start_datetime_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --start-datetime");
+      die(1);
+    }
     if (stop_datetime_given)
     {
       error("The --convert-engine-binlog option cannot be combined "
@@ -4163,6 +4200,54 @@ int main(int argc, char** argv)
     {
       error("The --convert-engine-binlog option cannot be combined "
             "with --stop-position");
+      die(1);
+    }
+    if (offset_given)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --offset");
+      die(1);
+    }
+    if (do_domain_ids_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --do-domain-ids");
+      die(1);
+    }
+    if (ignore_domain_ids_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --ignore-domain-ids");
+      die(1);
+    }
+    if (do_server_ids_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --do-server-ids");
+      die(1);
+    }
+    if (ignore_server_ids_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --ignore-server-ids");
+      die(1);
+    }
+    if (server_id_str)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --server-id");
+      die(1);
+    }
+    if (rewrite_db_used)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --rewrite-db");
+      die(1);
+    }
+    if (opt_skip_annotate_row_events)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --skip-annotate-row-events");
       die(1);
     }
     if (position_gtid_filter)

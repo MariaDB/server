@@ -17,6 +17,22 @@
 --error 1
 --exec $MYSQL_BINLOG --convert-engine-binlog --flashback placeholder.ibb 2>&1
 
+--echo *** --database is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --database=test placeholder.ibb 2>&1
+
+--echo *** --table is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --table=t1 placeholder.ibb 2>&1
+
+--echo *** Numeric --start-position is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --start-position=100 placeholder.ibb 2>&1
+
+--echo *** --start-datetime is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --start-datetime="2020-01-01 00:00:00" placeholder.ibb 2>&1
+
 --echo *** --stop-datetime is unsupported
 --error 1
 --exec $MYSQL_BINLOG --convert-engine-binlog --stop-datetime="2030-01-01 00:00:00" placeholder.ibb 2>&1
@@ -24,6 +40,42 @@
 --echo *** Numeric --stop-position is unsupported
 --error 1
 --exec $MYSQL_BINLOG --convert-engine-binlog --stop-position=100 placeholder.ibb 2>&1
+
+--echo *** --offset is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --offset=1 placeholder.ibb 2>&1
+
+--echo *** Explicit zero --offset is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --offset=0 placeholder.ibb 2>&1
+
+--echo *** --do-domain-ids is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --do-domain-ids=1 placeholder.ibb 2>&1
+
+--echo *** --ignore-domain-ids is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --ignore-domain-ids=1 placeholder.ibb 2>&1
+
+--echo *** --do-server-ids is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --do-server-ids=1 placeholder.ibb 2>&1
+
+--echo *** --ignore-server-ids is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --ignore-server-ids=1 placeholder.ibb 2>&1
+
+--echo *** --server-id is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --server-id=1 placeholder.ibb 2>&1
+
+--echo *** --rewrite-db is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --rewrite-db='test1->test2' placeholder.ibb 2>&1
+
+--echo *** --skip-annotate-row-events is unsupported
+--error 1
+--exec $MYSQL_BINLOG --convert-engine-binlog --skip-annotate-row-events placeholder.ibb 2>&1
 
 --echo *** GTID --start-position is unsupported
 --error 1
