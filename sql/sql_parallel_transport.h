@@ -208,14 +208,28 @@ public:
   uint              n_group;
   uint              group_parts, group_length, group_null_parts;
 
-  /* Whether the workers pre-aggregate per group at all. */
+  /*
+    Two different facts, which coincide until the fall-back separates them.
+
+    plan_aggregates: this plan has a post-join aggregation stage, so the
+    manager must hand each drained row to the plan's own terminal rather than
+    sending it to the client. True for the whole life of the layout.
+
+    grouped: the workers pre-aggregate, so a drained row carries one worker's
+    partials for a group and the manager primes its aggregates with them before
+    handing it over. Cleared by forget_aggregates() when the container turns
+    out to have no group index, and then the workers ship plain joined rows for
+    the manager's terminal to group -- which it still has to do.
+  */
+  bool              plan_aggregates;
   bool              grouped;
 
   pwt_row_layout():
     copy_back(nullptr), n_copy_back(0), reclength(0), join(nullptr),
     n_ship_base(0), n_sums(0), mgr_sums(nullptr), partial_items(nullptr),
     group_defn(nullptr), group_pos(nullptr), n_group(0),
-    group_parts(0), group_length(0), group_null_parts(0), grouped(false),
+    group_parts(0), group_length(0), group_null_parts(0),
+    plan_aggregates(false), grouped(false),
     saved_write_set(nullptr)
   {}
 
@@ -234,6 +248,10 @@ public:
 
   /* Define the partial columns and the key they accumulate per. */
   bool build_aggregates(THD *thd, ORDER *plan_group);
+  /* result_defn := one clone per shipped column, base columns only. */
+  bool clone_base_defn(THD *thd);
+  /* Give up pre-aggregating: the workers will ship rows instead. */
+  void forget_aggregates();
 
   /*
     Hand each of the query's own aggregates the partial now in recv, so that
@@ -248,6 +266,15 @@ public:
   */
   bool make_container(THD *thd, pwt_row_container *out,
                       ORDER *group= nullptr);
+  /*
+    The same, from a definition list of the caller's own rather than the
+    layout's. A worker's grouping table is built this way: its columns have to
+    be defined by items that read the *worker's* tables, because
+    create_tmp_table() derives the Copy_field pairs that fill the table from
+    them, and end_update() fills it through those pairs.
+  */
+  bool make_container_from(THD *thd, List<Item> &defn, pwt_row_container *out,
+                           ORDER *group);
   void free_container(THD *thd, pwt_row_container *c);
 
   /* Where the consumer receives a record image. */
