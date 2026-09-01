@@ -46,7 +46,8 @@ static bool rename_tables(THD *thd, TABLE_LIST *table_list,
                           DDL_LOG_STATE *ddl_log_state,
                           bool skip_error, bool if_exits,
                           bool *force_if_exists,
-                          bool *not_logged_temporary_tables);
+                          bool *not_logged_temporary_tables,
+                          FK_rename_vector &fk_rename_backup);
 
 /*
   Every two entries in the table_list form a pair of original name and
@@ -64,6 +65,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   const char *rename_log_table[2]= {NULL, NULL};
   DDL_LOG_STATE ddl_log_state;
   Postponed_error_handler postponed_handler(thd->mem_root);
+  FK_rename_vector fk_rename_backup;
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -177,7 +179,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
 
   error= rename_tables(thd, table_list, &ddl_log_state,
                        0, if_exists, &force_if_exists,
-                       &not_logged_temporary_tables);
+                       &not_logged_temporary_tables, fk_rename_backup);
 
   if (likely(!silent && !error))
   {
@@ -216,6 +218,16 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   thd->pop_internal_handler();
   if (likely(!error))
   {
+    for (FK_rename_backup &bak: fk_rename_backup)
+    {
+      error= fk_install_shadow_frm(thd, bak.old_name, bak.new_name);
+      if (error)
+        break;
+    }
+  }
+
+  if (likely(!error))
+  {
     query_cache_invalidate3(thd, table_list, 0);
     ddl_log_complete(&ddl_log_state);
     DBUG_ASSERT(!postponed_handler.has_errors());
@@ -225,6 +237,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     /* Revert the renames of normal tables with the help of the ddl log */
     ddl_log_revert(thd, &ddl_log_state);
     postponed_handler.emit_errors();
+    for (FK_rename_backup &bak: fk_rename_backup)
+      bak.rollback(thd);
   }
 
 err:
@@ -259,6 +273,8 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 struct rename_param
 {
   Lex_ident_table old_alias, new_alias;
+  Table_name new_name;
+  TABLE_LIST *ren_table;
   LEX_CUSTRING old_version;
   handlerton *from_table_hton;
 };
@@ -284,7 +300,7 @@ struct rename_param
 
 static int
 check_rename(THD *thd, rename_param *param,
-             const TABLE_LIST *ren_table,
+             TABLE_LIST *ren_table,
              const Lex_ident_db &new_db,
              const Lex_ident_table &new_table_name,
              const Lex_ident_table &new_table_alias,
@@ -332,6 +348,9 @@ check_rename(THD *thd, rename_param *param,
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
   }
+
+  param->new_name= {new_db, new_table_name};
+  param->ren_table= ren_table;
   DBUG_RETURN(0);
 }
 
@@ -359,8 +378,7 @@ check_rename(THD *thd, rename_param *param,
 
 static bool
 do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
-          TABLE_LIST *ren_table, const Lex_ident_db *new_db,
-          bool skip_error, bool *force_if_exists)
+          bool skip_error, bool *force_if_exists, FK_rename_vector &fk_rename_backup)
 {
   int rc= 1;
   handlerton *hton;
@@ -370,6 +388,8 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
   const Lex_ident_table * const old_alias= &param->old_alias;
   const Lex_ident_table * const new_alias= &param->new_alias;
+  const Lex_ident_db *new_db= &param->new_name.db;
+  TABLE_LIST *ren_table= param->ren_table;
   hton=      param->from_table_hton;
 
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -404,6 +424,15 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
                                                 *new_db,
                                                 *new_alias))
       DBUG_RETURN(!skip_error);
+
+    /*
+      NB: we cannot do fk_handle_rename() before rename_tables() because of
+
+        rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
+    */
+    if (!skip_error &&
+        fk_handle_rename(thd, ren_table, new_db, new_alias, fk_rename_backup))
+      DBUG_RETURN(1);
 
     thd->replication_flags= 0;
 
@@ -525,7 +554,8 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
 static bool
 rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
               bool skip_error, bool if_exists, bool *force_if_exists,
-              bool *not_logged_temporary_tables)
+              bool *not_logged_temporary_tables,
+              FK_rename_vector &fk_rename_backup)
 {
   TABLE_LIST *ren_table, *new_table;
   List<TABLE_PAIR> tmp_tables;
@@ -569,9 +599,8 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       if (error > 0)
         goto revert_rename;
 
-      if (do_rename(thd, &param, ddl_log_state,
-                    ren_table, &new_table->db,
-                    skip_error, force_if_exists))
+      if (do_rename(thd, &param, ddl_log_state, skip_error, force_if_exists,
+                    fk_rename_backup))
         goto revert_rename;
     }
   }
@@ -584,4 +613,15 @@ revert_rename:
     do_rename_temporary(thd, pair->to, pair->from);
 
   DBUG_RETURN(1);
+}
+
+
+FK_rename_backup::FK_rename_backup(Share_acquire&& _sa) :
+  FK_ddl_backup(std::forward<Share_acquire>(_sa))
+{
+  if (sa.share)
+  {
+    old_name= Table_name(sa.share->db, sa.share->table_name);
+    new_name= old_name;
+  }
 }

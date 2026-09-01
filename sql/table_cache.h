@@ -18,6 +18,8 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
+#include "table.h"
+
 struct Share_free_tables
 {
   typedef I_P_List <TABLE, TABLE_share> List;
@@ -93,6 +95,103 @@ extern void tc_purge();
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
 extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
+
+
+class Share_lock
+{
+public:
+  TDC_element *element;
+
+  Share_lock(THD *thd, const char *db, const char *table)
+  {
+    element= tdc_lock_share(thd, db, table);
+  }
+  ~Share_lock()
+  {
+    if (element)
+      tdc_unlock_share(element);
+  }
+};
+
+
+class Share_acquire
+{
+public:
+  bool flush_unused;
+  TABLE_SHARE *share;
+  bool error= false;  // set by acquire(): non-suppressed acquisition error
+
+  /*
+    Inexistent table error suppression policy (ER_NO_SUCH_TABLE,
+    ER_NO_SUCH_TABLE_IN_ENGINE) while acquiring the share:
+
+    INEXISTENT_IGNORE  - always suppress the error and leave share NULL. Used
+                         when the caller knows the table may legally be gone
+                         (e.g. resolving a referenced table that was already
+                         dropped).
+    INEXISTENT_RESPECT - suppress the error only under foreign_key_checks=0,
+                         where the user explicitly permits dangling foreign
+                         keys; otherwise the missing table is a genuine error.
+    INEXISTENT_ALWAYS  - never suppress the error: let it propagate regardless of
+                         foreign_key_checks, so the caller's own handler sees it
+                         (e.g. DROP TABLE inspects got_error() to tell apart
+                         missing frm / wrong object / corrupt frm).
+  */
+  typedef enum inexistent_enum
+  {
+    INEXISTENT_IGNORE,
+    INEXISTENT_RESPECT,
+    INEXISTENT_ALWAYS
+  }
+  inexistent_t;
+
+  Share_acquire() : flush_unused(false), share(NULL) {}
+  template <class TABLE_NAME>
+  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags= 0,
+                inexistent_t inexistent_check= INEXISTENT_RESPECT) :
+  flush_unused(false)
+  {
+    acquire(thd, tn, flags, inexistent_check);
+  }
+  Share_acquire(const Share_acquire &src)= delete;
+
+  // NB: noexcept is required for STL containers
+  Share_acquire(Share_acquire &&src) noexcept :
+    flush_unused(src.flush_unused), share(src.share), error(src.error)
+  {
+    src.share= NULL;
+  }
+  template <class TABLE_NAME>
+  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags,
+                bool use_check_foreign) :
+  Share_acquire(thd, tn, flags, use_check_foreign ? INEXISTENT_RESPECT : INEXISTENT_IGNORE)
+  {}
+  ~Share_acquire();
+  void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0,
+               inexistent_t inexistent_check= INEXISTENT_RESPECT);
+  void acquire(THD *thd, Table_name &tn, uint flags= 0,
+               inexistent_t inexistent_check= INEXISTENT_RESPECT)
+  {
+    TABLE_LIST tl;
+    tl.init_one_table(&tn.db, &tn.name, NULL, TL_IGNORE);
+    return acquire(thd, tl, flags, inexistent_check);
+  }
+  void release()
+  {
+    if (share)
+    {
+      if (flush_unused)
+        share->tdc->flush_unused(true);
+      tdc_release_share(share);
+      share= NULL;
+    }
+  }
+};
+
+
+struct Share_map: public mbd::map<Table_name, Share_acquire, Table_name_lt>
+{};
+
 
 /**
   Create a table cache key for non-temporary table.

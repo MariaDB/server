@@ -79,7 +79,6 @@ exec $MYSQL_DUMP --compact --dump-slave --include-master-host-port test;
 
 # cleanup after mariadb-dump executed START SLAVE
 call mtr.add_suppression('Slave I/O: Fatal error: .* Connection attempt terminated');
-reset slave;
-change master to master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+reset slave all;
 
 --echo # End of 10.6 tests

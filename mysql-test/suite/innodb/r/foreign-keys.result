@@ -217,8 +217,8 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-drop table t1,t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
+drop table t2, t1;
 ERROR 42S02: Unknown table 'test.t2'
 #
 # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
@@ -271,5 +271,5 @@ t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшш
 CREATE TABLE t (id INT PRIMARY KEY, f INT NOT NULL, KEY(f)) ENGINE=InnoDB;
 SET STATEMENT FOREIGN_KEY_CHECKS = OFF FOR
 ALTER TABLE t ADD FOREIGN KEY (f) REFERENCES t (id) ON UPDATE SET NULL;
-ERROR HY000: Failed to add the foreign key constraint on table 't'. Incorrect options in FOREIGN KEY constraint '(null)'
+ERROR HY000: Failed to add the foreign key constraint on table 't'. Incorrect options in FOREIGN KEY constraint '1'
 DROP TABLE t;

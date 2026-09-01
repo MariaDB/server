@@ -206,6 +206,6 @@ EXPLAIN EXTENDED
 	  select emp_id from employees) dt) du) dv) dw;
 
 set session optimizer_switch='derived_merge=on';
-DROP TABLE employees, salaries;
+DROP TABLE salaries, employees;
 
 --echo # End of 12.1 tests

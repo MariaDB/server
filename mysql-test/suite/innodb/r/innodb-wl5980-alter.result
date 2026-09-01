@@ -445,7 +445,7 @@ ID	FOR_COL_NAME	REF_COL_NAME	POS
 t1c2	c2	c3	0
 t1c3	c3	c2	0
 ALTER TABLE t1 DROP INDEX c2;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c.t1c2' in the referenced table 't1'
 ALTER TABLE t1 DROP INDEX c4;
 ERROR 42000: Can't DROP INDEX `c4`; check that it exists
 ALTER TABLE t1c DROP FOREIGN KEY c2;
@@ -455,7 +455,7 @@ ERROR 42000: Can't DROP FOREIGN KEY `c2`; check that it exists
 ALTER TABLE t1c DROP FOREIGN KEY t1c2, DROP FOREIGN KEY c2, DROP INDEX c2;
 ERROR 42000: Can't DROP FOREIGN KEY `c2`; check that it exists
 ALTER TABLE t1c DROP INDEX c2;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c2' in the foreign table 't1c'
 ALTER TABLE t1c DROP FOREIGN KEY ẗ1C2;
 ERROR 42000: Can't DROP FOREIGN KEY `ẗ1C2`; check that it exists
 SHOW CREATE TABLE t1c;
@@ -520,9 +520,9 @@ t1c3	c3	c2	0
 CREATE TABLE t1p (c1 INT PRIMARY KEY, c2 INT, INDEX(c2))
 ENGINE=InnoDB DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
 ALTER TABLE t1c DROP INDEX C2, DROP INDEX C3;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c2' in the foreign table 't1c'
 ALTER TABLE t1c DROP INDEX C3;
-ERROR HY000: Cannot drop index 'c3': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c3' in the foreign table 't1c'
 SET foreign_key_checks=0;
 ALTER TABLE t1c DROP INDEX C3;
 ### files in MYSQL_DATA_DIR/test

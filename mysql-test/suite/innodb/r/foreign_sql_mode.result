@@ -60,6 +60,6 @@ f3 INT DEFAULT NULL,
 PRIMARY KEY(f1, f2),
 FOREIGN KEY(f2, f3) REFERENCES t1(f2, f1)
 ON UPDATE CASCADE)ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't2.1' in the referenced table 't1'
 DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t1;

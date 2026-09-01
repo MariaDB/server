@@ -845,6 +845,9 @@ public:
   bool upgrade_shared_lock(MDL_ticket *mdl_ticket,
                            enum_mdl_type new_type,
                            double lock_wait_timeout);
+  bool upgrade_shared_locks(MDL_request_list *mdl_requests,
+                            enum_mdl_type new_type,
+                            double lock_wait_timeout);
 
   MDL_ticket *acquire_lock(MDL_key::enum_mdl_namespace mdl_namespace,
                            const char *db, const char *name,

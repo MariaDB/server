@@ -18,7 +18,9 @@ CREATE TABLE `d255`.`d245` (x INT) ENGINE=InnoDB;
 DROP TABLE `d255`.`d250`;
 RENAME TABLE `d250#`.`d245` TO `d250#`.`d250`;
 RENAME TABLE `d255`.`d250` TO a;
-DROP TABLE a,t;
+DROP TABLE a;
+flush tables;
+drop table t;
 #
 # MDEV-29409 Buffer overflow in my_wc_mb_filename() on RENAME TABLE
 #

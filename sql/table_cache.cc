@@ -1360,3 +1360,53 @@ void TDC_element::flush_unused(bool mark_flushed)
   while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
+
+
+Share_acquire::~Share_acquire()
+{
+  if (share)
+  {
+    if (flush_unused)
+      share->tdc->flush_unused(true);
+    tdc_release_share(share);
+  }
+}
+
+
+void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags,
+                            inexistent_t inexistent_check)
+{
+  Diagnostics_area *da= thd->get_stmt_da();
+  Warning_info tmp_wi(thd->query_id, false, true);
+  No_such_table_error_handler no_such_table;
+  /*
+    Resolve the missing-table policy (see Share_acquire::inexistent_t). Only
+    INEXISTENT_RESPECT consults check_foreign() (the foreign_key_checks session
+    switch). When suppressing the error we install No_such_table_error_handler
+    below so the ER_NO_SUCH_TABLE family is swallowed and acquisition just yields
+    no share; otherwise the error is left in place for the caller to handle.
+  */
+  bool ignore_missing;
+  switch (inexistent_check)
+  {
+  case INEXISTENT_IGNORE:
+    ignore_missing= true;
+    break;
+  case INEXISTENT_RESPECT:
+    ignore_missing= !thd->variables.check_foreign();
+    break;
+  case INEXISTENT_ALWAYS:
+    ignore_missing= false;
+    break;
+  }
+
+  da->push_warning_info(&tmp_wi);
+  if (ignore_missing)
+    thd->push_internal_handler(&no_such_table);
+  share= tdc_acquire_share(thd, &tl, GTS_TABLE|flags);
+  if (ignore_missing)
+    thd->pop_internal_handler();
+  da->pop_warning_info();
+
+  error= !share && thd->is_error();
+}
