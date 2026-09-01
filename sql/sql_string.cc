@@ -1114,6 +1114,12 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
                                 const char *from, size_t from_length,
                                 size_t nchars)
 {
+  if (!from_length)
+  {
+    m_cannot_convert_error_pos= m_well_formed_error_pos= NULL;
+    m_source_end_pos= from;
+    return 0;
+  }
   if ((to_cs == &my_charset_bin) || 
       (from_cs == &my_charset_bin) ||
       (to_cs == from_cs) ||
