@@ -1,0 +1,42 @@
+*** --read-from-remote-server is unsupported
+ERROR: The --convert-engine-binlog option does not support --read-from-remote-server
+*** --raw is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --raw
+*** --flashback is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --flashback
+*** --database is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --database
+*** --table is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --table
+*** Numeric --start-position is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --start-position
+*** --start-datetime is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --start-datetime
+*** --stop-datetime is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --stop-datetime
+*** Numeric --stop-position is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --stop-position
+*** --offset is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --offset
+*** Explicit zero --offset is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --offset
+*** --do-domain-ids is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --do-domain-ids
+*** --ignore-domain-ids is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --ignore-domain-ids
+*** --do-server-ids is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --do-server-ids
+*** --ignore-server-ids is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --ignore-server-ids
+*** --server-id is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --server-id
+*** --rewrite-db is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --rewrite-db
+*** --skip-annotate-row-events is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --skip-annotate-row-events
+*** GTID --start-position is unsupported
+ERROR: The --convert-engine-binlog option cannot be combined with --start-position
+*** GTID --stop-position is unsupported
+ERROR: The --convert-engine-binlog option does not support GTID values for --start-position or --stop-position
+*** Legacy binlog input is unsupported
+ERROR: The --convert-engine-binlog option requires InnoDB-engine binlog input files
