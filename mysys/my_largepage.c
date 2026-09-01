@@ -36,7 +36,7 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
 
-my_bool my_use_large_pages;
+READ_ONLY_SYSVAR myf my_large_pages_flag;
 
 #ifdef _WIN32
 static size_t my_large_page_size;
@@ -187,7 +187,7 @@ static size_t my_next_large_page_size(size_t sz, int *start)
 
 int my_init_large_pages(void)
 {
-  my_use_large_pages= 1;
+  my_large_pages_flag= MY_TRY_LARGE_PAGES;
 #ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
@@ -196,12 +196,19 @@ int my_init_large_pages(void)
                     " large-pages, see "
 		    "https://mariadb.com/docs/server/ha-and-performance/mariadb-memory-allocation#huge-pages"
                     , MYF(MY_WME));
-    my_use_large_pages= 0;
+    my_large_pages_flag= 0;
   }
   my_large_page_size= GetLargePageMinimum();
 #endif
 
   my_get_large_page_sizes(my_large_page_sizes);
+#ifndef _WIN32
+  if (!my_large_page_sizes[0])
+  {
+    /* No large page size is available; never attempt large pages. */
+    my_large_pages_flag= 0;
+  }
+#endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
   extern my_bool opt_super_large_pages;
@@ -256,7 +263,7 @@ int my_init_large_pages(void)
 */
 void my_large_page_truncate(size_t *size)
 {
-  if (my_use_large_pages)
+  if (my_large_pages_flag)
   {
     size_t large_page_size= 0;
 #ifdef _WIN32
@@ -295,13 +302,21 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
 uchar *my_large_malloc(size_t *size, myf my_flags)
 {
   uchar *ptr= NULL;
+  /*
+    Only actually attempt large pages if the caller passed
+    MY_TRY_LARGE_PAGES (the caller is expected to only pass what it got
+    from my_large_pages_flag); otherwise always do a plain allocation of
+    the exact requested size, so *size is never rounded up to the large
+    page granularity.
+  */
+  const my_bool use_large_pages= (my_flags & MY_TRY_LARGE_PAGES) != 0;
 
 #ifdef _WIN32
   DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
   size_t orig_size= *size;
   DBUG_ENTER("my_large_malloc");
 
-  if (my_use_large_pages)
+  if (use_large_pages)
   {
     alloc_type|= MEM_LARGE_PAGES;
     /* Align block size to my_large_page_size */
@@ -312,7 +327,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   {
     if (my_flags & MY_WME)
     {
-      if (my_use_large_pages)
+      if (use_large_pages)
       {
         my_printf_error(EE_OUTOFMEMORY,
                         "Couldn't allocate %zu bytes (MEM_LARGE_PAGES page "
@@ -325,7 +340,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
         my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_ERROR_LOG), *size);
       }
     }
-    if (my_use_large_pages)
+    if (use_large_pages)
     {
       *size= orig_size;
       ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -345,7 +360,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   while (1)
   {
     mapflag= MAP_PRIVATE | OS_MAP_ANON;
-    if (my_use_large_pages)
+    if (use_large_pages)
     {
       large_page_size= my_next_large_page_size(*size, &page_i);
       /* this might be 0, in which case we do a standard mmap */
@@ -432,16 +447,39 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   Special large pages allocator, with possibility to commit to allocating
   more memory later.
   Every implementation returns a zero filled buffer here.
+  Initial protection of returned buffer is readwrite, if MY_TRY_LARGE_PAGES
+  is set in my_flags or on AIX(ask Marko why), but no access otherwise.
+  The caller is expected to call my_virtual_mem_commit() before using memory.
 */
-char *my_large_virtual_alloc(size_t *size)
+char *my_large_virtual_alloc(size_t *size, myf my_flags)
 {
   char *ptr;
+#ifdef _AIX
+  int flags= MAP_PRIVATE | OS_MAP_ANON;
+  int prot= PROT_READ | PROT_WRITE;
+#else
+  /*
+    Illumos important to have MAP_NORESERVE otherwise reserves all swap. On
+    innodb_buffer_pool_size_max overallocation.
+    Linux is controlled on sysctl vm.overcommit_memory.
+  */
+  int flags= MAP_PRIVATE | OS_MAP_ANON | MAP_NORESERVE;
+  int prot= PROT_NONE;
+#endif
   DBUG_ENTER("my_large_virtual_alloc");
 
-  if (my_use_large_pages)
+  if (my_flags & MY_TRY_LARGE_PAGES)
   {
     size_t large_page_size;
     int page_i= 0;
+    /*
+      MY_TRY_LARGE_PAGES needs memory that is guaranteed to be usable right
+      away, whether or not a usable large page size is found below, so
+      MAP_NORESERVE does not apply here (matching the loop's own mapflag,
+      which never uses it either). On AIX, this is already the case.
+    */
+    prot= PROT_READ | PROT_WRITE;
+    flags= MAP_PRIVATE | OS_MAP_ANON;
 
     while ((large_page_size= my_next_large_page_size(*size, &page_i)) != 0)
     {
@@ -469,7 +507,7 @@ char *my_large_virtual_alloc(size_t *size)
         OS_MAP_ANON;
 
       size_t aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
-      ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+      ptr= mmap(NULL, aligned_size, prot, mapflag, -1, 0);
       if (ptr == MAP_FAILED)
       {
         ptr= NULL;
@@ -490,24 +528,9 @@ char *my_large_virtual_alloc(size_t *size)
         DBUG_RETURN(ptr);
       }
     }
-
-    my_use_large_pages= FALSE;
   }
 
-# ifdef _AIX
-  /* On IBM AIX, my_virtual_mem_commit() relies on mprotect(2) rather than
-  a subsequent mmap(2) with MAP_FIXED. */
-  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | OS_MAP_ANON, -1, 0);
-# else
-/*
-  Illumos important to have MAP_NORESERVE otherwise reserves all swap. On
-  innodb_buffer_pool_size_max overallocation.
-  Linux is controlled on sysctl vm.overcommit_memory.
-*/
-  ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON | MAP_NORESERVE,
-            -1, 0);
-# endif
+  ptr= mmap(NULL, *size, prot, flags, -1, 0);
   if (ptr == MAP_FAILED)
     ptr= NULL;
 

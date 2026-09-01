@@ -3778,7 +3778,7 @@ static int innodb_init_params()
   const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
   if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
-      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
+      my_large_pages_flag /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 

@@ -37,12 +37,14 @@
   InnoDB, the only user of this functionality), but it's the established
   terminology.
 
-  We try to respect use_large_pages setting, both on Windows and Linux
+  The caller requests large pages by passing my_large_pages_flag in
+  my_flags, consistently across the reserve/commit/decommit/release
+  calls for a given allocation.
 */
-char *my_virtual_mem_reserve(size_t *size)
+char *my_virtual_mem_reserve(size_t *size, myf my_flags)
 {
 #ifdef _WIN32
-  DWORD flags= my_use_large_pages
+  DWORD flags= (my_flags & MY_TRY_LARGE_PAGES)
     ? MEM_LARGE_PAGES | MEM_RESERVE | MEM_COMMIT
     : MEM_RESERVE;
   char *ptr= VirtualAlloc(NULL, *size, flags, PAGE_READWRITE);
@@ -55,7 +57,7 @@ char *my_virtual_mem_reserve(size_t *size)
   }
   return ptr;
 #else
-  return my_large_virtual_alloc(size);
+  return my_large_virtual_alloc(size, my_flags);
 #endif
 }
 
@@ -76,12 +78,12 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 
   This is compatible with the mmap / VirtualAlloc semantics.
 */
-char *my_virtual_mem_commit(char *ptr, size_t size)
+char *my_virtual_mem_commit(char *ptr, size_t size, myf my_flags)
 {
 #ifdef _WIN32
   if (!ptr)
     return VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-  if (my_use_large_pages)
+  if (my_flags & MY_TRY_LARGE_PAGES)
   {
     DBUG_ASSERT(is_memory_committed(ptr, size));
   }
@@ -102,7 +104,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     return p == MAP_FAILED ? NULL : p;
   }
-  if (my_use_large_pages)
+  if (my_flags & MY_TRY_LARGE_PAGES)
     /* my_large_virtual_alloc() already created a read/write mapping. */;
   else
   {
@@ -142,11 +144,11 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
   return ptr;
 }
 
-void my_virtual_mem_decommit(char *ptr, size_t size)
+void my_virtual_mem_decommit(char *ptr, size_t size, myf my_flags)
 {
 #ifdef _WIN32
   DBUG_ASSERT(is_memory_committed(ptr, size));
-  if (!my_use_large_pages)
+  if (!(my_flags & MY_TRY_LARGE_PAGES))
   {
     if (!VirtualFree(ptr, size, MEM_DECOMMIT))
     {
@@ -183,8 +185,9 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
   update_malloc_size(-(longlong) size, 0);
 }
 
-void my_virtual_mem_release(char *ptr, size_t size)
+void my_virtual_mem_release(char *ptr, size_t size, myf my_flags)
 {
+  (void) my_flags;
 #ifdef _WIN32
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {
