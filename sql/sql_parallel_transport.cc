@@ -71,12 +71,67 @@ void pwt_transport_init_psi_keys(void)
   @return  true on error (my_error() has been called).
 */
 
+/*
+  @brief
+    result_defn := one clone per shipped column.
+
+  @description
+    Clones, so that the query's own items are never bound to a container field,
+    and so that the definition can be rebuilt from scratch -- which is what the
+    fall-back out of pre-aggregation does, having appended partial columns to a
+    definition it then has to take them back off.
+
+  @return true on error (my_error() called).
+*/
+
+bool pwt_row_layout::clone_base_defn(THD *thd)
+{
+  result_defn.empty();
+  List_iterator_fast<Item> li(ship_list);
+  Item *sel_item;
+  while ((sel_item= li++))
+  {
+    Item *c= sel_item->deep_copy_with_checks(thd);
+    if (!c || result_defn.push_back(c, thd->mem_root))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
+      return true;
+    }
+  }
+  n_ship_base= result_defn.elements;
+  return false;
+}
+
+
+/*
+  Forget that the workers were going to pre-aggregate. Everything downstream
+  reads 'grouped' -- the worker's terminal, its setup, and the manager's drain
+  -- so clearing it here is the whole of the decision. The allocations stay on
+  the statement's mem_root, which outlives all of this.
+*/
+
+void pwt_row_layout::forget_aggregates()
+{
+  /* plan_aggregates stays: the query still groups, the manager just does it. */
+  grouped=          false;
+  n_sums=           0;
+  mgr_sums=         nullptr;
+  partial_items=    nullptr;
+  group_defn=       nullptr;
+  group_pos=        nullptr;
+  n_group=          0;
+  group_parts=      0;
+  group_length=     0;
+  group_null_parts= 0;
+}
+
+
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
                            uint n_tables, ORDER *plan_group)
 {
   DBUG_ENTER("pwt_row_layout::build");
   join= join_arg;
-  grouped= (plan_group != nullptr);
+  plan_aggregates= grouped= (plan_group != nullptr);
 
   for (uint t= 0; t < n_tables; t++)
   {
@@ -117,21 +172,8 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
     DBUG_RETURN(true);
   }
 
-  {
-    List_iterator_fast<Item> li(ship_list);
-    Item *sel_item;
-    while ((sel_item= li++))
-    {
-      Item *c= sel_item->deep_copy_with_checks(thd);
-      if (!c || result_defn.push_back(c, thd->mem_root))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
-        DBUG_RETURN(true);
-      }
-    }
-  }
-
-  n_ship_base= result_defn.elements;
+  if (clone_base_defn(thd))
+    DBUG_RETURN(true);
 
   /*
     Define grouping information in our per worker aggregate container.
@@ -141,28 +183,64 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
   if (grouped && build_aggregates(thd, plan_group))
     DBUG_RETURN(true);
 
-  if (make_container(thd, &recv, false,
-                     grouped ? clone_group_defn(thd) : nullptr))
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "parallel query: failed to build the result row container");
-    DBUG_RETURN(true);
-  }
-  reclength= recv.table->s->reclength;
-
   /*
-    if create_tmp_table() called above in make_container failed to build an
-    index and instead uses a unique contraint, refuse to pre-aggregate in the
-    workers.
+    Twice at most: once wanting to pre-aggregate, and once more having found
+    that this plan cannot. See the foot of the loop.
   */
-  if (grouped &&
-      !(recv.table->group && recv.table->s->keys == 1 &&
-        !recv.table->s->have_unique_constraint()))
+  for (;;)
   {
+    ORDER *group= nullptr;
+    if (grouped && !(group= clone_group_defn(thd)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
+      DBUG_RETURN(true);
+    }
+    if (make_container(thd, &recv, group))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "parallel query: failed to build the result row container");
+      DBUG_RETURN(true);
+    }
+
+    /*
+      A group key create_tmp_table() could not build as an index is not one a
+      worker can look a group up in: it falls back to a unique constraint, which
+      is a hash of the row in a hidden column, enforced on write, with nothing
+      to read a group back out of. accumulate_group() needs the index.
+
+      Whether it managed one can only be asked here, of the finished table.
+      can_run_query_in_workers() asks what it can of the SQL -- the key parts
+      are plain columns, none wider than a varchar, the whole no wider than a
+      blob -- but whether that becomes an index depends on the engine
+      create_tmp_table() picked and that engine's own key limits, and it picks
+      the engine from the row it is building.
+
+      So give up pre-aggregating and build the layout the query would have had
+      without it. The query still runs in the workers; they ship their rows and
+      the manager groups them, which is what every query did before there were
+      partials to ship.
+    */
+    bool no_group_index= !(recv.table->group && recv.table->s->keys == 1 &&
+                           !recv.table->s->have_unique_constraint());
+    /*
+      Nothing this tree can express reaches the real thing: the gate already
+      refuses the two shapes that make create_tmp_table() fall back for a heap
+      container, and its engine-limit test is only in the on-disk branch. So
+      the fall-back is reached on demand instead, or it would never be run.
+    */
+    DBUG_EXECUTE_IF("pwt_no_group_index", no_group_index= true;);
+
+    if (!grouped || !no_group_index)
+      break;
+
     DBUG_PRINT("info", ("no group index on the result container, "
                         "shipping rows instead"));
-    DBUG_RETURN(true);
+    free_container(thd, &recv);
+    forget_aggregates();
+    if (clone_base_defn(thd))
+      DBUG_RETURN(true);
   }
+  reclength= recv.table->s->reclength;
 
   /*
     Pair each container column with the base-table field it was projected from,
@@ -320,6 +398,14 @@ ORDER *pwt_row_layout::clone_group_defn(THD *thd)
 bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out,
                                     ORDER *group)
 {
+  return make_container_from(thd, result_defn, out, group);
+}
+
+
+bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
+                                         pwt_row_container *out,
+                                         ORDER *group)
+{
   /*
     A param of its own, per container. Two reasons, and the second is the one
     that bites: create_tmp_table() overwrites param->func_count with the number
@@ -337,7 +423,7 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out,
     return true;
   }
   param->init();
-  count_field_types(join->select_lex, param, result_defn, false);
+  count_field_types(join->select_lex, param, defn, false);
   param->skip_create_table= true;
   /* The key sizes measured once in build_aggregates(), not re-derived here. */
   param->group_parts=      group_parts;
@@ -355,7 +441,7 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out,
     than the projection walks over.
   */
   const ulonglong opts= join->select_options | TMP_TABLE_ALL_COLUMNS;
-  TABLE *t= create_tmp_table(thd, param, result_defn,
+  TABLE *t= create_tmp_table(thd, param, defn,
                              group, false, grouped,
                              opts, HA_POS_ERROR,
                              &empty_clex_str, true, false);
@@ -373,8 +459,8 @@ bool pwt_row_layout::make_container(THD *thd, pwt_row_container *out,
     or walking past the end of the field array. Refuse instead, whatever the
     reason turns out to be.
   */
-  DBUG_ASSERT(t->s->fields == result_defn.elements);
-  if (t->s->fields != result_defn.elements)
+  DBUG_ASSERT(t->s->fields == defn.elements);
+  if (t->s->fields != defn.elements)
   {
     free_tmp_table(thd, t);
     return true;
