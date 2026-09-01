@@ -10872,6 +10872,19 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_ERROR);
 
   ha_table_option_struct *orig_opst= ha_alter_info->create_info->option_struct;
+  /*
+    Per-partition engine options must be taken from the new table definition.
+    The engine compares create_info->option_struct (the new options) against
+    handler::option_struct (the options the partition was opened with), and the
+    latter is m_part_info's option_struct_part. Using m_part_info here would
+    make the engine compare the old options against themselves.
+
+    altered_table was opened from the new .frm, where parse_engine_part_options()
+    has merged the new table-level options into every partition_element.
+  */
+  DBUG_ASSERT(altered_table->part_info);
+  DBUG_ASSERT(altered_table->part_info->get_tot_partitions() == m_tot_parts);
+
   do {
     result= HA_ALTER_INPLACE_NO_LOCK;
     /* Set all to NULL, including the terminating one. */
@@ -10880,7 +10893,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
 
     ha_alter_info->handler_flags |= ALTER_PARTITIONED;
     orig_flags= ha_alter_info->handler_flags;
-    partition_element_iterator part_it(m_part_info->partitions);
+    partition_element_iterator part_it(altered_table->part_info->partitions);
     for (index= 0; index < m_tot_parts; index++)
     {
       ha_alter_info->create_info->option_struct= (part_it++)->option_struct_part;
@@ -10940,14 +10953,22 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);
 
+  /* Per-partition engine options, see check_if_supported_inplace_alter(). */
+  DBUG_ASSERT(altered_table->part_info);
+  DBUG_ASSERT(altered_table->part_info->get_tot_partitions() == m_tot_parts);
+
+  ha_table_option_struct *orig_opst= ha_alter_info->create_info->option_struct;
+  partition_element_iterator part_it(altered_table->part_info->partitions);
   for (index= 0; index < m_tot_parts && !error; index++)
   {
+    ha_alter_info->create_info->option_struct= (part_it++)->option_struct_part;
     ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[index];
     if (m_file[index]->ha_prepare_inplace_alter_table(altered_table,
                                                       ha_alter_info))
       error= true;
     part_inplace_ctx->handler_ctx_array[index]= ha_alter_info->handler_ctx;
   }
+  ha_alter_info->create_info->option_struct= orig_opst;
   ha_alter_info->handler_ctx= part_inplace_ctx;
 
   DBUG_RETURN(error);
