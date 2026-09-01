@@ -3,4 +3,11 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
 # Set gtid_slave_pos should not hang
 SET GLOBAL gtid_slave_pos=@@gtid_binlog_pos;
 COMMIT;
+### MDEV-22848: SET GLOBAL gtid_slave_pos leaves dangling partial transaction
+CREATE TABLE t1 (c INT) ENGINE=MyISAM;
+SET GLOBAL gtid_slave_pos="0-1-100";
+INSERT INTO t1 VALUES (0);
+DROP TABLE not_there;
+ERROR 42S02: Unknown table 'test.not_there'
+DROP TABLE t1;
 RESET MASTER;
