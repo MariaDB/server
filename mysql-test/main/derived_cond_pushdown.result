@@ -20147,7 +20147,7 @@ from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	0	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	5	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
@@ -20182,7 +20182,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 53.99999991,
-          "rows": 1,
+          "rows": 0,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t3.c is not null"
@@ -20197,7 +20197,7 @@ EXPLAIN
           "key_length": "128",
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
-          "loops": 80.99999987,
+          "loops": 52.89695991,
           "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -20690,7 +20690,7 @@ from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	0	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary
 Warnings:
@@ -20725,7 +20725,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 53.99999991,
-          "rows": 1,
+          "rows": 0,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t3.c is not null"
@@ -20740,7 +20740,7 @@ EXPLAIN
           "key_length": "128",
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
-          "loops": 80.99999987,
+          "loops": 52.89695991,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
