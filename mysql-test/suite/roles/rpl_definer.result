@@ -9,7 +9,7 @@ show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT EXECUTE ON `test`.* TO `role2`
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 GRANT USAGE ON *.* TO `role1`
 GRANT USAGE ON *.* TO `role2`
 GRANT `role1` TO `root`@`localhost` WITH ADMIN OPTION
@@ -41,7 +41,7 @@ show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT EXECUTE ON `test`.* TO `role2`
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 GRANT USAGE ON *.* TO `role1`
 GRANT USAGE ON *.* TO `role2`
 GRANT `role1` TO `root`@`localhost` WITH ADMIN OPTION

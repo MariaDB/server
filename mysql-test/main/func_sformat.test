@@ -236,13 +236,7 @@ set @a=3.14;
 select sformat('{:f}', @a);
 set names latin1;
 
-echo #;
 echo # End of 10.7 tests;
-echo #;
-
-echo #;
-echo # Start of 10.8 tests;
-echo #;
 
 echo #;
 echo # MDEV-29646 sformat('Num [{:20}]', 42) gives incorrect result in view;
@@ -260,3 +254,44 @@ create table t1 (a text, b int, c text);
 insert t1 values ('[{} -> {}]', 10, '{}'), ('[{:20} <- {}]', 1, '{:30}');
 select sformat(a,b,c) from t1;
 drop table t1;
+
+echo # End of 10.8 tests;
+
+echo #;
+echo # MDEV-31024 Server crash / ASAN use-after-poison in Binary_string::free_buffer / Item_func_sformat::~Item_func_sformat;
+echo #;
+
+create table t (a char(8), i int);
+insert into t values ('foo',1),('bar',2);
+create view v as select a, sum(i) as s from t group by a;
+select * from v where a != sformat('{}', 'qux');
+drop view v;
+drop table t;
+
+echo #;
+echo # MDEV-40411 SFORMAT ignores max_allowed_packet;
+echo #;
+set @old_max_allowed_packet=@@global.max_allowed_packet;
+set @@global.max_allowed_packet=512*1024;
+connect u,localhost,root;
+# these three case: fmt allocates the requested size at once
+select length(sformat('{:2147483647}', 1));
+select length(sformat('{:524288}', 1));
+select length(sformat('{:524289}', 1));
+# here it allocates 524287 and then grows by *1.5
+select length(sformat('{:524287}.', 1));
+select length(sformat('{:524287}..', 1));
+disconnect u;
+connection default;
+set @@global.max_allowed_packet= @old_max_allowed_packet;
+
+disable_cursor_protocol;
+disable_view_protocol;
+set max_session_mem_used=512*1024;
+select length(sformat('{:524288}', 1));
+select length(sformat('{:524289}', 1));
+set max_session_mem_used=default;
+enable_view_protocol;
+enable_cursor_protocol;
+
+echo # End of 10.11 tests;

@@ -24,7 +24,7 @@ grant select on test.* to 'root'@'santa.claus.ipv4.example.com';
 create user 'root'@'192.0.2.4';
 grant select on test.* to 'root'@'192.0.2.4';
 
-connect (con1,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 select current_user();
 disconnect con1;
@@ -33,7 +33,7 @@ disconnect con1;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_error_noname";
 
-connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con2,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con2 is alive";
 select current_user();
 disconnect con2;
@@ -41,7 +41,7 @@ disconnect con2;
 --connection default
 --source ../include/hostcache_dump.inc
 
-connect (con3,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con3,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con3 is alive";
 select current_user();
 disconnect con3;

@@ -26,7 +26,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=FIX `FILE_NAME`='t1.txt' `READONLY`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='FIX' `FILE_NAME`='t1.txt' `READONLY`='1'
 INSERT INTO t1 VALUES (20);
 ERROR HY000: Table 't1' is read only
 UPDATE t1 SET id=20 WHERE id=10;
@@ -40,7 +40,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=FIX `FILE_NAME`='t1.txt' `READONLY`=0
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='FIX' `FILE_NAME`='t1.txt' `READONLY`='0'
 INSERT INTO t1 VALUES (20);
 SELECT * FROM t1;
 id
@@ -129,3 +129,13 @@ Sam	Chicago	1979-11-22	2007-10-10
 James	Dallas	1992-05-13	2009-12-14
 Bill	Boston	1986-09-11	2008-02-10
 DROP TABLE t1;
+#
+# MDEV-40637 CONNECT crashes on double(255,50) in DOS table
+#
+create table t (x double(255,30)) engine=connect table_type='dos' file_name='t.dos';
+insert into t values (1e50);
+select * from t;
+x
+1000000000000000000000000000000.000000000000000000000000000000
+drop table t;
+# End of 10.6 tests

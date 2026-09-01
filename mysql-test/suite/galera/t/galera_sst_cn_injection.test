@@ -9,6 +9,8 @@
 --source include/have_innodb.inc
 --source include/have_mariabackup.inc
 --source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+--source include/have_pkill.inc
 # This test asserts that the initial cluster-bootstrap SST was SSL-encrypted by
 # grepping the donor's error log. That is a one-time event, so the cluster must
 # be freshly bootstrapped on every run (e.g. with --repeat) for node_2 to SST
@@ -55,10 +57,10 @@ call mtr.add_suppression("WSREP: Illegal character in variable:");
 --echo # cleanup
 # we have to kill joiner's socat here, because the donor has aborted SST
 # and joiner's socat will timeout in 5 minutes
-# pkill exit code varies by platform 0 or 1
+# pkill below might return 0 = success or 1 in error when it does not find socat
+# anymore
 --error 0,1,15
---exec pkill -f 'socat.*server-new-cert'
-
+--exec pkill -f 'socat.*[s]erver-new-cert'
 --exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
 --exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem >> $MYSQLTEST_VARDIR/my.cnf
 --source $MYSQL_TEST_DIR/include/start_mysqld.inc

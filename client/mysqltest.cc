@@ -207,7 +207,7 @@ static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
-static char *read_command_buf= NULL;
+static char *read_command_buf= NULL, *read_command_buf_end;
 static MEM_ROOT require_file_root;
 static const my_bool my_true= 1;
 static const my_bool my_false= 0;
@@ -3866,8 +3866,23 @@ end:
 #endif
   if (error)
   {
-    uint status= WEXITSTATUS(error);
+    uint status;
     int i;
+
+#ifdef _WIN32
+    status= WEXITSTATUS(error);
+#else
+    /* WEXITSTATUS() is only valid for a normal exit; a process killed by an
+       uncaught signal must be translated using the shell's 128+signal
+       convention, or the real error is silently lost as status 0. */
+    if (WIFEXITED(error))
+      status= WEXITSTATUS(error);
+    else if (WIFSIGNALED(error))
+      status= 128 + WTERMSIG(error);
+    else
+      status= error;
+
+#endif
 
     if (command->abort_on_error)
     {
@@ -4672,9 +4687,12 @@ void do_write_file_command(struct st_command *command, my_bool append)
   static DYNAMIC_STRING ds_content;
   static DYNAMIC_STRING ds_filename;
   static DYNAMIC_STRING ds_delimiter;
+  static DYNAMIC_STRING ds_eval_flag;
+  my_bool eval_content;
   const struct command_arg write_file_args[] = {
     { "filename", ARG_STRING, TRUE, &ds_filename, "File to write to" },
-    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" }
+    { "delimiter", ARG_STRING, FALSE, &ds_delimiter, "Delimiter to read until" },
+    { "eval", ARG_STRING, FALSE, &ds_eval_flag, "Evaluate the content" }
   };
   DBUG_ENTER("do_write_file");
 
@@ -4686,6 +4704,14 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   if (bad_path(ds_filename.str))
     DBUG_VOID_RETURN;
+
+  if ((eval_content= (ds_eval_flag.length != 0)) &&
+      strcasecmp(ds_eval_flag.str, "eval"))
+  {
+    report_or_die("Invalid argument '%s' to '%.*b', only 'eval' is allowed",
+                  ds_eval_flag.str, command->first_word_len, command->query);
+    DBUG_VOID_RETURN;
+  }
 
   if (!append && access(ds_filename.str, F_OK) == 0)
   {
@@ -4709,10 +4735,24 @@ void do_write_file_command(struct st_command *command, my_bool append)
   if (cur_block->ok)
   {
     DBUG_PRINT("info", ("Writing to file: %s", ds_filename.str));
-    str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
+    if (eval_content)
+    {
+      /* Evaluate on every execution, keep command->content unevaluated */
+      DYNAMIC_STRING ds_eval_content;
+      if (init_dynamic_string(&ds_eval_content, "", ds_content.length + 256, 256))
+        die("Out of memory");
+      do_eval(&ds_eval_content, ds_content.str,
+              ds_content.str + ds_content.length, FALSE);
+      str_to_file2(ds_filename.str, ds_eval_content.str, ds_eval_content.length,
+                   append);
+      dynstr_free(&ds_eval_content);
+    }
+    else
+      str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   }
   dynstr_free(&ds_filename);
   dynstr_free(&ds_delimiter);
+  dynstr_free(&ds_eval_flag);
   DBUG_VOID_RETURN;
 }
 
@@ -4723,11 +4763,11 @@ void do_write_file_command(struct st_command *command, my_bool append)
   command	called command
 
   DESCRIPTION
-  write_file <file_name> [<delimiter>];
+  write_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --write_file <file_name>;
   <what to write line 1>
@@ -4737,6 +4777,9 @@ void do_write_file_command(struct st_command *command, my_bool append)
 
   Write everything between the "write_file" command and 'delimiter'
   to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   NOTE! Will fail if <file_name> exists
 
@@ -4799,11 +4842,11 @@ void do_write_line(struct st_command *command)
   command	called command
 
   DESCRIPTION
-  append_file <file_name> [<delimiter>];
+  append_file <file_name> [<delimiter> [eval]];
   <what to write line 1>
   <...>
   < what to write line n>
-  EOF
+  <delimiter>
 
   --append_file <file_name>;
   <what to write line 1>
@@ -4813,6 +4856,9 @@ void do_write_line(struct st_command *command)
 
   Append everything between the "append_file" command
   and 'delimiter' to "file_name"
+
+  If 'eval' is given, variables and expressions in the content are
+  substituted. It requires <delimiter> to be given explicitly.
 
   Default <delimiter> is EOF
 
@@ -5571,7 +5617,7 @@ static void primary(Expression_value *result, const char **s)
     enum func_type func_type= get_expr_function_type(start,
                                                      end - start);
     if (func_type == FUNC_UNKNOWN)
-      die("Syntax error: Unknown function");
+      die("Syntax error: Unknown function '%.*s'", (int) (end - start), start);
 
     *s= end + 1; // skip '('
     handle_expr_function_call(func_type, result, s);
@@ -6018,47 +6064,48 @@ static void expr(Expression_value *result, const char **s)
 
 static struct {
   const char *name;
+  size_t length;
   enum func_type type;
 } function_table[]= {
     // Numeric functions
-    {"abs", FUNC_ABS},
-    {"bin", FUNC_BIN},
-    {"conv", FUNC_CONV},
-    {"hex", FUNC_HEX},
-    {"oct", FUNC_OCT},
+    {STRING_WITH_LEN("abs"), FUNC_ABS},
+    {STRING_WITH_LEN("bin"), FUNC_BIN},
+    {STRING_WITH_LEN("conv"), FUNC_CONV},
+    {STRING_WITH_LEN("hex"), FUNC_HEX},
+    {STRING_WITH_LEN("oct"), FUNC_OCT},
     // String functions
-    {"concat", FUNC_CONCAT},
-    {"concat_ws", FUNC_CONCAT_WS},
-    {"greatest", FUNC_GREATEST},
-    {"insert", FUNC_INSERT},
-    {"instr", FUNC_INSTR},
-    {"lcase", FUNC_LOWER},
-    {"least", FUNC_LEAST},
-    {"length", FUNC_LENGTH},
-    {"locate", FUNC_LOCATE},
-    {"lower", FUNC_LOWER},
-    {"lpad", FUNC_LPAD},
-    {"ltrim", FUNC_LTRIM},
-    {"repeat", FUNC_REPEAT},
-    {"replace", FUNC_REPLACE},
-    {"reverse", FUNC_REVERSE},
-    {"rpad", FUNC_RPAD},
-    {"rtrim", FUNC_RTRIM},
-    {"substr", FUNC_SUBSTR},
-    {"substring", FUNC_SUBSTR},
-    {"substring_index", FUNC_SUBSTR_IDX},
-    {"trim", FUNC_TRIM},
-    {"ucase", FUNC_UPPER},
-    {"upper", FUNC_UPPER},
+    {STRING_WITH_LEN("concat"), FUNC_CONCAT},
+    {STRING_WITH_LEN("concat_ws"), FUNC_CONCAT_WS},
+    {STRING_WITH_LEN("greatest"), FUNC_GREATEST},
+    {STRING_WITH_LEN("insert"), FUNC_INSERT},
+    {STRING_WITH_LEN("instr"), FUNC_INSTR},
+    {STRING_WITH_LEN("lcase"), FUNC_LOWER},
+    {STRING_WITH_LEN("least"), FUNC_LEAST},
+    {STRING_WITH_LEN("length"), FUNC_LENGTH},
+    {STRING_WITH_LEN("locate"), FUNC_LOCATE},
+    {STRING_WITH_LEN("lower"), FUNC_LOWER},
+    {STRING_WITH_LEN("lpad"), FUNC_LPAD},
+    {STRING_WITH_LEN("ltrim"), FUNC_LTRIM},
+    {STRING_WITH_LEN("repeat"), FUNC_REPEAT},
+    {STRING_WITH_LEN("replace"), FUNC_REPLACE},
+    {STRING_WITH_LEN("reverse"), FUNC_REVERSE},
+    {STRING_WITH_LEN("rpad"), FUNC_RPAD},
+    {STRING_WITH_LEN("rtrim"), FUNC_RTRIM},
+    {STRING_WITH_LEN("substr"), FUNC_SUBSTR},
+    {STRING_WITH_LEN("substring"), FUNC_SUBSTR},
+    {STRING_WITH_LEN("substring_index"), FUNC_SUBSTR_IDX},
+    {STRING_WITH_LEN("trim"), FUNC_TRIM},
+    {STRING_WITH_LEN("ucase"), FUNC_UPPER},
+    {STRING_WITH_LEN("upper"), FUNC_UPPER},
     // Regexp functions
-    {"regexp_instr", FUNC_REGEXP_INSTR},
-    {"regexp_replace", FUNC_REGEXP_REPLACE},
-    {"regexp_substr", FUNC_REGEXP_SUBSTR},
+    {STRING_WITH_LEN("regexp_instr"), FUNC_REGEXP_INSTR},
+    {STRING_WITH_LEN("regexp_replace"), FUNC_REGEXP_REPLACE},
+    {STRING_WITH_LEN("regexp_substr"), FUNC_REGEXP_SUBSTR},
     // Null functions
-    {"coalesce", FUNC_COALESCE},
-    {"ifnull", FUNC_IFNULL},
-    {"nullif", FUNC_NULLIF},
-    {NULL, FUNC_UNKNOWN}
+    {STRING_WITH_LEN("coalesce"), FUNC_COALESCE},
+    {STRING_WITH_LEN("ifnull"), FUNC_IFNULL},
+    {STRING_WITH_LEN("nullif"), FUNC_NULLIF},
+    {NULL, 0, FUNC_UNKNOWN}
 };
 
 
@@ -6298,9 +6345,9 @@ void func_oct(Expression_value args[], int count, Expression_value *result)
   @param[out] result Expression_value to store result
 
   @details
-    Converts a number to hexadecimal representation.
     HEX(N) returns a string representation of the hexadecimal value of N.
     This is equivalent to CONV(N, 10, 16).
+    HEX(str) returns a hexadecimal representation of the bytes of str.
 
   @note Dies if argument count != 1
 */
@@ -6310,7 +6357,15 @@ void func_hex(Expression_value args[], int count, Expression_value *result)
   if (count != 1)
     die("hex() expects 1 argument, got %d", count);
 
-  convert_base_helper(args[0].to_string(), 10, 16, result);
+  if (args[0].is_numeric)
+    convert_base_helper(args[0].to_string(), 10, 16, result);
+  else
+  {
+    My_string str= args[0].to_string();
+    My_string hex_str;
+    hex_str.set_hex(str.ptr(), str.length());
+    result->set_string(hex_str.ptr(), hex_str.length());
+  }
 }
 
 
@@ -7574,7 +7629,8 @@ enum func_type get_expr_function_type(const char *name, size_t len)
 {
   for (int i= 0; function_table[i].name; ++i)
   {
-    if (!strncasecmp(function_table[i].name, name, len))
+    if (function_table[i].length == len &&
+        !strncasecmp(function_table[i].name, name, len))
       return function_table[i].type;
   }
   return FUNC_UNKNOWN;
@@ -9656,7 +9712,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found delimiter '%s' at line %d",
                             delimiter, cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if ((c == '{' &&
                 (!my_strnncoll_simple(charset_info, (const uchar*) "while", 5,
@@ -9669,7 +9725,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found '{' indicating start of block at line %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '\'' || c == '"' || c == '`')
       {
@@ -9703,7 +9759,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found newline in comment at line: %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       break;
 
@@ -9723,7 +9779,7 @@ int read_line()
             DBUG_PRINT("info", ("Found two new lines in a row"));
             *p++= c;
             *p= 0;
-            DBUG_RETURN(0);
+            goto ret;
           }
 
           /* Query hasn't started yet */
@@ -9740,7 +9796,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found delimiter '%s' at line: %d",
                             delimiter, cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '}')
       {
@@ -9749,7 +9805,7 @@ int read_line()
 	*p= 0;
         DBUG_PRINT("exit", ("Found '}' in beginning of a line at line: %d",
                             cur_file->lineno));
-	DBUG_RETURN(0);
+        goto ret;
       }
       else if (c == '\'' || c == '"' || c == '`')
       {
@@ -9808,6 +9864,8 @@ int read_line()
       }
     }
   }
+ret:
+  read_command_buf_end= p;
   DBUG_RETURN(0);
 }
 
@@ -9823,14 +9881,13 @@ int read_line()
 
 */
 
-void convert_to_format_v1(char* query)
+void convert_to_format_v1(char* query, char **end)
 {
   int last_c_was_quote= 0;
   char *p= query, *to= query;
-  char *end= strend(query);
   char last_c;
 
-  while (p <= end)
+  while (p <= *end)
   {
     if (*p == '\n' && !last_c_was_quote)
     {
@@ -9861,6 +9918,7 @@ void convert_to_format_v1(char* query)
       last_c_was_quote= 0;
     }
   }
+  *end= to;
 }
 
 
@@ -9977,9 +10035,9 @@ int read_command(struct st_command** command_ptr)
   }
 
   if (opt_result_format_version == 1)
-    convert_to_format_v1(read_command_buf);
+    convert_to_format_v1(read_command_buf, &read_command_buf_end);
 
-  char *p= read_command_buf;
+  char *p= read_command_buf, *end= read_command_buf_end;
   DBUG_PRINT("info", ("query: '%s'", read_command_buf));
   if (*p == '#')
   {
@@ -9996,29 +10054,32 @@ int read_command(struct st_command** command_ptr)
   }
 
   /* Skip leading spaces */
-  while (*p && my_isspace(charset_info, *p))
+  while (p < end && my_isspace(charset_info, *p))
     p++;
 
-  if (!(command->query_buf= command->query= my_strdup(PSI_NOT_INSTRUMENTED, p, MYF(MY_WME))))
+  if (!(command->query_buf= command->query=
+        (char*)my_memdup(PSI_NOT_INSTRUMENTED, p, end - p, MYF(MY_WME))))
     die("Out of memory");
 
+  command->query_len= (int)(end - p - 1);
+  command->end= command->query + command->query_len;
+  p= command->query;
+  end= command->end;
   /*
     Calculate first word length(the command), terminated
-    by 'space' , '(' or 'delimiter' */
-  p= command->query;
-  while (*p && !my_isspace(charset_info, *p) && *p != '(' && !is_delimiter(p))
+    by 'space' , '(' or 'delimiter'
+   */
+  while (p < end && !my_isspace(charset_info, *p) && *p != '(' && !is_delimiter(p))
     p++;
   command->first_word_len= (uint) (p - command->query);
   DBUG_PRINT("info", ("first_word: %.*s",
                       command->first_word_len, command->query));
 
   /* Skip spaces between command and first argument */
-  while (*p && my_isspace(charset_info, *p))
+  while (p < end && my_isspace(charset_info, *p))
     p++;
   command->first_argument= p;
 
-  command->end= strend(command->query);
-  command->query_len= (int)(command->end - command->query);
   parser.read_lines++;
   DBUG_RETURN(0);
 }
@@ -12320,7 +12381,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   else
   {
     query = command->query;
-    query_len = strlen(query);
+    query_len = command->query_len;
   }
 
   /*
@@ -12710,6 +12771,7 @@ void get_command_type(struct st_command* command)
     if (type == Q_QUERY)
     {
       /* Skip the "query" part */
+      command->query_len-= (int)(command->first_argument - command->query);
       command->query= command->first_argument;
     }
   }
@@ -13281,7 +13343,8 @@ int main(int argc, char **argv)
 	if (command->query == command->query_buf)
         {
           /* Skip the first part of command, i.e query_xxx */
-	  command->query= command->first_argument;
+          command->query_len-= (int)(command->first_argument - command->query);
+          command->query= command->first_argument;
           command->first_word_len= 0;
         }
 	/* fall through */
@@ -13343,7 +13406,10 @@ int main(int argc, char **argv)
 
         /* Remove "send" if this is first iteration */
 	if (command->query == command->query_buf)
+        {
+          command->query_len-= (int)(command->first_argument - command->query);
 	  command->query= command->first_argument;
+        }
 
 	/*
 	  run_query() can execute a query partially, depending on the flags.

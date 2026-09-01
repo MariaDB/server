@@ -79,3 +79,12 @@ select hex(des_encrypt('a'));
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-27561: Valgrind/MSAN errors in Item_func_des_encrypt::val_str
+--echo #
+
+SELECT VARIANCE(0), HEX(DES_ENCRYPT('foo', ExtractValue('<foo></foo>', '/foo')));
+
+--echo # End of 10.11 tests

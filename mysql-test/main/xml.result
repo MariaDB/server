@@ -1414,3 +1414,4 @@ ExtractValue(@xml, '/employee/dt3')
 NULL
 Warnings:
 Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
+# End of 10.6 tests

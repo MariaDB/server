@@ -1,3 +1,17 @@
+#
+# MDEV 39795 : Assertion `n_reserved > 0' failed
+#
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_compression_algorithm = 'none';
+CREATE TABLE t1 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+col1 INT,
+col2 INT,
+col3 INT
+) ENGINE=InnoDB ROW_FORMAT = Compact PAGE_COMPRESSED=1;
+INSERT INTO t1 (col1, col2, col3) VALUES (1, 10, 100);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
 set global innodb_compression_algorithm = 1;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
 show warnings;
@@ -13,19 +27,19 @@ Table	Create Table
 innodb_normal	CREATE TABLE `innodb_normal` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`='1'
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1 `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT `encrypted`='yes' `encryption_key_id`='1' `page_compressed`='1'
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=2 `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC `encrypted`='yes' `encryption_key_id`='2' `page_compressed`='1'
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;
@@ -86,3 +100,8 @@ drop procedure innodb_insert_proc;
 drop table innodb_normal;
 drop table innodb_compact;
 drop table innodb_dynamic;
+ALTER TABLE t1 ADD INDEX idx_col1 (col1);
+# restart: --innodb-encrypt-tables=OFF
+ALTER TABLE t1 ADD INDEX idx_col2_col3 (col2, col3);
+# Cleanup
+DROP TABLE t1;

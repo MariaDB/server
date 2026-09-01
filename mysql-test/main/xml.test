@@ -898,3 +898,6 @@ set @xml= '<?xml version="1.0"?>
 <?employee ABSDEV !@#$ ?>';
 
 SELECT ExtractValue(@xml, '/employee/dt3');
+
+--echo # End of 10.6 tests
+

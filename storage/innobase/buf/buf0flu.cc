@@ -622,9 +622,9 @@ static byte *buf_page_encrypt(fil_space_t *space, buf_page_t *bpage, byte *s,
 
   const bool full_crc32= space->full_crc32();
 
-  if (!encrypted && !page_compressed)
+  if (!encrypted)
   {
-    /* No need to encrypt or compress. Clear key-version & crypt-checksum. */
+    /* No need to encrypt. Clear key-version & crypt-checksum. */
     static_assert(FIL_PAGE_FCRC32_KEY_VERSION % 4 == 0, "alignment");
     static_assert(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION % 4 == 2,
                   "not perfect alignment");
@@ -632,7 +632,8 @@ static byte *buf_page_encrypt(fil_space_t *space, buf_page_t *bpage, byte *s,
       memset_aligned<4>(s + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
     else
       memset_aligned<2>(s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
-    return s;
+    if (!page_compressed)
+      return s;
   }
 
   static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");

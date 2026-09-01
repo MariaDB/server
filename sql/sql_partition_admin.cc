@@ -1024,7 +1024,7 @@ bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
     thd->lex->part_info->curr_part_elem->partition_name;
 
   if (create_partition_name(part_file_name, sizeof(part_file_name), path,
-                            partition_name, NORMAL_PART_NAME, false))
+                            partition_name, NORMAL_PART_NAME, true))
     return true;
 
   char from_file_name[FN_REFLEN+1];

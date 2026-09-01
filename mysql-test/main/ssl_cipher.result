@@ -68,6 +68,8 @@ disconnect ssl_con;
 connection default;
 call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
 FOUND 2 /TLSv1.0 and TLSv1.1 are insecure/ in mysqld.1.err
+disconnect default;
+connect default,localhost,root,,,,,NOSSL;
 # restart: --ssl-cipher=ECDHE-ECDSA-AES128-GCM-SHA256
 Variable_name	Value
 Ssl_version	

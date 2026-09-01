@@ -781,7 +781,7 @@ int sp_cursor::close(THD *thd)
 
 void sp_cursor::destroy()
 {
-  delete server_side_cursor;
+  cdestroy(server_side_cursor);
   server_side_cursor= NULL;
 }
 

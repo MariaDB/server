@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -67,9 +67,9 @@ static TYPELIB global_plugin_typelib=
 
 static I_List<i_string> opt_plugin_load_list;
 I_List<i_string> *opt_plugin_load_list_ptr= &opt_plugin_load_list;
-char *opt_plugin_dir_ptr;
-char opt_plugin_dir[FN_REFLEN];
-ulong plugin_maturity;
+READ_ONLY_SYSVAR char *opt_plugin_dir_ptr;
+READ_ONLY_SYSVAR char opt_plugin_dir[FN_REFLEN];
+READ_ONLY_SYSVAR ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
 
@@ -1802,14 +1802,28 @@ int plugin_init(int *argc, char **argv, int flags)
       /* If the retry list has not changed, i.e. if all retry attempts
       result in another retry request, empty the retry list */
       if (to_re_retry == retry_end)
-        while (to_re_retry > retry_start)
+      {
+        if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
         {
-          plugin_ptr= *(--to_re_retry);
-          *(reap++)= plugin_ptr;
-          /** `plugin_do_initialize()' did not print any error in this
-          case, so we do it here. */
-          print_init_failed_error(plugin_ptr);
+          /* mysql.plugin already loaded; give up on these plugins */
+          while (to_re_retry > retry_start)
+          {
+            plugin_ptr= *(--to_re_retry);
+            *(reap++)= plugin_ptr;
+            /** `plugin_do_initialize()' did not print any error in this
+            case, so we do it here. */
+            print_init_failed_error(plugin_ptr);
+          }
         }
+        /*
+          else: mysql.plugin not yet loaded; stop retrying for now.
+          retry_end is left unchanged so these plugins are retried after
+          plugin_load() runs and loads DAEMON plugins (e.g. compression
+          providers) that the retrying plugins depend on.
+        */
+        retry_end= to_re_retry;
+        break;
+      }
       retry_end= to_re_retry;
     }
 

@@ -41,7 +41,7 @@ create table t3( a int primary key, b int) engine=innodb;
 --connection master
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="d,start_alter_kill_after_binlog";
---error 2013
+--error 2013,2026
 alter table t3 add column d int;
 
 --let $rpl_server_number= 1

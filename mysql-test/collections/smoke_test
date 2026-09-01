@@ -54,7 +54,6 @@ main.fulltext
 main.function_defaults
 main.gis
 main.grant
-main.handlersocket
 main.information_schema
 main.innodb_ext_key
 main.log_tables

@@ -218,7 +218,7 @@ v1
 drop view v1, `v-1`;
 drop table t1;
 SET NAMES utf8;
-CREATE TABLE `#mysql50#@` (a INT) engine=myisam;
+CREATE TABLE at (a INT) engine=myisam;
 SHOW TABLES;
 Tables_in_test
 #mysql50#@
@@ -248,9 +248,8 @@ DROP TABLE `я`;
 set @@character_set_client=@save_character_set_client;
 set @@character_set_results=@save_character_set_client;
 set @@collation_connection=@save_collation_connection;
-CREATE DATABASE `#mysql50#a@b`;
 USE `#mysql50#a@b`;
-CREATE TABLE `#mysql50#c@d` (a INT) engine=myisam;
+CREATE TABLE cd (a INT) engine=myisam;
 CREATE TABLE t1 (a INT) engine=myisam;
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS
 WHERE TRIGGER_SCHEMA="#mysql50#a@b" ORDER BY trigger_name;
@@ -280,12 +279,12 @@ USE test;
 # Bug #31821: --all-in-1 and --fix-table-names don't work together
 #
 drop table if exists `#mysql50#t1-1`;
-create table `#mysql50#t1-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
 show tables like 't1-1';
 Tables_in_test (t1-1)
 t1-1
 drop table `t1-1`;
-create table `#mysql50#t1-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
 show tables like 't1-1';
 Tables_in_test (t1-1)
 t1-1
@@ -417,11 +416,14 @@ Repairing views
 test.v1                                            OK
 drop view v1;
 drop table t1;
-create table `#mysql50#t1``1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
 show tables;
 Tables_in_test
 t1`1
 drop table `t1``1`;
+#
+# MDEV-9440 mysqlcheck -A --auto-repair selects wrong database when trying to repair broken table
+#
 call mtr.add_suppression("ha_myisam");
 call mtr.add_suppression("Checking table");
 create database mysqltest1;

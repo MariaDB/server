@@ -163,7 +163,8 @@ String *Item_func_geometry_from_json::val_str(String *str)
                   (const uchar *) js->end());
   je.killed_ptr= (uint32_t *) &current_thd->killed;
 
-  if ((null_value= !Geometry::create_from_json(&buffer, &je, options==1,  str)))
+  if (!json_read_value(&je) &&
+      (null_value= !Geometry::create_from_json(&buffer, &je, options==1,  str)))
   {
     int code= 0;
 
@@ -1509,7 +1510,9 @@ bool Item_func_spatial_precise_rel::val_bool()
         null_value= true;
         goto exit;
       }
-      /* fall through */
+      handle_sp_crosses_func_case(func, trn, g1, g2,
+                                  shape_a, shape_b, null_value);
+      break;
     case SP_OVERLAPS_FUNC:
     {
       // Both geometries must have the same number of dimensions.

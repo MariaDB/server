@@ -528,7 +528,7 @@ set global max_connections= 10;
 while ($n)
 {
   --error 0,ER_CON_COUNT_ERROR
-  --connect (con$n,localhost,root)
+  --connect con$n,localhost,root,,,,,NOSSL
   if ($mysql_errno) {
     --echo # ERROR $mysql_errno
   }

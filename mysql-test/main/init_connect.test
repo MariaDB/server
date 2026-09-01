@@ -46,7 +46,7 @@ select @a;
 # We got disconnected after receiving the above error message; any further
 # requests should fail with a notice that no one's listening to us.
 # --error CR_SERVER_GONE_ERROR,CR_SERVER_LOST
---error 2013,2006
+--error 2013,2026,2006
 select @a;
 connection con0;
 drop table t1;

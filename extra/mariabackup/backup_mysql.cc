@@ -88,6 +88,25 @@ static mysql_cond_t kill_query_thread_stop;
 bool sql_thread_started = false;
 char *mysql_slave_position = NULL;
 char *mysql_binlog_position = NULL;
+/*
+  MDEV-38147: the exact binary log file name that
+  write_current_binlog_file() rotated to and shipped into the backup under
+  --galera-info. Remembered here so that write_binlog_info() records the very
+  same file name in xtrabackup_binlog_info, i.e. the file the SST joiner looks
+  for is guaranteed to be the file that was actually sent (no rotation race).
+*/
+char *mysql_binlog_file = NULL;
+/*
+  Position and GTID of that shipped binary log, captured together with
+  mysql_binlog_file at flush time (see write_current_binlog_file()). Used by
+  write_binlog_info() so that, if a rotation intervenes, the whole coordinate
+  tuple it records stays consistent with the file that was actually shipped -
+  which matters for a manual --galera-info backup used as a replication seed,
+  not only for the SST joiner (which reads just the file name).
+*/
+static char *mysql_binlog_file_pos = NULL;
+static char *mysql_binlog_file_gtid_executed = NULL;
+static char *mysql_binlog_file_gtid_current_pos = NULL;
 char *buffer_pool_filename = NULL;
 
 /* History on server */
@@ -344,6 +363,30 @@ char *
 read_mysql_one_value(MYSQL *mysql, const char *query)
 {
   return read_mysql_one_value(mysql, query, 0/*offset*/, 1/*total columns*/);
+}
+
+/** Poll InnoDB's durably flushed redo LSN from the running server.
+Log copier uses this as its parse limit; it never accepts a redo log
+record whose end exceeds this LSN
+@param connection MariaDB client connection
+@retval 0 on failure, lsn on success */
+uint64_t get_log_flushed_lsn(MYSQL *connection) noexcept
+{
+  if (!connection)
+    return 0;
+
+  uint64_t lsn= 0;
+  MYSQL_RES *res= xb_mysql_query(connection,
+                                 "SHOW STATUS LIKE 'Innodb_lsn_flushed'",
+                                 true, false);
+   if (!res)
+     return 0;
+
+   if (MYSQL_ROW row= mysql_fetch_row(res))
+     if (row[1])
+       lsn= strtoull(row[1], nullptr, 10);
+   mysql_free_result(res);
+  return lsn;
 }
 
 
@@ -1504,6 +1547,23 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
       domain_id ? domain_id : domain_id55);
   }
 
+  /*
+    MDEV-38147: Flush and copy the donor's current binary log into
+    the backup so that it is shipped to the SST joiner.
+
+    A new joiner discards this file and starts a fresh binary log seeded from
+    the storage-engine checkpoint (see wsrep_seed_binlog_gtid_state() in
+    sql/log.cc and the joiner code in scripts/wsrep_sst_mariabackup.sh), which
+    avoids error 1950 with gtid_strict_mode=ON. The file is still shipped for
+    backward compatibility with an old joiner that expects it, and so that a
+    new joiner can deterministically identify and remove exactly the file that
+    was sent instead of colliding with it.
+
+    write_current_binlog_file() remembers the rotated file name in
+    mysql_binlog_file so that write_binlog_info() records the same file in
+    xtrabackup_binlog_info - closing the old race where a concurrent rotation
+    could make the shipped file and the recorded file diverge.
+  */
   if (result)
     write_current_binlog_file(datasink, connection);
 
@@ -1524,13 +1584,25 @@ cleanup:
 
 /*********************************************************************//**
 Flush and copy the current binary log file into the backup,
-if GTID is enabled */
+if GTID is enabled.
+
+MDEV-38147: the file name that FLUSH BINARY LOGS rotates to is
+remembered in the global mysql_binlog_file. write_binlog_info() then records
+that exact name in xtrabackup_binlog_info, so the file the SST joiner looks
+for is guaranteed to be the file that was shipped. Previously the shipped file
+(determined here) and the recorded file (determined independently later by
+write_binlog_info()) were read by two separate SHOW MASTER STATUS calls; a
+binary log rotation happening in between made them diverge and the wrong file
+was sent. */
 bool
 write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *executed_gtid_set = NULL;
 	char *gtid_binlog_state = NULL;
+	char *gtid_current_pos = NULL;
 	char *log_bin_file = NULL;
+	char *log_bin_pos = NULL;
+	char *log_bin_gtid_executed = NULL;
 	char *log_bin_dir = NULL;
 	bool gtid_exists;
 	bool result = true;
@@ -1541,13 +1613,18 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 		{NULL, NULL}
 	};
 
+	/* Capture the shipped file's coordinates together, right after the flush,
+	so they describe exactly the file that is copied below. */
 	mysql_variable status_after_flush[] = {
 		{"File", &log_bin_file},
+		{"Position", &log_bin_pos},
+		{"Executed_Gtid_Set", &log_bin_gtid_executed},
 		{NULL, NULL}
 	};
 
 	mysql_variable vars[] = {
 		{"gtid_binlog_state", &gtid_binlog_state},
+		{"gtid_current_pos", &gtid_current_pos},
 		{"log_bin_basename", &log_bin_dir},
 		{NULL, NULL}
 	};
@@ -1577,19 +1654,38 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 			log_bin_dir = strdup("./");
 		}
 
+		if (log_bin_dir == NULL || log_bin_file == NULL) {
+			msg("Failed to get master binlog coordinates from "
+				"SHOW MASTER STATUS");
+			result = false;
+			goto cleanup;
+		}
+
+		/*
+		  Remember the file we just rotated to (before any further
+		  rotation can happen), together with its position and GTID, so
+		  that write_binlog_info() records this very file - and a matching
+		  position/GTID - in xtrabackup_binlog_info, and the joiner looks
+		  for exactly the file that is shipped below.
+		*/
+		free(mysql_binlog_file);
+		mysql_binlog_file = strdup(log_bin_file);
+		free(mysql_binlog_file_pos);
+		mysql_binlog_file_pos =
+			log_bin_pos ? strdup(log_bin_pos) : NULL;
+		free(mysql_binlog_file_gtid_executed);
+		mysql_binlog_file_gtid_executed =
+			log_bin_gtid_executed ? strdup(log_bin_gtid_executed) : NULL;
+		free(mysql_binlog_file_gtid_current_pos);
+		mysql_binlog_file_gtid_current_pos =
+			gtid_current_pos ? strdup(gtid_current_pos) : NULL;
+
 		dirname_part(log_bin_dir, log_bin_dir, &log_bin_dir_length);
 
 		/* strip final slash if it is not the only path component */
 		if (log_bin_dir_length > 1 &&
 		    log_bin_dir[log_bin_dir_length - 1] == FN_LIBCHAR) {
 			log_bin_dir[log_bin_dir_length - 1] = 0;
-		}
-
-		if (log_bin_dir == NULL || log_bin_file == NULL) {
-			msg("Failed to get master binlog coordinates from "
-				"SHOW MASTER STATUS");
-			result = false;
-			goto cleanup;
 		}
 
 		snprintf(filepath, sizeof(filepath), "%s%c%s",
@@ -1613,11 +1709,15 @@ bool
 write_binlog_info(ds_ctxt *datasink, MYSQL *connection)
 {
 	char *filename = NULL;
+	const char *out_filename;
+	const char *out_position;
+	const char *out_gtid_executed;
+	const char *out_gtid_current_pos;
 	char *position = NULL;
 	char *gtid_mode = NULL;
 	char *gtid_current_pos = NULL;
 	char *gtid_executed = NULL;
-	char *gtid = NULL;
+	const char *gtid = NULL;
 	bool result;
 	bool mysql_gtid;
 	bool mariadb_gtid;
@@ -1645,25 +1745,53 @@ write_binlog_info(ds_ctxt *datasink, MYSQL *connection)
 		goto cleanup;
 	}
 
-	mysql_gtid = ((gtid_mode != NULL) && (strcmp(gtid_mode, "ON") == 0));
-	mariadb_gtid = (gtid_current_pos != NULL);
+	/*
+	  MDEV-38147: if write_current_binlog_file() already rotated
+	  and shipped a binary log under --galera-info, record that exact file
+	  name here rather than whatever SHOW MASTER STATUS reports now. The two
+	  are normally identical, but a binary log rotation between the two
+	  SHOW MASTER STATUS calls would otherwise make xtrabackup_binlog_info
+	  name a file different from the one that was shipped, so the SST joiner
+	  would look for a file that is not there. Use a separate pointer so the
+	  string owned by the status[] array is still freed at cleanup.
+	*/
+	out_filename = filename;
+	out_position = position;
+	out_gtid_executed = gtid_executed;
+	out_gtid_current_pos = gtid_current_pos;
+	if (mysql_binlog_file != NULL && strcmp(filename, mysql_binlog_file)) {
+		msg("Binary log rotated to '%s' after '%s' was shipped; recording "
+		    "the shipped file and its coordinates in "
+		    XTRABACKUP_BINLOG_INFO, filename, mysql_binlog_file);
+		/* Record the whole tuple from the shipped file, not just its name,
+		so file/position/GTID stay consistent (the position and GTID from
+		the SHOW MASTER STATUS above belong to the current, newer file). */
+		out_filename = mysql_binlog_file;
+		out_position = mysql_binlog_file_pos;
+		out_gtid_executed = mysql_binlog_file_gtid_executed;
+		out_gtid_current_pos = mysql_binlog_file_gtid_current_pos;
+	}
 
-	gtid = (gtid_executed != NULL ? gtid_executed : gtid_current_pos);
+	mysql_gtid = ((gtid_mode != NULL) && (strcmp(gtid_mode, "ON") == 0));
+	mariadb_gtid = (out_gtid_current_pos != NULL);
+
+	gtid = (out_gtid_executed != NULL ? out_gtid_executed
+					  : out_gtid_current_pos);
 
 	if (mariadb_gtid || mysql_gtid) {
 		ut_a(asprintf(&mysql_binlog_position,
 			"filename '%s', position '%s', "
 			"GTID of the last change '%s'",
-			filename, position, gtid) != -1);
+			out_filename, out_position, gtid) != -1);
 		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
-					    "%s\t%s\t%s\n", filename, position,
+					    "%s\t%s\t%s\n", out_filename, out_position,
 					    gtid);
 	} else {
 		ut_a(asprintf(&mysql_binlog_position,
 			"filename '%s', position '%s'",
-			filename, position) != -1);
+			out_filename, out_position) != -1);
 		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
-					    "%s\t%s\n", filename, position);
+					    "%s\t%s\n", out_filename, out_position);
 	}
 
 cleanup:
@@ -1997,6 +2125,10 @@ backup_cleanup()
 {
 	free(mysql_slave_position);
 	free(mysql_binlog_position);
+	free(mysql_binlog_file);
+	free(mysql_binlog_file_pos);
+	free(mysql_binlog_file_gtid_executed);
+	free(mysql_binlog_file_gtid_current_pos);
 	free(buffer_pool_filename);
 
 	if (mysql_connection) {

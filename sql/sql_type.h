@@ -7182,8 +7182,23 @@ class Type_handler_hex_hybrid: public Type_handler_varchar
 public:
   virtual ~Type_handler_hex_hybrid() = default;
   const Type_handler *cast_to_int_type_handler() const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
+                                       Type_handler_hybrid_field_type *h,
+                                       Type_all_attributes *attr,
+                                       Item **items, uint nitems)
+                                       const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const override;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const override;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const override;
 };
 
 

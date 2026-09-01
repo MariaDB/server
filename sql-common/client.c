@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1744,7 +1744,7 @@ mysql_set_character_set_with_default_collation(MYSQL *mysql)
 {
   const char *save= charsets_dir;
   if (mysql->options.charset_dir)
-    charsets_dir=mysql->options.charset_dir;
+    charsets_dir= mysql->options.charset_dir;
 
   if ((mysql->charset= get_charset_by_csname(mysql->options.charset_name,
                                              MY_CS_PRIMARY, MYF(MY_WME|
@@ -1768,7 +1768,8 @@ mysql_set_character_set_with_default_collation(MYSQL *mysql)
       */
     }
   }
-  charsets_dir= save;
+  if (mysql->options.charset_dir)
+    charsets_dir= save;
 }
 
 
@@ -3778,10 +3779,12 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     my_free(mysql->options.my_cnf_group);
     mysql->options.my_cnf_group= opt_strdup(arg,MYF(MY_WME));
     break;
+#ifdef EMBEDDED_LIBRARY
   case MYSQL_SET_CHARSET_DIR:
     my_free(mysql->options.charset_dir);
     mysql->options.charset_dir= opt_strdup(arg,MYF(MY_WME));
     break;
+#endif
   case MYSQL_SET_CHARSET_NAME:
     my_free(mysql->options.charset_name);
     mysql->options.charset_name= opt_strdup(arg,MYF(MY_WME));
@@ -4097,7 +4100,8 @@ int STDCALL mysql_set_character_set(MYSQL *mysql, const char *cs_name)
      (cs= get_charset_by_csname(cs_name, MY_CS_PRIMARY, MYF(MY_UTF8_IS_UTF8MB3))))
   {
     char buff[MY_CS_CHARACTER_SET_NAME_SIZE + 10];
-    charsets_dir= save_csdir;
+    if (mysql->options.charset_dir)
+      charsets_dir= save_csdir;
     /* Skip execution of "SET NAMES" for pre-4.1 servers */
     if (mysql_get_server_version(mysql) < 40100)
       return 0;
@@ -4114,7 +4118,8 @@ int STDCALL mysql_set_character_set(MYSQL *mysql, const char *cs_name)
     set_mysql_extended_error(mysql, CR_CANT_READ_CHARSET, unknown_sqlstate,
                              ER(CR_CANT_READ_CHARSET), cs_name, cs_dir_name);
   }
-  charsets_dir= save_csdir;
+  if (mysql->options.charset_dir)
+    charsets_dir= save_csdir;
   return mysql->net.last_errno;
 }
 

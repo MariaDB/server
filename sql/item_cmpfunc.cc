@@ -6627,11 +6627,11 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 bool Item_func_xor::val_bool()
 {
   DBUG_ASSERT(fixed());
-  int result= 0;
+  bool result= 0;
   null_value= false;
   for (uint i= 0; i < arg_count; i++)
   {
-    result^= (args[i]->val_int() != 0);
+    result^= args[i]->val_bool();
     if (args[i]->null_value)
     {
       null_value= true;
@@ -7456,6 +7456,21 @@ bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
       return 1;
   }
   return Item_func::walk(processor, walk_subquery, arg);
+}
+
+
+/**
+  @brief
+  Subqueries that equality propagation converted to constants must not
+  be marked as eliminated, so unmark them.
+*/
+
+bool Item_equal::unmark_as_eliminated_processor(void *arg)
+{
+  Item *c= get_const();
+  if (c)
+    c->walk(&Item::unmark_as_eliminated_processor, FALSE, arg);
+  return FALSE;
 }
 
 

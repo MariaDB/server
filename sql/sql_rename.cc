@@ -373,6 +373,15 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
     DBUG_RETURN(1);
 #endif
 
+  /*
+    SQLCOM_ALTER_DB_UPGRADE is a special case, it moves tables
+    from the #mysql50#db to db (from old name to new name)
+    and old db might have tables with #mysql50# prefix.
+  */
+  if (thd->lex->sql_command != SQLCOM_ALTER_DB_UPGRADE &&
+      error_if_mysql50_prefix(new_alias->str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(1);
+
   tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
 
   if (hton != view_pseudo_hton)

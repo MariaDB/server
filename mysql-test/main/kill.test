@@ -240,10 +240,10 @@ drop user test@localhost;
 drop user test2@localhost;
 
 connection con3;
---error 2013,2006,5014
+--error 2013,2026,2006,5014
 select 1;
 connection con4;
---error 2013,2006,5014
+--error 2013,2026,2006,5014
 select 1;
 connection default;
 --source include/wait_until_count_sessions.inc

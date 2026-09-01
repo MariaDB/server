@@ -18,7 +18,7 @@ Connection_errors_max_connections	0
 Connection_errors_peer_address	0
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
-connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -124,8 +124,8 @@ void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                        const char *, const char *, const unsigned int)= proc_info_dummy;
 void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t)= 0;
 
-	/* How to disable options */
-my_bool my_disable_locking=0;
+/* How to disable options */
+READ_ONLY_SYSVAR my_bool my_disable_locking=0;
 my_bool my_disable_sync=0;
 my_bool my_disable_async_io=0;
 my_bool my_disable_flush_key_blocks=0;

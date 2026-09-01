@@ -15,6 +15,8 @@ SET @old_slow_query_log= @@global.slow_query_log;
 
 call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm'");
 call mtr.add_suppression(" IP address .* could not be resolved");
+call mtr.add_suppression("Aborted connection .* host: '192.0.2.50'");
+call mtr.add_suppression("Aborted connection .* host: 'santa.claus.ipv6.example.com'");
 
 # We run with different binaries for normal and --embedded-server
 #

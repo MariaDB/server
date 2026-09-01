@@ -197,14 +197,11 @@ SSTCAP="$tcap"
 SSLMODE=$(parse_cnf "$encgroups" 'ssl-mode' | tr '[[:lower:]]' '[[:upper:]]')
 
 if [ -z "$SSLMODE" ]; then
-    # Implicit verification if CA is set and the SSL mode
-    # is not specified by user:
+    # ssl-mode not set: derive it from the SSL config. Set it even when
+    # stunnel is absent, so the check below aborts instead of silently
+    # falling back to an unencrypted transfer.
     if [ -n "$SSTCA$SSTCAP" ]; then
-        STUNNEL_BIN=$(commandex 'stunnel')
-        if [ -n "$STUNNEL_BIN" ]; then
-            SSLMODE='VERIFY_CA'
-        fi
-    # Require SSL by default if SSL key and cert are present:
+        SSLMODE='VERIFY_CA'
     elif [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
         SSLMODE='REQUIRED'
     fi
@@ -250,20 +247,27 @@ if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
     fi
-    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-        CHECK_OPT="checkHost = $(safe WSREP_SST_OPT_REMOTE_USER)"
-    elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
-        # check if the address is an ip-address (v4 or v6):
-        if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
-        then
-            CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
-        else
-            CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+    # Only VERIFY_IDENTITY checks the peer name; VERIFY_CA verifies
+    # the chain only.
+    if [ "$SSLMODE" = 'VERIFY_IDENTITY' ]; then
+        if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+            CHECK_OPT="checkHost = $(safe WSREP_SST_OPT_REMOTE_USER)"
+        elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+            # check if the address is an ip-address (v4 or v6):
+            if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
+               grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
+            then
+                CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
+            else
+                CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+            fi
+            if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                CHECK_OPT_LOCAL='checkHost = localhost'
+            fi
         fi
-        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-            CHECK_OPT_LOCAL='checkHost = localhost'
-        fi
+    else
+        wsrep_log_info \
+            "Verifying peer certificate chain for ssl-mode=VERIFY_CA"
     fi
 fi
 
@@ -272,10 +276,22 @@ if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
     if [ -z "${STUNNEL_BIN+x}" ]; then
         STUNNEL_BIN=$(commandex 'stunnel')
     fi
+    # MTR test hook: simulate a missing stunnel binary.
+    if [ -n "${MTR_SST_SIMULATE_NO_STUNNEL:-}" ]; then
+        STUNNEL_BIN=""
+    fi
     if [ -n "$STUNNEL_BIN" ]; then
         wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA'," \
                        "CAPATH='$SSTCAP', ssl-mode='$SSLMODE'"
         STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
+    else
+        # Encryption required but stunnel missing: abort instead of
+        # silently falling back to an unencrypted transfer.
+        wsrep_log_error "ssl-mode is set to '$SSLMODE', but the 'stunnel'" \
+                        "binary was not found in the path. Cannot perform" \
+                        "an encrypted transfer. Please install stunnel or" \
+                        "set ssl-mode to DISABLED."
+        exit 2 # ENOENT
     fi
 fi
 
@@ -316,6 +332,8 @@ done
 RC=0
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+
+    create_dirs
 
     if [ -n "$STUNNEL" ]; then
         cat << EOF > "$STUNNEL_CONF"

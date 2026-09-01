@@ -12,11 +12,20 @@ MACRO(BUNDLE_LIBFMT)
     SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
   ENDIF()
 
+  IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9")
+    # it's for RHEL-7, gcc 4.8.5
+    # with newer fmt it complains about missing space in operator""_a()
+    SET(source URL "https://github.com/fmtlib/fmt/releases/download/11.0.2/fmt-11.0.2.zip"
+               URL_MD5 c622dca45ec3fc95254c48370a9f7a1d)
+  ELSE()
+    SET(source URL "https://github.com/fmtlib/fmt/releases/download/12.2.0/fmt-12.2.0.zip"
+               URL_MD5 6083253772ad29e73a4d5920be08918e)
+  ENDIF()
+
   ExternalProject_Add(
     libfmt
     PREFIX   "${dir}"
-    URL      "https://github.com/fmtlib/fmt/releases/download/11.0.2/fmt-11.0.2.zip"
-    URL_MD5 c622dca45ec3fc95254c48370a9f7a1d
+    ${source}
     INSTALL_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""

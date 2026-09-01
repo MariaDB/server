@@ -5900,6 +5900,50 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   return TRUE;
 }
 
+/**
+  @brief  check to see if we need to wrap this in an Item_outer_ref
+
+  @description
+    If an outer field is resolved in a grouping select then it
+    is replaced for an Item_outer_ref object. Otherwise an
+    Item_field object is used.
+    The new Item_outer_ref object is saved in the inner_refs_list of
+    the outer select. Here it is only created. It can be fixed only
+    after the original field has been fixed and this is done in the
+    fix_inner_refs() function.
+    Called only from Item_field::fix_outer_field, where *reference type
+    will be applicable.
+  @returns
+    false  normal execution
+    true   error
+*/
+static inline bool inner_refs_check(THD *thd,
+                             Name_resolution_context *last_checked_context,
+                             Name_resolution_context *context,
+                             SELECT_LEX *select,
+                             enum_parsing_place place,
+                             Item **reference)
+{
+#ifndef DBUG_OFF
+  Item::Type ref_type= (*reference)->type();
+#endif
+  if (!last_checked_context->select_lex->having_fix_field &&
+      select->group_list.elements &&
+      (place == SELECT_LIST || place == IN_HAVING))
+  {
+    DBUG_ASSERT(ref_type == Item::REF_ITEM || ref_type == Item::FIELD_ITEM);
+    Item_outer_ref *rf;
+    if (!(rf= new (thd->mem_root)
+                  Item_outer_ref(thd, context,(Item_ident*) (*reference))))
+      return true;
+    thd->change_item_tree(reference, rf);
+    if (select->inner_refs_list.push_back(rf, thd->mem_root))
+      return true;
+    rf->in_sum_func= thd->lex->in_sum_func;
+  }
+  return false;
+}
+
 
 /**
   Resolve the name of an outer select column reference.
@@ -6071,27 +6115,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             prev_subselect_item->const_item_cache= 0;
           }
           set_field(*from_field);
-          if (!last_checked_context->select_lex->having_fix_field &&
-              select->group_list.elements &&
-              (place == SELECT_LIST || place == IN_HAVING))
-          {
-            Item_outer_ref *rf;
-            /*
-              If an outer field is resolved in a grouping select then it
-              is replaced for an Item_outer_ref object. Otherwise an
-              Item_field object is used.
-              The new Item_outer_ref object is saved in the inner_refs_list of
-              the outer select. Here it is only created. It can be fixed only
-              after the original field has been fixed and this is done in the
-              fix_inner_refs() function.
-            */
-            ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
-              return -1;
-            thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
-          }
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
           /*
             A reference is resolved to a nest level that's outer or the same as
             the nest level of the enclosing set function : adjust the value of
@@ -6125,6 +6151,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
+
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
+
           if (thd->lex->in_sum_func &&
               last_checked_context->select_lex->parent_lex ==
               context->select_lex->parent_lex &&
@@ -7166,6 +7197,32 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 }
 
 
+/*
+  Store a hex/bit hybrid value into a field, like the bare 0xHHHH / b'..'
+  literal does (see Item_hex_hybrid::save_in_field): Field::store_hex_hybrid()
+  stores the integer value into a numeric field and the raw bytes into a string
+  field. Used for COALESCE/IF/CASE/... results that stay a hex hybrid.
+*/
+int Item::save_hex_hybrid_in_field(Field *field, bool no_conversions)
+{
+  String *result;
+  CHARSET_INFO *cs= collation.collation;
+  char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
+  str_value.set_buffer_if_not_allocated(buff, sizeof(buff), cs);
+  result= val_str(&str_value);
+  if (null_value)
+  {
+    str_value.set_buffer_if_not_allocated(0, 0, cs);
+    return set_field_to_null_with_conversions(field, no_conversions);
+  }
+
+  field->set_notnull();
+  int error= field->store_hex_hybrid(result->ptr(), result->length());
+  str_value.set_buffer_if_not_allocated(0, 0, cs);
+  return error;
+}
+
+
 int Item::save_real_in_field(Field *field, bool no_conversions)
 {
   double nr= val_real();
@@ -7554,22 +7611,6 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
   str->append("0x", 2);
   str->append_hex(str_value.ptr(), str_value.length());
-}
-
-
-decimal_digits_t Item_hex_hybrid::decimal_precision() const
-{
-  switch (max_length) {// HEX                                 DEC
-  case 0:              // ----                                ---
-  case 1: return 3;    // 0xFF                                255
-  case 2: return 5;    // 0xFFFF                            65535
-  case 3: return 8;    // 0xFFFFFF                       16777215
-  case 4: return 10;   // 0xFFFFFFFF                   4294967295
-  case 5: return 13;   // 0xFFFFFFFFFF              1099511627775
-  case 6: return 15;   // 0xFFFFFFFFFFFF          281474976710655
-  case 7: return 17;   // 0xFFFFFFFFFFFFFF      72057594037927935
-  }
-  return 20;           // 0xFFFFFFFFFFFFFFFF 18446744073709551615
 }
 
 
@@ -11412,6 +11453,443 @@ const char *dbug_print_unit(SELECT_LEX_UNIT *un)
 const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
 const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
 const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
+
+
+/*
+  Debugger helper functions for visualizing TABLE_LIST join structures.
+
+  All functions return const char* into a static buffer, following the same
+  pattern as dbug_print_item() above.
+
+    (gdb) p dbug_print(join_list)
+    (gdb) p dbug_print(table)
+    (gdb) p dbug_print(table->nested_join)
+
+
+  NOTE: for nice formatting in gdb:
+    (gdb) printf "%s", dbug_print(join_tab)
+
+  NOTE: for nice formatting in lldb:
+    (lldb) p printf("%s", dbug_print(table))
+*/
+
+static char dbug_join_print_buf[16384];
+
+static void dbug_join_indent(String *out, int depth)
+{
+  for (int i= 0; i < depth; i++)
+    out->append("  ", 2);
+}
+
+static const char *dbug_join_type_str(uint outer_join)
+{
+  if (!outer_join)
+    return "INNER";
+  if (outer_join & JOIN_TYPE_RIGHT)
+    return "RIGHT";
+  if (outer_join & JOIN_TYPE_LEFT)
+    return "LEFT";
+  if (outer_join & JOIN_TYPE_OUTER)
+    return "OUTER(marker)";
+  return "???";
+}
+
+static const char *dbug_safe_alias(const TABLE_LIST *tbl)
+{
+  if (tbl->alias.str && tbl->alias.length)
+    return tbl->alias.str;
+  if (tbl->table_name.str && tbl->table_name.length)
+    return tbl->table_name.str;
+  return "<unnamed>";
+}
+
+static void dbug_str_append(String *out, const char *s)
+{
+  out->append(s, strlen(s));
+}
+
+static void dbug_str_append_ptr(String *out, const void *p)
+{
+  char tmp[32];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "%p", p);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_uint(String *out, uint val)
+{
+  char tmp[16];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "%u", val);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_hex(String *out, ulonglong val)
+{
+  char tmp[32];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "0x%llx", val);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_item(String *out, Item *item)
+{
+  if (!item)
+    out->append("NULL", 4);
+  else
+    item->print(out, QT_ORDINARY);
+}
+
+static void dbug_dump_table_to_str(String *out, const TABLE_LIST *tbl,
+                                   int depth)
+{
+  if (!tbl)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null TABLE_LIST*)\n", 19);
+    return;
+  }
+
+  dbug_join_indent(out, depth);
+
+  out->append('[');
+  dbug_str_append_ptr(out, tbl);
+  out->append("] \"", 3);
+  dbug_str_append(out, dbug_safe_alias(tbl));
+  out->append('"');
+
+  out->append("  join=", 7);
+  dbug_str_append(out, dbug_join_type_str(tbl->outer_join));
+  out->append(" (outer_join=", 13);
+  dbug_str_append_uint(out, tbl->outer_join);
+  out->append(')');
+
+  if (tbl->table)
+  {
+    out->append("  map=", 6);
+    dbug_str_append_hex(out, (ulonglong) tbl->table->map);
+  }
+
+  if (tbl->nested_join)
+  {
+    out->append("  nested_join=", 14);
+    dbug_str_append_ptr(out, tbl->nested_join);
+    out->append(" (elements=", 11);
+    dbug_str_append_uint(out, tbl->nested_join->join_list.elements);
+    out->append(')');
+  }
+
+  if (tbl->sj_on_expr)
+    out->append("  SJ_NEST", 9);
+
+  out->append('\n');
+
+  if (tbl->on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("ON: ", 4);
+    dbug_str_append_item(out, tbl->on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->sj_on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("SJ_ON: ", 7);
+    dbug_str_append_item(out, tbl->sj_on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->prep_on_expr && tbl->prep_on_expr != tbl->on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("PREP_ON: ", 9);
+    dbug_str_append_item(out, tbl->prep_on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->dep_tables)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("dep_tables: ", 12);
+    dbug_str_append_hex(out, (ulonglong) tbl->dep_tables);
+    out->append('\n');
+  }
+
+  if (tbl->on_expr_dep_tables)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("on_expr_dep_tables: ", 20);
+    dbug_str_append_hex(out, (ulonglong) tbl->on_expr_dep_tables);
+    out->append('\n');
+  }
+}
+
+static void dbug_dump_join_list_to_str(String *out, List<TABLE_LIST> *jl,
+                                       int depth, bool recurse);
+
+static void dbug_dump_nested_join_to_str(String *out, const NESTED_JOIN *nj,
+                                         int depth)
+{
+  if (!nj)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null NESTED_JOIN*)\n", 20);
+    return;
+  }
+  dbug_join_indent(out, depth);
+  out->append("NESTED_JOIN [", 13);
+  dbug_str_append_ptr(out, nj);
+  out->append("]\n", 2);
+  dbug_join_indent(out, depth + 1);
+  out->append("used_tables:     ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->used_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("not_null_tables: ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->not_null_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("n_tables:        ", 17);
+  dbug_str_append_uint(out, nj->n_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("counter:         ", 17);
+  dbug_str_append_uint(out, nj->counter);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("nest_type:       ", 17);
+  dbug_str_append_uint(out, nj->nest_type);
+  if (nj->nest_type & JOIN_OP_NEST)
+    out->append(" (JOIN_OP_NEST)", 15);
+  if (nj->nest_type & REBALANCED_NEST)
+    out->append(" (REBALANCED_NEST)", 18);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("nj_map:          ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->nj_map);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("join_list:\n", 11);
+  dbug_dump_join_list_to_str(out,
+                             &const_cast<NESTED_JOIN*>(nj)->join_list,
+                             depth + 2, true);
+}
+
+static void dbug_dump_join_list_to_str(String *out, List<TABLE_LIST> *jl,
+                                       int depth, bool recurse)
+{
+  if (!jl)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null join_list)\n", 17);
+    return;
+  }
+
+  dbug_join_indent(out, depth);
+  out->append("join_list ", 10);
+  dbug_str_append_ptr(out, jl);
+  out->append(" [", 2);
+  dbug_str_append_uint(out, jl->elements);
+  out->append(" element(s)]:\n", 14);
+
+  List_iterator<TABLE_LIST> it(*jl);
+  TABLE_LIST *tbl;
+  uint idx= 0;
+  while ((tbl= it++))
+  {
+    dbug_join_indent(out, depth);
+    out->append("--- #", 5);
+    dbug_str_append_uint(out, idx++);
+    out->append(" ---\n", 5);
+    dbug_dump_table_to_str(out, tbl, depth + 1);
+
+    if (recurse && tbl->nested_join)
+    {
+      dbug_dump_nested_join_to_str(out, tbl->nested_join, depth + 2);
+    }
+  }
+}
+
+static const char *dbug_return_join_buf(String *str, char *buf)
+{
+  if (str->c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+const char *dbug_print_table(const TABLE_LIST *tbl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!tbl)
+    return "(TABLE_LIST*)NULL";
+  dbug_dump_table_to_str(&str, tbl, 0);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join_list(List<TABLE_LIST> *jl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!jl)
+    return "(List<TABLE_LIST>*)NULL";
+  dbug_dump_join_list_to_str(&str, jl, 0, false);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join_tree(List<TABLE_LIST> *jl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!jl)
+    return "(List<TABLE_LIST>*)NULL";
+  dbug_dump_join_list_to_str(&str, jl, 0, true);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_embedding(const TABLE_LIST *tbl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!tbl)
+    return "(TABLE_LIST*)NULL";
+
+  int depth= 0;
+  for (const TABLE_LIST *cur= tbl; cur; cur= cur->embedding)
+  {
+    dbug_join_indent(&str, depth);
+    str.append('[');
+    dbug_str_append_ptr(&str, cur);
+    str.append("] \"", 3);
+    dbug_str_append(&str, dbug_safe_alias(cur));
+    str.append("\"  join=", 8);
+    dbug_str_append(&str, dbug_join_type_str(cur->outer_join));
+    str.append("  nested_join=", 14);
+    dbug_str_append_ptr(&str, cur->nested_join);
+    if (cur->on_expr)
+    {
+      str.append("  ON=<", 6);
+      dbug_str_append_item(&str, cur->on_expr);
+      str.append('>');
+    }
+    str.append('\n');
+    depth++;
+  }
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_nested_join(const NESTED_JOIN *nj)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!nj)
+    return "(NESTED_JOIN*)NULL";
+  dbug_dump_nested_join_to_str(&str, nj, 0);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join(JOIN *j)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!j)
+    return "(JOIN*)NULL";
+  if (!j->join_list)
+  {
+    str.append("JOIN [", 6);
+    dbug_str_append_ptr(&str, j);
+    str.append("]: join_list is NULL\n", 21);
+    return dbug_return_join_buf(&str, buf);
+  }
+  str.append("JOIN [", 6);
+  dbug_str_append_ptr(&str, j);
+  str.append("]  table_count=", 15);
+  dbug_str_append_uint(&str, j->table_count);
+  str.append("  const_tables=", 15);
+  dbug_str_append_uint(&str, j->const_tables);
+  str.append('\n');
+  if (j->conds)
+  {
+    str.append("  WHERE: ", 9);
+    dbug_str_append_item(&str, j->conds);
+    str.append('\n');
+  }
+  dbug_dump_join_list_to_str(&str, j->join_list, 0, true);
+  return dbug_return_join_buf(&str, buf);
+}
+
+/*
+  Debugger helper function for visualizing a result set row.
+
+  Prints the name and current value of each Item in the row list,
+  as they would be sent to the client by Protocol::send_result_set_row().
+  The output format matches dbug_print_table_row():
+
+    result_set_row(name1, name2, ...)=(val1, val2, ...)
+
+    (gdb)  p dbug_print_result_set_row(&items)
+    (lldb) p dbug_print_result_set_row(&items)
+*/
+
+const char *dbug_print_result_set_row(List<Item> *row_items)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!row_items)
+    return "(List<Item>*)NULL";
+
+  str.append(STRING_WITH_LEN("("));
+
+  List_iterator_fast<Item> name_it(*row_items);
+  bool first= true;
+  for (Item *item= name_it++; item; item= name_it++)
+  {
+    if (first)
+      first= false;
+    else
+      str.append(STRING_WITH_LEN(", "));
+
+    if (item->name.str)
+      str.append(item->name.str, item->name.length);
+    else
+      str.append(STRING_WITH_LEN("(no name)"));
+  }
+
+  str.append(STRING_WITH_LEN(")=("));
+
+  List_iterator_fast<Item> val_it(*row_items);
+  String val_tmp;
+  first= true;
+  for (Item *item= val_it++; item; item= val_it++)
+  {
+    if (first)
+      first= false;
+    else
+      str.append(STRING_WITH_LEN(", "));
+
+    String *val= item->val_str(&val_tmp);
+    if (val)
+      str.append(val->ptr(), val->length());
+    else
+      str.append(&NULL_clex_str);
+  }
+
+  str.append(')');
+
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print(const TABLE_LIST *x)  { return dbug_print_table(x); }
+const char *dbug_print(List<TABLE_LIST> *x)  { return dbug_print_join_tree(x); }
+const char *dbug_print(const NESTED_JOIN *x) { return dbug_print_nested_join(x); }
+const char *dbug_print(JOIN *x)              { return dbug_print_join(x); }
+const char *dbug_print(List<Item> *x)        { return dbug_print_result_set_row(x); }
 
 #endif /*DBUG_OFF*/
 

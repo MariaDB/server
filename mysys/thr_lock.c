@@ -1651,7 +1651,6 @@ int lock_counts[]= {sizeof(test_0)/sizeof(struct st_test),
 static mysql_cond_t COND_thread_count;
 static mysql_mutex_t LOCK_thread_count;
 static uint thread_count;
-static ulong sum=0;
 
 #define MAX_LOCK_COUNT 8
 #define TEST_TIMEOUT 100000
@@ -1678,6 +1677,7 @@ static my_bool test_check_status(void* param __attribute__((unused)))
   return 0;
 }
 
+#include "my_cpu.h"
 
 static void *test_thread(void *arg)
 {
@@ -1711,7 +1711,7 @@ static void *test_thread(void *arg)
       {
 	ulong k;
 	for (k=0 ; k < (ulong) (tmp-2)*100000L ; k++)
-	  sum+=k;
+	  MY_RELAX_CPU();
       }
     }
     mysql_mutex_unlock(&LOCK_thread_count);

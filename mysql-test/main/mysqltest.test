@@ -2952,12 +2952,120 @@ select "foo\""bar";
 set sql_mode=default;
 
 --echo #
+--echo # MDEV-40353: append_file in mysqltest does not support variables
+--echo #             and expressions substitution
+--echo #
+
+--let $file= $MYSQLTEST_VARDIR/tmp/mdev_40353.txt
+--let $var= foo
+
+--echo # Without 'eval' the content is written as it is
+
+--write_file $file
+variable: $var
+expression: $(6*7)
+escaped: \$var
+a backslash: \\! echo foo
+undefined variable: $mdev_40353_not_set.
+EOF
+--cat_file $file
+--remove_file $file
+
+--echo # With 'eval' variables and expressions are substituted
+
+--write_file $file EOF eval
+variable: $var
+expression: $(6*7)
+escaped: \$var
+a backslash: \\! echo foo
+undefined variable: $mdev_40353_not_set.
+EOF
+--cat_file $file
+
+--echo # a lone dollar sign is an error when evaluated
+
+--let $script= $MYSQLTEST_VARDIR/tmp/mdev_40353_err.test
+--write_file $script END
+  --write_file $MYSQLTEST_VARDIR/tmp/mdev_40353_err.txt EOF eval
+  a lone dollar sign: $
+  EOF
+END
+--error 1
+--exec $MYSQL_TEST < $script 2>&1
+--remove_file $script
+
+--echo # append_file with 'eval' and a not default delimiter
+
+--append_file $file END eval
+appended: $var
+END
+--cat_file $file
+--remove_file $file
+
+--echo # The 'eval' argument is not case sensitive
+
+--write_file $file EOF EVAL
+variable: $var
+EOF
+--cat_file $file
+--remove_file $file
+
+--echo # The content is evaluated on every execution of the command
+
+--let $i= 0
+while ($i < 2)
+{
+  --inc $i
+  --append_file $file EOF eval
+iteration $i
+EOF
+}
+--cat_file $file
+--remove_file $file
+
+--echo # Nothing is written and nothing is evaluated in a false block
+
+# A lone dollar sign in the content would be an error if it was evaluated
+--let $i= 0
+while ($i < 1)
+{
+  --inc $i
+  if (0)
+  {
+    --write_file $file EOF eval
+$
+EOF
+  }
+}
+
+# write_file fails if the file exists, so it also checks that the
+# false block above has written nothing
+--write_file $file
+the false block has written nothing
+EOF
+--cat_file $file
+--remove_file $file
+
+--echo # 'eval' requires the delimiter to be given explicitly
+--error 1
+--exec echo "--write_file $file eval" | $MYSQL_TEST 2>&1
+
+--echo # Only 'eval' is allowed as the third argument
+--error 1
+--exec echo "--write_file $file EOF junk" | $MYSQL_TEST 2>&1
+
+--echo #
+--echo # \0 in a query
+--echo #
+select hex("1 2");
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)
 --echo #
 SELECT 1 /* doesn't throw error */;
 SELECT 1 /* doesn't throw error */;
-
---echo End of tests
 
 --echo #
 --echo # MDEV-38696: infinite loop in my_copy() function

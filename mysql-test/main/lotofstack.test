@@ -5,11 +5,15 @@
 # making writing tests that depend on reaching
 # the depth hard.
 #
-source include/not_asan.inc;
 source include/not_embedded.inc;
-source include/not_ubsan.inc;
 # MSAN with debug exceeds the stack early.
 source include/not_msan_with_debug.inc;
+if (`select count(*) from information_schema.system_variables
+     where variable_name='have_sanitizer'
+     and global_value REGEXP '(A|UB)SAN'`)
+{
+--skip Can't be run in UBSAN/ASAN (stack size predictability)
+}
 
 #
 # Bug#10100 function (and stored procedure?) recursivity problem
@@ -138,3 +142,33 @@ drop procedure bug10100pc|
 drop view v1|
 drop table t3|
 delimiter ;|
+
+--echo #
+--echo # MDEV-40409 ST_GeomFromText stack overrun on deeply nested GeometryCollection
+--echo #
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ST_GeomFromText(CONCAT(REPEAT('GEOMETRYCOLLECTION(',5000),'POINT(1 1)',REPEAT(')',5000)));
+--enable_result_log
+
+--echo #
+--echo # MDEV-40540 ST_GeomFromWKB stack overrun on deeply nested GeometryCollection
+--echo #
+set @a=concat(0x0107000000, repeat(0x010000000107000000, 120000), 0x00000000);
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ST_GeomFromWKB(@a);
+--enable_result_log
+
+--echo #
+--echo # MDEV-39750 ExtractValue does not control recursion depth.
+--echo #
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('(', 100000));
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
+
+--echo # End of 10.6 tests
