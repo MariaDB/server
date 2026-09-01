@@ -26,6 +26,7 @@ Created 2/2/1994 Heikki Tuuri
 *******************************************************/
 
 #include "page0page.h"
+#include "page0blink.h"
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"
@@ -2107,10 +2108,13 @@ wrong_page_type:
 	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 
 	for (;;) {
-		offsets = rec_get_offsets(rec, index, offsets, n_core,
-					  ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(
+			rec, index, offsets,
+			rec_get_node_ptr_flag(rec) ? 0 : n_core,
+			ULINT_UNDEFINED, &heap);
 
 		if (page_is_comp(page) && page_rec_is_user_rec(rec)
+		    && !rec_is_high_key(page, rec, index)
 		    && UNIV_UNLIKELY(rec_get_node_ptr_flag(rec)
 				     == page_is_leaf(page))) {
 			ib::error() << "'node_ptr' flag mismatch";

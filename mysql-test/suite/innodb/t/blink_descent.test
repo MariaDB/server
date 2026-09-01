@@ -1,0 +1,13 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t VALUES (5,50),(1,10),(3,30),(2,20),(4,40);
+SELECT a,b FROM t FORCE INDEX(PRIMARY) WHERE a >= 2 AND a < 5 ORDER BY a;
+SELECT a,b FROM t FORCE INDEX(b) WHERE b >= 20 AND b <= 40 ORDER BY b DESC;
+UPDATE t SET b=35 WHERE a=3;
+DELETE FROM t WHERE a=2;
+SELECT a,b FROM t ORDER BY a;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

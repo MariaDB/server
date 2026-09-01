@@ -59,6 +59,8 @@ struct fsp_binlog_page_entry;
 ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
 void mtr_flush_ahead(lsn_t flush_lsn) noexcept;
 
+struct mtr_t;
+
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t
 {
@@ -66,6 +68,7 @@ struct mtr_memo_slot_t
   void *object;
   /** type of the stored object */
   mtr_memo_type_t type;
+  mtr_t *transfer_to{nullptr};
 
   /** Release the object */
   void release() const;
@@ -98,6 +101,8 @@ struct mtr_t {
   /** Release the last acquired buffer page latch. */
   void release_last_page()
   { auto s= m_memo.size(); rollback_to_savepoint(s - 1, s); }
+
+  void transfer_to(mtr_t *destination, void *object, mtr_memo_type_t type);
 
   /** Commit a mini-transaction that is shrinking a tablespace.
   @param space   tablespace that is being shrunk

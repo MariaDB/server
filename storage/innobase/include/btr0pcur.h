@@ -30,6 +30,7 @@ Created 2/23/1996 Heikki Tuuri
 #include "btr0cur.h"
 #include "btr0btr.h"
 #include "gis0rtree.h"
+#include "page0blink.h"
 
 /* Relative positions for a stored cursor position */
 enum btr_pcur_pos_t {

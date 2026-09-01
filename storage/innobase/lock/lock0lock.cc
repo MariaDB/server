@@ -44,6 +44,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "row0vers.h"
 #include "pars0pars.h"
+#include "page0blink.h"
 #include "srv0mon.h"
 #include "que0que.h"
 #include "scope.h"
@@ -3742,7 +3743,8 @@ void
 lock_update_insert(
 /*===============*/
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
-	const rec_t*		rec)	/*!< in: the inserted record */
+	const rec_t*		rec,	/*!< in: the inserted record */
+	const dict_index_t*	index)
 {
 	ulint	receiver_heap_no;
 	ulint	donator_heap_no;
@@ -3759,6 +3761,8 @@ lock_update_insert(
 		if (UNIV_UNLIKELY(!rec)) {
 			return;
 		}
+		if (rec_is_high_key(block->page.frame, rec, index))
+			rec= page_rec_next_get<true>(block->page.frame, rec);
 		donator_heap_no = rec_get_heap_no_new(rec);
 	} else {
 		receiver_heap_no = rec_get_heap_no_old(rec);
@@ -3779,7 +3783,8 @@ void
 lock_update_delete(
 /*===============*/
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
-	const rec_t*		rec)	/*!< in: the record to be removed */
+	const rec_t*		rec,	/*!< in: the record to be removed */
+	const dict_index_t*	index)
 {
 	const page_t*	page = block->page.frame;
 	ulint		heap_no;
@@ -3790,9 +3795,10 @@ lock_update_delete(
 
 	if (page_is_comp(page)) {
 		heap_no = rec_get_heap_no_new(rec);
-		next_heap_no = rec_get_heap_no_new(page
-						   + rec_get_next_offs(rec,
-								       TRUE));
+		const rec_t *next= page + rec_get_next_offs(rec, TRUE);
+		if (rec_is_high_key(page, next, index))
+			next= page + rec_get_next_offs(next, TRUE);
+		next_heap_no = rec_get_heap_no_new(next);
 	} else {
 		heap_no = rec_get_heap_no_old(rec);
 		next_heap_no = rec_get_heap_no_old(page
@@ -6072,6 +6078,12 @@ lock_rec_insert_check_and_lock(
   {
     next_rec= page_rec_next_get<false>(block->page.frame, rec);
     if (UNIV_UNLIKELY(!next_rec || rec_is_metadata(next_rec, FALSE)))
+      return DB_CORRUPTION;
+  }
+
+  if (rec_is_high_key(block->page.frame, next_rec, index)) {
+    next_rec= page_rec_next_get<true>(block->page.frame, next_rec);
+    if (!next_rec)
       return DB_CORRUPTION;
   }
 

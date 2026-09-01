@@ -69,6 +69,7 @@ void mtr_t::finisher_update()
 
 void mtr_memo_slot_t::release() const
 {
+  ut_ad(!transfer_to);
   ut_ad(object);
 
   switch (type) {
@@ -284,6 +285,19 @@ static void insert_imported(buf_block_t *block)
   }
 }
 
+static bool mtr_transfer_slot(mtr_memo_slot_t &slot)
+{
+  if (!slot.transfer_to)
+    return false;
+  mtr_t *destination= slot.transfer_to;
+  void *object= slot.object;
+  const mtr_memo_type_t type= slot.type;
+  slot.transfer_to= nullptr;
+  slot.object= nullptr;
+  destination->memo_push(object, type);
+  return true;
+}
+
 /** Release modified pages when no log was written. */
 void mtr_t::release_unlogged()
 {
@@ -295,6 +309,8 @@ void mtr_t::release_unlogged()
   for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
   {
     mtr_memo_slot_t &slot= *it;
+    if (mtr_transfer_slot(slot))
+      continue;
     ut_ad(slot.object);
     switch (slot.type) {
     case MTR_MEMO_S_LOCK:
@@ -345,7 +361,8 @@ void mtr_t::release_unlogged()
 void mtr_t::release()
 {
   for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
-    it->release();
+    if (!mtr_transfer_slot(*it))
+      it->release();
   m_memo.clear();
 }
 
@@ -465,7 +482,9 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
 
     for (auto it= mtr->m_memo.rbegin(); it != mtr->m_memo.rend(); )
     {
-      const mtr_memo_slot_t &slot= *it++;
+      mtr_memo_slot_t &slot= *it++;
+      if (mtr_transfer_slot(slot))
+        continue;
       ut_ad(slot.object);
       switch (slot.type) {
       case MTR_MEMO_S_LOCK:
@@ -587,6 +606,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   while (s-- > begin)
   {
     const mtr_memo_slot_t &slot= m_memo[s];
+    ut_a(!slot.transfer_to);
     ut_ad(slot.object);
     ut_ad(!(slot.type & MTR_MEMO_MODIFY));
     slot.release();
@@ -904,6 +924,27 @@ void mtr_t::x_lock_space(fil_space_t *space)
   }
 }
 
+void mtr_t::transfer_to(mtr_t *destination, void *object,
+                        mtr_memo_type_t type)
+{
+  ut_ad(is_active());
+  ut_ad(destination);
+  ut_ad(destination->is_active());
+  ut_ad(destination != this);
+  ut_ad(object);
+  ut_ad(type == MTR_MEMO_S_LOCK || type == MTR_MEMO_SX_LOCK);
+  ut_d(for (mtr_memo_slot_t &destination_slot : destination->m_memo)
+    ut_ad(destination_slot.object != object ||
+          destination_slot.type != type));
+  for (auto it= m_memo.rbegin(); it != m_memo.rend(); ++it)
+    if (it->object == object && it->type == type) {
+      ut_a(!it->transfer_to);
+      it->transfer_to= destination;
+      return;
+    }
+  ut_error;
+}
+
 void mtr_t::release(const void *object)
 {
   ut_ad(is_active());
@@ -914,6 +955,7 @@ void mtr_t::release(const void *object)
                  { return slot.object == object; });
   ut_ad(it != m_memo.end());
   ut_ad(!(it->type & MTR_MEMO_MODIFY));
+  ut_a(!it->transfer_to);
   it->release();
   m_memo.erase(it, it + 1);
   ut_ad(std::find_if(m_memo.begin(), m_memo.end(),

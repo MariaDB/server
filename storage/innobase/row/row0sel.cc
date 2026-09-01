@@ -37,6 +37,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "btr0sea.h"
 #include "gis0rtree.h"
 #include "mach0data.h"
+#include "page0blink.h"
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0row.h"
@@ -1825,7 +1826,8 @@ rec_loop:
 		search result set, resulting in the phantom problem. */
 
 		if (!node->read_view) {
-			const rec_t* next_rec = page_rec_get_next_const(rec);
+			const rec_t *next_rec= page_rec_get_next_user(
+				page_align(rec), rec, index);
 			if (UNIV_UNLIKELY(!next_rec)) {
 				err = DB_CORRUPTION;
 				goto lock_wait_or_error;
@@ -1870,7 +1872,8 @@ rec_loop:
 	}
 
 skip_lock:
-	if (page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(rec) ||
+	    rec_is_high_key(page_align(rec), rec, index)) {
 
 		/* The infimum record on a page cannot be in the result set,
 		and neither can a record lock be placed on it: we skip such
@@ -4929,7 +4932,8 @@ page_corrupted:
 
 			/* Try to place a gap lock on the next index record
 			to prevent phantoms in ORDER BY ... DESC queries */
-			const rec_t*	next_rec = page_rec_get_next_const(rec);
+			const rec_t* next_rec= page_rec_get_next_user(
+			page_align(rec), rec, index);
 			if (UNIV_UNLIKELY(!next_rec)) {
 				err = DB_CORRUPTION;
 				goto page_corrupted;
@@ -5035,7 +5039,8 @@ rec_loop:
 	ut_ad(!!page_rec_is_comp(rec) == comp);
 	ut_ad(page_rec_is_leaf(rec));
 
-	if (page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(rec) ||
+	    rec_is_high_key(page_align(rec), rec, index)) {
 
 		/* The infimum record on a page cannot be in the result set,
 		and neither can a record lock be placed on it: we skip such

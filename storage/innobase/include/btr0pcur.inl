@@ -124,7 +124,9 @@ btr_pcur_is_on_user_rec(
 	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
 {
   return !btr_pcur_is_before_first_on_page(cursor) &&
-    !btr_pcur_is_after_last_on_page(cursor);
+    !btr_pcur_is_after_last_on_page(cursor) &&
+    !rec_is_high_key(btr_pcur_get_page(cursor), btr_pcur_get_rec(cursor),
+                     cursor->btr_cur.index());
 }
 
 /*********************************************************//**
@@ -163,7 +165,12 @@ btr_pcur_move_to_next_on_page(
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
 	cursor->old_rec = nullptr;
-	return page_cur_move_to_next(btr_pcur_get_page_cur(cursor));
+	page_cur_t *page_cur= btr_pcur_get_page_cur(cursor);
+	rec_t *rec= page_cur_move_to_next(page_cur);
+	if (rec_is_high_key(btr_pcur_get_page(cursor), rec,
+			    cursor->btr_cur.index()))
+		rec= page_cur_move_to_next(page_cur);
+	return rec;
 }
 
 /*********************************************************//**
@@ -177,8 +184,12 @@ btr_pcur_move_to_prev_on_page(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	cursor->old_rec = nullptr;
-
-	return page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
+	page_cur_t *page_cur= btr_pcur_get_page_cur(cursor);
+	rec_t *rec= page_cur_move_to_prev(page_cur);
+	if (rec_is_high_key(btr_pcur_get_page(cursor), rec,
+			    cursor->btr_cur.index()))
+		rec= page_cur_move_to_prev(page_cur);
+	return rec;
 }
 
 /*********************************************************//**

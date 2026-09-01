@@ -34,6 +34,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "btr0btr.h"
 #include "btr0sea.h"
 #include "que0que.h"
+#include "page0blink.h"
 #include "debug_sync.h"
 #ifdef WITH_WSREP
 # include <mysql/service_wsrep.h>
@@ -956,7 +957,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		page = btr_cur_get_page(&cursor);
 
-		rec = page_rec_get_next(cursor.page_cur.rec);
+		rec = const_cast<rec_t*>(page_rec_get_next_user(
+			page, cursor.page_cur.rec, index));
 		const ulint n_core = index->n_core_fields;
 
 		if (rec && rec != page_get_supremum_rec(page)) {
@@ -973,7 +975,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		while (rec != page_get_supremum_rec(page)) {
 			ulint	matched_fields;
-			rec_t*	next_rec = page_rec_get_next(rec);
+			rec_t *next_rec= const_cast<rec_t*>(
+				page_rec_get_next_user(page, rec, index));
 			if (!next_rec
 			    || next_rec == page_get_supremum_rec(page)) {
 				total_external_size +=
@@ -1474,7 +1477,8 @@ dict_stats_analyze_index_level(
 		      || btr_pcur_get_page(&pcur) == page_align(prev_rec)
 		      || prev_rec_is_copied);
 
-		rec_is_last_on_page = page_rec_get_next_const(rec)
+		rec_is_last_on_page = page_rec_get_next_user(
+			btr_pcur_get_page(&pcur), rec, index)
 			== page_get_supremum_rec(btr_pcur_get_page(&pcur));
 
 		/* increment the pages counter at the end of each page */
@@ -1730,12 +1734,17 @@ dict_stats_scan_page(
 		: page_rec_get_next_non_del_marked<false>;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
+	const auto get_next_user= [=](const rec_t *record) {
+		const rec_t *next= get_next(page, record);
+		return rec_is_high_key(page, next, index)
+			? get_next(page, next) : next;
+	};
 
 	if (should_count_external_pages) {
 		*n_external_pages = 0;
 	}
 
-	rec = get_next(page, page_get_infimum_rec(page));
+	rec = get_next_user(page_get_infimum_rec(page));
 
 	if (!rec || rec == page_get_supremum_rec(page)) {
 		/* the page is empty or contains only delete-marked records */
@@ -1752,7 +1761,7 @@ dict_stats_scan_page(
 			rec, offsets_rec);
 	}
 
-	next_rec = get_next(page, rec);
+	next_rec = get_next_user(rec);
 
 	*n_diff = 1;
 

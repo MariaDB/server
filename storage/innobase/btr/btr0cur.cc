@@ -37,8 +37,10 @@ Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0cur.h"
+#include "btr0blink.h"
 #include "row0upd.h"
 #include "mtr0log.h"
+#include "page0blink.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "rem0rec.h"
@@ -1110,6 +1112,15 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 {
   ut_ad(index()->is_btree());
 
+  if (use_blink_path(index())) {
+    const btr_latch_mode base_mode=
+      BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+    if (base_mode == BTR_SEARCH_LEAF || base_mode == BTR_MODIFY_LEAF)
+      return blink_search_leaf(
+        index(), tuple, mode, static_cast<rw_lock_type_t>(base_mode),
+        (latch_mode & BTR_ALREADY_S_LATCHED) != 0, this, mtr);
+  }
+
   buf_block_t *guess;
   btr_intention_t lock_intention;
   bool detected_same_key_root= false;
@@ -1782,6 +1793,11 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
 {
   dict_index_t *const index= cursor->index();
 
+  if (use_blink_path(index)) {
+    return blink_search_to_level(index, static_cast<uint16_t>(level), tuple,
+                                 PAGE_CUR_LE, rw_latch, true, cursor, mtr);
+  }
+
   ut_ad(index->is_btree());
   mem_heap_t *heap= nullptr;
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1879,6 +1895,10 @@ search_loop:
   /* If this is the desired level, leave the loop */
   if (level == height)
     goto func_exit;
+
+  if (rec_is_high_key(block->page.frame, cursor->page_cur.rec, index) &&
+      !page_cur_move_to_prev(&cursor->page_cur))
+    goto corrupted;
 
   ut_ad(height > level);
   height--;
@@ -2557,7 +2577,7 @@ fail_err:
 
 	if (!(flags & BTR_NO_LOCKING_FLAG) && inherit) {
 
-		lock_update_insert(block, *rec);
+		lock_update_insert(block, *rec, index);
 	}
 
 	*big_rec = big_rec_vec;
@@ -2731,7 +2751,7 @@ btr_cur_pessimistic_insert(
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
-			lock_update_insert(btr_cur_get_block(cursor), *rec);
+			lock_update_insert(btr_cur_get_block(cursor), *rec, index);
 		}
 	}
 
@@ -4478,7 +4498,7 @@ btr_cur_optimistic_delete(
 			    && rec_is_add_metadata(first_rec, *index));
 		if (UNIV_LIKELY(empty_table)) {
 			if (UNIV_LIKELY(!is_metadata && !flags)) {
-				lock_update_delete(block, rec);
+				lock_update_delete(block, rec, cursor->index());
 			}
 			btr_page_empty(block, buf_block_get_page_zip(block),
 				       index, 0, mtr);
@@ -4515,7 +4535,7 @@ btr_cur_optimistic_delete(
 			goto func_exit;
 		} else {
 			if (!flags) {
-				lock_update_delete(block, rec);
+				lock_update_delete(block, rec, cursor->index());
 			}
 
 			btr_search_update_hash_on_delete(cursor);
@@ -4643,7 +4663,7 @@ btr_cur_pessimistic_delete(
 			ut_ad(index->table->supports_instant());
 			ut_ad(index->is_primary());
 		} else if (flags == 0) {
-			lock_update_delete(block, rec);
+			lock_update_delete(block, rec, cursor->index());
 		}
 
 		if (block->page.id().page_no() != index->page) {
@@ -4977,7 +4997,7 @@ public:
     if (level != btr_page_get_level(m_block->page.frame))
       return false;
 
-    m_n_recs= page_get_n_recs(m_block->page.frame);
+    m_n_recs= page_get_n_user_recs(m_block->page.frame, index());
 
     if (dtuple_get_n_fields(&m_tuple) > 0)
     {
@@ -4987,7 +5007,12 @@ public:
                                      &m_up_match, &m_low_match, &m_page_cur,
                                      nullptr))
         return false;
-      m_nth_rec= page_rec_get_n_recs_before(page_cur_get_rec(&m_page_cur));
+      rec_t *record= page_cur_get_rec(&m_page_cur);
+      m_nth_rec= page_rec_get_n_recs_before(record);
+      if (page_rec_is_supremum(record) &&
+          page_get_n_user_recs(m_block->page.frame, index()) !=
+          page_get_n_recs(m_block->page.frame))
+        --m_nth_rec;
     }
     else if (left)
     {
@@ -5186,7 +5211,7 @@ static ha_rows btr_estimate_n_rows_in_range_on_level(
 
     n_pages_read++;
 
-    n_rows+= page_get_n_recs(page);
+    n_rows+= page_get_n_user_recs(page, index);
 
     page_id.set_page_no(btr_page_get_next(page));
 

@@ -1278,7 +1278,7 @@ row_search_index_entry(
 		return false;
 	}
 
-	return !btr_pcur_is_before_first_on_page(pcur)
+	return btr_pcur_is_on_user_rec(pcur)
 		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(entry);
 }
 

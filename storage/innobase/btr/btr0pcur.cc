@@ -25,6 +25,7 @@ Created 2/23/1996 Heikki Tuuri
 *******************************************************/
 
 #include "btr0pcur.h"
+#include "btr0blink.h"
 #include "buf0rea.h"
 #include "btr0sea.h"
 #include "rem0cmp.h"
@@ -67,6 +68,7 @@ btr_pcur_store_position(
 	rec_t*		rec;
 	dict_index_t*	index;
 	ulint		offs;
+	uint32_t	next;
 
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -95,11 +97,42 @@ btr_pcur_store_position(
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(!page_has_siblings(block->page.frame));
 		ut_ad(page_is_leaf(block->page.frame));
-		ut_ad(block->page.id().page_no() == index->page);
+		next= btr_page_get_next(block->page.frame);
+		while (next != FIL_NULL && use_blink_path(index)) {
+			dberr_t err= DB_SUCCESS;
+			buf_block_t *right=
+				btr_block_get(*index, next, RW_S_LATCH, mtr, &err);
+			ut_a(right);
+			const page_t *page= right->page.frame;
+			const rec_t *anchor= page_rec_get_next_user(
+				page, page_get_infimum_rec(page), index);
+			if (page_rec_is_supremum(anchor)) {
+				const rec_t *last= page_rec_get_prev_const(anchor);
+				if (rec_is_high_key(page, last, index))
+					anchor= last;
+			}
+			if (!page_rec_is_supremum(anchor)) {
+				cursor->rel_pos= BTR_PCUR_BEFORE;
+				cursor->old_n_fields= static_cast<uint16>(
+					dict_index_get_n_unique_in_tree(index));
+				cursor->old_n_core_fields= index->n_core_fields;
+				cursor->old_rec= rec_copy_prefix_to_buf(
+					anchor, index, cursor->old_n_fields,
+					&cursor->old_rec_buf, &cursor->buf_size);
+				cursor->old_page_id= block->page.id();
+				cursor->modify_clock= block->modify_clock;
+				return;
+			}
+			next= btr_page_get_next(page);
+		}
 
-		if (page_rec_is_supremum_low(offs)) {
+		ut_a(use_blink_path(index) || !page_has_siblings(block->page.frame));
+		ut_ad(use_blink_path(index) ||
+		      block->page.id().page_no() == index->page);
+
+		if (page_rec_is_supremum_low(offs) || page_has_siblings(
+			    block->page.frame)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 		} else {
 before_first:
@@ -111,6 +144,15 @@ before_first:
 
 	if (page_rec_is_supremum_low(offs)) {
 		rec = page_rec_get_prev(rec);
+		if (rec_is_high_key(block->page.frame, rec, index)) {
+			rec_t *previous= page_rec_get_prev(rec);
+			if (!page_rec_is_infimum(previous)) {
+				rec= previous;
+				cursor->rel_pos= BTR_PCUR_AFTER;
+			} else
+				cursor->rel_pos= BTR_PCUR_BEFORE;
+		} else
+			cursor->rel_pos= BTR_PCUR_AFTER;
 		if (UNIV_UNLIKELY(!rec || page_rec_is_infimum(rec))) {
 			ut_ad("corrupted index" == 0);
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
@@ -135,7 +177,6 @@ before_first:
 			return;
 		}
 
-		cursor->rel_pos = BTR_PCUR_AFTER;
 	} else if (page_rec_is_infimum_low(offs)) {
 		rec = page_rec_get_next(rec);
 
