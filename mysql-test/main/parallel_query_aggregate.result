@@ -156,6 +156,10 @@ col1	col2 MOD 3	COUNT(*)	SUM(col2)
 #
 # A 2 table join executed in the worker
 #
+truncate t2;
+INSERT INTO t2 SELECT seq MOD 10,
+IF(seq MOD 10 = 7 OR seq MOD 3 = 0, NULL, seq)
+FROM seq_1_to_500;
 create index ixt2 on t2 (col1);
 # ---- serial ----
 SET SESSION parallel_worker_threads=0;
@@ -164,21 +168,21 @@ COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
 GROUP BY t1.col1 ORDER BY t1.col1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5000	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	500	Using index
+1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	50	Using index
 SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
 COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
 GROUP BY t1.col1 ORDER BY t1.col1;
 col1	COUNT(t1.col2)	SUM(t1.col2)	MIN(t1.col2)	MAX(t1.col2)	COUNT(t2.col1)
-0	250000	626250000	10	5000	250000
-1	250000	624000000	1	4991	250000
-2	250000	624250000	2	4992	250000
-3	250000	624500000	3	4993	250000
-4	250000	624750000	4	4994	250000
-5	250000	625000000	5	4995	250000
-6	250000	625250000	6	4996	250000
-7	250000	625500000	7	4997	250000
-8	250000	625750000	8	4998	250000
-9	250000	626000000	9	4999	250000
+0	25000	62625000	10	5000	25000
+1	25000	62400000	1	4991	25000
+2	25000	62425000	2	4992	25000
+3	25000	62450000	3	4993	25000
+4	25000	62475000	4	4994	25000
+5	25000	62500000	5	4995	25000
+6	25000	62525000	6	4996	25000
+7	25000	62550000	7	4997	25000
+8	25000	62575000	8	4998	25000
+9	25000	62600000	9	4999	25000
 # ---- parallel ----
 SET SESSION parallel_worker_threads=4;
 explain SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
@@ -186,22 +190,56 @@ COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
 GROUP BY t1.col1 ORDER BY t1.col1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	5000	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	500	Using index
+1	SIMPLE	t2	ref	ixt2	ixt2	5	test.t1.col1	50	Using index
 SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
 COUNT(t2.col1) FROM t1 join t2 on t1.col1 = t2.col1
 GROUP BY t1.col1 ORDER BY t1.col1;
 col1	COUNT(t1.col2)	SUM(t1.col2)	MIN(t1.col2)	MAX(t1.col2)	COUNT(t2.col1)
-0	250000	626250000	10	5000	250000
-1	250000	624000000	1	4991	250000
-2	250000	624250000	2	4992	250000
-3	250000	624500000	3	4993	250000
-4	250000	624750000	4	4994	250000
-5	250000	625000000	5	4995	250000
-6	250000	625250000	6	4996	250000
-7	250000	625500000	7	4997	250000
-8	250000	625750000	8	4998	250000
-9	250000	626000000	9	4999	250000
+0	25000	62625000	10	5000	25000
+1	25000	62400000	1	4991	25000
+2	25000	62425000	2	4992	25000
+3	25000	62450000	3	4993	25000
+4	25000	62475000	4	4994	25000
+5	25000	62500000	5	4995	25000
+6	25000	62525000	6	4996	25000
+7	25000	62550000	7	4997	25000
+8	25000	62575000	8	4998	25000
+9	25000	62600000	9	4999	25000
 DROP TABLE t2;
+#
+# A plan whose container gets no group index cannot pre-aggregate: a
+# unique constraint is a hash of the row with nothing to look a group up
+# in. Whether create_tmp_table() managed an index can only be asked of
+# the finished table, so the answer is a fall-back rather than a gate
+# check -- the workers ship their rows and the manager groups them, which
+# is the same grouping done a row at a time instead of a group at a time.
+#
+# Nothing this tree can express reaches it: the gate already refuses the
+# two shapes that make create_tmp_table() fall back for a heap container,
+# and its engine-limit test is only in the on-disk branch. So it is asked
+# for here, or it would never be run.
+#
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug="+d,pwt_no_group_index";
+FLUSH STATUS;
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+FROM t1 GROUP BY col1 ORDER BY NULL;
+col1	COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)
+0	500	1252500	10	5000
+1	500	1248000	1	4991
+2	500	1248500	2	4992
+3	500	1249000	3	4993
+4	500	1249500	4	4994
+5	500	1250000	5	4995
+6	500	1250500	6	4996
+7	500	1251000	7	4997
+8	500	1251500	8	4998
+9	500	1252000	9	4999
+set global debug_dbug= @save_dbug;
+# same answer, still in the workers, and by shipping rows rather than
+# partials -- which is what a tmp-write per source row says (expect 1 1)
+still_ran_in_the_workers	shipped_rows
+1	1
 #
 # What is not accepted. Each of these still runs, serially: the gate
 # declines the plan rather than the query.

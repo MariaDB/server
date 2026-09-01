@@ -1265,7 +1265,7 @@ bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
                 "carries over to a worker");
 #endif
 
-  pwt_assert_join_inert(exec.join, layout.grouped);
+  pwt_assert_join_inert(exec.join, layout.plan_aggregates);
 
   if (!(worker->exec.join= new (thd->mem_root)
           JOIN(worker->thd, exec.join->fields_list, exec.join->select_options,
@@ -1486,19 +1486,6 @@ int pwt_worker::pscan_next_row()
 
 /*
   @brief
-    A fully joined row. Project the worker's clone of the shipped columns into
-    the shared record layout and hand that record to the transport: the manager
-    receives it as it stands, so the projection happens once, on the thread that
-    produced the row.
-
-    Where it goes from here is the transport's business -- see
-    sql_parallel_transport.h.
-
-  @return  pwt_emit_result: 0 keep going, 1 error, 2 the manager asked us to
-           stop.
-*/
-/*
-  @brief
     Give this worker its own grouping table, aggregates and group key.
 
   @description
@@ -1533,31 +1520,39 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   if (!layout.grouped)
     return false;
 
-  ORDER *group= layout.clone_group_defn(thd);
-  if (!group ||
-      layout.make_container(thd, &worker->exec.group_container, false, group))
-    return true;
-  worker->exec.group_list= group;
   /*
-    The key buffer create_tmp_table() built alongside the table. It is left in
-    the param rather than on the table, which is one more thing the container
-    and its param have to stay together for.
+    The columns of this worker's grouping table, defined by items that read
+    this worker's tables. That is what makes end_update() usable unmodified:
+    it fills the table with copy_fields(), through the Copy_field pairs
+    create_tmp_table() derives from these very items, and it builds the group
+    key with save_org_in_field() from the same items. Define the columns from
+    the manager's items instead and both would read records no worker fills.
   */
-  worker->exec.group_buff= worker->exec.group_container.param->group_buff;
-
-  /* Point the key at the columns of the table it is a key on. */
-  for (uint k= 0; k < layout.n_group; k++)
+  List<Item> defn;
   {
-    Item *f= new (thd->mem_root)
-               Item_field(thd, worker->exec.group_container.table
-                                 ->field[layout.group_pos[k]]);
-    if (!f)
-      return true;
-    group[k].item_ptr= f;
+    List_iterator_fast<Item> li(layout.ship_list);
+    Item *src;
+    while ((src= li++))
+    {
+      Item *c= pwt_clone_rebind(thd, src, exec.tables, worker->exec.tables,
+                                exec.n_tables);
+      if (!c || defn.push_back(c, thd->mem_root))
+        return true;
+    }
   }
 
-  if (!(worker->exec.sums= thd->alloc<Item_sum*>(layout.n_sums)))
+  /*
+    Then this worker's own aggregates. Cloned, and their argument cloned and
+    rebound separately, by the same route the row transport rebinds any
+    expression: the aggregate must not go through fix_fields() again, because
+    Item_sum::fix_fields() registers it with the select_lex the manager is also
+    using. So the shell is copied, the rebound argument is grafted in, and
+    setup_caches() rebuilds whatever the shell derived from the old argument --
+    for MIN and MAX the Item_cache pair and the comparator bound to them.
+  */
+  if (!(worker->exec.sums= thd->alloc<Item_sum*>(layout.n_sums + 1)))
     return true;
+  worker->exec.sums[layout.n_sums]= nullptr;     // sum_funcs is NULL-terminated
 
   for (uint i= 0; i < layout.n_sums; i++)
   {
@@ -1581,105 +1576,93 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
     */
     if (item_sum->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR))
       return true;
-    item_sum->result_field= worker->exec.group_container.table
-                       ->field[layout.n_ship_base + i];
+    if (defn.push_back(item_sum, thd->mem_root))
+      return true;
     worker->exec.sums[i]= item_sum;
   }
-  return false;
-}
-
-
-/*
-  @brief
-    Fold one joined row into this worker's grouping table.
-
-  @description
-    The server's own end_update(), done over a table of this worker's own: build
-    the group key from the row, and either extend the group already there or
-    start a new one. What differs is only where the values come from.
-
-  @return  pwt_emit_result.
-*/
-
-int pwt_worker::accumulate_group()
-{
-  DBUG_ENTER("pwt_worker::accumulate_group");
-  TABLE *t= exec.group_container.table;
-  pwt_row_layout &layout= manager->row_layout();
-  int error;
-
-  for (uint i= 0; i < exec.proj_count; i++)
-    exec.proj[i]->save_in_field(t->field[i], false);
-  if (manager->is_fatal_error())               // projection raised an error
-    DBUG_RETURN(PWT_EMIT_ERROR);
-
-  for (ORDER *g= t->group; g; g= g->next)
-  {
-    Item *item= *g->item;
-    if (g->fast_field_copier_setup != g->field)
-    {
-      g->fast_field_copier_setup= g->field;
-      g->fast_field_copier_func= item->setup_fast_field_copier(g->field);
-    }
-    item->save_org_in_field(g->field, g->fast_field_copier_func);
-    /* The key holds a null flag of its own just before the value. */
-    if (item->maybe_null())
-      g->buff[-1]= (char) g->field->is_null();
-  }
-
-  if (!t->file->ha_index_read_map(t->record[1], exec.group_buff,
-                                  HA_WHOLE_KEY, HA_READ_KEY_EXACT))
-  {
-    restore_record(t, record[1]);               // the group's row so far
-    for (uint i= 0; i < layout.n_sums; i++)
-      exec.sums[i]->update_field();
-    if ((error= t->file->ha_update_tmp_row(t->record[1], t->record[0])))
-    {
-      t->file->print_error(error, MYF(0));
-      DBUG_RETURN(PWT_EMIT_ERROR);
-    }
-    DBUG_RETURN(PWT_EMIT_OK);
-  }
-
-  for (uint i= 0; i < layout.n_sums; i++)
-    exec.sums[i]->reset_field();
-  if (!(error= t->file->ha_write_tmp_row(t->record[0])))
-    DBUG_RETURN(PWT_EMIT_OK);
 
   /*
-    The grouping table is full. Ship what it holds and start it again empty:
-    a partial is mergeable, so a group split across two flushes costs one extra
-    shipped row and nothing else. That is also what keeps a heap-to-disk
-    conversion off this thread -- see pwt_tmp_table_sink::spill_to_disk() for
-    why a container opened on a worker is one the manager cannot read.
-
-    The row that did not fit has to survive the flush, which scans the table
-    through record[0]. record[1] is free -- the lookup above missed -- so it
-    holds the row across.
+    The group key, over this worker's definition items. create_tmp_table()
+    reads them to find which column each key part covers, and end_update()
+    reads them again per row to build the key -- from the worker's tables,
+    which is where the row it is keying actually is.
   */
-  if (error != HA_ERR_RECORD_FILE_FULL)
+  ORDER *group= thd->calloc<ORDER>(layout.n_group);
+  if (!group)
+    return true;
   {
-    t->file->print_error(error, MYF(0));
-    DBUG_RETURN(PWT_EMIT_ERROR);
+    for (uint k= 0; k < layout.n_group; k++)
+    {
+      List_iterator_fast<Item> di(defn);
+      Item *it= nullptr;
+      for (uint j= 0; j <= layout.group_pos[k]; j++)
+        it= di++;
+      group[k].item_ptr=  it;
+      group[k].item=      &group[k].item_ptr;
+      group[k].direction= ORDER::ORDER_ASC;
+      group[k].next=      k + 1 < layout.n_group ? &group[k + 1] : nullptr;
+    }
   }
-  memcpy(t->record[1], t->record[0], layout.reclength);
-  if ((error= flush_groups()) != PWT_EMIT_OK)
-    DBUG_RETURN(error);
-  if ((error= t->file->ha_delete_all_rows()) ||
-      (error= t->file->ha_index_init(0, 0)))
-  {
-    t->file->print_error(error, MYF(0));
-    DBUG_RETURN(PWT_EMIT_ERROR);
-  }
-  memcpy(t->record[0], t->record[1], layout.reclength);
-  for (uint i= 0; i < layout.n_sums; i++)
-    exec.sums[i]->reset_field();
-  if ((error= t->file->ha_write_tmp_row(t->record[0])))
-  {
-    t->file->print_error(error, MYF(0));
-    DBUG_RETURN(PWT_EMIT_ERROR);
-  }
-  DBUG_RETURN(PWT_EMIT_OK);
+
+  /*
+    In memory, and it has to be, which is also why a grouping table that fills
+    is a hazard this does not yet handle.
+
+    end_update() answers a full heap table by calling
+    create_internal_tmp_table_from_heap(). A worker must not: that re-opens the
+    table on this thread, and Aria binds an open handle to the opening thread's
+    my_thread_var, which is freed the moment the worker's THD is destroyed.
+
+    Building the container on disk from the start would make that branch
+    unreachable -- for a table that is already on disk it reports an error and
+    returns -- but it moves the problem rather than solving it, because
+    tmp_space_used is charged to whichever thread writes an on-disk temp table
+    and released by whichever frees it, and those are the worker and the
+    manager. Doing so trips THD::free_connection()'s assertion, which is what
+    the 13.0 tree's comment on this predicted.
+
+    TODO: a worker's groups must currently fit its heap container. Neither
+    answer to a full one is available to a worker as things stand, so the fix
+    is to give AGGR_OP a hook for what to do when the table fills -- convert,
+    as now, or ship what is there and start again empty, which is available to
+    a worker because a partial aggregate is mergeable.
+  */
+  if (layout.make_container_from(thd, defn, &worker->exec.group_container,
+                                 group))
+    return true;
+
+  /*
+    flush_groups() copies a row of this table straight into the shipping
+    container, so the two layouts have to agree. They are built from different
+    item lists -- this one from the worker's, that one from the manager's --
+    so they agree by both deriving from the same columns, not by construction.
+  */
+  DBUG_ASSERT(worker->exec.group_container.table->s->reclength ==
+              layout.reclength);
+  DBUG_ASSERT(worker->exec.group_container.table->s->fields ==
+              layout.recv.table->s->fields);
+
+  /*
+    And the aggregation tab itself: the JOIN_TAB end_update() is called with.
+    It reads the table, the param (for the key buffer, the Copy_field pairs and
+    items_to_copy), the aggregate list off the JOIN, and its own AGGR_OP for
+    the one branch that switches write function. Everything else it touches is
+    a counter.
+  */
+  JOIN_TAB *aggr_tab= thd->calloc<JOIN_TAB>(1);
+  if (!aggr_tab)
+    return true;
+  aggr_tab->join=             worker->exec.join;
+  aggr_tab->table=            worker->exec.group_container.table;
+  aggr_tab->tmp_table_param=  worker->exec.group_container.param;
+  if (!(aggr_tab->aggr= new (thd->mem_root) AGGR_OP(aggr_tab)))
+    return true;
+  aggr_tab->aggr->set_write_func(end_update);
+  worker->exec.aggr_tab= aggr_tab;
+
+  /* The aggregates end_update() folds into are the JOIN's, so they are ours. */
+  worker->exec.join->sum_funcs= worker->exec.sums;
+  return false;
 }
 
 
@@ -1825,9 +1808,16 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
   if (end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
 
-  switch (pwt_self->manager->row_layout().grouped
-          ? pwt_self->accumulate_group()
-          : pwt_self->emit_joined_row()) {
+  /*
+    A pre-aggregating worker hands the row to the server's own grouped
+    aggregation, over its own tab: AGGR_OP::put_record() prepares the table on
+    first use and then calls end_update(), unmodified. Its result is already
+    the enum this function returns.
+  */
+  if (pwt_self->manager->row_layout().grouped)
+    DBUG_RETURN(pwt_self->exec.aggr_tab->aggr->put_record());
+
+  switch (pwt_self->emit_joined_row()) {
   case PWT_EMIT_OK:   DBUG_RETURN(NESTED_LOOP_OK);
   case PWT_EMIT_STOP: DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
   default:            DBUG_RETURN(NESTED_LOOP_ERROR);
@@ -1924,13 +1914,15 @@ int pwt_worker::execute_and_handoff()
       break;
   }
 
-  // Initialize the index on our grouping table.
-  if (!err && manager->row_layout().grouped)
+  /*
+    The grouping table is ours to write for the length of this chunk. Its index
+    is not opened here: AGGR_OP::put_record() does that on its first call, the
+    same lazy preparation the serial plan gets.
+  */
+  if (manager->row_layout().grouped)
   {
     exec.group_container.table->in_use= thd;
     exec.group_container.table->use_all_columns();
-    if ((err= exec.group_container.table->file->ha_index_init(0, 0)))
-      exec.group_container.table->file->print_error(err, MYF(0));
   }
 
   if (err)
@@ -2041,9 +2033,9 @@ int pwt_manager::drain_and_send(JOIN *join)
   if (layout.begin_receive(thd, exec.tables, exec.n_tables))
     DBUG_RETURN(1);
 
-  if (layout.grouped)
+  if (layout.plan_aggregates)
   {
-    // if pre-aggregating,last_tab is the worker row destination
+    // the plan aggregates, so last_tab is the worker row destination
     JOIN_TAB *last_tab= join->join_tab + join->top_join_tab_count - 1;
 
     for (;;)
@@ -2059,14 +2051,21 @@ int pwt_manager::drain_and_send(JOIN *join)
 
       layout.copy_back_row();
       /*
-        A row of one worker's partials for one group. Prime the query's own
-        aggregates with them and hand the row to the plan's own terminal, which
-        is end_update(): it knows which group the row belongs to, and folding a
-        partial in is exactly what it then does, because the update_field() --
-        or, for a group it has not seen, reset_field() -- it calls per
-        aggregate takes the direct value in place of the row.
+        Hand the row to the plan's own terminal, which is end_update(): it
+        knows which group the row belongs to.
+
+        When the workers pre-aggregated, the row is one worker's partials for
+        that group, so prime the query's aggregates with them first -- folding
+        a partial in is exactly what end_update() then does, because the
+        update_field() (or, for a group it has not seen, reset_field()) it
+        calls per aggregate takes the direct value in place of the row.
+
+        When they did not -- the fall-back out of pre-aggregation -- the row is
+        a plain joined row, and the terminal counts it. That is the same
+        grouping, done a row at a time instead of a group at a time.
       */
-      layout.direct_add_partials();
+      if (layout.grouped)
+        layout.direct_add_partials();
       enum_nested_loop_state nls=
                            (*last_tab->next_select) (join, last_tab + 1, FALSE);
       if (nls < NESTED_LOOP_OK)                   // ERROR or KILLED

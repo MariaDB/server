@@ -107,7 +107,7 @@ struct pwt_worker_execution
   */
   pwt_worker_execution():
     scan_table(nullptr), tables(nullptr), n_tables(0),
-    sums(nullptr), group_list(nullptr), group_buff(nullptr),
+    sums(nullptr), aggr_tab(nullptr),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
     tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
   {}
@@ -162,8 +162,14 @@ struct pwt_worker_execution
     Every worker needs a copy: an ORDER entry carries the key field and its
     offset in that buffer, so an entry belongs to one table.
   */
-  ORDER                 *group_list;
-  uchar                 *group_buff;
+  /*
+    The aggregation tab end_update() is called with: the server's own grouped
+    aggregation, run over this worker's chunk into this worker's table. It is
+    fabricated the way setup_worker_jointabs() fabricates the join tabs, and
+    for the same reason -- so the executor runs on the worker's state and not
+    the manager's.
+  */
+  JOIN_TAB              *aggr_tab;
   /*
     Per-worker deep clone of the shipped column list, one item per result
     field, with its Item_field leaves rebound to this worker's table copies.
@@ -252,8 +258,6 @@ public:
      0 = keep going, 1 = error, 2 = the manager asked us to stop
      (pwt_emit_result). */
   int emit_joined_row();
-  /* Fold one joined row into this worker's grouping table. */
-  int accumulate_group();
   /* Ship one row per group once the chunk is done. */
   int flush_groups();
 };
