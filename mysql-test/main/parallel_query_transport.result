@@ -5,11 +5,6 @@ FROM seq_1_to_5000;
 CREATE TABLE t2 (k INT PRIMARY KEY, v INT) ENGINE=InnoDB;
 INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_5000;
 SET SESSION parallel_worker_threads=4;
-#
-# A worker writing its rows into a container is a temporary-table write,
-# which the session can see once the workers are reaped. So the transport
-# in use is visible: rows through tmp tables, none through batches.
-#
 # tmp-table transport (expect 1 1)
 FLUSH STATUS;
 SELECT a, b, c FROM t1 WHERE a > 4995;
@@ -34,13 +29,6 @@ a	b	c
 ran_in_the_workers	no_tmp_table_rows
 1	1
 set global debug_dbug=@save_dbug;
-#
-# A container is a temporary table, and a temporary table given a unique
-# key would silently collapse repeated rows. t3 has no unique column and
-# the query reads only its two low-cardinality ones, so all 2000 rows a
-# worker stores are duplicates of each other bar six. Every one of them
-# has to come back.
-#
 CREATE TABLE t3 (b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t3 SELECT seq MOD 3, CONCAT('v', seq MOD 2) FROM seq_1_to_2000;
 # tmp-table transport (expect 1 1)
@@ -55,10 +43,6 @@ SELECT b, c FROM t3;
 ran_in_the_workers	every_duplicate_arrived
 1	1
 set global debug_dbug=@save_dbug;
-#
-# And over a join, the two transports agree row for row: the two blocks
-# below are the same query and must record identically.
-#
 # tmp-table transport
 SELECT t1.a, t1.c, t2.v FROM t1, t2
 WHERE t1.a = t2.k AND t1.b = 3 AND t1.a > 4900;
@@ -103,28 +87,21 @@ ran_in_the_workers
 1
 set global debug_dbug=@save_dbug;
 #
-# Known limitation, pinned here so it is not discovered by surprise: a
-# worker's container is a heap table, nothing converts it to disk when it
-# fills, and so a result set bigger than the session's temporary-table
-# limit fails the statement. The serial plan for this query uses no
-# temporary table at all, and neither does the batch transport, so this
-# is the transport's own boundary and not the query's.
-#
 CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
 INSERT INTO t4 SELECT seq, REPEAT('x',200) FROM seq_1_to_20000;
 SET SESSION tmp_memory_table_size=65536;
 SET SESSION max_heap_table_size=65536;
-# tmp-table transport: 20000 rows of 200 bytes will not fit
+# tmp-table transport: rebuilds on disk, and answers in full (expect 20000)
+FLUSH STATUS;
 SELECT a, b FROM t4;
-ERROR HY000: Internal error: parallel query: the worker's result table is full (spilling a worker result set to disk is not implemented)
-# batch transport keeps nothing, so it answers (expect 20000)
+rows_sent
+20000
 set global debug_dbug="+d,pwt_batch_transport";
 FLUSH STATUS;
 SELECT a, b FROM t4;
 rows_sent
 20000
 set global debug_dbug=@save_dbug;
-# and the server is unharmed: the same query fits once the limit does
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 FLUSH STATUS;

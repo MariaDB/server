@@ -3105,7 +3105,8 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          int error,
                                          bool ignore_last_dupp_key_error,
                                          bool *is_duplicate,
-                                         Tmp_table_row_copier *copier);
+                                         Tmp_table_row_copier *copier,
+                                         bool cross_thread= false);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 

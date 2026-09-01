@@ -498,15 +498,24 @@ void pwt_thread_with_stats::thread_func_end()
     stops ~THD adding the same numbers to the global counters a second time,
     once the manager's session passes them on.
 
-    Only the counters move. Memory accounting stays with this THD, because more
-    of this THD's memory is freed after this point and ~THD has to reconcile the
-    whole of it with the global counters -- clear_for_flush_status is the offset
-    that leaves those fields alone, and the snapshot drops its copies of them.
+    Memory accounting stays with this THD, because more of this THD's memory is
+    freed after this point and ~THD has to reconcile the whole of it with the
+    global counters -- clear_for_flush_status is the offset that leaves those
+    fields alone, and the snapshot drops its copy of it.
+
+    Temporary-file space does move, and has to. temp_file_size_cb_func() charges
+    whichever thread grows an on-disk temp table and credits whichever thread
+    shrinks or frees it, and for a worker's container those are this thread and
+    the manager. Left here, the balance would trip ~THD's assertion on the way
+    out; left here and then credited to the manager at free time, it would take
+    the manager's below zero. So hand it over with the counters, and zero it
+    here -- add_to_status() in quiesce_workers() puts it where the credit will
+    land, and that runs before free_containers().
   */
   stats= thd->status_var;
   stats.global_memory_used= 0;
-  stats.tmp_space_used= 0;
   thd->set_status_var_init(clear_for_flush_status);
+  thd->status_var.tmp_space_used= 0;
   pwt_thread::thread_func_end();
 }
 

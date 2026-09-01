@@ -32,11 +32,9 @@ CREATE TABLE t2 (k INT PRIMARY KEY, v INT) ENGINE=InnoDB;
 INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_5000;
 SET SESSION parallel_worker_threads=4;
 
---echo #
---echo # A worker writing its rows into a container is a temporary-table write,
---echo # which the session can see once the workers are reaped. So the transport
---echo # in use is visible: rows through tmp tables, none through batches.
---echo #
+# A worker writing its rows into a container is a temporary-table write,
+# which the session can see once the workers are reaped. So the transport
+# in use is visible: rows through tmp tables, none through batches.
 --echo # tmp-table transport (expect 1 1)
 FLUSH STATUS;
 --sorted_result
@@ -59,13 +57,11 @@ SELECT a, b, c FROM t1 WHERE a > 4995;
 --enable_query_log
 set global debug_dbug=@save_dbug;
 
---echo #
---echo # A container is a temporary table, and a temporary table given a unique
---echo # key would silently collapse repeated rows. t3 has no unique column and
---echo # the query reads only its two low-cardinality ones, so all 2000 rows a
---echo # worker stores are duplicates of each other bar six. Every one of them
---echo # has to come back.
---echo #
+# A container is a temporary table, and a temporary table given a unique
+# key would silently collapse repeated rows. t3 has no unique column and
+# the query reads only its two low-cardinality ones, so all 2000 rows a
+# worker stores are duplicates of each other bar six. Every one of them
+# has to come back.
 CREATE TABLE t3 (b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t3 SELECT seq MOD 3, CONCAT('v', seq MOD 2) FROM seq_1_to_2000;
 
@@ -97,10 +93,9 @@ SELECT b, c FROM t3;
 --enable_query_log
 set global debug_dbug=@save_dbug;
 
---echo #
---echo # And over a join, the two transports agree row for row: the two blocks
---echo # below are the same query and must record identically.
---echo #
+# And over a join, the two transports agree row for row: the two blocks
+# below are the same query and must record identically.
+#
 --echo # tmp-table transport
 --sorted_result
 SELECT t1.a, t1.c, t2.v FROM t1, t2
@@ -122,24 +117,32 @@ SELECT t1.a, t1.c, t2.v FROM t1, t2
 --enable_query_log
 set global debug_dbug=@save_dbug;
 
---echo #
---echo # Known limitation, pinned here so it is not discovered by surprise: a
---echo # worker's container is a heap table, nothing converts it to disk when it
---echo # fills, and so a result set bigger than the session's temporary-table
---echo # limit fails the statement. The serial plan for this query uses no
---echo # temporary table at all, and neither does the batch transport, so this
---echo # is the transport's own boundary and not the query's.
+# A result set larger than the session's temporary-table limit. This used
+# to fail the statement: the container is a heap table and nothing moved
+# it to disk when it filled. It is now rebuilt on disk when it fills, so
+# both transports answer and neither is bounded by the limit. That the
+# rebuild really happens, and that the rows survive it, is
+# main.parallel_query_spill's business; here it only has to not be a
+# difference between the two transports.
 --echo #
 CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
 INSERT INTO t4 SELECT seq, REPEAT('x',200) FROM seq_1_to_20000;
 SET SESSION tmp_memory_table_size=65536;
 SET SESSION max_heap_table_size=65536;
 
---echo # tmp-table transport: 20000 rows of 200 bytes will not fit
---error ER_INTERNAL_ERROR
+--echo # tmp-table transport: rebuilds on disk, and answers in full (expect 20000)
+FLUSH STATUS;
+--disable_ps_protocol
+--disable_result_log
 SELECT a, b FROM t4;
+--enable_result_log
+--enable_ps_protocol
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $rs AS rows_sent
+--enable_query_log
 
---echo # batch transport keeps nothing, so it answers (expect 20000)
+# batch transport keeps nothing, so the limit never applied to it
 set global debug_dbug="+d,pwt_batch_transport";
 FLUSH STATUS;
 --disable_ps_protocol
@@ -153,7 +156,7 @@ SELECT a, b FROM t4;
 --enable_query_log
 set global debug_dbug=@save_dbug;
 
---echo # and the server is unharmed: the same query fits once the limit does
+# and the server is unharmed: the same query fits once the limit does
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 FLUSH STATUS;
