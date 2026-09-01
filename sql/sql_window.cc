@@ -15,14 +15,19 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "mariadb.h"
+#include "mysql/plugin.h"
 #include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_list.h"
 #include "item_windowfunc.h"
 #include "filesort.h"
 #include "sql_base.h"
+#include "item.h"
+#include <cstddef>
 #include "sql_window.h"
 
+static ORDER *concat_order_lists(MEM_ROOT *mem_root, ORDER *list1,
+                                 ORDER *list2);
 
 bool
 Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
@@ -497,27 +502,28 @@ int compare_order_elements(ORDER *ord1, int weight1,
     return cmp > 0 ? CMP_GT : CMP_LT;
 }
 
-static
-int compare_order_lists(SQL_I_List<ORDER> *part_list1,
-                        int spec_number1,
-                        SQL_I_List<ORDER> *part_list2,
-                        int spec_number2)
+static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
+                               int spec_number2)
 {
-  if (part_list1 == part_list2)
+  if (!list1 && !list2)
     return CMP_EQ;
-  ORDER *elem1= part_list1->first;
-  ORDER *elem2= part_list2->first;
-  for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
+  if (!list1)
+    return CMP_LT_C;
+  if (!list2)
+    return CMP_GT_C;
+  ORDER *elem1= list1;
+  ORDER *elem2= list2;
+  for (; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
   {
     int cmp;
     // remove all constants as we don't need them for comparision
-    while(elem1 && ((*elem1->item)->real_item())->const_item())
+    while (elem1 && ((*elem1->item)->real_item())->const_item())
     {
       elem1= elem1->next;
       continue;
     }
 
-    while(elem2 && ((*elem2->item)->real_item())->const_item())
+    while (elem2 && ((*elem2->item)->real_item())->const_item())
     {
       elem2= elem2->next;
       continue;
@@ -526,8 +532,8 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
     if (!elem1 || !elem2)
       break;
 
-    if ((cmp= compare_order_elements(elem1, spec_number1,
-                                     elem2, spec_number2)))
+    if ((cmp=
+             compare_order_elements(elem1, spec_number1, elem2, spec_number2)))
       return cmp;
   }
   if (elem1)
@@ -537,6 +543,14 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   return CMP_EQ;
 }
 
+static int compare_order_lists(SQL_I_List<ORDER> *part_list1, int spec_number1,
+                               SQL_I_List<ORDER> *part_list2, int spec_number2)
+{
+  if (part_list1 == part_list2)
+    return CMP_EQ;
+  return compare_order_lists(part_list1->first, spec_number1,
+                             part_list2->first, spec_number2);
+}
 
 static
 int compare_window_frame_bounds(Window_frame_bound *win_frame_bound1,
@@ -781,6 +795,187 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
   }
 }
 
+/*
+  Returns true for ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
+
+  This is the only frame for which the set of rows in the frame grows by one
+  per row and never shrinks.
+*/
+static inline bool frame_is_streaming_compatible(Window_spec *win_spec)
+{
+  Window_frame *frame= win_spec->window_frame;
+  // This means a RANGE frame by default for aggregate functions.
+  if (!frame || frame->units != Window_frame::Frame_units::UNITS_ROWS)
+    return false;
+
+  if (!(frame->top_bound->precedence_type == Window_frame_bound::PRECEDING &&
+        frame->top_bound->is_unbounded()))
+    return false;
+  return (frame->bottom_bound->precedence_type == Window_frame_bound::CURRENT);
+}
+
+static Item_window_func *
+find_longest_compatible_order(const List<Item_window_func> &win_funcs)
+{
+  if (win_funcs.elements == 0)
+    return nullptr;
+  int longest_order_elements= -1;
+  Item_window_func *longest, *win_func;
+  List<Item_window_func> tmp_win_funcs= win_funcs;
+  List_iterator_fast<Item_window_func> it(tmp_win_funcs);
+  while ((win_func= it++))
+  {
+    Window_spec *spec= win_func->window_spec;
+    int win_func_order_elements=
+        spec->partition_list->elements + spec->order_list->elements;
+    if (win_func_order_elements > longest_order_elements)
+    {
+      longest_order_elements= win_func_order_elements;
+      longest= win_func;
+    }
+  }
+  it.rewind();
+
+  Window_spec *longest_spec= longest->window_spec;
+  longest_spec->join_partition_and_order_lists();
+
+  // Check compatibility with other window function frames
+  while ((win_func= it++))
+  {
+    if (win_func == longest)
+      continue;
+    Window_spec *spec= win_func->window_spec;
+    spec->join_partition_and_order_lists();
+    int cmp= compare_order_lists(longest_spec->partition_list,
+                                 longest_spec->win_spec_number,
+                                 spec->partition_list, spec->win_spec_number);
+    spec->disjoin_partition_and_order_lists();
+    if (!(cmp == CMP_EQ || cmp == CMP_GT_C))
+    {
+      longest= nullptr;
+      break;
+    }
+  }
+  longest_spec->disjoin_partition_and_order_lists();
+  return longest;
+}
+
+/*
+  Decide whether all window functions in the SELECT can be computed in a single
+  streaming pass over the join output (no temporary table), and if so work out
+  the sort order that pass must use.
+
+  Returns true if:
+
+    1. All window specs share one most-specific ordering: one window's
+       PARTITION BY + ORDER BY is a prefix-compatible superset of every other's
+       (find_longest_compatible_order()). That longest order becomes the sort
+  key.
+
+    2. Every function is streamable:
+       - window_func()->is_streamable() (ROW_NUMBER, RANK, DENSE_RANK and the
+         running aggregates SUM, COUNT, AVG, MIN, MAX),
+       - it is not a DISTINCT aggregate (the streaming path uses the SIMPLE
+         aggregator and cannot deduplicate), and
+
+    3. The frame is prohibited or streamable: for aggregates it must be exactly
+       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       (frame_is_streaming_compatible()).
+
+    4. The longest window order is compatible (equal, or one a prefix of the
+       other) with the main query ORDER BY, and with the GROUP BY list when
+       present, so a single sort satisfies both the window(s) and the query.
+
+    5. If a window order is longer than the main query order, then it
+       only references the first real table in the JOIN or const tables, is
+       deterministic and has no sum functions. (like how remove_const() does
+       for the main query ORDER BY).
+
+  On success it sets:
+    longest_wf_order             - the order the streaming sort should use.
+    streaming_wf_order_is_longer - true if that order extends the main query
+                                   ORDER BY (so it replaces it as the sort
+  key).
+*/
+bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
+                                 ORDER *&longest_wf_order,
+                                 ORDER *main_query_order,
+                                 ORDER *main_query_group_list,
+                                 bool &streaming_wf_order_is_longer,
+                                 table_map first_table_map,
+                                 table_map const_table_map)
+{
+  if (win_funcs.elements == 0)
+    return false;
+
+  Item_window_func *win_func_with_longest_order=
+      find_longest_compatible_order(win_funcs);
+  if (!win_func_with_longest_order)
+    return false;
+
+  List_iterator_fast<Item_window_func> it(win_funcs);
+  Item_window_func *win_func;
+  int cmp;
+
+  while ((win_func= it++))
+  {
+    Window_spec *spec= win_func->window_spec;
+    Item_sum *sum_func= win_func->window_func();
+    if (!sum_func->is_streamable() || sum_func->has_with_distinct() ||
+        (!win_func->is_frame_prohibited() && !spec->order_is_unique &&
+         !frame_is_streaming_compatible(spec)))
+      return false;
+  }
+
+  longest_wf_order= concat_order_lists(
+      thd->mem_root,
+      win_func_with_longest_order->window_spec->partition_list->first,
+      win_func_with_longest_order->window_spec->order_list->first);
+
+  cmp= compare_order_lists(
+      longest_wf_order,
+      win_func_with_longest_order->window_spec->win_spec_number,
+      main_query_order, -1);
+
+  if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
+    return false;
+  if (cmp == CMP_GT_C)
+    streaming_wf_order_is_longer= true;
+  else
+    streaming_wf_order_is_longer= false;
+
+  if (streaming_wf_order_is_longer)
+  {
+    for (ORDER *o= longest_wf_order; o; o= o->next)
+    {
+      table_map used= (*o->item)->used_tables() & ~const_table_map;
+      if ((used & ~first_table_map) ||
+          (used & (RAND_TABLE_BIT | OUTER_REF_TABLE_BIT)) ||
+          (*o->item)->with_sum_func())
+        return false;
+    }
+  }
+
+  /*
+    Ordering keys after the complete GROUP BY key does not affect the ordering
+    of the grouped result: there is exactly one row per group key, so a
+    trailing key can never be reached as a tie-breaker. Hence it is safe to
+    drop the trailing keys even if the window function references non-grouped
+    columns, whose values are plan-dependent but cannot affect the ordering
+    between grouped rows. (Assumes the whole GROUP BY key is matched as a
+    prefix, and no WITH ROLLUP.)
+  */
+  if (main_query_group_list)
+  {
+    cmp= compare_order_lists(
+        longest_wf_order,
+        win_func_with_longest_order->window_spec->win_spec_number,
+        main_query_group_list, -1);
+    if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
+      return false;
+  }
+  return true;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1257,8 +1452,6 @@ private:
   /* List of the cursors that this manager owns. */
   List<Frame_cursor> cursors;
 };
-
-
 
 //////////////////////////////////////////////////////////////////////////////
 // RANGE-type frames
@@ -2433,7 +2626,8 @@ private:
 /*
   Get a Frame_cursor for a frame bound. This is a "factory function".
 */
-Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
+Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound,
+                               bool for_streaming= false)
 {
   Window_frame *frame= spec->window_frame;
   if (!frame)
@@ -2460,10 +2654,16 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
       return new Frame_unbounded_preceding(thd,
                                            spec->partition_list,
                                            spec->order_list);
-    else
-      return new Frame_range_current_row_bottom(thd,
-                                                spec->partition_list,
-                                                spec->order_list);
+    /*
+      When streaming and the order is provably unique (no peers), the default
+      RANGE UNBOUNDED PRECEDING AND CURRENT ROW frame is equivalent to the ROWS
+      frame. We use it instead for streaming so as to not call
+      walk_till_non_peer().
+    */
+    if (for_streaming && spec->order_is_unique)
+      return new Frame_rows_current_row_bottom;
+    return new Frame_range_current_row_bottom(thd, spec->partition_list,
+                                              spec->order_list);
   }
 
   Window_frame_bound *bound= is_top_bound? frame->top_bound :
@@ -2700,9 +2900,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
    those window functions will be registered to the same cursor.
 */
 bool get_window_functions_required_cursors(
-    THD *thd,
-    List<Item_window_func>& window_functions,
-    List<Cursor_manager> *cursor_managers)
+    THD *thd, List<Item_window_func> &window_functions,
+    List<Cursor_manager> *cursor_managers, bool for_streaming= false)
 {
   List_iterator_fast<Item_window_func> it(window_functions);
   Item_window_func* item_win_func;
@@ -2759,8 +2958,8 @@ bool get_window_functions_required_cursors(
       continue;
     }
 
-    Frame_cursor *frame_bottom= get_frame_cursor(thd,
-        item_win_func->window_spec, false);
+    Frame_cursor *frame_bottom= get_frame_cursor(
+        thd, item_win_func->window_spec, false, for_streaming);
     Frame_cursor *frame_top= get_frame_cursor(thd,
         item_win_func->window_spec, true);
 
@@ -2776,7 +2975,7 @@ bool get_window_functions_required_cursors(
     cursor_manager->add_cursor(frame_bottom);
     cursor_manager->add_cursor(frame_top);
     if (is_computed_with_remove(sum_func->sum_func()) &&
-        !sum_func->supports_removal())
+        !sum_func->supports_removal() && !for_streaming)
     {
       frame_bottom->set_no_action();
       frame_top->set_no_action();
@@ -3065,6 +3264,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
   Item_window_func *win_func;
   while ((win_func= it++))
   {
+    // i need this so it reads live not from result_field
     win_func->set_phase_to_computation();
     // TODO(cvicentiu) Setting the aggregator should probably be done during
     // setup of Window_funcs_sort.
@@ -3073,6 +3273,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
   }
   it.rewind();
 
+  // i would skip this now
   List<Cursor_manager> cursor_managers;
   if (get_window_functions_required_cursors(thd, window_functions,
                                             &cursor_managers))
@@ -3123,7 +3324,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
                               JOIN_TAB *join_tab)
 {
   Window_spec *spec;
-  Item_window_func *win_func= it.peek();  
+  Item_window_func *win_func= it.peek();
   Item_window_func *win_func_with_longest_order= NULL;
   int longest_order_elements= -1;
 
@@ -3153,6 +3354,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     in a way that the result is valid for all window functions belonging to
     this Window_funcs_sort.
   */
+  // all this i should have done earlier for streaming (on base table, or
+  // reusing the main query order (for later))
   spec= win_func_with_longest_order->window_spec;
 
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
@@ -3254,6 +3457,80 @@ void Window_funcs_computation::cleanup()
   }
 }
 
+bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
+{
+  order_window_funcs_by_window_specs(&window_funcs);
+
+  List_iterator_fast<Item_window_func> it(window_funcs);
+  Item_window_func *win_func;
+  if (get_window_functions_required_cursors(thd, window_funcs,
+                                            &cursor_managers, true))
+    return true;
+
+  Group_bound_tracker *tracker;
+  while ((win_func= it++))
+  {
+    tracker=
+        new Group_bound_tracker(thd, win_func->window_spec->partition_list);
+    tracker->init();
+    partition_trackers.push_back(tracker);
+
+    // So that end_send gets the live value of the window function on calling
+    // val_*(), and not the value from result_field.
+    win_func->set_phase_to_computation();
+
+    // sets peer tracker inside rank()
+    Item_sum *sum_func= win_func->window_func();
+    sum_func->setup_window_func(thd, win_func->window_spec);
+
+    // for handling aggregate functions (not done yet, still need to define
+    // frame for those).
+    win_func->window_func()->set_aggregator(thd,
+                                            Aggregator::SIMPLE_AGGREGATOR);
+  }
+  this->win_funcs= window_funcs; // internal variable points to the list
+  return false;
+}
+
+bool Window_funcs_sort_streaming::process_row()
+{
+  List_iterator_fast<Item_window_func> iter_win_funcs(win_funcs);
+  List_iterator_fast<Group_bound_tracker> iter_part_trackers(
+      partition_trackers);
+  List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
+  Item_window_func *win_func;
+  Cursor_manager *cursor_manager;
+  Group_bound_tracker *tracker;
+  // i copied this for now from compute_window_func
+  while ((win_func= iter_win_funcs++) && (tracker= iter_part_trackers++) &&
+         (cursor_manager= iter_cursor_managers++))
+  {
+    if (tracker->check_if_next_group() || (rownum == 0))
+    {
+      /* TODO(cvicentiu)
+         Clearing window functions should happen through cursors. */
+      win_func->window_func()->clear();
+      cursor_manager->notify_cursors_partition_changed(rownum);
+    }
+    else
+    {
+      cursor_manager->notify_cursors_next_row();
+    }
+
+    /* Check if we found any error in the window function while adding values
+       through cursors. */
+    if (unlikely(thd->is_error() || thd->is_killed()))
+      return true;
+  }
+  rownum++;
+  return false;
+}
+
+void Window_funcs_sort_streaming::cleanup()
+{
+  cursor_managers.delete_elements();
+  partition_trackers.delete_elements();
+}
 
 Explain_aggr_window_funcs*
 Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root, 

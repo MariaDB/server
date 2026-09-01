@@ -20,7 +20,10 @@
 #include "filesort.h"
 
 class Item_window_func;
-
+class Item_sum;
+class Group_bound_tracker;
+class Frame_cursor;
+class Cursor_manager;
 /*
   Window functions module. 
   
@@ -127,12 +130,23 @@ class Window_spec : public Sql_alloc
   */
   int win_spec_number;
 
+  /*
+    True when, for a single-table query, this window's order list covers a
+    unique NOT-NULL index of that table. Then no two rows are peers, so the
+    default / RANGE UNBOUNDED PRECEDING AND CURRENT ROW frame is equivalent to
+    the ROWS frame and can be streamed.
+    This is used for aggregate functions.
+  */
+  bool order_is_unique;
+
   Window_spec(LEX_CSTRING *win_ref, SQL_I_List<ORDER> *part_list,
               SQL_I_List<ORDER> *ord_list, Window_frame *win_frame)
-    : window_names_are_checked(false), window_ref(win_ref),
-      partition_list(part_list), save_partition_list(NULL),
-      order_list(ord_list), save_order_list(NULL),
-      window_frame(win_frame), referenced_win_spec(NULL) {}
+      : window_names_are_checked(false), window_ref(win_ref),
+        partition_list(part_list), save_partition_list(NULL),
+        order_list(ord_list), save_order_list(NULL), window_frame(win_frame),
+        referenced_win_spec(NULL), order_is_unique(false)
+  {
+  }
 
   virtual const Lex_ident_window name() { return Lex_ident_window(); }
 
@@ -181,6 +195,13 @@ int setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	          List<Item> &fields, List<Item> &all_fields, 
                   List<Window_spec> &win_specs, List<Item_window_func> &win_funcs);
 
+bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
+                                 ORDER *&longest_wf_order,
+                                 ORDER *main_query_order,
+                                 ORDER *main_query_group_list,
+                                 bool &streaming_wf_order_is_longer,
+                                 table_map first_table_map,
+                                 table_map const_table_map);
 
 //////////////////////////////////////////////////////////////////////////////
 // Classes that make window functions computation a part of SELECT's query plan
@@ -256,5 +277,27 @@ public:
   void cleanup();
 };
 
+class Window_funcs_sort_streaming : public Sql_alloc
+{
+public:
+  Window_funcs_sort_streaming(THD *thd) : thd(thd) {}
+  bool setup(List<Item_window_func> &win_funcs);
+  /*
+    The object is attached to the last real JOIN_TAB in the query. This
+    function is called by end_compute_win_func() to run the window functions
+    computation over the current row in the JOIN output, assuming the row sits
+    in TABLE::record[0]. Then end_send calls val_*() methods of the window
+    functions to retrieve the live computed values and sends the row to output.
+  */
+  bool process_row();
+  void cleanup();
+
+private:
+  int rownum= 0; // Internal state for process row
+  THD *thd= nullptr;
+  List<Item_window_func> win_funcs;
+  List<Cursor_manager> cursor_managers;
+  List<Group_bound_tracker> partition_trackers;
+};
 
 #endif /* SQL_WINDOW_INCLUDED */
