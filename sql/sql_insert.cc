@@ -5404,8 +5404,12 @@ bool select_create::send_eof()
   if (!table->s->tmp_table)
   {
 #ifdef WITH_WSREP
+    // For partitioned tables need to look implementing hton
+    const handlerton* ht= table->file->partition_ht() ?
+                            table->file->partition_ht() :
+                            table->file->ht;
     if (WSREP(thd) &&
-        table->file->ht->db_type == DB_TYPE_INNODB)
+        ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {
