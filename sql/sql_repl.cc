@@ -3487,7 +3487,9 @@ err:
 
   if (slave_errno)
   {
-    if (net_report)
+    /* A more specific error may already have been raised (e.g. by
+       Relay_log_info::init() when it fails to open the relay log). */
+    if (net_report && !thd->is_error())
       my_error(slave_errno, MYF(0),
                (int) mi->connection_name.length,
                mi->connection_name.str);
@@ -3921,9 +3923,12 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (init_master_info(mi, master_info_file_tmp, relay_log_info_file_tmp, 0,
 		       thread_mask))
   {
-    my_error(ER_MASTER_INFO, MYF(0),
-             (int) lex_mi->connection_name.length,
-             lex_mi->connection_name.str);
+    /* A more specific error may already have been raised (e.g. by
+       Relay_log_info::init() when it fails to open the relay log). */
+    if (!thd->is_error())
+      my_error(ER_MASTER_INFO, MYF(0),
+               (int) lex_mi->connection_name.length,
+               lex_mi->connection_name.str);
     ret= TRUE;
     goto err;
   }

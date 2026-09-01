@@ -1,0 +1,17 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+CHANGE MASTER TO MASTER_DELAY=1 FOR CHANNEL '################################################';
+ERROR HY000: Can't open file: 'slave-relay-bin-@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@0023@002' (errno: 36 "File name too long")
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+connection slave;
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+CHANGE MASTER 'new_channel' TO MASTER_HOST='127.0.0.1', MASTER_PORT=1, MASTER_USER='root';
+RESET SLAVE 'new_channel' ALL;
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

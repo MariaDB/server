@@ -244,6 +244,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
+      my_error(ER_CANT_OPEN_FILE, MYF(0), ln, my_errno);
       sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }

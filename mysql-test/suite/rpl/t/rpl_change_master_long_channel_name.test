@@ -1,0 +1,41 @@
+#
+# CHANGE MASTER ... FOR CHANNEL with a name that overflows the relay
+# log file name once escaped should return an error, not crash.
+#
+# STEPS:
+#   1. Issue CHANGE MASTER ... FOR CHANNEL with a channel name that is
+#      within MAX_CONNECTION_NAME, but expands past the file name
+#      limit once escaped into the relay log file name.
+#   2. Verify the statement fails with a clean error, not a crash.
+#   3. Verify the server is still usable: a normal CHANGE MASTER for a
+#      new, short-named channel succeeds.
+#
+--source include/master-slave.inc
+
+--connection slave
+--let $channel= `SELECT REPEAT('#', 48)`
+--error ER_CANT_OPEN_FILE
+eval CHANGE MASTER TO MASTER_DELAY=1 FOR CHANNEL '$channel';
+
+--connection master
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+
+--connection slave
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+CHANGE MASTER 'new_channel' TO MASTER_HOST='127.0.0.1', MASTER_PORT=1, MASTER_USER='root';
+RESET SLAVE 'new_channel' ALL;
+
+--disable_query_log
+call mtr.add_suppression("Failed when trying to open logs");
+call mtr.add_suppression("Failed to locate old binlog or relay log files");
+--enable_query_log
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+--source include/rpl_end.inc
