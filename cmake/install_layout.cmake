@@ -197,7 +197,7 @@ SET(INSTALL_MYSQLTESTDIR_DEB            "share/mariadb/mariadb-test")
 SET(INSTALL_SQLBENCHDIR_DEB             ".")
 SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mariadb")
 #
-SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
+SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mariadb")
 
 SET(INSTALL_RUNDATADIR_DEB              "/run/mysqld")
 SET(INSTALL_UNIX_ADDRDIR_DEB            "${INSTALL_RUNDATADIR_DEB}/mysqld.sock")

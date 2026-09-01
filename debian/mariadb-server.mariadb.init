@@ -96,7 +96,7 @@ sanity_checks() {
   # and this should fall back to a sane default value
   if [ -z "$datadir" ]
   then
-    datadir="/var/lib/mysql"
+    datadir="/var/lib/mariadb"
   fi
 
   # Verify the datadir location exists
