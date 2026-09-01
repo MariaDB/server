@@ -2079,6 +2079,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   this->rli= rli;
   tables_to_lock= NULL;
   tables_to_lock_count= 0;
+  m_use_sequential_table_ids= false;
   trans_retries= 0;
   last_event_start_time= 0;
   gtid_sub_id= 0;
@@ -2108,7 +2109,9 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
     gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
     reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
     start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL),
-    is_new_trans(false), assembler(NULL)
+    is_new_trans(false), assembler(NULL),
+    m_table_array(NULL), m_table_array_size(0),
+    m_use_sequential_table_ids(false)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2123,6 +2126,7 @@ rpl_group_info::~rpl_group_info()
 
   free_annotate_event();
   delete deferred_events;
+  my_free(m_table_array);
   mysql_mutex_destroy(&sleep_lock);
   mysql_cond_destroy(&sleep_cond);
 }
@@ -2335,6 +2339,12 @@ void rpl_group_info::clear_tables_to_lock()
     my_free(to_free);
   }
   DBUG_ASSERT(tables_to_lock == NULL && tables_to_lock_count == 0);
+  /*
+    Reset so the next GTID group re-evaluates from its own
+    Gtid_log_event flags.  The m_table_array itself is kept
+    allocated for reuse to avoid repeated malloc/free.
+  */
+  m_use_sequential_table_ids= false;
   DBUG_VOID_RETURN;
 }
 

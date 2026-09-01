@@ -1,0 +1,121 @@
+# Test sequential table IDs in row-based binlog events (binlog_sequential_table_ids)
+#
+# Verify that when binlog_sequential_table_ids=ON, the master assigns
+# 1-based sequential table IDs in Table_map events, and that the slave
+# replicates data correctly using array-based table lookup.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+SET @saved_sequential= @@session.binlog_sequential_table_ids;
+SET @@session.binlog_sequential_table_ids= ON;
+
+--echo #
+--echo # Test 1: Single table INSERT — table_id should be 1
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+INSERT INTO t1 VALUES (1, 'hello');
+
+--let $event_info= query_get_value(SHOW BINLOG EVENTS IN '$binlog_file' FROM $binlog_start, Info, 3)
+--echo Table_map event: $event_info
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1;
+
+--echo #
+--echo # Test 2: Multi-table transaction (separate statements) — each resets to 1
+--echo #
+--connection master
+
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+BEGIN;
+INSERT INTO t1 VALUES (2, 'world');
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+COMMIT;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+--echo #
+--echo # Test 3: Multi-table single statement (UPDATE t1, t2) — IDs 1, 2
+--echo #
+--connection master
+
+INSERT INTO t2 VALUES (10);
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+UPDATE t1, t2 SET t1.b= 'updated', t2.a= 20
+  WHERE t1.a= 1 AND t2.a= 10;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 WHERE a= 1;
+SELECT * FROM t2 WHERE a= 20;
+
+--echo #
+--echo # Test 4: Cross-database multi-table statement
+--echo #
+--connection master
+
+CREATE DATABASE IF NOT EXISTS db2;
+CREATE TABLE db2.t4 (x INT PRIMARY KEY, y VARCHAR(50)) ENGINE=InnoDB;
+INSERT INTO db2.t4 VALUES (1, 'original');
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+UPDATE t1, db2.t4 SET t1.b= 'cross-db', db2.t4.y= 'cross-db'
+  WHERE t1.a= 1 AND db2.t4.x= 1;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 WHERE a= 1;
+SELECT * FROM db2.t4 WHERE x= 1;
+
+--echo #
+--echo # Test 5: Multiple statements in transaction, verify slave correctness
+--echo #
+--connection master
+
+BEGIN;
+INSERT INTO t1 VALUES (3, 'foo');
+UPDATE t2 SET a= 2 WHERE a= 20;
+DELETE FROM t3 WHERE a= 1;
+COMMIT;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+SET @@session.binlog_sequential_table_ids= @saved_sequential;
+DROP TABLE t1, t2, t3;
+DROP TABLE db2.t4;
+DROP DATABASE db2;
+
+--sync_slave_with_master
+--source include/rpl_end.inc
