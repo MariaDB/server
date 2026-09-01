@@ -15,6 +15,7 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/have_debug.inc
 
 --disable_service_connection
 
@@ -98,6 +99,10 @@ SELECT col1, col2 MOD 3, COUNT(*), SUM(col2)
 --echo #
 --echo # A 2 table join executed in the worker
 --echo #
+truncate t2;
+INSERT INTO t2 SELECT seq MOD 10,
+                      IF(seq MOD 10 = 7 OR seq MOD 3 = 0, NULL, seq)
+  FROM seq_1_to_500;
 create index ixt2 on t2 (col1);
 let $q=
 SELECT t1.col1, COUNT(t1.col2), SUM(t1.col2), MIN(t1.col2), MAX(t1.col2),
@@ -114,6 +119,36 @@ SET SESSION parallel_worker_threads=4;
 
 
 DROP TABLE t2;
+
+--echo #
+--echo # A plan whose container gets no group index cannot pre-aggregate: a
+--echo # unique constraint is a hash of the row with nothing to look a group up
+--echo # in. Whether create_tmp_table() managed an index can only be asked of
+--echo # the finished table, so the answer is a fall-back rather than a gate
+--echo # check -- the workers ship their rows and the manager groups them, which
+--echo # is the same grouping done a row at a time instead of a group at a time.
+--echo #
+--echo # Nothing this tree can express reaches it: the gate already refuses the
+--echo # two shapes that make create_tmp_table() fall back for a heap container,
+--echo # and its engine-limit test is only in the on-disk branch. So it is asked
+--echo # for here, or it would never be run.
+--echo #
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug="+d,pwt_no_group_index";
+--disable_ps_protocol
+FLUSH STATUS;
+--sorted_result
+SELECT col1, COUNT(col2), SUM(col2), MIN(col2), MAX(col2)
+  FROM t1 GROUP BY col1 ORDER BY NULL;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $tw= query_get_value(SHOW SESSION STATUS LIKE 'Handler_tmp_write', Value, 1)
+--enable_ps_protocol
+set global debug_dbug= @save_dbug;
+--echo # same answer, still in the workers, and by shipping rows rather than
+--echo # partials -- which is what a tmp-write per source row says (expect 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS still_ran_in_the_workers, $tw > 4000 AS shipped_rows
+--enable_query_log
 
 --echo #
 --echo # What is not accepted. Each of these still runs, serially: the gate
