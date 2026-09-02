@@ -1029,8 +1029,10 @@ void pwt_tmp_table_sink::cleanup()
   if (container)
   {
     if (container->table)
+    {
       container->table->in_use= manager->thd;
       container->table->file->rebind_to_thread();
+    }
     container= nullptr;
   }
   /*
