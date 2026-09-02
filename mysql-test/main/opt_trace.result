@@ -2700,7 +2700,7 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                 "table": "t2",
                 "row_may_be_null": true,
                 "map_bit": 1,
-                "depends_on_map_bits": ["0"]
+                "depends_on_map_bits": [0]
               }
             ]
           },
@@ -2856,7 +2856,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                 "table": "t2",
                 "row_may_be_null": true,
                 "map_bit": 1,
-                "depends_on_map_bits": ["0"]
+                "depends_on_map_bits": [0]
               }
             ]
           },
@@ -3090,13 +3090,13 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                 "table": "t2",
                 "row_may_be_null": true,
                 "map_bit": 1,
-                "depends_on_map_bits": ["0"]
+                "depends_on_map_bits": [0]
               },
               {
                 "table": "t3",
                 "row_may_be_null": true,
                 "map_bit": 2,
-                "depends_on_map_bits": ["0"]
+                "depends_on_map_bits": [0]
               }
             ]
           },
