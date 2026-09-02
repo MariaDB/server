@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
---source include/have_debug_sync.inc
 --source include/master-slave.inc
 
 --connection server_2
@@ -123,10 +122,8 @@ SELECT * FROM t2 ORDER BY a;
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
-SET DEBUG_SYNC= 'RESET';
 
 --connection server_1
 DROP TABLE t1,t2;
-SET DEBUG_SYNC= 'RESET';
 
 --source include/rpl_end.inc
