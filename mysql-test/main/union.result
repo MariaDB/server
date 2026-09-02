@@ -1538,7 +1538,7 @@ SELECT a FROM (SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY c) AS test;
 ERROR 42S22: Unknown column 'c' in 'ORDER BY'
 DROP TABLE t1;
 (select 1 into @var) union (select 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @var) union (select 1)' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'union (select 1)' at line 1
 (select 1) union (select 1 into @var);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @var)' at line 1
 select @var;
