@@ -7210,6 +7210,28 @@ err:
       my_off_t offset= my_b_tell(file);
       bool check_purge= false;
       DBUG_ASSERT(!is_relay_log);
+#ifdef HAVE_REPLICATION
+      /*
+        An event flagged LOG_EVENT_SKIP_REPLICATION_F is dropped by the dump
+        thread of every slave which connected with
+        --replicate-events-marked-for-skip=FILTER_ON_MASTER. If no connected
+        semi-sync slave replicates such events, this one reaches nobody and can
+        never be ACKed; awaiting an ACK would block the commit until
+        rpl_semi_sync_master_timeout expires and degrade semi-sync to
+        asynchronous. So neither register the event for an ACK below nor wait
+        for one further down.
+
+        The decision is taken once and reused by the wait, so that a slave
+        connecting or disconnecting in between cannot make us wait for an ACK
+        which was never requested, which would leave the semi-sync counters
+        inconsistent.
+      */
+      const bool semisync_skip_ack=
+        (event_info->flags & LOG_EVENT_SKIP_REPLICATION_F) &&
+        repl_semisync_master.no_slave_receives_skip_replication_events();
+      if (semisync_skip_ack)
+        repl_semisync_master.skip_ack_wait(thd);
+#endif
 
       if (likely(!error))
       {
@@ -7225,7 +7247,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, thd,
+          if (!semisync_skip_ack &&
+              repl_semisync_master.report_binlog_update(thd, thd,
                                                         log_file_name, offset))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
@@ -7260,7 +7283,8 @@ err:
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-      if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+      if (!semisync_skip_ack &&
+          repl_semisync_master.wait_after_sync(log_file_name, offset))
       {
         error=1;
         /* error is already printed inside hook */
@@ -8140,6 +8164,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.cache_mngr= cache_mngr;
   entry.error= 0;
   entry.all= all;
+  entry.semisync_skip_ack= false;
   entry.using_stmt_cache= using_stmt_cache;
   entry.using_trx_cache= using_trx_cache;
   entry.need_unlog= is_preparing_xa(thd);
@@ -8842,13 +8867,31 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                           SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
                              ? current->thd
                              : leader->thd;
-        if (likely(!current->error) &&
-            unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd, waiter_thd,
-                                          current->cache_mngr->
-                                          last_commit_pos_file,
-                                          current->cache_mngr->
-                                          last_commit_pos_offset)))
+        /*
+          A transaction committed with @@skip_replication=1 is dropped by the
+          dump thread of every slave which connected with
+          --replicate-events-marked-for-skip=FILTER_ON_MASTER. If no connected
+          semi-sync slave replicates such transactions, this one reaches nobody
+          and can never be ACKed; awaiting an ACK would block the commit until
+          rpl_semi_sync_master_timeout expires and degrade semi-sync to
+          asynchronous. So do not register it for an ACK, and remember that in
+          the entry so that the wait further down is skipped as well -- waiting
+          for an ACK which was never requested would leave the semi-sync
+          counters inconsistent.
+        */
+        current->semisync_skip_ack=
+          (current->thd->variables.option_bits & OPTION_SKIP_REPLICATION) &&
+          repl_semisync_master.no_slave_receives_skip_replication_events();
+
+        if (current->semisync_skip_ack)
+          repl_semisync_master.skip_ack_wait(current->thd);
+        else if (likely(!current->error) &&
+                 unlikely(repl_semisync_master.
+                          report_binlog_update(current->thd, waiter_thd,
+                                               current->cache_mngr->
+                                               last_commit_pos_file,
+                                               current->cache_mngr->
+                                               last_commit_pos_offset)))
         {
           current->error= ER_ERROR_ON_WRITE;
           current->commit_errno= -1;
@@ -8931,7 +8974,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     {
       last= current->next == NULL;
 #ifdef HAVE_REPLICATION
-      if (likely(!current->error))
+      if (likely(!current->error) && !current->semisync_skip_ack)
         current->error=
           repl_semisync_master.wait_after_sync(current->cache_mngr->
                                                last_commit_pos_file,
