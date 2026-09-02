@@ -11,6 +11,19 @@ struct big_rec_t;
 struct que_thr_t;
 struct trx_t;
 
+extern Atomic_counter<uint64_t> blink_searches;
+extern Atomic_counter<uint64_t> blink_right_moves;
+extern Atomic_counter<uint64_t> blink_optimistic_inserts;
+extern Atomic_counter<uint64_t> blink_leaf_splits;
+extern Atomic_counter<uint64_t> blink_internal_splits;
+extern Atomic_counter<uint64_t> blink_root_raises;
+extern Atomic_counter<uint64_t> blink_parent_installs;
+extern Atomic_counter<uint64_t> blink_cascade_levels;
+extern Atomic_counter<uint64_t> blink_incomplete_retries;
+extern Atomic_counter<uint64_t> blink_pool_empty_retries;
+extern Atomic_counter<uint64_t> blink_pool_refills;
+extern Atomic_counter<uint64_t> blink_normal_x_index;
+
 inline bool blink_table_shape_ok(const dict_table_t *table) noexcept
 {
   return table->not_redundant() && !DICT_TF_GET_ZIP_SSIZE(table->flags) &&

@@ -938,7 +938,6 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static size_t truncated_status_writes;
 
-#ifdef UNIV_DEBUG
 /** Expose an Atomic_counter<uint64_t> as a SHOW_ULONGLONG status variable.
 The server-internal enum_mysql_show_type only has SHOW_ATOMIC_COUNTER_UINT32_T,
 no 64-bit equivalent, so we materialize the value into the SHOW_VAR buffer
@@ -952,7 +951,6 @@ static int show_atomic_counter_u64(MYSQL_THD, SHOW_VAR *var, void *buff,
   *static_cast<ulonglong*>(buff)= *Counter;
   return 0;
 }
-#endif /* UNIV_DEBUG */
 
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1137,6 +1135,33 @@ static SHOW_VAR innodb_status_variables[]= {
 
   /* InnoDB bulk operations */
   {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
+  {"blink_searches", (void*) &show_atomic_counter_u64<&blink_searches>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_right_moves", (void*) &show_atomic_counter_u64<&blink_right_moves>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_optimistic_inserts",
+   (void*) &show_atomic_counter_u64<&blink_optimistic_inserts>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_leaf_splits", (void*) &show_atomic_counter_u64<&blink_leaf_splits>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_internal_splits",
+   (void*) &show_atomic_counter_u64<&blink_internal_splits>, SHOW_SIMPLE_FUNC},
+  {"blink_root_raises", (void*) &show_atomic_counter_u64<&blink_root_raises>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_parent_installs",
+   (void*) &show_atomic_counter_u64<&blink_parent_installs>, SHOW_SIMPLE_FUNC},
+  {"blink_cascade_levels",
+   (void*) &show_atomic_counter_u64<&blink_cascade_levels>, SHOW_SIMPLE_FUNC},
+  {"blink_incomplete_retries",
+   (void*) &show_atomic_counter_u64<&blink_incomplete_retries>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_pool_empty_retries",
+   (void*) &show_atomic_counter_u64<&blink_pool_empty_retries>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_pool_refills", (void*) &show_atomic_counter_u64<&blink_pool_refills>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_normal_x_index",
+   (void*) &show_atomic_counter_u64<&blink_normal_x_index>, SHOW_SIMPLE_FUNC},
 
 #ifdef UNIV_DEBUG
   {"btr_cur_n_index_lock_upgrades",

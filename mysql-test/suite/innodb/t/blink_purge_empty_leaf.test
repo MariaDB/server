@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, payload VARBINARY(700)) ENGINE=InnoDB;
+--sleep 1
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 1 UNION ALL SELECT n + 1 FROM cte WHERE n < 1000)
+SELECT n, REPEAT('x',700) FROM cte;
+DELETE FROM t WHERE a <= 900;
+SELECT COUNT(*), MIN(a), MAX(a) FROM t;
+SELECT a FROM t ORDER BY a LIMIT 3;
+SELECT a FROM t ORDER BY a DESC LIMIT 3;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

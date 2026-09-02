@@ -212,6 +212,7 @@ static bool blink_refill_one(blink_pool_entry_t *entry) noexcept
     {
       std::lock_guard<std::mutex> guard(entry->pool.mutex);
       entry->pool.pages[slot].push_back(page_no);
+      ++blink_pool_refills;
       if (entry->pool.pages[slot].size() >= blink_high_watermark[slot])
         entry->pool.refilling[slot]= false;
     }

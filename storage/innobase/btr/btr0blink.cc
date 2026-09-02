@@ -26,6 +26,19 @@
 #include <thread>
 #include <vector>
 
+Atomic_counter<uint64_t> blink_searches;
+Atomic_counter<uint64_t> blink_right_moves;
+Atomic_counter<uint64_t> blink_optimistic_inserts;
+Atomic_counter<uint64_t> blink_leaf_splits;
+Atomic_counter<uint64_t> blink_internal_splits;
+Atomic_counter<uint64_t> blink_root_raises;
+Atomic_counter<uint64_t> blink_parent_installs;
+Atomic_counter<uint64_t> blink_cascade_levels;
+Atomic_counter<uint64_t> blink_incomplete_retries;
+Atomic_counter<uint64_t> blink_pool_empty_retries;
+Atomic_counter<uint64_t> blink_pool_refills;
+Atomic_counter<uint64_t> blink_normal_x_index;
+
 bool blink_stamp_empty_tree(dict_index_t *index)
 {
   ut_ad(dict_sys.locked());
@@ -117,6 +130,7 @@ static buf_block_t *blink_move_right(buf_block_t *block,
     }
     mtr->release(*block);
     block= right;
+    ++blink_right_moves;
   }
 }
 
@@ -144,6 +158,7 @@ dberr_t blink_search_to_level(dict_index_t *index, uint16_t target_level,
 
   if (!index_latched)
     mtr_s_lock_index(index, mtr);
+  ++blink_searches;
 
   cursor->page_cur.index= index;
   cursor->up_match= 0;
@@ -444,6 +459,10 @@ rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
   }
 
   const ulint level= btr_page_get_level(left_page);
+  if (level)
+    ++blink_internal_splits;
+  else
+    ++blink_leaf_splits;
   btr_page_create(new_block, nullptr, index, level, mtr);
   if (level == 0 && !index->is_primary() && !index->table->is_temporary()) {
     const trx_id_t max_trx_id= page_get_max_trx_id(left_page);
@@ -541,6 +560,7 @@ buf_block_t *blink_root_raise_low(ulint flags, dict_index_t *index,
          root->page.frame + PAGE_HEADER + PAGE_BTR_SEG_TOP, 10);
 #endif
   ut_d(const uint32_t root_page_no= root->page.id().page_no());
+  ++blink_root_raises;
   const ulint level= btr_page_get_level(root->page.frame);
   btr_page_create(old_root, nullptr, index, level, mtr);
   if (level == 0 && !index->is_primary() && !index->table->is_temporary()) {
@@ -696,6 +716,7 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
                                        blink_nonleaf_stash_t *stash,
                                        que_thr_t *thr)
 {
+  ++blink_cascade_levels;
   mtr_t parked{holder->trx};
   ulint attempts= 0;
   for (;;) {
@@ -715,6 +736,7 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
 
     buf_block_t *parent_block= parent.block();
     if (page_has_incomplete_split(parent_block->page.frame)) {
+      ++blink_incomplete_retries;
       if (!thr) {
         const uint32_t parent_page= parent_block->page.id().page_no();
         mtr.commit();
@@ -768,6 +790,8 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
         &parent.page_cur, node_ptr, &parent_offsets, &parent_heap, 0, &mtr);
     if (installed) {
       err= blink_clear_child_split(index, previous_child, &mtr);
+      if (err == DB_SUCCESS)
+        ++blink_parent_installs;
       mem_heap_free(parent_heap);
       mtr.commit();
       return err;
@@ -812,6 +836,7 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
     ut_a(placed);
     err= blink_clear_child_split(index, previous_child, &mtr);
     ut_a(err == DB_SUCCESS);
+    ++blink_parent_installs;
     if (root) {
       mem_heap_free(parent_heap);
       mtr.commit();
@@ -856,12 +881,16 @@ dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
   buf_block_t *left= cursor->block();
   *insert_rec= nullptr;
   *big_rec= nullptr;
-  if (page_has_incomplete_split(left->page.frame))
+  if (page_has_incomplete_split(left->page.frame)) {
+    ++blink_incomplete_retries;
     return DB_BLINK_RETRY;
+  }
 
   uint32_t new_page_no= FIL_NULL;
-  if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF, &new_page_no))
+  if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF, &new_page_no)) {
+    ++blink_pool_empty_retries;
     return DB_BLINK_RETRY_POOL_EMPTY;
+  }
   const bool root= left->page.id().page_no() == index->page;
   uint32_t root_sibling_no= FIL_NULL;
   blink_nonleaf_stash_t stash;
@@ -869,6 +898,7 @@ dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
     if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF,
                                  &root_sibling_no)) {
       blink_return_preallocated(index, new_page_no, FIL_NULL, &stash);
+      ++blink_pool_empty_retries;
       return DB_BLINK_RETRY_POOL_EMPTY;
     }
   } else {
@@ -878,6 +908,7 @@ dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
       uint32_t page;
       if (!blink_page_pool_try_pop(index, blink_page_kind::INTERNAL, &page)) {
         blink_return_preallocated(index, new_page_no, FIL_NULL, &stash);
+        ++blink_pool_empty_retries;
         return DB_BLINK_RETRY_POOL_EMPTY;
       }
       stash.pages[stash.size++]= page;
@@ -1048,6 +1079,7 @@ dberr_t blink_finish_incomplete_split(dict_index_t *index,
     if (!blink_page_pool_try_pop(index, blink_page_kind::INTERNAL, &page)) {
       blink_stash_return(index, &stash);
       mtr.commit();
+      ++blink_pool_empty_retries;
       return DB_BLINK_RETRY_POOL_EMPTY;
     }
     stash.pages[stash.size++]= page;

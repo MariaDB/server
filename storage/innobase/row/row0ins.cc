@@ -2937,6 +2937,7 @@ do_insert:
 		rec_t*	insert_rec;
 
 		if (use_blink_path(index) && mode != BTR_MODIFY_TREE) {
+			++blink_optimistic_inserts;
 			err = btr_cur_optimistic_insert(
 				flags, &pcur.btr_cur, &offsets, &offsets_heap,
 				entry, &insert_rec, &big_rec, n_ext, thr, &mtr);
@@ -3221,6 +3222,8 @@ row_ins_sec_index_entry_low(
 		big_rec_t*	big_rec;
 
 		if (mode == BTR_MODIFY_LEAF) {
+			if (use_blink_path(index))
+				++blink_optimistic_inserts;
 			err = btr_cur_optimistic_insert(
 				flags, &cursor, &offsets, &offsets_heap,
 				entry, &insert_rec,
@@ -3372,6 +3375,8 @@ row_ins_clust_index_entry(
 		}
 
 		log_free_check();
+		if (use_blink_path(index))
+			++blink_normal_x_index;
 		err = row_ins_clust_index_entry_low(
 			flags, BTR_MODIFY_TREE, index, n_uniq, entry,
 			n_ext, thr);
@@ -3466,6 +3471,8 @@ row_ins_sec_index_entry(
 			break;
 		mem_heap_empty(heap);
 		log_free_check();
+		if (use_blink_path(index))
+			++blink_normal_x_index;
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_INSERT_TREE, index,
 			offsets_heap, heap, entry, 0, thr);

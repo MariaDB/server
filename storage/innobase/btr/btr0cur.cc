@@ -4382,6 +4382,8 @@ btr_cur_compress_if_useful(
 				adjusted even when compression occurs */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	if (use_blink_path(cursor->index()))
+		return false;
 	ut_ad(mtr->memo_contains_flagged(&cursor->index()->lock,
 					 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
@@ -4667,7 +4669,7 @@ btr_cur_pessimistic_delete(
 		}
 
 		if (block->page.id().page_no() != index->page) {
-			if (page_get_n_recs(page) < 2) {
+			if (!use_blink_path(index) && page_get_n_recs(page) < 2) {
 				goto discard_page;
 			}
 		} else if (page_get_n_recs(page) == 1
