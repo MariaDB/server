@@ -1,0 +1,51 @@
+#
+# MDEV-8235 Expose check_slave_start_position as SQL function
+#
+# 1. Set up some basic GTID history
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+# The current GTID position is reachable
+SELECT GTID_CHECK_POS('GTID_POS');
+GTID_CHECK_POS('GTID_POS')
+1
+# 2. Invalid input raises an error; NULL input returns NULL
+SELECT GTID_CHECK_POS('invalid-format');
+ERROR HY000: Could not parse GTID list
+SELECT GTID_CHECK_POS(NULL);
+GTID_CHECK_POS(NULL)
+NULL
+# 3. Empty string (empty GTID list) returns 1 (trivially reachable)
+SELECT GTID_CHECK_POS('');
+GTID_CHECK_POS('')
+1
+# 4. Rotate to a new binlog and purge the old one
+FLUSH LOGS;
+# Write a new GTID into the new (post-purge) active binlog
+INSERT INTO t1 VALUES (3);
+# The new position (in the current active log) is reachable
+SELECT GTID_CHECK_POS('NEW_GTID_POS');
+GTID_CHECK_POS('NEW_GTID_POS')
+1
+# The old position (now in a purged log) returns 0
+SELECT GTID_CHECK_POS('OLD_GTID_POS');
+GTID_CHECK_POS('OLD_GTID_POS')
+0
+# A completely fake domain/server/seqno (never existed) returns 0
+SELECT GTID_CHECK_POS('99-99-9999999');
+GTID_CHECK_POS('99-99-9999999')
+0
+# 5. A future sequence number in a known domain returns 0
+SELECT GTID_CHECK_POS('ABSENT_GTID');
+GTID_CHECK_POS('ABSENT_GTID')
+0
+# 6. Mixed list: reachable pos combined with an unknown domain returns 0
+SELECT GTID_CHECK_POS('NEW_GTID_POS,99-99-9999999');
+GTID_CHECK_POS('NEW_GTID_POS,99-99-9999999')
+0
+# 7. List with only the current reachable position returns 1
+SELECT GTID_CHECK_POS('NEW_GTID_POS');
+GTID_CHECK_POS('NEW_GTID_POS')
+1
+# Cleanup
+DROP TABLE t1;

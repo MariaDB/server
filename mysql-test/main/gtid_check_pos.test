@@ -1,0 +1,64 @@
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-8235 Expose check_slave_start_position as SQL function
+--echo #
+
+--echo # 1. Set up some basic GTID history
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+
+--echo # The current GTID position is reachable
+let $pos= `SELECT @@GLOBAL.gtid_binlog_pos`;
+--replace_result $pos GTID_POS
+eval SELECT GTID_CHECK_POS('$pos');
+
+--echo # 2. Invalid input raises an error; NULL input returns NULL
+--error ER_INCORRECT_GTID_STATE
+SELECT GTID_CHECK_POS('invalid-format');
+SELECT GTID_CHECK_POS(NULL);
+
+--echo # 3. Empty string (empty GTID list) returns 1 (trivially reachable)
+SELECT GTID_CHECK_POS('');
+
+--echo # 4. Rotate to a new binlog and purge the old one
+FLUSH LOGS;
+let $purge_binlogs_to= query_get_value(SHOW MASTER STATUS, File, 1);
+--disable_query_log
+--disable_result_log
+--source include/wait_for_purge.inc
+--enable_result_log
+--enable_query_log
+
+--echo # Write a new GTID into the new (post-purge) active binlog
+INSERT INTO t1 VALUES (3);
+
+--echo # The new position (in the current active log) is reachable
+let $new_pos= `SELECT @@GLOBAL.gtid_binlog_pos`;
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos');
+
+--echo # The old position (now in a purged log) returns 0
+--replace_result $pos OLD_GTID_POS
+eval SELECT GTID_CHECK_POS('$pos');
+
+--echo # A completely fake domain/server/seqno (never existed) returns 0
+SELECT GTID_CHECK_POS('99-99-9999999');
+
+--echo # 5. A future sequence number in a known domain returns 0
+let $server_id= `SELECT @@GLOBAL.server_id`;
+let $absent_gtid= 0-$server_id-99999999;
+--replace_result $absent_gtid ABSENT_GTID
+eval SELECT GTID_CHECK_POS('$absent_gtid');
+
+--echo # 6. Mixed list: reachable pos combined with an unknown domain returns 0
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos,99-99-9999999');
+
+--echo # 7. List with only the current reachable position returns 1
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos');
+
+--echo # Cleanup
+DROP TABLE t1;
