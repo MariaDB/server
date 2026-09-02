@@ -443,7 +443,7 @@ public:
   const FVector *vec= nullptr;
   Neighborhood *neighbors= nullptr;
   uint8_t max_layer;
-  bool stored:1, deleted:1;
+  bool stored:1, deleted:1, dirty:1;
 
   FVectorNode(MHNSW_Share *ctx_, const void *gref_);
   FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
@@ -811,10 +811,13 @@ int MHNSW_Trx::do_commit(THD *thd, bool all)
           {
             // consider copying nodes from trx to shared cache when it makes
             // sense. for ann_benchmarks it does not.
-            // also, consider flushing only changed nodes (a flag in the node)
             for (FVectorNode &from : trx->get_cache())
+            {
+              if (!from.dirty)
+                continue;
               if (FVectorNode *node= ctx->find_node(from.gref()))
                 node->vec= nullptr;
+            }
             ctx->start= nullptr;
           }
           ctx->release(true, share);
@@ -948,14 +951,14 @@ const FVector *FVectorNode::make_vec(const void *v)
 }
 
 FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *gref_)
-  : ctx(ctx_), stored(true), deleted(false)
+  : ctx(ctx_), stored(true), deleted(false), dirty(false)
 {
   memcpy(gref(), gref_, gref_len());
 }
 
 FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
                          const void *vec_)
-  : ctx(ctx_), stored(false), deleted(false)
+  : ctx(ctx_), stored(false), deleted(false), dirty(false)
 {
   DBUG_ASSERT(tref_);
   memset(gref(), 0xff, gref_len()); // important: larger than any real gref
@@ -1214,6 +1217,14 @@ int FVectorNode::save(TABLE *graph)
 {
   DBUG_ASSERT(vec);
   DBUG_ASSERT(neighbors);
+
+  // Mark as dirty BEFORE touching disk: any path that calls save()
+  // is mutating this node. do_commit's partial invalidation
+  // uses this flag to skip read-only trx-cache entries and only
+  // invalidate the share-cache copies that are now actually stale.
+  // Set even on save() error paths so a partially-written node still
+  // forces share to reload.
+  dirty= true;
 
   restore_record(graph, s->default_values);
   graph->field[FIELD_LAYER]->store(max_layer, false);
@@ -1708,6 +1719,7 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   graph->file->position(graph->record[0]);
   FVectorNode *node= ctx->get_node(graph->file->ref);
   node->deleted= true;
+  node->dirty= true;     // forces share-cache invalidation on commit
 
   return 0;
 }
