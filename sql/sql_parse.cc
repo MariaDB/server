@@ -7902,13 +7902,21 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     - first, call query_cache_send_result_to_client,
     - second, if caching failed, initialise the lexical and syntactic parser.
     The problem is that the query cache depends on a clean initialization
-    of (among others) lex->safe_to_cache_query and thd->server_status,
-    which are reset respectively in
+    of (at the time of the current code):
+      thd->lex->safe_to_cache_query= 1;
+      thd->clear_error(1);
+      server_status&= ~SERVER_STATUS_CLEAR_SET;
+      get_stmt_da()->reset_for_next_command();
+      reset_slow_query_state(0);
+    which are reset in
     - lex_start()
     - THD::reset_for_next_command()
-    So, initializing the lexical analyser *before* using the query cache
-    is required for the cache to work properly.
-    FIXME: cleanup the dependencies in the code to simplify this.
+
+    Doing a special function to reset just what is needed for query
+    cache makes the code base harder to maintain as we have to in the
+    future change things in multiple places. Another issue is that
+    some of the resets are a bit expensive and it is hard to avoid
+    doing them again if the query cache is not used.
   */
   lex_start(thd);
   thd->reset_for_next_command();

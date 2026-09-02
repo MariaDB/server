@@ -8753,6 +8753,20 @@ public:
 LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
+
+/* Inline helper for query cache */
+
+inline int query_cache_send_result_to_client(THD *thd, char *sql,
+                                             uint query_length)
+{
+  if (likely(query_cache_maybe_disabled(thd)))
+  {
+    thd->query_cache_is_applicable= 0;            // Query can't be cached
+    return -1;                                    // No query cache
+  }
+  return query_cache.send_result_to_client(thd, sql, query_length);
+}
+
 #include "deprecation.h"
 
 #endif /* MYSQL_SERVER */

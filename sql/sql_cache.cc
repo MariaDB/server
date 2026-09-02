@@ -1727,6 +1727,11 @@ size_t build_normalized_name(char *buff, size_t bufflen,
 
   *) The buffer must be allocated memory of size:
   tot_length= query_length + thd->db.length + 1 + QUERY_CACHE_FLAGS_SIZE;
+
+  Notes:
+  The caller is supposed to only call this function through
+  query_cache_send_result_to_client() which checks that query cache is
+  enabled.
 */
 
 int
@@ -1744,6 +1749,9 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   const char *sql, *sql_end, *found_brace= 0, *cache_pos;
   DBUG_ENTER("Query_cache::send_result_to_client");
 
+  /* Tested by caller */
+  DBUG_ASSERT(thd->variables.query_cache_type != QUERY_CACHE_TYPE_OFF);
+
   /*
     Testing without a lock here is safe: the thing
     we may loose is that the query won't be served from cache, but we
@@ -1751,8 +1759,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
 
     See also a note on double-check locking usage above.
   */
-  if (likely(thd->variables.query_cache_type == QUERY_CACHE_TYPE_OFF) ||
-      is_disabled() || thd->locked_tables_mode)
+  if (is_disabled() || thd->locked_tables_mode)
     goto err;
 
   /*
