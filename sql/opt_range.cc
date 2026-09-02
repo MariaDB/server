@@ -8621,6 +8621,9 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 }
 
 
+/*
+  Disallow range creation when BETWEEN arguments' types don't match.
+*/
 bool
 Item_func_between::can_optimize_range_const(Item_field *field_item) const
 {
@@ -8631,6 +8634,37 @@ Item_func_between::can_optimize_range_const(Item_field *field_item) const
       return false;  // Cannot optimize range because of type mismatch.
 
   return true;
+}
+
+
+/*
+  can_optimize_range_const() failed for a bound field of a NOT BETWEEN
+  predicate, meaning that bound would be compared against args[0] using
+  a different type than the BETWEEN's own comparator.  A NOT BETWEEN
+  range is the OR of one range per bound, so the bound cannot simply be
+  dropped; that would make the range miss rows that satisfy the NOT
+  BETWEEN.
+
+  Return true when the bound's range can still be built the normal way
+  because the result is a valid superset of the matching rows.  That
+  holds when the field, args[0], and the BETWEEN comparator are all
+  numeric types (INT, REAL, or DECIMAL).  Numeric conversions preserve
+  ordering, and boundary rounding is handled conservatively, so the
+  range never drops a matching row; any extra rows it covers are
+  removed when the predicate is evaluated again on each row the scan
+  returns.
+
+  When a string or temporal comparison is involved the ordering is not
+  preserved (e.g., MDEV-36235, a numeric comparison over a string key),
+  so no safe superset range exists and the whole tree must be abandoned.
+*/
+bool
+Item_func_between::can_build_superset_range_const(const Item_field *field_item)
+                                                  const
+{
+  return field_item->type_handler_for_comparison()->is_numeric() &&
+         args[0]->type_handler_for_comparison()->is_numeric() &&
+         m_comparator.type_handler()->is_numeric();
 }
 
 
@@ -8660,7 +8694,32 @@ Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     {
       Item_field *field_item= (Item_field*) (arguments()[i]->real_item());
       if (!can_optimize_range_const(field_item))
-        continue;
+      {
+        if (!negated)
+        {
+          /*
+            For BETWEEN, dropping a conjunct is fine because the
+            remaining tree is a superset of matching rows and the WHERE
+            clause will filter any extra rows out.
+          */
+          continue;
+        }
+
+        /*
+          For NOT BETWEEN the range is the OR of one range per bound, so
+          a bound cannot simply be skipped; the remaining range would
+          miss rows that satisfy the NOT BETWEEN.  When the range for
+          this bound is still a valid superset we fall through and build
+          it the normal way below; otherwise we abandon the whole tree
+          to avoid building a bad range (see
+          can_build_superset_range_const()).
+        */
+        if (!can_build_superset_range_const(field_item))
+        {
+          tree= nullptr;
+          break;
+        }
+      }
       SEL_TREE *tmp= get_full_func_mm_tree(param, field_item,
                                            (Item*)(intptr) i);
       if (negated)
