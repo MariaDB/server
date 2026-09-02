@@ -416,4 +416,5 @@ extern void check_parallel_scan(JOIN *join);
 extern void recheck_parallel_scan(JOIN *join);
 extern ORDER *pwt_plan_group_key(JOIN *join);
 extern bool is_parallel_scan_applicable(JOIN_TAB *join_tab);
+extern void parallel_join_check(JOIN *join);
 #endif

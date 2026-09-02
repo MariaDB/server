@@ -25,6 +25,8 @@ INSERT INTO d2 SELECT seq % 20 + 1, CONCAT('L', seq) FROM seq_1_to_60;
 CREATE TABLE d3 (x INT, descr VARCHAR(20)) ENGINE=InnoDB;              # no index -> ALL
 INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
 
+analyze table fact, d1, d2, d3 persistent for all;
+
 SET @s= @@session.parallel_worker_threads;
 
 SET @save_os= @@session.optimizer_switch;
@@ -181,6 +183,47 @@ SET SESSION parallel_worker_threads= 0;
 --source include/analyze-format.inc
 ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1
   WHERE d1.id=f.dim1 AND f.val > 100 AND f.val < 130;
+
+--echo #
+--echo # an inner table read as "Range checked for each record"
+--echo #
+# make_join_readinfo() gives such a table join_init_quick_read_record(), which
+# builds a fresh quick select per outer row by calling test_if_quick_select(),
+# and that begins "delete tab->select->quick". A worker's copy of the tab has
+# no SQL_SELECT -- setup_worker_jointabs() clears it, because the one the plan
+# holds names the manager's table -- so the reader dereferences NULL. There is
+# no quick select on the tab to notice at plan time either: it is built at
+# execution, one per row. So the plan is refused on the reader it was given.
+CREATE TABLE r1 (
+  pk INT PRIMARY KEY, f1 INT, f2 CHAR(1),
+  KEY(f1), KEY(f2)
+) ENGINE=InnoDB;
+INSERT INTO r1 SELECT seq, seq % 10, CHAR(97 + seq % 20) FROM seq_1_to_19;
+CREATE TABLE r2 (f4 INT, f5 CHAR(1)) ENGINE=InnoDB;
+INSERT INTO r2 VALUES (4,'q'),(NULL,'j');
+
+SET SESSION parallel_worker_threads= 4;
+--echo # r1_1 is read that way (expect "Range checked for each record")
+--replace_column 9 #
+EXPLAIN SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+  WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+
+--echo # refused, so the query is answered serially (expect 0)
+FLUSH STATUS;
+--sorted_result
+SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+  WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq AS ran_in_the_workers
+--enable_query_log
+
+--echo # the same rows a serial scan returns
+SET SESSION parallel_worker_threads= 0;
+--sorted_result
+SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+  WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+DROP TABLE r1, r2;
 
 SET SESSION parallel_worker_threads= @s;
 DROP TABLE fact, d1, d2, d3;
