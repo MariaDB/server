@@ -44,6 +44,7 @@ Created 3/26/1996 Heikki Tuuri
 struct mtr_t;
 struct rw_trx_hash_element_t;
 class ha_handler_stats;
+struct TABLE;
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -962,6 +963,7 @@ public:
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
 					by this transaction */
+
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */

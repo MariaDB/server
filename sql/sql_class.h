@@ -918,6 +918,7 @@ typedef struct system_variables
   my_bool sql_log_bin;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
+  my_bool rpl_use_binlog_events_for_fk_cascade;
   my_bool column_compression_zlib_wrap;
   my_bool sysdate_is_now;
   my_bool wsrep_on;
@@ -3854,6 +3855,55 @@ public:
   /* 1 if binlog table maps has been written */
   bool binlog_table_maps;
 
+  bool binlog_fk_cascade_events;
+
+  /*
+    True only while the queued FK-cascade row events are being flushed into
+    the binlog cache, so that the events created during that flush are marked
+    as cascade-derived (FK_CASCADE_DERIVED_F).
+  */
+  bool binlog_fk_cascade_derived;
+
+  void binlog_mark_fk_cascade_events();
+  void binlog_begin_fk_cascade_derived() { binlog_fk_cascade_derived= true; }
+  void binlog_end_fk_cascade_derived()   { binlog_fk_cascade_derived= false; }
+
+  /*
+    Queue of FK-cascade row changes reported by a storage engine during the
+    current statement, awaiting binlogging. The server owns this queue and its
+    lifecycle: the engine only reports rows via binlog_report_cascade_row();
+    flush_pending_cascade_binlog() writes them to the binlog cache at statement
+    end / commit, and discard_pending_cascade_binlog() drops them on rollback.
+    Buffers are server-allocated copies of the engine-supplied record images.
+  */
+  struct Cascade_binlog_row_event
+  {
+    TABLE *table;
+    uchar *before_record;
+    uchar *after_record;                /* NULL for a cascade delete */
+    bool   is_delete;
+  };
+  Dynamic_array<Cascade_binlog_row_event>
+    pending_cascade_binlog_row_events{PSI_INSTRUMENT_MEM};
+
+  void binlog_report_cascade_row(TABLE *table, bool is_delete,
+                                 const uchar *before_record,
+                                 const uchar *after_record);
+  void flush_pending_cascade_binlog();
+  void discard_pending_cascade_binlog();
+
+  /*
+    Row images of the FK-cascade action currently being reported by a storage
+    engine, materialised by thd_fk_cascade_capture() and consumed by
+    thd_fk_cascade_row(). At most one cascade action is in flight at a time:
+    the engine captures the before-image, performs the cascade, captures the
+    after-image, and reports, all within one call to its cascade routine.
+    See include/mysql/service_thd_fk_cascade.h.
+  */
+  uchar *fk_cascade_before_image= NULL;
+  uchar *fk_cascade_after_image= NULL;
+  void fk_cascade_free_images();
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
@@ -3861,6 +3911,8 @@ public:
   void reset_binlog_for_next_statement()
   {
     binlog_table_maps= 0;
+    binlog_fk_cascade_events= false;
+    binlog_fk_cascade_derived= false;
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
