@@ -1,0 +1,85 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_LOCKED");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_MEMORY_LIMIT");
+call mtr.add_suppression("\\[TIDESDB\\].*unexpected TidesDB error");
+#
+# === Setup: sysbench-like schema with SYNC_MODE=NONE ===
+#
+CREATE TABLE sbtest1 (
+id  INT NOT NULL AUTO_INCREMENT,
+k   INT NOT NULL DEFAULT 0,
+c   CHAR(120) NOT NULL DEFAULT '',
+pad CHAR(60) NOT NULL DEFAULT '',
+PRIMARY KEY (id),
+KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+CREATE TABLE sbtest2 (
+id  INT NOT NULL AUTO_INCREMENT,
+k   INT NOT NULL DEFAULT 0,
+c   CHAR(120) NOT NULL DEFAULT '',
+pad CHAR(60) NOT NULL DEFAULT '',
+PRIMARY KEY (id),
+KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+#
+# === Populate: 5000 rows per table ===
+#
+SELECT COUNT(*) AS sbtest1_rows FROM sbtest1;
+sbtest1_rows
+5000
+SELECT COUNT(*) AS sbtest2_rows FROM sbtest2;
+sbtest2_rows
+5000
+#
+# ============================================
+# TEST 1: Single-connection write-only storm
+#   1000 write-only transactions on one connection.
+#   Exercises rapid txn_begin/commit/free cycling.
+# ============================================
+#
+SELECT COUNT(*) AS after_single FROM sbtest1;
+after_single
+5000
+#
+# ============================================
+# TEST 2: Concurrent write-only storm (4 connections)
+#   Each connection runs 500 write-only transactions
+#   hitting both tables. Conflicts are expected.
+# ============================================
+#
+connect  wr1, localhost, root,,;
+connect  wr2, localhost, root,,;
+connect  wr3, localhost, root,,;
+connect  wr4, localhost, root,,;
+connection default;
+#
+# === Verify data integrity after concurrent writes ===
+#
+PK/index consistency: OK
+#
+# ============================================
+# TEST 3: Rapid txn churn (commit + immediate new txn)
+#   1000 tiny autocommit writes per connection x 4 connections
+#   Tests rapid txn_begin/txn_free cycling without BEGIN/COMMIT
+# ============================================
+#
+#
+# ============================================
+# TEST 4: Conflict storm -- all 4 connections hit same rows
+#   Maximizes TDB_ERR_CONFLICT / ERROR 1180 rate.
+#   Exercises the failed-commit -> txn_free -> new txn_begin path.
+# ============================================
+#
+connection default;
+SELECT COUNT(*) FROM sbtest1 WHERE id IN (1, 2, 3);
+Conflict storm: OK
+#
+# === Cleanup ===
+#
+disconnect wr1;
+disconnect wr2;
+disconnect wr3;
+disconnect wr4;
+DROP TABLE sbtest1;
+DROP TABLE sbtest2;
+# Done.

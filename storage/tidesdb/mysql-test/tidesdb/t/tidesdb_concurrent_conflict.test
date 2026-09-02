@@ -1,0 +1,74 @@
+--source include/have_tidesdb.inc
+#
+# Issue #77: Conflict detection between concurrent transactions.
+# Verifies that the second committer gets ER_LOCK_DEADLOCK when
+# two transactions modify the same row.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+--echo #
+--echo # Issue #77: Concurrent conflict detection
+--echo #
+
+CREATE TABLE t (
+  i INT NOT NULL PRIMARY KEY,
+  x INT
+) ENGINE=TidesDB;
+
+INSERT INTO t VALUES (1,10),(2,20),(3,30),(4,40),(5,50);
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+--echo # ---- TEST 1: Two UPDATEs on same row ----
+connection con1;
+START TRANSACTION;
+UPDATE t SET x = 999 WHERE i = 1;
+
+connection con2;
+START TRANSACTION;
+UPDATE t SET x = 888 WHERE i = 1;
+COMMIT;
+
+connection con1;
+--error ER_LOCK_DEADLOCK,ER_ERROR_DURING_COMMIT
+COMMIT;
+
+connection default;
+--echo # con2 wins: x should be 888
+SELECT * FROM t WHERE i = 1;
+
+--echo # ---- TEST 2: UPDATE vs DELETE on same row ----
+connection con1;
+START TRANSACTION;
+UPDATE t SET x = 777 WHERE i = 2;
+
+connection con2;
+START TRANSACTION;
+DELETE FROM t WHERE i = 2;
+COMMIT;
+
+connection con1;
+--error ER_LOCK_DEADLOCK,ER_ERROR_DURING_COMMIT
+COMMIT;
+
+connection default;
+--echo # con2 wins: row 2 should be gone
+SELECT * FROM t WHERE i = 2;
+
+--echo # Remaining rows intact
+SELECT * FROM t ORDER BY i;
+
+--echo # Cleanup
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+
+DROP TABLE t;
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

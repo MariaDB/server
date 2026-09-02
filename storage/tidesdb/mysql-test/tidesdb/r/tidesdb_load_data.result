@@ -1,0 +1,65 @@
+#
+# TEST 1: Multi-row INSERT (triggers bulk insert path)
+#
+CREATE TABLE t_bulk (id INT PRIMARY KEY, name VARCHAR(100), val INT) ENGINE=TidesDB;
+INSERT INTO t_bulk VALUES
+(1, 'alpha', 100), (2, 'beta', 200), (3, 'gamma', 300),
+(4, 'delta', 400), (5, 'epsilon', 500);
+SELECT * FROM t_bulk ORDER BY id;
+id	name	val
+1	alpha	100
+2	beta	200
+3	gamma	300
+4	delta	400
+5	epsilon	500
+#
+# TEST 2: INSERT ... SELECT bulk load
+#
+CREATE TABLE t_source (id INT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_source VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'),
+(6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j');
+CREATE TABLE t_dest (id INT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_dest SELECT * FROM t_source;
+SELECT COUNT(*) FROM t_dest;
+COUNT(*)
+10
+#
+# TEST 3: Large bulk insert (200+ rows, triggers batch commit)
+#
+CREATE TABLE t_large (id INT PRIMARY KEY, payload VARCHAR(200)) ENGINE=TidesDB;
+SELECT COUNT(*) AS total FROM t_large;
+total
+200
+SELECT MIN(id), MAX(id) FROM t_large;
+MIN(id)	MAX(id)
+1	200
+#
+# TEST 4: Bulk insert with secondary index
+#
+CREATE TABLE t_bulk_idx (id INT PRIMARY KEY, cat INT, KEY(cat)) ENGINE=TidesDB;
+INSERT INTO t_bulk_idx VALUES
+(1, 10), (2, 20), (3, 10), (4, 30), (5, 10),
+(6, 20), (7, 10), (8, 30), (9, 10), (10, 20);
+SELECT COUNT(*) FROM t_bulk_idx WHERE cat = 10;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t_bulk_idx WHERE cat = 20;
+COUNT(*)
+3
+#
+# TEST 5: INSERT ... SELECT between TidesDB tables
+#
+CREATE TABLE t_src2 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_src2 VALUES (1,10), (2,20), (3,30);
+CREATE TABLE t_dst2 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_dst2 SELECT * FROM t_src2;
+SELECT * FROM t_dst2 ORDER BY id;
+id	v
+1	10
+2	20
+3	30
+#
+# Cleanup
+#
+DROP TABLE t_bulk, t_source, t_dest, t_large, t_bulk_idx, t_src2, t_dst2;
+# Done.

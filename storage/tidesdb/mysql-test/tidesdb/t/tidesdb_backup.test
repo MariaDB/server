@@ -1,0 +1,117 @@
+--source include/have_tidesdb.inc
+--source include/not_embedded.inc
+
+
+# Suppress expected error from Test 2 (backup to non-empty dir)
+CALL mtr.add_suppression("\\[TIDESDB\\] Backup to .* failed");
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: Online backup creates a valid copy
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_backup (
+  id INT PRIMARY KEY,
+  val VARCHAR(100)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_backup VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+
+# Verify data is present
+SELECT * FROM t_backup ORDER BY id;
+
+# Determine backup directory (inside the test's tmp dir)
+--let $backup_dir= $MYSQLTEST_VARDIR/tmp/tidesdb_backup_test
+--exec rm -rf $backup_dir
+
+--echo # Triggering online backup
+--disable_query_log
+eval SET GLOBAL tidesdb_backup_dir = '$backup_dir';
+--enable_query_log
+
+--echo # Backup should have created the directory
+--exec test -d $backup_dir && echo "Backup directory exists: YES" || echo "Backup directory exists: NO"
+
+--echo # Check that SHOW VARIABLES reflects the backup path
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SELECT @@GLOBAL.tidesdb_backup_dir IS NOT NULL AS backup_dir_set;
+
+--echo # Insert more data after backup (should NOT appear in backup)
+INSERT INTO t_backup VALUES (4, 'delta'), (5, 'epsilon');
+SELECT COUNT(*) AS rows_after FROM t_backup;
+
+DROP TABLE t_backup;
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: Backup to existing non-empty dir fails
+--echo # ============================================
+--echo #
+
+--echo # Re-running backup to same directory should fail (not empty)
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_UNKNOWN_ERROR
+eval SET GLOBAL tidesdb_backup_dir = '$backup_dir';
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: Clear backup_dir variable
+--echo # ============================================
+--echo #
+
+SET GLOBAL tidesdb_backup_dir = '';
+SELECT @@GLOBAL.tidesdb_backup_dir IS NULL AS backup_dir_cleared;
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: Concurrent reads/writes during backup
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_concurrent (
+  id INT PRIMARY KEY,
+  data VARCHAR(200)
+) ENGINE=TIDESDB;
+
+# Load some data
+--disable_query_log
+--let $i= 1
+while ($i <= 100)
+{
+  eval INSERT INTO t_concurrent VALUES ($i, REPEAT('x', 100));
+  --inc $i
+}
+--enable_query_log
+
+--echo # Inserted 100 rows
+SELECT COUNT(*) AS before_backup FROM t_concurrent;
+
+--let $backup_dir2= $MYSQLTEST_VARDIR/tmp/tidesdb_backup_concurrent
+--exec rm -rf $backup_dir2
+
+--disable_query_log
+eval SET GLOBAL tidesdb_backup_dir = '$backup_dir2';
+--enable_query_log
+
+--echo # Backup completed while table was loaded
+
+# Verify the table is still fully readable after backup
+SELECT COUNT(*) AS after_backup FROM t_concurrent;
+
+# Verify writes still work after backup
+INSERT INTO t_concurrent VALUES (101, 'post-backup');
+SELECT COUNT(*) AS with_post_backup FROM t_concurrent;
+
+DROP TABLE t_concurrent;
+
+--echo #
+--echo # === Cleanup ===
+--echo #
+
+SET GLOBAL tidesdb_backup_dir = '';
+--exec rm -rf $backup_dir
+--exec rm -rf $backup_dir2
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

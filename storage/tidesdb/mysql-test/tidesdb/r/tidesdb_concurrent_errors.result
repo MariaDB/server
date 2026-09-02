@@ -1,0 +1,105 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_LOCKED");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_MEMORY_LIMIT");
+call mtr.add_suppression("\\[TIDESDB\\].*unexpected TidesDB error");
+#
+# === Setup: sysbench-like schema ===
+#
+CREATE TABLE t1 (
+id  INT NOT NULL AUTO_INCREMENT,
+k   INT NOT NULL DEFAULT 0,
+c   CHAR(120) NOT NULL DEFAULT '',
+pad CHAR(60) NOT NULL DEFAULT '',
+PRIMARY KEY (id),
+KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+Warnings:
+Warning	1105	[TIDESDB] Table SYNC_MODE=NONE governs SSTable file sync only.  Under tidesdb_unified_memtable=ON the shared WAL is fsynced according to tidesdb_unified_memtable_sync_mode=FULL, so the table option does not change WAL durability for this table
+#
+# === Populate: 2000 rows ===
+#
+SELECT COUNT(*) AS row_count FROM t1;
+row_count
+2000
+#
+# ============================================
+# TEST 1: Concurrent oltp_read_write pattern
+#   4 connections doing BEGIN...COMMIT with
+#   interleaved reads + writes on overlapping rows.
+#   Before fix: error 1030 (HA_ERR_GENERIC)
+#   After fix: error 1213 (deadlock, retryable)
+# ============================================
+#
+connect  c1, localhost, root,,;
+connect  c2, localhost, root,,;
+connect  c3, localhost, root,,;
+connect  c4, localhost, root,,;
+#
+# === Verify: no error 1030 (HA_ERR_GENERIC) was produced ===
+#
+connection c1;
+# c1 error_1030 count:
+SELECT @err_1030 AS err_1030_c1;
+err_1030_c1
+0
+connection c2;
+# c2 error_1030 count:
+SELECT @err_1030 AS err_1030_c2;
+err_1030_c2
+0
+connection c3;
+# c3 error_1030 count:
+SELECT @err_1030 AS err_1030_c3;
+err_1030_c3
+0
+connection c4;
+# c4 error_1030 count:
+SELECT @err_1030 AS err_1030_c4;
+err_1030_c4
+0
+connection default;
+#
+# === Verify data integrity (PK count == index count) ===
+#
+Data integrity: OK
+#
+# ============================================
+# TEST 2: Conflict storm -- all connections hit SAME 3 rows
+#   Maximizes conflict rate. Before fix these would be
+#   error 1030; after fix they are error 1213 (retryable).
+# ============================================
+#
+#
+# === Verify: no error 1030 in conflict storm ===
+#
+connection c1;
+# c1 error_1030 count:
+SELECT @err_1030 AS err_1030_c1;
+err_1030_c1
+0
+connection c2;
+# c2 error_1030 count:
+SELECT @err_1030 AS err_1030_c2;
+err_1030_c2
+0
+connection c3;
+# c3 error_1030 count:
+SELECT @err_1030 AS err_1030_c3;
+err_1030_c3
+0
+connection c4;
+# c4 error_1030 count:
+SELECT @err_1030 AS err_1030_c4;
+err_1030_c4
+0
+connection default;
+Conflict storm: OK
+#
+# === Cleanup ===
+#
+disconnect c1;
+disconnect c2;
+disconnect c3;
+disconnect c4;
+DROP TABLE t1;
+# Done.

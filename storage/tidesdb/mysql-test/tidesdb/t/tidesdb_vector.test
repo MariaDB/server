@@ -1,0 +1,104 @@
+--source include/have_tidesdb_vector.inc
+--source include/have_tidesdb.inc
+#
+# Test: Vector search (MHNSW approximate nearest neighbor)
+#
+# Covers:
+#   1. CREATE TABLE with VECTOR index
+#   2. INSERT vectors and build MHNSW graph
+#   3. ANN search with Euclidean and cosine distance
+#   4. UPDATE vector column
+#   5. DELETE vector rows
+#   6. UPDATE non-vector column
+#
+
+--echo #
+--echo # Setup
+--echo #
+
+CREATE TABLE docs (
+  id    INT NOT NULL PRIMARY KEY,
+  title VARCHAR(100),
+  v     VECTOR(4) NOT NULL,
+  VECTOR INDEX (v)
+) ENGINE=TidesDB;
+
+INSERT INTO docs VALUES (1, 'origin-x', Vec_FromText('[1.0, 0.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (2, 'origin-y', Vec_FromText('[0.0, 1.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (3, 'origin-z', Vec_FromText('[0.0, 0.0, 1.0, 0.0]'));
+INSERT INTO docs VALUES (4, 'near-x',   Vec_FromText('[0.9, 0.1, 0.0, 0.0]'));
+INSERT INTO docs VALUES (5, 'center',   Vec_FromText('[0.5, 0.5, 0.5, 0.5]'));
+
+--echo #
+--echo # TEST 1: Euclidean ANN search
+--echo #
+
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+
+--echo #
+--echo # TEST 2: Cosine ANN search
+--echo #
+
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_COSINE(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+
+--echo #
+--echo # TEST 3: UPDATE vector column
+--echo #
+
+UPDATE docs SET v = Vec_FromText('[0.95, 0.05, 0.0, 0.0]') WHERE id = 4;
+
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+
+--echo #
+--echo # TEST 4: DELETE vector row
+--echo #
+
+DELETE FROM docs WHERE id = 1;
+
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+
+--echo #
+--echo # TEST 5: UPDATE non-vector column
+--echo #
+
+UPDATE docs SET title = 'renamed-near-x' WHERE id = 4;
+
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 2;
+
+--echo #
+--echo # TEST 6: Different dimensionality
+--echo #
+
+DROP TABLE docs;
+CREATE TABLE docs (
+  id INT NOT NULL PRIMARY KEY,
+  v  VECTOR(3) NOT NULL,
+  VECTOR INDEX (v)
+) ENGINE=TidesDB;
+
+INSERT INTO docs VALUES (1, Vec_FromText('[1.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (2, Vec_FromText('[0.0, 1.0, 0.0]'));
+INSERT INTO docs VALUES (3, Vec_FromText('[0.0, 0.0, 1.0]'));
+
+SELECT id FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[0.9, 0.1, 0.0]'))
+LIMIT 2;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE docs;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

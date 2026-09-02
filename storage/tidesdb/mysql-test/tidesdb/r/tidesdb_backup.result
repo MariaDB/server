@@ -1,0 +1,73 @@
+CALL mtr.add_suppression("\\[TIDESDB\\] Backup to .* failed");
+#
+# ============================================
+# TEST 1: Online backup creates a valid copy
+# ============================================
+#
+CREATE TABLE t_backup (
+id INT PRIMARY KEY,
+val VARCHAR(100)
+) ENGINE=TIDESDB;
+INSERT INTO t_backup VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+SELECT * FROM t_backup ORDER BY id;
+id	val
+1	alpha
+2	beta
+3	gamma
+# Triggering online backup
+# Backup should have created the directory
+Backup directory exists: YES
+# Check that SHOW VARIABLES reflects the backup path
+SELECT @@GLOBAL.tidesdb_backup_dir IS NOT NULL AS backup_dir_set;
+backup_dir_set
+1
+# Insert more data after backup (should NOT appear in backup)
+INSERT INTO t_backup VALUES (4, 'delta'), (5, 'epsilon');
+SELECT COUNT(*) AS rows_after FROM t_backup;
+rows_after
+5
+DROP TABLE t_backup;
+#
+# ============================================
+# TEST 2: Backup to existing non-empty dir fails
+# ============================================
+#
+# Re-running backup to same directory should fail (not empty)
+SET GLOBAL tidesdb_backup_dir = 'MYSQLTEST_VARDIR/tmp/tidesdb_backup_test';
+ERROR HY000: [TIDESDB] Backup to 'MYSQLTEST_VARDIR/tmp/tidesdb_backup_test' failed (err=-6)
+#
+# ============================================
+# TEST 3: Clear backup_dir variable
+# ============================================
+#
+SET GLOBAL tidesdb_backup_dir = '';
+SELECT @@GLOBAL.tidesdb_backup_dir IS NULL AS backup_dir_cleared;
+backup_dir_cleared
+1
+#
+# ============================================
+# TEST 4: Concurrent reads/writes during backup
+# ============================================
+#
+CREATE TABLE t_concurrent (
+id INT PRIMARY KEY,
+data VARCHAR(200)
+) ENGINE=TIDESDB;
+# Inserted 100 rows
+SELECT COUNT(*) AS before_backup FROM t_concurrent;
+before_backup
+100
+# Backup completed while table was loaded
+SELECT COUNT(*) AS after_backup FROM t_concurrent;
+after_backup
+100
+INSERT INTO t_concurrent VALUES (101, 'post-backup');
+SELECT COUNT(*) AS with_post_backup FROM t_concurrent;
+with_post_backup
+101
+DROP TABLE t_concurrent;
+#
+# === Cleanup ===
+#
+SET GLOBAL tidesdb_backup_dir = '';
+# Done.

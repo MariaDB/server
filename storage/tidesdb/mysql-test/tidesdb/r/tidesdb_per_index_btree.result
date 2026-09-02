@@ -1,0 +1,42 @@
+#
+# TEST 1: Per-index USE_BTREE on secondary index
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY,
+a INT,
+b INT,
+KEY idx_a (a) USE_BTREE=1,
+KEY idx_b (b)
+) ENGINE=TidesDB;
+INSERT INTO t1 VALUES (1,10,100),(2,20,200),(3,30,300);
+# idx_a should show BTREE, idx_b should show LSM
+SHOW KEYS FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	2	NULL	NULL		LSM			NO
+t1	1	idx_a	1	a	A	2	NULL	NULL	YES	BTREE			NO
+t1	1	idx_b	1	b	A	2	NULL	NULL	YES	LSM			NO
+SELECT * FROM t1 WHERE a = 20;
+id	a	b
+2	20	200
+SELECT * FROM t1 WHERE b = 200;
+id	a	b
+2	20	200
+DROP TABLE t1;
+#
+# TEST 2: Table-level USE_BTREE=1 with per-index override
+#
+CREATE TABLE t2 (
+id INT NOT NULL PRIMARY KEY,
+x INT,
+KEY idx_x (x) USE_BTREE=0
+) ENGINE=TidesDB USE_BTREE=1;
+# PK and idx_x should both show BTREE (table default), but idx_x USE_BTREE=0
+# Note: per-index USE_BTREE=0 does NOT override table-level to LSM -- it just
+# means the index itself didn't request BTREE; the table default still applies.
+SHOW KEYS FROM t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	0	PRIMARY	1	id	A	2	NULL	NULL		BTREE			NO
+t2	1	idx_x	1	x	A	2	NULL	NULL	YES	BTREE			NO
+DROP TABLE t2;
+#
+# Done.
