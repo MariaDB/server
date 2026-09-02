@@ -1,0 +1,26 @@
+SELECT @@global.innodb_blink_leaf_pool_low,
+@@global.innodb_blink_leaf_pool_high,
+@@global.innodb_blink_internal_pool_low,
+@@global.innodb_blink_internal_pool_high;
+@@global.innodb_blink_leaf_pool_low	@@global.innodb_blink_leaf_pool_high	@@global.innodb_blink_internal_pool_low	@@global.innodb_blink_internal_pool_high
+64	256	8	32
+SET GLOBAL innodb_blink_leaf_pool_high=4096;
+SET GLOBAL innodb_blink_leaf_pool_low=512;
+SET GLOBAL innodb_blink_internal_pool_high=128;
+SET GLOBAL innodb_blink_internal_pool_low=16;
+SELECT COUNT(*)=2 AS pool_depth_status
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME IN ('INNODB_BLINK_POOL_DEPTH_LEAF',
+'INNODB_BLINK_POOL_DEPTH_INTERNAL');
+pool_depth_status
+1
+SELECT @@global.innodb_blink_leaf_pool_low,
+@@global.innodb_blink_leaf_pool_high,
+@@global.innodb_blink_internal_pool_low,
+@@global.innodb_blink_internal_pool_high;
+@@global.innodb_blink_leaf_pool_low	@@global.innodb_blink_leaf_pool_high	@@global.innodb_blink_internal_pool_low	@@global.innodb_blink_internal_pool_high
+512	4096	16	128
+SET GLOBAL innodb_blink_leaf_pool_low=DEFAULT;
+SET GLOBAL innodb_blink_leaf_pool_high=DEFAULT;
+SET GLOBAL innodb_blink_internal_pool_low=DEFAULT;
+SET GLOBAL innodb_blink_internal_pool_high=DEFAULT;

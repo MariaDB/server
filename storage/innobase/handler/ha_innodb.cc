@@ -953,6 +953,19 @@ static int show_atomic_counter_u64(MYSQL_THD, SHOW_VAR *var, void *buff,
   return 0;
 }
 
+template<bool Leaf>
+static int show_blink_pool_depth(MYSQL_THD, SHOW_VAR *var, void *buff,
+                                 system_status_var *, enum enum_var_type)
+{
+  size_t leaf;
+  size_t internal;
+  blink_page_pool_query_depth(&leaf, &internal);
+  var->type= SHOW_ULONGLONG;
+  var->value= buff;
+  *static_cast<ulonglong*>(buff)= Leaf ? leaf : internal;
+  return 0;
+}
+
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
   {"adaptive_hash_hash_searches", &btr_search.hit_count_nonatomic, SHOW_SIZE_T},
@@ -1136,6 +1149,10 @@ static SHOW_VAR innodb_status_variables[]= {
 
   /* InnoDB bulk operations */
   {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
+  {"blink_pool_depth_leaf", (void*) &show_blink_pool_depth<true>,
+   SHOW_SIMPLE_FUNC},
+  {"blink_pool_depth_internal", (void*) &show_blink_pool_depth<false>,
+   SHOW_SIMPLE_FUNC},
   {"blink_searches", (void*) &show_atomic_counter_u64<&blink_searches>,
    SHOW_SIMPLE_FUNC},
   {"blink_right_moves", (void*) &show_atomic_counter_u64<&blink_right_moves>,

@@ -7,6 +7,7 @@
 #include "srv0srv.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -15,6 +16,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 static size_t blink_low_watermark(size_t slot) noexcept
 {
@@ -56,7 +58,6 @@ static std::deque<blink_pool_entry_t*> blink_reclaim_queue;
 static std::thread blink_allocator_thread;
 static std::atomic<bool> blink_allocator_shutdown{false};
 static bool blink_allocator_running;
-static size_t blink_registry_cursor;
 
 static size_t blink_kind_index(blink_page_kind kind) noexcept
 {
@@ -202,37 +203,6 @@ static void blink_free_page(dict_index_t *index, uint32_t page_no) noexcept
   mtr.commit();
 }
 
-static bool blink_refill_one(blink_pool_entry_t *entry) noexcept
-{
-  for (size_t slot= 0; slot < 2; ++slot) {
-    {
-      std::lock_guard<std::mutex> guard(entry->pool.mutex);
-      const size_t size= entry->pool.pages[slot].size();
-      if (!entry->pool.refilling[slot] && size < blink_low_watermark(slot))
-        entry->pool.refilling[slot]= true;
-      if (!entry->pool.refilling[slot])
-        continue;
-      if (size >= blink_high_watermark(slot)) {
-        entry->pool.refilling[slot]= false;
-        continue;
-      }
-    }
-    const auto kind= slot ? blink_page_kind::INTERNAL : blink_page_kind::LEAF;
-    const uint32_t page_no= blink_alloc_page(entry->index, kind);
-    if (page_no == FIL_NULL)
-      return false;
-    {
-      std::lock_guard<std::mutex> guard(entry->pool.mutex);
-      entry->pool.pages[slot].push_back(page_no);
-      ++blink_pool_refills;
-      if (entry->pool.pages[slot].size() >= blink_high_watermark(slot))
-        entry->pool.refilling[slot]= false;
-    }
-    return true;
-  }
-  return false;
-}
-
 static void blink_reclaim(blink_pool_entry_t *entry) noexcept
 {
   std::deque<uint32_t> pages[2];
@@ -255,41 +225,96 @@ static void blink_reclaim(blink_pool_entry_t *entry) noexcept
 
 static void blink_allocator_main() noexcept
 {
-  bool immediate= false;
+  constexpr size_t max_allocations_per_wake= 256;
   for (;;) {
     blink_pending_splits_process();
-    blink_pool_entry_t *entry= nullptr;
+    bool work_done= false;
     blink_pool_entry_t *reclaim= nullptr;
+    std::vector<blink_pool_entry_t*> snapshot;
     {
-      std::unique_lock<std::mutex> lock(blink_registry_mutex);
-      if (!immediate)
-        blink_registry_cv.wait_for(lock, std::chrono::milliseconds(100));
-      immediate= false;
+      std::lock_guard<std::mutex> lock(blink_registry_mutex);
       if (!blink_reclaim_queue.empty()) {
         reclaim= blink_reclaim_queue.front();
         blink_reclaim_queue.pop_front();
-      } else if (blink_allocator_shutdown.load())
-        break;
-      else if (!blink_registry.empty()) {
-        blink_registry_cursor%= blink_registry.size();
-        auto it= blink_registry.begin();
-        std::advance(it, blink_registry_cursor++);
-        if (!it->second->shutdown.load()) {
-          entry= it->second.get();
-          entry->users.fetch_add(1);
+      }
+      if (!blink_allocator_shutdown.load()) {
+        snapshot.reserve(blink_registry.size());
+        for (auto &item : blink_registry)
+          if (!item.second->shutdown.load()) {
+            item.second->users.fetch_add(1);
+            snapshot.push_back(item.second.get());
+          }
+      }
+    }
+
+    if (reclaim) {
+      blink_reclaim(reclaim);
+      work_done= true;
+    }
+    if (blink_allocator_shutdown.load() && !reclaim) {
+      for (blink_pool_entry_t *entry : snapshot)
+        blink_page_pool_unpin(entry);
+      break;
+    }
+
+    std::vector<std::array<size_t, 2>> needs(snapshot.size(), {0, 0});
+    for (size_t i= 0; i < snapshot.size(); ++i) {
+      blink_pool_entry_t *entry= snapshot[i];
+      if (entry->shutdown.load())
+        continue;
+      std::lock_guard<std::mutex> lock(entry->pool.mutex);
+      for (size_t slot= 0; slot < 2; ++slot) {
+        const size_t size= entry->pool.pages[slot].size();
+        const size_t low= blink_low_watermark(slot);
+        const size_t high= blink_high_watermark(slot);
+        if (size >= high)
+          entry->pool.refilling[slot]= false;
+        else if (size < low)
+          entry->pool.refilling[slot]= true;
+        if (entry->pool.refilling[slot])
+          needs[i][slot]= high - size;
+      }
+    }
+
+    size_t allocations= 0;
+    bool remaining= true;
+    while (remaining && allocations < max_allocations_per_wake) {
+      remaining= false;
+      for (size_t i= 0; i < snapshot.size(); ++i) {
+        blink_pool_entry_t *entry= snapshot[i];
+        if (entry->shutdown.load() || blink_allocator_shutdown.load())
+          continue;
+        for (size_t slot= 0; slot < 2; ++slot) {
+          if (!needs[i][slot] || allocations >= max_allocations_per_wake)
+            continue;
+          const auto kind= slot
+            ? blink_page_kind::INTERNAL : blink_page_kind::LEAF;
+          const uint32_t page_no= blink_alloc_page(entry->index, kind);
+          if (page_no == FIL_NULL) {
+            needs[i][slot]= 0;
+            continue;
+          }
+          {
+            std::lock_guard<std::mutex> lock(entry->pool.mutex);
+            entry->pool.pages[slot].push_back(page_no);
+          }
+          --needs[i][slot];
+          ++allocations;
+          ++blink_pool_refills;
+          work_done= true;
+          if (needs[i][slot])
+            remaining= true;
         }
       }
     }
-    if (reclaim) {
-      blink_reclaim(reclaim);
-      immediate= true;
-    }
-    if (entry) {
-      immediate= blink_refill_one(entry);
+
+    for (blink_pool_entry_t *entry : snapshot)
       blink_page_pool_unpin(entry);
+
+    if (!work_done) {
+      std::unique_lock<std::mutex> lock(blink_registry_mutex);
+      blink_registry_cv.wait_for(lock, std::chrono::milliseconds(100));
     }
-    if (blink_allocator_shutdown.load() && !reclaim && !entry)
-      break;
   }
 }
 
