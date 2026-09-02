@@ -1,0 +1,90 @@
+#
+# Server-startup binlog-open error injection scenarios that only fire with
+# binlog encryption enabled (this suite's default config: encrypt-binlog +
+# file_key_management). Counterpart to
+# suite/binlog/t/binlog_open_errors_startup.test, which cannot reach any of
+# these since it runs without encryption.
+#
+# STEPS:
+#   - restart with --debug-dbug=+d,<knob> so the failure hits the
+#     server's first MYSQL_BIN_LOG::open call, inside its
+#     "if (encrypt_binlog) { ... }" block
+#   - record the post-startup state via binlog_open_error_scenario.inc
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Failed to enable encryption of binary logs");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+
+# Baseline: confirm a clean restart works with encryption on.
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT @@global.encrypt_binlog AS encrypt_binlog_baseline;
+RESET MASTER;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: fail_my_random_bytes at startup -- the original MDEV-24625
+# trigger. Same unconditional-abort path as every other startup knob
+# (mysqld.cc's `if (unlikely(error)) unireg_abort(1);`).
+#
+--let $scn_id= startup.my_random_bytes
+--let $scn_kind= startup
+--let $scn_dbug= fail_my_random_bytes
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= startup.my_random_bytes
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_encryption_key_lookup at startup
+# Same unconditional-abort path as fail_my_random_bytes above.
+#
+--let $scn_id= startup.encryption_key_lookup
+--let $scn_kind= startup
+--let $scn_dbug= fail_encryption_key_lookup
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= write_description_event.encryption_key_lookup
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_write_sele at startup
+# Same unconditional-abort path as fail_my_random_bytes above.
+#
+--let $scn_id= startup.write_sele
+--let $scn_kind= startup
+--let $scn_dbug= fail_write_sele
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= write_description_event.write_sele
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;
+
+#
+# Scenario: fail_crypto_init at startup
+# Same unconditional-abort path as fail_my_random_bytes above.
+#
+--let $scn_id= startup.crypto_init
+--let $scn_kind= startup
+--let $scn_dbug= fail_crypto_init
+--let $scn_trigger= startup
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= write_description_event.crypto_init
+--source include/binlog_open_error_scenario.inc
+RESET MASTER;

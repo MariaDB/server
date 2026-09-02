@@ -1,0 +1,156 @@
+#
+# Binlog-open error injection scenarios triggered by size-based
+# auto-rotation (max_binlog_size), the implicit-rotation counterpart to
+# binlog_open_errors_flush.test.
+#
+# STEPS:
+#   - for each DBUG knob: inject it, then INSERT past max_binlog_size to
+#     force an implicit rotation
+#   - record the client error, warnings and post-state via
+#     binlog_open_error_scenario.inc
+#   - restart between scenarios that turn logging off
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_innodb.inc
+# The rotation trigger below relies on row-format events being sized by
+# the row data; under statement/mixed format the short INSERT text never
+# reaches max_binlog_size.
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
+
+# Force rotation early.
+SET @@global.max_binlog_size= 4096;
+
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+# Sanity: an unblocked insert beyond max_binlog_size triggers rotation.
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+--source include/binlog_open_error_show_binary_logs.inc
+TRUNCATE TABLE scn_filler;
+RESET MASTER;
+
+#
+# Scenario: error_unique_log_filename via implicit rotation
+#
+--let $scn_id= rotate.find_uniq_filename
+--let $scn_kind= error_inject
+--let $scn_dbug= error_unique_log_filename
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename
+--source include/binlog_open_error_scenario.inc
+
+DELETE FROM scn_filler;
+RESET MASTER;
+
+#
+# Scenario: fault_injection_registering_index via implicit rotation
+#
+--let $scn_id= rotate.registering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_registering_index
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.purge_index_register
+--source include/binlog_open_error_scenario.inc
+
+# After logging-off we need a restart to re-enable binlog.
+DROP TABLE scn_filler;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+#
+# Scenario: fault_injection_openning_index via implicit rotation
+#
+--let $scn_id= rotate.openning_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_openning_index
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.open
+--source include/binlog_open_error_scenario.inc
+
+DROP TABLE scn_filler;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+#
+# Scenario: fault_injection_recovering_index via implicit rotation
+#
+--let $scn_id= rotate.recovering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_recovering_index
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.recover
+--source include/binlog_open_error_scenario.inc
+
+DROP TABLE scn_filler;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+#
+# Scenario: fault_injection_updating_index via implicit rotation
+#
+--let $scn_id= rotate.updating_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_updating_index
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.update_index
+--source include/binlog_open_error_scenario.inc
+
+DROP TABLE scn_filler;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+#
+# Scenario: fault_injection_new_file_rotate_event via implicit rotation
+#
+--let $scn_id= rotate.new_file_rotate_event
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_new_file_rotate_event
+--let $scn_trigger= rotate_size
+--let $scn_expected_client_error= ER_ERROR_ON_WRITE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= new_file_impl.rotate_event
+--source include/binlog_open_error_scenario.inc
+
+DROP TABLE scn_filler;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+# Final cleanup. Reset to DEFAULT rather than saving/restoring the original
+# in a user variable: those are reconnect-local and would not survive the
+# restarts above.
+SET @@global.max_binlog_size= DEFAULT;
+RESET MASTER;
