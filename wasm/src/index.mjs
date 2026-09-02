@@ -412,6 +412,12 @@ async function toBytes(payload) {
 
 export class Lite4MariaDB {
   constructor(mod, fsSpec) {
+    if (!fsSpec) {
+      throw new Error(
+        'lite4mariadb: do not call the constructor directly — ' +
+          'use `const db = await Lite4MariaDB.create(options)` instead',
+      );
+    }
     this.mod = mod;
     this.fsType = fsSpec.type;
     this._fsSpec = fsSpec;

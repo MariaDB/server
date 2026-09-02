@@ -35,6 +35,8 @@ export interface WorkerTransaction {
  * worker_threads). Same API as Lite4MariaDB, but every method is async.
  */
 export class Lite4MariaDBWorker {
+  private constructor(worker: unknown);
+
   /**
    * Spawn (or attach to) a worker running dist/worker-entry.mjs and open the
    * database inside it. Pass your own Worker as the second argument to

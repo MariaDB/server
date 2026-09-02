@@ -16,6 +16,12 @@ async function spawnDefaultWorker() {
 
 export class Lite4MariaDBWorker {
   constructor(worker) {
+    if (!worker) {
+      throw new Error(
+        'lite4mariadb: do not call the constructor directly — ' +
+          'use `const db = await Lite4MariaDBWorker.create(options)` instead',
+      );
+    }
     this._worker = worker;
     this._seq = 0;
     this._pending = new Map();

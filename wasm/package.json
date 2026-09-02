@@ -1,6 +1,6 @@
 {
   "name": "lite4mariadb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MariaDB embedded server (with InnoDB) compiled to WebAssembly — run real MariaDB in the browser and Node.js. A PGlite-style API for MariaDB.",
   "type": "module",
   "main": "./dist/index.mjs",

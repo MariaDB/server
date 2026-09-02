@@ -46,6 +46,8 @@ export interface Transaction {
 }
 
 export class Lite4MariaDB {
+  private constructor(mod: unknown, fsSpec: unknown);
+
   static create(options?: Lite4MariaDBOptions): Promise<Lite4MariaDB>;
 
   /** Which storage backend is in use. */
