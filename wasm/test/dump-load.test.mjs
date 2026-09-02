@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
 test('dumpDataDir/loadDataDir round-trips a database snapshot', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   let dump;
   try {
     db.exec('DROP TABLE IF EXISTS snap_t');
@@ -20,7 +20,7 @@ test('dumpDataDir/loadDataDir round-trips a database snapshot', async () => {
     await db.close();
   }
 
-  const restored = await MariaDBlite.create({ loadDataDir: dump });
+  const restored = await Lite4MariaDB.create({ loadDataDir: dump });
   try {
     const rows = restored.query('SELECT v FROM snap_t WHERE id = 1');
     assert.deepEqual(
@@ -33,7 +33,7 @@ test('dumpDataDir/loadDataDir round-trips a database snapshot', async () => {
 });
 
 test('dumpDataDir({compress:false}) produces a plain tar', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     const tar = await db.dumpDataDir({ compress: false });
     // ustar magic at offset 257

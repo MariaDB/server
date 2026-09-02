@@ -1,4 +1,4 @@
-import createMariaDBlite from './mariadblite.js';
+import createLite4MariaDB from './lite4mariadb.js';
 
 const DATA_DIR = '/mariadb/data';
 const IDB_ROOT = '/mariadb/idb';
@@ -13,7 +13,7 @@ function parseDataDir(dataDir) {
   if (!dataDir || dataDir === 'memory://') return { type: 'memory' };
   if (dataDir.startsWith('idb://')) {
     const name = dataDir.slice('idb://'.length).replace(/^\/+|\/+$/g, '');
-    if (!name) throw new Error('mariadblite: idb:// dataDir needs a name');
+    if (!name) throw new Error('lite4mariadb: idb:// dataDir needs a name');
     return { type: 'idb', name };
   }
   for (const scheme of ['file://', 'node://']) {
@@ -32,15 +32,15 @@ function syncfs(mod, populate) {
 
 function parseEnvelope(mod, ptr) {
   if (!ptr) {
-    throw new Error('mariadblite: empty result pointer');
+    throw new Error('lite4mariadb: empty result pointer');
   }
   const json = mod.UTF8ToString(ptr);
-  mod._mdl_free(ptr);
+  mod._l4m_free(ptr);
   let res;
   try {
     res = JSON.parse(json);
   } catch (e) {
-    throw new Error(`mariadblite: invalid JSON from engine: ${json}`);
+    throw new Error(`lite4mariadb: invalid JSON from engine: ${json}`);
   }
   if (!res.ok) {
     const err = new Error(res.error || 'query failed');
@@ -136,10 +136,10 @@ function coerceRows(res) {
 // ---------------------------------------------------------------------------
 
 function escapeString(mod, s) {
-  const ptr = mod.ccall('mdl_escape', 'number', ['string'], [s]);
-  if (!ptr) throw new Error('mariadblite: escape failed');
+  const ptr = mod.ccall('l4m_escape', 'number', ['string'], [s]);
+  if (!ptr) throw new Error('lite4mariadb: escape failed');
   const out = mod.UTF8ToString(ptr);
-  mod._mdl_free(ptr);
+  mod._l4m_free(ptr);
   return out;
 }
 
@@ -148,7 +148,7 @@ function toLiteral(mod, v) {
   switch (typeof v) {
     case 'number':
       if (!Number.isFinite(v)) {
-        throw new Error('mariadblite: cannot bind NaN or Infinity');
+        throw new Error('lite4mariadb: cannot bind NaN or Infinity');
       }
       return String(v);
     case 'bigint':
@@ -173,10 +173,10 @@ function toLiteral(mod, v) {
       if (ArrayBuffer.isView(v)) {
         return `X'${bytesToHex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength))}'`;
       }
-      throw new Error('mariadblite: unsupported parameter type');
+      throw new Error('lite4mariadb: unsupported parameter type');
     }
     default:
-      throw new Error(`mariadblite: unsupported parameter type ${typeof v}`);
+      throw new Error(`lite4mariadb: unsupported parameter type ${typeof v}`);
   }
 }
 
@@ -228,7 +228,7 @@ function substituteParams(mod, sql, params) {
     }
     if (c === '?') {
       if (p >= params.length) {
-        throw new Error('mariadblite: more placeholders than parameters');
+        throw new Error('lite4mariadb: more placeholders than parameters');
       }
       out += toLiteral(mod, params[p++]);
       i++;
@@ -238,7 +238,7 @@ function substituteParams(mod, sql, params) {
     i++;
   }
   if (p < params.length) {
-    throw new Error('mariadblite: more parameters than placeholders');
+    throw new Error('lite4mariadb: more parameters than placeholders');
   }
   return out;
 }
@@ -271,7 +271,7 @@ function tarHeader(name, size, typeflag, mtime) {
     prefix = parts.slice(0, idx).join('/');
     name = tail;
     if (name.length > 99 || prefix.length > 155) {
-      throw new Error(`mariadblite: tar path too long: ${parts.join('/')}`);
+      throw new Error(`lite4mariadb: tar path too long: ${parts.join('/')}`);
     }
   }
   writeStr(name, 0, 100);
@@ -405,12 +405,12 @@ async function toBytes(payload) {
   if (payload && typeof payload.arrayBuffer === 'function') {
     return new Uint8Array(await payload.arrayBuffer());
   }
-  throw new Error('mariadblite: loadDataDir expects Uint8Array/ArrayBuffer/Blob');
+  throw new Error('lite4mariadb: loadDataDir expects Uint8Array/ArrayBuffer/Blob');
 }
 
 // ---------------------------------------------------------------------------
 
-export class MariaDBlite {
+export class Lite4MariaDB {
   constructor(mod, fsSpec) {
     this.mod = mod;
     this.fsType = fsSpec.type;
@@ -422,19 +422,19 @@ export class MariaDBlite {
   static async create(options = {}) {
     const { dataDir, loadDataDir, locateFile: userLocate, ...rest } = options;
     const fsSpec = parseDataDir(dataDir);
-    const mod = await createMariaDBlite({
+    const mod = await createLite4MariaDB({
       locateFile: (p, prefix) =>
         userLocate ? userLocate(p, prefix) : wasmUrl(p),
       ...rest,
     });
-    const db = new MariaDBlite(mod, fsSpec);
+    const db = new Lite4MariaDB(mod, fsSpec);
     await db._mount();
     if (loadDataDir) {
       await db._loadDataDir(loadDataDir);
     }
-    const rc = mod._mdl_open();
+    const rc = mod._l4m_open();
     if (rc !== 0) {
-      throw new Error(`mariadblite: mdl_open failed (${rc})`);
+      throw new Error(`lite4mariadb: l4m_open failed (${rc})`);
     }
     return db;
   }
@@ -445,10 +445,10 @@ export class MariaDBlite {
 
     if (this.fsType === 'node') {
       if (typeof process === 'undefined' || !process.versions?.node) {
-        throw new Error('mariadblite: file/node dataDir requires Node.js');
+        throw new Error('lite4mariadb: file/node dataDir requires Node.js');
       }
       if (!mod.FS.filesystems.NODEFS) {
-        throw new Error('mariadblite: NODEFS not linked into this build');
+        throw new Error('lite4mariadb: NODEFS not linked into this build');
       }
       const { mkdirSync } = await import('node:fs');
       const { resolve } = await import('node:path');
@@ -462,10 +462,10 @@ export class MariaDBlite {
     // idb:// — like PGlite's IdbFs: mount IDBFS under a per-name path so each
     // database gets its own IndexedDB store, then symlink the fixed datadir.
     if (typeof indexedDB === 'undefined') {
-      throw new Error('mariadblite: idb:// requires a browser with IndexedDB');
+      throw new Error('lite4mariadb: idb:// requires a browser with IndexedDB');
     }
     if (!mod.FS.filesystems.IDBFS) {
-      throw new Error('mariadblite: IDBFS not linked into this build');
+      throw new Error('lite4mariadb: IDBFS not linked into this build');
     }
     const mountPoint = `${IDB_ROOT}/${this._fsSpec.name}`;
     mod.FS.mkdirTree(mountPoint);
@@ -485,14 +485,14 @@ export class MariaDBlite {
       (e) => e !== '.' && e !== '..'
     );
     if (existing.length) {
-      throw new Error('mariadblite: datadir not empty, cannot loadDataDir');
+      throw new Error('lite4mariadb: datadir not empty, cannot loadDataDir');
     }
     untarInto(mod.FS, bytes, DATA_DIR);
   }
 
   query(sql, params) {
     const final = substituteParams(this.mod, String(sql), params);
-    const ptr = this.mod.ccall('mdl_query', 'number', ['string'], [final]);
+    const ptr = this.mod.ccall('l4m_query', 'number', ['string'], [final]);
     const res = parseEnvelope(this.mod, ptr);
     coerceRows(res);
     this._schedulePersist();
@@ -501,7 +501,7 @@ export class MariaDBlite {
 
   exec(sql, params) {
     const final = substituteParams(this.mod, String(sql), params);
-    const ptr = this.mod.ccall('mdl_query', 'number', ['string'], [final]);
+    const ptr = this.mod.ccall('l4m_query', 'number', ['string'], [final]);
     const res = parseEnvelope(this.mod, ptr);
     coerceRows(res);
     this._schedulePersist();
@@ -510,7 +510,7 @@ export class MariaDBlite {
 
   // Multi-statement script; returns one result object per statement.
   execMulti(sql) {
-    const ptr = this.mod.ccall('mdl_exec_multi', 'number', ['string'], [String(sql)]);
+    const ptr = this.mod.ccall('l4m_exec_multi', 'number', ['string'], [String(sql)]);
     const res = parseEnvelope(this.mod, ptr);
     for (const r of res.results) coerceRows(r);
     this._schedulePersist();
@@ -538,7 +538,7 @@ export class MariaDBlite {
   // InnoDB redo makes a live dump crash-recoverable; close() first for a
   // clean snapshot.
   async dumpDataDir({ compress = true } = {}) {
-    if (!this.mod) throw new Error('mariadblite: database is closed');
+    if (!this.mod) throw new Error('lite4mariadb: database is closed');
     const tar = dumpTar(this.mod.FS, DATA_DIR);
     return compress ? gzipBytes(tar) : tar;
   }
@@ -579,10 +579,10 @@ export class MariaDBlite {
       this._persistTimer = null;
     }
     if (this._persisting) await this._persisting;
-    mod._mdl_close();
+    mod._l4m_close();
     // InnoDB shutdown wrote everything to the in-memory view; flush last.
     if (this.fsType === 'idb') await syncfs(mod, false);
   }
 }
 
-export default MariaDBlite;
+export default Lite4MariaDB;

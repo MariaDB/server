@@ -1,6 +1,6 @@
-// Main-thread client for a MariaDBlite instance hosted in a worker.
+// Main-thread client for a Lite4MariaDB instance hosted in a worker.
 // Browser:
-//   const db = await MariaDBliteWorker.create({ dataDir: 'idb://app' });
+//   const db = await Lite4MariaDBWorker.create({ dataDir: 'idb://app' });
 // Node (worker_threads) works the same way.
 // To customize (own bundler entry, locateFile, ...), pass your own Worker
 // running dist/worker-entry.mjs as the second argument.
@@ -14,7 +14,7 @@ async function spawnDefaultWorker() {
   return new Worker(url, { type: 'module' });
 }
 
-export class MariaDBliteWorker {
+export class Lite4MariaDBWorker {
   constructor(worker) {
     this._worker = worker;
     this._seq = 0;
@@ -47,7 +47,7 @@ export class MariaDBliteWorker {
   }
 
   static async create(options = {}, worker) {
-    const w = new MariaDBliteWorker(worker ?? (await spawnDefaultWorker()));
+    const w = new Lite4MariaDBWorker(worker ?? (await spawnDefaultWorker()));
     await w._call('create', [options]);
     return w;
   }
@@ -108,4 +108,4 @@ export class MariaDBliteWorker {
   }
 }
 
-export default MariaDBliteWorker;
+export default Lite4MariaDBWorker;

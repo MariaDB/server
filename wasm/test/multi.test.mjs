@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
 test('execMulti runs a script and returns one result per statement', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     const results = db.execMulti(`
       DROP TABLE IF EXISTS multi_t;
@@ -24,7 +24,7 @@ test('execMulti runs a script and returns one result per statement', async () =>
 });
 
 test('execMulti stops at the first error', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     db.exec('DROP TABLE IF EXISTS multi_err_t');
     assert.throws(

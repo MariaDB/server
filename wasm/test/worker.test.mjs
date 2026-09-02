@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBliteWorker } from '../dist/worker.mjs';
+import { Lite4MariaDBWorker } from '../dist/worker.mjs';
 
 test('worker hosts the database off the main thread', async () => {
-  const db = await MariaDBliteWorker.create();
+  const db = await Lite4MariaDBWorker.create();
   try {
     await db.exec('DROP TABLE IF EXISTS worker_t');
     await db.exec(

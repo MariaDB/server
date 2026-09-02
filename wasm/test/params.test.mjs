@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
 test('parameterized queries escape values safely', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     db.exec('DROP TABLE IF EXISTS params_t');
     db.exec(

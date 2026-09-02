@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
 test('column values are coerced to JS types', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     db.exec('DROP TABLE IF EXISTS types_t');
     db.exec(`CREATE TABLE types_t (

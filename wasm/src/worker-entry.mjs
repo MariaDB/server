@@ -1,6 +1,6 @@
-// Default worker entry: serves one MariaDBlite instance over postMessage RPC.
+// Default worker entry: serves one Lite4MariaDB instance over postMessage RPC.
 // Works in a browser DedicatedWorker and in a Node worker_thread.
-import { MariaDBlite } from './index.mjs';
+import { Lite4MariaDB } from './index.mjs';
 
 const isNode =
   typeof process !== 'undefined' && !!process.versions?.node;
@@ -16,8 +16,8 @@ let db = null;
 
 const handlers = {
   async create([options]) {
-    if (db) throw new Error('mariadblite worker: already open');
-    db = await MariaDBlite.create(options ?? {});
+    if (db) throw new Error('lite4mariadb worker: already open');
+    db = await Lite4MariaDB.create(options ?? {});
     return true;
   },
   query([sql, params]) {
@@ -45,7 +45,7 @@ const handlers = {
 port.onmessage = async (e) => {
   const { id, op, args } = e.data;
   try {
-    if (!handlers[op]) throw new Error(`mariadblite worker: unknown op ${op}`);
+    if (!handlers[op]) throw new Error(`lite4mariadb worker: unknown op ${op}`);
     const result = await handlers[op](args ?? []);
     port.postMessage({ id, ok: true, result });
   } catch (err) {

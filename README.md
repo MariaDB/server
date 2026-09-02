@@ -1,4 +1,4 @@
-# mariadblite
+# lite4mariadb
 
 MariaDB Server (with InnoDB) compiled to WebAssembly — a full MariaDB
 embedded server that runs in the browser and in Node.js, with a PGlite-style
@@ -11,9 +11,9 @@ InnoDB transactions, foreign keys, window functions, CTEs, JSON functions,
 native vector search — without any server process.
 
 ```js
-import { MariaDBlite } from 'mariadblite';
+import { Lite4MariaDB } from 'lite4mariadb';
 
-const db = await MariaDBlite.create({ dataDir: './my-data' });
+const db = await Lite4MariaDB.create({ dataDir: './my-data' });
 
 db.exec('CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(64)) ENGINE=InnoDB');
 db.exec('INSERT INTO users VALUES (?, ?)', [1, "O'Brien"]);
@@ -47,8 +47,8 @@ git submodule update --init extra/wolfssl/wolfssl libmariadb
 cd wasm && npm test    # run the test suite
 ```
 
-`wasm/dist/` contains the publishable package: `mariadblite.wasm`,
-`mariadblite.js`, `index.mjs`, `worker.mjs`, `worker-entry.mjs`.
+`wasm/dist/` contains the publishable package: `lite4mariadb.wasm`,
+`lite4mariadb.js`, `index.mjs`, `worker.mjs`, `worker-entry.mjs`.
 
 ## Usage
 
@@ -56,14 +56,14 @@ cd wasm && npm test    # run the test suite
 
 ```js
 // Ephemeral in-memory database (default)
-const db = await MariaDBlite.create();
+const db = await Lite4MariaDB.create();
 
 // Node.js: persist to a real directory on disk
-const db = await MariaDBlite.create({ dataDir: './my-data' });
-const db = await MariaDBlite.create({ dataDir: 'file:///absolute/path' });
+const db = await Lite4MariaDB.create({ dataDir: './my-data' });
+const db = await Lite4MariaDB.create({ dataDir: 'file:///absolute/path' });
 
 // Browser: persist to IndexedDB (one IndexedDB database per name)
-const db = await MariaDBlite.create({ dataDir: 'idb://my-app' });
+const db = await Lite4MariaDB.create({ dataDir: 'idb://my-app' });
 ```
 
 A datadir that already contains a database is resumed (InnoDB recovery runs
@@ -124,7 +124,7 @@ await db.transaction(async (tx) => {
 const dump = await db.dumpDataDir();                 // or { compress: false }
 
 // Restore into a fresh instance (datadir must be empty)
-const db2 = await MariaDBlite.create({ loadDataDir: dump });
+const db2 = await Lite4MariaDB.create({ loadDataDir: dump });
 ```
 
 A live dump is crash-recoverable via InnoDB redo logs; `await db.close()`
@@ -143,9 +143,9 @@ Heavy queries block the thread the module runs on. In the browser, host the
 database in a dedicated worker — same API, all methods async:
 
 ```js
-import { MariaDBliteWorker } from 'mariadblite/worker';
+import { Lite4MariaDBWorker } from 'lite4mariadb/worker';
 
-const db = await MariaDBliteWorker.create({ dataDir: 'idb://my-app' });
+const db = await Lite4MariaDBWorker.create({ dataDir: 'idb://my-app' });
 const rows = await db.query('SELECT * FROM users');
 await db.close();
 ```
@@ -166,7 +166,7 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ## API reference
 
-### `MariaDBlite.create(options?)` → `Promise<MariaDBlite>`
+### `Lite4MariaDB.create(options?)` → `Promise<Lite4MariaDB>`
 
 | Option        | Description                                                        |
 | ------------- | ------------------------------------------------------------------ |
@@ -198,7 +198,7 @@ Errors are thrown with `errno` and `sqlstate` properties from the server.
 
 ## Repository layout
 
-* `wasm/` — the JS package: C glue (`mariadblite.c`), JS wrapper
+* `wasm/` — the JS package: C glue (`lite4mariadb.c`), JS wrapper
   (`src/`), tests (`test/`), build script (`build.sh`)
 * `cmake/os/Emscripten.cmake` — Emscripten platform configuration
 * Everything else is upstream [MariaDB Server](https://github.com/MariaDB/server),

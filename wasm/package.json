@@ -1,19 +1,52 @@
 {
-  "name": "mariadblite",
-  "version": "13.1.0",
-  "description": "MariaDB embedded server compiled to WebAssembly, with InnoDB",
+  "name": "lite4mariadb",
+  "version": "0.1.0",
+  "description": "MariaDB embedded server (with InnoDB) compiled to WebAssembly — run real MariaDB in the browser and Node.js. A PGlite-style API for MariaDB.",
   "type": "module",
   "main": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.mjs",
-    "./worker": "./dist/worker.mjs"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.mjs"
+    }
   },
   "files": [
-    "dist"
+    "dist",
+    "COPYING"
   ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "launch": "node test/launch.mjs"
+    "launch": "node test/launch.mjs",
+    "prepublishOnly": "node scripts/check-dist.mjs && npm test"
   },
+  "keywords": [
+    "mariadb",
+    "mysql",
+    "wasm",
+    "webassembly",
+    "embedded",
+    "database",
+    "sql",
+    "innodb",
+    "pglite",
+    "browser",
+    "indexeddb"
+  ],
+  "homepage": "https://github.com/shyim/lite4mariadb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shyim/lite4mariadb.git",
+    "directory": "wasm"
+  },
+  "bugs": "https://github.com/shyim/lite4mariadb/issues",
   "license": "GPL-2.0-only"
 }

@@ -1,10 +1,10 @@
 // Helper run in a child process by persist-nodefs.test.mjs.
 // Usage: node persist-cycle.mjs <datadir> <write|read>
-import { MariaDBlite } from '../../dist/index.mjs';
+import { Lite4MariaDB } from '../../dist/index.mjs';
 
 const [dir, phase] = process.argv.slice(2);
 
-const db = await MariaDBlite.create({ dataDir: dir });
+const db = await Lite4MariaDB.create({ dataDir: dir });
 try {
   if (phase === 'write') {
     db.exec('DROP TABLE IF EXISTS persist_t');

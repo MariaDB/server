@@ -12,7 +12,7 @@ const helper = join(here, 'helpers', 'persist-cycle.mjs');
 // Two separate node processes: the second must see the first's InnoDB data,
 // proving the dataDir lives on the real local disk (NODEFS mount).
 test('nodefs dataDir persists across process restarts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'mariadblite-'));
+  const dir = mkdtempSync(join(tmpdir(), 'lite4mariadb-'));
   try {
     const w = spawnSync(process.execPath, [helper, dir, 'write'], {
       encoding: 'utf8',

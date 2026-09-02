@@ -1,6 +1,6 @@
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
-const db = await MariaDBlite.create();
+const db = await Lite4MariaDB.create();
 try {
   const one = db.query('SELECT 1 AS n');
   console.log('SELECT1', JSON.stringify(one));

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build host import_executables, then the WASM mariadblite package.
+# Build host import_executables, then the WASM lite4mariadb package.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -51,8 +51,8 @@ emcmake cmake -S "$ROOT" -B "$WASM_BUILD" \
   -DWITH_EMBEDDED_SERVER=ON \
   -DUPDATE_SUBMODULES=OFF
 
-echo "==> WASM build mariadblite"
-cmake --build "$WASM_BUILD" --target mariadblite -j"$JOBS"
+echo "==> WASM build lite4mariadb"
+cmake --build "$WASM_BUILD" --target lite4mariadb -j"$JOBS"
 
 echo "==> Artifacts in $ROOT/wasm/dist"
 ls -la "$ROOT/wasm/dist"

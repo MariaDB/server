@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MariaDBlite } from '../dist/index.mjs';
+import { Lite4MariaDB } from '../dist/index.mjs';
 
 test('InnoDB ENGINE stores rows and ROLLBACK hides them', async () => {
-  const db = await MariaDBlite.create();
+  const db = await Lite4MariaDB.create();
   try {
     db.exec('DROP TABLE IF EXISTS innodb_t');
     db.exec(

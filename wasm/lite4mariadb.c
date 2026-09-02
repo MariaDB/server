@@ -1,6 +1,6 @@
 /*
   Thin C API around libmariadbd for the WASM / JS package.
-  Returns malloc'd JSON; the JS wrapper frees it via mdl_free().
+  Returns malloc'd JSON; the JS wrapper frees it via l4m_free().
 */
 
 #include <mysql.h>
@@ -284,7 +284,7 @@ oom:
 
 /*
   Drains pending results of extra statements (multi-statement SQL passed to
-  mdl_query). Returns 0 when clean, 1 when a later statement failed.
+  l4m_query). Returns 0 when clean, 1 when a later statement failed.
 */
 static int drain_extra_results(MYSQL *m)
 {
@@ -303,7 +303,7 @@ static int drain_extra_results(MYSQL *m)
 }
 
 EMSCRIPTEN_KEEPALIVE
-int mdl_open(void)
+int l4m_open(void)
 {
   if (g_open)
     return 0;
@@ -314,7 +314,7 @@ int mdl_open(void)
   ensure_dir("/mariadb/plugin");
 
   char *argv[]= {
-    (char *)"mariadblite",
+    (char *)"lite4mariadb",
     (char *)"--basedir=/mariadb",
     (char *)"--datadir=/mariadb/data",
     (char *)"--plugin-dir=/mariadb/plugin",
@@ -368,7 +368,7 @@ int mdl_open(void)
 }
 
 EMSCRIPTEN_KEEPALIVE
-void mdl_close(void)
+void l4m_close(void)
 {
   if (g_mysql)
   {
@@ -383,13 +383,13 @@ void mdl_close(void)
 }
 
 EMSCRIPTEN_KEEPALIVE
-void mdl_free(char *p)
+void l4m_free(char *p)
 {
   free(p);
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *mdl_escape(const char *s)
+char *l4m_escape(const char *s)
 {
   if (!g_open || !g_mysql || !s)
     return dup_str("");
@@ -402,7 +402,7 @@ char *mdl_escape(const char *s)
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *mdl_query(const char *sql)
+char *l4m_query(const char *sql)
 {
   if (!g_open || !g_mysql)
     return json_err(1, "not open");
@@ -443,7 +443,7 @@ oom:
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *mdl_exec_multi(const char *sql)
+char *l4m_exec_multi(const char *sql)
 {
   if (!g_open || !g_mysql)
     return json_err(1, "not open");

@@ -1804,11 +1804,18 @@ char* fil_make_filepath_low(const char *path,
 		return NULL;
 	}
 
-	/* If the name is a relative or absolute path, do not prepend "./". */
-	if (path[0] == '.'
+	/* If the name is an absolute path, use it as is. The embedded
+	server sets fil_path_to_mysql_datadir to an absolute datadir
+	(instead of "./"), so redo-logged absolute file names would
+	otherwise get the datadir prepended a second time. */
+	if (name.size() && is_absolute_path(name.data())) {
+		path = NULL;
+		path_len = 0;
+	}
+	/* If the name is a relative path, do not prepend "./". */
+	else if (path[0] == '.'
 	    && (path[1] == '\0' || path[1] == '/' IF_WIN(|| path[1] == '\\',))
-	    && name.size() && (name.data()[0] == '.'
-			       || is_absolute_path(name.data()))) {
+	    && name.size() && name.data()[0] == '.') {
 		path = NULL;
 		path_len = 0;
 	}
