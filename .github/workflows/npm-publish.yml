@@ -36,7 +36,15 @@ jobs:
         working-directory: wasm
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        # Skip gracefully if this version was already published (e.g. a
+        # manual first release), so re-runs and old tag pushes don't fail.
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "lite4mariadb@$VERSION" version >/dev/null 2>&1; then
+            echo "lite4mariadb@$VERSION already published, skipping"
+          else
+            npm publish --provenance --access public
+          fi
         working-directory: wasm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
