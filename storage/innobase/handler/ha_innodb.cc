@@ -14954,12 +14954,34 @@ Parallel_worker_ctx *ha_innobase::parallel_get_worker_context(
 	return m_parallel_coordinator.get_worker_ctx(worker_idx);
 }
 
-int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
+void ha_innobase::pscan_adopt_scan_params(const ha_innobase *coordinator)
+{
+	ut_ad(coordinator != nullptr);
+
+	m_pscan_keynr = coordinator->m_pscan_keynr;
+	m_pscan_ranges = coordinator->m_pscan_ranges;
+	m_pscan_n_ranges = coordinator->m_pscan_n_ranges;
+
+	/* Borrowed, so this handler must never free them: only the handler
+	that allocated m_pscan_range_heap runs parallel_end_coordinator(). */
+	ut_ad(m_pscan_range_heap == nullptr);
+}
+
+int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx,
+				      handler *coordinator)
 {
 	/* This handler may still carry state from a previous execution of the
 	same plan (correlated subquery, stored procedure loop, ...).
 	Reset it before starting over */
 	(void) parallel_end_worker();
+
+	/* The coordinator was initialised on another handler, which is where
+	the scan parameters were recorded. Take them before anything below
+	reads m_pscan_keynr: it decides which index is opened, and the chunk
+	boundaries this worker is about to be handed were computed on that
+	index. */
+	ut_ad(coordinator != this);
+	pscan_adopt_scan_params(static_cast<const ha_innobase*>(coordinator));
 
 	auto worker_ctx= static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
 	DBUG_ASSERT(worker_ctx && worker_ctx->m_pcoordinator);
@@ -15080,6 +15102,17 @@ int ha_innobase::parallel_end_worker()
 		m_pscan_saved_search_tuple = nullptr;
 	}
 	m_prebuilt->set_pscan_end_tuple(nullptr);
+
+	/* Drop what pscan_adopt_scan_params() borrowed, so nothing points into
+	the master handler's range heap once this scan is over. A handler that
+	owns the heap is a coordinator, not a worker, and keeps its own
+	parameters until parallel_end_coordinator() clears them. */
+	if (m_pscan_range_heap == nullptr)
+	{
+		m_pscan_ranges = nullptr;
+		m_pscan_n_ranges = 0;
+		m_pscan_keynr = MAX_KEY;
+	}
 	return 0;
 }
 

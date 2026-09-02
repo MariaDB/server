@@ -3852,8 +3852,21 @@ public:
     To be called by worker (child) threads of a parallel scan.
     Prepares the worker to start scanning of data from the chunk assigned
     to this worker.
+
+    @param wctx         this worker's context, obtained from 'coordinator'
+                        by parallel_get_worker_context()
+    @param coordinator  the handler parallel_init_coordinator() was called
+                        on, which is not this one: the SQL layer opens a
+                        private TABLE, and so a private handler, per worker,
+                        so the parameters of the scan -- which index is being
+                        divided, and over what intervals -- were recorded on
+                        the master's handler and this one has never seen them.
+                        Whatever an engine needs of them, it takes here.
+                        Borrowed for the length of the scan: the master keeps
+                        its coordinator until every worker has been joined.
   */
-  virtual int parallel_init_worker(Parallel_worker_ctx *wctx)
+  virtual int parallel_init_worker(Parallel_worker_ctx *wctx,
+                                   handler *coordinator)
               __attribute__ ((warn_unused_result))
   {
     return HA_ERR_UNSUPPORTED;
