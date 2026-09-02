@@ -1,0 +1,19 @@
+{
+  "name": "mariadblite",
+  "version": "13.1.0",
+  "description": "MariaDB embedded server compiled to WebAssembly, with InnoDB",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./worker": "./dist/worker.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "launch": "node test/launch.mjs"
+  },
+  "license": "GPL-2.0-only"
+}

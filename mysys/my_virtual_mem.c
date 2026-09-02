@@ -65,7 +65,11 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 char *my_virtual_mem_commit(char *ptr, size_t size)
 {
   DBUG_ASSERT(ptr);
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+  /* my_large_virtual_alloc() already returns read/write memory. */
+  update_malloc_size(size, 0);
+  return ptr;
+#elif defined(_WIN32)
   if (my_use_large_pages)
   {
     DBUG_ASSERT(is_memory_committed(ptr, size));
@@ -123,7 +127,11 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
 
 void my_virtual_mem_decommit(char *ptr, size_t size)
 {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+  (void) ptr;
+  update_malloc_size(-(longlong) size, 0);
+  return;
+#elif defined(_WIN32)
   DBUG_ASSERT(is_memory_committed(ptr, size));
   if (!my_use_large_pages)
   {
@@ -164,7 +172,10 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 
 void my_virtual_mem_release(char *ptr, size_t size)
 {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+  free(ptr);
+  return;
+#elif defined(_WIN32)
   DBUG_ASSERT(my_use_large_pages || !is_memory_committed(ptr, size));
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {

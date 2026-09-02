@@ -1,97 +1,211 @@
-# MariaDB Server
+# mariadblite
 
-MariaDB Server is one of the most widely deployed open source relational
- databases. It is built by a global community of contributors together with
-the MariaDB Foundation and MariaDB plc, and it powers workloads from small
-applications to large-scale production systems.
+MariaDB Server (with InnoDB) compiled to WebAssembly — a full MariaDB
+embedded server that runs in the browser and in Node.js, with a PGlite-style
+JavaScript API.
 
-MariaDB began as a fork of MySQL, led by the original MySQL developers,
-and it maintains a high degree of MySQL compatibility. It has since grown
-into a database with its own capabilities, including native vector search,
-multiple pluggable storage engines, synchronous clustering, and analytical
-features, while remaining a straightforward migration target for existing
-MySQL deployments.
+This is a fork of [MariaDB/server](https://github.com/MariaDB/server) that
+adds an Emscripten build target and a small JS package around
+`libmariadbd` (the embedded server). You get real MariaDB semantics —
+InnoDB transactions, foreign keys, window functions, CTEs, JSON functions,
+native vector search — without any server process.
 
-## Key features
+```js
+import { MariaDBlite } from 'mariadblite';
 
-* **Native vector search**. A built-in VECTOR data type with approximate
-  nearest-neighbour indexing (HNSW), available since MariaDB 11.8 with
-  no extension required.
-* **Pluggable storage engines**. InnoDB (default for transactional workloads),
-  Aria, MyRocks, ColumnStore for analytics, Spider for sharding, and S3
-  for archival, among others.
-* **Replication and clustering**. Asynchronous, semi-synchronous, and
-  parallel replication with global transaction IDs, plus Galera synchronous
-  multi-primary clustering.
-* **Advanced SQL**. Common table expressions and recursive CTEs, window
-  functions, system-versioned (temporal) tables, sequences, and a broad set
-  of JSON functions.
-* **MySQL and Oracle compatibility**. Wire-protocol and syntax compatibility
-  with MySQL, plus an Oracle SQL mode supporting PL/SQL-style stored routines.
-* **Spatial and full-text search**. GIS data types and functions, and built-in
-  full-text indexing.
-* **Security**. Role-based access control, pluggable authentication (ed25519,
-  PAM, GSSAPI, and more), data-at-rest encryption, and TLS for connections.
+const db = await MariaDBlite.create({ dataDir: './my-data' });
 
-## Documentation
+db.exec('CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(64)) ENGINE=InnoDB');
+db.exec('INSERT INTO users VALUES (?, ?)', [1, "O'Brien"]);
 
-* [Project home, community, and getting involved](https://mariadb.org)
-* [Reference manual and release notes](https://mariadb.com/docs/)
-* [MariaDB compared to MySQL](https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-features)
+const rows = db.query('SELECT * FROM users WHERE id = ?', [1]);
+// => [ { id: 1, name: "O'Brien" } ]
 
-## Releases
+await db.close();
+```
 
-MariaDB Server follows a yearly long-term support (LTS) model alongside
-quarterly rolling releases. Binary LTS releases are maintained for three years
-and are recommended for production; rolling releases deliver new features
-sooner with a shorter support window.
+## Features
 
-For the current version and full history, see
- [Releases](https://github.com/MariaDB/server/releases) and
- the [MariaDB release calendar](https://mariadb.org/mariadb/all-releases/).
+* **Real MariaDB + InnoDB**, single WASM module (~17 MB), no server needed
+* **Persistent storage**: real directories in Node.js, IndexedDB in the
+  browser, or in-memory
+* **Parameterized queries**, **transactions**, **multi-statement scripts**
+* **Type coercion** — numbers, bigints, `Uint8Array` for binary, not just
+  strings
+* **Snapshots** — `dumpDataDir()` / `loadDataDir` as gzipped tarballs
+* **Worker support** — run the database off the browser main thread
 
-## Installing
+## Building
 
-Packages and installation instructions for all supported platforms are
-available at [https://mariadb.org/download/](https://mariadb.org/download/).
+Requires [emsdk](https://emscripten.org/docs/getting_started/downloads.html),
+CMake and Node.js. The build compiles native host tools first, then the WASM
+module:
 
-## Building from source
+```bash
+git submodule update --init extra/wolfssl/wolfssl libmariadb
+./wasm/build.sh        # artifacts land in wasm/dist/
+cd wasm && npm test    # run the test suite
+```
 
-To build MariaDB from source and run the test suite, follow the
-[developer guide](https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/)
+`wasm/dist/` contains the publishable package: `mariadblite.wasm`,
+`mariadblite.js`, `index.mjs`, `worker.mjs`, `worker-entry.mjs`.
 
-It covers building the code correctly, running the MariaDB testing framework,
-and choosing the right branch to target for contributions.
+## Usage
 
-## Contributing
+### Creating a database
 
-Contributions are welcome, from code and documentation to bug reports and
-reviews. See [CONTRIBUTING.md](CONTRIBUTING.md) to
-get started, and [CODING_STANDARDS.md](CODING_STANDARDS.md)
-for code style. Contributors and community members are recognised in
-[CREDITS](CREDITS).
+```js
+// Ephemeral in-memory database (default)
+const db = await MariaDBlite.create();
 
-## Getting help
+// Node.js: persist to a real directory on disk
+const db = await MariaDBlite.create({ dataDir: './my-data' });
+const db = await MariaDBlite.create({ dataDir: 'file:///absolute/path' });
 
-* [Zulip chat](https://mariadb.zulipchat.com/)
-* [Maria Discuss mailing list](https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/)
-* [Bug reports](https://jira.mariadb.org)
-* Security vulnerabilities: see [SECURITY.md](SECURITY.md)
+// Browser: persist to IndexedDB (one IndexedDB database per name)
+const db = await MariaDBlite.create({ dataDir: 'idb://my-app' });
+```
+
+A datadir that already contains a database is resumed (InnoDB recovery runs
+on open), so reopening the same `dataDir` gives you your data back.
+
+### Queries
+
+```js
+// query() returns an array of row objects
+const rows = db.query('SELECT * FROM users WHERE age > ?', [30]);
+
+// exec() returns the full result, including affected rows
+const res = db.exec('UPDATE users SET age = ? WHERE id = ?', [31, 1]);
+// => { ok: true, affected: 1, rows: [] }
+
+// execMulti() runs a whole script, one result per statement
+const results = db.execMulti(`
+  CREATE TABLE t (id INT PRIMARY KEY) ENGINE=InnoDB;
+  INSERT INTO t VALUES (1), (2);
+  SELECT COUNT(*) AS n FROM t;
+`);
+// results[2].rows => [ { n: 2 } ]
+```
+
+Parameters may be `null`, numbers, bigints, booleans, strings, `Date`,
+`Uint8Array`/`ArrayBuffer` (bound as binary), or arrays (expanded for
+`IN ?`). Placeholders inside string literals and comments are ignored.
+
+### Type coercion
+
+Values are converted from the wire format using column metadata:
+
+| MariaDB type                        | JS type                         |
+| ----------------------------------- | ------------------------------- |
+| INT, TINYINT, SMALLINT, …, YEAR     | `number`                        |
+| BIGINT                              | `number`, or `string` if > 2^53 |
+| FLOAT, DOUBLE                       | `number`                        |
+| DECIMAL                             | `string` (exact)                |
+| DATE, DATETIME, TIMESTAMP, TIME     | `string` (timezone-safe)        |
+| CHAR, VARCHAR, TEXT, ENUM, SET      | `string`                        |
+| BINARY, VARBINARY, BLOB, BIT        | `Uint8Array`                    |
+| NULL                                | `null`                          |
+
+### Transactions
+
+```js
+await db.transaction(async (tx) => {
+  tx.exec('INSERT INTO orders (id, total) VALUES (?, ?)', [1, 99.5]);
+  tx.exec('UPDATE stock SET n = n - 1 WHERE id = ?', [42]);
+});
+// COMMIT on success, ROLLBACK if the callback throws
+```
+
+### Snapshots
+
+```js
+// Gzipped tar of the datadir as Uint8Array — works even for memory://
+const dump = await db.dumpDataDir();                 // or { compress: false }
+
+// Restore into a fresh instance (datadir must be empty)
+const db2 = await MariaDBlite.create({ loadDataDir: dump });
+```
+
+A live dump is crash-recoverable via InnoDB redo logs; `await db.close()`
+first for a clean snapshot.
+
+### Persistence semantics
+
+* **Node (`file://`)** — writes go straight to the host filesystem.
+* **Browser (`idb://`)** — IndexedDB is an in-memory overlay: flushes are
+  debounced after each statement. Use `await db.persist()` for a hard flush
+  and always `await db.close()` at the end.
+
+### Running in a worker
+
+Heavy queries block the thread the module runs on. In the browser, host the
+database in a dedicated worker — same API, all methods async:
+
+```js
+import { MariaDBliteWorker } from 'mariadblite/worker';
+
+const db = await MariaDBliteWorker.create({ dataDir: 'idb://my-app' });
+const rows = await db.query('SELECT * FROM users');
+await db.close();
+```
+
+Works in Node (`worker_threads`) too. To customize the worker (bundlers,
+`locateFile`), pass your own `Worker` running `dist/worker-entry.mjs` as the
+second argument to `create()`.
+
+### Browser requirements
+
+The build uses pthreads, which require `SharedArrayBuffer`. Serve your app
+with cross-origin isolation headers:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+## API reference
+
+### `MariaDBlite.create(options?)` → `Promise<MariaDBlite>`
+
+| Option        | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `dataDir`     | `memory://` (default), `file://`/bare path (Node), `idb://` (browser) |
+| `loadDataDir` | `Uint8Array`/`ArrayBuffer`/`Blob` tarball from `dumpDataDir()`     |
+| `locateFile`  | Custom resolver for the `.wasm` asset                              |
+
+### Instance methods
+
+| Method                     | Returns                          | Description                              |
+| -------------------------- | -------------------------------- | ---------------------------------------- |
+| `query(sql, params?)`      | `Array<object>`                  | Rows; coerced types                      |
+| `exec(sql, params?)`       | `{ok, affected, rows, fields…}`  | Full result                              |
+| `execMulti(sql)`           | `Array<result>`                  | Multi-statement script                   |
+| `transaction(cb)`          | callback's return value          | BEGIN/COMMIT, ROLLBACK on throw          |
+| `persist()`                | `Promise<void>`                  | Flush to IndexedDB (idb only)            |
+| `dumpDataDir({compress}?)` | `Promise<Uint8Array>`            | gzipped tar snapshot                     |
+| `close()`                  | `Promise<void>`                  | Shut down (flushes idb first)            |
+
+Errors are thrown with `errno` and `sqlstate` properties from the server.
+
+## Current limitations
+
+* One database instance per process/worker (the embedded server has global
+  state) — open additional instances in separate workers.
+* Browser persistence is IDBFS (in-memory overlay flushed to IndexedDB);
+  there is no OPFS backend yet.
+* SQL errors interrupt `execMulti` scripts at the failing statement.
+
+## Repository layout
+
+* `wasm/` — the JS package: C glue (`mariadblite.c`), JS wrapper
+  (`src/`), tests (`test/`), build script (`build.sh`)
+* `cmake/os/Emscripten.cmake` — Emscripten platform configuration
+* Everything else is upstream [MariaDB Server](https://github.com/MariaDB/server),
+  with small Emscripten portability patches.
 
 ## Licensing
 
-MariaDB Server is licensed under version 2 of the GNU General Public
-License (GPLv2), without the "any later version" clause. This is inherited from
-MySQL. License information is in the [COPYING](COPYING)
-file, and third-party license information is in the
-[THIRDPARTY](THIRDPARTY) file.
-
-## About MariaDB Foundation
-
-MariaDB is brought to you by the MariaDB Foundation and MariaDB plc.
-The MariaDB Foundation is the custodian of the MariaDB Server codebase,
-ensuring it stays open and that anyone can contribute.
-See [CREDITS](CREDITS) for details on the Foundation
-and the people developing MariaDB.
-
-MySQL, the base of MariaDB, is a product and trademark of Oracle Corporation, Inc.
+MariaDB Server, and therefore this fork, is licensed under version 2 of the
+GNU General Public License (GPLv2), without the "any later version" clause.
+See [COPYING](COPYING) and [THIRDPARTY](THIRDPARTY).

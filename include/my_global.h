@@ -1068,8 +1068,10 @@ static inline char *dlerror(void)
 #endif
 #ifndef HAVE_DLADDR
 #define dladdr(A, B) 0
+#ifndef __EMSCRIPTEN__
 /* Dummy definition in case we're missing dladdr() */
 typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
+#endif
 #endif
 #else
 #define dlerror() "No support for dynamic loading (static build?)"
@@ -1077,8 +1079,10 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #define dlsym(A,B) 0
 #define dlclose(A) 0
 #define dladdr(A, B) 0
+#ifndef __EMSCRIPTEN__
 /* Dummy definition in case we're missing dladdr() */
 typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
+#endif
 #endif
 
 /*
