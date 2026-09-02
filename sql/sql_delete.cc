@@ -1165,6 +1165,7 @@ multi_delete::multi_delete(THD *thd_arg,
     do_delete(0),
     transactional_tables(0),
     normal_tables(0),
+    tables_initialized(false),
     error_handled(0)
 {
   tmp_tables = thd->calloc<TABLE*>(table_count);
@@ -1355,6 +1356,7 @@ multi_delete::initialize_tables(JOIN *join)
     DBUG_RETURN(true);
 
   join->tmp_table_keep_current_rowid= TRUE;
+  tables_initialized= true;
   DBUG_RETURN(thd->is_fatal_error);
 }
 
@@ -1386,6 +1388,9 @@ multi_delete::~multi_delete()
 
 int multi_delete::send_data(List<Item> &values)
 {
+  if (!tables_initialized)
+    return 0;
+
   int secure_counter= delete_while_scanning ? -1 : 0;
   TABLE_LIST *del_table;
   DBUG_ENTER("multi_delete::send_data");
