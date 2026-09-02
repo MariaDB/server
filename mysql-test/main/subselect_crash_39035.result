@@ -1,0 +1,16 @@
+CREATE TABLE v0 (v1 INT, v2 INT, v3 INT);
+SELECT ( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) ) FROM v0;
+( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) )
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+INSERT INTO v0 VALUES (1, 2, 3);
+SELECT ( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) ) FROM v0;
+( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) )
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+SELECT 1 IN (SELECT v3 FROM v0) FROM v0 GROUP BY v1;
+1 IN (SELECT v3 FROM v0)
+0
+DROP TABLE v0;
