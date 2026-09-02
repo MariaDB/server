@@ -4,6 +4,7 @@ variable_name
 Ssl_cipher
 Ssl_cipher_list
 Ssl_default_timeout
+Ssl_server_cert_type
 Ssl_server_not_after
 Ssl_server_not_before
 Ssl_verify_depth
@@ -12,6 +13,7 @@ Ssl_version
 Ssl_cipher
 Ssl_cipher_list
 Ssl_default_timeout
+Ssl_server_cert_type
 Ssl_server_not_after
 Ssl_server_not_before
 Ssl_verify_depth

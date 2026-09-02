@@ -1,0 +1,31 @@
+#
+# Test RSA + ECDSA + EdDSA certificate support via --ssl-cert-add / --ssl-key-add
+# Server started with 3 cert types via ssl_multi_cert-master.opt
+#
+--source include/not_embedded.inc
+--source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+
+--echo #
+--echo # Verify Ssl_server_cert_types global status shows all three types
+--echo #
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+
+--echo #
+--echo # Test 1: Connect with RSA cipher - should get RSA cert
+--echo #
+connect (rsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256);
+SHOW STATUS LIKE 'Ssl_cipher';
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+disconnect rsa_con;
+
+--echo #
+--echo # Test 2: Connect with ECDSA cipher - should get ECDSA cert
+--echo #
+connection default;
+connect (ecdsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-ECDSA-AES128-GCM-SHA256);
+SHOW STATUS LIKE 'Ssl_cipher';
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+disconnect ecdsa_con;
+
+connection default;
