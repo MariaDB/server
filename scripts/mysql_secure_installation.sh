@@ -161,16 +161,15 @@ parse_arguments PICK-ARGS-FROM-ARGV "$@"
 if test -n "$basedir"
 then
   print_defaults=`find_in_basedir my_print_defaults bin extra`
-  echo "print: $print_defaults"
   if test -z "$print_defaults"
   then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
-  mysql_command=`find_in_basedir mariadb bin`
+  mysql_command=`find_in_basedir mariadb bin client`
   if test -z "$mysql_command"
   then
-      cannot_find_file mariadb $basedir/bin
+      cannot_find_file mariadb $basedir/bin $basedir/client
       exit 1
   fi
 else
@@ -316,7 +315,19 @@ set_root_password() {
     fi
 
     esc_pass=`basic_single_escape "$password1"`
-    do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$esc_pass')) WHERE User='root';"
+    query="
+    SET @str = (SELECT GROUP_CONCAT(CONCAT(QUOTE(User),
+                                           '@',
+                                           QUOTE(Host)))
+                FROM mysql.global_priv
+                WHERE User='root');
+    SET @sql = IF(@str IS NULL OR @str = '', 'DO 0',
+                  CONCAT('ALTER USER ', @str,
+                         ' IDENTIFIED BY ''$esc_pass'''));
+    PREPARE stmt FROM @sql;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;"
+    do_query "$query"
     if [ $? -eq 0 ]; then
 	echo "Password updated successfully!"
 	echo "Reloading privilege tables.."
@@ -336,7 +347,17 @@ set_root_password() {
 }
 
 remove_anonymous_users() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='';"
+    query="
+    SET @str = (SELECT IFNULL(CONCAT('DROP USER IF EXISTS ',
+                                     GROUP_CONCAT(CONCAT(QUOTE(User),
+                                                         '@',
+                                                         QUOTE(Host)))),
+                              '')
+                FROM mysql.global_priv
+                WHERE User='');
+    SET @str = IF(@str = '', 'DO 1', @str);
+    EXECUTE IMMEDIATE @str;"
+    do_query "$query"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -348,7 +369,18 @@ remove_anonymous_users() {
 }
 
 remove_remote_root() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    query="
+    SET @str = (SELECT IFNULL(CONCAT('DROP USER IF EXISTS ',
+                                     GROUP_CONCAT(CONCAT(QUOTE(User),
+                                                         '@',
+                                                         QUOTE(Host)))),
+                              '')
+                FROM mysql.global_priv
+                WHERE User='root' AND
+                      Host NOT IN ('localhost', '127.0.0.1', '::1'));
+    SET @str = IF(@str = '', 'DO 1', @str);
+    EXECUTE IMMEDIATE @str;"
+    do_query "$query"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -360,18 +392,24 @@ remove_test_database() {
     echo " - Dropping test database..."
     do_query "DROP DATABASE IF EXISTS test;"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+        echo " ... Success!"
     else
-	echo " ... Failed!  Not critical, keep moving..."
+        echo " ... Failed!  Not critical, keep moving..."
     fi
 
     echo " - Removing privileges on test database..."
-    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
-    if [ $? -eq 0 ]; then
-	echo " ... Success!"
-    else
-	echo " ... Failed!  Not critical, keep moving..."
-    fi
+    query="
+    SET @str = (SELECT IFNULL(CONCAT('REVOKE ALL PRIVILEGES ON \`test\`.* ',
+                                     'FROM ',
+                                     GROUP_CONCAT(CONCAT(QUOTE(User),
+                                                         '@',
+                                                         QUOTE(Host)))),
+                              'DO 1')
+                FROM mysql.db
+                WHERE Db='test' AND User <> '');
+    SET @str = IFNULL(@str, 'DO 1');
+    EXECUTE IMMEDIATE @str;"
+    do_query "$query"
 
     return 0
 }
@@ -448,7 +486,21 @@ if [ "$reply" = "n" ]; then
   echo " ... skipping."
 else
   emptypass=0
-  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.password_last_changed', UNIX_TIMESTAMP(), '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
+  query="
+    SET @str = IFNULL((SELECT GROUP_CONCAT(CONCAT(QUOTE(User),
+                                                  '@',
+                                                  QUOTE(Host),
+                                                  ' IDENTIFIED VIA ',
+                                                  'mysql_native_password ',
+                                                  'USING \'invalid\' ',
+                                                  'OR unix_socket'))
+                       FROM mysql.global_priv
+                       WHERE User='root'),
+                      '\'root\'@\'localhost\' IDENTIFIED VIA '
+                      'mysql_native_password USING \'invalid\' OR unix_socket');
+    SET @str = CONCAT('ALTER USER ', @str);
+    EXECUTE IMMEDIATE @str;"
+  do_query "$query"
   if [ $? -eq 0 ]; then
    echo "Enabled successfully!"
    echo "Reloading privilege tables.."
