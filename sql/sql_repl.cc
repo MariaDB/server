@@ -1061,6 +1061,81 @@ get_slave_gtid_until_before_gtids(THD *thd)
 
 
 /*
+  Retrieve a user variable value as a string.
+
+  Looks up the specified user variable in the THD's user_vars hash and
+  writes its string representation into out_str.
+
+  @param[in]  thd       Current thread
+  @param[in]  name      Name of the user variable (without '@')
+  @param[in]  name_len  Length of the name
+  @param[out] out_str   Output string
+
+  @retval false  Variable not found or NULL
+  @retval true   Success (value written to out_str)
+*/
+static bool
+get_user_var_string(THD *thd, const char *name, size_t name_len,
+                    String *out_str)
+{
+  bool null_value;
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name,
+                                     name_len);
+  return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+
+/*
+  Parse a comma-separated list of domain ids from a string and load them into
+  a DYNAMIC_ARRAY of ulong elements (the element type that Domain_id_filter
+  uses). Used to populate a Domain_id_filter from the user variable that the
+  slave sets before COM_BINLOG_DUMP.
+
+  @retval  false  success
+  @retval  true   error (parse error or out of memory)
+*/
+static bool
+load_domain_ids_from_string(const char *str, size_t len, DYNAMIC_ARRAY *ids)
+{
+  const char *p= str;
+  const char *end= str + len;
+
+  while (p < end)
+  {
+    /* Skip whitespace */
+    while (p < end && *p == ' ')
+      p++;
+    if (p >= end)
+      break;
+
+    /* Parse one domain id using MariaDB's internal function for consistency */
+    char *q= (char *) end;
+    int err= 0;
+    longlong v= my_strtoll10(p, &q, &err);
+    if (err != 0 || q == p || v < 0 || (ulonglong) v > UINT_MAX32)
+      return true;  /* Parse error, or not a valid 32-bit domain id */
+    ulong domain_id= (ulong) v;
+    if (insert_dynamic(ids, (uchar *) &domain_id))
+      return true;  /* Out of memory */
+    p= q;
+
+    /* Skip whitespace after number */
+    while (p < end && *p == ' ')
+      p++;
+
+    if (p >= end)
+      break;
+    if (*p != ',')
+      return true;  /* Parse error: expected a comma */
+    p++;
+  }
+
+  return false;
+}
+
+
+/*
   Function prepares and sends repliation heartbeat event.
 
   @param net                net object of THD
@@ -1259,6 +1334,10 @@ err:
   Gtid_list_log_event where D is not present in the requested slave state at
   all. Since if D is not in requested slave state, it means that slave needs
   to start at the very first GTID in domain D.
+
+  GTIDs in domains that the slave is ignoring are always considered contained
+  in this binlog file, to avoid unnecessary scanning of earlier binlog files or
+  failing a purged (but ignored) GTID.
 */
 static bool
 contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
@@ -1271,6 +1350,8 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     const rpl_gtid *gtid= st->find(gl_domain_id);
     if (!gtid)
     {
+      if (st->is_domain_filtered(gl_domain_id))
+        continue;
       /*
         The slave needs to start from the very beginning of this domain, which
         is in an earlier binlog file. So we need to search back further.
@@ -1280,6 +1361,8 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     if (gtid->server_id == glev->list[i].server_id &&
         gtid->seq_no <= glev->list[i].seq_no)
     {
+      if (st->is_domain_filtered(gl_domain_id))
+        continue;
       /*
         The slave needs to start after gtid, but it is contained in an earlier
         binlog file. So we need to search back further, unless it was the very
@@ -1436,6 +1519,21 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
         continue;
       }
 
+      if (st->is_domain_filtered(slave_gtid->domain_id))
+      {
+        /*
+          The slave will throw away everything we send it in this domain, so
+          there is no point in refusing the connection just because we no
+          longer have its requested start position in the binlog.
+
+          Note that we deliberately leave the entry in the connection state.
+          That way the normal skipping in send_event_to_slave() still applies,
+          and we will not re-send a GTID in this domain that the slave already
+          has in its gtid_slave_pos (which would move its position backwards).
+        */
+        continue;
+      }
+
       *error_gtid= *slave_gtid;
       give_error_start_pos_missing_in_binlog(&err, errormsg, error_gtid);
       goto end;
@@ -1564,6 +1662,11 @@ gtid_check_binlog_file(slave_connection_state *state,
     Try to lookup the GTID position in the gtid index.
     If that doesn't work, read the Gtid_list_log_event at the start of the
     binlog file to get the binlog state.
+
+    Both lookups (is_before_pos() and contains_all_slave_gtid()) consider a
+    domain that the slave is ignoring to be satisfied by any binlog file, so
+    such a domain never forces the search back into an earlier file and never
+    makes the search run out of files.
   */
   if (normalize_binlog_name(buf, list->name.str, false))
   {
@@ -1636,14 +1739,16 @@ found_pos_check_gtid(const rpl_gtid *found_gtid, slave_connection_state *state,
   {
     /*
       Contains_all_slave_gtid() returns false if there is any domain in
-      Gtid_list_event which is not in the requested slave position.
+      Gtid_list_event which is not in the requested slave position -- except
+      for a domain that the slave is ignoring, which it accepts without any
+      matching entry in the slave position.
 
       We may delete a domain from the slave state inside this loop, but
       we only do this when it is the very last GTID logged for that
       domain in earlier binlogs, and then we can not encounter it in any
       further GTIDs in the Gtid_list.
     */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT(state->is_domain_filtered(found_gtid->domain_id));
   } else if (gtid->server_id == found_gtid->server_id &&
              gtid->seq_no == found_gtid->seq_no)
   {
@@ -2252,10 +2357,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           if (gtid_entry->flags & slave_connection_state::START_ON_EMPTY_DOMAIN)
           {
             rpl_gtid master_gtid;
-            if (!mysql_bin_log.find_in_binlog_state(gtid->domain_id,
-                                                    gtid->server_id,
-                                                    &master_gtid) ||
-                master_gtid.seq_no < gtid->seq_no)
+            if ((!mysql_bin_log.find_in_binlog_state(gtid->domain_id,
+                                                     gtid->server_id,
+                                                     &master_gtid) ||
+                 master_gtid.seq_no < gtid->seq_no) &&
+                !gtid_state->is_domain_filtered(gtid->domain_id))
             {
               int err;
               const char *errormsg;
@@ -2277,7 +2383,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           {
             if (info->slave_gtid_strict_mode &&
                 event_gtid.seq_no > gtid->seq_no &&
-                !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS))
+                !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS) &&
+                !gtid_state->is_domain_filtered(event_gtid.domain_id))
             {
               /*
                 In strict mode, it is an error if the slave requests to start
@@ -2581,6 +2688,8 @@ static int init_binlog_sender(binlog_send_info *info,
   String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
   char str_buf2[128];
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
+  char str_buf3[128];
+  String domain_ids_str(str_buf3, sizeof(str_buf3), system_charset_info);
   connect_gtid_state.length(0);
 
   if (opt_binlog_engine_hton &&
@@ -2616,6 +2725,56 @@ static int init_binlog_sender(binlog_send_info *info,
     {
       info->until_gtid_state= &info->until_gtid_state_obj;
       info->is_until_before_gtids= get_slave_gtid_until_before_gtids(thd);
+    }
+    /*
+      Read the slave's domain ID filter list, if sent (MDEV-28213).
+      Lazy-initialized: the Domain_id_filter is only allocated if the slave
+      actually sends IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS. Older slaves won't
+      send these, so the filter stays NULL and all domains are validated.
+
+      Only one of IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS can be active at a time,
+      so we check for the configured one and handle it directly.
+    */
+    {
+      const LEX_CSTRING *var_name= NULL;
+      int list_type= Domain_id_filter::DO_DOMAIN_IDS;
+
+      if (get_user_var_string(thd, Domain_id_filter::var_name_ignore.str,
+                              Domain_id_filter::var_name_ignore.length,
+                              &domain_ids_str))
+      {
+        var_name= &Domain_id_filter::var_name_ignore;
+        list_type= Domain_id_filter::IGNORE_DOMAIN_IDS;
+      }
+      else if (get_user_var_string(thd, Domain_id_filter::var_name_do.str,
+                                   Domain_id_filter::var_name_do.length,
+                                   &domain_ids_str))
+      {
+        var_name= &Domain_id_filter::var_name_do;
+        list_type= Domain_id_filter::DO_DOMAIN_IDS;
+      }
+
+      if (var_name)
+      {
+        info->gtid_state.domain_filter= new Domain_id_filter();
+        if (!info->gtid_state.domain_filter)
+        {
+          info->errmsg= "Out of memory allocating domain ID filter";
+          info->error= ER_OUTOFMEMORY;
+          return 1;
+        }
+        DYNAMIC_ARRAY *ids=
+          &info->gtid_state.domain_filter->m_domain_ids[list_type];
+        if (load_domain_ids_from_string(domain_ids_str.ptr(),
+                                        domain_ids_str.length(), ids))
+        {
+          info->errmsg= "Out of memory or malformed slave request when "
+            "obtaining domain ID filter";
+          info->error= ER_UNKNOWN_ERROR;
+          return 1;
+        }
+        sort_dynamic(ids, change_master_id_cmp);
+      }
     }
   }
   else if (opt_binlog_engine_hton)
