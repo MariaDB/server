@@ -1,0 +1,105 @@
+CREATE TABLE t1 (grp INT, t TEXT);
+INSERT INTO t1 SELECT seq, REPEAT(CHAR(64 + seq), 200) FROM seq_1_to_3;
+SET SESSION group_concat_max_len= 100;
+#
+# One row per group, so the result of each group is exactly the cut
+# value. Every answer is short by what was cut off its only row,
+# so every group warns.
+#
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+grp	len
+1	100
+2	100
+3	100
+Warnings:
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+#
+# Two aggregates in one statement, each warning for each of its
+# groups. The brackets JSON_ARRAYAGG() puts around the value push
+# its result past the limit, so it is cut a second time.
+#
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS gc_len,
+LENGTH(JSON_ARRAYAGG(t ORDER BY t)) AS ja_len FROM t1 GROUP BY grp;
+grp	gc_len	ja_len
+1	100	102
+2	100	102
+3	100	102
+Warnings:
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 1 was cut by json_arrayagg()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 2 was cut by json_arrayagg()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 3 was cut by json_arrayagg()
+#
+# The same statement run again reports for itself.
+#
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+grp	len
+1	100
+2	100
+3	100
+Warnings:
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+#
+# All three rows in one group, so the result is cut on top of the
+# values. Both are the same loss to the user and both are already
+# a warning, so it is given once.
+#
+SELECT LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1;
+len
+100
+Warnings:
+Warning	1260	Row 2 was cut by group_concat()
+#
+# Nothing is cut, so nothing is said.
+#
+SET SESSION group_concat_max_len= DEFAULT;
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+grp	len
+1	200
+2	200
+3	200
+DROP TABLE t1;
+#
+# Which of the two is given depends on the row, not on the group.
+# One group holds a short value and a long one, and a LIMIT decides
+# which of them the answer is built from.
+#
+CREATE TABLE t2 (t TEXT);
+INSERT INTO t2 VALUES ('aa'), (REPEAT('z', 200)), ('bb');
+SET SESSION group_concat_max_len= 100;
+#
+# The answer is built from the two short rows. The long value was
+# cut on its way in, but it is not in the answer, which is the same
+# answer a larger limit would have given: a note.
+#
+SELECT GROUP_CONCAT(t ORDER BY t LIMIT 2) AS gc FROM t2;
+gc
+aa,bb
+Warnings:
+Note	4266	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
+#
+# The same data, and the offset moves the answer onto the row that
+# was cut. The answer is now short by what was cut: a warning.
+#
+SELECT LENGTH(GROUP_CONCAT(t ORDER BY t LIMIT 1 OFFSET 2)) AS gc_len FROM t2;
+gc_len
+100
+Warnings:
+Warning	1260	Row 3 was cut by group_concat()
+#
+# DISTINCT without ORDER BY builds the answer from the duplicate
+# filter instead of the sort tree, and is judged the same way.
+#
+SELECT LENGTH(GROUP_CONCAT(DISTINCT t LIMIT 1 OFFSET 2)) AS gc_len FROM t2;
+gc_len
+100
+Warnings:
+Warning	1260	Row 3 was cut by group_concat()
+SET SESSION group_concat_max_len= DEFAULT;
+DROP TABLE t2;

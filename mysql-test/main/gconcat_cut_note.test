@@ -1,0 +1,81 @@
+#
+# A TEXT value longer than group_concat_max_len is cut on its way into
+# blob_storage, while the group is being built. Whether that changed the
+# answer depends on whether the row carrying it reaches the answer at
+# all. If it does, the answer is short by what was cut and that is a
+# warning. If it does not, the answer may be exactly what it would have
+# been without the limit, and all that can honestly be said is a note.
+# One note is enough for the statement.
+#
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (grp INT, t TEXT);
+INSERT INTO t1 SELECT seq, REPEAT(CHAR(64 + seq), 200) FROM seq_1_to_3;
+
+SET SESSION group_concat_max_len= 100;
+
+--echo #
+--echo # One row per group, so the result of each group is exactly the cut
+--echo # value. Every answer is short by what was cut off its only row,
+--echo # so every group warns.
+--echo #
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+
+--echo #
+--echo # Two aggregates in one statement, each warning for each of its
+--echo # groups. The brackets JSON_ARRAYAGG() puts around the value push
+--echo # its result past the limit, so it is cut a second time.
+--echo #
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS gc_len,
+       LENGTH(JSON_ARRAYAGG(t ORDER BY t)) AS ja_len FROM t1 GROUP BY grp;
+
+--echo #
+--echo # The same statement run again reports for itself.
+--echo #
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+
+--echo #
+--echo # All three rows in one group, so the result is cut on top of the
+--echo # values. Both are the same loss to the user and both are already
+--echo # a warning, so it is given once.
+--echo #
+SELECT LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1;
+
+--echo #
+--echo # Nothing is cut, so nothing is said.
+--echo #
+SET SESSION group_concat_max_len= DEFAULT;
+SELECT grp, LENGTH(GROUP_CONCAT(t ORDER BY t)) AS len FROM t1 GROUP BY grp;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Which of the two is given depends on the row, not on the group.
+--echo # One group holds a short value and a long one, and a LIMIT decides
+--echo # which of them the answer is built from.
+--echo #
+CREATE TABLE t2 (t TEXT);
+INSERT INTO t2 VALUES ('aa'), (REPEAT('z', 200)), ('bb');
+SET SESSION group_concat_max_len= 100;
+
+--echo #
+--echo # The answer is built from the two short rows. The long value was
+--echo # cut on its way in, but it is not in the answer, which is the same
+--echo # answer a larger limit would have given: a note.
+--echo #
+SELECT GROUP_CONCAT(t ORDER BY t LIMIT 2) AS gc FROM t2;
+
+--echo #
+--echo # The same data, and the offset moves the answer onto the row that
+--echo # was cut. The answer is now short by what was cut: a warning.
+--echo #
+SELECT LENGTH(GROUP_CONCAT(t ORDER BY t LIMIT 1 OFFSET 2)) AS gc_len FROM t2;
+
+--echo #
+--echo # DISTINCT without ORDER BY builds the answer from the duplicate
+--echo # filter instead of the sort tree, and is judged the same way.
+--echo #
+SELECT LENGTH(GROUP_CONCAT(DISTINCT t LIMIT 1 OFFSET 2)) AS gc_len FROM t2;
+
+SET SESSION group_concat_max_len= DEFAULT;
+DROP TABLE t2;
