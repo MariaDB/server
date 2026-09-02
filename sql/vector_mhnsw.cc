@@ -1139,6 +1139,12 @@ class VisitedSet
     count++;
     return v;
   }
+  void remember(FVectorNode *node)
+  {
+    // Mark a distance-tested node without materialising a queue entry.
+    insert(node);
+    count++;
+  }
   void insert(const FVectorNode *n)
   {
     nodes[idx++]= n;
@@ -1378,22 +1384,27 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
         }
         else
         {
-          Visited *v= visited.create(links[i],
-                        links[i]->distance_greater_than(target, furthest_best,
-                                                        p->mode, &p->acc));
-          if (v->distance_to_target <= threshold)
-            continue;
-          if (v->distance_to_target < furthest_best)
+          float distance= links[i]->distance_greater_than(target, furthest_best,
+                                                           p->mode, &p->acc);
+          if (distance <= threshold)
           {
+            visited.remember(links[i]);
+            continue;
+          }
+          if (distance < furthest_best)
+          {
+            Visited *v= visited.create(links[i], distance);
             candidates.safe_push(v);
             if (skip_deleted && v->node->deleted)
               continue;
-            if (v->distance_to_target < best.top()->distance_to_target)
+            if (distance < best.top()->distance_to_target)
             {
               best.replace_top(v);
               furthest_best= lenient_furthest(best, p->acc.diameter, leniency);
             }
           }
+          else
+            visited.remember(links[i]);
         }
       }
     }
