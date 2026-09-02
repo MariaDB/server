@@ -537,6 +537,41 @@ fts_query(
 	fts_result_t**	result)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Estimate the number of documents that contain a single word, by probing
+the FTS auxiliary INDEX_[1..6] table that holds it.
+
+This is cheap, in the spirit of records_in_range(): one B-tree dive plus a
+bounded walk over the leaf pages that dive already latched.  It takes no
+record locks, opens no read view and creates no transaction.  It is therefore
+deliberately approximate:
+
+  - the in-memory FTS cache is NOT consulted, so a word that has been inserted
+    but not yet SYNCed is reported as absent even though rows do match;
+  - FTS_..._DELETED and DELETED_CACHE are NOT consulted, so documents that
+    were deleted or updated since the last OPTIMIZE TABLE are still counted;
+  - delete-marked auxiliary records are counted, exactly the way
+    records_in_range() counts delete-marked index records;
+  - the word is matched literally: no wildcards, no stemming, and no stopword
+    or token length filtering.
+
+@param[in]	trx	transaction to attribute buffer pool statistics to; it
+			is neither started, modified nor committed
+@param[in]	index	fulltext index (index->type & DICT_FTS)
+@param[in]	word	word to look up, in index's charset, already folded to
+			lower case unless my_binary_compare(charset)
+@param[out]	n_docs	estimated number of matching documents; 0 means the
+			word is not present in the auxiliary table
+@return DB_SUCCESS, DB_TABLE_NOT_FOUND if the auxiliary table cannot be
+opened, DB_RECORD_NOT_FOUND if it is empty (nothing has been SYNCed yet, so
+there is no information at all), or DB_CORRUPTION */
+dberr_t
+fts_estimate_word_docs(
+	trx_t*			trx,
+	dict_index_t*		index,
+	const fts_string_t*	word,
+	uint64_t*		n_docs)
+	noexcept MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /******************************************************************//**
 Retrieve the FTS Relevance Ranking result for doc with doc_id
 @return the relevance ranking value. */

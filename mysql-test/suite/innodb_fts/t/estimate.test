@@ -1,0 +1,91 @@
+#
+# handler::fulltext_estimate() -- the fulltext analogue of records_in_range().
+#
+# The estimate is read back through a debug-only hook in
+# Item_func_match::init_search(), which pushes it as a note.
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+SET @optimize= @@GLOBAL.innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= 1;
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  a  TEXT,
+  FULLTEXT(a)
+) ENGINE=InnoDB;
+
+# gamma appears in all 8 rows, beta in 3, alpha in 1.
+INSERT INTO t1 VALUES
+  (1,'alpha beta gamma'), (2,'beta gamma'), (3,'beta gamma'),
+  (4,'gamma'), (5,'gamma'), (6,'gamma'), (7,'gamma'), (8,'gamma');
+
+--echo #
+--echo # Nothing has been SYNCed yet, so the words live only in the in-memory
+--echo # FTS cache, which the estimate deliberately does not consult.  The
+--echo # auxiliary table is still empty, which means we have no information at
+--echo # all rather than "no matching rows", so the answer is "unknown".
+--echo #
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+SET debug_dbug='';
+
+--echo #
+--echo # Flush the cache into the auxiliary tables.
+--echo #
+OPTIMIZE TABLE t1;
+
+--echo #
+--echo # Each word now occupies a single auxiliary record, so the walk covers
+--echo # the whole of its key range and the estimate is exact.
+--echo #
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('alpha');
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('beta');
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+
+--echo #
+--echo # A word that is not indexed at all: floored to 1, not 0.
+--echo #
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('zzzzz');
+
+--echo #
+--echo # The word is folded with the collation of the fulltext index, so case
+--echo # does not matter.
+--echo #
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('GAMMA');
+SET debug_dbug='';
+
+--echo #
+--echo # Cross-check against the authoritative auxiliary table contents.
+--echo #
+SET @aux= @@GLOBAL.innodb_ft_aux_table;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+--echo # One auxiliary record per word here, so DOC_COUNT is the exact answer.
+SELECT DISTINCT WORD, DOC_COUNT FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE
+  ORDER BY WORD;
+
+--echo #
+--echo # Deleted rows are deliberately still counted: their entries survive in
+--echo # the ilists until OPTIMIZE TABLE purges them.  Here that raw count of 8
+--echo # is then clamped to the number of rows left in the table, so 4 is
+--echo # reported -- the clamp, not the deletions, is what moved the number.
+--echo #
+DELETE FROM t1 WHERE id > 4;
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+SET debug_dbug='';
+
+--echo #
+--echo # An engine that does not implement fulltext_estimate() reports
+--echo # "unknown" via the handler default.
+--echo #
+SET GLOBAL innodb_ft_aux_table= @aux;
+ALTER TABLE t1 ENGINE=MyISAM;
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+SET debug_dbug='';
+
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only= @optimize;
