@@ -9280,12 +9280,43 @@ table_value_constructor:
             if (Lex->parsed_TVC_start())
               MYSQL_YYABORT;
 	  }
-	  values_list
+	  values_list opt_values_row_alias
 	  {
             if (!($$= Lex->parsed_TVC_end()))
 	      MYSQL_YYABORT;
 	  }
 	;
+
+/*
+  Optional alias for the row(s) being inserted.
+  Syntax: INSERT ... VALUES (...) AS alias
+  Used to reference new values in ON DUPLICATE KEY UPDATE clause.
+  The AS keyword is required, as in MySQL.
+
+  The empty alternative must not touch insert_values_alias: a VALUES
+  table value constructor without an alias may appear in a subquery of
+  the same INSERT, and clearing the alias here would clobber the row
+  alias set earlier. It is reset in LEX::start().
+*/
+opt_values_row_alias:
+          /* empty */
+        | AS ident
+          {
+            /*
+              The row alias is only valid as the direct value source of an
+              INSERT, i.e. INSERT ... VALUES (...) AS alias. The VALUES select
+              must sit directly below the INSERT's top select on the parse
+              stack. This excludes a VALUES table value constructor used as a
+              derived table, e.g. INSERT ... SELECT * FROM (VALUES (...) AS x).
+            */
+            SELECT_LEX *parent= Lex->select_stack_top >= 2 ?
+              Lex->select_stack[Lex->select_stack_top - 2] : nullptr;
+            if (Lex->sql_command != SQLCOM_INSERT ||
+                parent != Lex->first_select_lex())
+              my_yyabort_error((ER_SYNTAX_ERROR, MYF(0)));
+            Lex->insert_values_alias= Lex_ident_table($2);
+          }
+        ;
 
 opt_hint_comment:
           /*empty */   { $$.init(); }
