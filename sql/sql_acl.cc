@@ -5021,14 +5021,6 @@ bool change_password(THD *thd, LEX_USER *user)
     goto end;
   }
 
-  if (acl_user->nauth == 1 &&
-      (acl_user->auth[0].plugin.str == native_password_plugin_name.str ||
-       acl_user->auth[0].plugin.str == old_password_plugin_name.str))
-  {
-    /* historical hack of auto-changing the plugin */
-    acl_user->auth[0].plugin= guess_auth_plugin(thd, user->auth->auth_str.length);
-  }
-
   for (uint i=0; i < acl_user->nauth; i++)
   {
     auth= acl_user->auth[i];
