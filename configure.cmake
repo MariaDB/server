@@ -23,26 +23,6 @@ INCLUDE (CheckCCompilerFlag)
 INCLUDE (CheckCSourceRuns)
 INCLUDE (CheckSymbolExists)
 
-
-# WITH_PIC options.Not of much use, PIC is taken care of on platforms
-# where it makes sense anyway.
-IF(UNIX)
-  IF(APPLE)  
-    # OSX  executable are always PIC
-    SET(WITH_PIC ON)
-  ELSE()
-    OPTION(WITH_PIC "Generate PIC objects" OFF)
-    IF(WITH_PIC)
-      SET(CMAKE_C_FLAGS 
-        "${CMAKE_C_FLAGS} ${CMAKE_SHARED_LIBRARY_C_FLAGS}")
-      SET(CMAKE_CXX_FLAGS 
-        "${CMAKE_CXX_FLAGS} ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
-    ENDIF()
-  ENDIF()
-ENDIF()
-
-
-
 # System type affects version_compile_os variable 
 IF(NOT SYSTEM_TYPE)
   IF(PLATFORM)

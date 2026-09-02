@@ -57,27 +57,6 @@ IF (${MAX_INDEXES} GREATER 128)
   MESSAGE(FATAL_ERROR "MAX_INDEXES values greater than 128 is not supported!")
 ENDIF()
 
-IF(UNIX AND NOT APPLE)
-  # Note, that generally one should not change settings depending
-  # on CMAKE_BUILD_TYPE, because VS and Xcode configure once (with
-  # the empty CMAKE_BUILD_TYPE) and the build many times for
-  # different build types without re-running cmake!
-  # But we only care about WITH_PIC on Unix, where the check for
-  # CMAKE_BUILD_TYPE hapen to work.
-  IF (CMAKE_BUILD_TYPE MATCHES "Debug")
-    SET(WITH_PIC_DEFAULT ON)
-  ELSE()
-    SET(WITH_PIC_DEFAULT OFF)
-  ENDIF()
-  # Compiling with PIC speeds up embedded build, on PIC sensitive systems 
-  # Predefine it to OFF in release builds, because of the performance penalty
-  SET(WITH_PIC ${WITH_PIC_DEFAULT} CACHE BOOL "Compile with PIC.")
-  MARK_AS_ADVANCED(WITH_PIC)
-ENDIF()
-
-# This is used by TokuDB only
-SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
-
 # C and C++ standards (e.g. -std=c++17)
 SET(CMAKE_C_STANDARD 99)
 SET(CMAKE_CXX_STANDARD 17)
@@ -223,10 +202,10 @@ OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN AND NOT MSVC)
   # this flag might be set by default on some OS
   MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address"
     DEBUG RELWITHDEBINFO)
-  SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address__fPIC})
-  SET(HAVE_CXX_FSANITIZE ${have_CXX__fsanitize_address__fPIC})
+  SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address})
+  SET(HAVE_CXX_FSANITIZE ${have_CXX__fsanitize_address})
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
     OPTION(WITH_ASAN_SCOPE "Enable -fsanitize-address-use-after-scope" OFF)
     SET(WITH_ASAN_OK 1)
@@ -286,7 +265,7 @@ ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
 IF (WITH_GPROF)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g -no-pie -fPIC")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g")
 ENDIF()
 
 # Be nice to profilers etc
@@ -297,7 +276,6 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
 IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF AND NOT WITH_MSAN)
   # security-enhancing flags
-  MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
   MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
