@@ -14,6 +14,8 @@ show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	4.000
 set @@global.slave_net_timeout= 3 /* must be a warning */;
+Warnings:
+Warning	4257	This operation leaves replication connection '' with an invalid configuration: the heartbeat period (4.000 seconds) exceeds the requested slave_net_timeout (3 seconds); a sensible value for the period should be less than the timeout
 reset slave;
 connection master;
 drop table if exists t1;
