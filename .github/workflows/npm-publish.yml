@@ -23,9 +23,10 @@ jobs:
         uses: mymindstorm/setup-emsdk@v14
 
       - name: Setup Node.js
+        # Node 24 bundles npm >= 11.5.1, required for OIDC trusted publishing
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Build WASM package
@@ -36,15 +37,16 @@ jobs:
         working-directory: wasm
 
       - name: Publish to npm
-        # Skip gracefully if this version was already published (e.g. a
-        # manual first release), so re-runs and old tag pushes don't fail.
+        # Publishes via npm Trusted Publishing (OIDC) — no NPM_TOKEN needed.
+        # The trusted publisher shyim/lite4mariadb + npm-publish.yml must be
+        # configured in the package settings on npmjs.com. Provenance
+        # attestations are added automatically. Skip gracefully if this
+        # version was already published (e.g. a manual release).
         run: |
           VERSION=$(node -p "require('./package.json').version")
           if npm view "lite4mariadb@$VERSION" version >/dev/null 2>&1; then
             echo "lite4mariadb@$VERSION already published, skipping"
           else
-            npm publish --provenance --access public
+            npm publish
           fi
         working-directory: wasm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
