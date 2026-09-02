@@ -3621,6 +3621,9 @@ public:
   void start_psi_batch_mode();
   /** End a batch started with @c start_psi_batch_mode. */
   void end_psi_batch_mode();
+  /** Check if a batch started with @c start_psi_batch_mode is in progress. */
+  bool is_in_psi_batch_mode() const
+  { return m_psi_batch_mode != PSI_BATCH_MODE_NONE; }
 
   /* If we have row logging enabled for this table */
   bool row_logging, row_logging_init;

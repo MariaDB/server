@@ -157,3 +157,38 @@ DROP FUNCTION f1;
 SET debug_dbug= @saved_dbug;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # Conversion of an internal temporary table to the on-disk engine when
+--echo # the scan of the in-memory table cannot be started
+--echo #
+
+CREATE TABLE t1 (v VARCHAR(1024));
+INSERT INTO t1 SELECT CONCAT('v', LPAD(seq, 6, '0')) FROM seq_1_to_100;
+
+SET @save_tmp_table_size= @@tmp_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+# Small enough that the temporary table of the query below does not fit in
+# memory and is converted to the on-disk engine.
+SET SESSION tmp_table_size= 262144;
+SET SESSION max_heap_table_size= 262144;
+
+--let $tmpdir= `SELECT @@tmpdir`
+
+SET SESSION debug_dbug='+d,heap_conversion_rnd_init_error';
+--error ER_TABLE_DEF_CHANGED
+SELECT COUNT(*) FROM t1 a JOIN (SELECT DISTINCT v FROM t1) d ON a.v = d.v;
+SET debug_dbug= @saved_dbug;
+
+--echo #The on-disk table created for the failed conversion is gone.
+--list_files $tmpdir #sql-temptable*
+
+--echo #Without the injected failure the query is answered as usual.
+SELECT COUNT(*) FROM t1 a JOIN (SELECT DISTINCT v FROM t1) d ON a.v = d.v;
+
+SET SESSION tmp_table_size= @save_tmp_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests
