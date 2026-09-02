@@ -22431,6 +22431,83 @@ static void test_mdev_30159()
 
 
 #ifndef EMBEDDED_LIBRARY
+/*
+  MDEV-40303 Re-executing a PS that reads a derived-table column holding a
+  scalar UNION subquery crashed in create_view_field(): the subquery was
+  re-fixed over a cleaned unit with NULL item_list fields. A GEOMETRY param
+  is unbindable via the C API, hence the raw COM_STMT_EXECUTE.
+*/
+static void test_mdev_40303()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[3];
+  char sval[]= "a";
+  ulong slen= 1;
+  uchar buf[64], *pos;
+  int rc, i;
+  const char *query=
+    "SELECT subq.c FROM ("
+    " SELECT (CAST(? AS CHAR) < ("
+    "  SELECT CAST(? AS CHAR) AS a UNION ALL"
+    "  SELECT CAST(? AS CHAR) AS a LIMIT 1)) AS c"
+    " FROM t1) subq";
+
+  myheader("test_mdev_40303");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1), (2)");
+  myquery(rc);
+
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  verify_param_count(stmt, 3);
+
+  /* first execute: three string params */
+  memset(bind, 0, sizeof(bind));
+  for (i= 0; i < 3; i++)
+  {
+    bind[i].buffer_type= MYSQL_TYPE_STRING;
+    bind[i].buffer= sval;
+    bind[i].buffer_length= 1;
+    bind[i].length= &slen;
+  }
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  /* second execute: param 3 typed GEOMETRY, sent raw */
+  pos= buf;
+  int4store(pos, stmt->stmt_id); pos+= 4;
+  *pos++= 0;                              /* flags */
+  int4store(pos, 1); pos+= 4;             /* iteration count */
+  *pos++= 0;                             /* NULL bitmap (3 params) */
+  *pos++= 1;                             /* new_params_bound */
+  int2store(pos, MYSQL_TYPE_STRING);   pos+= 2;
+  int2store(pos, MYSQL_TYPE_STRING);   pos+= 2;
+  int2store(pos, MYSQL_TYPE_GEOMETRY); pos+= 2;
+  *pos++= 1; *pos++= 'a';
+  *pos++= 1; *pos++= 'a';
+  *pos++= 1; *pos++= 'a';
+  /* geometry cannot cast to CHAR: must error, not crash */
+  rc= simple_command(mysql, COM_STMT_EXECUTE, buf, (ulong)(pos - buf), 0);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_errno(mysql) ==
+             ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION);
+
+  DIE_UNLESS(mysql_ping(mysql) == 0);
+
+  mysql_stmt_close(stmt);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+#endif
+
+
+#ifndef EMBEDDED_LIBRARY
 /**
   Test case for bulk UPDATE against a table with an active AFTER UPDATE
   trigger.
@@ -23915,6 +23992,7 @@ static struct my_tests_st my_tests[]= {
   { "test_cache_metadata", test_cache_metadata},
   { "test_mdev_38242", test_mdev_38242 },
 #ifndef EMBEDDED_LIBRARY
+  { "test_mdev_40303", test_mdev_40303 },
   { "test_mdev_24411", test_mdev_24411},
   { "test_mdev_34718_bu", test_mdev_34718_bu },
   { "test_mdev_34718_au", test_mdev_34718_au },
