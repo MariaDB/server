@@ -4004,6 +4004,8 @@ static int init_common_variables()
   connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
 
+
+  status_vars_hash_init();
   init_libstrings();
   tzset();			// Set tzname
 
