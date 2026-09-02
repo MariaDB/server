@@ -259,7 +259,7 @@ extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
 extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
-extern void mariadb_error_read_only();
+extern void mariadb_error_read_only(ulong read_only);
 
 /**
   @class CSET_STRING
@@ -3825,11 +3825,12 @@ public:
   */
   inline bool check_read_only_with_error()
   {
-    if (likely(!opt_readonly) || slave_thread ||
+    ulong read_only= opt_readonly;      // Read once, may be changed any time
+    if (likely(!read_only) || slave_thread ||
         ((security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-         opt_readonly != READONLY_NO_LOCK_NO_ADMIN))
+         read_only != READONLY_NO_LOCK_NO_ADMIN))
       return false;
-    mariadb_error_read_only();
+    mariadb_error_read_only(read_only);
     return true;
   }
 
