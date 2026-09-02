@@ -51,6 +51,7 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "sql_test.h"            // dbug_print_table_row()
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -10439,104 +10440,360 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
 }
 
 #define newx new (thd->mem_root)
+static constexpr const char *VERS_TRT_SCAN="vers_trt_scan";
+
 bool TR_table::query(ulonglong trx_id)
 {
+  DBUG_ENTER("query(trx)");
   if (!table && open())
-    return false;
-  SQL_SELECT_auto select;
-  READ_RECORD info;
+    DBUG_RETURN(false);
   int error;
-  List<TABLE_LIST> dummy;
-  SELECT_LEX &slex= *(thd->lex->first_select_lex());
-  Name_resolution_context_backup backup(slex.context, *this);
-  Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
-  Item *value= newx Item_int(thd, trx_id);
-  COND *conds= newx Item_func_eq(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
-    return false;
-  select= make_select(table, 0, 0, conds, NULL, 0, &error);
-  if (unlikely(error || !select))
+  const field_index_t fld=  FLD_TRX_ID;
+  const uint idx=           IDX_TRX_ID;
+
+  bool found= false;
+  DBUG_ASSERT(!table->file->keyread_enabled());
+  DBUG_ASSERT(table->read_set != &table->tmp_set);
+  handler *file= table->file;
+
+  uchar search_key[MAX_KEY_LENGTH];
+  SCOPE_VALUE(table->read_set, &table->s->all_set);
+
+  if (is_idx_correct(idx, fld) && !DBUG_IF(VERS_TRT_SCAN))
   {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return false;
+    KEY *key= &table->key_info[idx];
+
+    DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->s->db.str,
+                                               table->s->table_name.str, MDL_SHARED_READ));
+
+    KEY_PART_INFO *key_part= key->key_part;
+    const uint key_prefix_len= key_part[0].store_length;
+    table->field[fld]->store((longlong) trx_id, true);
+    key_copy(search_key, table->record[0], key, key_prefix_len);
+
+    if ((error= file->ha_index_init(idx, true)))
+      goto end;
+
+    error= file->ha_index_read_map(table->record[0], (uchar*) search_key,
+                                   (key_part_map) 1, HA_READ_KEY_EXACT);
+
+    if (!error)
+      found= true;
+    else if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
+      error= 0;
+
+    int error2= file->ha_index_end();
+    if (!error && error2)
+      error= error2;
+
   }
-  // FIXME: (performance) force index 'transaction_id'
-  error= init_read_record(&info, thd, table, select, NULL,
-                          1 /* use_record_cache */, true /* print_error */,
-                          false /* disable_rr_cache */);
-  while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+  else
   {
-    if (select->skip_record(thd) > 0)
-      return true;
+    /* Unexpected transaction_registry definition, using slow scan */
+    /* TODO Merge: uncomment in 13.0 (new warning cannot be added in a stable release):
+    if (!thd->get_stmt_da()->has_sql_condition(WARN_VERS_TRT_DEFINITION))
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_VERS_TRT_DEFINITION,
+                          ER_THD(thd, WARN_VERS_TRT_DEFINITION));
+    TODO Merge: remove below ER_UNKNOWN_ERROR warning */
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "Incorrect definition of table %s.%s: "
+                        "indexes are missing",
+                        table->s->db.str, table->alias.c_ptr());
+    SQL_SELECT_auto select;
+    READ_RECORD info;
+    List<TABLE_LIST> dummy;
+    SELECT_LEX &slex= *(thd->lex->first_select_lex());
+    Name_resolution_context_backup backup(slex.context, *this);
+
+    Item *field= newx Item_field(thd, &slex.context, (*this)[fld]);
+    /* Force Item_field to be non-const */
+    SCOPE_VALUE(table->map, (table_map) 1);
+    DBUG_ASSERT(!field->const_item());
+    Item *value= newx Item_int(thd, trx_id);
+    COND *conds= newx Item_func_eq(thd, field, value);
+    if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+      DBUG_RETURN(false);
+    select= make_select(table, 0, 0, conds, NULL, 0, &error);
+    if (unlikely(error || !select))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      DBUG_RETURN(false);
+    }
+    error= init_read_record(&info, thd, table, select, NULL,
+                            1 /* use_record_cache */, true /* print_error */,
+                            false /* disable_rr_cache */);
+    if (error)
+      DBUG_RETURN(false);
+
+    while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+    {
+      if (select->skip_record(thd) > 0)
+      {
+        found= true;
+        break;
+      }
+    }
+
+    /* rr_handle_error() sets -1 for HA_ERR_END_OF_FILE */
+    if (error < 0)
+      error= 0;
   }
-  my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
-  return false;
+
+end:
+  if (error)
+  {
+    myf flags= 0;
+
+    if (file->is_fatal_error(error, HA_CHECK_ALL))
+      flags|= ME_FATAL; /* Other handler errors are fatal */
+
+    file->print_error(error, MYF(flags));
+    found= false;
+  }
+  else if (!found)
+  {
+    DBUG_PRINT("vers_trx_id", ("%llu: %s", trx_id,
+                               "Not found!"));
+    my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
+  }
+  else
+  {
+    DBUG_LOCK_FILE;
+    DBUG_PRINT("vers_trx_id", ("%llu: %s", trx_id,
+                               dbug_print_table_row(table)));
+    DBUG_UNLOCK_FILE;
+  }
+
+  DBUG_RETURN(found);
 }
 
 bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
 {
-  if (!table && open())
-    return false;
-  SQL_SELECT_auto select;
-  READ_RECORD info;
-  int error;
-  List<TABLE_LIST> dummy;
-  SELECT_LEX &slex= *(thd->lex->first_select_lex());
-  Name_resolution_context_backup backup(slex.context, *this);
-  Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
-  Datetime dt(&commit_time);
-  Item *value= newx Item_datetime_literal(thd, &dt, 6);
-  COND *conds;
-  if (backwards)
-    conds= newx Item_func_ge(thd, field, value);
-  else
-    conds= newx Item_func_le(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
-    return false;
-  // FIXME: (performance) force index 'commit_timestamp'
-  select= make_select(table, 0, 0, conds, NULL, 0, &error);
-  if (unlikely(error || !select))
-    return false;
-  error= init_read_record(&info, thd, table, select, NULL,
-                          1 /* use_record_cache */, true /* print_error */,
-                          false /* disable_rr_cache */);
+  DBUG_ENTER("query(ts)");
 
-  // With PK by transaction_id the records are ordered by PK, so we have to
-  // scan TRT fully and collect min (backwards == true)
-  // or max (backwards == false) stats.
+#ifndef DBUG_OFF
+  char dbug_commit_time[MAX_DATE_STRING_REP_LENGTH];
+  my_time_to_str(&commit_time, dbug_commit_time, 6);
+#endif /* DBUG_OFF */
+
+
+  if (!table && open())
+    DBUG_RETURN(false);
+
+  /*
+    Get FLD_TRX_ID by FLD_COMMIT_TS
+
+    Forward direction: find rec before or at commit_time;
+    Backward direction: find rec at commit_time or after.
+
+    TODO performance: Store more fields into COMMIT_TS index and get them at once,
+    without searching COMMIT_ID later. Important for commit_id0 in query_sees().
+
+    Stage 2. consulting PK index is then optional (depending on whether the scheme is old).
+  */
+  int error;
+
+  field_index_t fld=  FLD_COMMIT_TS;
+  uint idx=           IDX_COMMIT_TS;
+
   bool found= false;
-  MYSQL_TIME found_ts;
-  while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+  DBUG_ASSERT(!table->file->keyread_enabled());
+  DBUG_ASSERT(table->read_set != &table->tmp_set);
+  handler *file= table->file;
+
+  uchar search_key[MAX_KEY_LENGTH];
+
+  const bool commit_ts_key_ok=
+    is_idx_correct(idx, fld) &&
+    table->key_info[idx].user_defined_key_parts >= 2 &&
+    table->key_info[idx].key_part[1].fieldnr - 1 == FLD_TRX_ID &&
+    !(table->key_info[idx].key_part[1].key_part_flag & HA_REVERSE_SORT);
+
+  if (commit_ts_key_ok && is_idx_correct(IDX_TRX_ID, FLD_TRX_ID) &&
+      !DBUG_IF(VERS_TRT_SCAN))
   {
-    int res= select->skip_record(thd);
-    if (res > 0)
+    KEY *key= &table->key_info[idx];
+    /* 1. get trx_id (into table row) */
+    MY_BITMAP *old_read_set= table->prepare_for_keyread(idx, &table->tmp_set);
+
+    DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->s->db.str,
+                                               table->s->table_name.str, MDL_SHARED_READ));
+
+    DBUG_ASSERT(key->key_part->fieldnr - 1 == fld);
+    KEY_PART_INFO *key_part= key->key_part;
+    uint key_prefix_len= key_part[0].store_length;
+    ha_rkey_function find_flag;
+    /*
+      When multiple records stay at the same key_part[0],
+      choose proper record among them according to find_flag logic.
+    */
+    if (backwards)
     {
-      MYSQL_TIME commit_ts;
-      if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, date_mode_t(0)))
+      find_flag= HA_READ_KEY_OR_NEXT;
+      key_prefix_len+= key_part[1].store_length;
+      table->field[FLD_TRX_ID]->store((longlong) 0, true);
+    } else {
+      find_flag= HA_READ_KEY_OR_PREV;
+      key_prefix_len+= key_part[1].store_length;
+      table->field[FLD_TRX_ID]->store((longlong) ULONGLONG_MAX, true);
+    }
+    table->field[fld]->store_time_dec(&commit_time, TIME_SECOND_PART_DIGITS);
+    key_copy(search_key, table->record[0], key, key_prefix_len);
+
+    if ((error= file->ha_index_init(idx, true)))
+    {
+      table->restore_column_maps_after_keyread(old_read_set);
+      goto end;
+    }
+
+    const key_part_map key_map= make_prev_keypart_map(backwards ? 1 : 2);
+    error= file->ha_index_read_map(table->record[0], (uchar*) search_key, key_map, find_flag);
+    if (!error)
+      found= true;
+    else if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
+      error= 0;
+
+    int error2= file->ha_index_end();
+    if (!error && error2)
+      error= error2;
+    table->restore_column_maps_after_keyread(old_read_set);
+
+    if (!error && found)
+    {
+      /* 2. get full row from PK */
+      SCOPE_VALUE(table->read_set, &table->s->all_set);
+      fld= FLD_TRX_ID;
+      idx= IDX_TRX_ID;
+
+      key= &table->key_info[idx];
+      DBUG_ASSERT(key->key_part->fieldnr - 1 == fld);
+      key_part= key->key_part;
+      key_prefix_len= key_part[0].store_length;
+      key_copy(search_key, table->record[0], key, key_prefix_len);
+
+      if (!(error= file->ha_index_init(idx, true)))
+      {
+        error= file->ha_index_read_map(table->record[0], (uchar*) search_key,
+                                        (key_part_map) 1, HA_READ_KEY_EXACT);
+        /* Now HA_ERR_END_OF_FILE/HA_ERR_KEY_NOT_FOUND is strange, don't ignore it */
+        error2= file->ha_index_end();
+        if (!error && error2)
+          error= error2;
+      }
+    } /* if (!error) */
+  }
+  else
+  {
+    /* Unexpected transaction_registry definition, using slow scan */
+    /* TODO Merge: uncomment in 13.0 (new warning cannot be added in a stable release):
+    if (!thd->get_stmt_da()->has_sql_condition(WARN_VERS_TRT_DEFINITION))
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_VERS_TRT_DEFINITION,
+                          ER_THD(thd, WARN_VERS_TRT_DEFINITION));
+    TODO Merge: remove below ER_UNKNOWN_ERROR warning */
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "Incorrect definition of table %s.%s: "
+                        "indexes are missing",
+                        table->s->db.str, table->alias.c_ptr());
+    SCOPE_VALUE(table->read_set, &table->s->all_set);
+    SQL_SELECT_auto select;
+    READ_RECORD info;
+    List<TABLE_LIST> dummy;
+    SELECT_LEX &slex= *(thd->lex->first_select_lex());
+    Name_resolution_context_backup backup(slex.context, *this);
+    Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
+    /* Force Item_field to be non-const */
+    SCOPE_VALUE(table->map, (table_map) 1);
+    DBUG_ASSERT(!field->const_item());
+    Datetime dt(&commit_time);
+    Item *value= newx Item_datetime_literal(thd, &dt, 6);
+    COND *conds;
+    if (backwards)
+      conds= newx Item_func_ge(thd, field, value);
+    else
+      conds= newx Item_func_le(thd, field, value);
+    if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+      DBUG_RETURN(false);
+    select= make_select(table, 0, 0, conds, NULL, 0, &error);
+    if (unlikely(error || !select))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      DBUG_RETURN(false);
+    }
+    error= init_read_record(&info, thd, table, select, NULL,
+                            1 /* use_record_cache */, true /* print_error */,
+                            false /* disable_rr_cache */);
+    if (error)
+      DBUG_RETURN(false);
+
+
+    // With PK by transaction_id the records are ordered by PK, so we have to
+    // scan TRT fully and collect min (backwards == true)
+    // or max (backwards == false) stats.
+    MYSQL_TIME found_ts;
+    while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+    {
+      int res= select->skip_record(thd);
+      if (res > 0)
+      {
+        MYSQL_TIME commit_ts;
+        if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, date_mode_t(0)))
+        {
+          found= false;
+          break;
+        }
+        int c;
+        if (!found || ((c= my_time_compare(&commit_ts, &found_ts)) &&
+          (backwards ? c < 0 : c > 0)))
+        {
+          found_ts= commit_ts;
+          found= true;
+          // TODO: (performance) make ORDER DESC and break after first found.
+          // Otherwise it is O(n) scan (+copy)!
+          store_record(table, record[1]);
+        }
+      }
+      else if (res < 0)
       {
         found= false;
         break;
       }
-      int c;
-      if (!found || ((c= my_time_compare(&commit_ts, &found_ts)) &&
-        (backwards ? c < 0 : c > 0)))
-      {
-        found_ts= commit_ts;
-        found= true;
-        // TODO: (performance) make ORDER DESC and break after first found.
-        // Otherwise it is O(n) scan (+copy)!
-        store_record(table, record[1]);
-      }
     }
-    else if (res < 0)
-    {
-      found= false;
-      break;
-    }
- }
-  if (found)
-    restore_record(table, record[1]);
-  return found;
+
+    /* rr_handle_error() sets -1 for HA_ERR_END_OF_FILE */
+    if (error < 0)
+      error= 0;
+
+    if (found)
+      restore_record(table, record[1]);
+  }
+
+end:
+  if (error)
+  {
+    myf flags= 0;
+
+    if (file->is_fatal_error(error, HA_CHECK_ALL))
+      flags|= ME_FATAL; /* Other handler errors are fatal */
+
+    file->print_error(error, MYF(flags));
+    found= false;
+  }
+  else if (!found)
+    DBUG_PRINT("vers_trx_id", ("%s%s: %s", dbug_commit_time,
+                               (backwards ? "(b)" : ""),
+                               "Not found!"));
+  else
+  {
+    DBUG_LOCK_FILE;
+    DBUG_PRINT("vers_trx_id", ("%s%s: %s", dbug_commit_time,
+                               (backwards ? "(b)" : ""),
+                               dbug_print_table_row(table)));
+    DBUG_UNLOCK_FILE;
+  }
+
+  DBUG_RETURN(found);
 }
 #undef newx
 
@@ -10544,27 +10801,34 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
                           ulonglong commit_id1, enum_tx_isolation iso_level1,
                           ulonglong commit_id0)
 {
+  DBUG_ENTER("query_sees");
   if (trx_id1 == trx_id0)
   {
-    return false;
+    DBUG_PRINT("vers_trx_id", ("%llu == %llu (result depends on accept_eq)", trx_id1, trx_id0));
+    DBUG_RETURN(false);
   }
 
   if (trx_id1 == ULONGLONG_MAX || trx_id0 == 0)
   {
+    DBUG_PRINT("vers_trx_id", ("%llu sees %llu (border values)", trx_id1, trx_id0));
     result= true;
-    return false;
+    DBUG_RETURN(false);
   }
 
   if (trx_id0 == ULONGLONG_MAX || trx_id1 == 0)
   {
+    DBUG_PRINT("vers_trx_id", ("%llu sees NOT %llu (border values)", trx_id1, trx_id0));
     result= false;
-    return false;
+    DBUG_RETURN(false);
   }
 
   if (!commit_id1)
   {
     if (!query(trx_id1))
-      return true;
+    {
+      DBUG_PRINT("vers_trx_id", ("query(%llu) failed", trx_id1));
+      DBUG_RETURN(true);
+    }
 
     commit_id1= (*this)[FLD_COMMIT_ID]->val_int();
     iso_level1= iso_level();
@@ -10573,7 +10837,10 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   if (!commit_id0)
   {
     if (!query(trx_id0))
-      return true;
+    {
+      DBUG_PRINT("vers_trx_id", ("query(%llu) failed", trx_id0));
+      DBUG_RETURN(true);
+    }
 
     commit_id0= (*this)[FLD_COMMIT_ID]->val_int();
   }
@@ -10583,14 +10850,19 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
       // Concurrent transactions: TX1 committed after TX0 and TX1 is read (un)committed
       || (commit_id1 > commit_id0 && iso_level1 < ISO_REPEATABLE_READ))
   {
+    DBUG_PRINT("vers_trx_id", ("(%llu, %llu) sees (%llu, %llu); %s; iso_level: %d",
+                               trx_id1, commit_id1, trx_id0, commit_id0,
+                               (trx_id1 > commit_id0 ? "trivial" : "concurrent"), iso_level1));
     result= true;
   }
   else // All other cases: TX1 does not see TX0
   {
+    DBUG_PRINT("vers_trx_id", ("(%llu, %llu) sees NOT (%llu, %llu); iso_level: %d",
+                               trx_id1, commit_id1, trx_id0, commit_id0, iso_level1));
     result= false;
   }
 
-  return false;
+  DBUG_RETURN(false);
 }
 
 void TR_table::warn_schema_incorrect(const char *reason)
