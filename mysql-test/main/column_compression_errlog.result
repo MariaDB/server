@@ -1,0 +1,12 @@
+call mtr.add_suppression("Found wrong implicit DEFAULT");
+# std_data/MDEV-40417.* was created by 10.11.19 before the fix, see the
+# MDEV-40417 section of main.column_compression for its definition.
+# Reading the old .frm reports the repaired blob column
+SELECT COUNT(*) FROM mdev40417;
+COUNT(*)
+1
+FOUND 1 /Found wrong implicit DEFAULT '' for compressed field 'blob_nodef'/ in mysqld.1.err
+# ... and only that one, vc_nodef cannot be recognized as affected
+NOT FOUND /Found wrong implicit DEFAULT '' for compressed field 'vc_nodef'/ in mysqld.1.err
+DROP TABLE mdev40417;
+# End of 10.11 tests
