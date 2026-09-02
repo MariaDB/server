@@ -67,11 +67,13 @@ inline dberr_t blink_search_leaf(dict_index_t *index, const dtuple_t *tuple,
 }
 bool blink_split_choose_and_check_fit(btr_cur_t *cursor,
                                       const dtuple_t *tuple, ulint n_ext,
+                                      bool use_last_insert_hint,
                                       rec_t **split_rec, bool *insert_left,
                                       mem_heap_t **heap);
 rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
                                    rec_offs **offsets, mem_heap_t **heap,
                                    dtuple_t *tuple, ulint n_ext,
+                                   bool use_last_insert_hint,
                                    buf_block_t *new_block,
                                    buf_block_t *old_right, mtr_t *mtr);
 buf_block_t *blink_root_raise_low(ulint flags, dict_index_t *index,

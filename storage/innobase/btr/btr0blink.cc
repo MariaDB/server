@@ -294,8 +294,9 @@ static ulint blink_max_high_key_record_size(const dict_index_t *index)
 }
 
 bool blink_split_choose_and_check_fit(btr_cur_t *cursor, const dtuple_t *tuple,
-                                      ulint n_ext, rec_t **split_rec,
-                                      bool *insert_left, mem_heap_t **heap)
+                                      ulint n_ext, bool use_last_insert_hint,
+                                      rec_t **split_rec, bool *insert_left,
+                                      mem_heap_t **heap)
 {
   page_t *page= btr_cur_get_page(cursor);
   dict_index_t *index= cursor->index();
@@ -327,6 +328,24 @@ bool blink_split_choose_and_check_fit(btr_cur_t *cursor, const dtuple_t *tuple,
   ulint best_score= std::numeric_limits<ulint>::max();
   size_t best= records.size() + 1;
   bool best_insert_left= false;
+
+  rec_t *hint_split= nullptr;
+  const bool keep_no_move= use_last_insert_hint &&
+    btr_page_get_split_rec_to_right(cursor, &hint_split) && !hint_split &&
+    page_rec_is_supremum(page_rec_get_next_user(
+      page, btr_cur_get_rec(cursor), index));
+  if (keep_no_move) {
+    const ulint left_bytes= total_size + high_key_size +
+      page_dir_calc_reserved_space(records.size() + 1);
+    const ulint right_bytes= tuple_size +
+      (right_has_high_key ? high_key_size : 0) +
+      page_dir_calc_reserved_space(1 + right_has_high_key);
+    if (left_bytes <= free_space && right_bytes <= free_space) {
+      *split_rec= nullptr;
+      *insert_left= false;
+      return true;
+    }
+  }
 
   for (size_t boundary= 0; boundary <= records.size(); ++boundary) {
     bool tuple_left= false;
@@ -395,8 +414,9 @@ static dtuple_t *blink_copy_key(const rec_t *record, dict_index_t *index,
 
 rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
                                    rec_offs **offsets, mem_heap_t **heap,
-                                   dtuple_t *tuple,
-                                   ulint n_ext, buf_block_t *new_block,
+                                   dtuple_t *tuple, ulint n_ext,
+                                   bool use_last_insert_hint,
+                                   buf_block_t *new_block,
                                    buf_block_t *old_right, mtr_t *mtr)
 {
   dict_index_t *index= cursor->index();
@@ -436,7 +456,8 @@ rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
   }
   rec_t *split_rec= nullptr;
   bool insert_left= false;
-  if (!blink_split_choose_and_check_fit(cursor, tuple, n_ext, &split_rec,
+  if (!blink_split_choose_and_check_fit(cursor, tuple, n_ext,
+                                        use_last_insert_hint, &split_rec,
                                         &insert_left, heap))
     return nullptr;
 
@@ -617,7 +638,7 @@ rec_t *blink_root_raise_and_insert(ulint flags, btr_cur_t *cursor,
     return nullptr;
   rec_t *preflight_split= nullptr;
   bool preflight_left= false;
-  if (!blink_split_choose_and_check_fit(cursor, tuple, n_ext,
+  if (!blink_split_choose_and_check_fit(cursor, tuple, n_ext, false,
                                         &preflight_split, &preflight_left,
                                         heap))
     return nullptr;
@@ -630,7 +651,8 @@ rec_t *blink_root_raise_and_insert(ulint flags, btr_cur_t *cursor,
                                    &cursor->low_match, &cursor->page_cur,
                                    nullptr));
   rec_t *inserted= blink_split_page_and_insert(
-    flags, cursor, offsets, heap, tuple, n_ext, sibling, nullptr, mtr);
+    flags, cursor, offsets, heap, tuple, n_ext, false,
+    sibling, nullptr, mtr);
   ut_a(inserted);
 
   dtuple_t *second_ptr= blink_build_node_ptr(index, sibling, *heap);
@@ -831,8 +853,8 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
                                     &parent_heap, node_ptr, 0, new_page,
                                     root_sibling, &mtr)
       : blink_split_page_and_insert(flags, &parent, &parent_offsets,
-                                    &parent_heap, node_ptr, 0, new_page,
-                                    old_right, &mtr);
+                                    &parent_heap, node_ptr, 0, true,
+                                    new_page, old_right, &mtr);
     ut_a(placed);
     err= blink_clear_child_split(index, previous_child, &mtr);
     ut_a(err == DB_SUCCESS);
@@ -956,7 +978,7 @@ dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
     ? blink_root_raise_and_insert(flags, cursor, offsets, heap, entry, n_ext,
                                   new_page, root_sibling, mtr)
     : blink_split_page_and_insert(flags, cursor, offsets, heap, entry, n_ext,
-                                  new_page, old_right, mtr);
+                                  true, new_page, old_right, mtr);
   if (!inserted) {
     blink_return_preallocated(index, new_page_no, root_sibling_no, &stash);
     if (big_rec_vec)

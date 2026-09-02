@@ -1,0 +1,18 @@
+--source include/have_innodb.inc
+
+SELECT @@global.innodb_blink_leaf_pool_low,
+       @@global.innodb_blink_leaf_pool_high,
+       @@global.innodb_blink_internal_pool_low,
+       @@global.innodb_blink_internal_pool_high;
+SET GLOBAL innodb_blink_leaf_pool_high=4096;
+SET GLOBAL innodb_blink_leaf_pool_low=512;
+SET GLOBAL innodb_blink_internal_pool_high=128;
+SET GLOBAL innodb_blink_internal_pool_low=16;
+SELECT @@global.innodb_blink_leaf_pool_low,
+       @@global.innodb_blink_leaf_pool_high,
+       @@global.innodb_blink_internal_pool_low,
+       @@global.innodb_blink_internal_pool_high;
+SET GLOBAL innodb_blink_leaf_pool_low=DEFAULT;
+SET GLOBAL innodb_blink_leaf_pool_high=DEFAULT;
+SET GLOBAL innodb_blink_internal_pool_low=DEFAULT;
+SET GLOBAL innodb_blink_internal_pool_high=DEFAULT;

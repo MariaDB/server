@@ -286,6 +286,10 @@ unsigned long long srv_stats_modified_counter;
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
 my_bool srv_blink_enabled;
+ulong srv_blink_leaf_pool_low= 64;
+ulong srv_blink_leaf_pool_high= 256;
+ulong srv_blink_internal_pool_low= 8;
+ulong srv_blink_internal_pool_high= 32;
 
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;

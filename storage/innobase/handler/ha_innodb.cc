@@ -67,6 +67,7 @@ bool is_update_query(enum enum_sql_command command);
 
 /* Include necessary InnoDB headers */
 #include "btr0blink.h"
+#include "btr0blink_alloc.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0bulk.h"
@@ -19590,6 +19591,30 @@ static MYSQL_SYSVAR_BOOL(blink_enabled, srv_blink_enabled,
   "Stamp newly created supported InnoDB indexes for B-link operation",
   NULL, NULL, FALSE);
 
+static void innodb_blink_pool_watermark_update(
+  THD*, st_mysql_sys_var*, void *value, const void *save)
+{
+  *static_cast<ulong*>(value)= *static_cast<const ulong*>(save);
+  blink_page_pool_watermarks_changed();
+}
+
+static MYSQL_SYSVAR_ULONG(blink_leaf_pool_low, srv_blink_leaf_pool_low,
+  PLUGIN_VAR_RQCMDARG,
+  "B-link leaf page pool refill low watermark",
+  NULL, innodb_blink_pool_watermark_update, 64, 1, 1048576, 0);
+static MYSQL_SYSVAR_ULONG(blink_leaf_pool_high, srv_blink_leaf_pool_high,
+  PLUGIN_VAR_RQCMDARG,
+  "B-link leaf page pool refill high watermark",
+  NULL, innodb_blink_pool_watermark_update, 256, 1, 1048576, 0);
+static MYSQL_SYSVAR_ULONG(blink_internal_pool_low, srv_blink_internal_pool_low,
+  PLUGIN_VAR_RQCMDARG,
+  "B-link internal page pool refill low watermark",
+  NULL, innodb_blink_pool_watermark_update, 8, 1, 1048576, 0);
+static MYSQL_SYSVAR_ULONG(blink_internal_pool_high, srv_blink_internal_pool_high,
+  PLUGIN_VAR_RQCMDARG,
+  "B-link internal page pool refill high watermark",
+  NULL, innodb_blink_pool_watermark_update, 32, 1, 1048576, 0);
+
 static MYSQL_SYSVAR_ENUM(instant_alter_column_allowed,
 			 innodb_instant_alter_column_allowed,
   PLUGIN_VAR_RQCMDARG,
@@ -20613,6 +20638,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(stats_include_delete_marked),
   MYSQL_SYSVAR(blink_enabled),
+  MYSQL_SYSVAR(blink_leaf_pool_low),
+  MYSQL_SYSVAR(blink_leaf_pool_high),
+  MYSQL_SYSVAR(blink_internal_pool_low),
+  MYSQL_SYSVAR(blink_internal_pool_high),
   MYSQL_SYSVAR(use_atomic_writes),
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),

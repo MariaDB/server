@@ -285,6 +285,10 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 extern my_bool srv_blink_enabled;
+extern ulong srv_blink_leaf_pool_low;
+extern ulong srv_blink_leaf_pool_high;
+extern ulong srv_blink_internal_pool_low;
+extern ulong srv_blink_internal_pool_high;
 
 extern ulong	srv_checksum_algorithm;
 

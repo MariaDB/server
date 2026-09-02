@@ -25,6 +25,7 @@ void blink_page_pool_push(dict_index_t *index, blink_page_kind kind,
 void blink_page_pool_thread_start() noexcept;
 void blink_page_pool_thread_stop() noexcept;
 void blink_page_pool_query_depth(size_t *leaf, size_t *internal) noexcept;
+void blink_page_pool_watermarks_changed() noexcept;
 blink_pool_entry_t *blink_page_pool_pin(dict_index_t *index) noexcept;
 void blink_page_pool_unpin(blink_pool_entry_t *entry) noexcept;
 

@@ -4,7 +4,9 @@
 #include "btr0btr.h"
 #include "dict0mem.h"
 #include "mtr0mtr.h"
+#include "srv0srv.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -14,8 +16,18 @@
 #include <thread>
 #include <unordered_map>
 
-static constexpr size_t blink_low_watermark[2]{64, 8};
-static constexpr size_t blink_high_watermark[2]{256, 32};
+static size_t blink_low_watermark(size_t slot) noexcept
+{
+  const size_t low= slot ? srv_blink_internal_pool_low : srv_blink_leaf_pool_low;
+  const size_t high=
+    slot ? srv_blink_internal_pool_high : srv_blink_leaf_pool_high;
+  return std::min(low, high);
+}
+
+static size_t blink_high_watermark(size_t slot) noexcept
+{
+  return slot ? srv_blink_internal_pool_high : srv_blink_leaf_pool_high;
+}
 
 struct blink_page_pool_t
 {
@@ -104,7 +116,7 @@ bool blink_page_pool_try_pop(dict_index_t *index, blink_page_kind kind,
     if (!pages.empty()) {
       *page_no= pages.front();
       pages.pop_front();
-      if (pages.size() < blink_low_watermark[slot])
+      if (pages.size() < blink_low_watermark(slot))
         entry->pool.refilling[slot]= true;
       found= true;
     }
@@ -196,11 +208,11 @@ static bool blink_refill_one(blink_pool_entry_t *entry) noexcept
     {
       std::lock_guard<std::mutex> guard(entry->pool.mutex);
       const size_t size= entry->pool.pages[slot].size();
-      if (!entry->pool.refilling[slot] && size < blink_low_watermark[slot])
+      if (!entry->pool.refilling[slot] && size < blink_low_watermark(slot))
         entry->pool.refilling[slot]= true;
       if (!entry->pool.refilling[slot])
         continue;
-      if (size >= blink_high_watermark[slot]) {
+      if (size >= blink_high_watermark(slot)) {
         entry->pool.refilling[slot]= false;
         continue;
       }
@@ -213,7 +225,7 @@ static bool blink_refill_one(blink_pool_entry_t *entry) noexcept
       std::lock_guard<std::mutex> guard(entry->pool.mutex);
       entry->pool.pages[slot].push_back(page_no);
       ++blink_pool_refills;
-      if (entry->pool.pages[slot].size() >= blink_high_watermark[slot])
+      if (entry->pool.pages[slot].size() >= blink_high_watermark(slot))
         entry->pool.refilling[slot]= false;
     }
     return true;
@@ -348,6 +360,20 @@ void blink_page_pool_thread_stop() noexcept
     blink_reclaim(entry);
     blink_page_pool_unpin(entry);
   }
+}
+
+void blink_page_pool_watermarks_changed() noexcept
+{
+  {
+    std::lock_guard<std::mutex> registry_guard(blink_registry_mutex);
+    for (auto &item : blink_registry) {
+      std::lock_guard<std::mutex> pool_guard(item.second->pool.mutex);
+      for (size_t slot= 0; slot < 2; ++slot)
+        if (item.second->pool.pages[slot].size() < blink_high_watermark(slot))
+          item.second->pool.refilling[slot]= true;
+    }
+  }
+  blink_registry_cv.notify_one();
 }
 
 void blink_page_pool_query_depth(size_t *leaf, size_t *internal) noexcept
