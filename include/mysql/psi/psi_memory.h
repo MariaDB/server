@@ -38,7 +38,7 @@ extern "C" {
   @file mysql/psi/psi_memory.h
   Performance schema instrumentation interface.
 
-  @defgroup Instrumentation_interface Instrumentation Interface
+  @addtogroup Instrumentation_interface
   @{
 */
 

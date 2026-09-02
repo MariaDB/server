@@ -20,6 +20,14 @@
   @file
   This service provides functions that allow plugins to support
   the KILL statement.
+*/
+
+/**
+  @defgroup plugin_api_service_kill_statement KILL statement service
+  @ingroup plugin_api_services
+
+  This service provides functions that allow plugins to support
+  the KILL statement.
 
   In MySQL support for the KILL statement is cooperative. The KILL
   statement only sets a "killed" flag. This function returns the value
@@ -27,12 +35,7 @@
   time-consuming loops, and gracefully abort the operation if it is
   non-zero.
 
-  thd_killed(thd)
-  @return 0 - no KILL statement was issued, continue normally
-  @return 1 - there was a KILL statement, abort the execution.
-
-  thd_kill_level(thd)
-  @return thd_kill_levels_enum values
+  @{
 */
 
 #ifdef __cplusplus
@@ -49,9 +52,22 @@ extern struct kill_statement_service_st {
   enum thd_kill_levels (*thd_kill_level_func)(const MYSQL_THD);
 } *thd_kill_statement_service;
 
-/* backward compatibility helper */
+/**
+  Backward compatibility helper
+
+  @param THD thread handle
+  @retval 0 No KILL statement was issued, continue normally
+  @retval 1 There was a KILL statement, abort the execution.
+*/
 #define thd_killed(THD)   (thd_kill_level(THD) == THD_ABORT_ASAP)
 
+
+/**
+  Check if a KILL statement was issued for the given thread.
+
+  @param THD thread handle
+  @return @ref thd_kill_levels values
+*/
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define thd_kill_level(THD) \
@@ -66,6 +82,8 @@ enum thd_kill_levels thd_kill_level(const MYSQL_THD);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif
 

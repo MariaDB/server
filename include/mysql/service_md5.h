@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_MD5_INCLUDED
 /* Copyright (c) 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -14,11 +13,20 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_MD5_INCLUDED
+#define MYSQL_SERVICE_MD5_INCLUDED
+
 /**
   @file
   my md5 service
 
+*/
+
+/**
+  @defgroup plugin_api_service_md5 MD5 service
+  @ingroup plugin_api_services
   Functions to calculate MD5 hash from a memory buffer
+  @{
 */
 
 #ifdef __cplusplus
@@ -64,6 +72,7 @@ void my_md5_result(void *context, unsigned char *digest);
 }
 #endif
 
-#define MYSQL_SERVICE_MD5_INCLUDED
+/** @} */
+
 #endif
 
