@@ -1169,21 +1169,20 @@ LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 1024
 Warnings:
 Warning	1260	Row 2 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 SET group_concat_max_len= 499999;
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 WHERE f2 = 0;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 Warnings:
-Warning	1260	Row 1 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 GROUP BY f2;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 499999
 499999
 Warnings:
-Warning	1260	Row 1 was cut by group_concat()
-Warning	1260	Row 2 was cut by group_concat()
-Warning	1260	Row 3 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 INSERT INTO t1 VALUES (REPEAT('a', 499999), 3), (REPEAT('b', 500000), 4);
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 GROUP BY f2;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
@@ -1193,10 +1192,7 @@ LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 499999
 Warnings:
-Warning	1260	Row 1 was cut by group_concat()
-Warning	1260	Row 2 was cut by group_concat()
-Warning	1260	Row 3 was cut by group_concat()
-Warning	1260	Row 5 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 DROP TABLE t1;
 SET group_concat_max_len= DEFAULT;
 set session group_concat_max_len=1024;

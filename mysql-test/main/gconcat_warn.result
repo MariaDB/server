@@ -33,6 +33,7 @@ SELECT grp, GROUP_CONCAT(t ORDER BY t) FROM t1 GROUP BY grp;
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1260	Row 2 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 Warning	1260	Row 4 was cut by group_concat()
 Warning	1260	Row 6 was cut by group_concat()
 #
@@ -47,7 +48,9 @@ GROUP BY grp HAVING GROUP_CONCAT(t ORDER BY t) <> '';
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1260	Row 2 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 Warning	1260	Row 2 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 Warning	1260	Row 4 was cut by group_concat()
 Warning	1260	Row 4 was cut by group_concat()
 Warning	1260	Row 6 was cut by group_concat()
@@ -63,6 +66,7 @@ GROUP BY grp HAVING g <> '';
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1260	Row 2 was cut by group_concat()
+Note	4265	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 Warning	1260	Row 4 was cut by group_concat()
 Warning	1260	Row 6 was cut by group_concat()
 CREATE TABLE t2 (a INT);
