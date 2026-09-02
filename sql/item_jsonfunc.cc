@@ -4196,8 +4196,19 @@ static int check_key_in_list(String *res,
   while (c < end)
   {
     int n_char;
-    for (n_char=0; c[n_char] != '"' && n_char < key_len; n_char++)
+    for (n_char=0; n_char < key_len; n_char++)
     {
+      if (c[n_char] == '\\')
+      {
+        if (key[n_char] != '\\')
+          break;
+        n_char++;
+        if (n_char >= key_len || c[n_char] != key[n_char])
+          break;
+        continue;
+      }
+      if (c[n_char] == '"')
+        break;
       if (c[n_char] != key[n_char])
         break;
     }
@@ -4209,7 +4220,11 @@ static int check_key_in_list(String *res,
     else
     {
       while (c[n_char] != '"')
+      {
+        if (c[n_char] == '\\')
+          n_char++;
         n_char++;
+      }
     }
     c+= n_char + 4; /* skip ', "' */
   }
