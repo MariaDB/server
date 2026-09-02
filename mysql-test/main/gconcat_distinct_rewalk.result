@@ -1,0 +1,93 @@
+#
+# A plain aggregate, asked once and then asked twice. A HAVING
+# clause on the alias is the shortest statement that asks twice.
+#
+CREATE TABLE t1 (g INT, a VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a'),(1,'b'),(1,'c'),(1,'d'),(2,'e'),(2,'f');
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1;
+v
+
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+
+#
+# Two conditions ask for it a third time.
+#
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%' AND v NOT LIKE 'zz%';
+v
+
+#
+# DISTINCT reaches the walk by the other route.
+#
+SELECT GROUP_CONCAT(DISTINCT a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+
+#
+# One group spends the offset exactly and the other does not, so
+# both answers show up in the same statement.
+#
+SELECT g, GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1
+GROUP BY g HAVING v LIKE '%' ORDER BY g;
+g	v
+1	
+2	
+#
+# An offset that stops inside the group is not affected, the walk
+# having written a row, and neither is a group with no LIMIT.
+#
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 1) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+b,c
+SELECT GROUP_CONCAT(a ORDER BY a) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+a,b,c,d
+DROP TABLE t1;
+#
+# The same replay against a duplicate filter that has spilled to
+# disk, where the second walk is not merely wrong but unsupported.
+#
+CREATE TABLE t2 (g INT, a VARCHAR(100));
+INSERT INTO t2 SELECT seq MOD 4, LPAD(seq, 100, '0') FROM seq_1_to_2000;
+SELECT COUNT(*) AS rows_in_table, COUNT(DISTINCT a) AS distinct_values FROM t2;
+rows_in_table	distinct_values
+2000	2000
+SET @@tmp_memory_table_size=0;
+SELECT g, GROUP_CONCAT(DISTINCT a LIMIT 5 OFFSET 1000) AS gc
+FROM t2 GROUP BY g HAVING gc <> 'x';
+g	gc
+0	
+1	
+2	
+3	
+SELECT g, GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5 OFFSET 1000) AS gc
+FROM t2 GROUP BY g HAVING gc <> 'x';
+g	gc
+0	
+1	
+2	
+3	
+#
+# An offset that skips only part of the group is not affected, and
+# the answer must not depend on whether the filter spilled.
+#
+SELECT g, LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 2 OFFSET 3)) AS gc_len
+FROM t2 GROUP BY g HAVING gc_len > 0;
+g	gc_len
+0	201
+1	201
+2	201
+3	201
+SET @@tmp_memory_table_size=DEFAULT;
+SELECT g, LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 2 OFFSET 3)) AS gc_len
+FROM t2 GROUP BY g HAVING gc_len > 0;
+g	gc_len
+0	201
+1	201
+2	201
+3	201
+DROP TABLE t2;

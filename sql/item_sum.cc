@@ -4750,6 +4750,15 @@ String* Item_func_group_concat::val_str(String* str)
       return &result;
     else
       DBUG_ASSERT(false); // Can't happen
+    /*
+      dump_leaf_key() sets this when it writes a row, but a group can end
+      without one: an OFFSET can eat every row, and a walk that failed
+      hands over nothing. val_str() can be called again for the same
+      group, and unique_filter must not be walked twice - Unique::walk()
+      leaves the object undefined and the second walk asserts in
+      merge_walk().
+    */
+    result_finalized= true;
   }
 
   /*

@@ -1,0 +1,75 @@
+#
+# Nothing says how many times a statement asks for the result of a group,
+# and the answer must not depend on it. When an OFFSET skips every row of
+# the group, the walk writes nothing, and the aggregate must still record
+# that it has run. Otherwise the next caller walks again with the offset
+# already spent, which replays the group into a buffer that was handed
+# over once already, and, once the duplicate filter has spilled to disk,
+# walks a Unique that can only be walked once.
+#
+--source include/have_sequence.inc
+
+--echo #
+--echo # A plain aggregate, asked once and then asked twice. A HAVING
+--echo # clause on the alias is the shortest statement that asks twice.
+--echo #
+CREATE TABLE t1 (g INT, a VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a'),(1,'b'),(1,'c'),(1,'d'),(2,'e'),(2,'f');
+
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1;
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+  HAVING v LIKE '%';
+
+--echo #
+--echo # Two conditions ask for it a third time.
+--echo #
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+  HAVING v LIKE '%' AND v NOT LIKE 'zz%';
+
+--echo #
+--echo # DISTINCT reaches the walk by the other route.
+--echo #
+SELECT GROUP_CONCAT(DISTINCT a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+  HAVING v LIKE '%';
+
+--echo #
+--echo # One group spends the offset exactly and the other does not, so
+--echo # both answers show up in the same statement.
+--echo #
+SELECT g, GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1
+  GROUP BY g HAVING v LIKE '%' ORDER BY g;
+
+--echo #
+--echo # An offset that stops inside the group is not affected, the walk
+--echo # having written a row, and neither is a group with no LIMIT.
+--echo #
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 1) AS v FROM t1 WHERE g = 1
+  HAVING v LIKE '%';
+SELECT GROUP_CONCAT(a ORDER BY a) AS v FROM t1 WHERE g = 1
+  HAVING v LIKE '%';
+DROP TABLE t1;
+
+--echo #
+--echo # The same replay against a duplicate filter that has spilled to
+--echo # disk, where the second walk is not merely wrong but unsupported.
+--echo #
+CREATE TABLE t2 (g INT, a VARCHAR(100));
+INSERT INTO t2 SELECT seq MOD 4, LPAD(seq, 100, '0') FROM seq_1_to_2000;
+SELECT COUNT(*) AS rows_in_table, COUNT(DISTINCT a) AS distinct_values FROM t2;
+
+SET @@tmp_memory_table_size=0;
+SELECT g, GROUP_CONCAT(DISTINCT a LIMIT 5 OFFSET 1000) AS gc
+  FROM t2 GROUP BY g HAVING gc <> 'x';
+SELECT g, GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 5 OFFSET 1000) AS gc
+  FROM t2 GROUP BY g HAVING gc <> 'x';
+
+--echo #
+--echo # An offset that skips only part of the group is not affected, and
+--echo # the answer must not depend on whether the filter spilled.
+--echo #
+SELECT g, LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 2 OFFSET 3)) AS gc_len
+  FROM t2 GROUP BY g HAVING gc_len > 0;
+SET @@tmp_memory_table_size=DEFAULT;
+SELECT g, LENGTH(GROUP_CONCAT(DISTINCT a ORDER BY a LIMIT 2 OFFSET 3)) AS gc_len
+  FROM t2 GROUP BY g HAVING gc_len > 0;
+DROP TABLE t2;
