@@ -22,6 +22,7 @@
 #include "vector_mhnsw.h"
 #include <scope.h>
 #include <my_atomic_wrapper.h>
+#include <my_cpu.h>                            // my_prefetch()
 #include "bloom_filters.h"
 #include "sql_show.h"                           // get_all_tables, etc
 #include "sql_acl.h"                            // get_column_grant
@@ -1357,6 +1358,19 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
       uint8_t res= visited.seen(links);
       if (res == 0xff)
         continue;
+
+      // A node and its vector share one allocation. Prefetch unseen nodes before
+      // computing distances so later loads can overlap with work on earlier ones.
+      for (size_t i= 0; i < 8; i++)
+      {
+        FVectorNode *link= links[i];
+        if (!(res & (1 << i)) && link)
+        {
+          my_prefetch(link);
+          my_prefetch(reinterpret_cast<const char*>(link)
+                      + CPU_LEVEL1_DCACHE_LINESIZE);
+        }
+      }
 
       for (size_t i= 0; i < 8; i++)
       {
