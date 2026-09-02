@@ -965,7 +965,8 @@ static size_t estimate_cmd_len (bool* extra_args)
     of the SST script (excluding the copying of the original
     mysqld arguments):
   */
-  size_t cmd_len= 4096;
+  size_t cmd_len= 4096 + sizeof(WSREP_SST_RETRY_PREFIX) +
+                  sizeof(WSREP_SST_RETRY_SUFFIX);
   bool extra= false;
   /*
     If mysqld was started with arguments, add them all:
@@ -1248,6 +1249,7 @@ static ssize_t sst_prepare_other (const char*  method,
   make_wsrep_defaults_file();
 
   ret= snprintf (cmd_str(), cmd_len,
+                 WSREP_SST_RETRY_PREFIX
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE " 'joiner' "
                  WSREP_SST_OPT_ADDR " '%s' "
@@ -1274,6 +1276,9 @@ static ssize_t sst_prepare_other (const char*  method,
 
   if (extra_args)
     copy_orig_argv(cmd_str() + ret);
+
+  memcpy(cmd_str() + strlen(cmd_str()), WSREP_SST_RETRY_SUFFIX,
+         sizeof(WSREP_SST_RETRY_SUFFIX));
 
   wsp::env env(NULL);
   if (env.error())
@@ -1666,6 +1671,8 @@ static int sst_donate_mysqldump (const char*         addr,
   if (extra_args)
     copy_orig_argv(cmd_str() + ret);
 
+  // NOTE: no WSREP_SST_RETRY wrapper here - sst_run_shell() below already
+  // retries this exact command up to 3x on any error, including 127.
   WSREP_DEBUG("Running: '%s'", cmd_str());
 
   ret= sst_run_shell (cmd_str(), env, 3);
@@ -2076,6 +2083,7 @@ static int sst_donate_other (const char*        method,
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
   ret= snprintf (cmd_str(), cmd_len,
+                 WSREP_SST_RETRY_PREFIX
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE " 'donor' "
                  WSREP_SST_OPT_ADDR " '%s' "
@@ -2108,6 +2116,9 @@ static int sst_donate_other (const char*        method,
 
   if (extra_args)
     copy_orig_argv(cmd_str() + ret);
+
+  memcpy(cmd_str() + strlen(cmd_str()), WSREP_SST_RETRY_SUFFIX,
+         sizeof(WSREP_SST_RETRY_SUFFIX));
 
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 
