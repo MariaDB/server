@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS list_add;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION list_add (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION list_add (
         in_list TEXT,
         in_add_value TEXT
     )
