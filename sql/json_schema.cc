@@ -20,13 +20,87 @@
 #include <m_string.h>
 #include "json_schema.h"
 #include "json_schema_helper.h"
+#define PCRE2_STATIC 1
 #include "pcre2.h"
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 #ifndef DBUG_OFF
 int dbug_json_check_min_stack_requirement();
 #endif
 
 static HASH all_keywords_hash;
+
+HASH Json_schema_format::format_hash;
+
+struct st_json_schema_format_map
+{
+  LEX_CSTRING name;
+  Json_schema_format::Format_validator validate_fn;
+};
+
+static const uchar *get_key_name_for_format(const void *key_name,
+                                            size_t *length, my_bool)
+{
+  auto curr_format= static_cast<const st_json_schema_format_map *>(key_name);
+  *length= curr_format->name.length;
+  return reinterpret_cast<const uchar *>(curr_format->name.str);
+}
+
+bool Json_schema_format::setup_format_hash()
+{
+  /* static: the hash stores pointers into this array, no copies. */
+  static st_json_schema_format_map format_map[]=
+  {
+    { { STRING_WITH_LEN("date-time") },
+      &Json_schema_format::validate_datetime },
+    { { STRING_WITH_LEN("date") }, &Json_schema_format::validate_date },
+    { { STRING_WITH_LEN("time") }, &Json_schema_format::validate_time_part },
+    { { STRING_WITH_LEN("duration") },
+      &Json_schema_format::validate_duration },
+    { { STRING_WITH_LEN("email") }, &Json_schema_format::validate_email },
+    { { STRING_WITH_LEN("idn-email") },
+      &Json_schema_format::validate_idn_email },
+    { { STRING_WITH_LEN("hostname") },
+      &Json_schema_format::validate_hostname },
+    { { STRING_WITH_LEN("idn-hostname") },
+      &Json_schema_format::validate_idn_hostname },
+    { { STRING_WITH_LEN("ipv4") }, &Json_schema_format::validate_ipv4 },
+    { { STRING_WITH_LEN("ipv6") }, &Json_schema_format::validate_ipv6 },
+    { { STRING_WITH_LEN("uri") }, &Json_schema_format::validate_uri },
+    { { STRING_WITH_LEN("uri-reference") },
+      &Json_schema_format::validate_uri_reference },
+    { { STRING_WITH_LEN("iri") }, &Json_schema_format::validate_iri },
+    { { STRING_WITH_LEN("iri-reference") },
+      &Json_schema_format::validate_iri_reference },
+    { { STRING_WITH_LEN("uuid") }, &Json_schema_format::validate_uuid },
+    { { STRING_WITH_LEN("json-pointer") },
+      &Json_schema_format::validate_json_pointer },
+    { { STRING_WITH_LEN("relative-json-pointer") },
+      &Json_schema_format::validate_relative_json_pointer },
+    { { STRING_WITH_LEN("regex") }, &Json_schema_format::validate_regex }
+  };
+
+  if (my_hash_init(PSI_INSTRUMENT_ME, &format_hash, &my_charset_bin,
+                   array_elements(format_map), 0, 0,
+                   get_key_name_for_format, NULL, 0))
+    return true;
+
+  for (size_t i= 0; i < array_elements(format_map); i++)
+  {
+    if (my_hash_insert(&format_hash, (uchar*)(&format_map[i])))
+      return true;
+  }
+  return false;
+}
+
+void Json_schema_format::cleanup_format_hash()
+{
+  my_hash_free(&format_hash);
+}
 
 static Json_schema_keyword *create_json_schema_keyword(THD *thd)
 {
@@ -259,24 +333,7 @@ static Json_schema_keyword *create_json_schema_reference(THD *thd)
   {{ STRING_WITH_LEN("default") }, create_json_schema_annotation, JSON_SCHEMA_ANNOTATION_KEYWORD},
   {{ STRING_WITH_LEN("$vocabulary") }, create_json_schema_annotation, JSON_SCHEMA_ANNOTATION_KEYWORD},
 
-  {{ STRING_WITH_LEN("date-time") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("date") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("time") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("duration") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("email") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("idn-email") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("hostname") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("idn-hostname") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("ipv4") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("ipv6") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("uri") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("uri-reference") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("iri") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("iri-reference") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("uuid") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("json-pointer") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("relative-json-pointer") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
-  {{ STRING_WITH_LEN("regex") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
+  {{ STRING_WITH_LEN("format") }, create_json_schema_format, JSON_SCHEMA_FORMAT_KEYWORD},
 
   {{ STRING_WITH_LEN("contentMediaType") }, create_json_schema_media_string, JSON_SCHEMA_MEDIA_KEYWORD},
   {{ STRING_WITH_LEN("conentEncoding") }, create_json_schema_media_string, JSON_SCHEMA_MEDIA_KEYWORD},
@@ -377,8 +434,445 @@ bool Json_schema_format::handle_keyword(THD *thd,
   if (je->value_type != JSON_VALUE_STRING)
   {
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "format");
+    return true;
+  }
+
+  const char *val= (const char *) je->value;
+  size_t len= je->value_len;
+  st_json_schema_format_map *curr_format=
+       (st_json_schema_format_map*) my_hash_search(&format_hash,
+                                                   (const uchar*)val, len);
+  if (!curr_format)
+  {
+    /*
+      Unknown formats are legal annotations (JSON Schema 2020-12 7.2.1),
+      but when format validation is enabled they must be refused (7.2.2).
+    */
+    if (thd->variables.json_schema_format_validation)
+    {
+      my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "format");
+      return true;
+    }
+    return false;
+  }
+  validator= curr_format->validate_fn;
+
+  return false;
+}
+
+static inline bool is_digit(char c)
+{
+  return my_isdigit(&my_charset_latin1, c);
+}
+
+static inline bool is_hex(char c)
+{
+  return my_isxdigit(&my_charset_latin1, c);
+}
+
+static inline bool is_alpha(char c)
+{
+  return my_isalpha(&my_charset_latin1, c);
+}
+
+static int parse_2digits(const char *s)
+{
+  if (!is_digit(s[0]) || !is_digit(s[1]))
+    return -1;
+  return (s[0] - '0') * 10 + (s[1] - '0');
+}
+
+static int parse_4digits(const char *s)
+{
+  if (!is_digit(s[0]) || !is_digit(s[1]) ||
+      !is_digit(s[2]) || !is_digit(s[3]))
+    return -1;
+  return (s[0] - '0') * 1000 + (s[1] - '0') * 100 +
+         (s[2] - '0') * 10 + (s[3] - '0');
+}
+
+bool Json_schema_format::validate_date(const char *val, int len) const
+{
+  if (len != 10) return false;
+  if (val[4] != '-' || val[7] != '-') return false;
+  int year= parse_4digits(val);
+  int month= parse_2digits(val + 5);
+  int day= parse_2digits(val + 8);
+  if (year < 0 || month < 1 || month > 12) return false;
+  if (day < 1 || day > (int) calc_days_in_month(year, month)) return false;
+  return true;
+}
+
+/* Parse time: HH:MM:SS[.frac](Z|+HH:MM|-HH:MM) */
+bool Json_schema_format::validate_time_part(const char *val, int len) const
+{
+  if (len < 9) return false;
+  if (val[2] != ':' || val[5] != ':') return false;
+  int hour= parse_2digits(val);
+  int min= parse_2digits(val + 3);
+  int sec= parse_2digits(val + 6);
+  if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 60)
+    return false;
+  int pos= 8;
+  if (pos < len && val[pos] == '.')
+  {
+    pos++;
+    if (pos >= len || !is_digit(val[pos])) return false;
+    while (pos < len && is_digit(val[pos])) pos++;
+  }
+  if (pos >= len) return false;
+  if (val[pos] == 'Z' || val[pos] == 'z')
+  {
+    pos++;
+    return pos == len;
+  }
+  if (val[pos] == '+' || val[pos] == '-')
+  {
+    pos++;
+    if (pos + 5 != len) return false;
+    if (val[pos + 2] != ':') return false;
+    int tz_h= parse_2digits(val + pos);
+    int tz_m= parse_2digits(val + pos + 3);
+    if (tz_h < 0 || tz_h > 23 || tz_m < 0 || tz_m > 59) return false;
+    return true;
   }
   return false;
+}
+
+bool Json_schema_format::validate_datetime(const char *val, int len) const
+{
+  if (len < 20) return false;
+  if (val[10] != 'T' && val[10] != 't') return false;
+  if (!validate_date(val, 10)) return false;
+  return validate_time_part(val + 11, len - 11);
+}
+
+bool Json_schema_format::validate_duration(const char *val, int len) const
+{
+  if (len < 2 || val[0] != 'P') return false;
+  int pos= 1;
+  bool has_time= false, has_any= false;
+
+  while (pos < len && val[pos] != 'T')
+  {
+    if (!is_digit(val[pos])) return false;
+    while (pos < len && is_digit(val[pos])) pos++;
+    if (pos >= len) return false;
+    if (val[pos] == 'Y' || val[pos] == 'M' ||
+        val[pos] == 'W' || val[pos] == 'D')
+    {
+      has_any= true;
+      pos++;
+    }
+    else
+      return false;
+  }
+  if (pos < len && val[pos] == 'T')
+  {
+    has_time= true;
+    pos++;
+    if (pos >= len) return false;
+    bool has_time_component= false;
+    while (pos < len)
+    {
+      if (!is_digit(val[pos])) return false;
+      while (pos < len && is_digit(val[pos])) pos++;
+      if (pos >= len) return false;
+      if (val[pos] == '.')
+      {
+        pos++;
+        if (pos >= len || !is_digit(val[pos])) return false;
+        while (pos < len && is_digit(val[pos])) pos++;
+        if (pos >= len || val[pos] != 'S') return false;
+      }
+      if (val[pos] == 'H' || val[pos] == 'M' || val[pos] == 'S')
+      {
+        has_time_component= true;
+        pos++;
+      }
+      else
+        return false;
+    }
+    if (!has_time_component) return false;
+  }
+  return pos == len && (has_any || has_time);
+}
+
+/* Position of '@' separating Local-part from Domain (RFC 5321 4.1.2). */
+static int find_email_split(const char *val, int len)
+{
+  const char *at= (const char *) memchr(val, '@', len);
+  if (!at) return -1;
+  int at_pos= (int) (at - val);
+
+  if (val[0] == '"')
+  {
+    int i= 1;
+    while (i < len && val[i] != '"')
+    {
+      if (val[i] == '\\' && i + 1 < len) i+= 2;
+      else i++;
+    }
+    if (i >= len || val[i] != '"') return -1;
+    i++;
+    if (i >= len || val[i] != '@') return -1;
+    at_pos= i;
+  }
+  else if (memchr(at + 1, '@', len - at_pos - 1))
+    return -1;
+  return at_pos;
+}
+
+/* 'email' format: RFC 5321 Mailbox (ASCII only, RFC 5321 4.1.2). */
+bool Json_schema_format::validate_email(const char *val, int len) const
+{
+  int at_pos= find_email_split(val, len);
+  if (at_pos < 1 || at_pos > 64) return false;
+  int domain_len= len - at_pos - 1;
+  if (domain_len < 1 || domain_len > 253) return false;
+  const char *domain= val + at_pos + 1;
+  bool has_dot= false;
+  for (int i= 0; i < domain_len; i++)
+  {
+    if (domain[i] == '.')
+    {
+      has_dot= true;
+      if (i == 0 || i == domain_len - 1) return false;
+      if (domain[i - 1] == '.') return false;
+    }
+    else if (!is_alpha(domain[i]) && !is_digit(domain[i]) && domain[i] != '-')
+      return false;
+  }
+  return has_dot;
+}
+
+/* 'idn-email' format: RFC 6531 extended Mailbox (UTF-8 permitted). */
+bool Json_schema_format::validate_idn_email(const char *val, int len) const
+{
+  int at_pos= find_email_split(val, len);
+  if (at_pos < 1) return false;
+  int domain_len= len - at_pos - 1;
+  if (domain_len < 1) return false;
+  const char *domain= val + at_pos + 1;
+  bool has_dot= false;
+  for (int i= 0; i < domain_len; i++)
+  {
+    if (domain[i] == '.')
+    {
+      has_dot= true;
+      if (i == 0 || i == domain_len - 1) return false;
+      if (domain[i - 1] == '.') return false;
+    }
+  }
+  return has_dot;
+}
+
+/* RFC 1123 label lengths and hyphens; ascii_only also enforces LDH. */
+static bool validate_hostname_ex(const char *val, int len, bool ascii_only)
+{
+  if (len < 1 || len > 253) return false;
+  int label_start= 0;
+  for (int i= 0; i <= len; i++)
+  {
+    if (i == len || val[i] == '.')
+    {
+      int label_len= i - label_start;
+      if (label_len < 1 || label_len > 63) return false;
+      if (val[label_start] == '-' || val[i - 1] == '-') return false;
+      if (ascii_only)
+      {
+        for (int j= label_start; j < i; j++)
+        {
+          if (!is_alpha(val[j]) && !is_digit(val[j]) && val[j] != '-')
+            return false;
+        }
+      }
+      label_start= i + 1;
+    }
+  }
+  return true;
+}
+
+bool Json_schema_format::validate_hostname(const char *val, int len) const
+{
+  return validate_hostname_ex(val, len, true);
+}
+
+bool Json_schema_format::validate_idn_hostname(const char *val, int len) const
+{
+  return validate_hostname_ex(val, len, false);
+}
+
+bool Json_schema_format::validate_ipv4(const char *val, int len) const
+{
+  if (len < 7 || len > 15) return false;
+  char buf[16];
+  memcpy(buf, val, len);
+  buf[len]= '\0';
+  struct in_addr addr;
+  return inet_pton(AF_INET, buf, &addr) == 1;
+}
+
+bool Json_schema_format::validate_ipv6(const char *val, int len) const
+{
+  if (len < 2 || len > 45) return false;
+  char buf[46];
+  memcpy(buf, val, len);
+  buf[len]= '\0';
+  struct in6_addr addr;
+  return inet_pton(AF_INET6, buf, &addr) == 1;
+}
+
+/* RFC 3986 unreserved + gen-delims + sub-delims (unescaped URI bytes). */
+static inline bool is_uri_char(char c)
+{
+  if (is_alpha(c) || is_digit(c)) return true;
+  if (c == '-' || c == '.' || c == '_' || c == '~') return true;
+  if (c == ':' || c == '/' || c == '?' || c == '#' ||
+      c == '[' || c == ']' || c == '@') return true;
+  if (c == '!' || c == '$' || c == '&' || c == '\'' ||
+      c == '(' || c == ')' || c == '*' || c == '+' ||
+      c == ',' || c == ';' || c == '=') return true;
+  return false;
+}
+
+/* URI body: valid char or pct-encoded. allow_non_ascii permits IRI bytes. */
+static bool validate_uri_tail(const char *val, int len, bool allow_non_ascii)
+{
+  int i= 0;
+  while (i < len)
+  {
+    unsigned char c= (unsigned char) val[i];
+    if (c == '%')
+    {
+      if (i + 2 >= len) return false;
+      if (!is_hex(val[i + 1]) || !is_hex(val[i + 2])) return false;
+      i+= 3;
+      continue;
+    }
+    if (c >= 0x80)
+    {
+      if (!allow_non_ascii) return false;
+      i++;
+      continue;
+    }
+    if (!is_uri_char((char) c)) return false;
+    i++;
+  }
+  return true;
+}
+
+/* scheme ":" then URI body (RFC 3986, syntactic check only). */
+static bool validate_uri_ex(const char *val, int len,
+                                   bool allow_non_ascii)
+{
+  if (len < 1 || !is_alpha(val[0])) return false;
+  int i= 1;
+  while (i < len && (is_alpha(val[i]) || is_digit(val[i]) ||
+         val[i] == '+' || val[i] == '-' || val[i] == '.'))
+    i++;
+  if (i >= len || val[i] != ':') return false;
+  return validate_uri_tail(val + i + 1, len - i - 1, allow_non_ascii);
+}
+
+bool Json_schema_format::validate_uri(const char *val, int len) const
+{
+  return validate_uri_ex(val, len, false);
+}
+
+bool Json_schema_format::validate_iri(const char *val, int len) const
+{
+  return validate_uri_ex(val, len, true);
+}
+
+/* URI-reference: absolute URI or relative-ref (RFC 3986 4.1). */
+bool Json_schema_format::validate_uri_reference(const char *val, int len) const
+{
+  return len == 0 || validate_uri_tail(val, len, false);
+}
+
+bool Json_schema_format::validate_iri_reference(const char *val, int len) const
+{
+  return len == 0 || validate_uri_tail(val, len, true);
+}
+
+bool Json_schema_format::validate_uuid(const char *val, int len) const
+{
+  if (len != 36) return false;
+  for (int i= 0; i < 36; i++)
+  {
+    if (i == 8 || i == 13 || i == 18 || i == 23)
+    {
+      if (val[i] != '-') return false;
+    }
+    else
+    {
+      if (!is_hex(val[i])) return false;
+    }
+  }
+  return true;
+}
+
+bool Json_schema_format::validate_json_pointer(const char *val, int len) const
+{
+  if (len == 0) return true;
+  if (val[0] != '/') return false;
+  for (int i= 1; i < len; i++)
+  {
+    if (val[i] == '~')
+    {
+      if (i + 1 >= len) return false;
+      if (val[i + 1] != '0' && val[i + 1] != '1') return false;
+      i++;
+    }
+  }
+  return true;
+}
+
+bool Json_schema_format::validate_relative_json_pointer(const char *val, int len) const
+{
+  if (len < 1) return false;
+  if (!is_digit(val[0])) return false;
+  int pos= 0;
+  while (pos < len && is_digit(val[pos])) pos++;
+  if (pos == len) return true;
+  if (val[pos] == '#') return pos + 1 == len;
+  return validate_json_pointer(val + pos, len - pos);
+}
+
+/*
+  Unlike Json_schema_pattern (which compiles the schema's own fixed
+  pattern once), format:"regex" checks the document's value, which
+  varies per row, so it can't be precompiled at schema-parse time.
+*/
+bool Json_schema_format::validate_regex(const char *val, int len) const
+{
+  int errcode;
+  PCRE2_SIZE erroffset;
+  pcre2_code *re= pcre2_compile((PCRE2_SPTR) val, (PCRE2_SIZE) len,
+                                 0, &errcode, &erroffset, NULL);
+  if (!re)
+    return false;
+  pcre2_code_free(re);
+  return true;
+}
+
+bool Json_schema_format::validate(const json_engine_t *je,
+                                  MEM_ROOT *current_mem_root,
+                                  const uchar *k_start,
+                                  const uchar *k_end)
+{
+  if (je->value_type != JSON_VALUE_STRING)
+    return false;
+  if (!current_thd->variables.json_schema_format_validation)
+    return false;
+  if (!validator)
+    return false;
+
+  const char *val= (const char *) je->value;
+  int len= (int) je->value_len;
+
+  return !(this->*validator)(val, len);
 }
 
 bool Json_schema_type::validate(const json_engine_t *je,
