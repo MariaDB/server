@@ -5340,7 +5340,7 @@ void do_sync_with_master(struct st_command *command)
   long offset= 0;
   char *p= command->first_argument;
   const char *offset_start= p;
-  char *start, *buff= 0;
+  char *start, *buff= 0, *str;
   start= const_cast<char*>("");
 
   if (*offset_start)
@@ -5358,15 +5358,15 @@ void do_sync_with_master(struct st_command *command)
       p++;
       while (*p && my_isspace(charset_info, *p))
         p++;
-      start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
-                                    MYF(MY_WME|MY_FAE));
-      get_string(&buff, &p, command);
+      str= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
+                                  MYF(MY_WME|MY_FAE));
+      start= get_string(&str, &p, command);
     }
     command->last_argument= p;
   }
   do_sync_with_master2(command, offset, start);
   if (buff)
-    my_free(start);
+    my_free(buff);
   return;
 }
 
@@ -8417,7 +8417,7 @@ void do_get_errcodes(struct st_command *command)
 
 
 /*
-  Get a string;  Return ptr to end of string
+  Get a string;  Return ptr to start of string
   Strings may be surrounded by " or '
 
   If string is a '$variable', return the value of the variable.
