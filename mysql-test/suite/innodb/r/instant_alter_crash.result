@@ -201,4 +201,104 @@ CHECK TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 DROP TABLE t1,t2;
+#
+# MDEV-37467 InnoDB Instant ALTER TABLE is not crash safe
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,2,3),(4,5,6);
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="btr_store_metadata_crash SIGNAL con_start WAIT_FOR con_finish";
+ALTER TABLE t1 DROP COLUMN c, ALGORITHM=INSTANT;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR con_start";
+# restart
+disconnect con1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+a	b	c
+1	2	3
+4	5	6
+ALTER TABLE t1 DROP COLUMN c, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a	b
+1	2
+4	5
+ALTER TABLE t1 ADD COLUMN d INT NOT NULL DEFAULT 7, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a	b	d
+1	2	7
+4	5	7
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="btr_store_metadata_crash SIGNAL con_continue WAIT_FOR ever";
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+connection default;
+set DEBUG_SYNC="now WAIT_FOR con_continue";
+# restart
+disconnect con1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+a	b	d
+1	2	7
+4	5	7
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a	d
+1	7
+4	7
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1(
+id INT PRIMARY KEY,
+c1 INT,
+c2 VARCHAR(100),
+c3 TEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 100, 'test1', 'data1');
+INSERT INTO t1 VALUES(2, 200, 'test2', 'data2');
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail' FOR
+ALTER TABLE t1 DROP COLUMN c2, ALGORITHM=INSTANT;
+ERROR HY000: The table 't1' is full
+INSERT INTO t1 VALUES(3, 300, 'test3', 'data3');
+SELECT * FROM t1;
+id	c1	c2	c3
+1	100	test1	data1
+2	200	test2	data2
+3	300	test3	data3
+ALTER TABLE t1 ADD COLUMN c4 VARCHAR(100) DEFAULT 'default_value', ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(4, 400, 'test4', 'data4', 'custom');
+SELECT * FROM t1;
+id	c1	c2	c3	c4
+1	100	test1	data1	default_value
+2	200	test2	data2	default_value
+3	300	test3	data3	default_value
+4	400	test4	data4	custom
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail' FOR
+ALTER TABLE t1 DROP COLUMN c4, ALGORITHM=INSTANT;
+ERROR HY000: The table 't1' is full
+INSERT INTO t1 VALUES(5, 500, 'test5', 'data5', 'custom');
+SELECT * FROM t1;
+id	c1	c2	c3	c4
+1	100	test1	data1	default_value
+2	200	test2	data2	default_value
+3	300	test3	data3	default_value
+4	400	test4	data4	custom
+5	500	test5	data5	custom
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail_4' FOR
+ALTER TABLE t1 DROP COLUMN c4, ADD COLUMN c5 BLOB DEFAULT (REPEAT(0x41, 50000)), ALGORITHM=INSTANT;
+ERROR HY000: The table 't1' is full
+INSERT INTO t1 VALUES(6, 600, 'test6', 'data6', 'custom');
+SELECT * FROM t1;
+id	c1	c2	c3	c4
+1	100	test1	data1	default_value
+2	200	test2	data2	default_value
+3	300	test3	data3	default_value
+4	400	test4	data4	custom
+5	500	test5	data5	custom
+6	600	test6	data6	custom
+DROP TABLE t1;
 db.opt
