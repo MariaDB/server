@@ -432,8 +432,12 @@ void read_user_name(char *name)
   {
 #ifdef HAVE_GETPWUID
     struct passwd *skr;
-    const char *str;
-    if ((str=getlogin()) == NULL)
+    const char *str= NULL;
+#ifndef __wasi__
+    /* wasix-libc declares getlogin() but does not implement it */
+    str= getlogin();
+#endif
+    if (str == NULL)
     {
       if ((skr=getpwuid(geteuid())) != NULL)
 	str=skr->pw_name;

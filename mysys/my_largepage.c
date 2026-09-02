@@ -20,7 +20,7 @@
 #ifdef __linux__
 #include <dirent.h>
 #endif
-#if defined(__linux__) || defined(MAP_ALIGNED) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(MAP_ALIGNED) || defined(__EMSCRIPTEN__) || defined(__wasi__)
 #include "my_bit.h"
 #endif
 #ifdef HAVE_LINUX_MMAN_H
@@ -435,7 +435,7 @@ char *my_large_virtual_alloc(size_t *size)
   char *ptr;
   DBUG_ENTER("my_large_virtual_alloc");
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
   /* WASM has no useful PROT_NONE reservation; allocate committed pages. */
   {
     void *p= NULL;

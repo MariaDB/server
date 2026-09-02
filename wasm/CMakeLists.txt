@@ -1,7 +1,43 @@
-# WASM glue executable: libmariadbd + JS module.
+# WASM glue executable: libmariadbd + JS module (Emscripten) or
+# standalone WASIX module (wasixcc / Wasmer).
 
 SET(WASM_DIST ${CMAKE_CURRENT_SOURCE_DIR}/dist)
 FILE(MAKE_DIRECTORY ${WASM_DIST})
+
+IF(WASIX)
+  ADD_EXECUTABLE(lite4mariadb-wasix lite4mariadb.c)
+  TARGET_COMPILE_DEFINITIONS(lite4mariadb-wasix PRIVATE EMBEDDED_LIBRARY)
+  TARGET_INCLUDE_DIRECTORIES(lite4mariadb-wasix PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}/include
+  )
+  TARGET_LINK_LIBRARIES(lite4mariadb-wasix PRIVATE mysqlserver)
+  ADD_DEPENDENCIES(lite4mariadb-wasix GenError)
+
+  SET_TARGET_PROPERTIES(lite4mariadb-wasix PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${WASM_DIST}
+    OUTPUT_NAME "lite4mariadb"
+    SUFFIX ".wasix.wasm"
+  )
+
+  TARGET_LINK_OPTIONS(lite4mariadb-wasix PRIVATE
+    -O2
+    -pthread
+    -fexceptions
+    "SHELL:-Wl,--initial-memory=268435456"
+    "SHELL:-Wl,--max-memory=2147483648"
+    "SHELL:-Wl,-z,stack-size=8388608"
+    "SHELL:-Wl,--export=l4m_open"
+    "SHELL:-Wl,--export=l4m_query"
+    "SHELL:-Wl,--export=l4m_exec_multi"
+    "SHELL:-Wl,--export=l4m_escape"
+    "SHELL:-Wl,--export=l4m_close"
+    "SHELL:-Wl,--export=l4m_free"
+    "SHELL:-Wl,--export=malloc"
+    "SHELL:-Wl,--export=free"
+  )
+  RETURN()
+ENDIF()
 
 ADD_EXECUTABLE(lite4mariadb lite4mariadb.c)
 TARGET_COMPILE_DEFINITIONS(lite4mariadb PRIVATE EMBEDDED_LIBRARY)

@@ -310,6 +310,15 @@ C_MODE_END
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
+#if defined(__wasi__) && !defined(F_RDLCK)
+/* wasix-libc declares fcntl() but omits the lock constants in its default
+   headers. Embedded builds never lock files (my_lock() is a no-op without
+   HAVE_FCNTL); the constants are only used as flag values. */
+#define F_RDLCK 0
+#define F_WRLCK 1
+#define F_UNLCK 2
+#define F_TO_EOF 0x3FFFFFFF
+#endif
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
@@ -1068,7 +1077,7 @@ static inline char *dlerror(void)
 #endif
 #ifndef HAVE_DLADDR
 #define dladdr(A, B) 0
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__wasi__)
 /* Dummy definition in case we're missing dladdr() */
 typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #endif
@@ -1079,7 +1088,7 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #define dlsym(A,B) 0
 #define dlclose(A) 0
 #define dladdr(A, B) 0
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__wasi__)
 /* Dummy definition in case we're missing dladdr() */
 typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #endif

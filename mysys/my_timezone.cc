@@ -175,7 +175,12 @@ extern "C" void my_tzname(char* sys_timezone, size_t size)
   tzset();
   t= time(NULL);
   localtime_r(&t, &tm);
+#ifdef HAVE_TZNAME
   const char *tz_name= tzname[tm.tm_isdst != 0 ? 1 : 0];
+#else
+  /* WASI has no timezone tables; the embedded server runs in UTC. */
+  const char *tz_name= "UTC";
+#endif
   snprintf(sys_timezone, size, "%s", tz_name);
 }
 

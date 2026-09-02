@@ -28,8 +28,9 @@
   On Windows, neither my_open() nor mysql_file_sync() work for directories.
   Also there is no need to flush filesystem changes ,i.e to sync()
   directories.
+  WASIX cannot fsync() a directory either (EISDIR in wasix-libc).
 */
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__wasi__)
 #define sync_dir(A,B) 0
 #else
 #define sync_dir(A,B) mysql_file_sync(A,B)

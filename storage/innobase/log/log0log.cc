@@ -359,7 +359,12 @@ bool log_t::attach(log_file_t file, os_offset_t size,
         log_maybe_unbuffered= true;
       }
 # endif
-      IF_WIN(,mprotect(ptr, size_t(size), PROT_READ));
+#if !defined(_WIN32) && !defined(__wasi__)
+      /* WASIX has no mprotect(): wasm linear memory cannot be
+         write-protected. Keeping the mapping read-write is
+         functionally fine (only stray-write protection is lost). */
+      mprotect(ptr, size_t(size), PROT_READ);
+#endif
       buf= static_cast<byte*>(ptr);
       writer_update(false);
 # ifdef HAVE_PMEM

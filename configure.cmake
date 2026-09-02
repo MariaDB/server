@@ -973,8 +973,9 @@ IF(CMAKE_C_COMPILER_ID MATCHES "Intel")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fp-model precise")
 ENDIF()
 
-IF(EMSCRIPTEN)
+IF(EMSCRIPTEN OR WASIX)
   # Host-only syscalls: force off even if a compile-time probe succeeded.
+  # (Probes compile-check only in cross builds, so they pass spuriously.)
   SET(HAVE_DLOPEN FALSE)
   SET(HAVE_DLADDR FALSE)
   SET(HAVE_LIBAIO_H)
@@ -987,4 +988,9 @@ IF(EMSCRIPTEN)
   SET(HAVE_LINUX_UNISTD_H)
   SET(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
   SET(HAVE_DTRACE FALSE)
+  IF(WASIX)
+    # wasix-libc has fcntl() but no file locking (F_SETLK & friends);
+    # my_lock() short-circuits to a no-op under __wasi__.
+    SET(HAVE_FCNTL FALSE)
+  ENDIF()
 ENDIF()

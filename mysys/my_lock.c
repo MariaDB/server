@@ -155,7 +155,11 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
       DBUG_RETURN(0);
   }
 #else
-#if defined(HAVE_FCNTL)
+#if defined(__wasi__)
+  /* WASIX has no POSIX file locking (no fcntl F_SETLK, no lockf).
+     The embedded server is single-process, so pretend success. */
+  DBUG_RETURN(0);
+#elif defined(HAVE_FCNTL)
   {
     struct flock lock;
 

@@ -65,7 +65,7 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 char *my_virtual_mem_commit(char *ptr, size_t size)
 {
   DBUG_ASSERT(ptr);
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
   /* my_large_virtual_alloc() already returns read/write memory. */
   update_malloc_size(size, 0);
   return ptr;
@@ -127,7 +127,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
 
 void my_virtual_mem_decommit(char *ptr, size_t size)
 {
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
   (void) ptr;
   update_malloc_size(-(longlong) size, 0);
   return;
@@ -172,7 +172,7 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 
 void my_virtual_mem_release(char *ptr, size_t size)
 {
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
   free(ptr);
   return;
 #elif defined(_WIN32)

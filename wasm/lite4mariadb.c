@@ -442,6 +442,41 @@ oom:
   return dup_str("{\"ok\":false,\"error\":\"oom\"}");
 }
 
+#ifdef __wasi__
+/*
+  WASIX CLI entry point: opens the embedded server, runs each argument as
+  a statement and prints one JSON envelope per statement.
+
+  wasmer run lite4mariadb.wasix.wasm \
+    --mapdir /mariadb:$(pwd)/wasix-data --mapdir /tmp:/tmp \
+    -- "CREATE TABLE t1 (id INT)" "INSERT INTO t1 VALUES (1)" "SELECT * FROM t1"
+*/
+int main(int argc, char **argv)
+{
+  if (l4m_open())
+  {
+    fprintf(stderr, "lite4mariadb: server init failed\n");
+    return 1;
+  }
+  int rc= 0;
+  for (int i= 1; i < argc; i++)
+  {
+    char *r= l4m_query(argv[i]);
+    if (!r)
+    {
+      rc= 1;
+      continue;
+    }
+    puts(r);
+    if (strncmp(r, "{\"ok\":true", 10) != 0)
+      rc= 1;
+    l4m_free(r);
+  }
+  l4m_close();
+  return rc;
+}
+#endif
+
 EMSCRIPTEN_KEEPALIVE
 char *l4m_exec_multi(const char *sql)
 {

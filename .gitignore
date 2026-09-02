@@ -375,6 +375,7 @@ zzz/*
 x64/
 x86/
 build/
+build-wasix/
 bld/
 [Bb]in/
 /cmake-build-debug/

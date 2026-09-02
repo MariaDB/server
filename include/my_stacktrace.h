@@ -59,7 +59,9 @@ void my_setup_stacktrace(void);
 # define my_setup_stacktrace()
 #endif /* ! (defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)) */
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__wasi__)
+/* WASIX lacks the pieces this needs (POLLRDBAND, dladdr/Dl_info);
+   address resolving is only used for crash reports anyway. */
 #define MY_ADDR_RESOLVE_FORK
 #endif
 

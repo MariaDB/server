@@ -332,7 +332,14 @@ private:
   ssize_t execute_low(const IORequest& request, ssize_t n);
 };
 
-#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
+#if defined(__wasi__)
+/** WASIX has no file locking; the embedded server is single-process,
+so there is nothing to exclude. */
+int os_file_lock(int fd, const char *name) noexcept
+{
+	return(0);
+}
+#elif !defined(_WIN32) /* On Microsoft Windows, mandatory locking is used */
 /** Obtain an exclusive lock on a file.
 @param fd      file descriptor
 @param name    file name
