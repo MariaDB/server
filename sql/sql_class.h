@@ -78,6 +78,7 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_client_state.h"
 #include "wsrep_mutex.h"
 #include "wsrep_condition_variable.h"
+#include <unordered_set>
 
 class Wsrep_applier_service;
 enum wsrep_consistency_check_mode {
@@ -5623,6 +5624,14 @@ public:
   }
 
 #ifdef WITH_WSREP
+private:
+  /* Track table maps for current Galera transaction */
+  std::unordered_set<ulonglong>  m_wsrep_table_maps;
+
+public:
+  void wsrep_clear_table_maps();
+  bool wsrep_mark_table_mapped(ulonglong table_id);
+
   bool                      wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
