@@ -368,44 +368,121 @@ CONFIGURE_FILE(${SRCDIR}/mysql_server.wxs.in
 CONFIGURE_FILE(${SRCDIR}/extra.wxs.in
   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs)
 
-SET(EXTRA_CANDLE_ARGS "$ENV{EXTRA_CANDLE_ARGS}")
+MACRO(CHECK_WIX_RESULT res)
+  IF(res)
+    MESSAGE(FATAL_ERROR "WiX failed: ${res}")
+  ENDIF()
+ENDMACRO()
 
-SET(EXTRA_LIGHT_ARGS -cc . -reusecab)
-IF("$ENV{EXTRA_LIGHT_ARGS}")
-  SET(EXTRA_LIGHT_ARGS "$ENV{EXTRA_LIGHT_ARGS}")
-ENDIF()
-
-FILE(REMOVE mysql_server.wixobj extra.wixobj)
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
-EXECUTE_PROCESS(
- COMMAND ${CANDLE_EXECUTABLE} 
- ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- ${CANDLE_ARCH} 
- -ext WixUtilExtension 
- -ext WixFirewallExtension   
- mysql_server.wxs 
- ${EXTRA_CANDLE_ARGS}
-)
 
-EXECUTE_PROCESS(
- COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
- ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- -ext WixUtilExtension 
- -ext WixFirewallExtension  
- ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs 
- ${EXTRA_CANDLE_ARGS}
-)
+IF(WIX_EXECUTABLE)
+  # Modern WiX. Convert wxs sources from v3 to the current XML schema first.
+  # Conversion messages are noisy, only show them if conversion fails.
+  SET(WIX_CONVERT_FILES mysql_server.wxs extra.wxs)
+  FOREACH(third_party ${WITH_THIRD_PARTY})
+    LIST(APPEND WIX_CONVERT_FILES ${third_party}.wxi ${third_party}_feature.wxi)
+  ENDFOREACH()
+  # Note: "wix convert" exit code is the number of messages, not an error
+  # indicator. Look for real errors in the output instead. WIX0070 is a
+  # harmless advisory about removed TARGETDIR DirectoryRef (standard
+  # directories referenced from it are just promoted to top level).
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} convert ${WIX_CONVERT_FILES}
+    OUTPUT_VARIABLE convert_output ERROR_VARIABLE convert_output
+    RESULT_VARIABLE res)
+  STRING(REGEX REPLACE "[^\n]*WIX0070[^\n]*" "" convert_errors "${convert_output}")
+  IF(convert_errors MATCHES "error WIX"
+     OR (res AND NOT convert_output MATCHES "\\[Converted\\]"))
+    MESSAGE(FATAL_ERROR "wix convert failed: ${res}\n${convert_output}")
+  ENDIF()
 
-IF(VCRedist_MSM)
-  SET(SILENCE_VCREDIST_MSM_WARNINGS  -sice:ICE82 -sice:ICE03)
+  # Extensions are versioned, must match the toolset version, and need
+  # to be added (downloaded from nuget.org) before first use.
+  SET(WIX_EXTENSIONS
+    WixToolset.UI.wixext
+    WixToolset.Util.wixext
+    WixToolset.Firewall.wixext)
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} extension list --global
+    OUTPUT_VARIABLE WIX_EXTENSION_LIST)
+  SET(WIX_EXTENSION_ARGS)
+  FOREACH(ext ${WIX_EXTENSIONS})
+    IF(NOT WIX_EXTENSION_LIST MATCHES "${ext}[/ ]+${WIX_VERSION}")
+      EXECUTE_PROCESS(
+        COMMAND ${WIX_EXECUTABLE} extension add --global ${ext}/${WIX_VERSION}
+        RESULT_VARIABLE res)
+      CHECK_WIX_RESULT(${res})
+    ENDIF()
+    LIST(APPEND WIX_EXTENSION_ARGS -ext "${ext}/${WIX_VERSION}")
+  ENDFOREACH()
+
+  # wix.exe needs the -d flag and the definition as separate arguments
+  SET(WIX_DEFINE_ARGS)
+  FOREACH(flag ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST})
+    STRING(REGEX REPLACE "^-d" "" def "${flag}")
+    LIST(APPEND WIX_DEFINE_ARGS -d "${def}")
+  ENDFOREACH()
+
+  SET(EXTRA_WIX_BUILD_ARGS "$ENV{EXTRA_WIX_BUILD_ARGS}")
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} build
+    -arch ${Platform}
+    ${WIX_DEFINE_ARGS}
+    ${WIX_EXTENSION_ARGS}
+    -sw1103
+    -cabcache .
+    mysql_server.wxs extra.wxs
+    -out ${CPACK_PACKAGE_FILE_NAME}.msi
+    ${EXTRA_WIX_BUILD_ARGS}
+    RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT(${res})
+ELSE()
+  SET(EXTRA_CANDLE_ARGS "$ENV{EXTRA_CANDLE_ARGS}")
+
+  SET(EXTRA_LIGHT_ARGS -cc . -reusecab)
+  IF("$ENV{EXTRA_LIGHT_ARGS}")
+    SET(EXTRA_LIGHT_ARGS "$ENV{EXTRA_LIGHT_ARGS}")
+  ENDIF()
+
+  FILE(REMOVE mysql_server.wixobj extra.wixobj)
+  EXECUTE_PROCESS(
+   COMMAND ${CANDLE_EXECUTABLE}
+   ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
+   ${CANDLE_ARCH}
+   -ext WixUtilExtension
+   -ext WixFirewallExtension
+   mysql_server.wxs
+   ${EXTRA_CANDLE_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT(${res})
+
+  EXECUTE_PROCESS(
+   COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
+   ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
+   -ext WixUtilExtension
+   -ext WixFirewallExtension
+   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs
+   ${EXTRA_CANDLE_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT(${res})
+
+  IF(VCRedist_MSM)
+    SET(SILENCE_VCREDIST_MSM_WARNINGS  -sice:ICE82 -sice:ICE03)
+  ENDIF()
+
+  EXECUTE_PROCESS(
+   COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
+    -ext WixFirewallExtension -sice:ICE61 -sw1103 ${SILENCE_VCREDIST_MSM_WARNINGS}
+    mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
+    ${EXTRA_LIGHT_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT(${res})
 ENDIF()
-
-EXECUTE_PROCESS(
- COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
-  -ext WixFirewallExtension -sice:ICE61 -sw1103 ${SILENCE_VCREDIST_MSM_WARNINGS}
-  mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
-  ${EXTRA_LIGHT_ARGS}
-)
 
 IF(SIGNCODE)
   SEPARATE_ARGUMENTS(SIGNTOOL_PARAMETERS WINDOWS_COMMAND "${SIGNTOOL_PARAMETERS}")

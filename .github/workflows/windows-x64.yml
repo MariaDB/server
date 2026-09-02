@@ -1,0 +1,114 @@
+name: Build on Windows x64, test MSI and MTR
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'bb-*'
+      - '[0-9]+.[0-9]+'
+      - '*wlad*'
+  pull_request:
+
+jobs:
+  build:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # Windows Server 2025 with Visual Studio 2026
+    runs-on: windows-2025-vs2026
+
+    env:
+      BUILD_TYPE: RelWithDebInfo
+      MSI_INSTALLDIR: C:\mariadb-ci
+      MSI_SERVICENAME: MariaDB-CI
+      MSI_PORT: 3307
+      MSI_PASSWORD: Ci-Passw0rd
+
+    steps:
+      - name: Configure git
+        run: |
+          # We won't be able to successfully run mtr
+          # unless we configure autocrlf.
+          git config --global core.autocrlf input
+
+      - uses: actions/checkout@v6
+
+      - name: Install prerequisites
+        run: |
+          # bison to compile, modern WiX for the MSI.
+          # WiX is pinned to v6 - v7 refuses to run without accepting
+          # the Open Source Maintenance Fee EULA.
+          choco install winflexbison3 --no-progress
+          dotnet tool install --global wix --version "6.0.*"
+
+      - name: Build
+        shell: cmd
+        run: |
+          rem speedup checkout by excluding uninteresting modules
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
+          mkdir bld
+          cd bld
+          rem WITH_SSL=bundled, because CPack in this branch does not pack
+          rem runtime dependency DLLs (INSTALL_RUNTIME_DEPENDENCIES is 11.4+),
+          rem so OpenSSL from vcpkg would be missing from the MSI.
+          rem PLUGIN_CONNECT=NO, error suppressions do not work with Ninja generator
+          cmake -E time cmake .. -GNinja -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DWITH_SSL=bundled -DPLUGIN_CONNECT=NO -DPLUGIN_ROCKSDB=NO -DWITH_UNIT_TESTS=0
+          cmake -E time cmake --build .
+
+      - name: Build MSI
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
+          cd bld
+          cmake --build . --target MSI
+
+      - name: Test MSI custom action rollback
+        run: |
+          $msi = (Get-ChildItem bld\mariadb-*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /norestart TESTFAIL=1 SERVICENAME=$env:MSI_SERVICENAME PASSWORD=$env:MSI_PASSWORD /l*v testfail.log" -Wait -PassThru
+          if ($p.ExitCode -ne 1603) { throw "Expected install failure 1603, got $($p.ExitCode)" }
+          if (Get-Service $env:MSI_SERVICENAME -ErrorAction SilentlyContinue) { throw "Service still exists after rollback" }
+
+      - name: Install MSI
+        run: |
+          $msi = (Get-ChildItem bld\mariadb-*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /norestart INSTALLDIR=$env:MSI_INSTALLDIR SERVICENAME=$env:MSI_SERVICENAME PORT=$env:MSI_PORT PASSWORD=$env:MSI_PASSWORD /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /i failed with $($p.ExitCode)" }
+          $svc = Get-Service $env:MSI_SERVICENAME
+          if ($svc.Status -ne 'Running') { throw "Service is $($svc.Status), expected Running" }
+
+      - name: Smoke test installed server
+        run: |
+          & "$env:MSI_INSTALLDIR\bin\mysql.exe" -uroot "-p$env:MSI_PASSWORD" -P $env:MSI_PORT --protocol=tcp -e "select version(); create database smoke; create table smoke.t(a int); insert smoke.t values (1); select * from smoke.t"
+          if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
+
+      - name: Uninstall MSI
+        run: |
+          $msi = (Get-ChildItem bld\mariadb-*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /norestart /l*v uninstall.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /x failed with $($p.ExitCode)" }
+          if (Get-Service $env:MSI_SERVICENAME -ErrorAction SilentlyContinue) { throw "Service still exists after uninstall" }
+          if (Test-Path "$env:MSI_INSTALLDIR\data") { throw "Datadir not removed on uninstall" }
+
+      - name: Upload MSI logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msi-logs
+          path: '*.log'
+
+      - name: Test MTR
+        shell: cmd
+        run: |
+          set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
+          cd bld\mysql-test
+          set /A parallel=4*%NUMBER_OF_PROCESSORS%
+          rem Legacy TLS tests are skipped. TLS 1.0/1.1 and legacy cipher suites
+          rem appear to be disabled in Schannel client on this runner image
+          rem (plain Windows Server 2025 has them enabled, per MS docs)
+          perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=%parallel% --testcase-timeout=4 --suite=main --skip-test-list=%GITHUB_WORKSPACE%\win\appveyor_skip_tests.txt --skip-test="main\.(ssl_cipher|tls_version1?)" --mysqld=--loose-innodb-flush-log-at-trx-commit=2
