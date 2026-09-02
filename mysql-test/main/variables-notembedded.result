@@ -1,5 +1,6 @@
 ---- Init ----
 set @my_slave_net_timeout         =@@global.slave_net_timeout;
+set @my_slave_skip_errors         =@@global.slave_skip_errors;
 ---- Test ----
 set global slave_net_timeout=100;
 set global sql_slave_skip_counter=100;
@@ -144,9 +145,13 @@ SELECT @@global.slave_skip_errors;
 @@global.slave_skip_errors
 0,3,100,137,643,1752
 SET @@session.slave_skip_errors= 7;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
-SET @@global.slave_skip_errors= 7;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
+ERROR HY000: Variable 'slave_skip_errors' is a GLOBAL variable and should be set with SET GLOBAL
+SET @@global.slave_skip_errors= "7";
+SELECT @@global.slave_skip_errors;
+@@global.slave_skip_errors
+7
+SET @@global.slave_skip_errors= "OFF";
+set GLOBAL slave_skip_errors = @my_slave_skip_errors;
 #
 # Bug #11766769 : 59959: SMALL VALUES OF --MAX-ALLOWED-PACKET 
 #   ARE NOT BEING HONORED

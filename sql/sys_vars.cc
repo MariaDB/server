@@ -6232,12 +6232,57 @@ static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
        ON_UPDATE(update_max_relay_log_size));
 
+bool check_slave_skip_errors(sys_var *self, THD *thd, set_var *var)
+{
+  return give_error_if_slave_running(0);
+}
+
+bool update_slave_skip_errors(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool err= false;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  if (give_error_if_slave_running(1))
+  {
+    my_error(ER_SLAVE_MUST_STOP, MYF(0));
+    err= true;
+  }
+  if (!err)
+  {
+    if (init_slave_skip_errors_bitmap(opt_slave_skip_errors))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      err= true;
+    }
+    else
+    {
+      /*
+       * global_update() already ran my_memdup() on the user's string and stored
+       * the heap pointer in opt_slave_skip_errors with ALLOCATED set.
+       * We must call self->cleanup() after building the bitmap to free that
+       * heap allocation before make_slave_skip_errors_printable() overwrites
+       * opt_slave_skip_errors with the static slave_skip_error_names[] buffer.
+       * Without this, the heap pointer is lost (leak) and ALLOCATED stays set,
+       * causing a crash when cleanup() later tries to free the static buffer.
+       */
+      self->cleanup();
+      make_slave_skip_errors_printable();
+    }
+  }
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return err;
+}
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
        "replication when a query event returns an error from the "
        "provided list",
-       READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
-       DEFAULT(0));
+       GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(NULL), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_slave_skip_errors),
+       ON_UPDATE(update_slave_skip_errors));
 
 static Sys_var_on_access_global<Sys_var_ulonglong,
                             PRIV_SET_SYSTEM_GLOBAL_VAR_READ_BINLOG_SPEED_LIMIT>
