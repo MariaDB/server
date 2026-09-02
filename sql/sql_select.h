@@ -33,6 +33,7 @@
 #include "sql_update.h"
 
 #include "cset_narrowing.h"
+#include "sql_parallel_workers.h"
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
@@ -491,6 +492,14 @@ class SplM_opt_info;
 
 typedef struct st_join_table {
   TABLE		*table;
+  /*
+    One batch temporary table per parallel worker, built in this (first
+    non-const) table's column format and created up front by
+    JOIN::create_parallel_workers_tmp_tables. Each worker reuses its table to
+    ship scanned source rows to the manager a batch at a time. Empty unless
+    this is the parallel-scan source table.
+  */
+  Dynamic_array<TABLE*>  parallel_tmp_tables;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
@@ -667,6 +676,7 @@ typedef struct st_join_table {
   bool          shortcut_for_distinct;
   bool          sorted;
   bool          cached_pfs_batch_update;
+  bool          use_parallel_scan;
 
   /* 
     If it's not 0 the number stored this field indicates that the index
@@ -1855,6 +1865,13 @@ public:
 
   bool need_tmp; 
   bool hidden_group_fields;
+  /*
+    First non-const join_tab whose table is read by a full scan (JT_ALL) and
+    is therefore eligible for parallel scanning. When set (and
+    parallel_worker_threads > 0) JOIN::exec spins up workers that stream that
+    table's rows to the manager through the pwt_management channel.
+  */
+  JOIN_TAB *parallel_scan_join_tab;
   /* TRUE if there was full cleanup of the JOIN */
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
@@ -1991,6 +2008,8 @@ public:
     sql_cmd_dml::scanned_rows to choose optimization strategies.
   */
   Sql_cmd_dml *sql_cmd_dml;
+
+  pwt_management *parallel_work_manager{0};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -2220,6 +2239,9 @@ private:
     In this case we can stop scanning t2 when we have found one t1.a
   */
   void optimize_distinct();
+
+  bool create_parallel_workers_tmp_tables(JOIN_TAB *join_tab);
+  void free_parallel_tmp_tables(JOIN_TAB *join_tab);
 
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
@@ -2943,8 +2965,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            TMP_ENGINE_COLUMNDEF *start_recinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
-                           ulonglong options);
-bool open_tmp_table(TABLE *table);
+                           ulonglong options,
+                           bool cross_thread= false);
+bool open_tmp_table(TABLE *table, bool cross_thread= false);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
