@@ -20445,6 +20445,16 @@ static MYSQL_SYSVAR_BOOL(alter_copy_bulk, innodb_alter_copy_bulk,
   PLUGIN_VAR_NOCMDARG,
   "Allow bulk insert operation for copy alter operation", NULL, NULL, TRUE);
 
+static MYSQL_SYSVAR_BOOL(instant_rollback_enabled, srv_instant_rollback,
+  PLUGIN_VAR_OPCMDARG,
+  "Enable instant rollback",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_LONGLONG(instant_rollback_threshold,
+  srv_instant_rollback_threshold, PLUGIN_VAR_RQCMDARG,
+  "The number of undo records required to start instant rollback",
+  NULL, NULL, SRV_INSTANT_ROLLBACK_THRESHOLD_DEF, 0, LLONG_MAX, 1);
+
 const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 		CREATE_TYPELIB_FOR(page_compression_algorithms);
@@ -20706,6 +20716,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
           defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(alter_copy_bulk),
+  MYSQL_SYSVAR(instant_rollback_enabled),
+  MYSQL_SYSVAR(instant_rollback_threshold),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
   MYSQL_SYSVAR(compression_default),
