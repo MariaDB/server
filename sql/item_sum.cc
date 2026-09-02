@@ -3851,6 +3851,25 @@ static void report_cut_result_error(THD *thd, const char *fname)
 }
 
 
+/*
+  Tell the user that a value was cut to group_concat_max_len on its way
+  into blob_storage.
+
+  This is only a note. Whether the answer would have been different with
+  a bigger limit is not known here: the result may well have been cut at
+  the same place anyway, in which case nothing was lost that the user
+  could have seen.
+*/
+
+static void report_cut_value_note(THD *thd, const char *fname)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_CUT_VALUES_WHILE_PROCESSING,
+                      ER_THD(thd, ER_CUT_VALUES_WHILE_PROCESSING),
+                      fname, "group_concat_max_len");
+}
+
+
 void Item_func_group_concat::cut_max_length(String *result,
         uint old_length, uint max_length) const
 {
@@ -3931,8 +3950,22 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
+        const uchar *rec= key + offset + item->get_null_bytes();
         res= item->get_str_from_field(*arg, field, &tmp, key,
                                       offset + item->get_null_bytes());
+        /*
+          This row is going into the answer. If the value it carries was
+          cut on its way into blob_storage then the answer is short by
+          what was cut, which val_str() reports as a warning. A value cut
+          for a row that never gets here may have changed nothing.
+        */
+        if (table->blob_storage && (field->flags & BLOB_FLAG))
+        {
+          /* A NULL blob was never stored, so there is no mark to read. */
+          const uchar *val= ((Field_blob*) field)->get_ptr(rec);
+          if (val && Blob_mem_storage::was_cut((const char*) val))
+            item->value_cut_in_result= true;
+        }
       }
       else
         res= item->get_str_from_item(*arg, &tmp);
@@ -3986,8 +4019,9 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    arg_count_field(select_list->elements),
    row_count(0),
    distinct(distinct_arg),
-   warning_for_row(FALSE), result_cut(FALSE), walk_stopped(FALSE),
-   walk_failed(FALSE), always_null(FALSE),
+   warning_for_row(FALSE), result_cut(FALSE), cut_note_given(FALSE),
+   value_cut_in_result(FALSE), walk_stopped(FALSE), walk_failed(FALSE),
+   always_null(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
    copy_offset_limit(0), copy_row_limit(0), original(0)
@@ -4055,6 +4089,8 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   distinct(item->distinct),
   warning_for_row(item->warning_for_row),
   result_cut(item->result_cut),
+  cut_note_given(item->cut_note_given),
+  value_cut_in_result(item->value_cut_in_result),
   walk_stopped(item->walk_stopped),
   walk_failed(item->walk_failed),
   always_null(item->always_null),
@@ -4127,6 +4163,7 @@ void Item_func_group_concat::cleanup()
     row_count= 0;
     DBUG_ASSERT(tree == 0);
   }
+  cut_note_given= false;
   /*
     As the ORDER structures pointed to by the elements of the
     'order' array may be modified in find_order_in_list() called
@@ -4157,6 +4194,7 @@ void Item_func_group_concat::clear()
   null_value= TRUE;
   warning_for_row= FALSE;
   result_cut= FALSE;
+  value_cut_in_result= FALSE;
   walk_failed= FALSE;
   result_finalized= false;
   if (offset_limit)
@@ -4755,19 +4793,44 @@ String* Item_func_group_concat::val_str(String* str)
       DBUG_ASSERT(false); // Can't happen
   }
 
-  if (result_cut ||
-      (table && table->blob_storage &&
-       table->blob_storage->is_truncated_value()))
+  /*
+    The answer came out short: it was cut at gconcat_max_len(), the sort
+    tree could not keep every row it was given, or a row that reached the
+    answer carried a value that was cut on its way into blob_storage.
+    Values the user asked for are missing, so this is a warning.
+  */
+  if (result_cut || value_cut_in_result)
   {
     warning_for_row= true;
     report_cut_value_error(current_thd, row_count, func_name());
+    /*
+      A cut value that reached the answer has now been reported as the
+      warning it is, so it must not be reported again as a note.
+    */
+    if (value_cut_in_result && table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
     /*
       Clear the marks so that we give only one warning per group, even
       if val_str() is called more than once for this group.
     */
     result_cut= false;
-    if (table && table->blob_storage)
-      table->blob_storage->set_truncated_value(false);
+    value_cut_in_result= false;
+  }
+
+  /*
+    A value was cut on its way into blob_storage, but no row carrying one
+    reached the answer, so the answer may well be what it would have been
+    without the limit: one note per statement.
+  */
+  if (table && table->blob_storage &&
+      table->blob_storage->is_truncated_value())
+  {
+    if (!cut_note_given)
+    {
+      cut_note_given= true;
+      report_cut_value_note(current_thd, func_name());
+    }
+    table->blob_storage->set_truncated_value(false);
   }
 
   /*

@@ -2094,6 +2094,20 @@ class Item_func_group_concat : public Item_sum_str
   */
   bool result_cut;
   /*
+    Set once the note about values cut on their way into blob_storage has
+    been given for this aggregate. One note per statement is enough,
+    however many groups had a value cut. cleanup() clears it, so a
+    statement that is run again gets its own note.
+  */
+  bool cut_note_given;
+  /*
+    Set by dump_leaf_key() when a row it appends carries a value that was
+    cut on its way into blob_storage. The answer is then short by what
+    was cut, which is a warning rather than the note a cut value that
+    never reached the answer gets.
+  */
+  bool value_cut_in_result;
+  /*
     Set by dump_leaf_key() when it is the one that stops a walk, so that
     val_str() can tell that apart from the walk itself having failed.
   */

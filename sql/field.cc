@@ -8977,20 +8977,22 @@ int Field_blob::handle_group_concat(const char *from, size_t length,
 
   size_t new_length= length;
   size_t copy_length= table->in_use->variables.group_concat_max_len;
+  bool cut= false;
   if (new_length > copy_length)
   {
     new_length= Well_formed_prefix(cs, from, copy_length, new_length).length();
+    cut= true;
     table->blob_storage->set_truncated_value(true);
   }
 
   char *tmp;
   if (with_zero_prefix)
   {
-    tmp= table->blob_storage->store_with_zero_prefix(from, new_length);
+    tmp= table->blob_storage->store_with_zero_prefix(from, new_length, cut);
     new_length++;                               // Count the extra 0
   }
   else
-    tmp= table->blob_storage->store(from, new_length);
+    tmp= table->blob_storage->store(from, new_length, cut);
 
   if (!tmp)
     goto oom_error;

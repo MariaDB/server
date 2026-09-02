@@ -1315,34 +1315,56 @@ public:
     free_root(&storage, MYF(MY_MARK_BLOCKS_FREE));
     truncated_value= false;
   }
+  /*
+    Every value is stored behind one byte that records whether the value
+    was cut on its way in. The byte is not part of the value and the
+    returned pointer is what the record holds, so a reader that has the
+    record can ask was_cut() about a value without knowing which row it
+    came from.
+  */
+  char *store_with_cut_mark(const char *from, size_t length, bool cut,
+                            size_t prefix)
+  {
+    char *res= (char*) alloc_root(&storage, length + prefix + 1);
+    if (res)
+    {
+      *res++= (char) cut;
+      if (prefix)
+        res[0]= 0;
+      memcpy(res + prefix, from, length);
+    }
+    return res;
+  }
   /**
      Function creates duplicate of 'from'
      string in 'storage' MEM_ROOT.
 
      @param from           string to copy
      @param length         string length
+     @param cut            'from' was cut to fit the limit
 
      @retval Pointer to the copied string.
      @retval 0 if an error occurred.
   */
-  char *store(const char *from, size_t length)
+  char *store(const char *from, size_t length, bool cut)
   {
-    return (char*) memdup_root(&storage, from, length);
+    return store_with_cut_mark(from, length, cut, 0);
   }
   /*
     Store string with a 0 prefix. This is used for storing
     Field_blob_compressed fields in a not compressed format.
   */
-  char *store_with_zero_prefix(const char *from, size_t length)
+  char *store_with_zero_prefix(const char *from, size_t length, bool cut)
   {
-    char *res= (char*) alloc_root(&storage, length+1);
-    if (res)
-    {
-      res[0]= 0;
-      memcpy(res+1, from, length);
-    }
-    return res;
+    return store_with_cut_mark(from, length, cut, 1);
   }
+  /*
+    Whether the value at 'ptr' was cut on its way in. 'ptr' must be a
+    pointer this storage handed out, which is the case for every blob in
+    a table that has a Blob_mem_storage: Field_blob::store() sends all of
+    them through Field_blob::handle_group_concat().
+  */
+  static bool was_cut(const char *ptr) { return ptr[-1] != 0; }
   void set_truncated_value(bool is_truncated_value)
   {
     truncated_value= is_truncated_value;
