@@ -13661,6 +13661,9 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(err);
 	}
 
+	if (blink_table_has_index(m_prebuilt->table))
+		DBUG_RETURN(HA_ERR_UNSUPPORTED);
+
 	if (m_prebuilt->table->is_temporary()) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
@@ -14162,6 +14165,9 @@ int ha_innobase::truncate()
 
   if (int err= is_valid_trx())
     DBUG_RETURN(err);
+
+  if (blink_table_has_index(m_prebuilt->table))
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
 
   HA_CREATE_INFO info;
   dict_table_t *ib_table= m_prebuilt->table;

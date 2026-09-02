@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+SET max_recursive_iterations=4000;
+CREATE TABLE t(a BIGINT PRIMARY KEY, payload VARBINARY(2500)) ENGINE=InnoDB;
+--sleep 1
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 1 UNION ALL SELECT n + 1 FROM cte WHERE n < 3000)
+SELECT n, REPEAT(CHAR(65 + n % 20),2500) FROM cte;
+SELECT COUNT(*), MIN(a), MAX(a) FROM t;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

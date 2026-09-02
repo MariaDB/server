@@ -167,6 +167,10 @@ btr_cur_optimistic_insert(
 				mtr_commit(mtr) before latching
 				any further pages */
 	MY_ATTRIBUTE((nonnull(2,3,4,5,6,7,10), warn_unused_result));
+dberr_t btr_cur_ins_lock_and_undo(ulint flags, btr_cur_t *cursor,
+                                   dtuple_t *entry, que_thr_t *thr,
+                                   mtr_t *mtr, bool *inherit);
+
 /*************************************************************//**
 Performs an insert on a page of an index tree. It is assumed that mtr
 holds an x-latch on the tree and on the cursor page. If the insert is

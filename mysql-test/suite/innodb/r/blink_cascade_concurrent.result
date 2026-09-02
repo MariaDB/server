@@ -1,0 +1,23 @@
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, payload VARBINARY(700)) ENGINE=InnoDB;
+connect con1,localhost,root,,test;
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 1 UNION ALL SELECT n + 2 FROM cte WHERE n < 999)
+SELECT n, REPEAT('a',700) FROM cte;
+connection default;
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 2 UNION ALL SELECT n + 2 FROM cte WHERE n < 1000)
+SELECT n, REPEAT('b',700) FROM cte;
+connection con1;
+disconnect con1;
+connection default;
+SELECT COUNT(*), MIN(a), MAX(a) FROM t;
+COUNT(*)	MIN(a)	MAX(a)
+1000	1	1000
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

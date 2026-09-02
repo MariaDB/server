@@ -1,0 +1,35 @@
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, payload VARBINARY(700), KEY(b)) ENGINE=InnoDB;
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 1 UNION ALL SELECT n + 1 FROM cte WHERE n < 200)
+SELECT n, 1000 - n, REPEAT(CHAR(65 + n % 20), 700) FROM cte;
+SELECT COUNT(*), MIN(a), MAX(a), SUM(b) FROM t;
+COUNT(*)	MIN(a)	MAX(a)	SUM(b)
+200	1	200	179900
+SELECT a,b FROM t WHERE a IN (1,50,100,150,200) ORDER BY a;
+a	b
+1	999
+50	950
+100	900
+150	850
+200	800
+SELECT a,b FROM t FORCE INDEX(b) WHERE b IN (800,850,900,950,999) ORDER BY b;
+a	b
+200	800
+150	850
+100	900
+50	950
+1	999
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+# restart
+SELECT COUNT(*), MIN(a), MAX(a), SUM(b) FROM t;
+COUNT(*)	MIN(a)	MAX(a)	SUM(b)
+200	1	200	179900
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

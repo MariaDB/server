@@ -2254,6 +2254,14 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
+	if (blink_table_has_index(m_prebuilt->table) &&
+	    (ha_alter_info->handler_flags &
+	     (INNOBASE_ALTER_DATA | INNOBASE_ALTER_NOCREATE))) {
+		ha_alter_info->unsupported_reason=
+			"B-link indexes do not support index or table rebuild DDL";
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	if (!m_prebuilt->table->space) {
 		ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN,
 			    ER_TABLESPACE_DISCARDED,

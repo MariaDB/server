@@ -9,14 +9,21 @@
 #include "lock0lock.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
+#include "my_cpu.h"
 #include "page0blink.h"
 #include "page0cur.h"
+#include "que0que.h"
 #include "rem0cmp.h"
 #include "rem0rec.h"
+#include "trx0trx.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
+#include <deque>
 #include <limits>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 bool blink_stamp_empty_tree(dict_index_t *index)
@@ -355,8 +362,9 @@ static dtuple_t *blink_copy_key(const rec_t *record, dict_index_t *index,
   const uint16_t fields= dict_index_get_n_unique_in_tree_nonleaf(index);
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
   rec_offs_init(offsets_);
-  rec_offs *offsets= rec_get_offsets(record, index, offsets_, 0,
-                                     ULINT_UNDEFINED, &heap);
+  rec_offs *offsets= rec_get_offsets(
+    record, index, offsets_, page_rec_is_leaf(record) ? index->n_core_fields : 0,
+    ULINT_UNDEFINED, &heap);
   dtuple_t *key= dtuple_create(heap, fields);
   dtuple_set_n_fields_cmp(key, fields);
   dict_index_copy_types(key, index, fields);
@@ -370,8 +378,9 @@ static dtuple_t *blink_copy_key(const rec_t *record, dict_index_t *index,
   return key;
 }
 
-rec_t *blink_split_page_and_insert(btr_cur_t *cursor, rec_offs **offsets,
-                                   mem_heap_t **heap, dtuple_t *tuple,
+rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
+                                   rec_offs **offsets, mem_heap_t **heap,
+                                   dtuple_t *tuple,
                                    ulint n_ext, buf_block_t *new_block,
                                    buf_block_t *old_right, mtr_t *mtr)
 {
@@ -436,6 +445,11 @@ rec_t *blink_split_page_and_insert(btr_cur_t *cursor, rec_offs **offsets,
 
   const ulint level= btr_page_get_level(left_page);
   btr_page_create(new_block, nullptr, index, level, mtr);
+  if (level == 0 && !index->is_primary() && !index->table->is_temporary()) {
+    const trx_id_t max_trx_id= page_get_max_trx_id(left_page);
+    if (max_trx_id)
+      page_update_max_trx_id(new_block, nullptr, max_trx_id, mtr);
+  }
   if (old_high_key)
     blink_delete_high_key_record(left, index, mtr);
 
@@ -448,7 +462,7 @@ rec_t *blink_split_page_and_insert(btr_cur_t *cursor, rec_offs **offsets,
     ut_a(err == DB_SUCCESS);
   }
 
-  if (index->has_locking())
+  if (!(flags & BTR_NO_LOCKING_FLAG) && index->has_locking())
     lock_update_split_right(new_block, left);
 #ifdef BTR_CUR_HASH_ADAPT
   btr_search_move_or_delete_hash_entries(new_block, left, *mtr);
@@ -504,8 +518,9 @@ static dtuple_t *blink_build_node_ptr(dict_index_t *index, buf_block_t *block,
   return node_ptr;
 }
 
-buf_block_t *blink_root_raise_low(dict_index_t *index, buf_block_t *root,
-                                  buf_block_t *old_root, mtr_t *mtr)
+buf_block_t *blink_root_raise_low(ulint flags, dict_index_t *index,
+                                  buf_block_t *root, buf_block_t *old_root,
+                                  mtr_t *mtr)
 {
   if (root->page.id().page_no() != index->page || root->zip_size() ||
       old_root->zip_size() || old_root == root ||
@@ -525,9 +540,14 @@ buf_block_t *blink_root_raise_low(dict_index_t *index, buf_block_t *root,
   memcpy(top_segment,
          root->page.frame + PAGE_HEADER + PAGE_BTR_SEG_TOP, 10);
 #endif
-  const uint32_t root_page_no= root->page.id().page_no();
+  ut_d(const uint32_t root_page_no= root->page.id().page_no());
   const ulint level= btr_page_get_level(root->page.frame);
   btr_page_create(old_root, nullptr, index, level, mtr);
+  if (level == 0 && !index->is_primary() && !index->table->is_temporary()) {
+    const trx_id_t max_trx_id= page_get_max_trx_id(root->page.frame);
+    if (max_trx_id)
+      page_update_max_trx_id(old_root, nullptr, max_trx_id, mtr);
+  }
   btr_page_set_prev(old_root, FIL_NULL, mtr);
   btr_page_set_next(old_root, FIL_NULL, mtr);
   dberr_t err= DB_SUCCESS;
@@ -535,7 +555,7 @@ buf_block_t *blink_root_raise_low(dict_index_t *index, buf_block_t *root,
                               page_get_infimum_rec(root->page.frame),
                               index, mtr, &err));
   ut_a(err == DB_SUCCESS);
-  if (index->has_locking())
+  if (!(flags & BTR_NO_LOCKING_FLAG) && index->has_locking())
     lock_update_root_raise(*old_root, root->page.id());
   mem_heap_t *heap= mem_heap_create(512);
   dtuple_t *node_ptr= blink_build_node_ptr(index, old_root, heap);
@@ -563,8 +583,9 @@ buf_block_t *blink_root_raise_low(dict_index_t *index, buf_block_t *root,
   return old_root;
 }
 
-rec_t *blink_root_raise_and_insert(btr_cur_t *cursor, rec_offs **offsets,
-                                   mem_heap_t **heap, dtuple_t *tuple,
+rec_t *blink_root_raise_and_insert(ulint flags, btr_cur_t *cursor,
+                                   rec_offs **offsets, mem_heap_t **heap,
+                                   dtuple_t *tuple,
                                    ulint n_ext, buf_block_t *old_root,
                                    buf_block_t *sibling, mtr_t *mtr)
 {
@@ -580,7 +601,7 @@ rec_t *blink_root_raise_and_insert(btr_cur_t *cursor, rec_offs **offsets,
                                         &preflight_split, &preflight_left,
                                         heap))
     return nullptr;
-  if (!blink_root_raise_low(index, root, old_root, mtr))
+  if (!blink_root_raise_low(flags, index, root, old_root, mtr))
     return nullptr;
   cursor->page_cur.block= old_root;
   cursor->page_cur.index= index;
@@ -589,7 +610,7 @@ rec_t *blink_root_raise_and_insert(btr_cur_t *cursor, rec_offs **offsets,
                                    &cursor->low_match, &cursor->page_cur,
                                    nullptr));
   rec_t *inserted= blink_split_page_and_insert(
-    cursor, offsets, heap, tuple, n_ext, sibling, nullptr, mtr);
+    flags, cursor, offsets, heap, tuple, n_ext, sibling, nullptr, mtr);
   ut_a(inserted);
 
   dtuple_t *second_ptr= blink_build_node_ptr(index, sibling, *heap);
@@ -607,4 +628,580 @@ rec_t *blink_root_raise_and_insert(btr_cur_t *cursor, rec_offs **offsets,
                              heap, 0, mtr));
   page_clear_incomplete_split(old_root, mtr);
   return inserted;
+}
+
+static constexpr ulint BLINK_STASH_SLACK= 4;
+
+struct blink_nonleaf_stash_t
+{
+  uint32_t pages[BTR_MAX_LEVELS + BLINK_STASH_SLACK];
+  ulint size{};
+
+  uint32_t pop() noexcept
+  {
+    return size ? pages[--size] : FIL_NULL;
+  }
+};
+
+static void blink_stash_return(dict_index_t *index,
+                               blink_nonleaf_stash_t *stash) noexcept
+{
+  while (stash->size)
+    blink_page_pool_push(index, blink_page_kind::INTERNAL,
+                         stash->pages[--stash->size]);
+}
+
+static bool blink_parent_has_child(const page_t *page, dict_index_t *index,
+                                   uint32_t child, mem_heap_t **heap)
+{
+  for (const rec_t *record= page_rec_get_next_const(page_get_infimum_rec(page));
+       !page_rec_is_supremum(record);
+       record= page_rec_get_next_const(record)) {
+    if (rec_is_high_key(page, record, index))
+      break;
+    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs_init(offsets_);
+    rec_offs *offsets= rec_get_offsets(record, index, offsets_, 0,
+                                       ULINT_UNDEFINED, heap);
+    if (btr_node_ptr_get_child_page_no(record, offsets) == child)
+      return true;
+  }
+  return false;
+}
+
+static dberr_t blink_clear_child_split(dict_index_t *index,
+                                       uint32_t left_page, mtr_t *mtr)
+{
+  dberr_t err= DB_SUCCESS;
+  buf_block_t *left= btr_block_get(*index, left_page, RW_X_LATCH, mtr, &err);
+  if (!left)
+    return err;
+  if (!page_has_incomplete_split(left->page.frame))
+    return DB_SUCCESS;
+  const uint32_t right_page= btr_page_get_next(left->page.frame);
+  if (right_page == FIL_NULL)
+    return DB_CORRUPTION;
+  buf_block_t *right= btr_block_get(*index, right_page, RW_S_LATCH, mtr, &err);
+  if (!right || btr_page_get_prev(right->page.frame) != left_page ||
+      btr_page_get_level(right->page.frame) !=
+        btr_page_get_level(left->page.frame))
+    return DB_CORRUPTION;
+  page_clear_incomplete_split(left, mtr);
+  return DB_SUCCESS;
+}
+
+static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
+                                       uint16_t level, uint32_t previous_child,
+                                       mtr_t *holder, dict_index_t *index,
+                                       blink_nonleaf_stash_t *stash,
+                                       que_thr_t *thr)
+{
+  mtr_t parked{holder->trx};
+  ulint attempts= 0;
+  for (;;) {
+    mtr_t mtr{holder->trx};
+    mtr.start();
+    holder->transfer_to(&mtr, &index->lock, MTR_MEMO_S_LOCK);
+    holder->commit();
+
+    btr_cur_t parent;
+    parent.page_cur.index= index;
+    dberr_t err= blink_search_to_level(index, level, node_ptr, PAGE_CUR_LE,
+                                       RW_X_LATCH, true, &parent, &mtr);
+    if (err != DB_SUCCESS) {
+      mtr.commit();
+      return err;
+    }
+
+    buf_block_t *parent_block= parent.block();
+    if (page_has_incomplete_split(parent_block->page.frame)) {
+      if (!thr) {
+        const uint32_t parent_page= parent_block->page.id().page_no();
+        mtr.commit();
+        blink_pending_split_enqueue(index, parent_page);
+        blink_pending_split_enqueue(index, previous_child);
+        return DB_BLINK_RETRY;
+      }
+      if (trx_is_interrupted(thr_get_trx(thr))) {
+        mtr.commit();
+        blink_pending_split_enqueue(index, previous_child);
+        return DB_INTERRUPTED;
+      }
+      parked.start();
+      mtr.transfer_to(&parked, &index->lock, MTR_MEMO_S_LOCK);
+      mtr.commit();
+      if (attempts < 4)
+        MY_RELAX_CPU();
+      else if (attempts < 16)
+        std::this_thread::yield();
+      else
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+      ++attempts;
+      holder= &parked;
+      continue;
+    }
+
+    mem_heap_t *parent_heap= mem_heap_create(1024);
+    const uint16_t child_field=
+      dict_index_get_n_unique_in_tree_nonleaf(index);
+    ulint child_len;
+    const byte *child_data= static_cast<const byte*>(dfield_get_data(
+      dtuple_get_nth_field(node_ptr, child_field)));
+    child_len= dfield_get_len(dtuple_get_nth_field(node_ptr, child_field));
+    ut_a(child_len == 4);
+    const uint32_t child= mach_read_from_4(child_data);
+
+    if (blink_parent_has_child(parent_block->page.frame, index, child,
+                               &parent_heap)) {
+      err= blink_clear_child_split(index, previous_child, &mtr);
+      mem_heap_free(parent_heap);
+      mtr.commit();
+      return err;
+    }
+
+    rec_offs *parent_offsets= nullptr;
+    rec_t *installed= page_cur_tuple_insert(
+      &parent.page_cur, node_ptr, &parent_offsets, &parent_heap, 0, &mtr);
+    if (!installed &&
+        btr_page_reorganize(&parent.page_cur, &mtr) == DB_SUCCESS)
+      installed= page_cur_tuple_insert(
+        &parent.page_cur, node_ptr, &parent_offsets, &parent_heap, 0, &mtr);
+    if (installed) {
+      err= blink_clear_child_split(index, previous_child, &mtr);
+      mem_heap_free(parent_heap);
+      mtr.commit();
+      return err;
+    }
+
+    uint32_t new_page_no= stash->pop();
+    if (new_page_no == FIL_NULL &&
+        !blink_page_pool_try_pop(index, blink_page_kind::INTERNAL,
+                                 &new_page_no))
+      ut_error;
+    buf_block_t *new_page= btr_block_get(
+      *index, new_page_no, RW_X_LATCH, &mtr, &err);
+    ut_a(new_page);
+    const bool root= parent_block->page.id().page_no() == index->page;
+    uint32_t root_sibling_no= FIL_NULL;
+    buf_block_t *root_sibling= nullptr;
+    buf_block_t *old_right= nullptr;
+    if (root) {
+      root_sibling_no= stash->pop();
+      if (root_sibling_no == FIL_NULL &&
+          !blink_page_pool_try_pop(index, blink_page_kind::INTERNAL,
+                                   &root_sibling_no))
+        ut_error;
+      root_sibling= btr_block_get(
+        *index, root_sibling_no, RW_X_LATCH, &mtr, &err);
+      ut_a(root_sibling);
+    } else {
+      const uint32_t right_no= btr_page_get_next(parent_block->page.frame);
+      if (right_no != FIL_NULL) {
+        old_right= btr_block_get(*index, right_no, RW_X_LATCH, &mtr, &err);
+        ut_a(old_right);
+      }
+    }
+
+    rec_t *placed= root
+      ? blink_root_raise_and_insert(flags, &parent, &parent_offsets,
+                                    &parent_heap, node_ptr, 0, new_page,
+                                    root_sibling, &mtr)
+      : blink_split_page_and_insert(flags, &parent, &parent_offsets,
+                                    &parent_heap, node_ptr, 0, new_page,
+                                    old_right, &mtr);
+    ut_a(placed);
+    err= blink_clear_child_split(index, previous_child, &mtr);
+    ut_a(err == DB_SUCCESS);
+    if (root) {
+      mem_heap_free(parent_heap);
+      mtr.commit();
+      return DB_SUCCESS;
+    }
+
+    mem_heap_t *cascade_heap= mem_heap_create(1024);
+    dtuple_t *next_node_ptr= blink_build_node_ptr(index, new_page, cascade_heap);
+    ut_a(next_node_ptr);
+    const uint32_t next_previous= parent_block->page.id().page_no();
+    mtr_t next_holder{holder->trx};
+    next_holder.start();
+    mtr.transfer_to(&next_holder, &index->lock, MTR_MEMO_S_LOCK);
+    mtr.commit();
+    mem_heap_free(parent_heap);
+    err= blink_insert_into_level(flags, next_node_ptr, level + 1,
+                                 next_previous, &next_holder, index, stash,
+                                 thr);
+    mem_heap_free(cascade_heap);
+    return err;
+  }
+}
+
+static void blink_return_preallocated(dict_index_t *index, uint32_t leaf,
+                                      uint32_t root_sibling,
+                                      blink_nonleaf_stash_t *stash) noexcept
+{
+  if (leaf != FIL_NULL)
+    blink_page_pool_push(index, blink_page_kind::LEAF, leaf);
+  if (root_sibling != FIL_NULL)
+    blink_page_pool_push(index, blink_page_kind::LEAF, root_sibling);
+  blink_stash_return(index, stash);
+}
+
+dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
+                                  rec_offs **offsets, mem_heap_t **heap,
+                                  dtuple_t *entry, rec_t **insert_rec,
+                                  big_rec_t **big_rec, ulint n_ext,
+                                  que_thr_t *thr, trx_id_t trx_id, mtr_t *mtr)
+{
+  dict_index_t *index= cursor->index();
+  buf_block_t *left= cursor->block();
+  *insert_rec= nullptr;
+  *big_rec= nullptr;
+  if (page_has_incomplete_split(left->page.frame))
+    return DB_BLINK_RETRY;
+
+  uint32_t new_page_no= FIL_NULL;
+  if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF, &new_page_no))
+    return DB_BLINK_RETRY_POOL_EMPTY;
+  const bool root= left->page.id().page_no() == index->page;
+  uint32_t root_sibling_no= FIL_NULL;
+  blink_nonleaf_stash_t stash;
+  if (root) {
+    if (!blink_page_pool_try_pop(index, blink_page_kind::LEAF,
+                                 &root_sibling_no)) {
+      blink_return_preallocated(index, new_page_no, FIL_NULL, &stash);
+      return DB_BLINK_RETRY_POOL_EMPTY;
+    }
+  } else {
+    const ulint budget= cursor->tree_height + BLINK_STASH_SLACK;
+    ut_a(budget <= UT_ARR_SIZE(stash.pages));
+    for (ulint i= 0; i < budget; ++i) {
+      uint32_t page;
+      if (!blink_page_pool_try_pop(index, blink_page_kind::INTERNAL, &page)) {
+        blink_return_preallocated(index, new_page_no, FIL_NULL, &stash);
+        return DB_BLINK_RETRY_POOL_EMPTY;
+      }
+      stash.pages[stash.size++]= page;
+    }
+  }
+
+  bool inherit= false;
+  dberr_t err= btr_cur_ins_lock_and_undo(
+    flags, cursor, entry, thr, mtr, &inherit);
+  if (err != DB_SUCCESS) {
+    blink_return_preallocated(index, new_page_no, root_sibling_no, &stash);
+    return err;
+  }
+
+  big_rec_t *big_rec_vec= nullptr;
+  if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
+                             index->table->not_redundant(),
+                             dtuple_get_n_fields(entry), left->zip_size())) {
+    big_rec_vec= dtuple_convert_big_rec(index, 0, entry, &n_ext);
+    if (!big_rec_vec) {
+      blink_return_preallocated(index, new_page_no, root_sibling_no, &stash);
+      return DB_TOO_BIG_RECORD;
+    }
+  }
+
+  buf_block_t *new_page= btr_block_get(
+    *index, new_page_no, RW_X_LATCH, mtr, &err);
+  ut_a(new_page);
+  buf_block_t *root_sibling= nullptr;
+  buf_block_t *old_right= nullptr;
+  if (root) {
+    root_sibling= btr_block_get(
+      *index, root_sibling_no, RW_X_LATCH, mtr, &err);
+    ut_a(root_sibling);
+  } else {
+    const uint32_t old_right_no= btr_page_get_next(left->page.frame);
+    if (old_right_no != FIL_NULL) {
+      old_right= btr_block_get(
+        *index, old_right_no, RW_X_LATCH, mtr, &err);
+      ut_a(old_right);
+    }
+  }
+
+  rec_t *inserted= root
+    ? blink_root_raise_and_insert(flags, cursor, offsets, heap, entry, n_ext,
+                                  new_page, root_sibling, mtr)
+    : blink_split_page_and_insert(flags, cursor, offsets, heap, entry, n_ext,
+                                  new_page, old_right, mtr);
+  if (!inserted) {
+    blink_return_preallocated(index, new_page_no, root_sibling_no, &stash);
+    if (big_rec_vec)
+      dtuple_convert_back_big_rec(index, entry, big_rec_vec);
+    return DB_OUT_OF_FILE_SPACE;
+  }
+  *insert_rec= inserted;
+  if (inherit && !(flags & BTR_NO_LOCKING_FLAG))
+    lock_update_insert(cursor->block(), inserted, index);
+  if (trx_id)
+    page_update_max_trx_id(cursor->block(),
+                           buf_block_get_page_zip(cursor->block()),
+                           trx_id, mtr);
+  if (root) {
+    *big_rec= big_rec_vec;
+    return DB_SUCCESS;
+  }
+
+  mem_heap_t *cascade_heap= mem_heap_create(1024);
+  dtuple_t *node_ptr= blink_build_node_ptr(index, new_page, cascade_heap);
+  ut_a(node_ptr);
+  const uint32_t previous_child= left->page.id().page_no();
+  mtr_t holder{mtr->trx};
+  holder.start();
+  mtr->transfer_to(&holder, &index->lock, MTR_MEMO_S_LOCK);
+  mtr->commit();
+  err= blink_insert_into_level(flags, node_ptr, 1, previous_child,
+                               &holder, index, &stash, thr);
+  mem_heap_free(cascade_heap);
+  blink_stash_return(index, &stash);
+  mtr->start();
+  if (err != DB_SUCCESS) {
+    if (big_rec_vec)
+      dtuple_convert_back_big_rec(index, entry, big_rec_vec);
+    return err;
+  }
+  *big_rec= big_rec_vec;
+  return DB_SUCCESS;
+}
+
+struct blink_pending_split_t
+{
+  dict_index_t *index;
+  uint32_t left_page;
+  uint16_t attempts;
+};
+
+static std::mutex blink_pending_mutex;
+static std::deque<blink_pending_split_t> blink_pending_splits;
+
+void blink_pending_split_enqueue(dict_index_t *index,
+                                 uint32_t left_page) noexcept
+{
+  std::lock_guard<std::mutex> guard(blink_pending_mutex);
+  for (const blink_pending_split_t &task : blink_pending_splits)
+    if (task.index == index && task.left_page == left_page)
+      return;
+  blink_pending_splits.push_back({index, left_page, 0});
+}
+
+void blink_pending_splits_remove(dict_index_t *index) noexcept
+{
+  std::lock_guard<std::mutex> guard(blink_pending_mutex);
+  for (auto it= blink_pending_splits.begin(); it != blink_pending_splits.end(); )
+    if (it->index == index)
+      it= blink_pending_splits.erase(it);
+    else
+      ++it;
+}
+
+static void blink_pending_split_requeue(dict_index_t *index,
+                                        uint32_t left_page,
+                                        uint16_t attempts) noexcept
+{
+  if (attempts >= 100)
+    return;
+  std::lock_guard<std::mutex> guard(blink_pending_mutex);
+  blink_pool_entry_t *pin= blink_page_pool_pin(index);
+  if (!pin)
+    return;
+  bool found= false;
+  for (const blink_pending_split_t &task : blink_pending_splits)
+    if (task.index == index && task.left_page == left_page) {
+      found= true;
+      break;
+    }
+  if (!found)
+    blink_pending_splits.push_back({index, left_page, attempts});
+  blink_page_pool_unpin(pin);
+}
+
+dberr_t blink_finish_incomplete_split(dict_index_t *index,
+                                       uint32_t left_page, trx_t *trx)
+{
+  if (!use_blink_path(index))
+    return DB_UNSUPPORTED;
+  blink_nonleaf_stash_t stash;
+  mtr_t mtr{trx};
+  mtr.start();
+  if (!index->lock.x_lock_try()) {
+    mtr.commit();
+    return DB_BLINK_RETRY;
+  }
+  mtr.memo_push(&index->lock, MTR_MEMO_X_LOCK);
+  if (index->page == FIL_NULL || !index->table->space) {
+    mtr.commit();
+    return DB_TABLESPACE_DELETED;
+  }
+  dberr_t err= DB_SUCCESS;
+  buf_block_t *root= btr_root_block_get(index, RW_S_LATCH, &mtr, &err);
+  if (!root) {
+    mtr.commit();
+    return err;
+  }
+  const ulint budget= btr_page_get_level(root->page.frame) +
+    BLINK_STASH_SLACK;
+  mtr.release(*root);
+  for (ulint i= 0; i < budget; ++i) {
+    uint32_t page;
+    if (!blink_page_pool_try_pop(index, blink_page_kind::INTERNAL, &page)) {
+      blink_stash_return(index, &stash);
+      mtr.commit();
+      return DB_BLINK_RETRY_POOL_EMPTY;
+    }
+    stash.pages[stash.size++]= page;
+  }
+
+  buf_block_t *left= btr_block_get(
+    *index, left_page, RW_S_LATCH, &mtr, &err);
+  if (!left) {
+    blink_stash_return(index, &stash);
+    mtr.commit();
+    return err;
+  }
+  if (!page_has_incomplete_split(left->page.frame)) {
+    blink_stash_return(index, &stash);
+    mtr.commit();
+    return DB_SUCCESS;
+  }
+  const uint32_t right_page= btr_page_get_next(left->page.frame);
+  if (right_page == FIL_NULL) {
+    blink_stash_return(index, &stash);
+    mtr.commit();
+    return DB_CORRUPTION;
+  }
+  buf_block_t *right= btr_block_get(
+    *index, right_page, RW_S_LATCH, &mtr, &err);
+  if (!right || btr_page_get_prev(right->page.frame) != left_page ||
+      btr_page_get_level(right->page.frame) !=
+        btr_page_get_level(left->page.frame)) {
+    blink_stash_return(index, &stash);
+    mtr.commit();
+    return DB_CORRUPTION;
+  }
+
+  mem_heap_t *heap= mem_heap_create(1024);
+  dtuple_t *node_ptr= blink_build_node_ptr(index, right, heap);
+  if (!node_ptr) {
+    const rec_t *high_key= page_rec_get_prev_const(
+      page_get_supremum_rec(left->page.frame));
+    if (!rec_is_high_key_structural(left->page.frame, high_key, index)) {
+      mem_heap_free(heap);
+      blink_stash_return(index, &stash);
+      mtr.commit();
+      return DB_CORRUPTION;
+    }
+    node_ptr= dict_index_build_node_ptr(
+      index, high_key, right_page, heap,
+      btr_page_get_level(left->page.frame));
+    for (ulint i= 0; i < dtuple_get_n_fields(node_ptr); ++i)
+      dfield_dup(dtuple_get_nth_field(node_ptr, i), heap);
+  }
+  const uint16_t parent_level= static_cast<uint16_t>(
+    btr_page_get_level(left->page.frame) + 1);
+  mtr.commit();
+  mtr_t holder{trx};
+  holder.start();
+  mtr_s_lock_index(index, &holder);
+  err= blink_insert_into_level(BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG,
+                               node_ptr, parent_level, left_page, &holder,
+                               index, &stash, nullptr);
+  mem_heap_free(heap);
+  blink_stash_return(index, &stash);
+  return err;
+}
+
+static dberr_t blink_scan_incomplete_splits(dict_index_t *index)
+{
+  if (!index->is_committed())
+    return DB_BLINK_RETRY;
+  std::vector<uint32_t> candidates;
+  mtr_t mtr{nullptr};
+  mtr.start();
+  if (!index->lock.x_lock_try()) {
+    mtr.commit();
+    return DB_BLINK_RETRY;
+  }
+  mtr.memo_push(&index->lock, MTR_MEMO_X_LOCK);
+  if (index->page == FIL_NULL || !index->table->space) {
+    mtr.commit();
+    return DB_TABLESPACE_DELETED;
+  }
+  dberr_t err= DB_SUCCESS;
+  buf_block_t *root= btr_root_block_get(index, RW_S_LATCH, &mtr, &err);
+  if (!root) {
+    mtr.commit();
+    return err;
+  }
+  const uint16_t root_level= static_cast<uint16_t>(
+    btr_page_get_level(root->page.frame));
+  mtr.release(*root);
+
+  for (uint16_t target= 0; target <= root_level; ++target) {
+    uint32_t page_no= index->page;
+    uint16_t level= root_level;
+    buf_block_t *block= nullptr;
+    while (level > target) {
+      block= btr_block_get(*index, page_no, RW_S_LATCH, &mtr, &err);
+      if (!block) {
+        mtr.commit();
+        return err;
+      }
+      const rec_t *record= page_rec_get_next_user(
+        block->page.frame, page_get_infimum_rec(block->page.frame), index);
+      if (page_rec_is_supremum(record)) {
+        mtr.commit();
+        return DB_CORRUPTION;
+      }
+      mem_heap_t *heap= nullptr;
+      rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+      rec_offs_init(offsets_);
+      rec_offs *offsets= rec_get_offsets(record, index, offsets_, 0,
+                                         ULINT_UNDEFINED, &heap);
+      page_no= btr_node_ptr_get_child_page_no(record, offsets);
+      if (heap)
+        mem_heap_free(heap);
+      mtr.release(*block);
+      --level;
+    }
+    do {
+      block= btr_block_get(*index, page_no, RW_S_LATCH, &mtr, &err);
+      if (!block) {
+        mtr.commit();
+        return err;
+      }
+      if (page_has_incomplete_split(block->page.frame))
+        candidates.push_back(page_no);
+      page_no= btr_page_get_next(block->page.frame);
+      mtr.release(*block);
+    } while (page_no != FIL_NULL);
+  }
+  mtr.commit();
+  for (uint32_t page : candidates)
+    blink_pending_split_enqueue(index, page);
+  return DB_SUCCESS;
+}
+
+void blink_pending_splits_process() noexcept
+{
+  blink_pending_split_t task{};
+  blink_pool_entry_t *pin= nullptr;
+  {
+    std::lock_guard<std::mutex> guard(blink_pending_mutex);
+    if (blink_pending_splits.empty())
+      return;
+    task= blink_pending_splits.front();
+    blink_pending_splits.pop_front();
+    pin= blink_page_pool_pin(task.index);
+  }
+  if (!pin)
+    return;
+  const dberr_t err= task.left_page == FIL_NULL
+    ? blink_scan_incomplete_splits(task.index)
+    : blink_finish_incomplete_split(task.index, task.left_page, nullptr);
+  if (err == DB_BLINK_RETRY || err == DB_BLINK_RETRY_POOL_EMPTY)
+    blink_pending_split_requeue(task.index, task.left_page,
+                                task.attempts + 1);
+  blink_page_pool_unpin(pin);
 }

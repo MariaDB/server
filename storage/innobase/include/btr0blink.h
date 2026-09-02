@@ -7,6 +7,10 @@
 #include "dict0mem.h"
 #include "page0types.h"
 
+struct big_rec_t;
+struct que_thr_t;
+struct trx_t;
+
 inline bool blink_table_shape_ok(const dict_table_t *table) noexcept
 {
   return table->not_redundant() && !DICT_TF_GET_ZIP_SSIZE(table->flags) &&
@@ -23,6 +27,15 @@ inline bool blink_index_shape_ok(const dict_index_t *index) noexcept
 inline bool use_blink_path(const dict_index_t *index) noexcept
 {
   return (index->type & DICT_BLINK) && blink_index_shape_ok(index);
+}
+
+inline bool blink_table_has_index(const dict_table_t *table) noexcept
+{
+  for (const dict_index_t *index= UT_LIST_GET_FIRST(table->indexes); index;
+       index= UT_LIST_GET_NEXT(indexes, index))
+    if (index->type & DICT_BLINK)
+      return true;
+  return false;
 }
 
 bool blink_stamp_empty_tree(dict_index_t *index);
@@ -43,15 +56,29 @@ bool blink_split_choose_and_check_fit(btr_cur_t *cursor,
                                       const dtuple_t *tuple, ulint n_ext,
                                       rec_t **split_rec, bool *insert_left,
                                       mem_heap_t **heap);
-rec_t *blink_split_page_and_insert(btr_cur_t *cursor, rec_offs **offsets,
-                                   mem_heap_t **heap, dtuple_t *tuple,
-                                   ulint n_ext, buf_block_t *new_block,
+rec_t *blink_split_page_and_insert(ulint flags, btr_cur_t *cursor,
+                                   rec_offs **offsets, mem_heap_t **heap,
+                                   dtuple_t *tuple, ulint n_ext,
+                                   buf_block_t *new_block,
                                    buf_block_t *old_right, mtr_t *mtr);
-buf_block_t *blink_root_raise_low(dict_index_t *index, buf_block_t *root,
-                                  buf_block_t *old_root, mtr_t *mtr);
-rec_t *blink_root_raise_and_insert(btr_cur_t *cursor, rec_offs **offsets,
-                                   mem_heap_t **heap, dtuple_t *tuple,
-                                   ulint n_ext, buf_block_t *old_root,
+buf_block_t *blink_root_raise_low(ulint flags, dict_index_t *index,
+                                  buf_block_t *root, buf_block_t *old_root,
+                                  mtr_t *mtr);
+rec_t *blink_root_raise_and_insert(ulint flags, btr_cur_t *cursor,
+                                   rec_offs **offsets, mem_heap_t **heap,
+                                   dtuple_t *tuple, ulint n_ext,
+                                   buf_block_t *old_root,
                                    buf_block_t *sibling, mtr_t *mtr);
+dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
+                                  rec_offs **offsets, mem_heap_t **heap,
+                                  dtuple_t *entry, rec_t **insert_rec,
+                                  big_rec_t **big_rec, ulint n_ext,
+                                  que_thr_t *thr, trx_id_t trx_id, mtr_t *mtr);
+dberr_t blink_finish_incomplete_split(dict_index_t *index,
+                                       uint32_t left_page, trx_t *trx);
+void blink_pending_split_enqueue(dict_index_t *index,
+                                 uint32_t left_page) noexcept;
+void blink_pending_splits_process() noexcept;
+void blink_pending_splits_remove(dict_index_t *index) noexcept;
 
 #endif

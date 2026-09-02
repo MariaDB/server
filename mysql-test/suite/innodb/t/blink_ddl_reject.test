@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+--disable_result_log
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t ADD INDEX i(b), ALGORITHM=INPLACE;
+--error ER_UNSUPPORTED_EXTENSION
+TRUNCATE TABLE t;
+--error ER_UNSUPPORTED_EXTENSION
+ALTER TABLE t DISCARD TABLESPACE;
+--enable_result_log
+INSERT INTO t VALUES (1,1);
+SELECT * FROM t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

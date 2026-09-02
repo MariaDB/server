@@ -1,0 +1,18 @@
+--source include/have_innodb.inc
+
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, payload VARBINARY(700), KEY(b)) ENGINE=InnoDB;
+--sleep 1
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 1 UNION ALL SELECT n + 1 FROM cte WHERE n < 200)
+SELECT n, 1000 - n, REPEAT(CHAR(65 + n % 20), 700) FROM cte;
+SELECT COUNT(*), MIN(a), MAX(a), SUM(b) FROM t;
+SELECT a,b FROM t WHERE a IN (1,50,100,150,200) ORDER BY a;
+SELECT a,b FROM t FORCE INDEX(b) WHERE b IN (800,850,900,950,999) ORDER BY b;
+CHECK TABLE t;
+--source include/restart_mysqld.inc
+SELECT COUNT(*), MIN(a), MAX(a), SUM(b) FROM t;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=DEFAULT;

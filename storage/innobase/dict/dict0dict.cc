@@ -1885,8 +1885,14 @@ dict_index_add_to_cache(
 
 	new_index->n_core_fields = new_index->n_fields;
 
-	if (new_index->type & DICT_BLINK)
+	if (new_index->type & DICT_BLINK) {
+#ifdef BTR_CUR_HASH_ADAPT
+		new_index->search_info.set_enabled_fixed_mask(
+			dict_index_t::ahi::AHI_INDEX_FORCE_DISABLED,
+			false, false, false, 0, 0, false);
+#endif
 		blink_page_pool_register(new_index);
+	}
 
 	dict_mem_index_free(index);
 	index = new_index;

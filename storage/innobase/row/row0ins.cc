@@ -29,6 +29,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "trx0rec.h"
 #include "trx0undo.h"
+#include "btr0blink.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "mach0data.h"
@@ -47,6 +48,9 @@ Created 4/20/1996 Heikki Tuuri
 # include "btr0sea.h"
 #endif
 #include "sql_class.h" // THD
+
+#include <chrono>
+#include <thread>
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
@@ -2932,7 +2936,15 @@ row_level_insert:
 do_insert:
 		rec_t*	insert_rec;
 
-		if (mode != BTR_MODIFY_TREE) {
+		if (use_blink_path(index) && mode != BTR_MODIFY_TREE) {
+			err = btr_cur_optimistic_insert(
+				flags, &pcur.btr_cur, &offsets, &offsets_heap,
+				entry, &insert_rec, &big_rec, n_ext, thr, &mtr);
+			if (err == DB_FAIL)
+				err = blink_pessimistic_insert(
+					flags, &pcur.btr_cur, &offsets, &offsets_heap,
+					entry, &insert_rec, &big_rec, n_ext, thr, 0, &mtr);
+		} else if (mode != BTR_MODIFY_TREE) {
 			ut_ad(mode == BTR_MODIFY_LEAF
 			      || mode == BTR_MODIFY_LEAF_ALREADY_LATCHED
 			      || mode == BTR_MODIFY_ROOT_AND_LEAF
@@ -2954,7 +2966,9 @@ do_insert:
 				entry, &insert_rec, &big_rec,
 				n_ext, thr, &mtr);
 
-			if (err == DB_FAIL) {
+			if (err == DB_FAIL && use_blink_path(index))
+				err= DB_BLINK_RETRY;
+			else if (err == DB_FAIL) {
 				err = btr_cur_pessimistic_insert(
 					flags, &pcur.btr_cur,
 					&offsets, &offsets_heap,
@@ -3045,6 +3059,7 @@ row_ins_sec_index_entry_low(
 	btr_cur_t	cursor;
 	btr_latch_mode	search_mode	= mode;
 	dberr_t		err;
+	bool		blink_pessimistic= false;
 	ulint		n_unique;
 	trx_t*const	trx{thr_get_trx(thr)};
 	mtr_t		mtr{trx};
@@ -3210,6 +3225,13 @@ row_ins_sec_index_entry_low(
 				flags, &cursor, &offsets, &offsets_heap,
 				entry, &insert_rec,
 				&big_rec, 0, thr, &mtr);
+			if (err == DB_FAIL && use_blink_path(index)) {
+				blink_pessimistic= true;
+				err = blink_pessimistic_insert(
+					flags, &cursor, &offsets, &offsets_heap,
+					entry, &insert_rec, &big_rec, 0, thr,
+					trx_id ? trx_id : trx->id, &mtr);
+			}
 			if (err == DB_SUCCESS
 			    && dict_index_is_spatial(index)
 			    && rtr_info.mbr_adj) {
@@ -3226,7 +3248,9 @@ row_ins_sec_index_entry_low(
 				&offsets, &offsets_heap,
 				entry, &insert_rec,
 				&big_rec, 0, thr, &mtr);
-			if (err == DB_FAIL) {
+			if (err == DB_FAIL && use_blink_path(index))
+				err= DB_BLINK_RETRY;
+			else if (err == DB_FAIL) {
 				err = btr_cur_pessimistic_insert(
 					flags, &cursor,
 					&offsets, &offsets_heap,
@@ -3240,7 +3264,7 @@ row_ins_sec_index_entry_low(
 			}
 		}
 
-		if (err == DB_SUCCESS && trx_id) {
+		if (err == DB_SUCCESS && trx_id && !blink_pessimistic) {
 			page_update_max_trx_id(
 				btr_cur_get_block(&cursor),
 				btr_cur_get_page_zip(&cursor),
@@ -3321,33 +3345,47 @@ row_ins_clust_index_entry(
 		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
 	}
 
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
+	ulint blink_retries= 0;
+	for (;;) {
+		log_free_check();
+		err = row_ins_clust_index_entry_low(
+			flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
+			n_ext, thr);
+		entry->n_fields = orig_n_fields;
+		if (err == DB_BLINK_RETRY || err == DB_BLINK_RETRY_POOL_EMPTY) {
+			if (trx_is_interrupted(thr_get_trx(thr)))
+				DBUG_RETURN(DB_INTERRUPTED);
+			if (++blink_retries >= 1000)
+				DBUG_RETURN(DB_OUT_OF_FILE_SPACE);
+			if (err == DB_BLINK_RETRY_POOL_EMPTY)
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			else
+				std::this_thread::yield();
+			continue;
+		}
 
-	err = row_ins_clust_index_entry_low(
-		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
-		n_ext, thr);
+		DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
+				    "after_row_ins_clust_index_entry_leaf");
+		if (err != DB_FAIL) {
+			DEBUG_SYNC_C("row_ins_clust_index_entry_leaf_after");
+			DBUG_RETURN(err);
+		}
 
-	entry->n_fields = orig_n_fields;
-
-	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
-			    "after_row_ins_clust_index_entry_leaf");
-
-	if (err != DB_FAIL) {
-		DEBUG_SYNC_C("row_ins_clust_index_entry_leaf_after");
-		DBUG_RETURN(err);
+		log_free_check();
+		err = row_ins_clust_index_entry_low(
+			flags, BTR_MODIFY_TREE, index, n_uniq, entry,
+			n_ext, thr);
+		entry->n_fields = orig_n_fields;
+		if (err != DB_BLINK_RETRY && err != DB_BLINK_RETRY_POOL_EMPTY)
+			DBUG_RETURN(err);
+		if (++blink_retries >= 1000)
+			DBUG_RETURN(DB_OUT_OF_FILE_SPACE);
+		if (err == DB_BLINK_RETRY_POOL_EMPTY)
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		else
+			std::this_thread::yield();
 	}
 
-	/* Try then pessimistic descent to the B-tree */
-	log_free_check();
-
-	err = row_ins_clust_index_entry_low(
-		flags, BTR_MODIFY_TREE, index, n_uniq, entry,
-		n_ext, thr);
-
-	entry->n_fields = orig_n_fields;
-
-	DBUG_RETURN(err);
 }
 
 /***************************************************************//**
@@ -3404,18 +3442,43 @@ row_ins_sec_index_entry(
 		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
 	}
 
-	err = row_ins_sec_index_entry_low(
-		flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
-		trx_id, thr);
-	if (err == DB_FAIL) {
+	ulint blink_retries= 0;
+	for (;;) {
+		err = row_ins_sec_index_entry_low(
+			flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
+			trx_id, thr);
+		if (err == DB_BLINK_RETRY || err == DB_BLINK_RETRY_POOL_EMPTY) {
+			if (trx_is_interrupted(thr_get_trx(thr))) {
+				err= DB_INTERRUPTED;
+				break;
+			}
+			if (++blink_retries >= 1000) {
+				err= DB_OUT_OF_FILE_SPACE;
+				break;
+			}
+			if (err == DB_BLINK_RETRY_POOL_EMPTY)
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			else
+				std::this_thread::yield();
+			continue;
+		}
+		if (err != DB_FAIL)
+			break;
 		mem_heap_empty(heap);
-
-		/* Try then pessimistic descent to the B-tree */
 		log_free_check();
-
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_INSERT_TREE, index,
 			offsets_heap, heap, entry, 0, thr);
+		if (err != DB_BLINK_RETRY && err != DB_BLINK_RETRY_POOL_EMPTY)
+			break;
+		if (++blink_retries >= 1000) {
+			err= DB_OUT_OF_FILE_SPACE;
+			break;
+		}
+		if (err == DB_BLINK_RETRY_POOL_EMPTY)
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		else
+			std::this_thread::yield();
 	}
 
 	mem_heap_free(heap);

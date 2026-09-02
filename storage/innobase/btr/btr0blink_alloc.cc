@@ -1,5 +1,6 @@
 #include "btr0blink_alloc.h"
 
+#include "btr0blink.h"
 #include "btr0btr.h"
 #include "dict0mem.h"
 #include "mtr0mtr.h"
@@ -50,7 +51,7 @@ static size_t blink_kind_index(blink_page_kind kind) noexcept
   return kind == blink_page_kind::LEAF ? 0 : 1;
 }
 
-static blink_pool_entry_t *blink_pool_pin(dict_index_t *index) noexcept
+blink_pool_entry_t *blink_page_pool_pin(dict_index_t *index) noexcept
 {
   std::lock_guard<std::mutex> guard(blink_registry_mutex);
   auto it= blink_registry.find(index);
@@ -60,7 +61,7 @@ static blink_pool_entry_t *blink_pool_pin(dict_index_t *index) noexcept
   return it->second.get();
 }
 
-static void blink_pool_unpin(blink_pool_entry_t *entry) noexcept
+void blink_page_pool_unpin(blink_pool_entry_t *entry) noexcept
 {
   if (entry->users.fetch_sub(1) == 1)
     blink_registry_cv.notify_all();
@@ -69,18 +70,21 @@ static void blink_pool_unpin(blink_pool_entry_t *entry) noexcept
 bool blink_page_pool_register(dict_index_t *index) noexcept
 {
   ut_ad(index);
-  std::lock_guard<std::mutex> guard(blink_registry_mutex);
-  auto existing= blink_registry.find(index);
-  if (existing != blink_registry.end()) {
-    index->blink_page_pool= &existing->second->pool;
-    return true;
+  {
+    std::lock_guard<std::mutex> guard(blink_registry_mutex);
+    auto existing= blink_registry.find(index);
+    if (existing != blink_registry.end()) {
+      index->blink_page_pool= &existing->second->pool;
+      return true;
+    }
+    std::unique_ptr<blink_pool_entry_t> entry{
+      new (std::nothrow) blink_pool_entry_t(index)};
+    if (!entry)
+      return false;
+    index->blink_page_pool= &entry->pool;
+    blink_registry.emplace(index, std::move(entry));
   }
-  std::unique_ptr<blink_pool_entry_t> entry{
-    new (std::nothrow) blink_pool_entry_t(index)};
-  if (!entry)
-    return false;
-  index->blink_page_pool= &entry->pool;
-  blink_registry.emplace(index, std::move(entry));
+  blink_pending_split_enqueue(index, FIL_NULL);
   blink_registry_cv.notify_one();
   return true;
 }
@@ -89,7 +93,7 @@ bool blink_page_pool_try_pop(dict_index_t *index, blink_page_kind kind,
                              uint32_t *page_no) noexcept
 {
   ut_ad(page_no);
-  blink_pool_entry_t *entry= blink_pool_pin(index);
+  blink_pool_entry_t *entry= blink_page_pool_pin(index);
   if (!entry)
     return false;
   const size_t slot= blink_kind_index(kind);
@@ -105,7 +109,7 @@ bool blink_page_pool_try_pop(dict_index_t *index, blink_page_kind kind,
       found= true;
     }
   }
-  blink_pool_unpin(entry);
+  blink_page_pool_unpin(entry);
   blink_registry_cv.notify_one();
   return found;
 }
@@ -113,14 +117,14 @@ bool blink_page_pool_try_pop(dict_index_t *index, blink_page_kind kind,
 void blink_page_pool_push(dict_index_t *index, blink_page_kind kind,
                           uint32_t page_no) noexcept
 {
-  blink_pool_entry_t *entry= blink_pool_pin(index);
+  blink_pool_entry_t *entry= blink_page_pool_pin(index);
   ut_a(entry);
   const size_t slot= blink_kind_index(kind);
   {
     std::lock_guard<std::mutex> guard(entry->pool.mutex);
     entry->pool.pages[slot].push_back(page_no);
   }
-  blink_pool_unpin(entry);
+  blink_page_pool_unpin(entry);
 }
 
 static uint32_t blink_alloc_page(dict_index_t *index,
@@ -240,6 +244,7 @@ static void blink_allocator_main() noexcept
 {
   bool immediate= false;
   for (;;) {
+    blink_pending_splits_process();
     blink_pool_entry_t *entry= nullptr;
     blink_pool_entry_t *reclaim= nullptr;
     {
@@ -268,7 +273,7 @@ static void blink_allocator_main() noexcept
     }
     if (entry) {
       immediate= blink_refill_one(entry);
-      blink_pool_unpin(entry);
+      blink_page_pool_unpin(entry);
     }
     if (blink_allocator_shutdown.load() && !reclaim && !entry)
       break;
@@ -277,6 +282,7 @@ static void blink_allocator_main() noexcept
 
 void blink_page_pool_unregister(dict_index_t *index) noexcept
 {
+  blink_pending_splits_remove(index);
   std::unique_ptr<blink_pool_entry_t> entry;
   bool async_reclaim= false;
   {
@@ -339,7 +345,7 @@ void blink_page_pool_thread_stop() noexcept
   }
   for (blink_pool_entry_t *entry : entries) {
     blink_reclaim(entry);
-    blink_pool_unpin(entry);
+    blink_page_pool_unpin(entry);
   }
 }
 
