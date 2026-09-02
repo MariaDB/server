@@ -2940,3 +2940,54 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.6 tests
+
+
+--echo #
+--echo # Beginning of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-37020: derived table not merged in multi-table DELETE/UPDATE
+--echo #             while equivalent SELECT and view-based form do merge
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 select seq, seq from seq_1_to_10;
+create table t2 (a int, b int);
+insert into t2 select seq, seq from seq_1_to_10;
+create table t3 (a int, b int);
+insert into t3 select seq, seq from seq_1_to_10;
+
+--echo # Baseline: equivalent SELECT merges the derived table.
+explain select * from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt
+  where t1.b+1=1+dt.b1;
+
+--echo # Multitable DELETE must merge the derived table.
+explain delete t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a) dt
+  where t1.b+1=1+dt.b1;
+
+--echo # Multitable UPDATE must merge the derived table.
+explain update t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a) dt
+  set t1.a=t1.a+1 where t1.b+1=1+dt.b1;
+
+--echo # VIEW form already merged the derived table before this fix, verify.
+create view v1 as select t2.b as b1 from t2, t3 where t3.a=t2.a;
+select t1.* from t1, v1 where t1.b+1=1+v1.b1;
+explain select t1.* from t1, v1 where t1.b+1=1+v1.b1;
+explain delete t1.* from t1, v1 where t1.b+1=1+v1.b1;
+explain update t1, v1 set t1.a=t1.a+1 where t1.b+1=1+v1.b1;
+
+--echo # Confirm queries still produce the correct results.
+select t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt
+  where t1.b+1=1+dt.b1;
+delete t1.* from t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a<5) dt2
+  where t1.b=dt2.b1;
+select * from t1 order by a;
+update t1, (select t2.b as b1 from t2, t3 where t3.a=t2.a and t2.a>7) dt2
+  set t1.a=t1.a*100 where t1.b=dt2.b1;
+select * from t1 order by b;
+
+drop view v1;
+drop table t1, t2, t3;
+
+--echo # End of 10.11 tests
