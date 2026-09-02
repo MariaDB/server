@@ -1,0 +1,76 @@
+--echo #
+--echo # MDEV-34817 Performance schema does not clear package routines
+--echo #
+
+SET sql_mode=ORACLE;
+CREATE DATABASE mdev34817_db;
+
+DELIMITER $$;
+CREATE PACKAGE mdev34817_db.pkg1 AS
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY mdev34817_db.pkg1 AS
+  PROCEDURE p1() AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL mdev34817_db.pkg1.p1();
+DROP DATABASE mdev34817_db;
+SELECT object_type, object_schema, object_name
+FROM performance_schema.events_statements_summary_by_program
+WHERE LOWER(object_schema)='mdev34817_db';
+
+--echo # Testing DROP PACKAGE BODY directly
+CREATE DATABASE mdev34817_db;
+
+DELIMITER $$;
+CREATE PACKAGE mdev34817_db.pkg1 AS
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY mdev34817_db.pkg1 AS
+  PROCEDURE p1() AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL mdev34817_db.pkg1.p1();
+DROP PACKAGE BODY mdev34817_db.pkg1;
+SELECT object_type, object_schema, object_name
+FROM performance_schema.events_statements_summary_by_program
+WHERE LOWER(object_schema)='mdev34817_db';
+DROP DATABASE mdev34817_db;
+
+--echo # Testing DROP PACKAGE directly
+CREATE DATABASE mdev34817_db;
+
+DELIMITER $$;
+CREATE PACKAGE mdev34817_db.pkg1 AS
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY mdev34817_db.pkg1 AS
+  PROCEDURE p1() AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL mdev34817_db.pkg1.p1();
+DROP PACKAGE mdev34817_db.pkg1;
+SELECT object_type, object_schema, object_name
+FROM performance_schema.events_statements_summary_by_program
+WHERE LOWER(object_schema)='mdev34817_db';
+DROP DATABASE mdev34817_db;
+
+--echo # End of 10.11 tests
