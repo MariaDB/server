@@ -2608,7 +2608,8 @@ dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 
 	if (index == NULL
 	    || index->is_corrupted()
-	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
+	    || ((index->type & ~DICT_BLINK) | DICT_UNIQUE) !=
+	    (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
 		dict_stats_empty_table(table);
