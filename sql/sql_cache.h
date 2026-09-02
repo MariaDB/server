@@ -451,6 +451,14 @@ protected:
                                               bool only_sqlcache_tables);
 
   static my_bool ask_handler_allowance(THD *thd, TABLE_LIST *tables_used);
+
+  /*
+    Check if the query is in the cache and if this is true send the
+    data to client. Should be called through
+    query_cache_send_result_to_client()
+  */
+  int send_result_to_client(THD *thd, char *query, uint query_length);
+
  public:
 
   Query_cache(size_t query_cache_limit = ULONG_MAX,
@@ -474,12 +482,6 @@ protected:
 
   /* register query in cache */
   void store_query(THD *thd, TABLE_LIST *used_tables);
-
-  /*
-    Check if the query is in the cache and if this is true send the
-    data to client.
-  */
-  int send_result_to_client(THD *thd, char *query, uint query_length);
 
   /* Remove all queries that uses any of the listed following tables */
   void invalidate(THD *thd, TABLE_LIST *tables_used,
@@ -547,6 +549,10 @@ protected:
   void unlock(void);
 
   void disable_query_cache(THD *thd);
+
+  friend int query_cache_send_result_to_client(THD *thd, char *sql,
+                                               uint query_length);
+
 };
 
 struct Query_cache_query_flags
@@ -585,8 +591,6 @@ struct Query_cache_query_flags
 #define query_cache_set_min_res_unit(A) query_cache.set_min_res_unit(A)
 #define query_cache_invalidate3(A, B, C) query_cache.invalidate(A, B, C)
 #define query_cache_invalidate1(A, B) query_cache.invalidate(A, B)
-#define query_cache_send_result_to_client(A, B, C) \
-  query_cache.send_result_to_client(A, B, C)
 #define query_cache_invalidate_by_MyISAM_filename_ref \
   &query_cache_invalidate_by_MyISAM_filename
 #define query_cache_invalidate_locked_for_write(A, B) \
@@ -596,6 +600,8 @@ struct Query_cache_query_flags
   (T->variables.query_cache_type == QUERY_CACHE_TYPE_OFF || query_cache.query_cache_size == 0)
 #define query_cache_is_cacheable_query(L) \
   (((L)->sql_command == SQLCOM_SELECT) && (L)->safe_to_cache_query)
+
+/* See also sql_class.h for some inline query cache functions */
 
 extern MYSQL_PLUGIN_IMPORT Query_cache query_cache;
 #endif
