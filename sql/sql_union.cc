@@ -287,6 +287,16 @@ int select_union_recursive::send_data(List<Item> &values)
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
     {
       bool is_duplicate;
+      /*
+        create_internal_tmp_table_from_heap() appends the row that did not fit
+        from the record[0] of the table it converts, so the row has to be in
+        the increment table's own record buffer. Only reclength bytes of the
+        increment table are copied: if the union result table uses a unique
+        constraint its record has a trailing hash field, which is not part of
+        the increment table's record (see the assert above).
+      */
+      memcpy(incr_table->record[0], table->record[0],
+             incr_table->s->reclength);
       rc= create_internal_tmp_table_from_heap(thd, incr_table,
                                               tmp_table_param.start_recinfo, 
                                               &tmp_table_param.recinfo,

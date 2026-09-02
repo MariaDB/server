@@ -6246,3 +6246,230 @@ SELECT  1 > ( WITH cte AS ( SELECT 1 FROM x )  SELECT 1 FROM cte ) )
 SELECT 1 FROM x;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
 # End of 10.11 tests
+#
+# Recursive CTE loses a row when the increment table is converted
+# into an on-disk temporary table
+#
+CREATE TABLE t1 (n INT, pad CHAR(255) CHARACTER SET utf8mb4);
+INSERT INTO t1 SELECT seq, REPEAT('x',255) FROM seq_1_to_64;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+# Each query below is run twice. The first run leaves the increment
+# table in memory, the second forces it to be converted to an on-disk
+# table while it is being filled. Both runs must return the same rows.
+#
+# The increment table overflows while the anchor part fills it
+#
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+FLUSH STATUS;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, pad FROM t1
+UNION ALL
+SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+# 0 = no temporary table was converted
+SELECT VARIABLE_VALUE > 0 AS converted FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME = 'Created_tmp_disk_tables';
+converted
+0
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+FLUSH STATUS;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, pad FROM t1
+UNION ALL
+SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+# 1 = a temporary table was converted
+SELECT VARIABLE_VALUE > 0 AS converted FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME = 'Created_tmp_disk_tables';
+converted
+1
+#
+# The increment table overflows during a recursive step
+#
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, pad FROM t1 WHERE n = 1
+UNION ALL
+SELECT r.lvl+1, t1.pad FROM r, t1 WHERE r.lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads
+1	1	1
+2	64	64
+3	4096	4096
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, pad FROM t1 WHERE n = 1
+UNION ALL
+SELECT r.lvl+1, t1.pad FROM r, t1 WHERE r.lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads
+1	1	1
+2	64	64
+3	4096	4096
+#
+# The same, for a CTE that eliminates duplicates
+#
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, pad FROM t1
+UNION
+SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, pad FROM t1
+UNION
+SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+#
+# The same, when the result table's key does not fit an on-disk table
+# and is replaced by a unique constraint. The result table's record
+# then carries a trailing hash field that the increment table's record
+# does not have, so the two records are of different length.
+#
+CREATE TABLE t2 (n INT,
+p1 CHAR(200) CHARACTER SET utf8mb4,
+p2 CHAR(200) CHARACTER SET utf8mb4,
+p3 CHAR(200) CHARACTER SET utf8mb4);
+INSERT INTO t2
+SELECT seq, REPEAT('a',200), REPEAT('b',200), REPEAT('c',200) FROM seq_1_to_64;
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, p1, p2, p3 FROM t2
+UNION
+SELECT lvl+1, n, p1, p2, p3 FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(p3) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, p1, p2, p3 FROM t2
+UNION
+SELECT lvl+1, n, p1, p2, p3 FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(p3) AS pads, SUM(n) AS sum_n
+FROM r GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+DROP TABLE t2;
+#
+# A prepared statement re-executed after its increment table was
+# converted on an earlier execution
+#
+PREPARE s FROM "
+WITH RECURSIVE r AS
+  (SELECT 1 AS lvl, n, pad FROM t1
+     UNION ALL
+   SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+  FROM r GROUP BY lvl ORDER BY lvl";
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+EXECUTE s;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+EXECUTE s;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+EXECUTE s;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+DROP PREPARE s;
+#
+# Mutually recursive CTEs
+#
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+WITH RECURSIVE
+a AS (SELECT 1 AS lvl, n, pad FROM t1
+UNION ALL
+SELECT lvl+1, n, pad FROM b WHERE lvl < 4),
+b AS (SELECT lvl, n, pad FROM a)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM a GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+4	64	64	2080
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+WITH RECURSIVE
+a AS (SELECT 1 AS lvl, n, pad FROM t1
+UNION ALL
+SELECT lvl+1, n, pad FROM b WHERE lvl < 4),
+b AS (SELECT lvl, n, pad FROM a)
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM a GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+4	64	64	2080
+#
+# INSERT ... SELECT, which takes a different warning-handling path
+# when the increment table is filled
+#
+CREATE TABLE t3 (lvl INT, n INT, pad CHAR(255) CHARACTER SET utf8mb4);
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+INSERT INTO t3
+WITH RECURSIVE r AS
+(SELECT 1 AS lvl, n, pad FROM t1
+UNION ALL
+SELECT lvl+1, n, pad FROM r WHERE lvl < 3)
+SELECT lvl, n, pad FROM r;
+SELECT lvl, COUNT(*) AS cnt, COUNT(pad) AS pads, SUM(n) AS sum_n
+FROM t3 GROUP BY lvl ORDER BY lvl;
+lvl	cnt	pads	sum_n
+1	64	64	2080
+2	64	64	2080
+3	64	64	2080
+DROP TABLE t3;
+SET SESSION tmp_memory_table_size= @save_tmp_memory_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+# End of 13.1 tests

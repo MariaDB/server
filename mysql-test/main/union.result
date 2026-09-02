@@ -2848,3 +2848,38 @@ res
 3
 4
 2
+#
+# A result table that is converted to an on-disk table after its index
+# has been disabled
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq FROM seq_1_to_5000;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+# The index of the result table is dropped once the last distinct part
+# has been read, so the trailing UNION ALL part fills a table with no
+# index, and that table then outgrows the in-memory limit.
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT a) AS distinct_a FROM (
+SELECT a FROM t1 WHERE a <= 100
+UNION
+SELECT a FROM t1 WHERE a <= 100
+UNION ALL
+SELECT a FROM t1) d;
+cnt	distinct_a
+5100	5000
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT a) AS distinct_a FROM (
+SELECT a FROM t1 WHERE a <= 100
+UNION
+SELECT a FROM t1 WHERE a <= 100
+UNION ALL
+SELECT a FROM t1) d;
+cnt	distinct_a
+5100	5000
+SET SESSION tmp_memory_table_size= @save_tmp_memory_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+# End of 13.1 tests
