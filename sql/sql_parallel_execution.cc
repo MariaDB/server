@@ -134,46 +134,6 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 
 /**
   @brief
-    Whether the access method on 'tab' is one the workers can partition.
-
-  @description
-    A plain full scan always is: the engine divides the whole clustered index.
-    A range scan can be, because the engine partitions each key interval the
-    same way it partitions the whole index (parallel_init_coordinator() takes
-    the intervals and calls add_scan() once per interval), and the worker's
-    chunk boundaries are then clustered-index keys inside that interval.
-
-    Which intervals it will accept is decided here, because what it does with
-    them is not visible from the interval alone. It converts each endpoint
-    against the *clustered* index -- pscan_convert_key() builds the tuple from
-    table->s->primary_key -- so an interval over any other index would be read
-    as a primary-key interval and silently scan the wrong part of the table.
-    Hence: a real primary key, and the quick select reading through it.
-
-    QS_TYPE_RANGE and nothing else. An index merge or a ROR intersect combines
-    several indexes and has no single interval list to hand over; a GROUP BY
-    min/max scan visits one row per group rather than a range; and a
-    descending read (QS_TYPE_RANGE_DESC) walks the intervals backwards, which
-    the partitioner does not produce -- it assumes ascending physical key
-    order, as ha_innobase::parallel_init_coordinator() says when it declines a
-    descending key column.
-
-  @return  true if the workers can scan what this access method reads.
-*/
-bool parallel_scan_supports_access(JOIN_TAB *tab)
-{
-  if (!tab->select || !tab->select->quick)
-    return true;                                 // full scan: nothing to map
-
-  QUICK_SELECT_I *quick= tab->select->quick;
-  return quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE &&
-         tab->table->s->primary_key < MAX_KEY &&
-         quick->index == tab->table->s->primary_key;
-}
-
-
-/**
-  @brief
     Can the workers be handed disjoint pieces of the way this table is read?
 
   @description
@@ -192,7 +152,7 @@ bool parallel_scan_supports_access(JOIN_TAB *tab)
       key order, and rows handed out in chunks do not arrive in key order;
 
     - the quick select, if there is one, is one the partitioner can map onto
-      chunk boundaries (parallel_scan_supports_access);
+      chunk boundaries (is_parallel_scan_applicable);
 
     - the table itself is one the workers can read and ship
       (table_can_be_parallel_scanned).
@@ -208,7 +168,7 @@ bool table_can_be_parallel_scanned(JOIN_TAB *tab)
   return tab &&
          (tab->type == JT_ALL || tab->type == JT_RANGE) &&
          tab->read_first_record == join_init_read_record &&
-         parallel_scan_supports_access(tab) &&
+         is_parallel_scan_applicable(tab) &&
          table_can_be_parallel_scanned(tab->table);
 }
 
@@ -1929,7 +1889,14 @@ int pwt_worker::execute_and_handoff()
   if (err)
     goto exec_exit;
 
-  if ((err= src->file->parallel_init_worker(exec.handler_ctx)))
+  /*
+    src is this worker's own copy of the driving table, opened from the share by
+    open_worker_tables(), so its handler is not the one the coordinator was
+    initialised on. The master's is, and it is where the scan parameters live;
+    hand it over so the worker's handler can take what it needs of them.
+  */
+  if ((err= src->file->parallel_init_worker(exec.handler_ctx,
+                                           manager->exec.scan_tab->table->file)))
     goto exec_exit;
 
   {
@@ -2126,4 +2093,154 @@ int pwt_manager::drain_and_send(JOIN *join)
 
   DBUG_PRINT("info", ("join records:%llu", join->send_records));
   DBUG_RETURN(ret);
+}
+
+
+/**
+  @brief
+    Whether the access method the plan settled on is one the engine will hand
+    out in pieces.
+
+  @description
+    Asked of the driving table only, and asked about the *access method*: the
+    table-level question -- a real base table, no blob-backed columns, not
+    fulltext-searched, not partitioned, an engine that does this at all -- is
+    table_can_be_parallel_scanned()'s, and the caller asks it first. Keeping
+    the two apart matters because the optimizer's cost hook
+    (scale_cost_for_parallel_scan) asks only the table-level one, and a copy
+    here would be free to drift from it.
+*/
+
+bool is_parallel_scan_applicable(JOIN_TAB *join_tab)
+{
+  /*
+    Two access methods are eligible: a table scan (EXPLAIN type=ALL) and a
+    range scan over one index. A range scan reaches here as either JT_ALL or
+    JT_RANGE, depending on how the plan arrived at it -- make_join_select()
+    promotes a ref to JT_RANGE when the range uses a longer key -- and both
+    read through join_init_read_record. read_first_record is checked next to
+    ->type because this runs after make_join_readinfo(), which is what actually
+    picked the reader.
+
+    A complete scan of one index (type=index, JT_NEXT) is NOT eligible, even
+    though InnoDB advertises PSCAN_INDEX_FULL. init_parallel_workers() already
+    knows how to name the index for one, but nothing in the SQL layer has
+    driven it yet: the plans that reach here as JT_NEXT are mostly covering
+    reads, and a worker's handler is not given the plan's keyread, so taking
+    one would throw away the reason the index was chosen. Until that is
+    settled, this is the check that keeps the two apart.
+  */
+  if (!((join_tab->type == JT_ALL || join_tab->type == JT_RANGE) &&
+        join_tab->read_first_record == join_init_read_record))
+    return false;
+
+  /*
+    The plan may be relying on this table's rows arriving in index order to
+    satisfy ORDER BY or GROUP BY without a filesort, but a parallel scan
+    does not preserve that order. Reject parallelization in that case.
+  */
+  if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
+    return false;
+
+  if (join_tab->filesort || join_tab->filesort_result ||
+      join_tab->need_to_build_rowid_filter || join_tab->rowid_filter ||
+      join_tab->distinct)
+    return false;
+
+  const uint32 pscan_support= join_tab->table->file->parallel_scan_support();
+  SQL_SELECT *sql_select= join_tab->select;
+
+  if (sql_select && sql_select->quick)
+  {
+    /*
+      The case of a range scan. Any single index will do, primary or
+      secondary: the coordinator converts each endpoint against the index it
+      was asked to divide, and the worker opens that same index. What is asked
+      of the plan is that it be one plain range with few enough intervals to be
+      worth splitting.
+
+      QS_TYPE_RANGE and nothing else. An index merge or a ROR intersect
+      combines several indexes and has no single interval list to hand over; a
+      GROUP BY min/max scan visits one row per group rather than a range; and a
+      descending read (QS_TYPE_RANGE_DESC) walks the intervals backwards, which
+      the partitioner does not produce.
+
+      Which of the two bits is asked for is decided by whether the index is the
+      clustered one, because that is what the engine is really being asked to
+      divide. The engine then decides whether it can partition this particular
+      index -- see ha_innobase::pscan_resolve_index(), which declines spatial,
+      FTS, virtual-column and descending indexes -- and we fall back to the
+      serial reader on HA_ERR_UNSUPPORTED.
+    */
+    const uint MAX_PARALLEL_SCAN_RANGES= 128;
+    if (sql_select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE &&
+        sql_select->quick->index < join_tab->table->s->keys &&
+        join_tab->use_quick != 2 /*exclude dynamic range*/ &&
+        ((QUICK_RANGE_SELECT*) sql_select->quick)->num_ranges() <=
+          MAX_PARALLEL_SCAN_RANGES)
+    {
+      /*
+        A rowid-ordered scan collects the row ids, sorts them and then sweeps
+        the clustered index in that order. Taking such a plan would quietly
+        throw the sorted sweep away. Leave it serial.
+      */
+      if (((QUICK_RANGE_SELECT*) sql_select->quick)->mrr_flags &
+          DSMRR_IMPL_SORT_ROWIDS)
+        return false;
+
+      if (sql_select->quick->index == join_tab->table->s->primary_key)
+        return (pscan_support & handler::PSCAN_TABLE_RANGE) != 0;
+      else
+        return (pscan_support & handler::PSCAN_INDEX_RANGE) != 0;
+    }
+    else
+    {
+      return false;
+    }
+  }
+  else
+  {
+    return (pscan_support & handler::PSCAN_TABLE_FULL) != 0;
+  }
+}
+
+
+/*
+  @brief
+    The GROUP BY key the plan's own aggregation table is built on, if the
+    terminal that reads it is the one that looks a group up by that key.
+
+  @description
+    end_update() reads a row, builds the group key from table->group and folds
+    the row into whichever group it finds -- the one terminal whose answer does
+    not depend on the order rows arrive in, which is what lets the driving scan
+    be handed out in chunks at all. It is also the one a partial can be merged
+    through, because the update_field() it calls per aggregate consumes a
+    direct value in place of the row.
+
+    The key is taken from the aggregation table rather than from
+    join->group_list, and not only because that is the one end_update() will
+    actually key on: make_aggr_tables_info() sets join->group_list to NULL once
+    the temp table has taken the grouping over, so by this point it is gone.
+
+    Lives here because end_update() is static to this file.
+
+  @return the key, or nullptr if this plan's terminal is not that one.
+
+    TODO: shift this out by whatever means is reqd.
+      rewrite the above into something less convoluted
+*/
+
+ORDER *pwt_plan_group_key(JOIN *join)
+{
+  if (!join->aggr_tables)
+    return nullptr;
+  JOIN_TAB *last= join->join_tab + join->top_join_tab_count - 1;
+  if (last->next_select != sub_select_postjoin_aggr)
+    return nullptr;
+  JOIN_TAB *aggr_tab= last + 1;
+  if (!aggr_tab->aggr || aggr_tab->aggr->get_write_func() != end_update ||
+      !aggr_tab->table)
+    return nullptr;
+  return aggr_tab->table->group;
 }
