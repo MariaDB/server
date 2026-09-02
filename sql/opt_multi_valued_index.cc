@@ -220,6 +220,11 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
   return false;
 }
 
+
+/*
+  Collect indexed columns used by ARRAY fulltext indexes.
+*/
+
 static
 bool collect_mvi_vcols_for_join(JOIN *join, List<Field> *vcol_fields)
 {
@@ -235,6 +240,7 @@ bool collect_mvi_vcols_for_join(JOIN *join, List<Field> *vcol_fields)
     for (uint i=0; i < table->s->keys; i++)
     {
       // note: we could also support histograms here
+      //    (probably elsewhere as here we don't have access to the conditions)
       if (!table->keys_in_use_for_query.is_set(i))
         continue;
 
@@ -264,6 +270,20 @@ class Mvi_context
 
   Mvi_context(THD *thd_arg) : thd(thd_arg) {}
 };
+
+
+/*
+  Create a fulltext search item that matches this JSON_CONTAINS(...) predicate.
+  
+  @detail
+    Check if this item is 
+
+      JSON_CONTAINS(json_field, '[foo, bar, ... ]')
+
+    and then create nd return
+
+      MATCH vcol AGAINST ('+encoded_foo +encoded_bar ...' IN BOOLEAN MODE)
+*/
 
 Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
                                                  List<Field> *vcol_fields)
@@ -357,6 +377,11 @@ ok:
   return new (thd->mem_root) Item_func_match(thd, ifm_args, FT_BOOL);
 }
 
+/*
+  Walk (*conds_ref) and add conditions for multi-value index predicates.
+
+  Since we add fulltext predicates, also add them into *ftfunc_list.
+*/
 static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
                            List<Item_func_match> *ftfunc_list)
 {
@@ -384,6 +409,7 @@ static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
       }
     }
   }
+  // TODO: Does this distinguish between AND/OR ??? 
   if (matches.elements == 1)
     cond= matches.pop();
   else

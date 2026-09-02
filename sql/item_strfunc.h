@@ -2643,6 +2643,13 @@ protected:
   { return get_item_copy<Item_temptable_rowid>(thd, this); }
 };
 
+
+/*
+  A function to support ARRAY indexes:
+    create index idx1 on t1 ((cast(json_extract(a, '$.arr') as DATATYPE array)));
+  (TODO: move to a separate file)
+*/
+
 class Item_func_mvi_encode : public Item_str_ascii_func
 {
   Lex_cast_type_st m_cast_type;
