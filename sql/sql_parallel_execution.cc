@@ -330,15 +330,31 @@ void recheck_parallel_scan(JOIN *join)
     whole condition and filtering by it alone lets through everything the buffer
     would have rejected.
 
-    Both halves are reported together, and the gate and both clone sites go
+    There is a third. A table the plan sorts has its condition taken away
+    from it altogether: JOIN::add_sorting_to_table() hands tab->select to the
+    Filesort it builds and then nulls both tab->select and tab->select_cond,
+    because the sorted read the tab is left with is fed by a scan the filesort
+    has already filtered. So for a sorted tab the condition survives only as
+    tab->filesort->select->cond, and a worker that asked the tab would filter
+    by nothing and return the whole table.
+
+    That is the same SQL_SELECT the tab used to own, so it is the pre-pushdown
+    condition already and it is asked for first. push_index_cond() runs long
+    before the sort is added, so pre_idx_push_select_cond can be set as well;
+    it holds the same condition, and taking either is correct.
+
+    All three are reported together, and the gate and both clone sites go
     through here, so the condition the gate approves is always the condition a
     worker ends up evaluating.
 */
 
 static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
 {
-  *cond= tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
-                                       : tab->select_cond;
+  if (tab->filesort && tab->filesort->select)
+    *cond= tab->filesort->select->cond;
+  else
+    *cond= tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
+                                         : tab->select_cond;
   *cache_cond= tab->cache_select ? tab->cache_select->cond : nullptr;
 }
 
@@ -600,6 +616,27 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
       DBUG_RETURN(false);
     }
     /*
+      Every table the worker joins is re-opened from its share --
+      open_worker_tables() gives each worker its own TABLE so the handlers do
+      not contend -- and only a base table can be opened that way. A temporary
+      table's share describes something built in memory for this statement:
+      open_table_from_share() walks share->field cloning each column and
+      crashes on it.
+
+      The plan reaches here holding one whenever a subquery was materialized:
+      SJ-Materialization-Lookup leaves the materialized result in the top-level
+      table list as <subqueryN>, read by eq_ref on its distinct key, and that
+      tab has no bush_children to catch it -- only the Scan variant does.
+
+      The driving table is checked by table_can_be_parallel_scanned(), which
+      asks the same question among others; this is the rest of the plan.
+    */
+    if (j > join->const_tables && tab->table->s->tmp_table != NO_TMP_TABLE)
+    {
+      DBUG_PRINT("info", ("temporary table %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+    /*
       The worker runs a plain nested loop, so it implements none of the semijoin
       duplicate-elimination strategies. Nothing in the flat table list shows that
       FirstMatch or DuplicateWeedout is in force, and a worker that ignores them
@@ -622,9 +659,22 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
       The driving table may be read through a quick select -- checked above,
       where the whole access path is -- but the tables joined after it may not:
       a worker's tab keeps the record source make_join_readinfo() chose and
-      reads through no quick select of its own.
+      reads through no quick select of its own. setup_worker_jointabs() sets
+      the copy's 'select' to NULL, because the SQL_SELECT and the quick hanging
+      off it name the manager's table and its Items.
+
+      use_quick == 2 is "Range checked for each record", where there is no
+      quick select yet to find: make_join_readinfo() gave the tab
+      join_init_quick_read_record(), which builds one per outer row by calling
+      test_if_quick_select(), and that begins "delete tab->select->quick".
+      Testing for a quick therefore misses exactly the plan that needs the
+      SQL_SELECT most, and the worker dereferences the NULL.
+
+      So the test is on the reader the plan chose, not on what it has built
+      yet.
     */
-    if (j > join->const_tables && tab->select && tab->select->quick)
+    if (j > join->const_tables &&
+        tab->select && (tab->select->quick || tab->use_quick == 2))
     {
       DBUG_PRINT("info", ("quick select on %s",tab->table->alias.ptr()));
       DBUG_RETURN(false);
@@ -1123,6 +1173,14 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
   */
   DBUG_ASSERT(!tab->rowid_filter);
   DBUG_ASSERT(is_driving || !tab->select || !tab->select->quick);
+  /*
+    "Range checked for each record": the reader builds a quick select per outer
+    row out of tab->select, which a worker does not have. Asserted next to the
+    quick above because it is the same rule -- an inner tab reads through no
+    quick select of its own -- and the one the quick test cannot see, there
+    being nothing built yet at this point.
+  */
+  DBUG_ASSERT(is_driving || tab->use_quick != 2);
 
   /* Materialized derived tables, CTEs and split materialization. */
   DBUG_ASSERT(!tab->split_derived_to_update);
@@ -2142,9 +2200,27 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab)
   if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
     return false;
 
-  if (join_tab->filesort || join_tab->filesort_result ||
+  if (join_tab->filesort_result ||
       join_tab->need_to_build_rowid_filter || join_tab->rowid_filter ||
       join_tab->distinct)
+    return false;
+
+  /*
+    A sort of this table's own read, added by make_aggr_tables_info() after the
+    plan was otherwise settled. This one is not about the order rows arrive in
+    -- a sort does not care -- it is about where the sort can happen. The
+    filesort is bound to the read the workers take over, and there is no
+    post-join stage to move it to: for these plans make_aggr_tables_info()
+    builds no aggregation table, so the terminal after the driving tab is
+    end_send() straight to the client. Until the manager can sort what it
+    drains, the sort has nowhere to go and the plan has to run serially.
+
+    Kept apart from the checks above because it is the one of them that a
+    manager-side sort stage would lift, and because the trace should say which
+    of the two reasons applied. pwt_table_conds() already knows where a sorted
+    tab keeps its condition, so the worker half is in place.
+  */
+  if (join_tab->filesort)
     return false;
 
   const uint32 pscan_support= join_tab->table->file->parallel_scan_support();
@@ -2243,4 +2319,114 @@ ORDER *pwt_plan_group_key(JOIN *join)
       !aggr_tab->table)
     return nullptr;
   return aggr_tab->table->group;
+}
+
+
+/**
+  @brief
+  Run this query's driving-table scan in parallel workers if possible.
+
+  @description
+  Test if
+  1) worker threads are available;
+  2) the table itself is one a worker can read and ship
+     (table_can_be_parallel_scanned);
+  3) the access method the plan settled on is one the engine will divide
+     (is_parallel_scan_applicable), which is also where the engine's
+     parallel_scan_support() bitmap is matched against it;
+  4) the query itself is one the workers can run end to end
+     (can_run_query_in_workers) -- a streaming select-project[-join] whose
+     every expression can be cloned onto a worker's own table copies.
+
+  Called late in optimize_stage2(), everything earlier can change the
+  first table's access method. A table given an ordered
+  index scan after the fact is not one that can be handed out in chunks.
+
+  Engine-intrinsic constraints (consistent-read only, record format,
+  discarded tablespace, ...) are not known here. They are enforced later
+  inside parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED
+  so run_worker_side_join() falls back to serial execution. The table keeps
+  the serial reader either way: the manager never scans it, it only collects
+  the workers' result rows, and the serial reader is what the fall-back path
+  needs. do_select() dispatches on worker_side_parallel.
+
+  (Un)Sets join->worker_side_parallel
+*/
+
+void parallel_join_check(JOIN *join)
+{
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                    WITHOUT_CONST_TABLES);
+  if (join->thd->variables.parallel_worker_threads > 0 &&             //1
+      first && table_can_be_parallel_scanned(first->table) &&   //2
+      is_parallel_scan_applicable(first) &&                     //3
+      can_run_query_in_workers(join, first))                    //4
+  {
+    first->use_parallel_scan= join->worker_side_parallel= true;
+    if (unlikely(join->thd->trace_started()))
+    {
+      Json_writer_object trace_pscan(join->thd);
+      trace_pscan.add("chosen_for_parallel_scan",
+                      first->table->alias.c_ptr());
+      /*
+        What the workers will divide: the whole clustered index, or the key
+        intervals of the range scan. The two are partitioned the same way,
+        but which one it is decides whether the chunk boundaries are bounded
+        by the range, so say so rather than leaving it to be inferred from
+        the access method shown elsewhere in the trace.
+      */
+      trace_pscan.add("range_scan",
+                      first->select && first->select->quick != NULL);
+    }
+  }
+  else
+  {
+    join->worker_side_parallel= false;
+    /*
+      And take back what check_parallel_scan() marked in make_join_readinfo(),
+      which is what EXPLAIN reads to print ALL_parallel / range_parallel. It
+      runs before the plan is finished and this is the decision that stands, so
+      leaving the mark would have EXPLAIN name a parallel scan for a query that
+      then runs serially. recheck_parallel_scan() clears both for the same
+      reason.
+    */
+    if (first)
+      first->use_parallel_scan= false;
+    /*
+      Only when the workers were available to begin with. With
+      parallel_worker_threads at 0 every query in the server declines, and
+      saying so in every trace would tell the reader nothing they did not set
+      themselves.
+    */
+    if (unlikely(join->thd->trace_started()) &&
+        join->thd->variables.parallel_worker_threads > 0)
+    {
+      Json_writer_object trace_pscan(join->thd);
+      trace_pscan.add("parallel_scan_declined", first ? first->table->alias.c_ptr()
+                                                      : "");
+      /*
+        Named in the order they are worth telling apart rather than the order
+        they are tested. The sort comes first because it is the one a later
+        commit is meant to lift, and because it arrives last:
+        make_aggr_tables_info() adds it after everything else about the plan
+        has been decided, so a plan can pass every other test here and still
+        be turned away by it. The two orderings after it are the opposite
+        case -- the plan wants the rows in an order chunked delivery cannot
+        produce -- and no manager-side stage will change that.
+
+        Anything else is one of many, and the trace would have to name a check
+        rather than a reason; the plan itself is in the trace for that.
+      */
+      trace_pscan.add("parallel_scan_declined_because",
+                      !first
+                      ? "there is no table to divide" :
+                      first->filesort
+                      ? "the manager cannot sort what the workers produce" :
+                      join->ordered_index_usage == JOIN::ordered_index_order_by
+                      ? "an index supplies the ORDER BY order" :
+                      join->ordered_index_usage == JOIN::ordered_index_group_by
+                      ? "an index supplies the GROUP BY order"
+                      : "the query is not one the workers can run");
+    }
+  }
 }
