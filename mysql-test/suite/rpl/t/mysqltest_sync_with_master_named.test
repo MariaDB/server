@@ -1,0 +1,42 @@
+--source include/have_binlog_format_mixed.inc # format-agnostic
+
+
+--connect (master, 127.0.0.1, root, , , $MASTER_MYPORT)
+FLUSH BINARY LOGS;
+--save_master_pos
+
+--connect (slave, 127.0.0.1, root, , , $SLAVE_MYPORT)
+SET @@SESSION.default_master_connection= 'literal';
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CHANGE MASTER TO
+  master_host='127.0.0.1', master_port=$MASTER_MYPORT, master_user='root';
+--source include/start_slave.inc
+
+--sync_with_master 0, literal
+
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+
+
+--echo # MDEV-40996
+
+--connection master
+FLUSH BINARY LOGS;
+--save_master_pos
+
+--connection slave
+--let $connection= variable
+--eval SET @@SESSION.default_master_connection= '$connection'
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CHANGE MASTER TO
+  master_host='127.0.0.1', master_port=$MASTER_MYPORT, master_user='root';
+--source include/start_slave.inc
+
+--sync_with_master 0, $connection
+
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+
+
+--disconnect master
+--disconnect slave
