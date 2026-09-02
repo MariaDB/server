@@ -1,0 +1,28 @@
+#
+# MDEV-35767 MTR Overwrites Test-Specific .cnf File Options On Duplicate Option
+# Test all replication and binlog filter variables
+#
+SELECT @@replicate_do_table;
+@@replicate_do_table
+test.t2,test.t1
+SELECT @@replicate_ignore_table;
+@@replicate_ignore_table
+test.i2,test.i1
+SELECT @@replicate_wild_do_table;
+@@replicate_wild_do_table
+test.wd1,test.wd2
+SELECT @@replicate_wild_ignore_table;
+@@replicate_wild_ignore_table
+test.wi1,test.wi2
+SELECT @@replicate_do_db;
+@@replicate_do_db
+db1,db2
+SELECT @@replicate_ignore_db;
+@@replicate_ignore_db
+idb1,idb2
+#
+# Verify optimizer_switch contains both flags
+#
+SELECT @@optimizer_switch LIKE '%index_merge=off%' AND @@optimizer_switch LIKE '%index_merge_union=off%';
+@@optimizer_switch LIKE '%index_merge=off%' AND @@optimizer_switch LIKE '%index_merge_union=off%'
+1
