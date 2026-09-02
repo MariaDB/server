@@ -2060,10 +2060,11 @@ protected:
 };
 
 
-class Create_func_regexp_instr : public Create_func_arg2
+class Create_func_regexp_instr : public Create_native_func
 {
 public:
-  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_regexp_instr s_singleton;
 
@@ -5434,9 +5435,16 @@ Create_func_quote::create_1_arg(THD *thd, Item *arg1)
 Create_func_regexp_instr Create_func_regexp_instr::s_singleton;
 
 Item*
-Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+Create_func_regexp_instr::create_native(THD *thd, const LEX_CSTRING *name,
+                                        List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_regexp_instr(thd, arg1, arg2);
+  uint arg_count= item_list ? item_list->elements : 0;
+  if (arg_count < 2 || arg_count > 6)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_regexp_instr(thd, *item_list);
 }
 
 
