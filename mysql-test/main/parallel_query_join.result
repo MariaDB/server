@@ -7,6 +7,16 @@ CREATE TABLE d2 (k INT, label VARCHAR(20), KEY(k)) ENGINE=InnoDB;
 INSERT INTO d2 SELECT seq % 20 + 1, CONCAT('L', seq) FROM seq_1_to_60;
 CREATE TABLE d3 (x INT, descr VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
+analyze table fact, d1, d2, d3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.fact	analyze	status	Engine-independent statistics collected
+test.fact	analyze	status	OK
+test.d1	analyze	status	Engine-independent statistics collected
+test.d1	analyze	status	OK
+test.d2	analyze	status	Engine-independent statistics collected
+test.d2	analyze	status	OK
+test.d3	analyze	status	Engine-independent statistics collected
+test.d3	analyze	status	OK
 SET @s= @@session.parallel_worker_threads;
 SET @save_os= @@session.optimizer_switch;
 SET SESSION optimizer_switch='derived_merge=off';
@@ -214,7 +224,7 @@ ANALYZE
           "r_rows_per_worker": REPLACED,
           "cost": "REPLACED",
           "r_engine_stats": REPLACED,
-          "filtered": 100,
+          "filtered": 0.200000003,
           "r_total_filtered": 0.2,
           "attached_condition": "f.val > 100 and f.val < 130 and f.dim1 is not null",
           "r_filtered": 0.2
@@ -229,7 +239,7 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["id"],
           "ref": ["test.f.dim1"],
-          "loops": 5000,
+          "loops": 10,
           "r_loops": 10,
           "r_table_loops": 0,
           "rows": 1,
@@ -272,7 +282,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
-          "filtered": 100,
+          "filtered": 0.200000003,
           "r_total_filtered": 0.2,
           "attached_condition": "f.val > 100 and f.val < 130 and f.dim1 is not null",
           "r_filtered": 0.2
@@ -287,7 +297,7 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["id"],
           "ref": ["test.f.dim1"],
-          "loops": 5000,
+          "loops": 10,
           "r_loops": 10,
           "rows": 1,
           "r_rows": 1,
@@ -303,5 +313,42 @@ ANALYZE
     ]
   }
 }
+#
+# an inner table read as "Range checked for each record"
+#
+CREATE TABLE r1 (
+pk INT PRIMARY KEY, f1 INT, f2 CHAR(1),
+KEY(f1), KEY(f2)
+) ENGINE=InnoDB;
+INSERT INTO r1 SELECT seq, seq % 10, CHAR(97 + seq % 20) FROM seq_1_to_19;
+CREATE TABLE r2 (f4 INT, f5 CHAR(1)) ENGINE=InnoDB;
+INSERT INTO r2 VALUES (4,'q'),(NULL,'j');
+SET SESSION parallel_worker_threads= 4;
+# r1_1 is read that way (expect "Range checked for each record")
+EXPLAIN SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	r2	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	r1_2	ref	f2	f2	5	test.r2.f5	#	Using index
+1	SIMPLE	r1_1	ALL	PRIMARY,f1,f2	NULL	NULL	NULL	#	Range checked for each record (index map: 0x7)
+# refused, so the query is answered serially (expect 0)
+FLUSH STATUS;
+SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+pk	pk	f4
+1	16	4
+2	16	4
+3	16	4
+ran_in_the_workers
+0
+# the same rows a serial scan returns
+SET SESSION parallel_worker_threads= 0;
+SELECT r1_1.pk, r1_2.pk, f4 FROM r1 AS r1_1, r1 AS r1_2, r2
+WHERE f5 = r1_2.f2 AND (r1_1.f1 = 103 AND r1_1.f2 = 'o' OR r1_1.pk < f4);
+pk	pk	f4
+1	16	4
+2	16	4
+3	16	4
+DROP TABLE r1, r2;
 SET SESSION parallel_worker_threads= @s;
 DROP TABLE fact, d1, d2, d3;
