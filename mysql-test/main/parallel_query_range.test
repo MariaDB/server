@@ -2,11 +2,11 @@
 # MDEV-39491 Parallel Query: range scan over the chunked table.
 #
 # The engine partitions the key intervals of a range scan the same way it
-# partitions a whole clustered index, so a range scan can run in the workers
-# too. It converts every interval endpoint against the clustered index, so only
-# a primary-key range qualifies; the gate refuses the rest and the query runs
-# serially. The optimizer trace says which of the two a parallel query got, in
-# range_scan beside chosen_for_parallel_scan.
+# partitions a whole index, so a range scan can run in the workers too, over
+# the primary key or over a secondary one. What it will not take is an access
+# method with no single interval list to divide; the gate refuses those and the
+# query runs serially. The optimizer trace says which of the two a parallel
+# query got, in range_scan beside chosen_for_parallel_scan.
 #
 --source include/have_innodb.inc
 --source include/have_sequence.inc
@@ -103,23 +103,66 @@ SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
 SELECT MIN(pk) lo, MAX(pk) hi, COUNT(*) n
   FROM (SELECT pk FROM t1 WHERE pk >= 5000 AND pk <= 5010) d;
 
+#
+# A secondary index is divided the same way, and the worker has to open the
+# index the boundaries were computed on rather than the clustered one. Its
+# handler is not the handler the coordinator was initialised on -- each worker
+# opens a private copy of the driving table -- so the scan parameters reach it
+# through parallel_init_worker()'s coordinator argument.
+#
+--echo #
+--echo # a range over a secondary index, divided the same way
+--echo #
+SET SESSION parallel_worker_threads=4;
+--replace_column 9 #
+EXPLAIN SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 200;
+
+--let $pq_cols= pk, a, b
+
+--echo # bounded both ends
+--let $pq_query= SELECT pk, a, b FROM t1 WHERE a BETWEEN 100 AND 200
+--source include/parallel_query_fingerprint.inc
+
+--echo # open upper end
+--let $pq_query= SELECT pk, a, b FROM t1 WHERE a > 900
+--source include/parallel_query_fingerprint.inc
+
+--echo # two disjoint intervals over the secondary index
+--let $pq_query= SELECT pk, a, b FROM t1 WHERE a < 30 OR a > 970
+--source include/parallel_query_fingerprint.inc
+
+--echo # a residual the interval does not express, applied by the worker
+--let $pq_query= SELECT pk, a, b FROM t1 WHERE a BETWEEN 100 AND 200 AND b % 7 = 0
+--source include/parallel_query_fingerprint.inc
+
+--echo #
+--echo # the same, on a table whose clustered index is generated: the secondary
+--echo # index carries the row id rather than a user primary key
+--echo #
+CREATE TABLE t2 (a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq%997, seq*2 FROM seq_1_to_20000;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--let $pq_cols= a, b
+--let $pq_query= SELECT a, b FROM t2 WHERE a BETWEEN 100 AND 200
+--source include/parallel_query_fingerprint.inc
+DROP TABLE t2;
+
+--echo #
+--echo # the exclusive lower bound is skipped in the worker, over a secondary
+--echo # index too: the range bookkeeping reaches it with the scan parameters
+--echo #
+SET SESSION parallel_worker_threads=4;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a > 500 AND a < 510) d;
+--echo # and the same read serially
+SET SESSION parallel_worker_threads=0;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a > 500 AND a < 510) d;
+
 --echo #
 --echo # intervals the engine cannot be handed: refused, and answered serially
 --echo #
 SET SESSION parallel_worker_threads=4;
-
---echo # a range over a secondary index -- its keys are not clustered-index keys
---replace_column 9 #
-EXPLAIN SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 200;
-FLUSH STATUS;
---disable_result_log
-SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 200;
---enable_result_log
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
-       AS chosen FROM information_schema.optimizer_trace;
-SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
---sorted_result
-SELECT pk, a FROM t1 WHERE a BETWEEN 100 AND 105 AND pk < 1000;
 
 --echo # index_merge, which has no single interval list to hand over
 SET SESSION optimizer_switch='derived_merge=off,index_merge=on';
@@ -133,21 +176,6 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
        AS chosen FROM information_schema.optimizer_trace;
 SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
 SET SESSION optimizer_switch='derived_merge=off';
-
---echo # a table with no primary key at all
-CREATE TABLE t2 (a INT, KEY(a)) ENGINE=InnoDB;
-INSERT INTO t2 SELECT seq FROM seq_1_to_20000;
-ANALYZE TABLE t2 PERSISTENT FOR ALL;
---replace_column 9 #
-EXPLAIN SELECT a FROM t2 WHERE a BETWEEN 100 AND 200;
-FLUSH STATUS;
---disable_result_log
-SELECT a FROM t2 WHERE a BETWEEN 100 AND 200;
---enable_result_log
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
-       AS chosen FROM information_schema.optimizer_trace;
-SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
-DROP TABLE t2;
 
 SET SESSION optimizer_trace= @save_trace;
 SET SESSION optimizer_switch= @save_os;
