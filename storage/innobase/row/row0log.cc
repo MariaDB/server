@@ -4039,6 +4039,24 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
     rec_offs_make_valid(copy_rec, clust_index, true, offsets);
     mtr.commit();
 
+    /* row_log_table_get_pk() below dereferences the externally stored
+    columns of prev_version, with neither a page latch nor a frozen
+    purge_sys.view. Two properties keep those pages allocated:
+
+    (a) trx_t::apply_log() runs before trx_t::write_serialisation_history(),
+    so this transaction is still registered in trx_sys and its undo log is
+    not yet in the history list. purge_sys.view therefore cannot see it.
+
+    (b) get_old_rec() stops at the version this undo log record wrote, and
+    this transaction holds an exclusive lock on the record. The page latch
+    is already released here, but that lock is not, until past the
+    serialisation point (a) rests on, so every version above that one is
+    this transaction's own. The oldest writer applied is therefore this
+    transaction, and whatever disowned a reference that prev_version holds
+    is that writer or a newer one, none of which purge can reach.
+
+    Deferring the call past the serialisation, or walking below this
+    transaction's own version, would break the argument. */
     clust_index->lock.s_lock(SRW_LOCK_CALL);
     /* Recheck whether clustered index online log has been cleared */
     if (clust_index->online_log)
