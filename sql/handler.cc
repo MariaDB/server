@@ -889,8 +889,15 @@ static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
     if (st_plugin_int *pi= hton2plugin[i])
     {
       locks[j]= plugin_lock(NULL, plugin_int_to_ref(pi));
-      if ((err= func(thd, plugin_hton(locks[j++]), arg)))
-        break;
+      // After UNINSTALL plugin is PLUGIN_IS_DYING state
+      // and inter_plugin_lock returns NULL
+      if (locks[j])
+      {
+        if ((err= func(thd, plugin_hton(locks[j++]), arg)))
+          break;
+      }
+      else
+        j++;
     }
   }
   plugin_unlock_list(NULL, locks, j);
