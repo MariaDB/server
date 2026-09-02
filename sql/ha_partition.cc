@@ -3519,7 +3519,7 @@ bool ha_partition::re_create_par_file(const char *name)
   @return Partition name
 */
 
-static const uchar *get_part_name(const void *part_, size_t *length, my_bool)
+static const void *get_part_name(const void *part_, size_t *length, my_bool)
 {
   auto part= reinterpret_cast<const PART_NAME_DEF *>(part_);
   *length= part->length;
