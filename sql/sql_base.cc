@@ -5170,6 +5170,98 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_RETURN(FALSE);
 }
 
+
+/**
+  Extend the table_list to include tables referenced by foreign keys
+  (parent tables) for prelocking.
+
+  When performing DML on a table with foreign keys, the storage engine
+  verifies the FK constraints against the referenced (parent) tables.
+  Prelocking the parent tables makes these engine-internal checks
+  visible to the metadata locking subsystem, so that concurrent DDL on
+  a parent table is properly serialized with DML on tables that
+  reference it.
+
+  Parent tables are prelocked with TL_READ (which maps to
+  MDL_SHARED_READ). Because the lock is TL_READ and the prelocking type
+  is PRELOCK_FK, init_one_table_for_prelocking() sets open_strategy to
+  OPEN_STUB, so only the MDL is acquired: the parent table is not
+  actually opened.
+
+  Parent tables are prelocked regardless of the current value of
+  @@foreign_key_checks: the prelocking list is computed once per
+  prepared statement or stored routine statement and reused across
+  executions, while @@foreign_key_checks may change between them.
+
+  @param[in]  thd              Thread context.
+  @param[in]  prelocking_ctx   Prelocking context of the statement.
+  @param[in]  table_list       Table list element for table.
+  @param[out] need_prelocking  Set to TRUE if method detects that prelocking
+                               required, not changed otherwise.
+
+  @retval FALSE  Success.
+  @retval TRUE   Failure (OOM).
+*/
+
+static bool
+prepare_fk_referenced_prelocking_list(THD *thd,
+                                      Query_tables_list *prelocking_ctx,
+                                      TABLE_LIST *table_list,
+                                      bool *need_prelocking)
+{
+  DBUG_ENTER("prepare_fk_referenced_prelocking_list");
+  List<FK_TABLE_NAME> fk_table_list;
+  List_iterator<FK_TABLE_NAME> fk_table_list_it(fk_table_list);
+  FK_TABLE_NAME *fk;
+  Query_arena *arena, backup;
+  TABLE *table= table_list->table;
+  bool error= FALSE;
+
+  if (!table->file->references_foreign_key())
+    DBUG_RETURN(FALSE);
+
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  if (table->file->get_fk_referenced_table_names(thd, &fk_table_list) ||
+      unlikely(thd->is_error()))
+    error= TRUE;
+  else
+  {
+    /*
+      references_foreign_key() above returned true, and the set of
+      foreign keys of a table open for DML cannot change concurrently:
+      that would require DDL on this table, whose exclusive metadata
+      lock request would conflict with the metadata lock already held
+      on it by this statement.
+    */
+    DBUG_ASSERT(!fk_table_list.is_empty());
+
+    *need_prelocking= TRUE;
+
+    while ((fk= fk_table_list_it++))
+    {
+      if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+            &fk->db, &fk->table, TL_READ))
+        continue;
+
+      TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+      if (!tl)
+      {
+        error= TRUE;
+        break;
+      }
+      tl->init_one_table_for_prelocking(&fk->db, &fk->table,
+          NULL, TL_READ, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
+          0, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+    }
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(error);
+}
+
+
 /**
   Extend the table_list to include foreign tables for prelocking.
 
@@ -5206,7 +5298,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   {
     if (arena)
       thd->restore_active_arena(arena, &backup);
-    return TRUE;
+    DBUG_RETURN(TRUE);
   }
 
   *need_prelocking= TRUE;
@@ -5227,6 +5319,11 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
 
     TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    if (!tl)
+    {
+      error= TRUE;
+      break;
+    }
     tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
         op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
@@ -5317,12 +5414,20 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
                                    need_prelocking,
                                    table_list->trg_event_map))
       return TRUE;
+
+    if (prepare_fk_referenced_prelocking_list(thd, prelocking_ctx, table_list,
+                                              need_prelocking))
+      return TRUE;
   }
   else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->slave_fk_event_map))
+      return TRUE;
+
+    if (prepare_fk_referenced_prelocking_list(thd, prelocking_ctx, table_list,
+                                              need_prelocking))
       return TRUE;
   }
 
