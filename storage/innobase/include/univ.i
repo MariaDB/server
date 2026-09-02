@@ -149,9 +149,6 @@ using the call command. */
 #define UNIV_AIO_DEBUG				/* prints info about
 						submitted and reaped AIO
 						requests to the log. */
-#define UNIV_STATS_DEBUG			/* prints various stats
-						related debug info from
-						dict0stats.c */
 #define FTS_INTERNAL_DIAG_PRINT                 /* FTS internal debugging
                                                 info output */
 #endif
