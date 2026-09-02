@@ -1,0 +1,88 @@
+#
+# handler::fulltext_estimate() when a word owns more auxiliary records than
+# the estimator is willing to read, so it extrapolates instead of counting.
+#
+# Note: the numbers below depend on how many auxiliary records each word ends
+# up occupying, so they have to be re-recorded if the FTS node layout or the
+# FTS_EST_MAX_RECS / FTS_EST_MAX_PAGES budgets change.
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # Case 1: the word's documents are evenly spread over its doc id range,
+--echo # which is what the extrapolation assumes.
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+
+# Force a synchronous cache flush on every commit, so each single-row
+# transaction leaves a node of its own in the auxiliary table.  This is what a
+# table that takes incremental inserts and is never OPTIMIZEd looks like.
+SET debug_dbug='+d,fts_instrument_sync_debug';
+--disable_query_log
+let $i= 0;
+while ($i < 80)
+{
+  inc $i;
+  eval INSERT INTO t1 VALUES ($i, 'gamma');
+}
+# 40 more rows without the word, so the table has clearly more rows than the
+# word has documents.  That keeps the row count clamp out of the picture and
+# leaves the extrapolated value itself visible below.
+while ($i < 120)
+{
+  inc $i;
+  eval INSERT INTO t1 VALUES ($i, 'delta');
+}
+--enable_query_log
+SET debug_dbug='';
+
+--echo # One auxiliary record per insert, well past the FTS_EST_MAX_RECS
+--echo # budget of 64, so the answer below is extrapolated rather than counted.
+SET @aux= @@GLOBAL.innodb_ft_aux_table;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT COUNT(*) AS n_records FROM
+  (SELECT DISTINCT WORD, FIRST_DOC_ID, DOC_COUNT
+     FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE WHERE WORD='gamma') x;
+SET GLOBAL innodb_ft_aux_table= @aux;
+
+--echo # Evenly spread, so the extrapolation lands on the true count.
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+SET debug_dbug='';
+
+DROP TABLE t1;
+
+--echo #
+--echo # Case 2: the documented limitation.  When a word occurs only at both
+--echo # ends of the doc id range, the density measured over the sampled prefix
+--echo # does not describe the gap in the middle, and the estimate is far too
+--echo # high.  Two probes cannot tell this apart from a word that really does
+--echo # occur throughout, so the estimator errs on the high side.
+--echo #
+CREATE TABLE t2 (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+
+SET debug_dbug='+d,fts_instrument_sync_debug';
+--disable_query_log
+let $i= 0;
+while ($i < 70)
+{
+  inc $i;
+  eval INSERT INTO t2 VALUES ($i, 'gamma');
+}
+while ($i < 470)
+{
+  inc $i;
+  eval INSERT INTO t2 VALUES ($i, 'delta');
+}
+INSERT INTO t2 VALUES (471, 'gamma');
+--enable_query_log
+SET debug_dbug='';
+
+--echo # 71 rows really match, but the estimate is pulled up towards the size
+--echo # of the doc id span, and then clamped to the number of rows.
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t2 WHERE MATCH(a) AGAINST('gamma');
+SET debug_dbug='';
+
+DROP TABLE t2;

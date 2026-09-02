@@ -1,0 +1,46 @@
+#
+# Case 1: the word's documents are evenly spread over its doc id range,
+# which is what the extrapolation assumes.
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+SET debug_dbug='+d,fts_instrument_sync_debug';
+SET debug_dbug='';
+# One auxiliary record per insert, well past the FTS_EST_MAX_RECS
+# budget of 64, so the answer below is extrapolated rather than counted.
+SET @aux= @@GLOBAL.innodb_ft_aux_table;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT COUNT(*) AS n_records FROM
+(SELECT DISTINCT WORD, FIRST_DOC_ID, DOC_COUNT
+FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE WHERE WORD='gamma') x;
+n_records
+80
+SET GLOBAL innodb_ft_aux_table= @aux;
+# Evenly spread, so the extrapolation lands on the true count.
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+COUNT(*)
+80
+Warnings:
+Note	1105	fulltext_estimate('gamma')= 80
+SET debug_dbug='';
+DROP TABLE t1;
+#
+# Case 2: the documented limitation.  When a word occurs only at both
+# ends of the doc id range, the density measured over the sampled prefix
+# does not describe the gap in the middle, and the estimate is far too
+# high.  Two probes cannot tell this apart from a word that really does
+# occur throughout, so the estimator errs on the high side.
+#
+CREATE TABLE t2 (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+SET debug_dbug='+d,fts_instrument_sync_debug';
+SET debug_dbug='';
+# 71 rows really match, but the estimate is pulled up towards the size
+# of the doc id span, and then clamped to the number of rows.
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t2 WHERE MATCH(a) AGAINST('gamma');
+COUNT(*)
+71
+Warnings:
+Note	1105	fulltext_estimate('gamma')= 471
+SET debug_dbug='';
+DROP TABLE t2;

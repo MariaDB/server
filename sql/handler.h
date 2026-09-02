@@ -4557,6 +4557,38 @@ public:
                                    const key_range *max_key,
                                    page_range *res)
     { return (ha_rows) 10; }
+
+  /**
+    Estimate how many records a fulltext search for a single word will match.
+
+    The fulltext analogue of records_in_range(): it probes fulltext index
+    @a index_nr cheaply, without performing the search.
+
+    @param index_nr  number of a fulltext index of this table
+    @param word      a single literal word, in the character set of the
+                     fulltext index.  NOT a query: no boolean mode operators,
+                     no wildcards, no phrases, no query expansion.
+    @param word_len  length of @a word in bytes
+
+    The result is an estimate.  An engine may ignore index entries of rows
+    that were deleted but not yet purged, may ignore not yet flushed in-memory
+    index buffers, and may ignore stopword and token length rules.  It is
+    therefore neither an upper nor a lower bound.
+
+    @retval HA_POS_ERROR  no estimate available: not a fulltext index, the
+                          engine cannot estimate, an I/O or consistency
+                          problem.  The caller must fall back to its own
+                          guess.  This is called during optimization, so no
+                          error is raised and no warning is pushed.
+    @return               estimated number of matching records, >= 1.  Never
+                          0: like records_in_range(), callers may treat 0 as
+                          "provably empty", and this estimate may not make
+                          that claim.
+  */
+  virtual ha_rows fulltext_estimate(uint index_nr, const char *word,
+                                    uint word_len)
+    { return HA_POS_ERROR; }
+
   /*
     If HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is set, then it sets ref
     (reference to the row, aka position, with the primary key given in

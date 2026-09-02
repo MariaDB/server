@@ -14742,6 +14742,132 @@ func_exit:
 }
 
 /*********************************************************************//**
+Estimates the number of records a fulltext search for a single word will
+match.  The fulltext analogue of records_in_range().
+
+Unlike records_in_range() this leaves all handler state alone (in particular
+active_index and trx->op_info): the optimizer may well discard this access
+path.  And unlike ft_init_ext() it does not lazily run fts_init_index(): an
+estimate must have no side effects.
+@return estimated number of rows, or HA_POS_ERROR if not known */
+
+ha_rows
+ha_innobase::fulltext_estimate(
+/*===========================*/
+	uint		index_nr,	/*!< in: fulltext index number */
+	const char*	word,		/*!< in: word to search for, in the
+					character set of the fulltext index */
+	uint		word_len)	/*!< in: length of word in bytes */
+{
+	DBUG_ENTER("ha_innobase::fulltext_estimate");
+
+	if (!word || !word_len || word_len > FTS_MAX_WORD_LEN) {
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	ut_ad(m_prebuilt->trx == thd_to_trx(ha_thd()));
+
+	dict_table_t*	ft_table = m_prebuilt->table;
+
+	/* Mirrors the validation of ft_init_ext(), but reports nothing: this
+	runs during optimization, where raising an error would corrupt the
+	statement. */
+	if (!ft_table->fts
+	    || ib_vector_is_empty(ft_table->fts->indexes)
+	    || !ft_table->space) {		/* tablespace discarded */
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	dict_index_t*	index = innobase_get_index(index_nr);
+
+	if (!index
+	    || index->type != DICT_FTS
+	    || index->is_corrupted()
+	    || !row_merge_is_index_usable(m_prebuilt->trx, index)) {
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	/* The auxiliary tables store words folded to lower case, so fold the
+	search word the same way fts_query() folds the query string. */
+	CHARSET_INFO*	cs = fts_index_get_charset(index);
+
+	/* A utf16 or utf32 fulltext index would need the conversion that
+	ft_init_ext() does; not worth it for an estimate. */
+	if (cs->mbminlen != 1) {
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	byte		buf[FTS_MAX_WORD_LEN * 2 + 1];
+	fts_string_t	w;
+
+	w.f_n_char = 0;
+
+	if (my_binary_compare(cs)) {
+		/* Binary collations are searched case sensitively. */
+		w.f_str = reinterpret_cast<byte*>(const_cast<char*>(word));
+		w.f_len = word_len;
+	} else {
+		const size_t	buf_len
+			= word_len * cs->casedn_multiply() + 1;
+
+		if (buf_len > sizeof buf) {
+			DBUG_RETURN(HA_POS_ERROR);
+		}
+
+		w.f_len = cs->casedn_z(word, word_len,
+				       reinterpret_cast<char*>(buf), buf_len);
+		w.f_str = buf;
+	}
+
+	if (!w.f_len) {
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	uint64_t	n_docs;
+	dberr_t		err;
+
+	{
+		/* Attribute the pages read to this handler, the way
+		records_in_range() does.  No private transaction is needed:
+		fts_estimate_word_docs() only probes the B-tree, so it takes
+		no locks, opens no read view and never commits anything. */
+		mariadb_set_stats	temp(m_prebuilt->trx, handler_stats);
+
+		err = fts_estimate_word_docs(m_prebuilt->trx, index, &w,
+					     &n_docs);
+	}
+
+	if (err != DB_SUCCESS) {
+		/* Includes DB_RECORD_NOT_FOUND, which fts_estimate_word_docs()
+		returns for an empty auxiliary table: nothing has been SYNCed
+		yet, so we know nothing at all. */
+		DBUG_RETURN(HA_POS_ERROR);
+	}
+
+	/* The auxiliary tables still hold entries for rows that were deleted
+	or updated since the last OPTIMIZE TABLE, so the count can exceed the
+	number of rows in the table. */
+	if (ft_table->stat_initialized()) {
+		const uint64_t	n_rows = dict_table_get_n_rows(ft_table);
+
+		if (n_docs > n_rows) {
+			n_docs = n_rows;
+		}
+	}
+
+	/* Never report 0.  The in-memory FTS cache is deliberately not
+	consulted, so "absent from the auxiliary table" does not mean "no
+	matching rows", and callers may treat 0 as provably empty. */
+	if (!n_docs) {
+		n_docs = 1;
+	}
+
+	/* HA_ROWS_MAX is HA_POS_ERROR, the "not known" value, so stay below
+	it. */
+	DBUG_RETURN((ha_rows) std::min<uint64_t>(n_docs, HA_ROWS_MAX - 1));
+}
+
+/*********************************************************************//**
 Gives an UPPER BOUND to the number of rows in a table. This is used in
 filesort.cc.
 @return upper bound of rows */

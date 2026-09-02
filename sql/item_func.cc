@@ -6343,6 +6343,19 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   if (join_key && !no_order)
     match_flags|=FT_SORTED;
 
+  DBUG_EXECUTE_IF("fulltext_estimate",
+    if (key != NO_SUCH_KEY)
+    {
+      char buff[22];
+      ha_rows rows= table->file->fulltext_estimate(key, ft_tmp->ptr(),
+                                                   (uint) ft_tmp->length());
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "fulltext_estimate('%.*s')= %s",
+                          (int) ft_tmp->length(), ft_tmp->ptr(),
+                          rows == HA_POS_ERROR ? "unknown"
+                          : llstr((longlong) rows, buff));
+    });
+
   if (key != NO_SUCH_KEY)
     THD_STAGE_INFO(table->in_use, stage_fulltext_initialization);
 
