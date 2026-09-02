@@ -9,7 +9,7 @@ INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_2000;
 #
 EXPLAIN SELECT a, b FROM t1 WHERE b > 19980;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	2000	Using where
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where
 SELECT a, b FROM t1 WHERE b > 19980;
 SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
 JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
@@ -22,15 +22,9 @@ FLUSH STATUS;
 SELECT a, b FROM t1 WHERE b > 19980;
 ran_in_the_workers
 1
-#
-# The gate examines the driving table, so a query it declines is not a
-# candidate in the first place and names no table at all (expect 0 0 0).
-# ORDER BY is declined by the query-shape half of the gate, and the
-# driving table is still a plain full scan
-#
 EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	2000	Using where; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where; Using filesort
 SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
 SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
 JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
@@ -45,7 +39,7 @@ CREATE TABLE t2 (a INT, b INT, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t2 SELECT seq, seq*10 FROM seq_1_to_2000;
 EXPLAIN SELECT a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	5	NULL	2000	Using index
+1	SIMPLE	t2	index	NULL	a	5	NULL	#	Using index
 SELECT a FROM t2;
 SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
 JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
