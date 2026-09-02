@@ -1,0 +1,310 @@
+--echo # MDEV-26479 Add support for slave_skip_errors="ddl_exist_errors"
+ 
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+ 
+--echo # we just verfiy that codes is set correctly
+--connection slave
+SHOW VARIABLES LIKE 'slave_skip_errors';
+ 
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY);
+ 
+--echo #
+--echo # Test 1: ER_DB_CREATE_EXISTS ( 1007 )
+--echo #
+ 
+--connection slave
+--source include/stop_slave.inc
+CREATE DATABASE test_ddl1;
+--source include/start_slave.inc
+ 
+--connection master
+CREATE DATABASE test_ddl1;
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1007 (ER_DB_CREATE_EXISTS) skipped successfully 
+ 
+--echo #
+--echo # Test 2: ER_DB_DROP_EXISTS (1008)
+--echo #
+ 
+--connection master
+CREATE DATABASE test_ddl2;
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+DROP DATABASE test_ddl2;
+--source include/start_slave.inc
+ 
+--connection master
+DROP DATABASE test_ddl2;
+INSERT INTO t1 VALUES (2);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1008 (ER_DB_DROP_EXISTS)  skipped successfully
+ 
+--echo #
+--echo # Test 3: ER_TABLE_EXISTS_ERROR (1050)
+--echo #
+ 
+--connection slave
+--source include/stop_slave.inc
+CREATE TABLE t2 (c INT);
+--source include/start_slave.inc
+ 
+--connection master
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (3);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1050 (ER_TABLE_EXISTS_ERROR)  skipped successfully
+ 
+--echo #
+--echo # Test 4: ER_BAD_TABLE_ERROR (1051)
+--echo #
+ 
+--connection master
+CREATE TABLE t3 (d INT);
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+DROP TABLE t3;
+--source include/start_slave.inc
+ 
+--connection master
+DROP TABLE t3;
+INSERT INTO t1 VALUES (4);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1051 (ER_BAD_TABLE_ERROR)  skipped successfully
+ 
+--echo #
+--echo # Test 5: ER_BAD_FIELD_ERROR (1054)
+--echo #
+ 
+--connection master
+CREATE TABLE t4 (id INT, name VARCHAR(50));
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE t4 DROP COLUMN name;
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t4 DROP COLUMN name;
+INSERT INTO t1 VALUES (5);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1054 (ER_BAD_FIELD_ERROR)  skipped successfully
+ 
+--echo #
+--echo # Test 6: ER_DUP_FIELDNAME (1060)
+--echo #
+ 
+--connection master
+CREATE TABLE t5 (id INT);
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE t5 ADD COLUMN name VARCHAR(100);
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t5 ADD COLUMN name VARCHAR(100);
+INSERT INTO t1 VALUES (6);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1060 (ER_DUP_FIELDNAME)  skipped successfully
+ 
+--echo #
+--echo # Test 7: ER_DUP_KEYNAME (1061)
+--echo #
+ 
+--connection master
+CREATE TABLE t6 (id INT, value VARCHAR(100));
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE t6 ADD INDEX idx_value (value);
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t6 ADD INDEX idx_value (value);
+INSERT INTO t1 VALUES (7);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1061 (ER_DUP_KEYNAME) skipped successfully
+ 
+--echo #
+--echo # Test 8: ER_MULTIPLE_PRI_KEY (1068)
+--echo #
+ 
+ 
+--connection master
+CREATE TABLE t7 (id INT);
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE t7 ADD PRIMARY KEY (id);
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t7 ADD PRIMARY KEY (id);
+INSERT INTO t1 VALUES (8);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1068 (ER_MULTIPLE_PRI_KEY)  skipped successfully
+ 
+--echo #
+--echo # Test 9: ER_CANT_DROP_FIELD_OR_KEY (1091)
+--echo #
+ 
+--connection master
+CREATE TABLE t8 (id INT, col1 VARCHAR(50), col2 INT);
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE t8 DROP COLUMN col2;
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t8 DROP COLUMN col2;
+INSERT INTO t1 VALUES (9);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1091 (ER_CANT_DROP_FIELD_OR_KEY) skipped successfully
+ 
+--echo #
+--echo # Test 10: ER_NO_SUCH_TABLE (1146)
+--echo #
+ 
+--connection master
+CREATE TABLE t9 (e INT);
+--sync_slave_with_master
+ 
+--connection slave
+--source include/stop_slave.inc
+DROP TABLE t9;
+--source include/start_slave.inc
+ 
+--connection master
+ALTER TABLE t9 ADD COLUMN col1 INT;
+INSERT INTO t1 VALUES (10);
+--sync_slave_with_master
+ 
+--connection slave
+--let $slave_param= Slave_SQL_Running
+--let $slave_param_value= Yes
+--source include/check_slave_param.inc
+ 
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+ 
+--echo # Error 1146 (ER_NO_SUCH_TABLE)  skipped successfully
+ 
+--echo #
+--echo #  all errors skipped successfully
+--echo #
+ 
+--connection slave
+SELECT COUNT(*) as total_rows FROM t1;
+ 
+--let $slave_io_running= query_get_value(SHOW SLAVE STATUS, Slave_IO_Running, 1)
+--let $slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+ 
+--echo Slave_IO_Running: $slave_io_running
+--echo Slave_SQL_Running: $slave_sql_running
+ 
+--echo #
+--echo # Cleanup
+--echo #
+ 
+--connection master
+--connection master
+DROP DATABASE IF EXISTS test_ddl1;
+DROP DATABASE IF EXISTS test_ddl2;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5, t6, t7, t8, t9;
+--sync_slave_with_master
+ 
+--source include/rpl_end.inc
