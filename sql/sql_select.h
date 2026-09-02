@@ -33,6 +33,7 @@
 #include "sql_update.h"
 
 #include "cset_narrowing.h"
+#include "sql_parallel_workers.h"
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
@@ -1991,6 +1992,8 @@ public:
     sql_cmd_dml::scanned_rows to choose optimization strategies.
   */
   Sql_cmd_dml *sql_cmd_dml;
+
+  pwt_management *parallel_work_manager{0};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
