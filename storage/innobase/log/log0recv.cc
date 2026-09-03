@@ -2481,7 +2481,12 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source l, bool if_exists)
   const source begin{l};
   if (parse_mtr_result r=
       log_parse_start<source>(l, format == log_t::FORMAT_10_8 ? 0 : 8))
+  {
+    fprintf(stderr, "MTR_RECV %s start=" LSN_PF " offset=%zu store=%s\n",
+            r == PREMATURE_EOF ? "premature_eof" : "eof", lsn, offset,
+            storing == BACKUP ? "backup" : storing == YES ? "yes" : "no");
     return r;
+  }
 
   if (storing == BACKUP)
     DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch",
@@ -2866,6 +2871,9 @@ recv_sys_t::parse_tail(const byte *begin, bool if_exists, size_t size) noexcept
                                 begin + size - (8 + 4), 8))
     : nullptr;
   start_lsn= lsn;
+  fprintf(stderr, "MTR_RECV start=" LSN_PF " len=%zu end=" LSN_PF
+          " offset=%zu store=%s\n", lsn, size, lsn + size, start_offset,
+          storing == BACKUP ? "backup" : storing == YES ? "yes" : "no");
 restart:
   lsn+= size;
   ut_d(const byte *const el{begin + size});
