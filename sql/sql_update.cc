@@ -96,6 +96,8 @@ bool compare_record(const TABLE *table)
           if (((table->record[0][null_byte_index]) & field->null_bit) !=
               ((table->record[1][null_byte_index]) & field->null_bit))
             return TRUE;
+          if (field->is_null())
+            continue;
         }
         if (field->cmp_binary_offset(table->s->rec_buff_length))
           return TRUE;
@@ -121,6 +123,7 @@ bool compare_record(const TABLE *table)
   {
     Field *field= *ptr;
     if (field->has_explicit_value() && !field->vcol_info &&
+	!field->is_null() &&
 	field->cmp_binary_offset(table->s->rec_buff_length))
       return TRUE;
   }
