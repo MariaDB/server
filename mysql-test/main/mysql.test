@@ -30,6 +30,35 @@ select "Test 'go' command(vertical output) \G" as "_";
 # Test 'go' command \g
 select "Test  'go' command \g" as "_";
 --exec $MYSQL test -e "select * from t1\g"
+#
+# MDEV-40551 Copy/Paste friendly output format for MariaDB Command Line Client
+#
+# Test 'silent' command \S
+select "Test 'silent' command(no column names) \S" as "_";
+--exec $MYSQL test -e "select 1 as a, 'x' as b;"
+--exec $MYSQL test -e "select 1 as a, 'x' as b\S"
+# \S overrides the session output format, whatever it was started with
+select "Test 'silent' command(overrides --table) \S" as "_";
+--exec $MYSQL test --table -e "select 1 as a, 'x' as b\S"
+select "Test 'silent' command(overrides --vertical) \S" as "_";
+--exec $MYSQL test --vertical -e "select 1 as a, 'x' as b\S"
+select "Test 'silent' command(already silent) \S" as "_";
+--exec $MYSQL test -s -s -e "select 1 as a, 'x' as b\S"
+# \S applies to its own statement only
+select "Test 'silent' command(next statement unaffected) \S" as "_";
+--exec $MYSQL test --table -e "select 1 as a\S select 1 as a;"
+--exec $MYSQL test --vertical -e "select 1 as a\S select 1 as a;"
+# \G after \S is still vertical
+select "Test 'silent' command(\G unaffected) \S" as "_";
+--exec $MYSQL test --table -e "select 1 as a\S select 1 as a\G"
+# The statement from the feature request
+select "Test 'silent' command(statement with a quoted delimiter) \S" as "_";
+--exec $MYSQL test --table -e "select concat('analyze table ', table_name, ';') from information_schema.tables where table_schema='test'\S"
+# \S on a statement that returns no rows, and on one that fails
+select "Test 'silent' command(empty result and error) \S" as "_";
+--exec $MYSQL test --table -e "select 1 as a from t1 where 1=0\S"
+--error 1
+--exec $MYSQL test --table -e "select nosuchcolumn from t1\S"
 --enable_query_log
 drop table t1;
 
