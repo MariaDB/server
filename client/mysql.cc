@@ -243,6 +243,7 @@ enum ss_comment_type { SSC_NONE= 0, SSC_CONDITIONAL, SSC_HINT };
 static MYSQL mysql;			/* The connection */
 static my_bool ignore_errors=0,wait_flag=0,quick=0,
                connected=0,opt_raw_data=0,unbuffered=0,output_tables=0,
+               output_plain=0,
 	       opt_rehash=1,skip_updates=0,safe_updates=0,one_database=0,
 	       opt_compress=0, using_opt_local_infile=0,
 	       vertical=0, line_numbers=1, column_names=1,opt_html=0,
@@ -324,7 +325,7 @@ extern "C" my_bool get_one_option(int optid, const struct my_option *opt,
                                   const char *argument);
 static int com_quit(String *str,char*),
 	   com_go(String *str,char*), com_ego(String *str,char*),
-	   com_print(String *str,char*),
+	   com_silent(String *str,char*), com_print(String *str,char*),
 	   com_help(String *str,char*), com_clear(String *str,char*),
 	   com_connect(String *str,char*), com_status(String *str,char*),
 	   com_use(String *str,char*), com_source(String *str, char*),
@@ -414,6 +415,8 @@ static COMMANDS commands[] = {
   { "rehash", '#', com_rehash, 0, "Rebuild completion hash." },
   { "sandbox", '-', com_sandbox, 0,
     "Disallow commands that access the file system (except \\P without an argument and \\e)." },
+  { "silent", 'S', com_silent, 0,
+    "Send command to MariaDB server, display result without column names or borders."},
   { "source", '.', com_source, 1,
     "Execute an SQL script file. Takes a file name as an argument."},
   { "status", 's', com_status, 0, "Get status information from the server."},
@@ -3739,6 +3742,8 @@ static int com_go(String *buffer, char *)
 	  print_table_data_html(result);
 	else if (opt_xml)
 	  print_table_data_xml(result);
+	else if (output_plain)
+	  print_tab_data(result);
         else if (vertical || (auto_vertical_output &&
                 (terminal_width < get_result_width(result))))
 	  print_table_data_vertically(result);
@@ -3875,6 +3880,24 @@ com_ego(String *buffer,char *line)
   vertical=1;
   result=com_go(buffer,line);
   vertical=oldvertical;
+  return result;
+}
+
+
+static int
+com_silent(String *buffer,char *line)
+{
+  int result;
+  uint old_opt_silent=opt_silent;
+  bool old_output_plain=output_plain;
+  bool old_column_names=column_names;
+  opt_silent=1;
+  output_plain=1;
+  column_names=0;
+  result=com_go(buffer,line);
+  opt_silent=old_opt_silent;
+  output_plain=old_output_plain;
+  column_names=old_column_names;
   return result;
 }
 
