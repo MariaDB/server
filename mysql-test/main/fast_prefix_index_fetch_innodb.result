@@ -226,7 +226,7 @@ INSERT INTO wp_blogs (domain, path) VALUES
 SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
 AND path IN ( '/fondsinvesteringer/', '/' );
 blog_id
-2
 1
+2
 DROP TABLE wp_blogs;
 SET GLOBAL innodb_stats_persistent = @save_innodb_stats_persistent;

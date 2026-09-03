@@ -1,0 +1,92 @@
+#
+# MDEV-39491 Parallel Query: range scan over the chunked table.
+#
+# The engine partitions the key intervals of a range scan the same way it
+# partitions a whole clustered index, so a range scan can run in the workers
+# too. It converts every interval endpoint against the clustered index, so only
+# a primary-key range qualifies; the gate refuses the rest and the query runs
+# serially. The optimizer trace says which of the two a parallel query got, in
+# range_scan beside chosen_for_parallel_scan.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2, seq%997 FROM seq_1_to_20000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_os= @@optimizer_switch;
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_switch='derived_merge=off';
+SET optimizer_trace=1;
+
+# the trace says which of the two the workers divide
+SET SESSION parallel_worker_threads=4;
+
+--echo # a primary-key range: chosen, and a range scan
+--replace_column 9 #
+EXPLAIN SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+--disable_result_log
+SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+       AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
+  FROM information_schema.optimizer_trace;
+
+# EXPLAIN annotates the access method it parallelised, rather than
+# replacing it: ALL_parallel for the whole index, range_parallel for
+# the intervals.
+--replace_column 9 #
+EXPLAIN SELECT a FROM t1 WHERE b > 39990;
+--replace_column 9 #
+EXPLAIN SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+--echo # and the same in FORMAT=JSON
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+
+# the same rows a serial scan returns, for each shape of interval
+--let $pq_cols= a, b
+
+# bounded both ends
+--let $pq_query= SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000
+--source include/parallel_query_fingerprint.inc
+
+# open upper end
+--let $pq_query= SELECT a, b FROM t1 WHERE a > 17000
+--source include/parallel_query_fingerprint.inc
+
+# open lower end
+--let $pq_query= SELECT a, b FROM t1 WHERE a <= 2500
+--source include/parallel_query_fingerprint.inc
+
+# two disjoint intervals, one add_scan() each
+--let $pq_query= SELECT a, b FROM t1 WHERE a < 3000 OR a > 18000
+--source include/parallel_query_fingerprint.inc
+
+# many single-point intervals
+--let $pq_query= SELECT a, b FROM t1 WHERE a IN (1,2,3,4999,5000,5001,19999,20000)
+--source include/parallel_query_fingerprint.inc
+
+# a residual the interval does not express, applied by the worker
+--let $pq_query= SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000 AND b % 1000 = 0
+--source include/parallel_query_fingerprint.inc
+
+# the endpoints themselves: > and < exclude, >= and <= include
+SET SESSION parallel_worker_threads=4;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a > 5000 AND a < 5010) d;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a >= 5000 AND a <= 5010) d;
+# and the same read serially
+SET SESSION parallel_worker_threads=0;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a > 5000 AND a < 5010) d;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+  FROM (SELECT a FROM t1 WHERE a >= 5000 AND a <= 5010) d;
+
+DROP TABLE t1;
+
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
