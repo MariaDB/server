@@ -211,6 +211,54 @@ row_quiesce_write_indexes(
 	return(err);
 }
 
+/** Compute dict_col_t::ord_part and dict_col_t::max_prefix
+of a column from the committed indexes that are present in
+the data dictionary cache, in the same way as
+dict_index_add_to_cache() would compute them when the table
+definition is being loaded from SYS_INDEXES.
+
+The cached values can be stale. A rolled back ADD INDEX
+can leave dict_col_t::ord_part set until the aborted index
+is removed from the dictionary cache by a subsequent DDL
+operation, and dict_col_t::max_prefix is never reset when an
+index is being dropped.
+@param table       table
+@param col         a column of the table
+@param max_prefix  computed dict_col_t::max_prefix
+@return computed dict_col_t::ord_part */
+static bool row_quiesce_col_ord_part(const dict_table_t &table,
+                                     const dict_col_t &col,
+                                     ulint &max_prefix)
+{
+  bool ord_part= false;
+  max_prefix= 0;
+
+  for (const dict_index_t* index= UT_LIST_GET_FIRST(table.indexes);
+       index; index= UT_LIST_GET_NEXT(indexes, index))
+  {
+    if (!index->is_committed())
+      continue;
+
+    for (unsigned i= 0; i < index->n_uniq; i++)
+    {
+      const dict_field_t& field= index->fields[i];
+      if (field.col != &col)
+        continue;
+
+      if (!field.prefix_len)
+      {
+        max_prefix= 0;
+	return true;
+      }
+
+      if (!ord_part || field.prefix_len > max_prefix)
+        max_prefix= field.prefix_len;
+      ord_part= true;
+    }
+  }
+  return ord_part;
+}
+
 /*********************************************************************//**
 Write the meta data (table columns) config file. Serialise the contents of
 dict_col_t structure, along with the column name. All fields are serialized
@@ -252,10 +300,15 @@ row_quiesce_write_table(
 		mach_write_to_4(ptr, col->ind);
 		ptr += sizeof(ib_uint32_t);
 
-		mach_write_to_4(ptr, col->ord_part);
+		/* Derive the values from the indexes rather than using
+		the cached dict_col_t fields, which can be stale. */
+		ulint	max_prefix;
+
+		mach_write_to_4(ptr, row_quiesce_col_ord_part(*table, *col,
+							      max_prefix));
 		ptr += sizeof(ib_uint32_t);
 
-		mach_write_to_4(ptr, col->max_prefix);
+		mach_write_to_4(ptr, max_prefix);
 
 		DBUG_EXECUTE_IF("ib_export_io_write_failure_2",
 				close(fileno(file)););

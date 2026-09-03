@@ -480,6 +480,7 @@ trx_undo_page_report_insert(
 		}
 	}
 
+	DEBUG_SYNC_C("before_v_idx_undo");
 	if (index->table->n_v_cols) {
 		if (!trx_undo_report_insert_virtual(
 			undo_block, index->table, clust_entry, &ptr)) {
