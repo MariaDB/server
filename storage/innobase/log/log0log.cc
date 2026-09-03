@@ -836,7 +836,9 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       */
       circular_recovery_from_sequence_bit_0= !get_sequence_bit(wait_lsn);
     }
-    else if (circular_recovery_from_sequence_bit_0 || checkpoint < first_lsn)
+    else if (circular_recovery_from_sequence_bit_0 ||
+             checkpoint < first_lsn ||
+             get_sequence_bit(checkpoint) != get_sequence_bit(wait_lsn))
     {
       /*
         Some records after the latest checkpoint may have been written
