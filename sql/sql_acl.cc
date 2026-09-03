@@ -14390,11 +14390,51 @@ wsrep_error_label:
 }
 
 
+/**
+  Allow REVOKE DENY ... FROM PUBLIC to bypass the privilege check when the
+  revoker holds UPDATE on mysql.global_priv (where DENYs are stored).
+
+  DENY ... TO PUBLIC locks out everyone including root. But the revoker who
+  can modify the underlying table via UPDATE has sufficient power to undo it
+  directly, so the denied privilege itself is not required.
+
+  @retval true   revoker runs in REVOKE DENY FROM PUBLIC,
+                 can UPDATE mysql.global_priv and shall skip other checks
+  @retval false  normal check applies
+*/
+
+bool Sql_cmd_grant::should_bypass_revoke_deny(THD *thd)
+{
+  /* Is current command a REVOKE DENY ? */
+  if (!is_revoke() || !m_deny)
+    return false;
+
+  /* Is it for PUBLIC ? */
+  List_iterator_fast<LEX_USER> it(thd->lex->users_list);
+  LEX_USER *user;
+  while ((user= it++))
+  {
+    if (user->host.length ||
+        !my_charset_utf8mb3_general1400_as_ci.streq(user->user, public_name))
+      return false;
+  }
+
+  /* Does current user have UPDATE grant for mysql.global_priv ? */
+  TABLE_LIST tl;
+  tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[USER_TABLE],
+                    NULL, TL_WRITE);
+  return !check_access(thd, UPDATE_ACL, tl.db.str, &tl.grant.privilege,
+                       &tl.grant.m_internal, 0, 1) &&
+         !check_grant(thd, UPDATE_ACL, &tl, FALSE, 1, TRUE);
+}
+
+
 bool Sql_cmd_grant_object::grant_stage0_exact_object(THD *thd,
                                                      TABLE_LIST *table)
 {
   privilege_t priv= m_object_privilege | m_column_privilege_total | GRANT_ACL;
-  if (check_access(thd, priv, table->db.str,
+  if (!should_bypass_revoke_deny(thd) &&
+      check_access(thd, priv, table->db.str,
                    &table->grant.privilege, &table->grant.m_internal,
                    0, 0))
     return true;
@@ -14407,8 +14447,9 @@ bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
 {
   LEX  *lex= thd->lex;
   if (grant_stage0_exact_object(thd, table) ||
-      check_grant(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
-                  lex->query_tables, FALSE, UINT_MAX, FALSE))
+      (!should_bypass_revoke_deny(thd) &&
+       check_grant(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
+                   lex->query_tables, FALSE, UINT_MAX, FALSE)))
     return true;
   /* Conditionally writes to binlog */
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -14440,7 +14481,8 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
   }
 
   if (grant_stage0_exact_object(thd, table) ||
-      check_grant_routine(thd, grants|GRANT_ACL, lex->query_tables, &m_sph, 0))
+      (!should_bypass_revoke_deny(thd) &&
+       check_grant_routine(thd, grants|GRANT_ACL, lex->query_tables, &m_sph, 0)))
     return true;
 
   /* Conditionally writes to binlog */
@@ -14463,7 +14505,8 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
   LEX  *lex= thd->lex;
   DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
 
-  if (check_access(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
+  if (!should_bypass_revoke_deny(thd) &&
+      check_access(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
                    m_db.str, NULL, NULL, 1, 0))
     return true;
 

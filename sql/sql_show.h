@@ -78,6 +78,8 @@ typedef struct system_status_var STATUS_VAR;
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
 
 int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
+privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
+                            const privilege_t need, bool on_any_column);
 
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,

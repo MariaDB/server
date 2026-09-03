@@ -5409,7 +5409,7 @@ end:
 }
 
 
-static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
+privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
                                                   const privilege_t need,
                                                   bool on_any_column)
 {
@@ -8195,12 +8195,10 @@ int get_schema_key_period_usage_record(THD *thd, TABLE_LIST *tables,
   if (!period_name)
     return 0;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Need any non-SELECT privilege on the table or any of its columns */
   if (!get_schema_privileges_for_show(thd, tables, TABLE_ACLS & ~SELECT_ACL,
                                       true))
     return 0;
-#endif
 
   bool err= false;
   for (uint k= 0; !err && k < keys_total; k++)
