@@ -1,0 +1,79 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, CONCAT('v', LPAD(5001 - seq, 4, '0')), seq % 13, seq
+FROM seq_1_to_5000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_trace=1;
+SET SESSION parallel_worker_threads=4;
+#
+# the sort runs here, over rows the workers produced (expect 1 768)
+#
+EXPLAIN SELECT a, b, c FROM t1 WHERE c > 10 ORDER BY b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where; Using filesort
+FLUSH STATUS;
+SELECT a, b, c FROM t1 WHERE c > 10 ORDER BY b;
+ran_in_the_workers	rows_sent
+1	768
+# the head of it, which is the part the order decides
+SELECT a FROM t1 WHERE c > 10 ORDER BY b LIMIT 5;
+a
+4991
+4990
+4978
+4977
+4965
+#
+# the same read serially: the same rows in the same places (expect 1 1)
+#
+SET SESSION parallel_worker_threads=0;
+same_rows_in_order	same_descending
+1	1
+#
+# a result too big for the container in memory: it is rebuilt on disk
+# (expect 1 1 1)
+#
+SET SESSION parallel_worker_threads=4;
+SET SESSION tmp_memory_table_size=16384;
+SET SESSION max_heap_table_size=16384;
+FLUSH STATUS;
+SELECT a, b, c, d FROM t1 ORDER BY b;
+ran_in_the_workers	all_rows	spilled
+1	1	1
+SET SESSION parallel_worker_threads=0;
+# and the spilled sort is in the serial sort's order (expect 1)
+same_rows_in_order
+1
+SET SESSION tmp_memory_table_size=default;
+SET SESSION max_heap_table_size=default;
+#
+# orders the manager cannot rebuild over its container: refused, and
+# answered serially
+#
+SET SESSION parallel_worker_threads=4;
+# an expression, which is no column of the container
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE c > 10 ORDER BY a + d;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+Variable_name	Value
+Parallel_queries_executed	0
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+FROM information_schema.optimizer_trace;
+why
+["the manager cannot sort what the workers produce"]
+# and an order the read itself supplies, which chunks cannot preserve
+FLUSH STATUS;
+SELECT a, b FROM t1 ORDER BY a;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+Variable_name	Value
+Parallel_queries_executed	0
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+FROM information_schema.optimizer_trace;
+why
+["an index supplies the ORDER BY order"]
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

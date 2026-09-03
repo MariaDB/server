@@ -49,13 +49,15 @@ SELECT a, b FROM t1 WHERE b > 19980;
 
 # The gate examines the driving table, so a query it declines is not a
 # candidate in the first place and names no table at all (expect 0 0 0).
-# ORDER BY is declined by the query-shape half of the gate, and EXPLAIN
-# says so: the driving table is a plain full scan, not ALL_parallel
+# LIMIT is declined by the query-shape half of the gate, and EXPLAIN says so:
+# the driving table is a plain full scan, not ALL_parallel. ORDER BY used to be
+# the example here; it is not declined any more, because the manager sorts what
+# it drains -- see main/parallel_query_sort.
 
 --replace_column 9 #
-EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
+EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 LIMIT 5;
 --disable_result_log
-SELECT a, b FROM t1 WHERE b > 19980 ORDER BY b;
+SELECT a, b FROM t1 WHERE b > 19980 LIMIT 5;
 --enable_result_log
 SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
        JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
