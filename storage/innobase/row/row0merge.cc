@@ -4014,6 +4014,43 @@ static void row_merge_drop_fulltext_indexes(trx_t *trx, dict_table_t *table)
   DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
 }
 
+/** @param table  table
+@param col      a stored column of the table
+@return whether the column is a field of any index of the table */
+static bool row_merge_col_is_indexed(const dict_table_t &table,
+                                     const dict_col_t &col)
+{
+  for (const dict_index_t *index= dict_table_get_first_index(&table); index;
+       index= dict_table_get_next_index(index))
+    for (unsigned f= 0; f < index->n_user_defined_cols; f++)
+      if (dict_index_get_nth_col(index, f) == &col)
+        return true;
+  return false;
+}
+
+/** Reset dict_col_t::ord_part for the columns that are no
+longer a field of any index that remains in the data dictionary cache.
+@param table  table whose columns are to be adjusted */
+static void row_merge_reset_ord_part(dict_table_t *table)
+{
+  ut_ad(dict_sys.locked());
+
+  for (unsigned c= 0; c < table->n_v_def; c++)
+  {
+    dict_v_col_t &v= table->v_cols[c];
+    if (v.m_col.ord_part && v.v_indexes.empty())
+      v.m_col.ord_part= 0;
+  }
+
+  for (unsigned c= 0; c < table->n_cols; c++)
+  {
+    dict_col_t &col= table->cols[c];
+    if (col.ord_part && col.mtype != DATA_SYS &&
+        !row_merge_col_is_indexed(*table, col))
+      col.ord_part= 0;
+  }
+}
+
 /** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed.
@@ -4188,6 +4225,14 @@ row_merge_drop_indexes(
 	}
 
 	row_merge_drop_fulltext_indexes(trx, table);
+	/* The aborted indexes are gone from the cache.
+	Adjust dict_col_t::ord_part while still holding the
+	same dict_sys.latch, so that DML will never observe a
+	column with ord_part set and an empty dict_v_col_t::v_indexes.
+	In the lazy drop above, the indexes remain in the cache,
+	and nothing must be reset; */
+	ut_ad(locked || table->get_ref_count() == 1);
+	row_merge_reset_ord_part(table);
 	table->drop_aborted = FALSE;
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
 }
