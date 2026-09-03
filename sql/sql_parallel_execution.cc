@@ -338,10 +338,13 @@ void recheck_parallel_scan(JOIN *join)
     tab->filesort->select->cond, and a worker that asked the tab would filter
     by nothing and return the whole table.
 
-    That is the same SQL_SELECT the tab used to own, so it is the pre-pushdown
-    condition already and it is asked for first. push_index_cond() runs long
-    before the sort is added, so pre_idx_push_select_cond can be set as well;
-    it holds the same condition, and taking either is correct.
+    It is asked for last, not first: the SQL_SELECT the sort was handed is the
+    one push_index_cond() had already taken a bite out of, because that runs
+    long before the sort is added and leaves select->cond holding only the
+    remainder. So a sorted tab that also pushed reaches here with the whole
+    condition in pre_idx_push_select_cond and a partial one in the filesort,
+    and taking the filesort's would apply the pushed half nowhere -- the same
+    failure the pushdown case above exists to avoid, arriving by another route.
 
     All three are reported together, and the gate and both clone sites go
     through here, so the condition the gate approves is always the condition a
@@ -350,11 +353,12 @@ void recheck_parallel_scan(JOIN *join)
 
 static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
 {
-  if (tab->filesort && tab->filesort->select)
+  if (tab->pre_idx_push_select_cond)
+    *cond= tab->pre_idx_push_select_cond;
+  else if (tab->filesort && tab->filesort->select)
     *cond= tab->filesort->select->cond;
   else
-    *cond= tab->pre_idx_push_select_cond ? tab->pre_idx_push_select_cond
-                                         : tab->select_cond;
+    *cond= tab->select_cond;
   *cache_cond= tab->cache_select ? tab->cache_select->cond : nullptr;
 }
 
@@ -494,6 +498,79 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group)
   between.
 */
 
+/*
+  @brief
+    The ORDER BY this thread has to apply itself, if there is one.
+
+  @description
+    make_aggr_tables_info() can sort the driving table's own read --
+    add_sorting_to_table() on join_tab[const_tables] -- for a plan that needs
+    no temporary table. The workers take that read over, so the sort loses the
+    scan it was attached to, and a plan of this shape has no aggregation table
+    to move it to: the terminal after the driving tab sends straight to the
+    client. The manager does it instead, over the rows it drains, which costs
+    nothing in ordering terms because a sort is indifferent to the order its
+    input arrives in.
+
+    What it can take is limited by where it does it. It sorts its own result
+    container, so every ORDER BY element has to name a column that is in that
+    container -- a field of a scanned table that the query actually reads, and
+    so ships. An expression, or a field of some other table, has no column
+    there to sort by, and the plan is left serial.
+
+    A plan that has an aggregation table (join->aggr_tables) is not this shape:
+    its sort belongs to that table and AGGR_OP::end_send() performs it, which
+    is the manager's existing terminal path rather than this one.
+
+  @return  the order to sort by, or nullptr if this plan's sort is not ours.
+*/
+
+ORDER *pwt_manager_sort_order(JOIN *join)
+{
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                    WITHOUT_CONST_TABLES);
+  if (!first || !first->filesort || join->aggr_tables)
+    return nullptr;
+
+  Filesort *fs= first->filesort;
+  /*
+    A sort that returns row ids, unpacks into other fields, or stops early is
+    doing something for the plan beyond ordering, and the manager's is a plain
+    sort of a container. LIMIT is refused by the gate already; the limit here
+    is the filesort's own, which a plan can set separately.
+  */
+  if (!fs->order || fs->limit != HA_ROWS_MAX || fs->sort_positions ||
+      fs->set_all_read_bits || fs->unpack)
+    return nullptr;
+
+  for (ORDER *o= fs->order; o; o= o->next)
+  {
+    Item *real= (*o->item)->real_item();
+    if (real->type() != Item::FIELD_ITEM)
+      return nullptr;                      // an expression: nothing to sort by
+    Field *f= ((Item_field *) real)->field;
+
+    bool scanned= false;
+    for (uint t= join->const_tables; t < join->table_count; t++)
+      if (join->join_tab[t].table == f->table)
+      {
+        scanned= true;
+        break;
+      }
+    if (!scanned)
+      return nullptr;
+    /*
+      Shipped is the same question as read: pwt_row_layout::build() ships every
+      column whose read_set bit is set. Asked rather than assumed, because this
+      runs before the layout exists.
+    */
+    if (!bitmap_is_set(f->table->read_set, f->field_index))
+      return nullptr;
+  }
+  return fs->order;
+}
+
+
 ORDER *pwt_preagg_group(JOIN *join)
 {
   ORDER *g= nullptr;
@@ -559,7 +636,17 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
     DBUG_PRINT("info", ("group/distinct/order by"));
     DBUG_RETURN(false);
   }
-  if (sl->limit_params.explicit_limit)            // LIMIT / OFFSET
+  /*
+    Any cap on the rows this select may send: an explicit LIMIT/OFFSET, or the
+    session's sql_select_limit, which arrives with explicit_limit still unset
+    -- mysql_execute_command() assigns it as the default limit of a top-level
+    SELECT. The serial executor enforces the cap in end_send() against
+    unit->lim; the drain does not, so a capped query run in the workers would
+    send every row. unit->lim is what end_send() would have read, so that is
+    the fact tested rather than the syntax -- which also keeps a derived
+    table's select eligible, its unit carrying no session cap.
+  */
+  if (!join->unit->lim.is_unlimited())            // LIMIT / sql_select_limit
   {
     DBUG_PRINT("info", ("limit/offset"));
     DBUG_RETURN(false);
@@ -1128,6 +1215,13 @@ void pwt_manager::free_containers(THD *thd)
     layout.free_container(thd, &workers[i]->exec.result);
     layout.free_container(thd, &workers[i]->exec.group_container);
   }
+  /*
+    The sort result reads through the container, so it goes first. Both are
+    ours alone: nothing outside this thread ever saw either.
+  */
+  delete sort_result;
+  sort_result= nullptr;
+  layout.free_container(thd, &sort_container);
   layout.cleanup(thd);
 }
 
@@ -1181,6 +1275,13 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
     being nothing built yet at this point.
   */
   DBUG_ASSERT(is_driving || tab->use_quick != 2);
+
+  /*
+    A sort is only ever the driving table's -- pwt_manager_sort_order() takes
+    that plan shape, and the manager runs the sort -- and no sort has run yet.
+  */
+  DBUG_ASSERT(is_driving || !tab->filesort);
+  DBUG_ASSERT(!tab->filesort_result);
 
   /* Materialized derived tables, CTEs and split materialization. */
   DBUG_ASSERT(!tab->split_derived_to_update);
@@ -1360,6 +1461,16 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
     wtab->pre_idx_push_select_cond= nullptr;
     wtab->cache_select= nullptr;
     wtab->select= nullptr;
+    /*
+      The plan's sort is the manager's to run (sort_and_send()) and the
+      Filesort is the manager's to free: JOIN_TAB::cleanup() deletes both the
+      filesort and, through it, the SQL_SELECT holding the plan's condition, so
+      a worker's copy must not carry pointers a second cleanup would delete
+      again. Nothing in a worker reads them either -- the driving tab reads
+      through the chunk reader, not join_init_read_record().
+    */
+    wtab->filesort= nullptr;
+    wtab->filesort_result= nullptr;
 
     /* No join buffer in a worker: it joins a row at a time. */
     wtab->cache= nullptr;
@@ -2050,6 +2161,163 @@ void pwt_worker::execute_and_signal_manager()
     0 success (all rows sent)
     1 error.
 */
+/*
+  @brief
+    The container the drain collects into when the plan's sort is ours.
+
+  @description
+    One more container of the transport's own layout, so a drained record can
+    be written into it as it stands. It is this thread's alone -- written,
+    sorted and read here -- unlike the workers', which cross a thread boundary.
+
+  @return  true on error (my_error() called).
+*/
+
+bool pwt_manager::setup_sort_stage(THD *thd)
+{
+  if (layout.make_container(thd, &sort_container, nullptr))
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "parallel query: could not build the sort container");
+    return true;
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Collect the record just drained.
+
+  @description
+    The container has the layout's own shape, so the record is written as it
+    arrived, with no projection: the columns are already the ones the sort and
+    the copy-back name. A heap table that fills is rebuilt on disk, the same
+    way a worker's container is, except that this one never leaves this thread
+    and so needs none of the cross-thread accounting.
+
+  @return  0 on success, 1 on error.
+*/
+
+int pwt_manager::sort_collect(THD *thd)
+{
+  TABLE *t= sort_container.table;
+  memcpy(t->record[0], layout.recv_record(), layout.reclength);
+
+  int err= t->file->ha_write_tmp_row(t->record[0]);
+  if (likely(!err))
+    return 0;
+  if (err != HA_ERR_RECORD_FILE_FULL)
+  {
+    t->file->print_error(err, MYF(0));
+    return 1;
+  }
+  /* Rebuilds on disk and writes the row that did not fit. */
+  if (create_internal_tmp_table_from_heap(thd, t,
+                                          sort_container.param->start_recinfo,
+                                          &sort_container.param->recinfo,
+                                          err, 0, NULL))
+    return 1;                                    // already reported
+  return 0;
+}
+
+
+/*
+  @brief
+    Sort what was collected and send it to the client.
+
+  @description
+    The plan's own Filesort cannot be reused: its order names the manager's
+    base-table fields, and the rows are in the container. build_sort_order()
+    gives the equivalent order over the container's own fields, and the sort
+    runs there. Nothing filters -- the workers applied the condition -- so the
+    Filesort is built without a select.
+
+    Reading back is the ordinary way a sorted result is read, and each row then
+    takes the path a drained row would have taken: back into the manager's
+    base-table records, where this query's items read it, and out.
+
+  @return  0 on success, 1 on error.
+*/
+
+int pwt_manager::sort_and_send(JOIN *join)
+{
+  DBUG_ENTER("pwt_manager::sort_and_send");
+  THD *thd= join->thd;
+  TABLE *t= sort_container.table;
+  int ret= 0;
+
+  ORDER *so= layout.build_sort_order(thd, t);
+  if (!so)
+    DBUG_RETURN(1);
+
+  Filesort *fs= new (thd->mem_root) Filesort(so, HA_ROWS_MAX, false, nullptr);
+  if (!fs)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Filesort));
+    DBUG_RETURN(1);
+  }
+  fs->accepted_rows= &join->accepted_rows;       // for ROWNUM
+
+  /*
+    The plan's tracker, so ANALYZE reports this sort as the plan's sort, which
+    is what it is. A plan that was never asked to explain itself has none.
+  */
+  Filesort_tracker *tracker= exec.scan_tab->filesort
+                             ? exec.scan_tab->filesort->tracker : nullptr;
+  if (!tracker &&
+      !(tracker= new (thd->mem_root) Filesort_tracker(thd->lex->analyze_stmt)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Filesort_tracker));
+    DBUG_RETURN(1);
+  }
+
+  t->file->info(HA_STATUS_VARIABLE);             // filesort wants the count
+  if (!(sort_result= filesort(thd, t, fs, tracker, join, 0)))
+    DBUG_RETURN(1);
+  t->file->ha_index_or_rnd_end();
+
+  READ_RECORD info;
+  if (init_read_record(&info, thd, t, nullptr, sort_result, 0, true, false))
+    DBUG_RETURN(1);
+
+  for (;;)
+  {
+    int err= info.read_record();
+    if (err)
+    {
+      ret= err > 0;                              // < 0 is end of records
+      break;
+    }
+    if (unlikely(thd->killed))
+    {
+      thd->send_kill_message();
+      ret= 1;
+      break;
+    }
+
+    memcpy(layout.recv_record(), t->record[0], layout.reclength);
+    layout.copy_back_row();
+
+    int serr= join->result->send_data_with_check(join->fields_list, join->unit,
+                                                 join->send_records);
+    if (unlikely(serr))
+    {
+      if (serr > 0)
+      {
+        ret= 1;
+        break;
+      }
+      join->duplicate_rows++;                    // serr < 0: duplicate row
+    }
+    join->send_records++;
+    join->accepted_rows++;
+  }
+  end_read_record(&info);
+  DBUG_RETURN(ret);
+}
+
+
 int pwt_manager::drain_and_send(JOIN *join)
 {
   DBUG_ENTER("pwt_manager::drain_and_send");
@@ -2129,6 +2397,21 @@ int pwt_manager::drain_and_send(JOIN *join)
       break;
     }
 
+    /*
+      A plan whose sort is ours collects the row instead of sending it: the
+      order it goes out in is not the order it arrived in, so nothing can be
+      sent until every worker has finished. sort_and_send() does the rest.
+    */
+    if (layout.plan_sorts)
+    {
+      if (sort_collect(thd))
+      {
+        ret= 1;
+        break;
+      }
+      continue;
+    }
+
     /* Put the shipped columns back where the query expects to find them. */
     layout.copy_back_row();
 
@@ -2146,6 +2429,9 @@ int pwt_manager::drain_and_send(JOIN *join)
     join->send_records++;
     join->accepted_rows++;
   }
+
+  if (!ret && layout.plan_sorts)
+    ret= sort_and_send(join);
 
   layout.end_receive(exec.tables, exec.n_tables);
 
@@ -2220,7 +2506,7 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab)
     of the two reasons applied. pwt_table_conds() already knows where a sorted
     tab keeps its condition, so the worker half is in place.
   */
-  if (join_tab->filesort)
+  if (join_tab->filesort && !pwt_manager_sort_order(join_tab->join))
     return false;
 
   const uint32 pscan_support= join_tab->table->file->parallel_scan_support();
@@ -2420,7 +2706,7 @@ void parallel_join_check(JOIN *join)
       trace_pscan.add("parallel_scan_declined_because",
                       !first
                       ? "there is no table to divide" :
-                      first->filesort
+                      first->filesort && !pwt_manager_sort_order(join)
                       ? "the manager cannot sort what the workers produce" :
                       join->ordered_index_usage == JOIN::ordered_index_order_by
                       ? "an index supplies the ORDER BY order" :

@@ -9,6 +9,7 @@
 
 #include "sql_parallel_thread.h"
 #include "sql_parallel_transport.h"
+#include "filesort.h"
 
 /*
   Manager for a team of workers.
@@ -322,6 +323,15 @@ class pwt_manager : public pwt_manager_base
   pwt_row_layout           layout;
   pwt_row_source           *source;
 
+  /*
+    Where drained rows are collected when the plan's sort is ours to do
+    (layout.plan_sorts). Filled by the drain, sorted by filesort(), read back
+    in order and only then sent. sort_result is what filesort() produced and
+    what the read-back reads through; both are released by free_containers().
+  */
+  pwt_row_container        sort_container;
+  SORT_INFO                *sort_result;
+
 
   /*
     Set once the workers have been stopped and pthread_join'd (quiesce_workers).
@@ -340,7 +350,7 @@ public:
 
   pwt_manager():
     workers(PSI_INSTRUMENT_MEM, 0, 8),
-    source(nullptr), reaped(false),
+    source(nullptr), sort_result(nullptr), reaped(false),
     workers_must_stop(false)
     {}
   ~pwt_manager()
@@ -387,6 +397,15 @@ private:
     error.
   */
   bool setup_worker_preagg(THD *thd, pwt_worker *worker);
+  /*
+    Build the container the drain collects into when this thread has to sort.
+    Returns true on error.
+  */
+  bool setup_sort_stage(THD *thd);
+  /* Collect one drained record into it, growing it onto disk if it fills. */
+  int  sort_collect(THD *thd);
+  /* Sort what was collected and send it. Returns 0 on success, 1 on error. */
+  int  sort_and_send(JOIN *join);
   /* Deep-clone this query's conditions + shipped column list for 'worker',
      rebinding the Item_field leaves to the worker's table copies. Returns
      true on error. */
@@ -411,6 +430,7 @@ extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
 extern bool table_can_be_parallel_scanned(JOIN_TAB *tab);
 extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab);
 extern ORDER *pwt_preagg_group(JOIN *join);
+extern ORDER *pwt_manager_sort_order(JOIN *join);
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
 extern void check_parallel_scan(JOIN *join);
 extern void recheck_parallel_scan(JOIN *join);

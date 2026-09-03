@@ -224,12 +224,35 @@ public:
   bool              plan_aggregates;
   bool              grouped;
 
+  /*
+    The plan's ORDER BY, when the manager is the one that has to apply it.
+
+    A sort the optimizer added to the driving table's own read has nowhere to
+    happen once the workers have taken that read over: the sort is bound to a
+    scan that no longer runs here, and a plan of this shape has no aggregation
+    table to move it to. So the manager sorts what it drains instead, which a
+    sort does not mind -- it is the one post-join step that does not care what
+    order rows arrive in.
+
+    It sorts its own result container rather than the base table, so the sort
+    order cannot be the plan's: those items read the manager's base-table
+    fields. sort_pos[k] is the shipped column ORDER element k sorts on, which
+    is what lets an equivalent order be built over a container's own fields
+    (build_sort_order). plan_order is kept for the directions and for the
+    length.
+  */
+  ORDER             *plan_order;
+  uint              *sort_pos;
+  uint              n_sort;
+  bool              plan_sorts;
+
   pwt_row_layout():
     copy_back(nullptr), n_copy_back(0), reclength(0), join(nullptr),
     n_ship_base(0), n_sums(0), mgr_sums(nullptr), partial_items(nullptr),
     group_defn(nullptr), group_pos(nullptr), n_group(0),
     group_parts(0), group_length(0), group_null_parts(0),
     plan_aggregates(false), grouped(false),
+    plan_order(nullptr), sort_pos(nullptr), n_sort(0), plan_sorts(false),
     saved_write_set(nullptr)
   {}
 
@@ -238,7 +261,14 @@ public:
     receiving container from it. Returns true on error (my_error() called).
   */
   bool build(THD *thd, JOIN *join_arg, TABLE **tables, uint n_tables,
-             ORDER *plan_group);
+             ORDER *plan_group, ORDER *plan_sort);
+
+  /*
+    An ORDER list equivalent to the plan's, reading 'container' rather than the
+    manager's base tables, for filesort() to sort that container by. Returns
+    nullptr on error. Only called when plan_sorts.
+  */
+  ORDER *build_sort_order(THD *thd, TABLE *container);
 
   /*
     One private copy of group_defn, for one container to key on. Returns
@@ -248,6 +278,10 @@ public:
 
   /* Define the partial columns and the key they accumulate per. */
   bool build_aggregates(THD *thd, ORDER *plan_group);
+  /* Work out which shipped column each ORDER element sorts on. */
+  bool build_sort_positions(THD *thd, ORDER *plan_sort);
+  /* Position of 'want' in ship_list, or -1 if it is not shipped. */
+  int ship_pos_of(Field *want) const;
   /* result_defn := one clone per shipped column, base columns only. */
   bool clone_base_defn(THD *thd);
   /* Give up pre-aggregating: the workers will ship rows instead. */

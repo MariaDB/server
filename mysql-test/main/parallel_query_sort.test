@@ -1,0 +1,137 @@
+#
+# MDEV-39492 Parallel Query: the manager applies the plan's ORDER BY.
+#
+# make_aggr_tables_info() can add a sort to the driving table's own read --
+# add_sorting_to_table() on join_tab[const_tables] -- for a plan that needs no
+# temporary table. The workers take that read over, so the sort loses the scan
+# it was attached to, and this plan shape has no aggregation table to move it
+# to: the terminal after the driving tab sends straight to the client.
+#
+# So the manager sorts what it drains. A sort is the one post-join step that
+# does not care what order its input arrives in, which is what makes the plan
+# parallel at all. It sorts its own result container rather than the base
+# table, so the sort order is rebuilt over that container's fields, and every
+# ORDER BY element has to name a column the container holds -- a field of a
+# scanned table that the query reads, and so ships. Anything else is refused
+# and answered serially.
+#
+# The queries read back with query_get_value take a named row of the result as
+# the client received it, so they assert the order rather than the multiset.
+# They carry no commas because query_get_value splits its argument on them,
+# which is also why b is unique here: one column is a total order.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, CONCAT('v', LPAD(5001 - seq, 4, '0')), seq % 13, seq
+  FROM seq_1_to_5000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_trace=1;
+SET SESSION parallel_worker_threads=4;
+--disable_ps_protocol
+
+--echo #
+--echo # the sort runs here, over rows the workers produced (expect 1 768)
+--echo #
+--replace_column 9 #
+EXPLAIN SELECT a, b, c FROM t1 WHERE c > 10 ORDER BY b;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b, c FROM t1 WHERE c > 10 ORDER BY b;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs AS rows_sent
+--enable_query_log
+
+--echo # the head of it, which is the part the order decides
+SELECT a FROM t1 WHERE c > 10 ORDER BY b LIMIT 5;
+
+--let $q= SELECT a FROM t1 WHERE c > 10 ORDER BY b
+--let $p1= query_get_value($q, a, 1)
+--let $p2= query_get_value($q, a, 2)
+--let $p3= query_get_value($q, a, 400)
+--let $p4= query_get_value($q, a, 768)
+--let $qd= SELECT a FROM t1 WHERE c = 12 ORDER BY b DESC
+--let $pd1= query_get_value($qd, a, 1)
+--let $pd2= query_get_value($qd, a, 384)
+
+--echo #
+--echo # the same read serially: the same rows in the same places (expect 1 1)
+--echo #
+SET SESSION parallel_worker_threads=0;
+--let $s1= query_get_value($q, a, 1)
+--let $s2= query_get_value($q, a, 2)
+--let $s3= query_get_value($q, a, 400)
+--let $s4= query_get_value($q, a, 768)
+--let $sd1= query_get_value($qd, a, 1)
+--let $sd2= query_get_value($qd, a, 384)
+--disable_query_log
+--eval SELECT '$p1 $p2 $p3 $p4' = '$s1 $s2 $s3 $s4' AS same_rows_in_order, '$pd1 $pd2' = '$sd1 $sd2' AS same_descending
+--enable_query_log
+
+--echo #
+--echo # a result too big for the container in memory: it is rebuilt on disk
+--echo # (expect 1 1 1)
+--echo #
+SET SESSION parallel_worker_threads=4;
+SET SESSION tmp_memory_table_size=16384;
+SET SESSION max_heap_table_size=16384;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b, c, d FROM t1 ORDER BY b;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 5000 AS all_rows, $dt > 0 AS spilled
+--enable_query_log
+--let $qb= SELECT a FROM t1 ORDER BY b
+--let $pb1= query_get_value($qb, a, 1)
+--let $pb2= query_get_value($qb, a, 2500)
+--let $pb3= query_get_value($qb, a, 5000)
+SET SESSION parallel_worker_threads=0;
+--let $sb1= query_get_value($qb, a, 1)
+--let $sb2= query_get_value($qb, a, 2500)
+--let $sb3= query_get_value($qb, a, 5000)
+--echo # and the spilled sort is in the serial sort's order (expect 1)
+--disable_query_log
+--eval SELECT '$pb1 $pb2 $pb3' = '$sb1 $sb2 $sb3' AS same_rows_in_order
+--enable_query_log
+SET SESSION tmp_memory_table_size=default;
+SET SESSION max_heap_table_size=default;
+
+--echo #
+--echo # orders the manager cannot rebuild over its container: refused, and
+--echo # answered serially
+--echo #
+SET SESSION parallel_worker_threads=4;
+
+--echo # an expression, which is no column of the container
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE c > 10 ORDER BY a + d;
+--enable_result_log
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+  FROM information_schema.optimizer_trace;
+
+--echo # and an order the read itself supplies, which chunks cannot preserve
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 ORDER BY a;
+--enable_result_log
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+  FROM information_schema.optimizer_trace;
+--enable_ps_protocol
+
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
