@@ -294,6 +294,7 @@ my $opt_port_base= $ENV{'MTR_PORT_BASE'} || "auto";
 my $build_thread= 0;
 
 my $opt_record;
+my $opt_ignore_parallel_diff;
 
 our $opt_resfile= $ENV{'MTR_RESULT_FILE'} || 0;
 
@@ -1207,6 +1208,7 @@ sub command_line_setup {
 
              # Test case authoring
              'record'                   => \$opt_record,
+             'ignore-parallel-diff'     => \$opt_ignore_parallel_diff,
              'check-testcases!'         => \$opt_check_testcases,
              'mark-progress'            => \$opt_mark_progress,
 
@@ -1603,6 +1605,14 @@ sub command_line_setup {
   if ( $opt_record ) {
     # Use only one worker with --record
     $opt_parallel= 1;
+  }
+
+  # Recording under --ignore-parallel-diff would write the '_parallel' suffix
+  # into the .result, which then fails for everyone running without parallel
+  # execution.
+  if ( $opt_record and $opt_ignore_parallel_diff )
+  {
+    mtr_error("--record cannot be combined with --ignore-parallel-diff");
   }
 
   # --------------------------------------------------------------------------
@@ -5770,6 +5780,11 @@ sub start_mysqltest ($) {
 
   client_debug_arg($args, "mysqltest");
 
+  if ( $opt_ignore_parallel_diff )
+  {
+    mtr_add_arg($args, "--ignore-parallel-diff");
+  }
+
   if ( $opt_record )
   {
     mtr_add_arg($args, "--record");
@@ -5989,6 +6004,11 @@ Options that specify ports
 Options for test case authoring
 
   record TESTNAME       (Re)genereate the result file for TESTNAME
+  ignore-parallel-diff  Ignore the '_parallel' suffix that parallel query
+                        execution adds to the 'type' column of tabular
+                        EXPLAIN/ANALYZE, so that results recorded without it
+                        still compare equal. Development aid for running
+                        existing tests with --parallel-worker-threads > 0
   check-testcases       Check testcases for sideeffects
   mark-progress         Log line number and elapsed time to <testname>.progress
 

@@ -207,6 +207,9 @@ static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
+static my_bool opt_ignore_parallel_diff= 0;
+/* Set once --ignore-parallel-diff has actually had to rewrite something. */
+static my_bool ignored_parallel_diff= 0;
 static char *read_command_buf= NULL;
 static MEM_ROOT require_file_root;
 static const my_bool my_true= 1;
@@ -2490,6 +2493,84 @@ enum compare_files_result_enum {
 };
 
 /*
+  The access types the parallel suffix can be attached to. The server appends
+  "_parallel" to join_type_str[type] for a table the workers read, see
+  Explain_table_access::print_explain().
+  Currently, only 3 types of access are supported but when others get
+  parallelized, they should be added here too
+*/
+static const char *parallel_access_types[]= { "ALL", "range", "index", NULL };
+
+/*
+  Remove the "_parallel" suffix from tabular EXPLAIN/ANALYZE 'type' values, so
+  that a result recorded without parallel query execution compares equal to one
+  produced with it. For --ignore-parallel-diff.
+
+  Only a whole field is rewritten: the text has to be exactly one of
+  parallel_access_types[] followed by the suffix, filling the span between two
+  field delimiters. A row is written as values separated by '\t' and terminated
+  by '\n' (with --vertical_results, as "name\tvalue\n"), so those two bound the
+  field. That is also what keeps FORMAT=JSON out of it: there the value is
+  quoted, so the suffix is followed by '"' and never by a delimiter.
+
+  ds is the raw content of a file and is not NUL terminated, so every read here
+  is bounded by ds->length.
+
+  @return  how many suffixes were removed.
+*/
+static size_t strip_parallel_suffix(DYNAMIC_STRING *ds)
+{
+  static const char suffix[]= "_parallel";
+  const size_t suffix_len= sizeof(suffix) - 1;
+  char *str= ds->str;
+  size_t pos= 0, removed= 0;
+
+  while (ds->length >= suffix_len && pos <= ds->length - suffix_len)
+  {
+    if (memcmp(str + pos, suffix, suffix_len))
+    {
+      pos++;
+      continue;
+    }
+
+    /* The suffix has to end the field: a delimiter, or the end of the file. */
+    const size_t end= pos + suffix_len;
+    if (end < ds->length && str[end] != '\t' && str[end] != '\n')
+    {
+      pos++;
+      continue;
+    }
+
+    /* Back to the start of the field. */
+    size_t start= pos;
+    while (start > 0 && str[start - 1] != '\t' && str[start - 1] != '\n')
+      start--;
+
+    /* What the field holds before the suffix has to be an access type, alone. */
+    const size_t name_len= pos - start;
+    uint i;
+    for (i= 0; parallel_access_types[i]; i++)
+    {
+      const char *name= parallel_access_types[i];
+      if (strlen(name) == name_len && !memcmp(str + start, name, name_len))
+        break;
+    }
+    if (!parallel_access_types[i])
+    {
+      pos++;
+      continue;
+    }
+
+    /* Drop the suffix. pos then holds the delimiter, nothing to rescan. */
+    memmove(str + pos, str + end, ds->length - end);
+    ds->length-= suffix_len;
+    removed++;
+  }
+
+  return removed;
+}
+
+/*
   Compare two files, given a fd to the first file and
   name of the second file
 
@@ -2532,6 +2613,21 @@ int compare_files2(File fd1, const char* filename2)
     die("Error when reading data from result file");
   if (my_read(fd2, (uchar*) fd2_result.str, fd2_length, MYF(MY_WME | MY_NABP)))
     die("Error when reading data from result file");
+
+  if (opt_ignore_parallel_diff &&
+      (fd1_result.length != fd2_result.length ||
+       memcmp(fd1_result.str, fd2_result.str, fd1_result.length)))
+  {
+    /*
+      Both sides, so that it does not matter which of the two was recorded
+      with parallel execution on. Only once the files already differ: a run
+      that matches pays nothing for this.
+    */
+    const size_t stripped1= strip_parallel_suffix(&fd1_result);
+    const size_t stripped2= strip_parallel_suffix(&fd2_result);
+    if (stripped1 || stripped2)
+      ignored_parallel_diff= TRUE;
+  }
 
   if (global_subst &&
       (fd1_length != fd2_length ||
@@ -2669,6 +2765,10 @@ int check_result()
   case RESULT_OK:
     if (!error_count)
     {
+      if (ignored_parallel_diff)
+        fprintf(stderr, "Note: '%s' matched only after ignoring the "
+                        "'_parallel' EXPLAIN suffix (--ignore-parallel-diff)\n",
+                result_file_name);
       error= 0;
       break; /* ok */
     }
@@ -10198,6 +10298,14 @@ static struct my_option my_long_options[] =
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"prologue", 0, "Include SQL before each test case.", &opt_prologue,
    &opt_prologue, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ignore-parallel-diff", 0,
+   "Do not fail on tabular EXPLAIN/ANALYZE differences caused by parallel "
+   "query execution: the '_parallel' suffix on the 'type' column is ignored "
+   "on both sides of the comparison. A development aid for running existing "
+   "tests with parallel execution on; it can hide a real plan change, so it "
+   "cannot be combined with --record.",
+   &opt_ignore_parallel_diff, &opt_ignore_parallel_diff, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"logdir", OPT_LOG_DIR, "Directory for log files", &opt_logdir,
    &opt_logdir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"mark-progress", 0,
