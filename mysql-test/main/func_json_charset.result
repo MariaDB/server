@@ -1,0 +1,574 @@
+#
+# Behavioral baseline: character sets.
+#
+# The same bytes are a different document in a different character
+# set, and in some character sets the bytes that JSON uses as
+# punctuation are ordinary letters.  This test records the character
+# set and collation every JSON function reports for its result, what
+# each function makes of the same bytes under different labels, and
+# what happens when arguments of different character sets meet in one
+# call.
+#
+SET NAMES utf8mb4;
+#
+# 1. The character set and collation of every result.
+#
+SELECT CHARSET(JSON_ARRAY(1)) AS cs, COLLATION(JSON_ARRAY(1)) AS co;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SELECT CHARSET(JSON_OBJECT('a',1)) AS cs, COLLATION(JSON_OBJECT('a',1)) AS co;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SELECT CHARSET(JSON_SET('{}','$.a',1)) AS cs, COLLATION(JSON_SET('{}','$.a',1)) AS co;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SELECT CHARSET(JSON_INSERT('{}','$.a',1)) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_REPLACE('{"a":1}','$.a',2)) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_REMOVE('{"a":1}','$.a')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_ARRAY_APPEND('[1]','$',2)) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_ARRAY_INSERT('[1]','$[0]',2)) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_MERGE('[1]','[2]')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_MERGE_PATCH('{"a":1}','{"b":2}')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_EXTRACT('{"a":1}','$.a')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_QUERY('{"a":{"b":1}}','$.a')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_VALUE('{"a":1}','$.a')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_KEYS('{"a":1}')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_SEARCH('["x"]','one','x')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_COMPACT('{}')) AS cs, CHARSET(JSON_LOOSE('{}')) AS cs2;
+cs	cs2
+utf8mb4	utf8mb4
+SELECT CHARSET(JSON_DETAILED('{}')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_NORMALIZE('{}')) AS cs;
+cs
+utf8mb4
+SELECT CHARSET(JSON_TYPE('{}')) AS cs;
+cs
+utf8mb3
+# JSON_QUOTE and JSON_UNQUOTE, whose collations differ from the rest
+SELECT CHARSET(JSON_QUOTE('a')) AS cs, COLLATION(JSON_QUOTE('a')) AS co;
+cs	co
+utf8mb4	utf8mb4_bin
+SELECT CHARSET(JSON_UNQUOTE('"a"')) AS cs, COLLATION(JSON_UNQUOTE('"a"')) AS co;
+cs	co
+utf8mb4	utf8mb4_bin
+SELECT COLLATION(CONCAT(JSON_UNQUOTE('"a"'), '')) AS co;
+co
+utf8mb4_bin
+SELECT JSON_UNQUOTE('"A"') = 'a' AS case_sensitive_compare;
+case_sensitive_compare
+0
+SELECT JSON_VALUE('{"a":"A"}','$.a') = 'a' AS case_sensitive_compare;
+case_sensitive_compare
+1
+# the aggregates
+SELECT CHARSET(JSON_ARRAYAGG(x)) AS cs, COLLATION(JSON_ARRAYAGG(x)) AS co
+FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+cs	co
+utf8mb4	utf8mb4_general_ci
+SELECT CHARSET(JSON_OBJECTAGG(x,x)) AS cs FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+cs
+utf8mb4
+#
+# 2. The same bytes under different labels.
+#
+# 0xFF is one character in latin1 and not a character at all in utf8mb4
+SELECT JSON_VALID(_latin1 X'227B7DFF22') AS as_latin1;
+as_latin1
+1
+SELECT JSON_VALID(_binary X'227B7DFF22') AS as_binary;
+as_binary
+1
+SELECT HEX(JSON_UNQUOTE(_latin1 X'22FF22')) AS unq_latin1;
+unq_latin1
+C3BF
+SELECT HEX(JSON_UNQUOTE(_binary X'22FF22')) AS unq_binary;
+unq_binary
+C3BF
+# the byte 0x5C is a backslash in latin1 and utf8mb4
+SELECT JSON_VALID(_latin1 X'225C6E22') AS as_latin1;
+as_latin1
+1
+SELECT JSON_VALID(_utf8mb4 X'225C6E22') AS as_utf8mb4;
+as_utf8mb4
+1
+# a two-byte character that ends in a byte JSON treats as punctuation
+SELECT JSON_VALID(CONVERT(_latin1 X'227B7D22' USING utf8mb4)) AS v;
+v
+1
+#
+# 3. A character set in which the JSON punctuation bytes are letters.
+#    In swe7 the bytes 5B 5C 5D 7B 7D are national characters, so the
+#    same bytes that encode an object elsewhere encode a word here.
+#
+SELECT JSON_VALID(_swe7 X'7B7D') AS braces_as_swe7;
+braces_as_swe7
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID(_swe7 X'5B5D') AS brackets_as_swe7;
+brackets_as_swe7
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+SELECT JSON_VALID(_binary X'7B7D') AS braces_as_binary;
+braces_as_binary
+1
+SELECT HEX(CONVERT(_swe7 X'7B7D' USING utf8mb4)) AS swe7_to_utf8mb4;
+swe7_to_utf8mb4
+C3A4C3A5
+SELECT HEX(JSON_ARRAY(_swe7 X'7B7D')) AS embedded;
+embedded
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+SELECT HEX(JSON_QUOTE(_swe7 X'7B7D')) AS quoted;
+quoted
+22C3A4C3A522
+SELECT JSON_VALID(JSON_ARRAY(_swe7 X'7B7D')) AS still_valid;
+still_valid
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+# a document written in swe7 itself
+SELECT HEX(JSON_COMPACT(CONVERT('{"a":1}' USING swe7))) AS as_swe7;
+as_swe7
+NULL
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x7B to 'swe7'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 1
+SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING swe7), '$.b', 2)) AS as_swe7;
+as_swe7
+NULL
+Warnings:
+Warning	1977	Cannot convert 'utf8mb4' character 0x7B to 'swe7'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 1
+SELECT CHARSET(JSON_SET(CONVERT('{"a":1}' USING swe7), '$.b', 2)) AS cs;
+cs
+swe7
+# a swe7 value spliced into a utf8mb4 document
+SELECT HEX(JSON_SET('{"a":1}', '$.b', CONVERT(_swe7 X'7B7D' USING swe7))) AS spliced;
+spliced
+7B2261223A20312C202262223A2022C3A4C3A5227D
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b', CONVERT(_swe7 X'7B7D' USING swe7))) AS ok;
+ok
+1
+#
+# 4. Wide character sets, where a character is not a byte.
+#
+SELECT HEX(CONVERT('{"a":1}' USING ucs2)) AS doc_ucs2;
+doc_ucs2
+007B002200610022003A0031007D
+SELECT JSON_VALID(CONVERT('{"a":1}' USING ucs2)) AS v;
+v
+1
+SELECT JSON_DEPTH(CONVERT('{"a":{"b":1}}' USING ucs2)) AS d;
+d
+3
+SELECT HEX(JSON_COMPACT(CONVERT('{"a": 1}' USING ucs2))) AS compacted;
+compacted
+007B002200610022003A0031007D
+SELECT CHARSET(JSON_COMPACT(CONVERT('{"a": 1}' USING ucs2))) AS cs;
+cs
+ucs2
+SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b', 2)) AS setv;
+setv
+007B002200610022003A00200031002C0020002200620022003A00200032007D
+SELECT CHARSET(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b', 2)) AS cs;
+cs
+ucs2
+SELECT JSON_EXTRACT(CONVERT('{"a":1}' USING ucs2), '$.a') AS v;
+v
+NULL
+SELECT HEX(JSON_ARRAY(CONVERT('x' USING ucs2))) AS arr;
+arr
+005B002200780022005D
+SELECT CHARSET(JSON_ARRAY(CONVERT('x' USING ucs2))) AS cs;
+cs
+ucs2
+# utf16 and utf32
+SELECT JSON_VALID(CONVERT('{"a":1}' USING utf16)) AS v16;
+v16
+1
+SELECT JSON_VALID(CONVERT('{"a":1}' USING utf32)) AS v32;
+v32
+1
+SELECT HEX(JSON_COMPACT(CONVERT('{"a": 1}' USING utf16))) AS c16;
+c16
+007B002200610022003A0031007D
+#
+# 5. Arguments of different character sets meeting in one call.
+#
+SELECT CHARSET(JSON_ARRAY(CONVERT('a' USING latin1), CONVERT('b' USING utf8mb4))) AS cs;
+cs
+utf8mb4
+SELECT JSON_ARRAY(CONVERT('a' USING latin1), CONVERT('b' USING utf8mb4)) AS v;
+v
+["a", "b"]
+SELECT CHARSET(JSON_SET(CONVERT('{"a":1}' USING latin1), '$.b',
+CONVERT('x' USING utf8mb4))) AS cs;
+cs
+latin1
+SELECT JSON_SET(CONVERT('{"a":1}' USING latin1), '$.b',
+CONVERT('x' USING utf8mb4)) AS v;
+v
+{"a": 1, "b": "x"}
+# a ucs2 document with a utf8mb4 value spliced into it
+SELECT CHARSET(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+CONVERT('x' USING utf8mb4))) AS cs;
+cs
+ucs2
+SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+CONVERT('x' USING utf8mb4))) AS v;
+v
+007B002200610022003A00200031002C0020002200620022003A0020002200780022007D
+# a utf8mb4 document with a ucs2 value spliced into it
+SELECT CHARSET(JSON_SET('{"a":1}', '$.b', CONVERT('x' USING ucs2))) AS cs;
+cs
+utf8mb4
+SELECT JSON_SET('{"a":1}', '$.b', CONVERT('x' USING ucs2)) AS v;
+v
+{"a": 1, "b": "x"}
+# a path argument in another character set than the document
+SELECT JSON_EXTRACT('{"a":1}', CONVERT('$.a' USING latin1)) AS v;
+v
+1
+SELECT JSON_EXTRACT('{"a":1}', CONVERT('$.a' USING ucs2)) AS v;
+v
+NULL
+SELECT JSON_EXTRACT(CONVERT('{"a":1}' USING ucs2), CONVERT('$.a' USING latin1)) AS v;
+v
+NULL
+# 5a. A value that is itself a document, spliced into a document of
+#     another character set.  The fragment is written in the character
+#     set of the answer, and what differs between the functions is how
+#     that set is chosen: a mutator takes it from its document argument
+#     and converts the fragment into it, while a constructor aggregates
+#     over all of its arguments, so the fragment itself can decide the
+#     set and its bytes then go across unchanged.
+SELECT HEX(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+JSON_COMPACT('{"x":2}'))) AS typed_into_ucs2;
+typed_into_ucs2
+007B002200610022003A00200031002C0020002200620022003A0020007B002200780022003A00200032007D007D
+SELECT JSON_VALID(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+JSON_COMPACT('{"x":2}'))) AS ok;
+ok
+1
+SELECT HEX(JSON_SET('{"a":1}', '$.b',
+JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS latin1_typed;
+latin1_typed
+7B2261223A20312C202262223A207B2278223A2022C3A9227D7D
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b',
+JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS ok;
+ok
+1
+# the constructors take the same fragment without complaint
+SELECT HEX(JSON_ARRAY(
+JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS embedded;
+embedded
+5B7B2278223A22E9227D5D
+SELECT JSON_VALID(JSON_ARRAY(
+JSON_COMPACT(CONVERT(CONCAT('{"x":"', X'E9', '"}') USING latin1)))) AS still_valid;
+still_valid
+1
+SELECT CHARSET(JSON_ARRAY(JSON_COMPACT(CONVERT('{"x":2}' USING latin1)))) AS cs;
+cs
+latin1
+SELECT HEX(JSON_OBJECT('k', JSON_COMPACT(CONVERT('{"x":2}' USING ucs2)))) AS obj_embedded;
+obj_embedded
+007B0022006B0022003A0020007B002200780022003A0032007D007D
+#
+# 6. Binary arguments, which are not text and are copied through.
+#
+CREATE TABLE t1 (b BLOB, v VARBINARY(10), c VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (X'FF', X'FF', X'FF'), (X'C3', X'C3', X'C3');
+SELECT CHARSET(JSON_ARRAY(b)) AS cs, COLLATION(JSON_ARRAY(b)) AS co FROM t1 LIMIT 1;
+cs	co
+binary	binary
+SELECT HEX(JSON_ARRAY(b)) AS h, JSON_VALID(JSON_ARRAY(b)) AS ok FROM t1;
+h	ok
+5B22FF225D	1
+5B22C3225D	1
+SELECT HEX(JSON_ARRAY(v)) AS h, JSON_VALID(JSON_ARRAY(v)) AS ok FROM t1;
+h	ok
+5B22FF225D	1
+5B22C3225D	1
+SELECT HEX(JSON_ARRAY(c)) AS h, JSON_VALID(JSON_ARRAY(c)) AS ok FROM t1;
+h	ok
+5B22FF225D	1
+5B22C3225D	1
+SELECT CHARSET(JSON_ARRAY(c)) AS cs FROM t1 LIMIT 1;
+cs
+latin1
+SELECT HEX(JSON_OBJECT('k', b)) AS h FROM t1;
+h
+7B226B223A2022FF227D
+7B226B223A2022C3227D
+SELECT HEX(JSON_SET('{}', '$.a', b)) AS h FROM t1;
+h
+7B2261223A2022C3BF227D
+7B2261223A2022C383227D
+SELECT CHARSET(JSON_SET('{}', '$.a', b)) AS cs FROM t1 LIMIT 1;
+cs
+utf8mb4
+SELECT HEX(JSON_QUOTE(b)) AS h FROM t1;
+h
+22C3BF22
+22C38322
+# the raw bytes survive a round trip through a document
+SELECT HEX(JSON_VALUE(JSON_OBJECT('k', b), '$.k')) AS h FROM t1;
+h
+FF
+C3
+SELECT HEX(JSON_EXTRACT(JSON_OBJECT('k', b), '$.k')) AS h FROM t1;
+h
+22FF22
+22C322
+DROP TABLE t1;
+# 6a. A binary column holding a whole document, with bytes that are
+#     not valid utf8mb4 sitting in a value, in a key, and in the
+#     structural skeleton.  Nothing converts these, so what the
+#     parser accepts is decided by the binary label alone.
+CREATE TABLE t2 (b VARBINARY(60));
+INSERT INTO t2 VALUES
+(X'7B2261223A22FF227D'), (X'7B22FF61223A317D'), (X'7B2261223A31FF7D'),
+(X'7B2261223A22C3227D'), (X'7B2261223A22C3A9227D');
+SELECT HEX(b) AS stored, JSON_VALID(b) AS v FROM t2 ORDER BY stored;
+stored	v
+7B2261223A22C3227D	1
+7B2261223A22C3A9227D	1
+7B2261223A22FF227D	1
+7B2261223A31FF7D	0
+7B22FF61223A317D	1
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_valid' at position 6
+SELECT HEX(b) AS stored, HEX(JSON_EXTRACT(b, '$.a')) AS ext FROM t2 ORDER BY stored;
+stored	ext
+7B2261223A22C3227D	22C322
+7B2261223A22C3A9227D	22C3A922
+7B2261223A22FF227D	22FF22
+7B2261223A31FF7D	NULL
+7B22FF61223A317D	NULL
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_extract' at position 6
+SELECT HEX(b) AS stored, HEX(JSON_VALUE(b, '$.a')) AS val FROM t2 ORDER BY stored;
+stored	val
+7B2261223A22C3227D	C3
+7B2261223A22C3A9227D	C3A9
+7B2261223A22FF227D	FF
+7B2261223A31FF7D	NULL
+7B22FF61223A317D	NULL
+SELECT HEX(b) AS stored, HEX(JSON_KEYS(b)) AS ks FROM t2 ORDER BY stored;
+stored	ks
+7B2261223A22C3227D	5B2261225D
+7B2261223A22C3A9227D	5B2261225D
+7B2261223A22FF227D	5B2261225D
+7B2261223A31FF7D	NULL
+7B22FF61223A317D	5B22FF61225D
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_keys' at position 6
+SELECT HEX(b) AS stored, HEX(JSON_SET(b, '$.z', 1)) AS mutated FROM t2 ORDER BY stored;
+stored	mutated
+7B2261223A22C3227D	7B2261223A2022C3222C20227A223A20317D
+7B2261223A22C3A9227D	7B2261223A2022C3A9222C20227A223A20317D
+7B2261223A22FF227D	7B2261223A2022FF222C20227A223A20317D
+7B2261223A31FF7D	NULL
+7B22FF61223A317D	7B22FF61223A20312C20227A223A20317D
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_set' at position 6
+SELECT CHARSET(JSON_EXTRACT(b, '$.a')) AS cs_ext,
+CHARSET(JSON_SET(b, '$.z', 1)) AS cs_set FROM t2 LIMIT 1;
+cs_ext	cs_set
+binary	binary
+DROP TABLE t2;
+#
+# 6b. CONVERT and CAST over a value that is already a document.
+#     CONVERT wraps the value and the wrapper is seen through, so the
+#     result is still treated as a document; CAST does not.
+#
+CREATE TABLE tc (j JSON);
+INSERT INTO tc VALUES (JSON_SET('{"a":1}', '$.b', _utf8mb4 X'C3A9'));
+SELECT HEX(JSON_ARRAY(CONVERT(j USING latin1))) AS h,
+CHARSET(JSON_ARRAY(CONVERT(j USING latin1))) AS cs FROM tc;
+h	cs
+5B7B2261223A20312C202262223A2022E9227D5D	latin1
+SELECT JSON_VALID(JSON_ARRAY(CONVERT(j USING latin1))) AS ok FROM tc;
+ok
+1
+# a mutator takes the same fragment and writes it back out in the
+# character set of its document argument, which is where the answer's
+# character set comes from
+SELECT HEX(JSON_SET('{"x":1}', '$.y', CONVERT(j USING latin1))) AS h FROM tc;
+h
+7B2278223A20312C202279223A207B2261223A20312C202262223A2022C3A9227D7D
+SELECT HEX(JSON_ARRAY(CONVERT(j USING binary))) AS h FROM tc;
+h
+5B7B2261223A20312C202262223A2022C3A9227D5D
+# CAST produces a plain string, so it is quoted rather than embedded
+SELECT HEX(JSON_ARRAY(CAST(j AS CHAR))) AS h FROM tc;
+h
+5B227B5C22615C223A20312C205C22625C223A205C22C3A95C227D225D
+SELECT HEX(JSON_ARRAY(CAST(j AS CHAR CHARACTER SET latin1))) AS h FROM tc;
+h
+5B227B5C22615C223A20312C205C22625C223A205C22E95C227D225D
+SELECT HEX(JSON_ARRAY(CONVERT(JSON_OBJECT('a', _utf8mb4 X'C3A9') USING latin1))) AS h;
+h
+5B7B2261223A2022E9227D5D
+SELECT HEX(JSON_SET('{}', '$.a', CONVERT(JSON_OBJECT('k','v') USING latin1))) AS h;
+h
+7B2261223A207B226B223A202276227D7D
+DROP TABLE tc;
+# the same wrapper over a column whose stored bytes are not a document
+CREATE TABLE tp (j JSON);
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tp VALUES ('{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT JSON_ARRAY(CONVERT(j USING latin1)) AS v,
+JSON_VALID(JSON_ARRAY(CONVERT(j USING latin1))) AS ok FROM tp;
+v	ok
+NULL	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+SELECT JSON_SET('{"x":1}', '$.y', CONVERT(j USING latin1)) AS v FROM tp;
+v
+NULL
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 3 to function 'json_set'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 20
+SELECT JSON_ARRAY(CAST(j AS CHAR)) AS v FROM tp;
+v
+["{\"a\":1,"]
+DROP TABLE tp;
+#
+# 7. The metadata the client is told about, which decides whether the
+#    bytes are converted on the way out.
+#
+SELECT JSON_ARRAY(1) AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	40	3	Y	0	39	45
+v
+[1]
+SELECT JSON_OBJECT('a',1) AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	72	8	Y	0	39	45
+v
+{"a": 1}
+SELECT JSON_SET('{}','$.a',1) AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	84	8	Y	0	39	45
+v
+{"a": 1}
+SELECT JSON_EXTRACT('{"a":1}','$.a') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	56	1	Y	0	39	45
+v
+1
+SELECT JSON_UNQUOTE('"a"') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253	12	1	Y	128	39	45
+v
+a
+SELECT JSON_QUOTE('a') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253	32	3	Y	128	39	45
+v
+"a"
+SELECT JSON_KEYS('{"a":1}') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	28	5	Y	0	39	45
+v
+["a"]
+SELECT JSON_COMPACT('{}') AS v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (format=json)	8	2	Y	0	0	45
+v
+{}
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	252 (format=json)	16777224	5	Y	0	0	45
+v
+[1,2]
+SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	252 (format=json)	16777224	14	Y	0	0	45
+v
+{"1":1, "2":2}
+#
+# 8. A result delivered in a character set other than the one it was
+#    computed in.
+#
+SET SESSION character_set_results = latin1;
+SELECT JSON_ARRAY('a') AS v;
+v
+["a"]
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
+v
+["a","b"]
+SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
+v
+{"a":"a", "b":"b"}
+SELECT JSON_SET('{}','$.a','b') AS v;
+v
+{"a": "b"}
+SET SESSION character_set_results = DEFAULT;
+# The values above are all ASCII, so a conversion on the way out is
+# indistinguishable from no conversion.  swe7 has no code point for
+# the JSON punctuation, so a result that IS converted arrives with
+# those characters replaced, and a result that is passed
+# unconverted arrives intact.  That makes the difference visible.
+SET SESSION character_set_results = swe7;
+SELECT JSON_ARRAY('a') AS v;
+v
+?"a"?
+SELECT JSON_OBJECT('a',1) AS v;
+v
+?"a": 1?
+SELECT JSON_SET('{}','$.a','b') AS v;
+v
+?"a": "b"?
+SELECT JSON_EXTRACT('{"a":[1,2]}','$.a') AS v;
+v
+?1, 2?
+SELECT JSON_KEYS('{"a":1}') AS v;
+v
+?"a"?
+SELECT JSON_COMPACT('{"a": 1}') AS v;
+v
+?"a":1?
+SELECT JSON_UNQUOTE('"[a]"') AS v;
+v
+?a?
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
+v
+?"a","b"?
+SELECT JSON_OBJECTAGG(x,x) AS v FROM (SELECT 'a' AS x UNION ALL SELECT 'b') d;
+v
+?"a":"a", "b":"b"?
+SET SESSION character_set_results = DEFAULT;
+SET NAMES utf8mb4;

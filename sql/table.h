@@ -76,6 +76,7 @@ class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
 class Range_rowid_filter_cost_info;
+class Json_result_marks;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
@@ -1355,6 +1356,135 @@ public:
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* On INSERT: fields that the user specified a value for */
   MY_BITMAP	has_value_set;
+  /*
+    Fields whose bytes in record[0] were written from an Item that answered
+    is_valid_json(), by a store that kept every character of it.  A
+    json_valid() check over such a field can only find out what is already
+    known, so verify_constraints() leaves it unread.
+
+    The bits last one row image and no longer.  verify_constraints() reads
+    them and clears the whole bitmap on every way out of itself, and
+    TABLE::init() clears it at the start of a statement.  Whatever writes
+    record[0] without setting a bit therefore leaves it clear, and the
+    check runs - which is what every writer other than the three store
+    sites does.
+  */
+  MY_BITMAP	is_valid_json_set;
+  /*
+    Whether any column of this table carries a check that asks nothing but
+    whether that same column holds a document - which is the only thing the
+    bitmap above is ever read for.
+
+    Worked out once, where the checks are worked out, because the writers
+    would otherwise ask a field about every column of every row on the
+    chance that one of them was constrained.  Where no column is, no bit
+    can ever be set and nothing reads one.
+  */
+  bool          has_own_json_valid_check;
+  /*
+    Fields of a temporary table the server built for itself, every value
+    of which came from an item that answers is_valid_json_static() and
+    was put down whole.  A reader of such a field is reading a document,
+    whatever row it has in front of it.
+
+    Unlike the bitmap above, these bits say nothing about one row image.
+    They are written once, while the table is being built and each
+    field's one producer is known, and they hold for every row the field
+    will ever be given - which is why a reader can still believe one long
+    after the row was written and the row image it was written in is
+    gone.
+
+    A bit is taken back, for good, if a store into the field ever puts
+    down less than it was handed.  That is the one way the promise could
+    come apart, and it is not a way the store will own up to: truncation
+    is reported only where count_cuted_fields is raised, which is not
+    where a temporary table is written.  So the store is asked what it
+    kept rather than whether it minded.
+
+    Only Create_tmp_table leaves a bitmap here.  A base table and a table
+    the user asked for have nowhere to keep a yes, and so answer no by
+    construction - which is the whole of why their columns stay unread:
+    a row can hold bytes no check ever saw, and nothing in one records
+    where it came from.
+  */
+  MY_BITMAP	*is_valid_json_static_set;
+  /*
+    Of those same fields, the ones every value has so far reached
+    formatted the way json_nice() writes a document in its loose form.
+
+    This one cannot be promised in advance the way the one above is.
+    Being a document is a property of the producer, which is why it can
+    be asked before a row exists; the FORMATTING is a property of each
+    value the producer passes, and there is nobody to ask about a
+    value that has not been made yet.  So the bit starts as a yes
+    wherever the bit above was granted, and the first value that arrives
+    formatted otherwise takes it back for good.
+
+    What it says when it is read is therefore "nothing put here so far
+    was formatted another way", which is what a reader of a row already
+    written needs of it: the value in front of that reader was put down
+    before the read, so a bit that still stands now also stood when that
+    value was written.
+
+    Read only through the bitmap above, a formatting being nothing to say
+    about a column whose values are not known to be documents at all.
+    That is why is_valid_json_static_set alone decides whether a table
+    keeps these answers; this pointer is never tested on its own.
+  */
+  MY_BITMAP	*is_nice_json_static_set;
+
+  /*
+    Of those same fields, how deep the deepest value that has reached
+    each of them goes.
+
+    A number rather than a bit, because what reads this is composing:
+    it is putting the value inside something of its own and needs a
+    figure to add its own levels to, not a yes.  The column is written
+    by many values and read as one, so what holds for all of them is the
+    deepest of them, and the entry only ever rises.
+
+    Too large is the safe direction here, as saying no is for the two
+    above: a figure larger than the truth costs a reading that need not
+    have happened, while one smaller lets a document be composed that
+    goes past what this server can read back.  JSON_DEPTH_UNKNOWN is
+    the largest of all and so absorbs everything - one value nobody
+    counted takes the column there and leaves it there, which is what
+    it means for a column to have stopped saying.
+
+    Read through the first bitmap, like the second, a depth being
+    nothing to say about a column whose values are not known to be
+    documents at all.
+  */
+  uint		*json_static_depth;
+  /*
+    What was said about the value each field of this table is holding
+    right now, where the table is one a stored program keeps its
+    variables in.
+
+    A variable is not a column and cannot be attested to the way the
+    three above attest to one.  A column of a table the server built
+    for itself has one producer, settled while the column is being made,
+    so what will be written there is known before a row exists.  A
+    variable has as many producers as there are assignments to it, each
+    one arriving at a different moment and saying something different,
+    so there is nothing to say in advance and everything to say each
+    time one lands.
+
+    So these are written where a value is written, by the one funnel
+    every assignment goes through, and each of them is about the bytes
+    the field holds until the next assignment replaces both together.
+    That is a narrower promise than the standing one and a stronger one:
+    it is about a value that exists, and it can carry the formatting and
+    the depth exactly rather than as a bound over rows.
+
+    Only Virtual_tmp_table leaves an array here, and it is the whole of
+    the discriminator, exactly as the pointer above it is: a base table
+    and a table the user asked for have nowhere to keep an answer and so
+    give none.  A table a stored program keeps its variables in cannot
+    be named from SQL and is written by nothing but that one funnel,
+    which is what makes an answer about it worth keeping at all.
+  */
+  Json_result_marks *json_held_marks;
 
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1623,6 +1753,70 @@ public:
   void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  /*
+    The constraint loop alone.  Call verify_constraints() instead: it is
+    what clears is_valid_json_set afterwards, and every way out of this
+    one leaves the marks standing.
+  */
+  int run_check_constraints(bool ignore_failure);
+  /*
+    Take back whatever was said about the bytes standing in record[0].
+
+    Asked only of a table some column of which carries a check that could
+    read a mark.  Where none does no bit can ever be set, and the writers
+    below run on every row of every table in the instance: the guard is
+    what keeps a bitmap nothing ever reads from being walked by all of
+    them.
+  */
+  void clear_is_valid_json_marks()
+  {
+    if (has_own_json_valid_check)
+      bitmap_clear_all(&is_valid_json_set);
+  }
+  /*
+    Put a whole row image into record[0].  This is what restore_record()
+    does, and the reason it is a method rather than the memcpy it reads
+    as.
+
+    Whatever replaces a row image wholesale leaves nothing that was said
+    about the one before it still true, and the list of places that do it
+    is open where the list of places that say something is closed.  Naming
+    them one at a time is how one gets missed, and a missed one is a check
+    that quietly stops being run.
+  */
+  void restore_record_image(const uchar *from)
+  {
+    memcpy(record[0], from, (size_t) s->reclength);
+    clear_is_valid_json_marks();
+  }
+  /*
+    Said of a table this server built and a storage engine fills: a
+    select, a grouping or a derived table pushed down whole borrows this
+    machinery for its columns and then has its rows written by the
+    engine, straight into record[0].  No store of ours ever sees what
+    goes into them, so none of the columns can attest to their values -
+    however well the item a column was made from attests to the values
+    IT makes.
+
+    Taking the bitmaps away is how that is said, a table with nowhere to
+    keep a yes answering no to everything.  All three go, the two behind
+    the first being read only through it but pointing at storage of
+    their own all the same.
+
+    Said at the moment the engine is handed the table rather than when
+    it starts filling it: a table built out of this one asks these
+    columns what they promise while it is being built, which is before
+    any row of either exists.
+  */
+  void set_filled_by_engine()
+  {
+    is_valid_json_static_set= NULL;
+    is_nice_json_static_set= NULL;
+    json_static_depth= NULL;
+  }
+#ifndef DBUG_OFF
+  void check_json_valid_mark(Virtual_column_info *check);
+#endif
   void free_engine_stats();
   void update_engine_independent_stats();
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)

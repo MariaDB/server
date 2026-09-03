@@ -1,0 +1,435 @@
+--echo #
+--echo # What a JSON function reads back out of a temporary table the server
+--echo # built for itself.
+--echo #
+--echo # Such a table is written, read and thrown away inside one query, and
+--echo # no statement can name it, so what goes into a column of one is
+--echo # decided once, when the column is made.  A column whose one producer
+--echo # always gives back a document therefore holds documents, and a
+--echo # reader of it can be spared finding that out again.
+--echo #
+--echo # A column of a table anybody can name says nothing of the sort: a row
+--echo # can hold bytes no check ever saw, and nothing in one records where
+--echo # they came from.  The answers below are the same either way - the
+--echo # reading that is left out could only have found out what was already
+--echo # known - so this file is here to say that they stay the same.
+--echo #
+
+SET NAMES utf8mb4;
+SET optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '[1,2]');
+
+--echo #
+--echo # 1. A document out of a temporary table, spliced into a new one.
+--echo #
+SELECT id, JSON_ARRAY(x) AS spliced FROM
+  (SELECT id, JSON_SET(j, '$.c', id) AS x FROM t1) d ORDER BY id;
+SELECT id, JSON_OBJECT('k', x) AS spliced FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+
+--echo #
+--echo # 2. The same, edited rather than spliced.
+--echo #
+SELECT id, JSON_SET(x, '$.d', 4) AS edited FROM
+  (SELECT id, JSON_SET(j, '$.c', id) AS x FROM t1) d ORDER BY id;
+SELECT id, JSON_MERGE_PATCH(x, '{"e":5}') AS merged FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t1) d ORDER BY id;
+
+--echo #
+--echo # 3. Asked about, rather than read.
+--echo #
+SELECT id, JSON_VALID(x) AS valid, JSON_TYPE(x) AS what, JSON_DEPTH(x) AS deep
+  FROM (SELECT id, JSON_SET(j, '$.c', id) AS x FROM t1) d ORDER BY id;
+
+--echo #
+--echo # 4. Through a GROUP BY, a DISTINCT and an ORDER BY, each of which
+--echo # writes a temporary table of its own.
+--echo #
+SELECT JSON_ARRAY(x) AS grouped FROM
+  (SELECT id, JSON_SET(j, '$.c', id) AS x FROM t1 GROUP BY id, j) d
+  ORDER BY x;
+SELECT DISTINCT JSON_ARRAY(x) AS distincted FROM
+  (SELECT JSON_SET(j, '$.c', 1) AS x FROM t1) d ORDER BY 1;
+
+--echo #
+--echo # 5. Through a UNION, whose column has one producer per branch and
+--echo # answers what all of them answer - the branches being where they
+--echo # are all in reach.  One that does not answer is the whole column
+--echo # not answering, there being no telling afterwards which branch a
+--echo # row came out of.
+--echo #
+SELECT JSON_ARRAY(x) AS unioned FROM
+  (SELECT JSON_SET(j, '$.c', 1) AS x FROM t1
+   UNION ALL
+   SELECT j FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS unioned FROM
+  (SELECT JSON_SET(j, '$.c', 1) AS x FROM t1
+   UNION ALL
+   SELECT JSON_EXTRACT(j, '$') FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS unioned FROM
+  (SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+   UNION
+   SELECT JSON_QUERY(j, '$') FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS unioned FROM
+  (SELECT JSON_EXTRACT(j, '$') AS x FROM t1
+   EXCEPT
+   SELECT JSON_EXTRACT(j, '$') FROM t1 WHERE id = 9) d ORDER BY 1;
+--echo #
+--echo # The same column written one list of values at a time.
+--echo #
+WITH d(x) AS
+  (VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_QUERY('[1,2]', '$')))
+SELECT JSON_ARRAY(x) AS unioned FROM d ORDER BY 1;
+WITH d(x) AS
+  (VALUES (JSON_EXTRACT('{"a":1}', '$')), (JSON_OBJECT('b', 2)))
+SELECT JSON_ARRAY(x) AS unioned FROM d ORDER BY 1;
+--echo #
+--echo # A column of a recursive CTE is built once the parts that do not go
+--echo # round have agreed on a type, the parts that DO go round not being
+--echo # reached at all.  So a value can arrive there from a producer
+--echo # nothing asked, and here one arrives that is no document: a column
+--echo # typed JSON holds whatever was put in it while its check was off.
+--echo #
+CREATE TABLE t5 (good JSON, bad JSON);
+SET @old_check= @@SESSION.check_constraint_checks;
+SET SESSION check_constraint_checks= OFF;
+INSERT INTO t5 VALUES ('{"a":1}', 'not a document');
+SET SESSION check_constraint_checks= @old_check;
+WITH RECURSIVE r AS (
+  SELECT 1 AS n, JSON_EXTRACT(good, '$') AS x FROM t5
+  UNION ALL
+  SELECT n + 1, t5.bad FROM r, t5 WHERE n < 2)
+SELECT n, JSON_ARRAY(x) AS unioned FROM r ORDER BY n;
+DROP TABLE t5;
+--echo #
+--echo # Branches written in different character sets.  The column takes
+--echo # one set for all of them, and a branch whose own set is not that
+--echo # one is stored into it converting.  A store into the binary set
+--echo # converts nothing: it keeps every byte and calls them by the other
+--echo # set's name, so a document written in a wide set arrives as bytes
+--echo # that nothing reads as a document, and it arrives at exactly the
+--echo # length it was written at.  A byte count is therefore the one
+--echo # measure that cannot tell this apart, and each branch is asked
+--echo # about its characters as well as its length.
+--echo #
+CREATE TABLE t6 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET ucs2;
+INSERT INTO t6 VALUES ('{"a":1}'), ('[1,2]');
+CREATE TABLE t7 (b BLOB);
+INSERT INTO t7 VALUES ('{"b":2}'), ('[3,4]');
+SELECT HEX(JSON_ARRAY(x)) AS packed, JSON_VALID(x) AS still_a_document,
+       HEX(x) AS bytes FROM
+  (SELECT JSON_QUERY(j, '$') AS x FROM t6
+   UNION ALL
+   SELECT JSON_QUERY(b, '$') FROM t7) d ORDER BY bytes;
+--echo #
+--echo # The same two branches with the wide one on the right, so that it
+--echo # is the second producer rather than the first that has to move.
+--echo #
+SELECT HEX(JSON_ARRAY(x)) AS packed, JSON_VALID(x) AS still_a_document,
+       HEX(x) AS bytes FROM
+  (SELECT JSON_QUERY(b, '$') AS x FROM t7
+   UNION ALL
+   SELECT JSON_QUERY(j, '$') FROM t6) d ORDER BY bytes;
+--echo #
+--echo # And both branches in the wide set, where the column takes that
+--echo # same set and every character comes across as the one written.
+--echo #
+SELECT JSON_ARRAY(x) AS unioned, JSON_VALID(x) AS still_a_document FROM
+  (SELECT JSON_QUERY(j, '$') AS x FROM t6
+   UNION ALL
+   SELECT JSON_QUERY(j, '$') FROM t6 WHERE j <> '[1,2]') d ORDER BY 1;
+DROP TABLE t6, t7;
+
+--echo #
+--echo # 6. A producer that attests to every value it will ever make,
+--echo # rather than to the one it has just made.  A constructor returns a
+--echo # document or nothing whatever it is given, so a column fed by one
+--echo # is read without being asked.  So does an aggregate, and so does a
+--echo # constructor composing from one.
+--echo #
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_OBJECT('a', id) AS x FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_ARRAY(id, j) AS x FROM t1) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_ARRAYAGG(j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_OBJECTAGG(id, j) AS x FROM t1 GROUP BY id) d ORDER BY 1;
+--echo #
+--echo # And in a character set that cannot write the brackets it answers
+--echo # nothing, there being no document to promise - see section 12.
+--echo #
+SELECT HEX(JSON_ARRAY(x)) AS spliced FROM
+  (SELECT JSON_ARRAY(CONVERT(j USING swe7)) AS x FROM t1) d ORDER BY 1;
+
+--echo #
+--echo # 7. A function that returns more than it was given.  JSON_REMOVE
+--echo # writes a space after every separator it copies, so taking one
+--echo # element out of a dense array returns more than there was to begin
+--echo # with, and the column it goes into has to have been asked for wide
+--echo # enough to hold it.
+--echo #
+CREATE TABLE t7 (j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t7 VALUES
+  ('[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]'),
+  ('[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]');
+SELECT LENGTH(j) AS given, LENGTH(JSON_REMOVE(j, '$[0]')) AS produced
+  FROM t7 ORDER BY 1, 2;
+SELECT LENGTH(x) AS kept, JSON_VALID(x) AS still_a_document FROM
+  (SELECT JSON_REMOVE(j, '$[0]') AS x FROM t7) d ORDER BY 1;
+DROP TABLE t7;
+--echo #
+--echo # The same function on a document that leaves room to spare.
+--echo #
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_REMOVE(j, '$.a') AS x FROM t1 WHERE id = 1) d;
+
+--echo #
+--echo # 8. A table the user asked for is not the server's own, whatever is
+--echo # written into it and whatever check it carries.
+--echo #
+CREATE TEMPORARY TABLE tt (x VARCHAR(64) CHECK (JSON_VALID(x))) CHARSET utf8mb4;
+INSERT INTO tt SELECT JSON_SET(j, '$.c', id) FROM t1;
+SELECT JSON_ARRAY(x) AS spliced FROM tt ORDER BY 1;
+DROP TEMPORARY TABLE tt;
+
+--echo #
+--echo # 9. A materialized subquery.
+--echo #
+SELECT id FROM t1 WHERE JSON_ARRAY(j) IN
+  (SELECT JSON_ARRAY(x) FROM (SELECT j AS x FROM t1) d) ORDER BY id;
+
+--echo #
+--echo # 10. Two temporary tables one after the other.  The second was
+--echo # built before a row of the first existed, so what it was given
+--echo # then is only as much as the first can still say later, and it
+--echo # asks again for every row put across.
+--echo #
+SELECT JSON_ARRAY(y) AS spliced FROM
+  (SELECT x AS y FROM
+    (SELECT JSON_SET(j, '$.c', id) AS x FROM t1) d1) d2 ORDER BY 1;
+--echo #
+--echo # The same three deep, and with a grouping in the middle so the row
+--echo # crosses by more than one route.
+--echo #
+SELECT JSON_ARRAY(z) AS spliced FROM
+  (SELECT y AS z FROM
+    (SELECT x AS y FROM
+      (SELECT JSON_SET(j, '$.c', id) AS x FROM t1) d1) d2) d3 ORDER BY 1;
+SELECT JSON_ARRAY(y) AS spliced FROM
+  (SELECT x AS y FROM
+    (SELECT JSON_EXTRACT(j, '$') AS x FROM t1) d1 GROUP BY x) d2 ORDER BY 1;
+
+--echo #
+--echo # 11. A NULL, which is not a document and is not read as one.
+--echo #
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_SET(NULL, '$.c', 1) AS x FROM t1) d ORDER BY 1;
+
+--echo #
+--echo # 12. A document written in one character set and read in another.
+--echo #
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT CONVERT(JSON_SET(j, '$.c', 1) USING latin1) AS x FROM t1) d
+  ORDER BY 1;
+SELECT JSON_ARRAY(x) AS spliced FROM
+  (SELECT JSON_SET(CONVERT(j USING latin1), '$.c', 1) AS x FROM t1) d
+  ORDER BY 1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # 13. A window function's temporary table.
+--echo #
+CREATE TABLE t2 (id INT, g INT, j VARCHAR(64) CHECK (JSON_VALID(j)))
+  CHARSET utf8mb4;
+INSERT INTO t2 VALUES (1, 1, '{"a":1}'), (2, 1, '{"b":2}'), (3, 2, '[3]');
+SELECT id, JSON_ARRAY(x) AS spliced FROM
+  (SELECT id, JSON_SET(j, '$.n',
+                       ROW_NUMBER() OVER (PARTITION BY g ORDER BY id)) AS x
+   FROM t2) d ORDER BY id;
+
+--echo #
+--echo # 14. An aggregate, which gathers its elements in a table of its own
+--echo # and reads them back out of a record.
+--echo #
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(j, '$')) AS gathered FROM t2;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id)) AS gathered FROM t2;
+SELECT g, JSON_OBJECTAGG(id, JSON_EXTRACT(j, '$')) AS gathered FROM t2
+  GROUP BY g ORDER BY g;
+
+--echo #
+--echo # 15. The same, with the arguments buffered before the group can be
+--echo # built.  Each group gathers the same row more than once, so what is
+--echo # gathered reads the same whichever order the rows arrive in - an
+--echo # order a grouping does not fix and this file must not depend on.
+--echo #
+CREATE TABLE t15m (g INT);
+INSERT INTO t15m VALUES (1), (1), (2), (2);
+SELECT JSON_OBJECTAGG(a.id, JSON_EXTRACT(a.j, '$')) AS gathered
+  FROM t2 a, t15m b WHERE a.g = b.g AND a.id IN (1, 3)
+  GROUP BY a.g ORDER BY a.g DESC;
+SELECT JSON_ARRAYAGG(JSON_EXTRACT(a.j, '$')) AS gathered
+  FROM t2 a, t15m b WHERE a.g = b.g AND a.id IN (1, 3)
+  GROUP BY a.g ORDER BY a.g DESC;
+DROP TABLE t15m;
+
+--echo #
+--echo # 16. A value the aggregate cannot carry as a document.
+--echo #
+SELECT JSON_ARRAYAGG(j) AS gathered FROM t2;
+
+--echo #
+--echo # 17. A grouping that writes no temporary table holds its values in
+--echo # buffers instead, and a HAVING or an ORDER BY reads them back out
+--echo # of those rather than out of a record.
+--echo #
+SELECT MAX(id) AS m, JSON_SET(j, '$.c', 1) AS x FROM t2
+  HAVING JSON_ARRAY(x) <> '[]';
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t2
+  ORDER BY JSON_ARRAY(x);
+SELECT MAX(id) AS m, JSON_OBJECT('a', id) AS x FROM t2
+  HAVING JSON_ARRAY(x) <> '[]';
+--echo #
+--echo # The same where the buffer is filled from a column rather than
+--echo # from an item, which is the route a value wide enough to be kept
+--echo # apart from its row takes.
+--echo #
+CREATE TABLE t17 (id INT, j JSON) CHARSET utf8mb4;
+INSERT INTO t17 VALUES (1, '{"a":1}'), (2, '[1,2]');
+SELECT MAX(d.id) AS m, d.x AS y FROM
+  (SELECT id, JSON_SET(j, '$.c', 1) AS x FROM t17) d
+  HAVING JSON_ARRAY(y) <> '[]';
+SELECT MAX(d.id) AS m, d.j AS y FROM t17 d
+  HAVING JSON_ARRAY(y) <> '[]';
+DROP TABLE t17;
+--echo #
+--echo # A NULL, and a character set conversion around the producer -
+--echo # which carries the value through while the type stops at it, so the
+--echo # buffer attests to nothing and the value is quoted, not spliced.
+--echo #
+SELECT MAX(id) AS m, JSON_SET(NULL, '$.c', 1) AS x FROM t2
+  HAVING JSON_ARRAY(x) IS NULL;
+SELECT MAX(id) AS m, CONVERT(JSON_EXTRACT(j, '$') USING latin1) AS x FROM t2
+  ORDER BY JSON_ARRAY(x);
+--echo #
+--echo # Quoted rather than spliced is the whole of what the buffer was
+--echo # asked, and a buffer is read from a HAVING or an ORDER BY and never
+--echo # from the select list - so what went into the document is only to
+--echo # be had through a comparison.  Asking what its first element IS
+--echo # tells the two apart, and the row comes back for whichever
+--echo # happened.
+--echo #
+SELECT MAX(id) AS m, JSON_EXTRACT(j, '$') AS x FROM t2
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(x), '$[0]')) = 'OBJECT';
+SELECT MAX(id) AS m, CONVERT(JSON_EXTRACT(j, '$') USING latin1) AS x FROM t2
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(x), '$[0]')) = 'OBJECT';
+SELECT MAX(id) AS m, CONVERT(JSON_EXTRACT(j, '$') USING latin1) AS x FROM t2
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(x), '$[0]')) = 'STRING';
+--echo #
+--echo # And the same conversion with no buffer in the way IS looked
+--echo # through, which is what makes the two above a fact about the buffer
+--echo # rather than about the conversion.
+--echo #
+SELECT id, JSON_ARRAY(CONVERT(JSON_EXTRACT(j, '$') USING latin1)) AS r
+  FROM t2 ORDER BY id;
+
+--echo #
+--echo # 18. How a value is FORMATTED, which is a second thing such a column
+--echo # can attest to and is come by differently.  Being a document is
+--echo # promised by the producer before a row exists; the formatting is
+--echo # settled one value at a time, so it is granted along with the first
+--echo # answer and spent by whatever gets written afterwards.
+--echo #
+CREATE TABLE t18 (id INT, j JSON) CHARSET utf8mb4;
+INSERT INTO t18 VALUES (1, '{"a":1}'), (2, '[1,2]');
+--echo #
+--echo # Edited out of a column whose producer writes the loose way, out of
+--echo # one that copies a sub-document in whatever way it found it, and out
+--echo # of one that writes a form of its own.
+--echo #
+SELECT id, JSON_SET(x, '$.c', 1) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t18) d ORDER BY id;
+SELECT id, JSON_SET(x, '$.c', 1) AS r FROM
+  (SELECT id, JSON_QUERY(j, '$') AS x FROM t18) d ORDER BY id;
+SELECT id, JSON_SET(x, '$.c', 1) AS r FROM
+  (SELECT id, JSON_NORMALIZE(j) AS x FROM t18) d ORDER BY id;
+--echo #
+--echo # Carried from one such table into the next, and taken back there
+--echo # where what the first holds was written some other way.
+--echo #
+SELECT id, JSON_SET(y, '$.c', 1) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t18) d1) d2 ORDER BY id;
+SELECT id, JSON_SET(y, '$.c', 1) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_QUERY(j, '$') AS x FROM t18) d1) d2 ORDER BY id;
+--echo #
+--echo # The same across the copier that fills a grouping's table.
+--echo #
+SELECT id, JSON_SET(y, '$.c', 1) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t18) d1 GROUP BY id, x) d2
+  ORDER BY id;
+SELECT id, JSON_SET(y, '$.c', 1) AS r FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_QUERY(j, '$') AS x FROM t18) d1 GROUP BY id, x) d2
+  ORDER BY id;
+--echo #
+--echo # An aggregate reads its elements out of a record, the column being
+--echo # the only thing left there to ask - so what it says about their
+--echo # formatting is what the gathered document can say about its own.
+--echo #
+SELECT JSON_ARRAY(JSON_ARRAYAGG(x)) AS r FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t18) d;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(x)) AS r FROM
+  (SELECT id, JSON_QUERY(j, '$') AS x FROM t18) d;
+DROP TABLE t18;
+
+--echo #
+--echo # 19. How deep the values went, which is a figure rather than a yes.
+--echo #
+--echo # What a column keeps is the deepest of the rows written into it so
+--echo # far, not the depth of the row being read - more than that row
+--echo # needs and never less.  More is the direction this one is allowed
+--echo # to be wrong in: a figure too large costs a reading that could have
+--echo # been skipped, while one too small would admit a document that
+--echo # nothing can read back.  Nothing acts on the figure except to skip
+--echo # a reading, so the answers below are the ones the server has always
+--echo # given.
+--echo #
+SET @k30= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 30),
+                 '1', REPEAT('}', 30));
+SET @k31= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 31),
+                 '1', REPEAT('}', 31));
+CREATE TABLE t19 (id INT, j LONGTEXT) CHARSET utf8mb4;
+INSERT INTO t19 VALUES (1, @k30), (2, '{"a":1}');
+--echo #
+--echo # One row at the limit and a shallow one beside it, put one level
+--echo # in.  The column answers 30 for both, which is exact for the first
+--echo # and too large for the second, and each still ends up where it
+--echo # belongs.
+--echo #
+SELECT id, JSON_DEPTH(JSON_ARRAY(x)) AS d FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t19) d ORDER BY id;
+--echo #
+--echo # A byte past it, where the same shape is refused - and the shallow
+--echo # row in the same column is not, the figure being about the column
+--echo # and the limit about each document that comes out of it.
+--echo #
+UPDATE t19 SET j= @k31 WHERE id= 1;
+SELECT id, JSON_DEPTH(JSON_ARRAY(x)) AS d FROM
+  (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t19) d ORDER BY id;
+--echo #
+--echo # Each level of these is fourteen characters, so half the length is
+--echo # seven times the limit and the length can tell neither of them from
+--echo # the other.  Only the figure the column kept can.
+--echo #
+SELECT JSON_DEPTH(JSON_ARRAY(y)) AS d FROM
+  (SELECT id, x AS y FROM
+     (SELECT id, JSON_EXTRACT(j, '$') AS x FROM t19) d1 WHERE id= 2) d2;
+DROP TABLE t19;
+
+DROP TABLE t2;
