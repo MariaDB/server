@@ -12664,19 +12664,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
 
-  if (!to->s->long_unique_table)
+  if (to->s->hlindexes())
   {
-      if (to->s->hlindexes())
-      {
-          if (to->hlindexes_bulk_insert_begin(from->file->stats.records) == 0)
-              hlindex_bulk_started= 1;
-      }
-      if (!to->s->hlindexes() || hlindex_bulk_started)
-      {
-          to->file->ha_start_bulk_insert(from->file->stats.records,
-                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-          bulk_insert_started= 1;
-      }
+    if (to->hlindexes_bulk_insert_begin(from->file->stats.records) == 0)
+      hlindex_bulk_started= 1;
+  }
+  if (!to->s->long_unique_table &&
+      (!to->s->hlindexes() || hlindex_bulk_started))
+  {
+    to->file->ha_start_bulk_insert(from->file->stats.records,
+                                   ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+    bulk_insert_started= 1;
   }
   mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
   List_iterator<Create_field> it(alter_info->create_list);
@@ -13011,11 +13009,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bulk_insert_started= 0;
   if (hlindex_bulk_started && to->hlindexes_bulk_insert_end() && error <= 0)
   {
-      if (!thd->is_error())
-          to->file->print_error(my_errno, MYF(0));
-      error= 1;
+    if (!thd->is_error())
+      to->file->print_error(my_errno, MYF(0));
+    error= 1;
   }
-  hlindex_bulk_started=0;
+  hlindex_bulk_started= 0;
 
   if (error <= 0 && !to->s->hlindexes())
   {
@@ -13197,6 +13195,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 end:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
+  if (hlindex_bulk_started)
+    (void) to->hlindexes_bulk_insert_end();
 
   if (init_read_record_done)
     end_read_record(&info);

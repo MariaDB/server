@@ -537,26 +537,39 @@ public:
       mysql_mutex_destroy(node_lock + i);
   }
 
-  uint lock_node(FVectorNode *ptr)
+  uint node_lock_ticket(FVectorNode *ptr) const
   {
     my_hasher_st hasher= my_hasher_mysql5x();
     my_hash_sort_bin(&hasher, 0, (uchar*)&ptr, sizeof(ptr));
-    uint ticket= hasher.m_nr1 % array_elements(node_lock);
+    return hasher.m_nr1 % array_elements(node_lock);
+  }
+
+  uint lock_node(FVectorNode *ptr)
+  {
+    uint ticket= node_lock_ticket(ptr);
     mysql_mutex_lock(node_lock + ticket);
     return ticket;
   }
 
   bool try_lock_node(FVectorNode *ptr, uint &ticket)
   {
-    my_hasher_st hasher= my_hasher_mysql5x();
-    my_hash_sort_bin(&hasher, 0, (uchar*)&ptr, sizeof(ptr));
-    ticket= hasher.m_nr1 % array_elements(node_lock);
+    ticket= node_lock_ticket(ptr);
     return mysql_mutex_trylock(node_lock + ticket) == 0;
   }
 
   void unlock_node(uint ticket)
   {
     mysql_mutex_unlock(node_lock + ticket);
+  }
+
+  void assert_node_locked(uint ticket)
+  {
+    mysql_mutex_assert_owner(node_lock + ticket);
+  }
+
+  void assert_node_unlocked(FVectorNode *ptr)
+  {
+    mysql_mutex_assert_not_owner(node_lock + node_lock_ticket(ptr));
   }
 
   uint max_neighbors(size_t layer) const
@@ -679,8 +692,6 @@ public:
     stats.subdist.add(addend.subdist);
     mysql_mutex_unlock(&cache_lock);
   }
-
-
 };
 
 /*
@@ -1218,7 +1229,6 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   for (size_t i= 0; i < discarded_num && temp_num < max_neighbor_connections; i++)
     temp_links[temp_num++]= discarded[i]->node;
 
-  // Publish the new neighbors atomically
   for (size_t i= 0; i < temp_num; i++)
     neighbors.links[i]= temp_links[i];
 
@@ -1288,6 +1298,8 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
 {
   const uint max_neighbors= p->ctx->max_neighbors(p->layer);
   const bool bulk= p->ctx->bulk_active;
+  if (bulk)
+    p->ctx->assert_node_unlocked(node);
   const size_t num_neighbors= node->neighbors[p->layer].num;
 
   if (num_neighbors == 0)
@@ -1311,6 +1323,8 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
     uint ticket= 0;
     if (bulk)
     {
+      // Benchmarking showed 37% of workers time waiting on this lock,
+      // hurting scalability, so defer contended nodes instead of blocking.
       if (q_len == 0)
         ticket= p->ctx->lock_node(neigh);
       else if (!p->ctx->try_lock_node(neigh, ticket))
@@ -1323,6 +1337,8 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
     }
 
     Neighborhood &neighneighbors= neigh->neighbors[p->layer];
+    if (bulk)
+      p->ctx->assert_node_locked(ticket);
     int err= 0;
     if (neighneighbors.num < max_neighbors)
       neigh->push_neighbor(p->layer, node);
@@ -1481,8 +1497,14 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 }
 
 
+static int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo);
+
 int mhnsw_insert(TABLE *table, KEY *keyinfo)
 {
+  //Check if bulk insert is active
+  if (table->hlindex->context)
+    return mhnsw_bulk_insert_row(table, keyinfo);
+
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
@@ -1582,13 +1604,11 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
 
 struct MHNSW_Bulk_context : public Sql_alloc {
-    MHNSW_Share *ctx;
-    DYNAMIC_ARRAY nodes;
-    size_t start_node_idx;
-    uint8_t current_max_layer;
+  MHNSW_Share *ctx;
+  DYNAMIC_ARRAY nodes;
+  size_t start_node_idx;
+  uint8_t current_max_layer;
 };
-
-
 
 struct BulkBuildThreadArg
 {
@@ -1671,12 +1691,9 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
 
   MHNSW_Share *ctx= nullptr;
   int err= MHNSW_Share::acquire(&ctx, table, true);
+  SCOPE_EXIT([&ctx, table](){ if (ctx) ctx->release(table); });
   if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
-  {
-    if (ctx)
-      ctx->release(table);
     return err;
-  }
 
   if (ctx->vec_len == 0)
     ctx->set_lengths(keyinfo->key_part->field->field_length);
@@ -1696,7 +1713,6 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
                         "MHNSW: Bulk insert disabled because estimated memory usage (%llu) "
                         "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
                         (ulonglong)estimated_mem, (ulonglong)mhnsw_max_cache_size);
-    ctx->release(table);
     return 0;
   }
 
@@ -1705,35 +1721,25 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   {
     push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
                         ER_UNKNOWN_ERROR,
-                        "MHNSW: Bulk insert disabled because available thread count (%u) is <= 1. "
-                        "Falling back to normal insert.",
+                        "MHNSW: Parallel insert disabled, because available thread count is %u",
                         N);
-    ctx->release(table);
     return 0;
   }
   if (rows < N * 100)
   {
-    ctx->release(table);
     return 0;
   }
 
   MHNSW_Bulk_context *bulk= new (table->in_use->mem_root) MHNSW_Bulk_context();
   if (!bulk)
-  {
-    ctx->release(table);
     return HA_ERR_OUT_OF_MEM;
-  }
-
-  bulk->ctx= ctx;
 
   /*we add a 10% margin to avoid reallocations when rows is approximate (InnoDB)*/
   if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &bulk->nodes, sizeof(FVectorNode*),
                             rows + rows / 10, rows, MYF(0)))
-  {
-    ctx->release(table);
     return HA_ERR_OUT_OF_MEM;
-  }
 
+  bulk->ctx= ctx;
   bulk->ctx->bulk_active= 1;
   DBUG_ASSERT(!bulk->ctx->start);
   bulk->current_max_layer= 0;
@@ -1742,7 +1748,7 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   return 0;
 }
 
-int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
+static int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
 {
   TABLE *graph= table->hlindex;
   MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
@@ -1778,9 +1784,6 @@ int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
   double log= -std::log(my_rnd(&table->in_use->rand)) * NORMALIZATION_FACTOR;
   uint8_t max_layer= bulk->current_max_layer;
   uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
-
-  if (bulk->nodes.elements == 0)
-    target_layer= 0;
 
   if (target_layer > bulk->current_max_layer)
   {
@@ -1818,7 +1821,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
 
   if (bulk->nodes.elements == 0)
     return 0;
-     
+
   // Swap the start node (highest layer) to index 0
   if (bulk->start_node_idx != 0)
   {
@@ -1828,7 +1831,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   ctx->start= *dynamic_element(&bulk->nodes, 0, FVectorNode**);
 
   // XXX how many threads to use?
-  uint N= std::thread::hardware_concurrency();
+  uint N= std::max(1u, std::thread::hardware_concurrency());
   size_t total_nodes= bulk->nodes.elements - 1;
   size_t workers= N;
 
@@ -1851,7 +1854,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
 
   for (size_t i= 0; i < workers; i++)
   {
-    size_t count = chunk_size + (i == 0 ? remainder : 0);
+    size_t count= chunk_size + (i < remainder);
     args[i].bulk= bulk;
     args[i].start_idx = current_start;
     args[i].end_idx = current_start + count;
@@ -1901,7 +1904,8 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
     return err;
   SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
 
-  // fix neighbors grefs
+  // XXX don't do it for InnoDB, grefs can be guessed w/o write.
+  // It only takes ~10 seconds per 1M rows.
   for (size_t i= 0; i < bulk->nodes.elements; i++)
   {
     FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
