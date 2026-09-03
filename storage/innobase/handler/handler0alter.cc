@@ -9108,7 +9108,6 @@ argument passed.
 @param[in]	table		table
 @param[in]	col_no		column number
 @param[in]	is_v		if this is a virtual column
-@param[in]	only_committed	whether to consider only committed indexes
 @retval true column exists
 @retval false column does not exist, true if column is system column or
 it is in the index. */
@@ -9117,8 +9116,7 @@ bool
 check_col_exists_in_indexes(
 	const dict_table_t*	table,
 	ulint			col_no,
-	bool			is_v,
-	bool			only_committed = false)
+	bool			is_v)
 {
 	/* This function does not check system columns */
 	if (!is_v && dict_table_get_nth_col(table, col_no)->mtype == DATA_SYS) {
@@ -9129,9 +9127,7 @@ check_col_exists_in_indexes(
 	     index;
 	     index = dict_table_get_next_index(index)) {
 
-		if (only_committed
-		    ? !index->is_committed()
-		    : index->to_be_dropped) {
+		if (index->to_be_dropped) {
 			continue;
 		}
 
@@ -9342,6 +9338,7 @@ free_and_exit:
     ctx->trx->free();
     ctx->trx= nullptr;
 
+    DEBUG_SYNC_C("alter_rollback_complete");
     dict_sys.lock(SRW_LOCK_CALL);
 
     if (ctx->add_vcol)
@@ -9369,22 +9366,6 @@ free_and_exit:
   DBUG_ASSERT(prebuilt->table->indexes.start->online_status ==
               ONLINE_INDEX_COMPLETE);
 
-  /* Reset dict_col_t::ord_part for unindexed columns */
-  for (ulint i= 0; i < dict_table_get_n_cols(prebuilt->table); i++)
-  {
-    dict_col_t &col= prebuilt->table->cols[i];
-    if (col.ord_part && !check_col_exists_in_indexes(prebuilt->table, i, false,
-                                                     true))
-      col.ord_part= 0;
-  }
-
-  for (ulint i = 0; i < dict_table_get_n_v_cols(prebuilt->table); i++)
-  {
-    dict_col_t &col = prebuilt->table->v_cols[i].m_col;
-    if (col.ord_part && !check_col_exists_in_indexes(prebuilt->table, i, true,
-                                                     true))
-      col.ord_part= 0;
-  }
   dict_sys.unlock();
   trx_commit_for_mysql(prebuilt->trx);
   prebuilt->trx_id = 0;

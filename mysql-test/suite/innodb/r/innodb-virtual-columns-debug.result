@@ -16,3 +16,29 @@ disconnect con1;
 connection default;
 SET debug_sync= "RESET";
 DROP TABLE t1;
+#
+# MDEV-26057 Assertion `!vcol->v_indexes.empty() in trx_undo_log_v_idx
+#
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 INT AS (f2) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1(f1, f2) VALUES(1, 1);
+SET DEBUG_SYNC="alter_rollback_complete SIGNAL dml_start WAIT_FOR default_resume";
+set STATEMENT DEBUG_DBUG="d,innodb_OOM_inplace_alter" FOR alter table t1 add index(f3), algorithm=inplace;
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+SET DEBUG_SYNC="before_v_idx_undo SIGNAL default_resume WAIT_FOR default_complete";
+INSERT INTO t1(f1, f2) VALUES(2, 2);
+connection default;
+ERROR HY000: Out of memory.
+SET DEBUG_SYNC="now SIGNAL default_complete";
+connection con1;
+connection default;
+disconnect con1;
+SELECT * FROM t1;
+f1	f2	f3
+1	1	1
+2	2	2
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
