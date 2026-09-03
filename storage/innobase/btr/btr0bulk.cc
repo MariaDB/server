@@ -835,7 +835,7 @@ PageBulk::release()
 	m_block->page.fix();
 
 	/* No other threads can modify this block. */
-	m_modify_clock = m_block->modify_clock;
+	m_modify_clock = m_block->modify_clock();
 
 	m_mtr.commit();
 }
