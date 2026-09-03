@@ -234,6 +234,19 @@ get_socat_ver()
     fi
 }
 
+check_for_socat_commonname()
+{
+    [ -n "${SOCAT_COMMONNAME+x}" ] && return
+    # Some socat builds don't register "commonname" as an option at all
+    # (parseopts() rejects it as unknown regardless of value), so probe
+    # the actual binary instead of relying on the socat version number.
+    if socat -hhh 2>&1 | grep -qw 'openssl-commonname'; then
+        SOCAT_COMMONNAME=1
+    else
+        SOCAT_COMMONNAME=0
+    fi
+}
+
 get_transfer()
 {
     if [ "$tfmt" = 'nc' ]; then
@@ -432,6 +445,15 @@ get_transfer()
         else
             wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
             exit 22
+        fi
+
+        if [ -n "$CN_option" ]; then
+            check_for_socat_commonname
+            if [ "$SOCAT_COMMONNAME" -eq 0 ]; then
+                wsrep_log_info \
+                    "socat lacks the 'commonname' option; skipping peer name verification"
+                CN_option=""
+            fi
         fi
 
         tcmd="$tcmd$CN_option$sockopt"
