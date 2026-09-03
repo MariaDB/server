@@ -215,9 +215,7 @@ Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from
 CHANGE MASTER '' TO MASTER_HOST='master''host', MASTER_PORT=3306, MASTER_LOG_FILE='b''n.000001', MASTER_LOG_POS=4;
 
 -- SET GLOBAL gtid_slave_pos='';
-call mtr.add_suppression('Slave I/O: Fatal error: .* Connection attempt terminated');
-reset slave;
+reset slave all;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
-change master to master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 # End of 10.6 tests
