@@ -7459,6 +7459,21 @@ bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
 }
 
 
+/**
+  @brief
+  Subqueries that equality propagation converted to constants must not
+  be marked as eliminated, so unmark them.
+*/
+
+bool Item_equal::unmark_as_eliminated_processor(void *arg)
+{
+  Item *c= get_const();
+  if (c)
+    c->walk(&Item::unmark_as_eliminated_processor, FALSE, arg);
+  return FALSE;
+}
+
+
 Item *Item_equal::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());

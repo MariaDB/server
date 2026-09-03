@@ -1,0 +1,106 @@
+#
+# MDEV-38147 follow-up: the joiner must be able to reopen its binary log after
+# a mariabackup SST even when the log-bin directory does not exist yet.
+#
+# Since MDEV-38147 the joiner no longer ships/moves the donor's binary log into
+# place - it starts a fresh binary log seeded from the storage-engine
+# checkpoint. The directory-creation that used to accompany the (now removed)
+# move was removed with it, and the server does not create the log-bin
+# directory itself. So when log_bin points outside the datadir (a freshly
+# provisioned joiner) or to a datadir subdirectory the SST cleanup wipes, the
+# directory is absent when mysqld reopens the binary log after SST and the
+# joiner aborts with "File '.../<log-bin>.index' not found (Errcode: 2)".
+#
+# Here node_3 rejoins via a full mariabackup SST with log_bin relocated to a
+# directory that does not exist yet (outside its datadir). The SST script must
+# (re)create it so the joiner comes up and rejoins the cluster.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values so that MTR's post-check is
+# happy after node_3 has been restarted.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+
+# Make sure the data reached node_3 before we purge it.
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+
+#
+# Stop node_3 and purge its data directory so that rejoining forces a full
+# mariabackup SST.
+#
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data
+
+# A binary-log directory that does not exist yet, outside node_3's datadir.
+--let $binlog_reloc = $MYSQLTEST_VARDIR/mysqld.3/reloc_binlog
+--perl
+use File::Path qw(rmtree);
+rmtree("$ENV{MYSQLTEST_VARDIR}/mysqld.3/reloc_binlog");
+EOF
+
+#
+# Restart node_3 with the binary log relocated to the (missing) directory.
+# Do not block on it: it rejoins via a mariabackup SST which, with the fix,
+# creates the directory before mysqld reopens the binary log.
+#
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--write_line "restart:--log-bin=$binlog_reloc/mdev-bin --log-bin-index=$binlog_reloc/mdev-bin.index" $_expect_file_name
+
+--connection node_1
+--let $wait_timeout = 60
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Re-establish the node_3 client connection (it was started without waiting).
+--connection node_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+--source include/galera_wait_ready.inc
+
+# The joiner (re)created the relocated binlog directory and opened a fresh
+# binary log there.
+--file_exists $binlog_reloc/mdev-bin.index
+--file_exists $binlog_reloc/mdev-bin.000001
+
+# The SST data made it across.
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) AS rows_on_joiner FROM t1;
+
+#
+# Cleanup.
+#
+--connection node_1
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

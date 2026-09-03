@@ -622,4 +622,15 @@ update v set a= default;
 drop view v;
 drop table t;
 drop sequence s;
+#
+# MDEV-39063 Server crashes at Item_func_lastval::val_int and Item_func_setval::val_int with CTE alias
+#
+create sequence s;
+select (with x(x) as (select 1) select * from x where (lastval(x)));
+ERROR 42S02: 'x' is not a SEQUENCE
+drop sequence s;
+create sequence s;
+select (with x(x) as (select 1) select * from x where (setval(x,1)));
+ERROR 42S02: 'x' is not a SEQUENCE
+drop sequence s;
 # End of 10.11 tests

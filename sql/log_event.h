@@ -159,6 +159,26 @@ class String;
 
 #define NUM_LOAD_DELIM_STRS 5
 
+
+/*
+  Master-side bugs that we work-around with rpl_master_has_bug().
+  Each define is a bit number (0, 1, 2, ...) set in
+  Relay_log_info::rpl_master_bug_bitmask.
+  These bit numbers are internal-only, can be changed (eg. to drop a bug
+  work-around for ancient version) without concern for backwards compatibility.
+*/
+enum enum_rpl_master_bug_ids {
+  RPL_BUG_MYSQL_24432,
+  RPL_BUG_MYSQL_33029,
+  RPL_BUG_MYSQL_37426,
+  RPL_BUG_MDEV_29621,
+  RPL_BUG_END  /* To check size of Relay_log_info::rpl_master_bug_bitmask */
+};
+
+/* Must be large enough to hold all enum_rpl_master_bug_ids bits. */
+typedef uint32_t rpl_bug_id_t;
+
+
 /*
   The following is the max table_map_id. This is limited by that we
   are using 6 bytes for it in replication
@@ -205,7 +225,7 @@ class String;
 #define STOP_HEADER_LEN      0
 #define LOAD_HEADER_LEN      (4 + 4 + 4 + 1 +1 + 4)
 #define SLAVE_HEADER_LEN     0
-#define START_V3_HEADER_LEN     (2 + ST_SERVER_VER_LEN + 4)
+#define START_V3_HEADER_LEN  ST_COMMON_HEADER_LEN_OFFSET
 #define ROTATE_HEADER_LEN    8 // this is FROZEN (the Rotate post-header is frozen)
 #define INTVAR_HEADER_LEN      0
 #define CREATE_FILE_HEADER_LEN 4
@@ -282,6 +302,7 @@ class String;
 #define ST_SERVER_VER_OFFSET  2
 #define ST_CREATED_OFFSET     (ST_SERVER_VER_OFFSET + ST_SERVER_VER_LEN)
 #define ST_COMMON_HEADER_LEN_OFFSET (ST_CREATED_OFFSET + 4)
+#define ST_POST_HEADER_LEN_OFFSET (ST_COMMON_HEADER_LEN_OFFSET + 1)
 
 /* slave event post-header (this event is never written) */
 
@@ -5947,7 +5968,8 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, ulong event_len,
                          enum_binlog_checksum_alg alg);
-enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+bool get_checksum_alg(const uchar *buf, ulong len,
+                      enum enum_binlog_checksum_alg *alg);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);

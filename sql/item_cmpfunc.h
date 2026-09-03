@@ -3519,6 +3519,7 @@ public:
                       SARGABLE_PARAM **sargables) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool unmark_as_eliminated_processor(void *arg) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void print(String *str, enum_query_type query_type) override;
   const Type_handler *compare_type_handler() const { return m_compare_handler; }

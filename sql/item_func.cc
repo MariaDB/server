@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4735,9 +4735,9 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(key_memory_user_var_entry, size,
-                                              MYF(MY_WME | ME_FATAL |
-                                                  MY_THREAD_SPECIFIC))))
+
+    if (!(entry= (user_var_entry*) alloc_root(current_thd->user_vars_root(),
+                                              size)))
       return 0;
     entry->name.str=(char*) entry+ ALIGN_SIZE(sizeof(user_var_entry))+
       extra_size;
@@ -4760,10 +4760,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     entry->set_handler(&type_handler_long_blob);
     memcpy((char*) entry->name.str, name->str, name->length+1);
     if (my_hash_insert(hash,(uchar*) entry))
-    {
-      my_free(entry);
       return 0;
-    }
   }
   return entry;
 }
@@ -7260,11 +7257,16 @@ longlong Item_func_lastval::val_int()
 {
   const char *key;
   SEQUENCE_LAST_VALUE *entry;
+  DBUG_ENTER("Item_func_lastval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_lastval::val_int");
   update_table();
   thd= table->in_use;
 
@@ -7314,6 +7316,11 @@ longlong Item_func_setval::val_int()
   int error;
   THD *thd;
   DBUG_ENTER("Item_func_setval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
 
   update_table();
   DBUG_ASSERT(table && table->s->sequence);

@@ -54,7 +54,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    cur_log_old_open_count(0), error_on_rli_init_info(false),
    group_relay_log_pos(0), event_relay_log_pos(0),
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
+   last_master_timestamp(0), sql_thread_caught_up(true),
+   rpl_master_bug_bitmask(0), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
@@ -741,6 +742,12 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
         goto err;
       delete rli->relay_log.description_event_for_exec;
       rli->relay_log.description_event_for_exec= fdev;
+      /*
+        The read_relay_log_description_event() returns the real FD from the
+        master found near the start of the relay log. Initialize the bitmask
+        of any known bugs in that master version.
+      */
+      rli->calc_master_bug_bitmask(fdev);
     }
     my_b_seek(rli->cur_log,(off_t)pos);
     DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
@@ -2655,6 +2662,161 @@ bool Relay_log_info::flush()
     or by the user on STOP SLAVE. 
    */
   DBUG_RETURN(error);
+}
+
+
+struct st_version_range_for_one_bug {
+  rpl_bug_id_t bug_id;
+  uint bug_num;
+  bool mysql_bug;        // Else Mariadb MDEV
+  Version introduced_in; // first version with bug
+  Version fixed_in;      // first version with fix
+};
+static struct st_version_range_for_one_bug versions_for_all_bugs[]=
+{
+  /*
+    Sorted with the most recent server version first, since this is the version
+    that will be printed in any error messages.
+  */
+  /* MySQL bugs. */
+  {RPL_BUG_MYSQL_24432, 24432, true, { 5, 1, 12 }, { 5, 1, 17 } },
+  {RPL_BUG_MYSQL_24432, 24432, true, { 5, 0, 24 }, { 5, 0, 38 } },
+  {RPL_BUG_MYSQL_33029, 33029, true, { 5, 1,  0 }, { 5, 1, 12 } },
+  {RPL_BUG_MYSQL_33029, 33029, true, { 5, 0,  0 }, { 5, 0, 58 } },
+  {RPL_BUG_MYSQL_37426, 37426, true, { 5, 1,  0 }, { 5, 1, 26 } },
+  /* MariaDB bugs (MDEV-nnnnn). */
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 11,1  }, { 10, 11,3  } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 10,1  }, { 10, 10,4  } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 9, 2  }, { 10, 9, 6  } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 8, 4  }, { 10, 8, 8  } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 7, 5  }, { 10, 7, 9 } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 6, 9  }, { 10, 6, 13 } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 5, 17 }, { 10, 5, 20 } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 4, 26 }, { 10, 4, 29 } },
+  {RPL_BUG_MDEV_29621, 29621, false, { 10, 3, 36 }, { 10, 3, 39 } },
+};
+
+
+/**
+  Detect, based on the version in format description event, any bugs on the
+  master that we have a work-around for on the slave. Calculate a bitmask
+  for this with a bit set for any detected bug.
+*/
+void
+Relay_log_info::calc_master_bug_bitmask(const Format_description_log_event *
+                                        fd_event)
+{
+  const Version &master_ver= fd_event->server_version_split;
+  uint all_size=
+    sizeof(versions_for_all_bugs)/sizeof(versions_for_all_bugs[0]);
+  rpl_bug_id_t bitmask= 0;
+  for (uint i= 0; i < all_size; i++)
+  {
+    const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
+    const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
+    if (introduced_in <= master_ver && fixed_in > master_ver)
+    {
+      bitmask|= (1 << versions_for_all_bugs[i].bug_id);
+    }
+  }
+  rpl_master_bug_bitmask.store(bitmask, std::memory_order_relaxed);
+}
+
+
+/**
+   Detects, based on version of master's format description event, if master
+   has a certain bug. The bitset of bugs was pre-calculated by
+   Relay_log_info::calc_master_bug_bitmask().
+
+   The bitset is read out of the Relay_log_info without locking. However this
+   is ok, as the set of master bugs can only change with a master server
+   restart, and we do not replicate in parallel events crossing a master
+   restart (as identified by its restart format description event).
+
+   @param rli The Relay_log_info contains the pre-computed bug bitset.
+   @param bug_id Identifier of the bug as defined in enum_rpl_master_bug_ids.
+   @param report bool report error message.
+
+   @param pred Predicate function that will be called with @c param to
+   check for the bug. If the function return @c true, the bug is present,
+   otherwise, it is not.
+
+   @param param  State passed to @c pred function.
+
+   @return TRUE if master has the bug, FALSE if it does not.
+*/
+bool
+rpl_master_has_bug_ext(const Relay_log_info *rli, rpl_bug_id_t bug_id,
+                       bool report,
+                       bool (*pred)(const void *), const void *param)
+{
+  rpl_bug_id_t mask=
+    rli->rpl_master_bug_bitmask.load(std::memory_order_relaxed);
+  if (!(mask & (1 << bug_id)))
+    return false;
+  if (pred != NULL && !(*pred)(param))
+    return false;
+  if (!report)
+    return true;
+  uint all_size=
+    sizeof(versions_for_all_bugs)/sizeof(versions_for_all_bugs[0]);
+  for (uint i= 0; i < all_size; i++)
+  {
+    const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
+    if (versions_for_all_bugs[i].bug_id == bug_id)
+    {
+      const char *bug_source= versions_for_all_bugs[i].mysql_bug ?
+        "http://bugs.mysql.com/bug.php?id=" :
+        "https://jira.mariadb.org/browse/MDEV-";
+      // a short message for SHOW SLAVE STATUS (message length constraints).
+      my_printf_error(ER_UNKNOWN_ERROR, "master may suffer from"
+                      " %s%u"
+                      " so slave stops; check error log on slave"
+                      " for more info", MYF(0), bug_source,
+                      versions_for_all_bugs[i].bug_num);
+      // a verbose message for the error log.
+      rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, NULL,
+                  "Master's version is earlier than %d.%d.%d,"
+                  " it is probable that master suffers from this bug:"
+                  " %s%u"
+                  " and thus replicating the current binary log event"
+                  " may make the slave's data become different from the"
+                  " master's data."
+                  " To take no risk, slave refuses to replicate"
+                  " this event and stops."
+                  " We recommend that all updates be stopped on the"
+                  " master and slave, that the data of both be"
+                  " manually synchronized,"
+                  " that master's binary logs be deleted,"
+                  " that master be upgraded to a version at least"
+                  " equal to '%d.%d.%d'. Then replication can be"
+                  " restarted.",
+                  fixed_in[0], fixed_in[1], fixed_in[2],
+                  bug_source,
+                  versions_for_all_bugs[i].bug_num,
+                  fixed_in[0], fixed_in[1], fixed_in[2]);
+      return true;
+    }
+  }
+  DBUG_ASSERT(0 /* Impossible, as bitmap calculated from the same table. */);
+  my_printf_error(ER_UNKNOWN_ERROR, "master may suffer from a serious bug"
+                  " so slave stops", MYF(0));
+  rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, NULL,
+              "Master's version is old,"
+              " it is probable that master suffers from a serious bug"
+              " and thus replicating the current binary log event"
+              " may make the slave's data become different from the"
+              " master's data."
+              " To take no risk, slave refuses to replicate"
+              " this event and stops."
+              " We recommend that all updates be stopped on the"
+              " master and slave, that the data of both be"
+              " manually synchronized,"
+              " that master's binary logs be deleted,"
+              " that master be upgraded to a recent version"
+              " Then replication can be"
+              " restarted.");
+  return true;
 }
 
 #endif

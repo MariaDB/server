@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates
    Copyright (c) 2009, 2011, Monty Program Ab
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,7 +53,7 @@ my_bool my_init_done= 0;
 uint	mysys_usage_id= 0;              /* Incremented for each my_init() */
 size_t  my_system_page_size= 8192;	/* Default if no sysconf() */
 
-ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
+READ_ONLY_SYSVAR ulonglong my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
 static mode_t atoi_octal(const char *str)
 {

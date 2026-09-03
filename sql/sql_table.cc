@@ -94,6 +94,7 @@ class Enable_wsrep_ctas_guard
 #endif /* WITH_WSREP */
 
 #include "sql_debug.h"
+#include "scope.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -141,6 +142,40 @@ static bool append_table_to_dir(THD *thd, const char **filename_ptr,
 
   my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name->str);
   return 1;
+}
+
+/**
+  Issue a note when ALTER TABLE ... AUTO_INCREMENT=N is used with N lower
+  than the next AUTO_INCREMENT value, in which case the engine keeps the
+  higher value.
+
+  @param thd           Thread handle
+  @param create_info   Create info with requested auto_increment value
+  @param table         The table being altered
+*/
+
+static void
+check_auto_increment_lower_than_next(THD *thd,
+                                     const HA_CREATE_INFO *create_info,
+                                     TABLE *table)
+{
+  if (!(create_info->used_fields & HA_CREATE_USED_AUTO) ||
+      create_info->auto_increment_value == 0 ||
+      !table->found_next_number_field)
+    return;
+
+  table->file->info(HA_STATUS_AUTO);
+  ulonglong next_auto_inc= table->file->stats.auto_increment_value;
+  if (next_auto_inc > create_info->auto_increment_value)
+  {
+    char llbuff[22], llbuff2[22];
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        WARN_OPTION_CHANGING,
+                        ER_THD(thd, WARN_OPTION_CHANGING),
+                        "ALTER TABLE", "AUTO_INCREMENT",
+                        llstr(create_info->auto_increment_value, llbuff),
+                        llstr(next_auto_inc, llbuff2));
+  }
 }
 
 /**
@@ -8265,6 +8300,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     commit_succeded_with_error= 1;
   }
 
+  check_auto_increment_lower_than_next(thd, ha_alter_info->create_info, table);
+
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
@@ -10647,6 +10684,12 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   */
   table_list->required_type= TABLE_TYPE_NORMAL;
 
+  enum_tx_isolation iso_level_initial= thd->tx_isolation;
+  SCOPE_EXIT([thd, iso_level_initial](){
+    thd->tx_isolation= iso_level_initial;
+  });
+  thd->tx_isolation= ISO_REPEATABLE_READ;
+
   DEBUG_SYNC(thd, "alter_table_before_open_tables");
 
   thd->open_options|= HA_OPEN_FOR_ALTER;
@@ -11723,6 +11766,9 @@ do_continue:;
     if (wait_for_master(thd))
       goto err_new_table_cleanup;
   }
+
+  check_auto_increment_lower_than_next(thd, create_info, new_table);
+
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
     /* Release lock if this is a transactional temporary table */

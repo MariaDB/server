@@ -374,9 +374,38 @@ bool Item_subselect::enumerate_field_refs_processor(void *arg)
   return FALSE;
 }
 
+
+/**
+  @brief
+  Set the "eliminated" flag set by mark_as_eliminated_processor().
+
+  @details
+  Table elimination marks every subquery reachable from an eliminated outer
+  join's ON expression as eliminated.
+*/
+
 bool Item_subselect::mark_as_eliminated_processor(void *arg)
 {
   eliminated= TRUE;
+  return FALSE;
+}
+
+/**
+  @brief
+  Clear the "eliminated" flag set by mark_as_eliminated_processor().
+
+  @details
+  Equality propagation (build_equal_items()) can inject a reference to a
+  subquery that lives in another part of the query (e.g. the WHERE clause)
+  into that ON expression.  Such a subquery still has to be executed,
+  so after elimination we walk the surviving expressions and clear the flag
+  on any subquery still referenced from them.
+*/
+
+
+bool Item_subselect::unmark_as_eliminated_processor(void *arg)
+{
+  eliminated= FALSE;
   return FALSE;
 }
 

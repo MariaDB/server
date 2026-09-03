@@ -1023,6 +1023,12 @@ the false block has written nothing
 mysqltest: At line 1: End of file encountered before 'eval' delimiter was found
 # Only 'eval' is allowed as the third argument
 mysqltest: At line 1: Invalid argument 'junk' to 'write_file', only 'eval' is allowed
+#
+# \0 in a query
+#
+select hex("1 2");
+hex("1\x002")
+310032
 # End of 10.6 tests
 #
 # MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)

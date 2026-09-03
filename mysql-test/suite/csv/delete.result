@@ -1,0 +1,11 @@
+#
+# MDEV-40636 CSV crashes on DELETE
+#
+create table t1 (id int not null, pad char(10) not null) engine=csv;
+insert t1 select seq,'AAAAAAAAAA' from seq_1_to_2048;
+delete from t1 where id % 2 = 0;
+select count(*), sum(id) from t1;
+count(*)	sum(id)
+1024	1048576
+drop table t1;
+# End of 10.6 tests

@@ -704,4 +704,35 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					COALESCE(c_int, c_set)	253	33	0	Y	0	39	33
 COALESCE(c_int, c_set)
 DROP TABLE t1;
+#
+# MDEV-28498 Incorrect information in file: './test/t0.frm' on CREATE TABLE
+#
+CREATE TABLE t1 (a SET ('',0x0000),b SET ('')) CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` set('','\0\0') DEFAULT NULL,
+  `b` set('') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES (0x0000,'');
+INSERT INTO t1 VALUES ('\0\0','');
+INSERT INTO t1 VALUES ('','');
+SELECT a+0, HEX(a) FROM t1;
+a+0	HEX(a)
+2	0000
+2	0000
+0	
+DROP TABLE t1;
+CREATE TABLE t1 (a SET ('',0x0000) AS (0x0000) VIRTUAL,b SET ('') DEFAULT '') CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` set('','\0\0') GENERATED ALWAYS AS (0x0000) VIRTUAL,
+  `b` set('') DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 VALUES ();
+SELECT a+0, HEX(a) FROM t1;
+a+0	HEX(a)
+2	0000
+DROP TABLE t1;
 # End of 10.11 tests

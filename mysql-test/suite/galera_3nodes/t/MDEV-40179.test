@@ -1,0 +1,20 @@
+#
+# MDEV-40179 - prepared transactions left behind by a mariabackup SST.
+#
+# log_bin=ON variant: this is the variant that reproduces the bug. With
+# log_bin=ON commits use two-phase commit, so writesets pass through the
+# InnoDB XA-prepared state; durable, slightly slowed commits (sync_binlog +
+# innodb_flush_log_at_trx_commit, see the .cnf) widen that window so the
+# mariabackup snapshot of a donor under parallel-apply load captures prepared
+# transactions. On a freshly SST'd joiner binlog crash recovery does not run,
+# so these prepared transactions are never resolved and recovery aborts with
+# "Found <N> prepared transactions!". (gtid_strict_mode is enabled so any
+# binlog/engine position inconsistency would also be caught.)
+#
+# See MDEV-40179.inc for the shared test body.
+#
+
+--let $restarts = 8
+--let $writers = 4
+--let $check_gtid = 1
+--source MDEV-40179.inc

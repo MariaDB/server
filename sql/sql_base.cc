@@ -2247,7 +2247,7 @@ retry_share:
       goto retry_share;
     }
 
-    if (thd->open_tables && thd->open_tables->s->tdc->flushed)
+    if (!table_list->sequence && thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*
         If the version changes while we're opening the tables,
@@ -5350,6 +5350,10 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
                     MYSQL_LOCK_USE_MALLOC))
       goto err;
 
+    /* no existing lock to merge with */
+    if (save_lock == nullptr)
+      DBUG_RETURN(0);
+
     if (!(new_lock= mysql_lock_merge(save_lock, thd->lock)))
     {
       thd->lock= save_lock;
@@ -7102,7 +7106,30 @@ find_field_in_tables(THD *thd, Item_ident *item,
   {
     if (report_error == REPORT_ALL_ERRORS ||
         report_error == REPORT_EXCEPT_NON_UNIQUE)
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        If the user has no rights on this column in any candidate table,
+        check_grant_column() will issue a generic "access denied" error
+      */
+      if (check_privileges)
+      {
+        for (TABLE_LIST *tl= first_table; tl != last_table;
+             tl= tl->next_name_resolution_table)
+        {
+          if (db && my_strcasecmp(table_alias_charset, tl->db.str, db))
+            continue;
+          if (table_name &&
+              my_strcasecmp(table_alias_charset, tl->alias.str, table_name))
+            continue;
+          if (check_grant_column(thd, &tl->grant, tl->db.str,
+                         tl->table_name.str, name, length, thd->security_ctx))
+            return found;
+        }
+      }
+#endif
       my_error(ER_BAD_FIELD_ERROR, MYF(0), item->full_name(), thd_where(thd));
+    }
     else
       found= not_found_field;
   }
@@ -9349,17 +9376,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    if (table->vfield && fields.elements)
-    {
-      Item *fld= (Item_field*) fields.head();
-      Item_field *item_field= fld->field_for_view_update();
-      if (item_field)
-      {
-        DBUG_ASSERT(table == item_field->field->table);
-        result|= table->update_virtual_fields(table->file,
-                                              VCOL_UPDATE_FOR_WRITE);
-      }
-    }
+    if (table->vfield)
+      result|= table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 }

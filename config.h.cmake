@@ -1,5 +1,6 @@
 /* Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
- 
+   Copyright (c) 2026, MariaDB plc.
+
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation; version 2 of the License.
@@ -184,6 +185,7 @@
 #cmakedefine HAVE_MMAP 1
 #cmakedefine HAVE_MMAP64 1
 #cmakedefine HAVE_MPROTECT 1
+#cmakedefine HAVE_RO_AFTER_INIT 1
 #cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
