@@ -1,0 +1,92 @@
+#
+# MDEV-39492 Parallel Query: a capped SELECT must not run in the workers.
+#
+# The serial executor enforces a row cap in end_send(), against unit->lim; the
+# manager's drain sends every row a worker ships and never consults it. So the
+# gate has to refuse any select whose unit carries a cap -- and the cap is not
+# always spelled LIMIT: SET sql_select_limit installs one as the default limit
+# of every top-level SELECT, with limit_params.explicit_limit still unset,
+# which is how testing the syntax instead of unit->lim let it through and a
+# parallel query sent 500 rows where the serial one sent 3.
+#
+# A derived table's unit carries no session cap, so the cap on the outer
+# select must not cost the inner one its parallel scan.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 13 FROM seq_1_to_500;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_os= @@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+SET SESSION parallel_worker_threads=4;
+--disable_ps_protocol
+
+--echo #
+--echo # an explicit LIMIT: refused, and the cap honoured (expect 0 3)
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 3 LIMIT 3;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $pq AS ran_in_the_workers, $rs AS rows_sent
+--enable_query_log
+
+--echo #
+--echo # the session cap, which is a limit nothing in the statement spells out
+--echo # (expect 0 3)
+--echo #
+SET SESSION sql_select_limit=3;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 3;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $pq AS ran_in_the_workers, $rs AS rows_sent
+--enable_query_log
+
+--echo # and the rows are the ones the serial plan sends
+SELECT a, b FROM t1 WHERE b > 3;
+
+--echo #
+--echo # the cap is the outer select's; a derived table's select keeps its
+--echo # parallel scan (expect 1 3)
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM (SELECT a, b FROM t1 WHERE b > 3) d;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs AS rows_sent
+--enable_query_log
+
+SET SESSION sql_select_limit=default;
+
+--echo #
+--echo # with the cap gone the same query runs in the workers again
+--echo # (expect 1 345)
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE b > 3;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs AS rows_sent
+--enable_query_log
+
+--enable_ps_protocol
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

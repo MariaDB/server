@@ -126,12 +126,116 @@ void pwt_row_layout::forget_aggregates()
 }
 
 
+/*
+  @brief
+    Which shipped column holds the field 'want'.
+
+  @return  its position in ship_list, or -1 if it is not shipped.
+*/
+
+int pwt_row_layout::ship_pos_of(Field *want) const
+{
+  uint pos= 0;
+  Item *it;
+  List_iterator_fast<Item> si(const_cast<List<Item>&>(ship_list));
+  while ((it= si++))
+  {
+    if (it->type() == Item::FIELD_ITEM && ((Item_field *) it)->field == want)
+      return (int) pos;
+    pos++;
+  }
+  return -1;
+}
+
+
+/*
+  @brief
+    Remember which shipped column each ORDER element sorts on.
+
+  @description
+    Every element names a base-table field -- the gate has already refused an
+    order it could not say that of -- and every field the query reads is
+    shipped, so each one is found. The positions are what build_sort_order()
+    turns into an order over a container.
+
+  @return  true on error (my_error() called).
+*/
+
+bool pwt_row_layout::build_sort_positions(THD *thd, ORDER *plan_sort)
+{
+  n_sort= 0;
+  for (ORDER *o= plan_sort; o; o= o->next)
+    n_sort++;
+  DBUG_ASSERT(n_sort);
+
+  if (!(sort_pos= thd->alloc<uint>(n_sort)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sort * sizeof(uint)));
+    return true;
+  }
+
+  uint k= 0;
+  for (ORDER *o= plan_sort; o; o= o->next, k++)
+  {
+    Item *real= (*o->item)->real_item();
+    DBUG_ASSERT(real->type() == Item::FIELD_ITEM);
+    int pos= ship_pos_of(((Item_field *) real)->field);
+    if (pos < 0)
+    {
+      DBUG_ASSERT(0);              // every column the query reads is shipped
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "parallel query: ORDER BY column is not shipped");
+      return true;
+    }
+    sort_pos[k]= (uint) pos;
+  }
+  plan_order= plan_sort;
+  return false;
+}
+
+
+ORDER *pwt_row_layout::build_sort_order(THD *thd, TABLE *container)
+{
+  DBUG_ASSERT(plan_sorts && plan_order && n_sort);
+  ORDER *so= thd->alloc<ORDER>(n_sort);
+  if (!so)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_sort * sizeof(ORDER)));
+    return nullptr;
+  }
+  uint k= 0;
+  for (ORDER *o= plan_order; o; o= o->next, k++)
+  {
+    /*
+      A field of the container, not of the base table the plan named: this
+      order sorts the rows the workers produced, which is where they are.
+      Same column, because sort_pos[k] is the position the plan's field was
+      shipped in and the container was built from the same definition.
+    */
+    Item *f= new (thd->mem_root) Item_field(thd,
+                                            container->field[sort_pos[k]]);
+    if (!f)
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+      return nullptr;
+    }
+    bzero((char *) &so[k], sizeof(ORDER));
+    so[k].item_ptr=  f;
+    so[k].item=      &so[k].item_ptr;
+    so[k].direction= o->direction;
+    so[k].next=      k + 1 < n_sort ? &so[k + 1] : nullptr;
+  }
+  return so;
+}
+
+
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
-                           uint n_tables, ORDER *plan_group)
+                           uint n_tables, ORDER *plan_group, ORDER *plan_sort)
 {
   DBUG_ENTER("pwt_row_layout::build");
   join= join_arg;
   plan_aggregates= grouped= (plan_group != nullptr);
+  plan_sorts= (plan_sort != nullptr);
 
   for (uint t= 0; t < n_tables; t++)
   {
@@ -173,6 +277,9 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
   }
 
   if (clone_base_defn(thd))
+    DBUG_RETURN(true);
+
+  if (plan_sorts && build_sort_positions(thd, plan_sort))
     DBUG_RETURN(true);
 
   /*
