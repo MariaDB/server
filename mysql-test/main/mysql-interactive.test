@@ -90,3 +90,24 @@ if ($sys_errno == 127)
 remove_file $MYSQL_TMP_DIR/mysql_in;
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-40551 Copy/Paste friendly output format for MariaDB Command Line Client
+--echo #
+# \S prints one statement without column names or borders.  A multi line
+# statement is put in the history as a single line, and that line has to keep
+# the \S terminator.  The \020 below is Ctrl-P, which recalls the previous
+# history entry.
+--exec printf 'select 1 as a,\n2 as b\\S\n\020\nselect 3 as c;\nexit\n' > $MYSQL_TMP_DIR/mysql_in
+let TERM=dumb;
+replace_regex /id is \d+/id is X/ /Server version: .*/Server version: Y/ / \(\d+\.\d+ sec\)//;
+error 0,127;
+exec socat -t10 EXEC:"$MYSQL test",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
+if ($sys_errno == 127)
+{
+  remove_file $MYSQL_TMP_DIR/mysql_in;
+  skip no socat;
+}
+remove_file $MYSQL_TMP_DIR/mysql_in;
+
+--echo # End of 13.1 tests
