@@ -196,17 +196,11 @@ uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
   if (!(block_pos= (uint)(info->block.last_allocated %
                            info->block.records_in_block)))
   {
-    if ((info->block.last_allocated > info->max_records &&
-         info->max_records) ||
-        (info->data_length + info->index_length >= info->max_table_size))
+    if (info->block.last_allocated > info->max_records && info->max_records)
     {
       DBUG_PRINT("error",
-                 ("record file full. last_allocated: %lu  max_records: %lu  "
-                  "data_length: %llu  index_length: %llu  "
-                  "max_table_size: %llu",
-                  info->block.last_allocated, info->max_records,
-                  info->data_length, info->index_length,
-                  info->max_table_size));
+                 ("record file full. last_allocated: %lu  max_records: %lu",
+                  info->block.last_allocated, info->max_records));
       my_errno= HA_ERR_RECORD_FILE_FULL;
       DBUG_RETURN(NULL);
     }
@@ -219,6 +213,26 @@ uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
     }
     else
     {
+      /*
+        The table memory ceiling gates memory the table does not hold
+        yet, so it belongs here and not beside the max_records test.
+        The reclaim branch hands back a leaf that data_length already
+        counts, and hp_shrink_tail() reaches it whenever it empties the
+        tail of a table that has been over its ceiling since its first
+        row: index leaves are allocated without consulting the ceiling.
+        Testing the ceiling there as well would make such a table refuse
+        a row it held a moment earlier.
+      */
+      if (info->data_length + info->index_length >= info->max_table_size)
+      {
+        DBUG_PRINT("error",
+                   ("record file full. data_length: %llu  index_length: %llu  "
+                    "max_table_size: %llu",
+                    info->data_length, info->index_length,
+                    info->max_table_size));
+        my_errno= HA_ERR_RECORD_FILE_FULL;
+        DBUG_RETURN(NULL);
+      }
       /* No available blocks, allocate new ones */
       if (hp_get_new_block(info, &info->block, &length))
         DBUG_RETURN(NULL);

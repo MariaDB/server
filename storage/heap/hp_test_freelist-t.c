@@ -1799,11 +1799,80 @@ static void test_block_to_block_coalesce(void)
 }
 
 
+/*
+  Test: a reclaimed leaf is handed back even when the table is over its
+  memory ceiling.
+
+  index_length is not budgeted anywhere - hp_find_free_hash() allocates a
+  leaf without consulting max_table_size - so a table is routinely over
+  its ceiling from its first row onwards.  That is legal, because the
+  ceiling is only tested when the record cursor lands on a leaf boundary,
+  and it is tested there before any allocation has happened.
+
+  hp_shrink_tail() then walks last_allocated back to 0, which puts the
+  cursor on a leaf boundary again.  The leaf itself stays allocated and
+  data_length keeps counting it, so handing it back adds no memory.  A
+  ceiling test on that branch would make the table refuse a row it held a
+  moment earlier.
+
+  A ceiling of 20000 is under the sum of the two leaves this table
+  allocates (one for records, one for the hash index) and over either one
+  alone, so the first write allocates freely and the second write is the
+  one that has to reclaim.
+*/
+
+static void test_reclaim_over_ceiling(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  uchar rec[REC_LENGTH];
+  uchar blob_data[100];
+  ulonglong allocated;
+
+  memset(blob_data, 'R', sizeof(blob_data));
+
+  if (create_and_open_ceiling("test_reclaim_ceiling", 20000, &share, &info))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(5, "setup failed");
+    return;
+  }
+
+  build_record(rec, 1, blob_data, sizeof(blob_data));
+  ok(heap_write(info, rec) == 0, "insert blob row");
+
+  allocated= share->data_length + share->index_length;
+  ok(allocated >= share->max_table_size,
+     "table is over its ceiling after one row (allocated=%llu, ceiling=%llu)",
+     allocated, share->max_table_size);
+
+  {
+    uchar key[4];
+    int4store(key, 1);
+    ok(heap_rkey(info, rec, 0, key, 4, HA_READ_KEY_EXACT) == 0,
+       "found blob row");
+    ok(heap_delete(info, rec) == 0, "deleted blob row");
+  }
+  hp_flush_pending_blob_free(info);
+
+  ok(share->block.last_allocated == 0,
+     "hp_shrink_tail put the cursor back on a leaf boundary "
+     "(last_allocated=%lu)", (ulong) share->block.last_allocated);
+
+  build_record(rec, 2, blob_data, sizeof(blob_data));
+  ok(heap_write(info, rec) == 0,
+     "reinsert reclaims the leaf instead of reporting the table full");
+
+  heap_drop_table(info);
+  heap_close(info);
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_freelist");
-  plan(252);
+  plan(258);
 
   diag("Test 1: free-list contiguity detects groups > 2 records");
   test_freelist_contiguity_multirecord();
@@ -1867,6 +1936,9 @@ int main(int argc __attribute__((unused)),
 
   diag("Test 21: block-to-block coalescing via adjacent blob chains");
   test_block_to_block_coalesce();
+
+  diag("Test 22: reclaimed leaf handed back over the memory ceiling");
+  test_reclaim_over_ceiling();
 
   my_end(0);
   return exit_status();
