@@ -1,12 +1,5 @@
-# This test should work in embedded server after we fix mysqltest
--- source include/not_embedded.inc
-
-if (`SELECT COUNT(*) = 0 FROM information_schema.GLOBAL_VARIABLES
-    WHERE (VARIABLE_NAME ='version_compile_os' AND VARIABLE_VALUE LIKE 'Win%' OR
-    VARIABLE_NAME='have_openssl' AND VARIABLE_VALUE='YES')`)
-{
-  skip Need openssl or Windows;
-}
+--source include/not_embedded.inc
+--source include/require_openssl_client.inc
 
 --echo # Test clients with and without CRL lists
 
