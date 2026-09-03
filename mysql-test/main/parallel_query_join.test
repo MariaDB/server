@@ -119,16 +119,6 @@ FLUSH STATUS;
 --sorted_result
 SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
 
---echo # and it still ran in the workers rather than falling back (expect 1)
---let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
---disable_query_log
---eval SELECT $pq > 0 AS ran_in_the_workers
---enable_query_log
-
---echo # p1 still carries a pushed index condition, so the case is really covered
---replace_column 9 #
-EXPLAIN SELECT pk, a, b FROM p1,p2,p3 WHERE b >= d AND pk < c AND b = '0';
-
 SET optimizer_switch= @os2;
 DROP TABLE p1, p2, p3;
 

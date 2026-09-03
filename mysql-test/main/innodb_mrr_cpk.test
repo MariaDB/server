@@ -12,6 +12,12 @@
 #    #rows, the call is there at all only for applicability check
 # 
 -- source include/have_innodb.inc
+# What is under test is a property of the serial join: DS-MRR over a clustered
+# primary key feeds BKA, and the rows come back in key order -- "This output
+# must be sorted by value of t1.a" below says so, and other results are
+# recorded in that order without saying it. A parallel scan of the outer table
+# breaks it, because each worker joins and ships its own chunk.
+-- source include/not_parallel_execution.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;

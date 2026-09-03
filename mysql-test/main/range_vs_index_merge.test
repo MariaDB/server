@@ -96,18 +96,26 @@ SELECT * FROM City
 # The following 4 queries check that the plans
 # for the previous 2 plans are valid
 
+# A parallel scan hands the driving table to its workers in chunks, so an
+# unordered select returns its rows in whatever order the workers finished.
+# These queries exist to show that two plans return the same rows, which is a
+# statement about the set and not the order, so sort both halves of each pair.
+--sorted_result
 SELECT * FROM City USE INDEX ()
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
         AND (Population > 101000 AND Population < 115000);
 
+--sorted_result
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
         AND (Population > 101000 AND Population < 115000);
 
+--sorted_result
 SELECT * FROM City USE INDEX ()
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
         AND (Population > 101000 AND Population < 102000);
 
+--sorted_result
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
         AND (Population > 101000 AND Population < 102000);
@@ -163,34 +171,42 @@ SELECT  * FROM City
 # The following 8 queries check that the plans
 # for the previous 4 plans are valid
 
+--sorted_result
 SELECT  * FROM City USE INDEX ()
   WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
 
+--sorted_result
 SELECT  * FROM City 
   WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
 
+--sorted_result
 SELECT  * FROM City USE INDEX ()
   WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
 
+--sorted_result
 SELECT  * FROM City
   WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
 
+--sorted_result
 SELECT  * FROM City USE INDEX ()
   WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
 
+--sorted_result
 SELECT  * FROM City
   WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
 
+--sorted_result
 SELECT  * FROM City USE INDEX ()
   WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
 
+--sorted_result
 SELECT  * FROM City
   WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
   (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
@@ -1275,6 +1291,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9) 
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
+# unordered, and a parallel scan does not preserve the access method's order
+--sorted_result
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9)
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
