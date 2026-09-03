@@ -38,6 +38,10 @@
     parallel workers.
 
   @description
+    Disabled for now, not only because it changes QEPs in our mtr suite, but
+    because it only discounts costs associated with the split table, not tables
+    further down the join in the workers.
+
     When parallel query is enabled the first non-const table can be scanned by
     N worker threads, each reading a disjoint partition concurrently while the
     manager runs the rest of the join. The wall-clock cost of reading and
@@ -61,6 +65,7 @@
 
 bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
 {
+#if 0
   const uint n= thd->variables.parallel_worker_threads;
   if (n < 2 ||                                   // disabled, or no speed-up
       !table_can_be_parallel_scanned(table))
@@ -70,6 +75,7 @@ bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
   cost->row_cost.io  *= factor;
   cost->row_cost.cpu *= factor;
   cost->copy_cost    *= factor;
+#endif
   return true;
 }
 

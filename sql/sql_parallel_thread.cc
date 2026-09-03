@@ -367,6 +367,52 @@ bool pwt_thread::init_worker_thd(THD *parent_thd, int worker_nr)
   thd->start_utime= parent_thd->start_utime;
 
   /*
+    the worker THD now takes the session's variables instead of
+    keeping the global defaults create_background_thd() gave it.
+
+    Some items use these during evaluation, such as TIMESTAMP, which
+    looks up variables.time_zone.
+
+    Done this strange way so that plugin_thdvar_cleanup() cleans itself
+    up and not it's manager.
+
+    Saved field by field because system_variables has no copy constructor,
+    only assignment (Sql_path declares one and not the other).
+  */
+  plugin_ref  o_table_plugin=          thd->variables.table_plugin;
+  plugin_ref  o_tmp_table_plugin=      thd->variables.tmp_table_plugin;
+  plugin_ref  o_enforced_table_plugin= thd->variables.enforced_table_plugin;
+  ulong       o_dynvar_version=  thd->variables.dynamic_variables_version;
+  char       *o_dynvar_ptr=      thd->variables.dynamic_variables_ptr;
+  uint        o_dynvar_head=     thd->variables.dynamic_variables_head;
+  uint        o_dynvar_size=     thd->variables.dynamic_variables_size;
+  char       *o_track_sysvars=
+                thd->variables.session_track_system_variables;
+  char       *o_redirect_url=    thd->variables.redirect_url;
+  LEX_CSTRING o_master_conn=     thd->variables.default_master_connection;
+  ulonglong   o_option_bits=     thd->variables.option_bits;
+  my_bool     o_sql_log_bin=     thd->variables.sql_log_bin;
+  ulong       o_binlog_format=   thd->variables.binlog_format;
+  my_thread_id o_pseudo_thread_id= thd->variables.pseudo_thread_id;
+
+  thd->variables= parent_thd->variables;
+
+  thd->variables.table_plugin=              o_table_plugin;
+  thd->variables.tmp_table_plugin=          o_tmp_table_plugin;
+  thd->variables.enforced_table_plugin=     o_enforced_table_plugin;
+  thd->variables.dynamic_variables_version= o_dynvar_version;
+  thd->variables.dynamic_variables_ptr=     o_dynvar_ptr;
+  thd->variables.dynamic_variables_head=    o_dynvar_head;
+  thd->variables.dynamic_variables_size=    o_dynvar_size;
+  thd->variables.session_track_system_variables= o_track_sysvars;
+  thd->variables.redirect_url=              o_redirect_url;
+  thd->variables.default_master_connection= o_master_conn;
+  thd->variables.option_bits=               o_option_bits;
+  thd->variables.sql_log_bin=               o_sql_log_bin;
+  thd->variables.binlog_format=             o_binlog_format;
+  thd->variables.pseudo_thread_id=          o_pseudo_thread_id;
+
+  /*
     A worker evaluates this session's expressions, so it is running this
     session's query and has to say so. Items that hold a value for the
     duration of one statement keep it against the query id they computed it

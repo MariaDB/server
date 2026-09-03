@@ -1,0 +1,98 @@
+#
+# MDEV-39492 Parallel Query: a worker evaluates with this session's settings.
+#
+# A worker runs this session's expressions, and an expression asks current_thd
+# for the settings it needs. Some it asks once, when the item is fixed on the
+# manager, and the answer travels in the clone: a comparison's collation, the
+# scale a division rounds to, the value CONNECTION_ID() returns. Others it asks
+# every time it is evaluated, and those a worker looks up in its own THD --
+# Item_func_week reads default_week_format, and reading a TIMESTAMP converts
+# through variables.time_zone.
+#
+# The workers get a background THD, which is born with the global defaults, so
+# a session that had set either of those got one answer from the workers and a
+# different one from a serial scan. Each pair below must agree, and the query
+# must really have run in the workers, or the pair proves nothing.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT,
+                 ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                 d DATE) ENGINE=InnoDB;
+SET TIMESTAMP=1000.123456;
+INSERT INTO t1 (a,b,c,d)
+  SELECT seq, CONCAT('v',seq), seq, '2020-03-05' FROM seq_1_to_20;
+SET TIMESTAMP=default;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_os= @@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+--disable_ps_protocol
+
+--echo #
+--echo # a TIMESTAMP is read back through the session's time zone (expect 20 1)
+--echo #
+SET TIME_ZONE="+03:00";
+SET SESSION parallel_worker_threads=0;
+--sorted_result
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41' AND a < 4;
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+--disable_result_log
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41';
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $rs AS rows_sent, $pq > 0 AS ran_in_the_workers
+--enable_query_log
+--echo # and the same rows, not merely the same count
+--sorted_result
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41' AND a < 4;
+SET TIME_ZONE=default;
+
+--echo #
+--echo # WEEK() reads the session's default_week_format (expect 20 1)
+--echo #
+SET SESSION default_week_format=3;
+SET SESSION parallel_worker_threads=0;
+SELECT WEEK(d) AS week_serial FROM t1 WHERE a = 1;
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+--disable_result_log
+SELECT a FROM t1 WHERE WEEK(d) = 10;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $rs AS rows_sent, $pq > 0 AS ran_in_the_workers
+--enable_query_log
+SET SESSION default_week_format=default;
+
+--echo #
+--echo # a worker is not a connection: it inherits none of the manager's
+--echo # transaction or binlog state (expect 1 1 1)
+--echo #
+SET SESSION parallel_worker_threads=4;
+SET SESSION sql_log_bin=0;
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+FLUSH STATUS;
+--disable_result_log
+SELECT a, b FROM t1 WHERE c > 3;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $rs = 17 AS all_rows, $pq > 0 AS ran_in_the_workers, @@sql_log_bin = 0 AS session_untouched
+--enable_query_log
+COMMIT;
+SET AUTOCOMMIT=default;
+SET SESSION sql_log_bin=default;
+
+--enable_ps_protocol
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

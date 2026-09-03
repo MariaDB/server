@@ -1,0 +1,177 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*2, seq%997 FROM seq_1_to_20000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET @save_os= @@optimizer_switch;
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_switch='derived_merge=off';
+SET optimizer_trace=1;
+SET SESSION parallel_worker_threads=4;
+# a primary-key range: chosen, and a range scan
+EXPLAIN SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range_parallel	a	a	5	NULL	#	Using where; Using index
+SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen, JSON_EXTRACT(trace, '$**.range_scan') AS range_scan
+FROM information_schema.optimizer_trace;
+chosen	range_scan
+1	[true, true]
+EXPLAIN SELECT a FROM t1 WHERE b > 39990;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where
+EXPLAIN SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range_parallel	a	a	5	NULL	#	Using where; Using index
+# and the same in FORMAT=JSON
+ANALYZE FORMAT=JSON SELECT a FROM t1 WHERE a BETWEEN 4000 AND 12000;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range_parallel",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4001,
+          "r_rows": 4001,
+          "r_rows_per_worker": REPLACED,
+          "cost": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.a between 4000 and 12000",
+          "r_filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000) d;
+n	crc_sum	crc_xor
+4001	8714023366780	3032637094
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000) d;
+n	crc_sum	crc_xor
+4001	8714023366780	3032637094
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a > 17000) d;
+n	crc_sum	crc_xor
+11500	24660783775543	3493856629
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a > 17000) d;
+n	crc_sum	crc_xor
+11500	24660783775543	3493856629
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a <= 2500) d;
+n	crc_sum	crc_xor
+1250	2696904481356	2600011756
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a <= 2500) d;
+n	crc_sum	crc_xor
+1250	2696904481356	2600011756
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a < 3000 OR a > 18000) d;
+n	crc_sum	crc_xor
+12499	26809504014645	2523124763
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a < 3000 OR a > 18000) d;
+n	crc_sum	crc_xor
+12499	26809504014645	2523124763
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a IN (1,2,3,4999,5000,5001,19999,20000)) d;
+n	crc_sum	crc_xor
+3	7669395995	1244417595
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a IN (1,2,3,4999,5000,5001,19999,20000)) d;
+n	crc_sum	crc_xor
+3	7669395995	1244417595
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+# serial fingerprint
+SET SESSION parallel_worker_threads= 0;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000 AND b % 1000 = 0) d;
+n	crc_sum	crc_xor
+4	5966446596	1677624430
+# parallel fingerprint, must be identical to the serial one above
+SET SESSION parallel_worker_threads= 4;
+FLUSH STATUS;
+SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS('/',a, b))) AS crc_sum, BIT_XOR(CRC32(CONCAT_WS('/',a, b))) AS crc_xor FROM (SELECT a, b FROM t1 WHERE a BETWEEN 4000 AND 12000 AND b % 1000 = 0) d;
+n	crc_sum	crc_xor
+4	5966446596	1677624430
+# the workers ran the query above, and did not run the serial one (expect 1)
+ran_in_the_workers
+1
+SET SESSION parallel_worker_threads=4;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+FROM (SELECT a FROM t1 WHERE a > 5000 AND a < 5010) d;
+lo	hi	n
+5002	5008	4
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+FROM (SELECT a FROM t1 WHERE a >= 5000 AND a <= 5010) d;
+lo	hi	n
+5000	5010	6
+SET SESSION parallel_worker_threads=0;
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+FROM (SELECT a FROM t1 WHERE a > 5000 AND a < 5010) d;
+lo	hi	n
+5002	5008	4
+SELECT MIN(a) lo, MAX(a) hi, COUNT(*) n
+FROM (SELECT a FROM t1 WHERE a >= 5000 AND a <= 5010) d;
+lo	hi	n
+5000	5010	6
+DROP TABLE t1;
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
