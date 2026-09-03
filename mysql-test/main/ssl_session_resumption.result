@@ -1,0 +1,63 @@
+#
+# TLS session resumption statistics
+#
+#
+# TLS 1.2, session ticket
+#
+set @hits=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits'),
+@stored=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries');
+openssl s_client -ign_eof -tls1_2 -sess_out tls_session.pem
+openssl s_client -ign_eof -tls1_2 -sess_in tls_session.pem
+RESUMED
+select (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits') - @hits as 'hits increase',
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries') - @stored as 'stored on the server';
+hits increase	stored on the server
+1	0
+#
+# TLS 1.2, session id. Unlike a ticket, this session is also stored in
+# the server side cache, so it is the only case that fills it up
+#
+set @hits=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits'),
+@stored=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries');
+openssl s_client -ign_eof -tls1_2 -no_ticket -sess_out tls_session.pem
+openssl s_client -ign_eof -tls1_2 -no_ticket -sess_in tls_session.pem
+RESUMED
+select (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits') - @hits as 'hits increase',
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries') - @stored as 'stored on the server';
+hits increase	stored on the server
+1	1
+#
+# TLS 1.3, session ticket. No session id resumption exists in TLS 1.3,
+# so like a TLS 1.2 ticket it leaves nothing on the server
+#
+set @hits=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits'),
+@stored=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries');
+openssl s_client -ign_eof -tls1_3 -sess_out tls_session.pem
+openssl s_client -ign_eof -tls1_3 -sess_in tls_session.pem
+RESUMED
+select (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits') - @hits as 'hits increase',
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries') - @stored as 'stored on the server';
+hits increase	stored on the server
+1	0
+#
+# A session cannot be resumed across FLUSH SSL: it replaces the
+# acceptor context, and with it the session cache and the ticket keys
+#
+set @hits=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits'),
+@stored=(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries');
+openssl s_client -ign_eof -tls1_3 -sess_out tls_session.pem
+openssl s_client -ign_eof -tls1_3 -sess_in tls_session.pem
+RESUMED
+select (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits') - @hits as 'hits increase',
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries') - @stored as 'stored on the server';
+hits increase	stored on the server
+1	0
+FLUSH SSL;
+openssl s_client -ign_eof -tls1_3 -sess_in tls_session.pem
+FULL
+# and it resets the acceptor statistics
+select (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_session_cache_hits') as 'Ssl_session_cache_hits',
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'Ssl_used_session_cache_entries') as 'Ssl_used_session_cache_entries';
+Ssl_session_cache_hits	Ssl_used_session_cache_entries
+0	0
+# End of 13.2 tests

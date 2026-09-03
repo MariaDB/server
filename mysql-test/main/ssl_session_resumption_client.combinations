@@ -1,0 +1,4 @@
+[tls12]
+loose-tls-version=TLSv1.2
+
+[tls_any]

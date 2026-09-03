@@ -1,0 +1,39 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-40445 TLS session resumption
+--echo #
+
+# first connection, nothing to resume
+connect ssl1,localhost,root,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+disconnect ssl1;
+
+# second resumes
+connect ssl2,localhost,root,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+disconnect ssl2;
+
+# and it keeps resuming
+connect ssl3,localhost,root,,,,,SSL;
+show session status like 'ssl_sessions_reused';
+disconnect ssl3;
+
+# but doesn't resume with different connection parameters, like cipher
+connect ssl4,localhost,root,,,,,SSL SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256;
+show session status like 'ssl_sessions_reused';
+disconnect ssl4;
+
+# or protocol
+connect tcp1,127.0.0.1,root,,,$MASTER_MYPORT,,SSL TCP;
+show session status like 'ssl_sessions_reused';
+disconnect tcp1;
+
+# same cipher as before resumes
+connect ssl5,localhost,root,,,,,SSL SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256;
+show session status like 'ssl_sessions_reused';
+disconnect ssl5;
+
+connection default;
+
+--echo # End of 13.2 tests
