@@ -1,0 +1,67 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT,
+ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+d DATE) ENGINE=InnoDB;
+SET TIMESTAMP=1000.123456;
+INSERT INTO t1 (a,b,c,d)
+SELECT seq, CONCAT('v',seq), seq, '2020-03-05' FROM seq_1_to_20;
+SET TIMESTAMP=default;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET @save_os= @@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off';
+#
+# a TIMESTAMP is read back through the session's time zone (expect 20 1)
+#
+SET TIME_ZONE="+03:00";
+SET SESSION parallel_worker_threads=0;
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41' AND a < 4;
+a
+1
+2
+3
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41';
+rows_sent	ran_in_the_workers
+20	1
+# and the same rows, not merely the same count
+SELECT a FROM t1 WHERE ts <= '1970-01-01 03:16:41' AND a < 4;
+a
+1
+2
+3
+SET TIME_ZONE=default;
+#
+# WEEK() reads the session's default_week_format (expect 20 1)
+#
+SET SESSION default_week_format=3;
+SET SESSION parallel_worker_threads=0;
+SELECT WEEK(d) AS week_serial FROM t1 WHERE a = 1;
+week_serial
+10
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a FROM t1 WHERE WEEK(d) = 10;
+rows_sent	ran_in_the_workers
+20	1
+SET SESSION default_week_format=default;
+#
+# a worker is not a connection: it inherits none of the manager's
+# transaction or binlog state (expect 1 1 1)
+#
+SET SESSION parallel_worker_threads=4;
+SET SESSION sql_log_bin=0;
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE c > 3;
+all_rows	ran_in_the_workers	session_untouched
+1	1	1
+COMMIT;
+SET AUTOCOMMIT=default;
+SET SESSION sql_log_bin=default;
+SET SESSION optimizer_switch= @save_os;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

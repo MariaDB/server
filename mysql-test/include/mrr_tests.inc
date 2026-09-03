@@ -53,16 +53,23 @@ delete from t3 where b='del-me';
 alter table t3 add primary key(b);
 
 ##  PK scan tests
+# These read a range of the primary key, which an engine that supports parallel
+# query hands out to workers in chunks, so the rows arrive in whatever order the
+# workers finished rather than in key order. What is under test is which rows
+# the MRR buffer splitting returns, never the order they come back in.
 # 6. Split is between 'unique' PK ranges
+--sorted_result
 select b,filler from t3 where (b>='c-1011=w' and b<= 'c-1018=w') or 
                               b IN ('c-1019=w', 'c-1020=w', 'c-1021=w', 
                                     'c-1022=w', 'c-1023=w', 'c-1024=w');
 
 # 7. Between non-uniq and uniq range
+--sorted_result
 select b,filler from t3 where (b>='c-1011=w' and b<= 'c-1020=w') or 
                               b IN ('c-1021=w', 'c-1022=w', 'c-1023=w');
 
 # 8. Between uniq and non-uniq range
+--sorted_result
 select b,filler from t3 where (b>='c-1011=w' and b<= 'c-1018=w') or 
                               b IN ('c-1019=w', 'c-1020=w') or 
                               (b>='c-1021=w' and b<= 'c-1023=w');
@@ -92,13 +99,19 @@ insert into t4 (a,b,c,filler)
 explain 
   select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');
+# Unordered, and the last two are a pair whose point is that the indexed read
+# and the table scan return the same rows -- so, sorted, for the same reason as
+# the PK scan tests above.
+--sorted_result
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                     or c='no-such-row2');
 
 explain 
   select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
+--sorted_result
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 
+--sorted_result
 select * from t4 ignore index(idx1) where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 drop table t1, t2, t3, t4;
 
