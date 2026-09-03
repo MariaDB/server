@@ -25,7 +25,7 @@ set @save_max_heap_table_size=@@max_heap_table_size;
 set @small_heap=65536;
 
 --echo #
---echo # Setup: 1000 distinct values, each present twice, with the two copies
+--echo # Setup: 4000 distinct values, each present twice, with the two copies
 --echo # adjacent.
 --echo #
 --echo # A write that is rejected as a duplicate returns the record it had
@@ -49,6 +49,21 @@ set @small_heap=65536;
 --echo # pending row is covered on its own, without depending on any of this,
 --echo # in count_distinct_blob_convert_debug.
 --echo #
+--echo # The number of rows is what makes the table overflow, so it has to be
+--echo # far enough past the point where it does that a build with smaller
+--echo # records still reaches it. A record holding a blob carries a pointer
+--echo # to the value, and that pointer is four bytes rather than eight where
+--echo # a pointer is four bytes wide, so a count only just above the limit
+--echo # on one build sits below it on another. The count here is several
+--echo # times what is needed on the wider build.
+--echo #
+--echo # Only the count is chosen that way. The value widths and the limit
+--echo # are left where they were measured, because they are what puts the
+--echo # overflow on a record slot rather than on a blob value, and moving
+--echo # either of them can leave the conversion covered while the duplicate
+--echo # it has to handle is gone. Rows added past the overflow do not move
+--echo # it: it happens once the table is full, whatever follows.
+--echo #
 
 CREATE TABLE t1 (id INT PRIMARY KEY, v TEXT, w TEXT, s VARCHAR(64))
 ENGINE=MyISAM;
@@ -57,7 +72,7 @@ SELECT seq,
        LPAD((seq+1) DIV 2, 6, 'x'),
        LPAD((seq+1) DIV 2, 10, 'y'),
        LPAD((seq+1) DIV 2, 6, 'z')
-FROM seq_1_to_2000;
+FROM seq_1_to_8000;
 
 SELECT COUNT(*) AS rows_stored FROM t1;
 
