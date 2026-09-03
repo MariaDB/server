@@ -3494,11 +3494,23 @@ static recv_sys_t::parse_mtr_result backup_log_parse()
   recv_sys_t::parse_mtr_result r= backup_log_parse_low(false);
   if (r == recv_sys_t::OK && max_parse_lsn && recv_sys.lsn > max_parse_lsn)
   {
+    fprintf(stderr, "MTR_PARSE reject start=" LSN_PF " len=" LSN_PF
+            " end=" LSN_PF " limit=" LSN_PF "\n",
+            prev_lsn, recv_sys.lsn - prev_lsn, recv_sys.lsn, max_parse_lsn);
     recv_sys.lsn= prev_lsn;
     recv_sys.offset= prev_offset;
     reached_parse_limit= true;
     return recv_sys_t::GOT_EOF;
   }
+  if (r == recv_sys_t::OK)
+    fprintf(stderr, "MTR_PARSE start=" LSN_PF " len=" LSN_PF " end=" LSN_PF
+            " offset=%zu\n", prev_lsn, recv_sys.lsn - prev_lsn, recv_sys.lsn,
+            prev_offset);
+  else
+    fprintf(stderr, "MTR_PARSE %s start=" LSN_PF " offset=%zu limit=" LSN_PF
+            "\n", r == recv_sys_t::GOT_EOF ? "eof" :
+            r == recv_sys_t::PREMATURE_EOF ? "premature_eof" : "oom",
+            prev_lsn, prev_offset, max_parse_lsn);
   return r;
 }
 

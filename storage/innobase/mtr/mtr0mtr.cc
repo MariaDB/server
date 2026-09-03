@@ -1297,6 +1297,8 @@ std::pair<lsn_t,lsn_t> mtr_t::finish_writer(mtr_t *mtr, size_t len)
   log_sys.resize_write(start.first, start.second, len, size);
 
   mtr->m_commit_lsn= start.first + len;
+  fprintf(stderr, "MTR_WRITE start=" LSN_PF " len=%zu end=" LSN_PF "\n",
+          start.first, len, mtr->m_commit_lsn);
   return {start.first, log_close(mtr->m_commit_lsn)};
 }
 
