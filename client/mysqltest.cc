@@ -41,6 +41,7 @@
 #include <sql_common.h>
 #include <m_ctype.h>
 #include "client_metadata.h"
+#include "mysqltest_replay_server.h"
 #include <my_dir.h>
 #include <hash.h>
 #include <stdarg.h>
@@ -128,12 +129,16 @@ static my_bool view_protocol= 0, view_protocol_enabled= 0;
 static my_bool service_connection_enabled= 1;
 static my_bool cursor_protocol= 0, cursor_protocol_enabled= 0;
 static my_bool parsing_disabled= 0;
-static my_bool display_result_vertically= FALSE, display_result_lower= FALSE,
+/* display_result_vertically is also read by mysqltest_replay_server.cc */
+my_bool display_result_vertically= FALSE;
+static my_bool display_result_lower= FALSE,
   display_metadata= FALSE, display_result_sorted= FALSE,
   display_session_track_info= FALSE;
 static my_bool disable_query_log= 0, disable_result_log= 0;
 static my_bool disable_connect_log= 0;
-static my_bool disable_warnings= 0, disable_column_names= 0;
+/* disable_warnings is also read by mysqltest_replay_server.cc */
+my_bool disable_warnings= 0;
+static my_bool disable_column_names= 0;
 static my_bool prepare_warnings_enabled= 0;
 static my_bool disable_info= 1;
 static my_bool abort_on_error= 1, opt_continue_on_error= 0;
@@ -242,7 +247,8 @@ static struct st_test_file file_stack[16];
 static struct st_test_file* cur_file;
 static struct st_test_file* file_stack_end;
 
-static CHARSET_INFO *charset_info= &my_charset_latin1; /* Default charset */
+/* Default charset; also read by mysqltest_replay_server.cc */
+CHARSET_INFO *charset_info= &my_charset_latin1;
 
 static const char *embedded_server_groups[]=
 {
@@ -277,6 +283,8 @@ static regex_t ps2_re;    /* the query can be run using PS protocol with second 
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
 static regex_t cursor_re;    /* the query can be run with cursor protocol*/
+static regex_t explain_re;            /* the query is EXPLAIN (any variant) */
+static regex_t explain_for_conn_re;   /* the query is EXPLAIN ... FOR CONNECTION ... */
 
 static void init_re(void);
 static int match_re(regex_t *, char *);
@@ -1876,6 +1884,8 @@ void free_used_memory()
 {
   uint i;
   DBUG_ENTER("free_used_memory");
+
+  replay_free();
 
   if (connections)
   {
@@ -11181,7 +11191,184 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 
 
 /*
-  Handle situation where query is sent but there is no active connection 
+  Helpers the replay-server mode (mysqltest_replay_server.cc) shares with the
+  rest of mysqltest.
+*/
+
+/*
+  Check if query is of the form "EXPLAIN ..." that we want to handle via the
+  replay server.
+
+  Returns TRUE if the query starts with the EXPLAIN keyword.
+  Returns FALSE for "EXPLAIN ... FOR CONNECTION ..." forms (e.g.
+  "EXPLAIN FOR CONNECTION <id>" or "EXPLAIN FORMAT=JSON FOR CONNECTION <id>"),
+  since that form does not trigger query optimization/recording.
+
+  Uses the precompiled regexes explain_re / explain_for_conn_re (see init_re).
+*/
+my_bool is_explain_query(const char *query, size_t query_len)
+{
+  const char *p= query, *end= query + query_len;
+  char stack_buf[512];
+  char *buf;
+  my_bool result;
+
+  /*
+    Both regexes below can only match a query that begins with the EXPLAIN
+    keyword. Nearly every query - and every intermediate statement of a
+    replayed context script - is not one, so answer those here, without the
+    null-terminating copy and the two regexecs.
+
+    The regexes are compiled REG_ICASE and their [[:space:]] is ASCII, hence
+    the ASCII comparisons; charset_info is consulted as well so that the
+    skipped whitespace stays a superset of the regexes'.
+  */
+  while (p < end && (my_isspace(charset_info, *p) ||
+                     my_isspace(&my_charset_latin1, *p)))
+    p++;
+  if ((size_t) (end - p) < 7 || strncasecmp(p, "EXPLAIN", 7))
+    return FALSE;
+
+  /* match_re / regexec need a null-terminated string; query isn't guaranteed
+     to be null-terminated at query_len. Copy into a temp buffer. */
+  if (query_len + 1 <= sizeof(stack_buf))
+    buf= stack_buf;
+  else
+    buf= (char*) my_malloc(PSI_NOT_INSTRUMENTED, query_len + 1, MYF(MY_WME));
+  if (!buf)
+    return FALSE;
+
+  memcpy(buf, query, query_len);
+  buf[query_len]= '\0';
+
+  result= match_re(&explain_re, buf) && !match_re(&explain_for_conn_re, buf);
+
+  if (buf != stack_buf)
+    my_free(buf);
+  return result;
+}
+
+
+/*
+  Print the current test-file location (file, line, and include stack) to the
+  given stream, each output line prefixed with `prefix`. Mirrors the format
+  used by make_error_message() for regular mysqltest errors.
+*/
+void print_test_location(FILE *f, const char *prefix)
+{
+  if (cur_file && cur_file != file_stack)
+  {
+    /* Enough for the full 16-entry include stack. */
+    char buf[4096];
+    buf[0]= '\0';
+    fprintf(f, "%sIn included file \"%s\":\n", prefix, cur_file->file_name);
+    print_file_stack(buf, buf + sizeof(buf));
+    if (buf[0])
+      fprintf(f, "%s%s", prefix, buf);
+  }
+  else if (cur_file && cur_file->file_name)
+  {
+    fprintf(f, "%sIn file \"%s\"\n", prefix, cur_file->file_name);
+  }
+  if (start_lineno > 0)
+    fprintf(f, "%sAt line %u\n", prefix, start_lineno);
+}
+
+
+/*
+  Pre/post query hooks
+  ~~~~~~~~~~~~~~~~~~~~
+  run_query_normal() sends a query to the test server, reads its result sets
+  and formats them into `ds`. Optional features need to do work around that:
+  before the query is sent, in place of its first result set, and after it is
+  done. Instead of spreading such code through run_query_normal(), it is
+  reached through the four query_hooks_*() entry points below.
+
+  The only hook today is the replay-server mode of mtr --replay-server: it
+  makes the test server record the optimizer context of an EXPLAIN, replays
+  that context on a second ("replay") server and puts the replay server's
+  EXPLAIN output into the test result in place of the test server's own.
+
+  struct st_query_hooks holds the per-query state of the hooks. It lives on
+  run_query_normal()'s stack and starts out all-FALSE, i.e. "no hook is
+  active for this query".
+*/
+struct st_query_hooks
+{
+  /* The replay hook is active and owns this query's first result set */
+  my_bool replay_active;
+};
+
+
+/*
+  Called once per query, just before it is sent to the test server. Also
+  called for queries that end up not being sent, so that one-shot flags such
+  as "disable_replay next_query" are consumed exactly once per query.
+*/
+static void query_hooks_pre_query(struct st_query_hooks *hooks, MYSQL *mysql,
+                                  int flags, const char *query,
+                                  size_t query_len)
+{
+  /* A hook can only replace a result set of a query that is reaped here */
+  my_bool complete_query= (flags & (QUERY_SEND_FLAG | QUERY_REAP_FLAG)) ==
+                          (QUERY_SEND_FLAG | QUERY_REAP_FLAG);
+  hooks->replay_active= replay_hook_pre_query(mysql, complete_query, query,
+                                              query_len);
+}
+
+
+/*
+  TRUE if a hook produces the output of result set number `counter` itself.
+  run_query_normal() must then append neither the table headings nor the rows
+  of that result set, and call query_hooks_result() instead.
+
+  A hook produces its replacement by running queries of its own on `mysql`,
+  which it cannot do while the server still has result sets pending for the
+  current query - that fails with CR_COMMANDS_OUT_OF_SYNC. A multi-statement
+  query whose first statement is an EXPLAIN is therefore left to the ordinary
+  path, so that the test server's own output is used; the setup the hook did
+  in query_hooks_pre_query() is undone by query_hooks_post_query().
+*/
+static my_bool query_hooks_own_result(const struct st_query_hooks *hooks,
+                                      MYSQL *mysql, int counter)
+{
+  return hooks->replay_active && counter == 0 && !mysql_more_results(mysql);
+}
+
+
+/*
+  Append the output of a result set claimed by query_hooks_own_result() to
+  `ds`. Consumes *res: it is up to the hook how much, if any, of the test
+  server's own result ends up in `ds`.
+*/
+static void query_hooks_result(struct st_query_hooks *hooks, MYSQL *mysql,
+                               MYSQL_RES **res, MYSQL_FIELD *fields,
+                               uint num_fields, const char *query,
+                               size_t query_len, DYNAMIC_STRING *ds)
+{
+  DBUG_ASSERT(hooks->replay_active);
+  replay_hook_result(mysql, res, fields, num_fields, query, query_len, ds);
+  hooks->replay_active= FALSE;
+}
+
+
+/*
+  Called on every exit path of run_query_normal(), including the error ones.
+  A hook that is still active here never got to see a result set, so this is
+  where it undoes what it did in query_hooks_pre_query().
+*/
+static void query_hooks_post_query(struct st_query_hooks *hooks, MYSQL *mysql)
+{
+  if (hooks->replay_active)
+  {
+    replay_undo_test_server_setup(mysql);
+    hooks->replay_active= FALSE;
+  }
+}
+
+
+/*
+  Handle situation where query is sent but there is no active connection
   (e.g directly after disconnect).
 
   We emulate MySQL-compatible behaviour of sending something on a closed
@@ -11205,43 +11392,6 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command, cons
 void run_close_stmt(struct st_connection *cn, struct st_command *command, const char *query,
                     size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
-static void do_disable_replay(struct st_command *command)
-{
-  const char *p= command->first_argument;
-  const char *end= command->end;
-  const char *tok;
-  size_t tok_len;
-  DBUG_ENTER("do_disable_replay");
-
-  /* Skip leading whitespace */
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-
-  tok= p;
-  while (p < end && !my_isspace(charset_info, *p))
-    p++;
-  tok_len= (size_t)(p - tok);
-
-  if ((tok_len == 10 && strncmp(tok, "next_query", 10) == 0) ||
-      (tok_len == 8 && strncmp(tok, "testfile", 8) == 0))
-  {
-    /* Token is correct. */
-  }
-  else
-    die("Syntax: disable_replay next_query|testfile <reason>");
-
-  /* Skip whitespace between the scope token and the reason */
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-
-  if (p >= end)
-    die("Syntax: disable_replay next_query|testfile <reason>  (reason missing)");
-
-  command->last_argument= command->end;
-  DBUG_VOID_RETURN;
-}
-
-
 /*
   Run query using MySQL C API
 
@@ -11262,6 +11412,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   MYSQL_RES *res= 0;
   MYSQL *mysql= cn->mysql;
   int err= 0, counter= 0;
+  struct st_query_hooks hooks= { FALSE };
   DBUG_ENTER("run_query_normal");
   DBUG_PRINT("enter",("flags: %d", flags));
   DBUG_PRINT("enter", ("query: '%-.60s'", query));
@@ -11297,6 +11448,8 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   default: /* not a prepared statement command */
     break;
   }
+
+  query_hooks_pre_query(&hooks, mysql, flags, query, query_len);
 
   if (flags & QUERY_SEND_FLAG)
   {
@@ -11349,13 +11502,20 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	MYSQL_FIELD *fields= mysql_fetch_fields(res);
 	uint num_fields= mysql_num_fields(res);
 
+	my_bool hook_owns_result= query_hooks_own_result(&hooks, mysql, counter);
+
 	if (display_metadata)
           append_metadata(ds, fields, num_fields);
 
-	if (!display_result_vertically)
+	/* A hook that owns this result set supplies the headings itself */
+	if (!display_result_vertically && !hook_owns_result)
 	  append_table_headings(ds, fields, num_fields);
 
-	append_result(ds, res);
+	if (hook_owns_result)
+	  query_hooks_result(&hooks, mysql, &res, fields, num_fields,
+	                     query, query_len, ds);
+	else
+	  append_result(ds, res);
       }
 
       /*
@@ -11413,6 +11573,13 @@ end:
     variable then can be used from the test case itself.
   */
   var_set_errno(mysql_errno(mysql));
+
+  /*
+    Undoing a hook's setup runs statements of its own on the connection, so
+    it has to come after the errno of the query itself has been saved - those
+    statements succeed and would otherwise leave $mysql_errno at 0.
+  */
+  query_hooks_post_query(&hooks, mysql);
   DBUG_VOID_RETURN;
 }
 
@@ -12835,11 +13002,31 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+  /*
+    Filter: query starts with the EXPLAIN keyword.
+  */
+  const char *explain_re_str =
+    "^[[:space:]]*EXPLAIN([[:space:]]|$)";
+
+  /*
+    Filter: EXPLAIN ... FOR CONNECTION ... (any EXPLAIN options between).
+    Matches forms like:
+      EXPLAIN FOR CONNECTION <id>
+      EXPLAIN FORMAT=JSON FOR CONNECTION <id>
+      EXPLAIN EXTENDED FOR CONNECTION <id>
+    The query body of a real EXPLAIN never ends with "FOR CONNECTION", so a
+    plain substring-style match is safe in practice.
+  */
+  const char *explain_for_conn_re_str =
+    "^[[:space:]]*EXPLAIN[[:space:]](.*[[:space:]])?FOR[[:space:]]+CONNECTION([[:space:]]|$)";
+
   init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&ps2_re, ps2_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
   init_re_comp(&cursor_re, cursor_re_str);
+  init_re_comp(&explain_re, explain_re_str);
+  init_re_comp(&explain_for_conn_re, explain_for_conn_re_str);
 }
 
 
@@ -12878,6 +13065,8 @@ void free_re(void)
   regfree(&sp_re);
   regfree(&view_re);
   regfree(&cursor_re);
+  regfree(&explain_re);
+  regfree(&explain_for_conn_re);
 }
 
 /****************************************************************************/
@@ -13221,6 +13410,8 @@ int main(int argc, char **argv)
   }
   var_set_string("MYSQLTEST_FILE", cur_file->file_name);
   init_re();
+
+  replay_init(result_file_name);
 
   /* Cursor protocol implies ps protocol */
   if (cursor_protocol)
@@ -13612,8 +13803,14 @@ int main(int argc, char **argv)
         enable_optimizer_trace(cur_con);
         break;
       case Q_DISABLE_REPLAY:
-        do_disable_replay(command);
+      {
+        const char *err= replay_do_disable(command->first_argument,
+                                           command->end);
+        if (err)
+          die("%s", err);
+        command->last_argument= command->end;
         break;
+      }
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
                              mysql_shutdown(cur_con->mysql,
