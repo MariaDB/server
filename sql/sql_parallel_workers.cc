@@ -295,8 +295,9 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     to take the next one from.
   */
   if (layout.build(thd, join, exec.tables, exec.n_tables,
-                   pwt_preagg_group(join)) ||
-      setup_transport(thd, n))
+                   pwt_preagg_group(join), pwt_manager_sort_order(join)) ||
+      setup_transport(thd, n) ||
+      (layout.plan_sorts && setup_sort_stage(thd)))
     goto cleanup_workers;
 
   reaped= false;
