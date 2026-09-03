@@ -2750,7 +2750,15 @@ class Grant_tables
       DBUG_RETURN(res);
 
     if (build_table_list(thd, &first, which_tables, lock_type, tables))
-      goto func_exit;
+    {
+      /*
+        No table in 'tables' has been touched yet (all entries are still
+        uninitialized memory from the my_malloc() above), so we must not
+        run the pos_in_table_list cleanup loop in func_exit against it.
+      */
+      my_free(tables);
+      DBUG_RETURN(res);
+    }
 
     res= really_open(thd, first, &counter);
 
@@ -2802,6 +2810,9 @@ class Grant_tables
     }
 
 func_exit:
+    for (int i= USER_TABLE; i >= 0; i--)
+      if (tables[i].table)
+        tables[i].table->pos_in_table_list= NULL;
     my_free(tables);
     DBUG_RETURN(res);
   }

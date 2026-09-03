@@ -86,6 +86,7 @@ class MYSQL_LOG;
 struct rpl_group_info;
 class Opt_hints_qb;
 class Opt_hints_table;
+class Lex_tablesample;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -2883,6 +2884,8 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+
+  Lex_tablesample *tablesample_clause;
 
   /*
     Two fields below are set during parsing this table reference in the cases
