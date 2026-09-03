@@ -8325,20 +8325,6 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
-  bool backup_lock_released= false;
-
-  /*
-    Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to commit
-    This is needed to avoid deadlock between the other threads (which not
-    yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
-    BACKUP LOCK BLOCK_COMMIT.
-  */
-  if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
-  {
-    backup_lock_released= true;
-    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-    thd->backup_commit_lock->ticket= 0;
-  }
 
   mysql_mutex_lock(&LOCK_wait_commit);
   DEBUG_SYNC(thd, "wait_for_prior_commit_waiting");
@@ -8392,16 +8378,10 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     use within enter_cond/exit_cond.
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
-  if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
   return wakeup_error;
 }
 
