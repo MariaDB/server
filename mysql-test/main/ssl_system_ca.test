@@ -11,9 +11,7 @@ source include/not_embedded.inc;
 # cert verification on Windows on localhost
 source include/not_windows.inc;
 
-if (`select @@version_ssl_library not like 'OpenSSL%'`) {
-  skip Needs OpenSSL;
-}
+source include/require_openssl_client.inc;
 
 # See `openssl x509 -in cacert.pem -noout -issuer_hash`
 copy_file $MYSQL_TEST_DIR/std_data/cacert.pem $MYSQL_TMP_DIR/ed1f42db.0;
