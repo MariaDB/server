@@ -194,6 +194,8 @@ INSERT INTO wp_blogs (domain, path) VALUES
 ('foo', 'bar'), ('bar', 'foo'), ('foo', 'foo'), ('bar', 'bar'),
 ('foo', 'foobar'), ('bar', 'foobar'), ('foobar', 'foobar');
 
+# unordered, and a parallel scan does not preserve the access method's order
+--sorted_result
 SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
 AND path IN ( '/fondsinvesteringer/', '/' );
 
