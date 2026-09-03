@@ -3900,13 +3900,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   uint max_length= table->in_use->gconcat_max_len();
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
-  String tmp2;
   uchar *key= (uchar *) key_arg;
   String *result= &item->result;
   Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
   uint old_length= result->length();
 
-  ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
   if (item->limit_clause && !(*row_limit))
   {
@@ -3914,15 +3912,14 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     item->walk_stopped= true;
     return 1;
   }
-
-  tmp.length(0);
-
-  if (item->limit_clause && (*offset_limit))
+  if (item->copy_offset_limit)
   {
+    item->copy_offset_limit--;
     item->row_count++;
-    (*offset_limit)--;
     return 0;
   }
+
+  tmp.length(0);
 
   if (!item->result_finalized)
     item->result_finalized= true;
@@ -4187,6 +4184,10 @@ Item *Item_func_group_concat::copy_or_same(THD* thd)
 }
 
 
+/*
+  Clear is called for the first element in a new group
+*/
+
 void Item_func_group_concat::clear()
 {
   result.length(0);
@@ -4197,8 +4198,10 @@ void Item_func_group_concat::clear()
   value_cut_in_result= FALSE;
   walk_failed= FALSE;
   result_finalized= false;
+  copy_offset_limit= 0;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
+  /* copy_row_limit does not have to be zeroed if row_limit is not set */
   if (row_limit)
     copy_row_limit= row_limit->val_int();
   if (tree)
@@ -4788,9 +4791,12 @@ String* Item_func_group_concat::val_str(String* str)
         walk_failed= TRUE;
     }
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
+    {
+      /* No rows copied; Empty result */
       return &result;
+    }
     else
-      DBUG_ASSERT(false); // Can't happen
+      DBUG_ASSERT(false); // Can't happen. If it happens, no wrong result
     /*
       dump_leaf_key() sets this when it writes a row, but a group can end
       without one: an OFFSET can eat every row, and a walk that failed
