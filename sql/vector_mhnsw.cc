@@ -1994,16 +1994,16 @@ maria_declare_plugin(mhnsw)
   mhnsw_sys_vars, "1.0", MariaDB_PLUGIN_MATURITY_STABLE
 },
 {
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,  
-  &vi_descriptor,                  
-  "VECTOR_INDEXES",               
-  "MariaDB plc",                 
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &vi_descriptor,
+  "VECTOR_INDEXES",
+  "MariaDB plc",
   "Information about vector indexes",
   PLUGIN_LICENSE_GPL,
-  vector_indexes_init,              
-  NULL,                            
-  0x0100,                         
+  vector_indexes_init,
+  NULL,
+  0x0100,
   NULL, NULL, "1.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
