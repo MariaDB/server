@@ -1,0 +1,46 @@
+# A REPLACE that the master accepts must also apply on the slave when
+# both run with a max_heap_table_size the table is already over.
+#
+# The two sides reach different engine states from the same statement.
+# REPLACE INTO t SELECT * FROM t feeds the row back out of the table, so
+# the record buffer's blob pointer still points into the chain that the
+# delete parked, the chain is adopted rather than freed, and the record
+# cursor never moves.  The slave builds the row from the replication
+# event buffer instead, so nothing points into the parked chain, it is
+# freed, and hp_shrink_tail() walks the cursor back onto a leaf
+# boundary.  Reclaiming that leaf adds no memory and must not be
+# refused, or the statement stops the SQL thread with
+# HA_ERR_RECORD_FILE_FULL.
+#
+# The table holds a single row on purpose.  REPLACE frees and rewrites
+# one row at a time, so with a second row present the freed records are
+# never the ones at the tail, the cursor stays put and the leaf boundary
+# is never reached.
+#
+# The ceiling is set in blob_replace_repl_ceiling.opt rather than by the
+# test, so that both servers hold the same value throughout.
+
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (
+  pk INT PRIMARY KEY,
+  b TEXT,
+  c VARCHAR(8),
+  UNIQUE(c)
+) ENGINE=MEMORY;
+
+INSERT INTO t1 VALUES (1,'one','foo');
+REPLACE INTO t1 SELECT * FROM t1;
+
+--sync_slave_with_master
+
+--echo # Slave applied the REPLACE
+SELECT * FROM t1;
+
+--connection master
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--source include/rpl_end.inc
