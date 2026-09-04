@@ -152,6 +152,7 @@ MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
 
 #include "ha_innodb.h"
 #include "i_s.h"
+#include "backup_innodb.h"
 
 #include <string>
 #include <sstream>
@@ -4185,6 +4186,9 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+	innobase_hton->backup_start = innodb_backup_start;
+	innobase_hton->backup_step = innodb_backup_step;
+	innobase_hton->backup_end = innodb_backup_end;
         innobase_hton->binlog_init= innodb_binlog_init;
         innobase_hton->set_binlog_max_size= ibb_set_max_size;
         innobase_hton->binlog_write_direct_ordered=
@@ -18885,39 +18889,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
       break;
     case log_t::RESIZE_STARTED:
-      for (timespec abstime;;)
-      {
-        if (thd_kill_level(thd))
-        {
-          log_sys.resize_abort(thd);
-          break;
-        }
-
-        set_timespec(abstime, 5);
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        lsn_t resizing= log_sys.resize_in_progress();
-        if (resizing > buf_pool.get_oldest_modification(0))
-        {
-          buf_pool.page_cleaner_wakeup(true);
-          my_cond_timedwait(&buf_pool.done_flush_list,
-                            &buf_pool.flush_list_mutex.m_mutex, &abstime);
-          resizing= log_sys.resize_in_progress();
-        }
-        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (!resizing || !log_sys.resize_running(thd))
-          break;
-        log_sys.latch.wr_lock();
-        while (resizing > log_sys.get_lsn())
-        {
-          ut_ad(!log_sys.is_mmap());
-          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
-          to ensure that the log resizing will complete. */
-          mtr_t mtr{nullptr};
-          mtr.start();
-          mtr.commit_files(log_sys.last_checkpoint_lsn);
-        }
-        log_sys.latch.wr_unlock();
-      }
+      log_sys.resize_finish(thd);
     }
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -19774,7 +19746,9 @@ static void innodb_log_archive_update(THD *thd, st_mysql_sys_var*,
 {
   /* MDEV-36828 TODO: On failure, report which other setting
   conflicted with the request */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   log_sys.set_archive(*static_cast<const my_bool*>(save), thd);
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,
@@ -19787,10 +19761,20 @@ static MYSQL_SYSVAR_UINT64_T(log_archive_start, innodb_log_archive_start,
   "initial value of innodb_lsn_archived; 0=auto-detect",
   nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
 
+static void innodb_log_recovery_start_update(THD *, st_mysql_sys_var*,
+                                             void *, const void *save) noexcept
+{
+  const lsn_t lsn{*static_cast<const uint64_t*>(save)};
+  recv_sys.recovery_start= lsn;
+  if (lsn && log_sys.archive)
+    log_sys.archived_checkpoint= lsn;
+}
+
 static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "LSN to start recovery from (0=automatic)",
-  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+  nullptr, innodb_log_recovery_start_update,
+  0, 0, std::numeric_limits<uint64_t>::max(), 0);
 
 static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

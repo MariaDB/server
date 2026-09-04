@@ -50,6 +50,7 @@
 #include "sql_alter.h"                         // Sql_cmd_alter_table*
 #include "sql_truncate.h"                      // Sql_cmd_truncate_table
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
+#include "sql_backup.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part.
 #include "sql_handler.h"                       // Sql_cmd_handler_*
 #include "sql_signal.h"
@@ -1473,7 +1474,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <json_on_response> json_on_response
 
 %type <ulong_num> json_type_constraint
-%type <num> json_key_unique_constraint
+%type <num> json_key_unique_constraint opt_concurrent
 %type <json_predicate> json_predicate
 
 %type <Lex_field_type> field_type field_type_all field_type_all_builtin
@@ -15563,6 +15564,31 @@ backup_statements:
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
           }
+        | SERVER_SYM TO_SYM TEXT_STRING_sys opt_concurrent
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3, $4);
+          }
+        | SERVER_SYM WITH opt_concurrent TEXT_STRING_sys
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3, $4);
+          }
+        ;
+
+opt_concurrent:
+        /* empty */
+        { $$= 1; }
+        | ulonglong_num CONCURRENT
+        {
+          $$= int($1);
+          if ($1 < 1 || $1 > 256)
+          {
+            my_error(ER_DATA_OUT_OF_RANGE, myf(0), "CONCURRENT",
+                     "BACKUP SERVER");
+            MYSQL_YYABORT;
+          }
+        }
         ;
 
 opt_delete_gtid_domain:

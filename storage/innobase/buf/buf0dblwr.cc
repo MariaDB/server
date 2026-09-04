@@ -752,7 +752,7 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
                                        static_cast<const byte*>(frame)));
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
-    if (lsn < e.request.node->space->get_create_lsn())
+    if (lsn < e.request.node->space->create_lsn)
     {
       /* mtr_t::commit_shrink() must have been invoked between
       buf_dblwr_t::flush_buffered_writes() and

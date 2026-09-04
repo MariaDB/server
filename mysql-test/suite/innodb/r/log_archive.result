@@ -7,6 +7,7 @@ call mtr.add_suppression("InnoDB: Renaming ib_ffffffffff803000\\.log to ib_logfi
 call mtr.add_suppression("InnoDB: ignoring .*ib_ffffffffffc00000\\.log");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("mariadbd.*: Out of memory");
 # restart: --innodb-read-only --innodb-log-recovery-start=12288
 SELECT variable_name, variable_value FROM information_schema.global_status
 WHERE variable_name LIKE 'INNODB_LSN%';
@@ -51,6 +52,8 @@ ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mo
 TRUNCATE TABLE mysql.innodb_table_stats;
 ERROR HY000: Table 'innodb_table_stats' is read only
 SET GLOBAL innodb_log_archive=!@@GLOBAL.innodb_log_archive;
+ERROR HY000: InnoDB is in read only mode
+BACKUP SERVER TO '$target_directory';
 ERROR HY000: InnoDB is in read only mode
 # restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
 SELECT variable_name, variable_value FROM information_schema.global_status

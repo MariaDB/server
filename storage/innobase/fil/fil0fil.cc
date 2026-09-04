@@ -2035,6 +2035,7 @@ fil_ibd_create(
 	fil_node_t* node = space->add(path, OS_FILE_CLOSED, size, false, true);
 	space->set_stopped();
 	mysql_mutex_unlock(&fil_system.mutex);
+	lsn_t create_lsn;
 
 	buf_block_t *header[2];
 	{
@@ -2053,9 +2054,10 @@ fil_ibd_create(
 		header[0]->page.lock.x_lock();
 		header[1]->page.lock.x_lock();
 		mtr.commit();
+		create_lsn = mtr.commit_lsn();
 		/* Durably write the FILE_CREATE record (as well as records for
 		the fsp_header_init() above before creating the file. */
-		log_write_up_to(mtr.commit_lsn(), true);
+		log_write_up_to(create_lsn, true);
 	}
 
 	DEBUG_SYNC_C("fil_ibd_create_logged");
@@ -2136,6 +2138,7 @@ func_exit:
 
 	mysql_mutex_lock(&fil_system.mutex);
 	space->clear_stopped();
+	space->create_lsn = create_lsn;
 	node->handle = file;
 	node->find_metadata(IF_WIN(,true));
 	if (++fil_system.n_open >= srv_max_n_open_files) {
