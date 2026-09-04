@@ -1,0 +1,21 @@
+connect  master, 127.0.0.1, root, , , $MASTER_MYPORT;
+FLUSH BINARY LOGS;
+connect  slave, 127.0.0.1, root, , , $SLAVE_MYPORT;
+SET @@SESSION.default_master_connection= 'literal';
+CHANGE MASTER TO
+master_host='127.0.0.1', master_port=MASTER_MYPORT, master_user='root';
+include/start_slave.inc
+include/stop_slave.inc
+RESET SLAVE ALL;
+# MDEV-40996
+connection master;
+FLUSH BINARY LOGS;
+connection slave;
+SET @@SESSION.default_master_connection= 'variable';
+CHANGE MASTER TO
+master_host='127.0.0.1', master_port=MASTER_MYPORT, master_user='root';
+include/start_slave.inc
+include/stop_slave.inc
+RESET SLAVE ALL;
+disconnect master;
+disconnect slave;
