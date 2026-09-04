@@ -139,8 +139,6 @@ static bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
   else if (sorted.length() == 1)
     buf->append(STRING_WITH_LEN("xx"));
 
-  /* 4. space */
-  buf->append(' ');
   return false;
 }
 
@@ -186,7 +184,11 @@ String *Item_func_mvi_encode::val_str_ascii(String *buf)
         if (json_read_value(&je))
           goto json_error;
 
-        at_least_one = !encode_mvi_key(&je, cast_th, cs, buf) || at_least_one;
+        if (!encode_mvi_key(&je, cast_th, cs, buf))
+        {
+          buf->append(' ');
+          at_least_one= true;
+        }
         break;
       }
       default:
@@ -228,35 +230,39 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
   return false;
 }
 
+/* Collect all the MVI indexes in `join' */
 static
-bool collect_mvi_vcols_for_join(JOIN *join, List<Field> *vcol_fields)
+bool collect_mvi_vcols_for_join(JOIN *join, List<Mv_index> *indexes)
 {
   List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
   TABLE_LIST *tl;
   TABLE *table;
+  THD *thd= join->thd;
   while ((tl= ti++))
   {
     if (!(table= tl->table)) // non-merged semi-join or something like that
       continue;
-    // TODO: Make use of iterator to loop through
-    // keys_in_use_for_query, instead.
     for (uint i=0; i < table->s->keys; i++)
     {
-      // note: we could also support histograms here
       if (!table->keys_in_use_for_query.is_set(i))
         continue;
 
       KEY *key= &table->key_info[i];
       for (uint kp=0; kp < key->user_defined_key_parts; kp++)
       {
+        /* TODO: "legacy" */
+        if (!(key->flags & HA_FULLTEXT_legacy)) continue;
         Field *field= key->key_part[kp].field;
         if (field->invisible == INVISIBLE_FULL &&
             field->vcol_info &&
             field->vcol_info->expr->type() == Item::FUNC_ITEM &&
             ((Item_func *) field->vcol_info->expr)->functype() ==
-              Item_func::MVI_ENCODE_FUNC &&
-            vcol_fields->push_back(field))
-          return TRUE; // Out of memory
+            Item_func::MVI_ENCODE_FUNC)
+        {
+          Mv_index *index= new (thd->mem_root) Mv_index(field, i);
+          if (indexes->push_back(index))
+            return TRUE; // Out of memory
+        }
       }
     }
   }
@@ -267,24 +273,29 @@ class Mvi_context
 {
  public:
   THD *thd;
-  /* Virtual columns with fulltext index that we can try substituting */
-  List<Field> vcol_fields;
+  /* All MV indexes in the JOIN */
+  List<Mv_index> indexes;
+  /* MVI accesses for all eligible predicates in WHERE */
+  List<Mvi_access> accesses;
 
   Mvi_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
-Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
-                                                 List<Field> *vcol_fields)
+bool Item_func_json_contains::mvi_analyze(void *arg)
 {
-  List_iterator<Field> it(*vcol_fields);
+  Mvi_context *ctx= (Mvi_context *) arg;
+  List_iterator<Mv_index> it(ctx->indexes);
   Field *vcol_field;
-  CHARSET_INFO *cs;
-  Item_func_mvi_encode *mvitem;
+  Mv_index *index;
+  CHARSET_INFO *cs= NULL;
+  Item_func_mvi_encode *mvitem= NULL;
   DBUG_ASSERT(fixed());
   if (arg_count > 2 || !a2_constant)
-    return NULL;
-  while ((vcol_field= it++))
+    return false;
+  /* Find the MVI that matches the first argument */
+  while ((index= it++))
   {
+    vcol_field= index->vcol;
     DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
     DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
                 MVI_ENCODE_FUNC);
@@ -295,11 +306,117 @@ Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
       break;
     }
   }
-  if (!vcol_field)
+  if (!index)
+    return false;
+
+  /* Get ready to construct the ft queries from the second argument */
+  const Type_handler *cast_th= mvitem->cast_type().type_handler();
+  const uchar *start, *end;
+  Mvi_access *access= NULL;
+  StringBuffer<256> buf;
+  buf.length(0);
+  buf.set_charset(&my_charset_latin1_bin);
+  DBUG_ASSERT(fixed());
+  if (!a2_parsed)
+  {
+    val= args[1]->val_json(&tmp_val);
+    a2_parsed= true;
+  }
+  if (!val)
+    return false;
+  start= reinterpret_cast<const uchar *>(val->ptr());
+  end= start + val->length();
+
+  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
+    return false;
+
+  if (je.value_type == JSON_VALUE_UNINITIALIZED ||
+      je.value_type == JSON_VALUE_OBJECT)
+    return false;
+  if (je.value_type != JSON_VALUE_ARRAY)
+  {
+    /* scalar */
+    if (!encode_mvi_key(&je, cast_th, cs, &buf))
+    {
+      access= new (ctx->thd->mem_root) Mvi_access(index, true);
+      /* TODO: there gotta be a less verbose way to construct s. */
+      String *s= new (ctx->thd->mem_root) String;
+      s->set_charset(&my_charset_latin1_bin);
+      if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
+        return true;
+      access->encoded.push_back(s);
+    }
+    goto ok;
+  }
+
+  /* TODO: deduplicate? */
+  do {
+    buf.length(0);
+    switch (je.state)
+    {
+      /* TODO: nested array? */
+      case JST_ARRAY_START:
+        continue;
+      case JST_ARRAY_END:
+        break;
+      case JST_VALUE:
+      {
+        if (json_read_value(&je))
+          return false;
+
+        if (!encode_mvi_key(&je, cast_th, cs, &buf))
+        {
+          if (!access)
+            access= new (ctx->thd->mem_root) Mvi_access(index, true);
+          /* TODO: there gotta be a less verbose way to construct s. */
+          String *s= new (ctx->thd->mem_root) String;
+          s->set_charset(&my_charset_latin1_bin);
+          if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
+            return true;
+          access->encoded.push_back(s);
+        }
+        break;
+      }
+      default:
+        return false;
+    }
+  } while (json_scan_next(&je) == 0);
+
+ok:
+  if (access)
+    ctx->accesses.push_back(access);
+  return false;
+}
+
+
+Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
+                                                 List<Mv_index> *indexes)
+{
+  List_iterator<Mv_index> it(*indexes);
+  Mv_index *index;
+  Field *vcol_field= NULL;
+  CHARSET_INFO *cs= NULL;
+  Item_func_mvi_encode *mvitem= NULL;
+  DBUG_ASSERT(fixed());
+  if (arg_count > 2 || !a2_constant)
+    return NULL;
+  while ((index= it++))
+  {
+    vcol_field= index->vcol;
+    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
+    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
+                MVI_ENCODE_FUNC);
+    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
+    if (mvitem->arguments()[0]->eq(args[0], true))
+    {
+      cs= mvitem->arguments()[0]->collation.collation;
+      break;
+    }
+  }
+  if (!index)
     return NULL;
 
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  StringBuffer<42> sorted;
   StringBuffer<256> buf;
   const uchar *start, *end;
   List<Item> ifm_args;
@@ -328,8 +445,8 @@ Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
   if (je.value_type != JSON_VALUE_ARRAY)
   {
     /* scalar */
-    if ((at_least_one = !encode_mvi_key(&je, cast_th, cs, &buf)))
-      buf.length(buf.length() - 1);
+    if (!encode_mvi_key(&je, cast_th, cs, &buf))
+      at_least_one= true;
     goto ok;
   }
 
@@ -353,7 +470,10 @@ Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
         if (encode_mvi_key(&je, cast_th, cs, &buf))
           buf.length(buf.length() - 1);
         else
-          at_least_one = true;
+        {
+          buf.append(' ');
+          at_least_one= true;
+        }
         break;
       }
       default:
@@ -381,7 +501,7 @@ static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
   THD *thd= ctx->thd;
   if (conds->type() != Item::COND_ITEM)
   {
-    if ((match= conds->create_ft_for_mvi(thd, &ctx->vcol_fields)))
+    if ((match= conds->create_ft_for_mvi(thd, &ctx->indexes)))
     {
       matches.push_back(match);
       ftfunc_list->push_back((Item_func_match *) match);
@@ -394,7 +514,7 @@ static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
     List_iterator<Item> it(*((Item_cond *) conds)->argument_list());
     while ((cond= it++))
     {
-      if ((match= cond->create_ft_for_mvi(thd, &ctx->vcol_fields)))
+      if ((match= cond->create_ft_for_mvi(thd, &ctx->indexes)))
       {
         matches.push_back(match);
         ftfunc_list->push_back((Item_func_match *) match);
@@ -414,12 +534,47 @@ static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
   return false;
 }
 
+static void choose_mvi_access_for_tables(List<Mvi_access> *accesses, Mvi_access **best)
+{
+  List_iterator<Mvi_access> it(*accesses);
+  /* TODO: cost based */
+  /*
+    TODO: merge
+
+    json_contains(j->'$.tags','"a"') and
+    json_contains(j->'$.tags','"b"')
+
+    (+ta +tb)
+  */
+  while (Mvi_access *access= it++)
+    best[access->index->vcol->table->tablenr] = access;
+}
+
+/* Build the scan and install it to join */
+bool setup_mvi_quick(JOIN *join)
+{
+  Mvi_context ctx(join->thd);
+  Mvi_access *best[MAX_TABLES];
+  bzero(best, sizeof(best));
+  if (!join->conds)
+    return false;
+  if (collect_mvi_vcols_for_join(join, &ctx.indexes))
+    return true;
+  if (!ctx.indexes.is_empty() &&
+      join->conds->walk(&Item::mvi_analyze, &ctx, WALK_SUBQUERY))
+    return true;
+  choose_mvi_access_for_tables(&ctx.accesses, best);
+  return false;
+}
+
 bool setup_mvi_for_join(JOIN *join)
 {
   Mvi_context ctx(join->thd);
-  if (collect_mvi_vcols_for_join(join, &ctx.vcol_fields))
+  if (!join->conds)
+    return false;
+  if (collect_mvi_vcols_for_join(join, &ctx.indexes))
     return true;
-  if (!ctx.vcol_fields.is_empty() && join->conds)
+  if (!ctx.indexes.is_empty())
     return add_ft_for_mvi(&ctx, &join->conds, join->select_lex->ftfunc_list);
   return false;
 }

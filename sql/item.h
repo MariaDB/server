@@ -822,6 +822,8 @@ const item_walk_flags WALK_NO_CACHE_PROCESS= (1<<1);
 const item_walk_flags WALK_NO_REF=           (1<<2);
 
 
+struct Mv_index;
+
 class Item :public Value_source,
             public Type_all_attributes
 {
@@ -2307,6 +2309,7 @@ public:
     invoked with this processor
   */
   virtual bool get_context_for_vcol_processor(void *arg) { return 0; }
+  virtual bool mvi_analyze(void *arg) { return 0; }
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
@@ -2859,7 +2862,7 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
-  virtual Item *create_ft_for_mvi(THD *thd, List<Field> *vcol_fields)
+  virtual Item *create_ft_for_mvi(THD *thd, List<Mv_index> *indexes)
   {
     return NULL;
   }
