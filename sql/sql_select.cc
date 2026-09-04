@@ -24221,6 +24221,7 @@ do_select(JOIN *join, Procedure *procedure)
     else if (join->send_row_on_empty_set())
     {
       table_map cleared_tables= (table_map) 0;
+      join->rollup_set_level(0);
       if (end_select == end_send_group)
       {
         /*
