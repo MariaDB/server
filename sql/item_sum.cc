@@ -1457,10 +1457,7 @@ Item_sum_sp::add()
 void
 Item_sum_sp::clear()
 {
-  delete func_ctx;
-  func_ctx= NULL;
-  sp_query_arena->free_items();
-  free_root(&sp_mem_root, MYF(0));
+  free_call_ctx();
 }
 
 const Type_handler *Item_sum_sp::type_handler() const
