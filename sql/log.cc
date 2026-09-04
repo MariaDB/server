@@ -3871,15 +3871,15 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
     Create an index file that will hold all file names uses for logging.
     Add new entries to the end of it.
   */
-  myf opt= MY_UNPACK_FILENAME;
+  myf opt= MY_UNPACK_FILENAME | MY_SAFE_PATH;
   if (!index_file_name_arg)
   {
     index_file_name_arg= log_name;    // Use same basename for index file
-    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT;
+    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_SAFE_PATH;
   }
-  fn_format(index_file_name, index_file_name_arg, mysql_data_home,
-            ".index", opt);
-  if ((index_file_nr= mysql_file_open(m_key_file_log_index,
+  if (!fn_format(index_file_name, index_file_name_arg, mysql_data_home,
+                ".index", opt) ||
+      (index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
                                       O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
@@ -4474,6 +4474,13 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
   log_name_len= log_name ? (uint) strlen(full_log_name) : 0;
   DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s", 
                        log_name ? log_name : "NULL", full_log_name));
+
+  /* index_file is not open if the log/index file failed to be created */
+  if (!my_b_inited(&index_file))
+  {
+    error= LOG_INFO_EOF;
+    goto end;
+  }
 
   /* As the file is flushed, we can't get an error here */
   (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
