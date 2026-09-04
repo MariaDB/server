@@ -11139,7 +11139,8 @@ void ha_partition::release_auto_increment()
         we can lower the reserved value.
       */
       if (next_insert_id < next_auto_inc_val &&
-          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val &&
+          next_insert_id >= auto_inc_interval_for_cur_row.minimum())
       {
         THD *thd= ha_thd();
         /*
