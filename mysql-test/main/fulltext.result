@@ -788,3 +788,24 @@ CREATE TEMPORARY TABLE tmp (a TEXT) ENGINE=Aria;
 ALTER TABLE tmp ADD FULLTEXT (a);
 INSERT INTO tmp VALUES ('foo');
 DROP TABLE tmp;
+#
+# MDEV-32383 Server crashes in Item_func_match::init_search on 2nd execution of PS
+#
+CREATE TABLE t (a VARCHAR(255), FULLTEXT(a));
+INSERT INTO t VALUES ('foo'),('bar');
+CREATE VIEW v AS
+SELECT MATCH (a) AGAINST ('MariaDB' IN NATURAL LANGUAGE MODE) AS f
+FROM t
+WHERE MATCH (a) AGAINST ('MariaDB' IN NATURAL LANGUAGE MODE) > 0
+ORDER BY f;
+PREPARE stmt FROM "SELECT f FROM v ORDER BY f";
+EXECUTE stmt;
+f
+EXECUTE stmt;
+f
+DEALLOCATE PREPARE stmt;
+DROP VIEW v;
+DROP TABLE t;
+#
+# End of 10.11 tests
+#
