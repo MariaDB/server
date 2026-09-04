@@ -1,0 +1,115 @@
+connection node_2;
+connection node_1;
+#
+# Each pair below is two distinct values whose bytes fold to the same
+# latin1_swedish_ci weight string (0xC0->0x41, 0x6A->0x4A, 0x6B->0x4B,
+# 0xD2->0x4F, 0x7A->0x5A). A UUID is stored as a byte permutation of the
+# value shown, which does not affect a byte-wise folding.
+#
+SELECT WEIGHT_STRING(_latin1 0xC0A8016B9E4D4F7AB3D26A1E8F9C0D1B) =
+WEIGHT_STRING(_latin1 0x41A8014B9E4D4F5AB34F4A1E8F9C0D1B) AS uuid_pair_collides,
+WEIGHT_STRING(_latin1 0x20010DB80000000000000000C0A8016B) =
+WEIGHT_STRING(_latin1 0x20010DB8000000000000000041A8014B) AS inet6_pair_collides,
+WEIGHT_STRING(_latin1 0xC0A8016B) =
+WEIGHT_STRING(_latin1 0x41A8014B) AS inet4_pair_collides;
+uuid_pair_collides	inet6_pair_collides	inet4_pair_collides
+1	1	1
+#
+# UUID
+#
+connection node_1;
+CREATE TABLE t (id UUID PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b', 0), ('41a8014b-9e4d-4f5a-b34f-4a1e8f9c0d1b', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+UPDATE t SET v = 1 WHERE id = 'c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b';
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE t SET v = 2 WHERE id = '41a8014b-9e4d-4f5a-b34f-4a1e8f9c0d1b';
+connection node_2;
+no_false_dependency
+1
+SELECT COUNT(*) = 1 AS second_row_applied_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+second_row_applied_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT id, v FROM t ORDER BY v;
+id	v
+c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b	1
+41a8014b-9e4d-4f5a-b34f-4a1e8f9c0d1b	2
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE t;
+#
+# INET6
+#
+connection node_1;
+CREATE TABLE t (id INET6 PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('2001:db8::c0a8:16b', 0), ('2001:db8::41a8:14b', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+UPDATE t SET v = 1 WHERE id = '2001:db8::c0a8:16b';
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE t SET v = 2 WHERE id = '2001:db8::41a8:14b';
+connection node_2;
+no_false_dependency
+1
+SELECT COUNT(*) = 1 AS second_row_applied_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+second_row_applied_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT id, v FROM t ORDER BY v;
+id	v
+2001:db8::c0a8:16b	1
+2001:db8::41a8:14b	2
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE t;
+#
+# INET4
+#
+connection node_1;
+CREATE TABLE t (id INET4 PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('192.168.1.107', 0), ('65.168.1.75', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+UPDATE t SET v = 1 WHERE id = '192.168.1.107';
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE t SET v = 2 WHERE id = '65.168.1.75';
+connection node_2;
+no_false_dependency
+1
+SELECT COUNT(*) = 1 AS second_row_applied_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+second_row_applied_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT id, v FROM t ORDER BY v;
+id	v
+192.168.1.107	1
+65.168.1.75	2
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE t;
