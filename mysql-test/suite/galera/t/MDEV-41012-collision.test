@@ -1,0 +1,64 @@
+#
+# MDEV-41012: certification key collision between distinct values of a fixed
+#             binary data type (UUID, INET6, INET4).
+#
+# Testing key collisions with data types on Field_fbt: UUID, INET6 and INET4,
+# where different keys could potentially generate same certification keys.
+# i.e. a scenario where two transactions modifying two *different*
+# rows certified as a conflict and the later one was aborted with a spurious
+# ER_LOCK_DEADLOCK.
+#
+# A shared key also gives the two writesets a false dependency on each other,
+# which serializes applying that should have run in parallel. The test detects
+# the collision that way, because it can be driven deterministically. Whether
+# the spurious ER_LOCK_DEADLOCK is observed instead depends on whether the
+# first writeset has already been applied by the time the second transaction
+# replicates, which is a race.
+#
+# This needs no foreign key: it is the row key path,
+# wsrep_store_key_val_for_row(), alone.
+#
+# This is the second half of MDEV-41012. The other half, a key *mismatch* for
+# one and the same row, is covered by galera.MDEV-41012.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+--echo #
+--echo # Each pair below is two distinct values whose bytes fold to the same
+--echo # latin1_swedish_ci weight string (0xC0->0x41, 0x6A->0x4A, 0x6B->0x4B,
+--echo # 0xD2->0x4F, 0x7A->0x5A). A UUID is stored as a byte permutation of the
+--echo # value shown, which does not affect a byte-wise folding.
+--echo #
+SELECT WEIGHT_STRING(_latin1 0xC0A8016B9E4D4F7AB3D26A1E8F9C0D1B) =
+       WEIGHT_STRING(_latin1 0x41A8014B9E4D4F5AB34F4A1E8F9C0D1B) AS uuid_pair_collides,
+       WEIGHT_STRING(_latin1 0x20010DB80000000000000000C0A8016B) =
+       WEIGHT_STRING(_latin1 0x20010DB8000000000000000041A8014B) AS inet6_pair_collides,
+       WEIGHT_STRING(_latin1 0xC0A8016B) =
+       WEIGHT_STRING(_latin1 0x41A8014B) AS inet4_pair_collides;
+
+--echo #
+--echo # UUID
+--echo #
+--let $fbt_type = UUID
+--let $fbt_value1 = 'c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b'
+--let $fbt_value2 = '41a8014b-9e4d-4f5a-b34f-4a1e8f9c0d1b'
+--source MDEV-41012-collision.inc
+
+--echo #
+--echo # INET6
+--echo #
+--let $fbt_type = INET6
+--let $fbt_value1 = '2001:db8::c0a8:16b'
+--let $fbt_value2 = '2001:db8::41a8:14b'
+--source MDEV-41012-collision.inc
+
+--echo #
+--echo # INET4
+--echo #
+--let $fbt_type = INET4
+--let $fbt_value1 = '192.168.1.107'
+--let $fbt_value2 = '65.168.1.75'
+--source MDEV-41012-collision.inc
