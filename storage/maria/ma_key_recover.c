@@ -1059,6 +1059,12 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     {
       uint insert_length= uint2korr(header);
       DBUG_PRINT("redo", ("key_op_add_suffix: %u", insert_length));
+      if (header + 2 + insert_length > header_end ||
+          page_length + insert_length > max_page_size)
+      {
+        result= mark_crashed= 1;
+        goto err;
+      }
       DBUG_ASSERT(page_length + insert_length <= max_page_size);
       memcpy(buff + page_length, header+2, insert_length);
 
@@ -1071,6 +1077,12 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       uint del_length= uint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_del_suffix: %u", del_length));
+      if (header > header_end ||
+          page_length < keypage_header + del_length)
+      {
+        result= mark_crashed= 1;
+        goto err;
+      }
       DBUG_ASSERT(page_length - del_length >= keypage_header);
       page_length-= del_length;
       break;
