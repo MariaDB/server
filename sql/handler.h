@@ -23,6 +23,7 @@
 
 #include "sql_const.h"
 #include "sql_basic_types.h"
+#include "sql_backup_interface.h"
 #include "mysqld.h"                             /* server_id */
 #include "optimizer_costs.h"
 #include "sql_plugin.h"        /* plugin_ref, st_plugin_int, plugin */
@@ -1892,8 +1893,47 @@ struct handlerton : public transaction_participant
   /*********************************************************************
     backup
   **********************************************************************/
+
+  /** BACKUP STAGE START */
   void (*prepare_for_backup)(void);
+  /** BACKUP STAGE END */
   void (*end_backup)(void);
+
+  /**
+     Start of a BACKUP SERVER phase,
+     when no backup_step() or backup_end() is pending.
+     @param thd     current session
+     @param target  backup target
+     @param phase   BACKUP_PHASE_PREPARE_START, ... (not BACKUP_PHASE_ABORT)
+     @param sink    worker context
+     @return backup context object to be attached to sink, or nullptr
+     @retval -1     on failure
+  */
+  void *(*backup_start)(THD *thd, const backup_target *target,
+                        backup_phase phase, const backup_sink *sink);
+  /**
+     Process a file that was collected in backup_start().
+     @param thd     current session
+     @param target  backup target
+     @param phase   last phase on which backup_start() was successfully invoked
+     @param sink    worker context
+     @return number of files remaining, or negative on error
+     @retval 0 on completion
+  */
+  int (*backup_step)(THD *thd, const backup_target *target,
+                     backup_phase phase, const backup_sink *sink);
+  /**
+     Finish a phase, once all calls for the current phase are completed.
+     @param thd     current sesssion
+     @param target  backup target
+     @param phase   last phase on which backup_start() was successfully
+     invoked, or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+     @param sink    worker context
+     @return error code
+     @retval 0 on success
+  */
+  int (*backup_end)(THD *thd, const backup_target *target, backup_phase phase,
+                    const backup_sink *sink);
 
   /**********************************************************************
    WSREP specific

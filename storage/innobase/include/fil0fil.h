@@ -408,6 +408,9 @@ private:
   /** Whether any corruption of this tablespace has been reported */
   mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
+  /** first page number that is not yet being backed up, or 0 */
+  std::atomic<uint32_t> backup_end{0};
+
 public:
   /** mutex to protect freed_ranges and last_freed_lsn */
   std::mutex freed_range_mutex;
@@ -418,9 +421,11 @@ private:
   /** LSN of freeing last page; protected by freed_range_mutex */
   lsn_t last_freed_lsn= 0;
 
-  /** LSN of undo tablespace creation or 0; protected by latch */
-  lsn_t create_lsn= 0;
 public:
+  /** LSN of tablespace creation or undo tablespace reinitialization;
+  protected by fil_system.mutex and (is_stopped() or log_sys.latch) */
+  Atomic_relaxed<lsn_t> create_lsn{0};
+
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
   { return UNIV_UNLIKELY(id == SRV_TMP_SPACE_ID); }
@@ -433,12 +438,6 @@ public:
 
   /** @return whether a page has been freed */
   inline bool is_freed(uint32_t page) noexcept;
-
-  /** Set create_lsn. */
-  inline void set_create_lsn(lsn_t lsn) noexcept;
-
-  /** @return the latest tablespace rebuild LSN, or 0 */
-  lsn_t get_create_lsn() const noexcept { return create_lsn; }
 
   /** Apply freed_ranges to the file.
   @param writable whether the file is writable
@@ -1058,6 +1057,19 @@ public:
     VALIDATE_IMPORT
   };
 
+  /** Note that we backing up some pages of the underlying files.
+  @param last_page   the last page that is being backed up (0=stop backup) */
+  void backup_start(uint32_t last_page) noexcept
+  { backup_end.store(last_page, std::memory_order_release); }
+  /** Note that we are not currently backing up the underlying files. */
+  void backup_stop() noexcept { backup_start(0); }
+  /** @return the first page number that is not being backed up */
+  uint32_t backup_page_end() const noexcept
+  { return backup_end.load(std::memory_order_acquire); }
+
+  /** The size of a backup::copy() batch in pages */
+  static constexpr uint32_t BACKUP_BATCH_SIZE{64};
+
   /** Update the data structures on write completion */
   void complete_write() noexcept;
 
@@ -1463,6 +1475,8 @@ public:
   my_bool buffered;
   /** whether fdatasync() is needed on data files */
   Atomic_relaxed<bool> need_unflushed_spaces;
+  /** whether dict_load_tablespaces(nullptr, true) is unnecessary */
+  Atomic_relaxed<bool> have_all_spaces;
 
   /** Try to enable or disable write-through of data files */
   void set_write_through(bool write_through);

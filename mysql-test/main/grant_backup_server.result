@@ -1,0 +1,27 @@
+CREATE USER user1@localhost IDENTIFIED BY '';
+connect con1,localhost,user1;
+BACKUP SERVER TO 'some_directory';
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+GRANT SELECT ON test.* TO user1@localhost;
+connect con1,localhost,user1;
+BACKUP SERVER TO 'some_directory';
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+GRANT RELOAD ON test.* TO user1@localhost;
+ERROR HY000: Incorrect usage of DB GRANT and GLOBAL PRIVILEGES
+GRANT RELOAD ON *.* TO user1@localhost;
+connect con1,localhost,user1;
+BACKUP SERVER TO 'some_directory';
+ERROR 42000: Access denied; you need (at least one of) the SELECT privilege(s) for this operation
+disconnect con1;
+connection default;
+GRANT SELECT ON *.* TO user1@localhost;
+connect con1,localhost,user1;
+BACKUP SERVER TO '$datadir/some_directory';
+ERROR HY000: Incorrect arguments to BACKUP SERVER TO
+disconnect con1;
+connection default;
+DROP USER user1@localhost;

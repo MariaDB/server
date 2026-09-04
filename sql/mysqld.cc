@@ -3537,6 +3537,7 @@ SHOW_VAR com_status_vars[]= {
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
   {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"backup_lock",          STMT_STATUS(SQLCOM_BACKUP_LOCK)},
+  {"backup_server",        STMT_STATUS(SQLCOM_BACKUP_SERVER)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
@@ -9451,7 +9452,7 @@ fn_format_relative_to_data_home(char * to, const char *name,
     @retval FALSE The path isn't secure
 */
 
-bool is_secure_file_path(char *path)
+bool is_secure_file_path(const char *path)
 {
   char buff1[FN_REFLEN], buff2[FN_REFLEN];
   size_t opt_secure_file_priv_len;
