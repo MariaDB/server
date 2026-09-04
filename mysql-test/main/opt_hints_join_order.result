@@ -893,7 +893,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
-Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Applicable hint
 EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta2) */
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -906,7 +906,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
-Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`) */  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Applicable hint
 EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta1, ta2) */
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -919,7 +919,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
-Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta1`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta1`,`ta2`) */  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Applicable hint
 EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(t2, t3, ta2, ta1) */
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -932,7 +932,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
-Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`,`ta1`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`,`ta1`) */  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Hint should be ignored
 EXPLAIN EXTENDED DELETE /*+ JOIN_SUFFIX(ta2, t3, ta1) */
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -945,7 +945,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Warning	4219	Hint JOIN_SUFFIX(`ta2`,`t3`,`ta1`) is ignored as conflicting/duplicated
-Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Both hints are ignored
 EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(ta1, t2, t3) JOIN_SUFFIX(t3, ta2) */
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -959,7 +959,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Warning	4219	Hint JOIN_PREFIX(`ta1`,`t2`,`t3`) is ignored as conflicting/duplicated
 Warning	4219	Hint JOIN_SUFFIX(`t3`,`ta2`) is ignored as conflicting/duplicated
-Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
+Note	1003	delete  from `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 DROP TABLE t1, t2, t3;
 # Const table behavior, table order is not changed, hint is applicable.
 # Note: Const tables are excluded from the process of dependency setting

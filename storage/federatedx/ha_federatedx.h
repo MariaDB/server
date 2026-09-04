@@ -177,6 +177,13 @@ public:
   virtual size_t max_query_size() const=0;
 
   virtual my_ulonglong affected_rows() const=0;
+  /*
+    Number of rows that matched the WHERE clause of the last statement.
+    For an UPDATE this can be larger than affected_rows() (rows that matched
+    but were left unchanged). When the server does not report it (e.g. for a
+    DELETE) this returns the same value as affected_rows().
+  */
+  virtual my_ulonglong matched_rows() const=0;
   virtual my_ulonglong last_insert_id() const=0;
 
   virtual int error_code()=0;
@@ -462,6 +469,7 @@ public:
   const FEDERATEDX_SHARE *get_federatedx_share() const { return share; }
   friend class ha_federatedx_derived_handler;
   friend class ha_federatedx_select_handler;
+  friend class ha_federatedx_multi_upddel_handler;
   friend class federatedx_handler_base;
 };
 
