@@ -80,13 +80,18 @@ INSERT INTO t2 SELECT seq FROM seq_1_to_1000;
 #    The exact result depends on sizeof(TREE_ELEMENT) and the
 #    reclength, so only check that the result came out short.
 #
+#    The row the warning names is how many rows the budget held,
+#    so it depends on the same two things and is masked as well.
+#    It is 88 where a pointer is eight bytes and 127 where it is
+#    four.
+#
 SET SESSION group_concat_max_len= 1024;
 SET SESSION tmp_table_size= 0;
 SELECT LENGTH(GROUP_CONCAT(a ORDER BY a)) < 1024 AS cut_by_memory FROM t2;
 cut_by_memory
 1
 Warnings:
-Warning	1260	Row 88 was cut by group_concat()
+Warning	1260	Row # was cut by group_concat()
 SHOW COUNT(*) WARNINGS;
 @@session.warning_count
 1
