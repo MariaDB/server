@@ -48,6 +48,10 @@ SET(MYSQLSERVICES_SOURCES
 )
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
+IF(MSVC)
+  # thin C API, no CRT state crosses it - don't force a CRT match on plugins
+  TARGET_COMPILE_OPTIONS(mysqlservices PRIVATE /Zl)
+ENDIF()
 
 INSTALL(TARGETS mysqlservices EXPORT mariadb-plugin-targets
         DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
