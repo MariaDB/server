@@ -46,6 +46,8 @@ Tests use MariaDB's MTR (MySQL Test Runner) framework. Test files live in `mysql
 
 All engine code is in the `myduck` namespace (except `ha_duckdb` which is in global scope per MariaDB handler convention).
 
+> **Doc convention:** when this file (or a code comment) names a specific API to describe control flow (e.g. `SELECT_LEX::print()`), it must also name the file/function where that API is actually called. If no call site can be pointed to, describe the behavior instead of naming the API — do not imply a code path that isn't there.
+
 ### Key components
 
 - **`ha_duckdb`** (`ha_duckdb.cc/h`) — MariaDB `handler` subclass. Entry point for all storage engine operations (open, close, read, write, DDL). Implements row-at-a-time interface for MariaDB, translating to DuckDB batch operations.
@@ -66,11 +68,20 @@ All engine code is in the `myduck` namespace (except `ha_duckdb` which is in glo
 
 ### SQL generation conventions
 
-All generated SQL must use **double quotes** for identifiers (DuckDB follows SQL standard), not backticks. The `SELECT_LEX::print()` output from MariaDB uses backticks and must be post-processed. See `docs/mariadb-duckdb-incompatibilities.md` for known function name rewrites and type mapping issues.
+DuckDB follows the SQL standard and delimits identifiers with **double quotes**, not backticks.
+
+SQL reaches DuckDB by two routes:
+
+- **Whole queries are forwarded verbatim.** SELECT and INSERT … SELECT are pushed down as the raw `thd->query()` text — see `extract_source_query()` in `ha_duckdb_pushdown.cc`. The engine does **not** re-print the whole query via `SELECT_LEX::print()`.
+- **Only fragments are printed.** `Item`/`COND::print()` is used for per-table WHERE conditions in cross-engine scan (`ha_duckdb_pushdown.cc`) and for DDL default / `nextval` expressions (`ddl_convertor.cc`). DDL/DML convertors also build identifier strings directly from `Field`/`TABLE` metadata.
+
+Both routes then pass through `backticks_to_double_quotes()` (`runtime/duckdb_query.cc`), which is where identifier requoting actually happens: backtick-delimited identifiers are rewritten to double-quoted ones and any embedded double quote is escaped (MDEV-40653). Raw forwarding additionally goes through `mariadb_query_has_lexical_mismatch()`, which refuses to forward SQL whose backslash-escape semantics differ between MariaDB and DuckDB.
+
+See `docs/mariadb-duckdb-incompatibilities.md` for known function name rewrites and type mapping issues.
 
 ### DuckDB source and patches
 
-DuckDB source is at `third_parties/duckdb/` (git submodule). No patches are applied — all compatibility is handled at runtime via `duckdb_mysql_compat.cc`. The build produces a static library; `_GLIBCXX_DEBUG` is explicitly undefined in CMakeLists.txt to avoid ABI mismatch with MariaDB's debug build.
+DuckDB source is at `third_parties/duckdb/` (git submodule). One local patch is applied on top of the pinned submodule commit — `patches/duckdb-pr24061-setval.diff` (backport of upstream PR #24061 adding `setval()`, needed for AUTO_INCREMENT counter repositioning), applied via `PATCH_COMMAND` in `cmake/duckdb.cmake` and to be dropped when the submodule is bumped to a release containing the PR. Other compatibility is handled at runtime via `duckdb_mysql_compat.cc`. The build produces a static library; `_GLIBCXX_DEBUG` is explicitly undefined in CMakeLists.txt to avoid ABI mismatch with MariaDB's debug build.
 
 ### Configuration
 

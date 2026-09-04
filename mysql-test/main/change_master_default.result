@@ -201,10 +201,6 @@ slave_heartbeat_period	15.000
 RESET SLAVE 'unset' ALL;
 CHANGE MASTER 'unset' TO master_host='127.0.1.3';
 # Validate command line options
-# restart_abort: --master-heartbeat-period=''
-# restart_abort: --master-heartbeat-period=123abc
-# restart_abort: --master-heartbeat-period=-1
-# restart_abort: --master-heartbeat-period=4294967.296
 # restart: --skip-slave-start --master-heartbeat-period=0.000499
 SELECT connection_name, slave_heartbeat_period
 FROM information_schema.slave_status ORDER BY connection_name;
@@ -258,6 +254,11 @@ master_ssl_crlpath
 using_gtid	Slave_Pos
 master_retry_count	100000
 slave_heartbeat_period	60.000
+#
+# MDEV-40122: `+DEFAULT` is not a valid value for master_heartbeat_period
+#
+CHANGE MASTER TO master_heartbeat_period= +DEFAULT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DEFAULT' at line 1
 # Clean-up
 DROP PROCEDURE show_defaultable_fields;
 RESET SLAVE 'unset' ALL;

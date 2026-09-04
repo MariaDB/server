@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "heapdef.h"
+#include "my_compare.h"
 #include <my_bit.h>
 
 static int keys_compare(void *heap_rb, const void *key1, const void *key2);

@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 --source include/have_debug.inc
 
 --disable_query_log

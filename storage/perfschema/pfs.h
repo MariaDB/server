@@ -23,10 +23,14 @@
 #ifndef PFS_H
 #define PFS_H
 
+#include <cstdint>
+
 /**
   @file storage/perfschema/pfs.h
   Performance schema instrumentation (declarations).
 */
+
+typedef std::uint64_t pfs_identity;
 
 #define HAVE_PSI_1
 
@@ -59,4 +63,3 @@ extern MY_THREAD_LOCAL void* THR_PFS_SBH; // status_by_account
 #define PSI_COUNT_VOLATILITY 2
 
 #endif
-

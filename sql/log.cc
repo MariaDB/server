@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,6 +68,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #include "wsrep_status.h"
+#include "wsrep_xid.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_REPLICATION
@@ -84,8 +85,8 @@
 
 LOGGER logger;
 
-const char *log_bin_index= 0;
-const char *log_bin_basename= 0;
+READ_ONLY_SYSVAR const char *log_bin_index= 0;
+READ_ONLY_SYSVAR const char *log_bin_basename= 0;
 
 MYSQL_BIN_LOG mysql_bin_log(&sync_binlog_period);
 
@@ -12254,7 +12255,7 @@ ulong tc_log_page_waits= 0;
 
 static const uchar tc_log_magic[]={(uchar) 254, 0x23, 0x05, 0x74};
 
-ulong opt_tc_log_size;
+READ_ONLY_SYSVAR ulong opt_tc_log_size;
 ulong tc_log_max_pages_used=0, tc_log_page_size=0, tc_log_cur_pages_used=0;
 
 int TC_LOG_MMAP::open(const char *opt_name)
@@ -14616,6 +14617,76 @@ MYSQL_BIN_LOG::recover_gtid_index_abort(Gtid_index_writer *gi)
 }
 
 
+#if defined(WITH_WSREP) && defined(HAVE_REPLICATION)
+/*
+  MDEV-38147: A Galera mariabackup SST no longer ships the donor's binary log
+  (the only thing it carried was a Gtid_list whose position was ahead of the
+  snapshot, causing error 1950). Instead the joiner starts a fresh binary log,
+  so its Gtid_list / @@gtid_binlog_pos must be seeded from the recovered wsrep
+  position - otherwise the joiner would report an empty binlog position until
+  it re-binlogs new transactions, which breaks its use as an async master.
+
+  The wsrep cluster position lives in the storage-engine checkpoint (restored
+  by the SST). Async-replica source positions live in mysql.gtid_slave_pos
+  (also restored from the engine) and are handled separately, so they are not
+  seeded here.
+
+  This seeding applies only with wsrep_gtid_mode=ON. In that mode cluster
+  writes are re-tagged to wsrep_gtid_domain_id and binlogged with the cluster
+  seqno, so @@gtid_binlog_pos in that domain tracks the cluster seqno - which is
+  exactly the SE checkpoint position, and exactly the position from which IST
+  resumes re-binlogging. Seeding it keeps the joiner in lockstep and avoids
+  error 1950 from re-binlogging over an ahead position.
+
+  With wsrep_gtid_mode=OFF cluster writes keep the node's configured
+  gtid_domain_id and are binlogged with a locally allocated seq_no; the cluster
+  seqno is not written to the binlog GTID (it lives only in
+  thd->wsrep_current_gtid_seqno - see the GTID assignment guarded by
+  wsrep_gtid_mode in wsrep_mysqld.cc). That binlog position is node-local and
+  unrelated to the checkpoint seqno, so there is nothing cluster-consistent to
+  seed: a fresh joiner just resumes its own local counter, which cannot produce
+  an ahead position. We therefore seed nothing in that mode.
+*/
+static void wsrep_seed_binlog_gtid_state()
+{
+  /*
+    Only wsrep_gtid_mode=ON has a cluster-consistent binlog position that maps
+    onto the SE checkpoint (see the block comment above).
+  */
+  if (!wsrep_gtid_mode)
+    return;
+
+  wsrep_server_gtid_t const eng= wsrep_get_SE_checkpoint<wsrep_server_gtid_t>();
+  if (eng.seqno <= 0)
+    return;                              /* not a wsrep node / no position */
+
+  rpl_gtid eng_gtid;
+  eng_gtid.domain_id= eng.domain_id;     /* == wsrep_gtid_domain_id */
+  eng_gtid.server_id= eng.server_id;
+  eng_gtid.seq_no=    eng.seqno;
+
+  rpl_gtid *cur= rpl_global_gtid_binlog_state.find_most_recent(eng_gtid.domain_id);
+  if (cur && cur->seq_no >= eng_gtid.seq_no)
+    return;        /* binlog state already at or ahead of the checkpoint */
+
+  sql_print_information("WSREP: seeding binlog GTID state to %u-%u-%llu "
+                        "from the storage-engine checkpoint",
+                        eng_gtid.domain_id, eng_gtid.server_id,
+                        (unsigned long long) eng_gtid.seq_no);
+  /*
+    Use the locking update() for consistency with the find_most_recent() read
+    above. With strict=false the only failure is OOM; update() will have called
+    my_error(ER_OUT_OF_RESOURCES), but there is no current_thd this early in
+    startup, so report the failure explicitly here as well.
+  */
+  if (rpl_global_gtid_binlog_state.update(&eng_gtid, false))
+    sql_print_error("WSREP: failed to seed binlog GTID state to %u-%u-%llu "
+                    "from the storage-engine checkpoint (out of memory)",
+                    eng_gtid.domain_id, eng_gtid.server_id,
+                    (unsigned long long) eng_gtid.seq_no);
+}
+#endif /* WITH_WSREP && HAVE_REPLICATION */
+
 int
 MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 {
@@ -14650,6 +14721,10 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
         error= 0;
       }
     }
+#if defined(WITH_WSREP) && defined(HAVE_REPLICATION)
+    if (!error && WSREP_PROVIDER_EXISTS)
+      wsrep_seed_binlog_gtid_state();
+#endif
     return error;
   }
 

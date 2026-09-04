@@ -46,6 +46,7 @@
 #include "transaction.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include "create_options.h"
+#include "strfunc.h"
 
 /*
   We only use 1 mutex to guard the data structures - THR_LOCK_servers.
@@ -76,7 +77,7 @@ static int delete_server_record(TABLE *table, LEX_CSTRING *name);
 static int delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options);
 
 /* update functions */
-static void prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
+static int prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
                                              FOREIGN_SERVER *existing,
                                              FOREIGN_SERVER *altered);
 static int update_server(THD *thd, FOREIGN_SERVER *existing, 
@@ -586,7 +587,7 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
                            (uint) strlen(server->password), system_charset_info))
     goto err;
   if (server->port > -1 &&
-    table->field[PORT_FIELD]->store(server->port))
+    table->field[PORT_FIELD]->store(server->port, true))
     goto err;
   if (server->socket &&
     table->field[SOCKET_FIELD]->store(server->socket,
@@ -1104,6 +1105,47 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
   DBUG_RETURN(error);
 }
 
+
+static bool set_known_options(LEX_SERVER_OPTIONS *options)
+{
+  static const char *known_option_names[]= {
+    "user", "host", "database", "password", "owner", "socket", "port", 0
+  };
+  static const TYPELIB known_options= CREATE_TYPELIB_FOR(known_option_names);
+#define CASE_KNOWN_OPTION(ID, NAME) case ID: options->NAME=opt->value; break;
+
+  for (engine_option_value *opt= options->option_list; opt; opt= opt->next)
+  {
+    if (!opt->value.str)
+      continue;
+    switch (find_type(&known_options, opt->name.str, opt->name.length, 0)) {
+      CASE_KNOWN_OPTION(1, username);
+      CASE_KNOWN_OPTION(2, host);
+      CASE_KNOWN_OPTION(3, db);
+      CASE_KNOWN_OPTION(4, password);
+      CASE_KNOWN_OPTION(5, owner);
+      CASE_KNOWN_OPTION(6, socket);
+      case 7: // PORT
+      {
+        int error;
+        char *end= (char *) opt->value.str + opt->value.length;
+        char *old_end= end;
+        longlong p= my_strtoll10(opt->value.str, &end, &error);
+        if (error > 0 || end != old_end || p > INT32_MAX || p < 0)
+        {
+          my_error(ER_BAD_OPTION_VALUE, MYF(0), opt->value.str, "PORT");
+          return 1;
+        }
+        options->port= (int32)p;
+        break;
+      }
+      default: break;
+    }
+  }
+  return 0;
+}
+
+
 /*
 
   SYNOPSIS
@@ -1126,6 +1168,9 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
   DBUG_ENTER("create_server");
   DBUG_PRINT("info", ("server_options->server_name %s",
                       server_options->server_name.str));
+
+  if (set_known_options(server_options))
+    DBUG_RETURN(ER_BAD_OPTION_VALUE);
 
   mysql_rwlock_wrlock(&THR_LOCK_servers);
 
@@ -1217,9 +1262,10 @@ int alter_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
                                      server_options->server_name.length)))
     goto end;
 
-  prepare_server_struct_for_update(server_options, existing, &altered);
+  error= prepare_server_struct_for_update(server_options, existing, &altered);
 
-  error= update_server(thd, existing, &altered);
+  if (!error)
+    error= update_server(thd, existing, &altered);
 
   close_mysql_tables(thd);
 
@@ -1272,7 +1318,7 @@ prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options)
   if (!(server= (FOREIGN_SERVER *)alloc_root(&mem, sizeof(FOREIGN_SERVER))))
     DBUG_RETURN(NULL); /* purecov: inspected */
 
-#define SET_SERVER_OR_RETURN(X, DEFAULT)                        \
+#define SET_SERVER_OR_RETURN(X)                                 \
   do {                                                          \
     if (!(server->X= server_options->X.str ?                    \
             strmake_root(&mem, server_options->X.str,           \
@@ -1281,8 +1327,8 @@ prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options)
   } while(0)
 
   /* name and scheme are always set (the parser guarantees it) */
-  SET_SERVER_OR_RETURN(server_name, NULL);
-  SET_SERVER_OR_RETURN(scheme, NULL);
+  SET_SERVER_OR_RETURN(server_name);
+  SET_SERVER_OR_RETURN(scheme);
 
   /* scheme-specific checks */
   if (!strcasecmp(server->scheme, "mysql"))
@@ -1296,12 +1342,12 @@ prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options)
     }
   }
 
-  SET_SERVER_OR_RETURN(host, "");
-  SET_SERVER_OR_RETURN(db, "");
-  SET_SERVER_OR_RETURN(username, "");
-  SET_SERVER_OR_RETURN(password, "");
-  SET_SERVER_OR_RETURN(socket, "");
-  SET_SERVER_OR_RETURN(owner, "");
+  SET_SERVER_OR_RETURN(host);
+  SET_SERVER_OR_RETURN(db);
+  SET_SERVER_OR_RETURN(username);
+  SET_SERVER_OR_RETURN(password);
+  SET_SERVER_OR_RETURN(socket);
+  SET_SERVER_OR_RETURN(owner);
   copy_option_list(&mem, server, server_options->option_list);
 
   server->server_name_length= server_options->server_name.length;
@@ -1326,7 +1372,7 @@ prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options)
 
 */
 
-static void
+static int
 prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
                                  FOREIGN_SERVER *existing,
                                  FOREIGN_SERVER *altered)
@@ -1337,6 +1383,9 @@ prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
   altered->server_name_length= existing->server_name_length;
   DBUG_PRINT("info", ("existing name %s altered name %s",
                       existing->server_name, altered->server_name));
+
+  if (set_known_options(server_options))
+    DBUG_RETURN(1);
 
   /*
     The logic here is this: is this value set AND is it different
@@ -1367,7 +1416,7 @@ prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
                  server_options->port != existing->port) ?
     server_options->port : -1;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 /*

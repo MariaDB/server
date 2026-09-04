@@ -1,4 +1,7 @@
 --source ../include/have_duckdb.inc
+# MDEV-40449: MSan reports use-of-uninitialized-value in
+# duckdb::JemallocExtension::ThreadFlush (false positive from uninstrumented jemalloc).
+--source include/not_msan.inc
 
 #
 # DuckDB monitoring status variables test.
@@ -20,6 +23,8 @@ CREATE TABLE t3(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=innodb;
 
 # Save baseline commit count (CREATE TABLEs cause autocommits)
 --let $base_commit = query_get_value(SHOW STATUS LIKE 'Duckdb_commit', Value, 1)
+
+SHOW STATUS LIKE 'Duckdb_version';
 
 --echo #
 --echo # 1) INSERT: rows_insert increments per row (dml_in_batch=OFF)

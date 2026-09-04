@@ -43,6 +43,13 @@ TPC-H Scale Factor 10 (~11 GB raw data, 86.6M rows total, ~60M in `lineitem`).
 
 Each query also pays a small fixed cost (~40 ms) for client connect and pushdown setup — noticeable on the cheapest queries, negligible on the heavy analytical ones. See [`docs/tpch_sf10_query_benchmark.md`](docs/tpch_sf10_query_benchmark.md) and [`docs/tpch_sf10_ingestion_benchmark.md`](docs/tpch_sf10_ingestion_benchmark.md) for full methodology.
 
+## Tutorials
+
+Step-by-step guides for loading and analyzing open datasets with the DuckDB storage engine:
+
+- [NYC Taxi Trips](docs/tutorials/nyc-taxi-trips.md) — loading Parquet via `run_in_duckdb()`, then cross-engine joins between `ENGINE=DuckDB` and `ENGINE=InnoDB` tables. Follows the ClickHouse taxi tutorial.
+- [OWID CO₂ Emissions](docs/tutorials/owid-co2-emissions.md) — loading a CSV dataset and running aggregations and window functions.
+
 ## How It Works
 
 DuckDB is an in-process analytical database. Its performance rests on three pillars:
@@ -55,7 +62,7 @@ Tables created with `ENGINE=DuckDB` store data in DuckDB's native format. Querie
 
 ## Building
 
-The engine is built as part of the MariaDB server tree. It lives under `storage/duckdb/` and uses `ExternalProject_Add` to build DuckDB v1.5.4 from source.
+The engine is built as part of the MariaDB server tree. It lives under `storage/duckdb/` and uses `ExternalProject_Add` to build DuckDB v1.5.5 from source.
 
 Clone the branch matching your target MariaDB version. The engine is already part of the tree under `storage/duckdb/`:
 
@@ -130,6 +137,7 @@ DuckDB handles the join, aggregation, and sorting; InnoDB rows are produced on d
 - **Some MariaDB functions are yet not pushdown-compatible** — `GROUP_CONCAT()`, `DATE_FORMAT()`, `JSON_CONTAINS()`, `FOUND_ROWS()`, `LAST_INSERT_ID()`, and a few others have no DuckDB equivalent or differ in syntax. Such queries fall back to MariaDB execution.
 - **Strict GROUP BY** — DuckDB rejects `SELECT` columns not in `GROUP BY` and not aggregated, even when MariaDB's `sql_mode` allows it.
 - **XA transactions** — `XA PREPARE` is not supported by the engine.
+- **Table partitioning** — `CREATE TABLE ... PARTITION BY` and converting a DuckDB table with `ALTER TABLE ... PARTITION BY` are not supported; the engine declares `HTON_NO_PARTITION`.
 - **Collations** — MariaDB UCA-based collation rules are approximated via DuckDB's built-in `NOCASE`/`NOACCENT` collations for UTF-8 charsets; non-UTF8 charsets fall back to binary comparison. See [`docs/collation-mapping.md`](docs/collation-mapping.md) for the full mapping and known gaps.
 - **Cross-engine scan is yet single-threaded** — each external (non-DuckDB) table is produced by a single fiber-driven MariaDB query (`_mdb_scan` reports `MaxThreads() == 1`); only the DuckDB side of the query is parallelized.
 - **ALTER COLUMN DROP DEFAULT** — not propagated to DuckDB catalog.

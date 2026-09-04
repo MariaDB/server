@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+connection node_3;
+connection node_3;
+connection node_1;
+connection node_1;
+connection node_3;
+SELECT COUNT(*) AS rows_on_joiner FROM t1;
+rows_on_joiner
+3
+connection node_1;
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

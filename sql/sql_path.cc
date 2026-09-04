@@ -252,7 +252,20 @@ void Sql_path::set(Sql_path &&rhs)
 }
 
 
-bool Sql_path::from_text(const system_variables &sv, String *str)
+/*
+  Set the PATH value from a string str0.
+  The string can contain:
+  - A character string in an arbitrary character set,
+    including tricky ones such as swe7, ucs2, utf32.
+    It is expected to convert to utf8mb3 without data loss.
+  - A binary string.
+    It is expected to re-enterpret to utf8mb3 without errors
+    (i.e. be a well-formed utf8mb3)
+
+  If the string does not convert or re-enterpret to utf8mb3 without
+  errors or data loss, then an SQL error is raised.
+*/
+bool Sql_path::from_text(const system_variables &sv, String *str0)
 {
   enum tokenize_state
   {
@@ -263,26 +276,43 @@ bool Sql_path::from_text(const system_variables &sv, String *str)
 
   CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci; // as in make_ident_casedn()
   DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
-  DBUG_ASSERT(str->ptr());
+  DBUG_ASSERT(str0->ptr());
+
+  // Convert convert/re-intepret str0 to utf8mb3
+  String_copier copier;
+  StringBuffer<128> str;
+  if (str.copy(cs, str0->charset(), str0->ptr(), str0->length(),
+               str0->length()/*nchars*/, &copier) ||
+      copier.most_important_error_pos())
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", ErrConvString(str0).ptr());
+    return true;
+  }
+
+  /*
+    Now we have a well-formed utf8mb3 string in `str`.
+    Remember and parse it.
+  */
   char *buf= (char*)my_malloc(key_memory_Sys_var_charptr_value,
-                              str->length() + 1, MYF(MY_WME));
+                              str.length() + 1, MYF(MY_WME));
   if (!buf)
     return true;
 
   char *curr= buf, *to= buf, *end;
 
   if (lower_case_table_names > 0)
-    end= buf + cs->cset->casedn(cs, str->ptr(), str->length(), buf, str->length());
+    end= buf + cs->cset->casedn(cs, str.ptr(), str.length(), buf, str.length());
   else
   {
-    memcpy(buf, str->ptr(), str->length());
-    end= buf + str->length();
+    memcpy(buf, str.ptr(), str.length());
+    end= buf + str.length();
   }
 
   free();
   while (curr < end)
   {
     auto len = cs->charlen(curr, end);
+    DBUG_ASSERT(len > 0); // We have a well-formed utf8mb3
 
     switch (state)
     {
@@ -367,7 +397,7 @@ bool Sql_path::from_text(const system_variables &sv, String *str)
   return false;
 
 err_bad_val:
-  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", str->c_ptr());
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", ErrConvString(&str).ptr());
 err:
   m_count= 0;
   my_free(buf);

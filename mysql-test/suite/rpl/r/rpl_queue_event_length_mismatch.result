@@ -1,0 +1,122 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Event from master declares a length that does not match");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+#
+# Initialize test data
+#
+connection slave;
+include/stop_slave.inc
+change master to master_use_gtid=no;
+include/start_slave.inc
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+set @saved_dbug= @@global.debug_dbug;
+#
+# Test Case 1: a Rotate event declaring fewer bytes than its packet
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_short_event_len";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+FLUSH LOGS;
+# Waiting for the IO thread to reject the mismatched Rotate event
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1593, 1595]
+# Ensure the event was rejected before the replica relay logged the event
+include/assert_grep.inc [The IO thread reported a Rotate event declaring 8 bytes fewer than its packet]
+# Ensure the SQL thread read everything the IO thread relay logged
+include/sync_slave_sql_with_io.inc
+include/assert.inc [The SQL thread reported no relay log read failure]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+connection slave;
+include/stop_slave_sql.inc
+include/start_slave.inc
+connection master;
+include/sync_slave_io_with_master.inc
+#
+# Test Case 2: a Rotate event declaring more bytes than its packet
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_long_event_len";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+FLUSH LOGS;
+# Waiting for the IO thread to reject the mismatched Rotate event
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1593, 1595]
+# Ensure the event was rejected before the replica relay logged the event
+include/assert_grep.inc [The IO thread reported a Rotate event declaring 8 bytes more than its packet]
+# Ensure the SQL thread read everything the IO thread relay logged
+include/sync_slave_sql_with_io.inc
+include/assert.inc [The SQL thread reported no relay log read failure]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+connection slave;
+include/stop_slave_sql.inc
+include/start_slave.inc
+#
+# Test Case 3: a packet carrying a second event behind the first
+#
+connection slave;
+include/stop_slave.inc
+connection master;
+set @saved_checksum= @@global.binlog_checksum;
+set @@global.binlog_checksum= NONE;
+set @@global.debug_dbug= "+d,binlog_sender_append_extra_event";
+connection slave;
+include/start_slave.inc
+connection master;
+set @saved_format= @@session.binlog_format;
+set @@session.binlog_format= STATEMENT;
+insert into t1 values (2);
+set @@session.binlog_format= @saved_format;
+# Waiting for the IO thread to reject the doubled packet
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1593, 1595]
+# Ensure the rejected packet delivered nothing to the replica
+include/assert.inc [The replica has not applied the insert the packet carried]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+set @@global.binlog_checksum= @saved_checksum;
+connection slave;
+include/stop_slave_sql.inc
+# Ensure old relay logs are purged, use GTID
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+# Ensure the replica holds the row once the master resends the insert
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Ensure replication works after the mismatched events
+#
+connection master;
+insert into t1 values (3);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Cleanup
+#
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_queue_event_length_mismatch.test

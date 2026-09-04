@@ -334,4 +334,22 @@ SELECT COALESCE(c_int, c_set)  FROM t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-28498 Incorrect information in file: './test/t0.frm' on CREATE TABLE
+--echo #
+
+CREATE TABLE t1 (a SET ('',0x0000),b SET ('')) CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (0x0000,'');
+INSERT INTO t1 VALUES ('\0\0','');
+INSERT INTO t1 VALUES ('','');
+SELECT a+0, HEX(a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a SET ('',0x0000) AS (0x0000) VIRTUAL,b SET ('') DEFAULT '') CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+SELECT a+0, HEX(a) FROM t1;
+DROP TABLE t1;
+
 --echo # End of 10.11 tests

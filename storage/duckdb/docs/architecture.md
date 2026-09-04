@@ -190,9 +190,12 @@ check_if_supported_inplace_alter() → HA_ALTER_INPLACE_NO_LOCK
 commit_inplace_alter_table()
   → AddColumnConvertor / DropColumnConvertor / ChangeColumnConvertor /
     ChangeColumnDefaultConvertor / ChangeColumnForPrimaryKeyConvertor
-  → each operation executes in a separate auto-commit context
-    (DuckDB v1.5+ disallows compound DDL mixing structural + constraint changes)
+  → all generated operations execute in one explicit DuckDB transaction
 ```
+
+Table partitioning is disabled with `HTON_NO_PARTITION`; both
+`CREATE TABLE ... PARTITION BY` and `ALTER TABLE ... PARTITION BY` are rejected
+before MariaDB creates a partition handler or starts the table-copy protocol.
 
 DROP DATABASE: `duckdb_drop_database()` → `DROP SCHEMA IF EXISTS "db"`.
 
@@ -323,5 +326,5 @@ storage/duckdb/
 │   └── row_helpers.h             — byte-level row reading utilities
 │
 ├── cmake/                        — DuckDB build integration (ExternalProject_Add)
-└── third_parties/duckdb/         — upstream DuckDB submodule (v1.5.4)
+└── third_parties/duckdb/         — upstream DuckDB submodule (v1.5.5)
 ```

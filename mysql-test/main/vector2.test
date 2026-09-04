@@ -447,4 +447,127 @@ drop table tmp, t1, t2;
 
 set sql_mode=@old_sql_mode;
 
+--echo #
+--echo # MDEV-40486 ER_TOO_BIG_FIELDLENGTH or assertion failure upon creating vector from blob
+--echo #
+
+--echo ## Original testcase
+CREATE TABLE t (a TEXT) AS SELECT '[1]' AS a;
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (a LONGBLOB) AS SELECT '[1]' AS a;
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+DROP TABLE t;
+
+--echo ## Another case, which would have failed with ERROR 1292
+--echo ## without the fix
+CREATE TABLE t SELECT VEC_FROMTEXT('[1]');
+DROP TABLE t;
+
+--echo ## Conversion from max varchar length
+CREATE TABLE t (a VARCHAR(16383)) AS
+  SELECT concat('[1', repeat(',1', 8190), ']') AS a;
+CREATE TABLE tt AS SELECT VEC_FROMTEXT(a) AS f FROM t;
+DROP TABLE t,tt;
+
+--echo ## Conversion to max vector dimension
+CREATE TABLE tt AS
+  SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16382), ']')) AS f;
+DROP TABLE tt;
+
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE tt AS
+  SELECT VEC_FROMTEXT(concat('[1', repeat(',1', 16383), ']')) AS f;
+
+CREATE TABLE t1 (v VECTOR(2));
+INSERT INTO t1 VALUES (VEC_FROMTEXT(CONCAT('[1.', REPEAT('0',70000), ',2]')));
+DROP TABLE t1;
+
+SELECT VEC_FROMTEXT('😀😀😀');
+
+--echo ## "Zero-dimensional" argument, no change in behaviour after fix
+SELECT VEC_FROMTEXT('[]') as f;
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE t1 SELECT VEC_FROMTEXT('[]');
+--echo ## Zero length: no underflow
+SELECT VEC_FROMTEXT('') AS f;
+--error ER_JSON_EOS
+CREATE TABLE tt AS SELECT VEC_FROMTEXT('') AS f;
+
+CREATE TABLE t1 (a CHAR(1));
+CREATE TABLE t2 AS SELECT VEC_FROMTEXT(a) AS f FROM t1;
+show create table t2;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a CHAR(2));
+CREATE TABLE t2 AS SELECT VEC_FROMTEXT(a) AS f FROM t1;
+show create table t2;
+DROP TABLE t1, t2;
+
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t3 (f VECTOR(0));
+
+create view v1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+DROP view v1;
+
+--error ER_TRUNCATED_WRONG_VALUE
+create table t1 as select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+
+--echo ## NULLs
+select vec_fromtext(NULL);
+select vec_fromtext(NULL + NULL);
+create table t1 select vec_fromtext(NULL) as c;
+show create table t1;
+DROP TABLE t1;
+create table t1 select vec_fromtext(NULL + NULL) as c;
+show create table t1;
+drop table t1;
+
+create table t1 select vec_fromtext(c) from (select '[1,2]' as c) d;
+DROP TABLE t1;
+--error ER_JSON_EOS
+create table t1 select vec_fromtext(c) from (select '' as c) d;
+create table t1 select vec_fromtext(c) from (select NULL as c) d;
+show create table t1;
+DROP TABLE t1;
+
+create table t2 (c varchar(5));
+insert into t2 values (NULL);
+create table t1 select vec_fromtext(c) from t2;
+drop table t1, t2;
+
+--echo ## Prepared statements with placeholders
+prepare p1 from 'select vec_fromtext(?)';
+--disable_result_log
+execute p1 using '[1,2]';
+--enable_result_log
+execute p1 using NULL;
+execute p1 using '[]';
+deallocate prepare p1;
+
+prepare p1 from 'create table t1 select vec_fromtext(?)';
+execute p1 using '[1,2]';
+show create table t1;
+DROP TABLE t1;
+execute p1 using NULL;
+show create table t1;
+DROP TABLE t1;
+--error ER_TRUNCATED_WRONG_VALUE
+execute p1 using '[]';
+--error ER_JSON_EOS
+execute p1 using '';
+deallocate prepare p1;
+
+--echo #
+--echo # MDEV-40751 CREATE ... SELECT VEC_FROMTEXT(...) may create VECTOR columns that reject every value
+--echo #
+
+CREATE TABLE t1 (a CHAR(4));
+create table t2 select vec_fromtext(a) from t1;
+show create table t2;
+insert into t2 values (vec_fromtext('[1]'));
+DROP TABLE t1, t2;
+
 --echo # End of 11.8 tests

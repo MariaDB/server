@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 CREATE DATABASE IF NOT EXISTS duckdb_cte;
 USE duckdb_cte;
 
