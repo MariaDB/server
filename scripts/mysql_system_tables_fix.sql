@@ -770,6 +770,17 @@ if @have_innodb then
   alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
 
   alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
+
+  # MDEV-40840 add sentinel guard for innodb_index_stats.stat_value
+  set @constraint_exists = (select count(*) from information_schema.table_constraints
+    where constraint_schema = 'mysql' and table_name = 'innodb_index_stats'
+    and constraint_name = 'innodb_index_stats_stat_value_defined');
+  set @str = if(@constraint_exists = 0,
+    'alter table innodb_index_stats add constraint innodb_index_stats_stat_value_defined check (stat_value <> 18446744073709551615)',
+    'select 1');
+  prepare stmt from @str;
+  execute stmt;
+  deallocate prepare stmt;
 end if //
 DELIMITER ;
 
