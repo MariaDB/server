@@ -261,7 +261,11 @@ IF(NOT WITHOUT_SERVER)
   FILE(READ ${CMAKE_SOURCE_DIR}/cmake/install_layout.cmake install_layout.cmake)
   FILE(READ ${CMAKE_SOURCE_DIR}/cmake/plugin.cmake plugin.cmake)
   CONFIGURE_FILE(mariadb-plugin-config.cmake.in mariadb-plugin-config.cmake @ONLY)
+  # DBUG_OFF/ENABLED_DEBUG_SYNC/SAFE_MUTEX affect THD's ABI
+  SET(defines "TARGET_COMPILE_DEFINITIONS(mariadb_private INTERFACE $<$<CONFIG:Debug>:ENABLED_DEBUG_SYNC> $<$<NOT:$<CONFIG:Debug>>:DBUG_OFF> $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:${WIN32}>>>:SAFE_MUTEX>)\n")
+  FILE(GENERATE OUTPUT mariadb-plugin-defines.cmake CONTENT "${defines}")
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb-plugin-config.cmake
+                ${CMAKE_CURRENT_BINARY_DIR}/mariadb-plugin-defines.cmake
           DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/ COMPONENT Development)
   INSTALL(EXPORT mariadb-plugin-targets FILE mariadb-plugin-targets.cmake
           DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/ COMPONENT Development)
