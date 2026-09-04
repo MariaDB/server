@@ -612,6 +612,52 @@ ORDER *pwt_preagg_group(JOIN *join)
         true  if we can run this query in parallel
         false otherwise
 */
+/*
+  @brief
+    PROTOTYPE. Whether to run the workers as a bare parallel scan.
+
+  @description
+    Not for the shipping tree: a second execution path, behind
+    debug_dbug='+d,pwt_scan_only', in which the workers do nothing but read
+    their chunk of the driving table and ship the rows. There are no worker
+    JOIN_TABs, no cloned conditions or select list, and no join in a worker.
+    This thread runs the plan it would have run serially, and the only
+    difference is that the driving table's JOIN_TAB reads its rows from the
+    transport instead of from the handler.
+
+    What it is for. The gate admits a few per cent of the queries in the test
+    suite, because almost every refusal it makes is about evaluating cloned
+    Items in another thread rather than about dividing a scan. Take the
+    evaluation away and nearly all of them go: outer joins, subqueries,
+    aggregates, DISTINCT, LIMIT, window functions all become eligible, because
+    this thread does them. So the chunked scan and the transport -- the two
+    layers underneath -- can be run over the whole suite instead of over the
+    sliver the real gate allows.
+
+    What it cannot tell you, which is the more important half. Everything a
+    worker does with an Item is gone, and that is where the defects have
+    actually been: a worker THD that did not carry the session's time zone, a
+    condition left only in a Filesort, a reader that wanted a SQL_SELECT the
+    worker copy did not have, a materialized subquery re-opened per worker.
+    None of those are reachable here -- most cannot even exist in this shape.
+    Passing in this mode says nothing about the path that ships.
+
+    Its value is therefore as a lower layer's test and as a bisection tool: a
+    query that answers wrongly in both modes is wrong in the scan or the
+    transport, and one that answers wrongly only in the full mode is wrong in
+    the worker join.
+
+  @return  true if this statement should run scan-only.
+*/
+
+bool pwt_scan_only_enabled()
+{
+  bool on= false;
+  DBUG_EXECUTE_IF("pwt_scan_only", on= true;);
+  return on;
+}
+
+
 bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
 {
   DBUG_ENTER("can_run_query_in_workers");
@@ -624,6 +670,24 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
   }
   /* The loop below reads the driving table as join_tab[const_tables]. */
   DBUG_ASSERT(scan_tab == join->join_tab + join->const_tables);
+
+  /*
+    Scan-only: everything below this point asks whether a worker can evaluate
+    part of this query, and in that mode no worker evaluates anything. The one
+    question left is the one already answered above -- can the driving table's
+    access path be divided -- with the sort excluded, because a filesort on the
+    driving tab is performed by create_sort_index() reading the handler
+    directly, which would walk straight past the transport.
+  */
+  if (pwt_scan_only_enabled())
+  {
+    if (scan_tab->filesort || scan_tab->filesort_result)
+    {
+      DBUG_PRINT("info", ("scan-only: the driving table is sorted"));
+      DBUG_RETURN(false);
+    }
+    DBUG_RETURN(true);
+  }
   /*
     A GROUP BY the workers can pre-aggregate is the one query shape that is
     allowed to want a temporary table, hold aggregates, and group. Everything
@@ -825,6 +889,137 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
    -1 = the engine declined the parallel scan
           (caller should run the query serially instead).
 */
+
+/*
+  Scan-only PROTOTYPE. The manager's half: the driving table's JOIN_TAB is
+  pointed at these, so the plan reads that table from the workers.
+  ------------------------------------------------------------------------- */
+
+bool pwt_manager::begin_scan_receive(THD *thd)
+{
+  return layout.begin_receive(thd, exec.tables, exec.n_tables);
+}
+
+void pwt_manager::end_scan_receive()
+{
+  layout.end_receive(exec.tables, exec.n_tables);
+}
+
+
+int pwt_manager::next_scanned_row()
+{
+  int rc= source->next_row(layout.recv_record());
+  if (rc < 0)
+    return -1;                                   // every worker is done
+  if (rc > 0)
+    return 1;                                    // killed, or a worker failed
+  /*
+    Put the shipped columns where the plan expects to read them: the manager's
+    own record buffer for this table. From here the executor cannot tell the
+    row came from a worker rather than from the handler.
+  */
+  layout.copy_back_row();
+  return 0;
+}
+
+
+/* The manager for the join this table belongs to. */
+static pwt_manager *pwt_mgr_of(TABLE *table)
+{
+  JOIN_TAB *tab= table->reginfo.join_tab;
+  DBUG_ASSERT(tab && tab->join && tab->join->parallel_work_manager);
+  return (pwt_manager*) tab->join->parallel_work_manager;
+}
+
+
+static int pwt_mgr_scan_read_record(READ_RECORD *info)
+{
+  int rc= pwt_mgr_of(info->table)->next_scanned_row();
+  if (rc > 0 && info->print_error && !info->table->in_use->is_error())
+    my_error(ER_INTERNAL_ERROR, MYF(0), "parallel scan: worker failed");
+  return rc;
+}
+
+
+static int pwt_mgr_scan_init_read_record(JOIN_TAB *tab)
+{
+  pwt_manager *mgr= pwt_mgr_of(tab->table);
+  if (mgr->begin_scan_receive(tab->join->thd))
+    return 1;
+  tab->read_record.table= tab->table;
+  tab->read_record.read_record_func= pwt_mgr_scan_read_record;
+  tab->read_record.read_record_func_and_unpack_calls= pwt_mgr_scan_read_record;
+  /* read_first_record means "and read the first row" -- see
+     join_init_read_record(). */
+  return tab->read_record.read_record();
+}
+
+
+int pwt_manager::start_scan_only(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
+{
+  DBUG_ENTER("pwt_manager::start_scan_only");
+  scan_only= true;
+
+  int err= init_parallel_workers(thd, join, scan_tab);
+  if (err == HA_ERR_UNSUPPORTED)
+    DBUG_RETURN(-1);                             // engine declined
+  if (err)
+    DBUG_RETURN(1);
+
+  status_var_increment(thd->status_var.parallel_queries_executed);
+
+  /*
+    And divert the plan's read of this table. Everything after it -- the join,
+    the conditions this thread still owns, the terminals -- is the executor's
+    own, untouched.
+  */
+  scan_only_tab= scan_tab;
+  saved_read_first_record= scan_tab->read_first_record;
+  scan_tab->read_first_record= pwt_mgr_scan_init_read_record;
+
+  /*
+    push_index_cond() left this tab filtering by the remainder, with the rest
+    in the manager handler's pushed_idx_cond. That handler no longer produces
+    the rows, so the pushed half would be applied nowhere and this thread would
+    see rows the serial plan rejects. Give the tab the whole condition back for
+    the length of the scan -- the same reason pwt_table_conds() prefers
+    pre_idx_push_select_cond in the full path, reached from the other side.
+  */
+  if (scan_tab->pre_idx_push_select_cond)
+  {
+    saved_select_cond= scan_tab->select_cond;
+    scan_tab->set_select_cond(scan_tab->pre_idx_push_select_cond, __LINE__);
+  }
+  DBUG_RETURN(0);
+}
+
+
+/*
+  @brief
+    Scan-only PROTOTYPE: set the workers scanning, and leave do_select() to run
+    the plan normally on top of them.
+
+  @return  0 if the workers are running, -1 to run serially, 1 on error.
+*/
+
+int run_scan_only_workers(JOIN *join, JOIN_TAB *scan_tab)
+{
+  DBUG_ENTER("run_scan_only_workers");
+  THD *thd= join->thd;
+  pwt_manager *mgr= new (thd->mem_root) pwt_manager;
+  if (!mgr)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_manager));
+    DBUG_RETURN(1);
+  }
+  join->parallel_work_manager= mgr;
+
+  int rc= mgr->start_scan_only(thd, join, scan_tab);
+  if (rc < 0)
+    join->parallel_work_manager= nullptr;
+  DBUG_RETURN(rc);
+}
+
 
 int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
 {
@@ -1975,9 +2170,124 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
   (PWT_EMIT_STOP) also returns success: the manager is done, not in error.
 */
 
+/*
+  @brief
+    Scan-only PROTOTYPE: project the row now in this worker's copy of the
+    driving table into the result container and ship it.
+
+  @description
+    The full path evaluates a clone of the query's select list here. Scanning
+    needs no such thing: the shipped columns are the columns themselves, so the
+    projection is one Item_field per column, built over this worker's own table
+    in setup_scan_only_worker().
+
+  @return  pwt_emit_result.
+*/
+
+int pwt_worker::emit_scanned_row()
+{
+  for (uint i= 0; i < exec.scan_proj_count; i++)
+    exec.scan_proj[i]->save_in_field(exec.result.table->field[i], false);
+
+  if (manager->is_fatal_error())
+    return PWT_EMIT_ERROR;
+  return sink->emit_row(exec.result.record());
+}
+
+
+/*
+  @brief
+    Scan-only PROTOTYPE: read this worker's chunks and ship every row.
+
+  @description
+    execute_and_handoff() without the join. No inner tables to lock or index,
+    no grouping table, no nested loop -- the chunk reader, and the transport.
+    The manager applies the query's conditions, because in this mode it runs
+    the whole plan.
+
+  @return  0, or a handler error code.
+*/
+
+int pwt_worker::execute_scan_only()
+{
+  DBUG_ENTER("pwt_worker::execute_scan_only");
+  TABLE *src= exec.scan_table;
+  int err= 0;
+  bool killed= false;
+
+  exec.result.table->use_all_columns();
+
+  if (sink->begin())
+    DBUG_RETURN(HA_ERR_GENERIC);
+
+  /* The manager's snapshot, for the same reason as the full path. */
+  if (ha_clone_consistent_snapshot(thd, manager->thd))
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "parallel worker: cannot read the manager's snapshot");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
+  if ((err= src->file->ha_external_lock(thd, F_RDLCK)))
+    DBUG_RETURN(err);
+
+  if ((err= src->file->parallel_init_worker(exec.handler_ctx,
+                                    manager->exec.scan_tab->table->file)))
+    goto scan_exit;
+
+  for (;;)
+  {
+    if (thd->killed || manager->is_fatal_error())
+    {
+      killed= true;
+      break;
+    }
+    if ((err= pscan_next_row()))
+    {
+      /*
+        Normalised here rather than at the exit label: running out of chunks is
+        how this loop ends, and everything after it -- the flush that publishes
+        the container to the manager above all -- tests for success.
+      */
+      if (err == HA_ERR_END_OF_FILE)
+        err= 0;
+      break;
+    }
+
+    int rc= emit_scanned_row();
+    if (rc == PWT_EMIT_STOP)                     // the manager has had enough
+      break;
+    if (rc == PWT_EMIT_ERROR)
+    {
+      err= thd->is_error() ? thd->get_stmt_da()->sql_errno() : HA_ERR_GENERIC;
+      break;
+    }
+  }
+  src->file->parallel_end_worker();
+
+  if (!err && !killed)
+    sink->flush();
+
+scan_exit:
+  /*
+    The other end of file: parallel_init_worker() reports it when there is no
+    chunk left for this worker at all, which is success -- it has nothing to
+    scan and nothing to publish. The full path normalises it in the same place
+    and for the same reason.
+  */
+  if (err == HA_ERR_END_OF_FILE)
+    err= 0;
+  src->file->ha_index_or_rnd_end();
+  src->file->ha_external_lock(thd, F_UNLCK);
+  DBUG_RETURN(err);
+}
+
+
 int pwt_worker::execute_and_handoff()
 {
   DBUG_ENTER("pwt_worker::execute_and_handoff");
+  if (manager->is_scan_only())
+    DBUG_RETURN(execute_scan_only());
   TABLE *src= exec.scan_table;
   //pwt_manager *mgr= manager;
   const uint nt= exec.n_tables;
@@ -2172,6 +2482,55 @@ void pwt_worker::execute_and_signal_manager()
 
   @return  true on error (my_error() called).
 */
+
+/*
+  @brief
+    Scan-only PROTOTYPE: the worker's projection.
+
+  @description
+    pwt_row_layout::build() ships every column of the driving table whose
+    read_set bit is set, in table order, and open_worker_tables() copies that
+    read_set onto the worker's table. So walking the worker's own fields the
+    same way visits the same columns in the same order, and column i of the
+    container is the i-th of them.
+
+  @return  true on error (my_error() called).
+*/
+
+bool pwt_manager::setup_scan_only_proj(THD *thd, pwt_worker *worker)
+{
+  TABLE *wt= worker->exec.scan_table;
+  const uint n= layout.ship_list.elements;
+
+  if (!(worker->exec.scan_proj= thd->alloc<Item*>(n)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n * sizeof(Item*)));
+    return true;
+  }
+
+  uint k= 0;
+  for (Field **f= wt->field; *f && k < n; f++)
+  {
+    if (!bitmap_is_set(wt->read_set, (*f)->field_index))
+      continue;
+    if (!(worker->exec.scan_proj[k]= new (thd->mem_root) Item_field(thd, *f)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+      return true;
+    }
+    k++;
+  }
+  /*
+    A query that reads no column at all still has a row shape -- build() ships
+    a constant so that the transport has something to measure -- and there is
+    no field to project into it. Nothing downstream reads that column's value,
+    only the arrival of the record, so leave it as the container's default.
+  */
+  worker->exec.scan_proj_count= k;
+  DBUG_ASSERT(k == n || k == 0);
+  return false;
+}
+
 
 bool pwt_manager::setup_sort_stage(THD *thd)
 {

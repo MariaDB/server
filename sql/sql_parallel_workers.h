@@ -10,6 +10,7 @@
 #include "sql_parallel_thread.h"
 #include "sql_parallel_transport.h"
 #include "filesort.h"
+#include "records.h"
 
 /*
   Manager for a team of workers.
@@ -114,7 +115,8 @@ struct pwt_worker_execution
     compiler would zero.
   */
   pwt_worker_execution():
-    scan_table(nullptr), tables(nullptr), n_tables(0),
+    scan_table(nullptr), scan_proj(nullptr), scan_proj_count(0),
+    tables(nullptr), n_tables(0),
     sums(nullptr), aggr_tab(nullptr),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
     tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
@@ -130,6 +132,16 @@ struct pwt_worker_execution
     before its THD is destroyed.
   */
   TABLE                 *scan_table;
+  /*
+    START PROTOTYPE
+    Scan-only prototype: Item_fields on this worker's own copy of the driving
+    table, one per shipped column, used to project a scanned row into the
+    result container. The full path clones the query's select list for this;
+    scanning needs nothing but the columns themselves, which is the point.
+  */
+  Item                  **scan_proj;
+  uint                  scan_proj_count;
+  // END PROTOTYPE
   /*
     Multi-table join: this worker's private copy of every non-const join table
     (tables[0] == scan_table, the parallel-scanned driving table; tables[1 ..
@@ -266,6 +278,10 @@ public:
      0 = keep going, 1 = error, 2 = the manager asked us to stop
      (pwt_emit_result). */
   int emit_joined_row();
+  //  START PROTOTYPE: scan this worker's chunk and ship the raw rows.
+  int execute_scan_only();
+  int emit_scanned_row();
+  // END PROTOTYPE
   /* Ship one row per group once the chunk is done. */
   int flush_groups();
 };
@@ -332,6 +348,35 @@ class pwt_manager : public pwt_manager_base
   pwt_row_container        sort_container;
   SORT_INFO                *sort_result;
 
+  /*
+    PROTOTYPE, not for the shipping tree. See pwt_scan_only_enabled().
+
+    The workers scan the driving table and nothing else: no worker JOIN_TABs,
+    no cloned Items, no worker-side join. Each one ships the raw rows of its
+    chunk, and this thread runs the whole plan on top of them the way it would
+    run it serially, reading the driving table through the transport instead of
+    through the handler. What that isolates, and what it cannot tell you, is
+    written up at pwt_scan_only_enabled().
+  */
+  bool                     scan_only;
+  /*
+    The driving table's own reader, displaced by start_scan_only() and put back
+    by finalize_parallel_workers(). A JOIN_TAB outlives one execution -- a
+    prepared statement, a correlated subquery, a routine loop all run the same
+    plan again -- but the manager does not, so a reader left pointing here
+    would be called with no manager behind it on the next execution.
+  */
+  JOIN_TAB                 *scan_only_tab;
+  READ_RECORD::Setup_func  saved_read_first_record;
+  /*
+    And its condition, when part of it had been pushed into the index. The
+    pushed half lives in the *manager's* handler, which is not the handler the
+    rows now come from: a worker reads through its own, opened without it. The
+    tab is left holding the whole condition for the length of the scan, and
+    given its remainder back with its reader.
+  */
+  Item                     *saved_select_cond;
+  // END PROTOTYPE
 
   /*
     Set once the workers have been stopped and pthread_join'd (quiesce_workers).
@@ -350,7 +395,9 @@ public:
 
   pwt_manager():
     workers(PSI_INSTRUMENT_MEM, 0, 8),
-    source(nullptr), sort_result(nullptr), reaped(false),
+    source(nullptr), sort_result(nullptr), scan_only(false),
+    scan_only_tab(nullptr), saved_read_first_record(nullptr),
+    saved_select_cond(nullptr), reaped(false),
     workers_must_stop(false)
     {}
   ~pwt_manager()
@@ -368,10 +415,27 @@ public:
   */
   int drain_and_send(JOIN *join);
   /*
+    START PROTOTYPE. Set the workers going and point the driving table's
+    JOIN_TAB at the transport, so that the plan this thread is about to run
+    reads that table from the workers. Returns 0 on success, -1 if the engine
+    declined (run serially), 1 on error.
+  */
+  int start_scan_only(THD *thd, JOIN *join, JOIN_TAB *scan_tab);
+  /*
+    One row from the workers into the driving table's record buffer.
+    0 = row, -1 = every worker is done, 1 = error.
+  */
+  int next_scanned_row();
+  /* Bracket the reading: the record buffer is filled by us, not by a reader. */
+  bool begin_scan_receive(THD *thd);
+  void end_scan_receive();
+  // END PROTOTYPE
+  /*
     The row shape both ends agree on; the worker paths read the partial set
      and the group key out of it.
   */
   pwt_row_layout &row_layout() { return layout; }
+  bool is_scan_only() const { return scan_only; }
 
 private:
 
@@ -397,6 +461,11 @@ private:
     error.
   */
   bool setup_worker_preagg(THD *thd, pwt_worker *worker);
+  /*
+    Scan-only prototype: one Item_field per shipped column, over this worker's
+    own copy of the driving table. Returns true on error.
+  */
+  bool setup_scan_only_proj(THD *thd, pwt_worker *worker);
   /*
     Build the container the drain collects into when this thread has to sort.
     Returns true on error.
@@ -431,6 +500,8 @@ extern bool table_can_be_parallel_scanned(JOIN_TAB *tab);
 extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab);
 extern ORDER *pwt_preagg_group(JOIN *join);
 extern ORDER *pwt_manager_sort_order(JOIN *join);
+extern bool pwt_scan_only_enabled();
+extern int run_scan_only_workers(JOIN *join, JOIN_TAB *scan_tab);
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
 extern void check_parallel_scan(JOIN *join);
 extern void recheck_parallel_scan(JOIN *join);

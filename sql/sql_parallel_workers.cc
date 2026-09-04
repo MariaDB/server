@@ -274,7 +274,11 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     rebind the cloned conditions/refs/select list. No semijoin bushes here (the
     gate excludes them), so the tabs are simply join_tab[const_tables ..].
   */
-  exec.n_tables= join->table_count - join->const_tables;
+  /*
+    Scan-only: the workers read the driving table and nothing else, so that is
+    the only table they need a copy of and the only one whose columns travel.
+  */
+  exec.n_tables= scan_only ? 1 : join->table_count - join->const_tables;
   if (!(exec.jointabs= thd->alloc<JOIN_TAB*>(exec.n_tables)) ||
       !(exec.tables= thd->alloc<TABLE*>(exec.n_tables)))
   {
@@ -294,8 +298,13 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     travels, only that a worker has a sink to hand one to and we have a source
     to take the next one from.
   */
+  /*
+    No pre-aggregation and no sort stage in scan-only: this thread runs the
+    plan's own terminals, so both belong to it exactly as they would serially.
+  */
   if (layout.build(thd, join, exec.tables, exec.n_tables,
-                   pwt_preagg_group(join), pwt_manager_sort_order(join)) ||
+                   scan_only ? nullptr : pwt_preagg_group(join),
+                   scan_only ? nullptr : pwt_manager_sort_order(join)) ||
       setup_transport(thd, n) ||
       (layout.plan_sorts && setup_sort_stage(thd)))
     goto cleanup_workers;
@@ -343,7 +352,23 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       chunk, joins the inner tables, projects exec.proj into
       its result container and ships that record image.
     */
-    if (setup_worker_join(thd, worker) ||
+    /*
+      Scan-only skips all of it but the container and the sink: no JOIN, no
+      JOIN_TABs, no grouping table and no cloned expressions. What it needs
+      instead is one Item_field per shipped column, over its own table copy.
+    */
+    if (scan_only)
+    {
+      if (layout.make_container(thd, &worker->exec.result) ||
+          !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
+          setup_scan_only_proj(thd, worker))
+      {
+        my_error(ER_INTERNAL_ERROR, MYF(0),
+                 "init_parallel_workers: failed to set up worker scan");
+        goto cleanup_workers;
+      }
+    }
+    else if (setup_worker_join(thd, worker) ||
         setup_worker_jointabs(thd, worker) ||
         layout.make_container(thd, &worker->exec.result) ||
         setup_worker_preagg(thd, worker) ||
@@ -566,6 +591,21 @@ void pwt_manager::destroy_transport()
 void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
 {
   DBUG_ENTER("pwt_manager::finalize_parallel_workers");
+  /*
+    Give the plan its own reader back before anything else, and unconditionally:
+    the JOIN_TAB is the plan's and outlives this manager, so a displaced reader
+    has to be restored even on a path that never built a team.
+  */
+  if (scan_only_tab)
+  {
+    scan_only_tab->read_first_record= saved_read_first_record;
+    if (saved_select_cond)
+    {
+      scan_only_tab->set_select_cond(saved_select_cond, __LINE__);
+      saved_select_cond= nullptr;
+    }
+    scan_only_tab= nullptr;
+  }
   if (!nworkers())
     DBUG_VOID_RETURN;
 
