@@ -378,6 +378,7 @@ public:
   bool val_bool() override;
   bool mvi_analyze(void *arg) override;
   Item *create_ft_for_mvi(THD *thd, List<Mv_index> *indexes) override;
+  Mvi_access *get_mvi_access(THD *thd, List<Mv_index> *indexes);
 
 protected:
   Item *shallow_copy(THD *thd) const override

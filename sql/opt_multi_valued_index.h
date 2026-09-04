@@ -30,11 +30,13 @@ struct Mvi_access : public Sql_alloc
   List<String> encoded;         /* encoded element keys */
   bool conjunctive;             /* CONTAINS -> AND, OVERLAPS -> OR */
   Mvi_access(Mv_index *idx, bool conj) : index(idx), conjunctive(conj) {}
+
+  /* Build: Add one encoded element key */
+  bool add_key(MEM_ROOT *mem_root, const String *key);
+
+  /* Usage: Construct the fulltext predicate implementing this access */
+  Item *create_ft_item(THD *thd);
 };
-/*
-  bool Item_func_json_contains::mvi_analyze(THD *thd, List<Field> *vcol_fields,
-                                            Mvi_access *out);
- */
 
 bool setup_mvi_for_join(JOIN *join);
 

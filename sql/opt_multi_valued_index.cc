@@ -306,27 +306,110 @@ static Mv_index *get_mvi_index(List<Mv_index> *indexes,
   return NULL;
 }
 
-bool Item_func_json_contains::mvi_analyze(void *arg)
+/*
+  Add one encoded element key to the access.
+  
+  TODO: String object live on MEM_ROOT and their destructor is never called
+  (fix that or switch to something like LEX_STRINGs)
+*/
+
+bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
 {
-  Mvi_context *ctx= (Mvi_context *) arg;
+  String *s= new (mem_root) String;
+  const char *copy= (const char *) memdup_root(mem_root, key->ptr(),
+                                               key->length());
+  if (!s || !copy)
+    return true;
+  s->set(copy, key->length(), &my_charset_latin1_bin);
+  return encoded.push_back(s, mem_root);
+}
+
+
+/*
+  @brief
+    Construct the fulltext predicate that implements this access:
+
+      MATCH vcol AGAINST ('+encoded_foo +encoded_bar ...' IN BOOLEAN MODE)
+
+  @detail
+    A conjunctive access (JSON_CONTAINS) requires every element key to be
+    present, so each key gets a '+' prefix. A disjunctive one (JSON_OVERLAPS)
+    leaves the keys optional.
+*/
+
+Item *Mvi_access::create_ft_item(THD *thd)
+{
+  StringBuffer<256> query;
+  List_iterator<String> it(encoded);
+  String *key;
+  List<Item> ifm_args;
+  query.length(0);
+  query.set_charset(&my_charset_latin1_bin);
+  while ((key= it++))
+  {
+    if (query.length())
+      query.append(' ');
+    if (conjunctive)
+      query.append('+');
+    query.append(key->ptr(), key->length());
+  }
+  if (!query.length())
+    return NULL;
+
+  Item *ift_query= new (thd->mem_root) Item_string(thd, &my_charset_latin1_bin,
+                                                   query.c_ptr(),
+                                                   query.length());
+  Item *ivcol= new (thd->mem_root) Item_field(thd, index->vcol);
+  /* Item_func_match takes the query string first: it is its key_item() */
+  if (!ift_query || !ivcol ||
+      ifm_args.push_back(ift_query, thd->mem_root) ||
+      ifm_args.push_back(ivcol, thd->mem_root))
+    return NULL;
+  return new (thd->mem_root) Item_func_match(thd, ifm_args, FT_BOOL);
+}
+
+
+/*
+  @brief
+    Check if we can use Multi-Value Index access to read rows for this
+    predicate, if yes create an access descriptor.
+
+  @detail
+    Check if this item is a
+
+      JSON_CONTAINS(array_indexed_expr, '[foo, bar, ... ]')
+
+    If yes, collect the encoded element keys to search the index for.
+
+    Elements that cannot be encoded for that index (e.g. because of a type
+    mismatch) are skipped: the resulting access is a necessary, not a
+    sufficient condition, and is only ever ANDed with this predicate.
+
+  @return
+    The access descriptor, or NULL if the predicate cannot use an MVI.
+*/
+
+Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
+                                                    List<Mv_index> *indexes)
+{
   Mv_index *index;
-  CHARSET_INFO *cs= NULL;
-  Item_func_mvi_encode *mvitem= NULL;
-  DBUG_ASSERT(fixed());
-  if (arg_count > 2 || !a2_constant)
-    return false;
-  /* Find the MVI that matches the first argument */
-  if (!(index= get_mvi_index(&ctx->indexes, args[0])))
-    return false;
-
-  cs= args[0]->collation.collation;
-  mvitem= (Item_func_mvi_encode *)index->vcol->vcol_info->expr;
-
-  /* Get ready to construct the ft queries from the second argument */
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  const uchar *start, *end;
   Mvi_access *access= NULL;
   StringBuffer<256> buf;
+  const uchar *start, *end;
+  DBUG_ASSERT(fixed());
+
+  if (arg_count > 2 || !a2_constant)
+    return NULL;
+  /* Find the MVI that matches the first argument */
+  if (!(index= get_mvi_index(indexes, args[0])))
+    return NULL;
+
+  CHARSET_INFO *cs= args[0]->collation.collation;
+  Item_func_mvi_encode *mvitem=
+    (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
+  /* Get ready to encode the element keys from the second argument */
+  const Type_handler *cast_th= mvitem->cast_type().type_handler();
+
   buf.length(0);
   buf.set_charset(&my_charset_latin1_bin);
   if (!a2_parsed)
@@ -335,31 +418,28 @@ bool Item_func_json_contains::mvi_analyze(void *arg)
     a2_parsed= true;
   }
   if (!val)
-    return false;
+    return NULL;
   start= reinterpret_cast<const uchar *>(val->ptr());
   end= start + val->length();
 
   if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    return false;
+    return NULL;
 
   if (je.value_type == JSON_VALUE_UNINITIALIZED ||
       je.value_type == JSON_VALUE_OBJECT)
-    return false;
+    return NULL;
+
   if (je.value_type != JSON_VALUE_ARRAY)
   {
-    /* scalar */
-    if (!encode_mvi_key(&je, cast_th, cs, &buf))
-    {
-      access= new (ctx->thd->mem_root) Mvi_access(index, true);
-      /* TODO: there gotta be a less verbose way to construct s. */
-      String *s= new (ctx->thd->mem_root) String;
-      s->set_charset(&my_charset_latin1_bin);
-      if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
-        return true;
-      access->encoded.push_back(s);
-    }
-    goto ok;
+    /* A scalar: JSON_CONTAINS(expr, '123') */
+    if (encode_mvi_key(&je, cast_th, cs, &buf))
+      return NULL;
+    if (!(access= new (thd->mem_root) Mvi_access(index, true)) ||
+        access->add_key(thd->mem_root, &buf))
+      return NULL;
+    return access;
   }
+  // JSON_VALUE_ARRAY
 
   /* TODO: deduplicate? */
   do {
@@ -374,32 +454,34 @@ bool Item_func_json_contains::mvi_analyze(void *arg)
       case JST_VALUE:
       {
         if (json_read_value(&je))
-          return false;
+          return NULL;
 
-        if (!encode_mvi_key(&je, cast_th, cs, &buf))
-        {
-          if (!access)
-            access= new (ctx->thd->mem_root) Mvi_access(index, true);
-          /* TODO: there gotta be a less verbose way to construct s. */
-          String *s= new (ctx->thd->mem_root) String;
-          s->set_charset(&my_charset_latin1_bin);
-          if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
-            return true;
-          access->encoded.push_back(s);
-        }
+        if (encode_mvi_key(&je, cast_th, cs, &buf))
+          break;                            /* Skip: cannot be encoded */
+        if (!access &&
+            !(access= new (thd->mem_root) Mvi_access(index, true)))
+          return NULL;
+        if (access->add_key(thd->mem_root, &buf))
+          return NULL;
         break;
       }
       default:
-        return false;
+        return NULL;
     }
   } while (json_scan_next(&je) == 0);
 
-ok:
-  if (access)
-    ctx->accesses.push_back(access);
-  return false;
+  return access;
 }
 
+
+bool Item_func_json_contains::mvi_analyze(void *arg)
+{
+  Mvi_context *ctx= (Mvi_context *) arg;
+  Mvi_access *access= get_mvi_access(ctx->thd, &ctx->indexes);
+  if (access && ctx->accesses.push_back(access, ctx->thd->mem_root))
+    return true;                                          /* Out of memory */
+  return false;
+}
 
 
 /*
@@ -419,94 +501,8 @@ ok:
 Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
                                                  List<Mv_index> *indexes)
 {
-  List_iterator<Mv_index> it(*indexes);
-  Mv_index *index;
-  Field *vcol_field= NULL;
-  CHARSET_INFO *cs= NULL;
-  Item_func_mvi_encode *mvitem= NULL;
-  DBUG_ASSERT(fixed());
-  if (arg_count > 2 || !a2_constant)
-    return NULL;
-  if (!(index= get_mvi_index(indexes, args[0])))
-    return NULL;
-  vcol_field= index->vcol;
-  cs= args[0]->collation.collation;
-  mvitem= (Item_func_mvi_encode *)index->vcol->vcol_info->expr;
-
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  StringBuffer<256> buf;
-  const uchar *start, *end;
-  List<Item> ifm_args;
-  Item_field *ivcol;
-  Item_string *ift_query;
-  bool at_least_one= false;
-  DBUG_ASSERT(fixed());
-  buf.length(0);
-  buf.set_charset(&my_charset_latin1_bin);
-  if (!a2_parsed)
-  {
-    val= args[1]->val_json(&tmp_val);
-    a2_parsed= true;
-  }
-  if (!val)
-    return NULL;
-  start= reinterpret_cast<const uchar *>(val->ptr());
-  end= start + val->length();
-
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    return NULL;
-
-  if (je.value_type == JSON_VALUE_UNINITIALIZED ||
-      je.value_type == JSON_VALUE_OBJECT)
-    return NULL;
-  if (je.value_type != JSON_VALUE_ARRAY)
-  {
-    /* scalar */
-    if (!encode_mvi_key(&je, cast_th, cs, &buf))
-      at_least_one= true;
-    goto ok;
-  }
-
-  /* TODO: deduplicate? */
-  do {
-    switch (je.state)
-    {
-      /* TODO: nested array? */
-      case JST_ARRAY_START:
-        continue;
-      case JST_ARRAY_END:
-        if (at_least_one)
-          buf.length(buf.length() - 1);
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          return NULL;
-
-        buf.append('+');
-        if (encode_mvi_key(&je, cast_th, cs, &buf))
-          buf.length(buf.length() - 1);
-        else
-        {
-          buf.append(' ');
-          at_least_one= true;
-        }
-        break;
-      }
-      default:
-        return NULL;
-    }
-  } while (json_scan_next(&je) == 0);
-
-ok:
-  if (!at_least_one)
-    return NULL;
-  ift_query= new (thd->mem_root) Item_string(thd, &my_charset_latin1_bin,
-                                             buf.c_ptr(), buf.length());
-  ifm_args.push_back(ift_query);
-  ivcol= new (thd->mem_root) Item_field(thd, vcol_field);
-  ifm_args.push_back(ivcol);
-  return new (thd->mem_root) Item_func_match(thd, ifm_args, FT_BOOL);
+  Mvi_access *access= get_mvi_access(thd, indexes);
+  return access ? access->create_ft_item(thd) : NULL;
 }
 
 /*

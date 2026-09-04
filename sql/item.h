@@ -823,6 +823,7 @@ const item_walk_flags WALK_NO_REF=           (1<<2);
 
 
 struct Mv_index;
+struct Mvi_access;
 
 class Item :public Value_source,
             public Type_all_attributes
