@@ -274,6 +274,7 @@ SYMBOL symbols[] = {
   { "GRANT",		SYM(GRANT)},
   { "GRANTS",	        SYM(GRANTS)},
   { "GROUP",		SYM(GROUP_SYM)},
+  { "GROUPING",   SYM(GROUPING_SYM)},
   { "HANDLER",		SYM(HANDLER_SYM)},
   { "HARD",		SYM(HARD_SYM)},
   { "HASH",		SYM(HASH_SYM)},

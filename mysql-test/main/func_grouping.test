@@ -1,0 +1,384 @@
+# Copyright (c) 2016, 2025, Oracle and/or its affiliates.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+
+--echo #
+--echo # MDEV-22269: GROUPING function
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t0,t1,t2,t,t3;
+DROP VIEW IF EXISTS v;
+--enable_warnings
+
+--echo #
+--echo # Tests for WL#1979 - IMPLEMENTATION OF GROUPING FUNCTION
+--echo #
+
+CREATE TABLE t0 (i0 INTEGER);
+
+INSERT INTO t0 VALUES (1), (2), (3), (4), (5);
+
+CREATE TABLE t1 (
+  a INTEGER,
+  b INTEGER,
+  c INTEGER,
+  INDEX k1 (a),
+  INDEX k2 (a,b)
+);
+
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0)) % 100,
+    (i0 + (10 * i0) + (100 * i0)) % 100
+  FROM t0;
+
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100,
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100
+  FROM t0;
+
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100,
+    (i0 + (10 * i0) + (100 * i0) + 2) % 100
+  FROM t0;
+
+ANALYZE TABLE t1;
+
+SELECT * FROM t1 ORDER BY a,b,c;
+
+# Testing for syntax
+# Success cases
+SELECT a, b, c, GROUPING(a) FROM t1 GROUP BY a,b,c WITH ROLLUP;
+SELECT a, b, c, GROUPING(a, b) FROM t1 GROUP BY a,b,c WITH ROLLUP;
+SELECT a, b, c, GROUPING(a, b, c) FROM t1 GROUP BY a,b,c WITH ROLLUP;
+SELECT a, b FROM t1 GROUP BY a,b WITH ROLLUP HAVING GROUPING(b) = 1;
+SELECT a, b, GROUPING(a) FROM t1 GROUP BY a,b;
+
+# Failure cases
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, b, GROUPING(c) FROM t1 GROUP BY a,b WITH ROLLUP;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, b, GROUPING(a, b, c) FROM t1 GROUP BY a,b WITH ROLLUP;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, GROUPING(SUM(a)) FROM t1 GROUP BY (a) WITH ROLLUP;
+
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, b, GROUPING(a) FROM t1;
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT a, b FROM t1 WHERE GROUPING(a)=1 GROUP BY a,b WITH ROLLUP;
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT a, b FROM t1 GROUP BY GROUPING(a),GROUPING(b) WITH ROLLUP;
+
+# Check for GROUPING by position. We do not allow it
+-- error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, b, c, GROUPING(1) FROM t1 GROUP BY a,b,c WITH ROLLUP;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, GROUPING(1) FROM t1 GROUP BY 1 WITH ROLLUP;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT GROUPING(1) FROM t1 GROUP BY 1 WITH ROLLUP;
+
+# Check the restriction on the number of args to
+# grouping function
+let $query1= CREATE TABLE t3 (;
+let $col_cnt=64;
+while ($col_cnt)
+{
+  let $query1= $query1 i$col_cnt INTEGER,;
+  dec $col_cnt;
+}
+
+let $query1= $query1 i65 INTEGER);
+eval $query1;
+
+let $query= SELECT GROUPING(;
+let col_cnt=64;
+while ($col_cnt)
+{
+let $query= $query i$col_cnt,;
+dec $col_cnt;
+}
+let $query= $query i65) FROM t3 GROUP BY (i1) WITH ROLLUP;
+
+--error ER_TOO_MANY_ARGS
+eval $query;
+DROP TABLE t3;
+
+# Check for expressions
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT a, b, GROUPING(c + c) FROM t1 GROUP BY a,b WITH ROLLUP;
+# Wrong results FROM this because of bug in rollup
+SELECT a, b, GROUPING(c + c) FROM t1 GROUP BY a,b,(c + c) WITH ROLLUP;
+
+# We do not allow sub-queries as arguments to GROUPING()
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT GROUPING((SELECT MAX(b) FROM t1)) FROM t1
+GROUP BY (SELECT MAX(b) FROM t1) WITH ROLLUP;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT (SELECT MAX(b) FROM t1) FROM t1 GROUP BY (SELECT MAX(b) FROM t1)
+  WITH ROLLUP HAVING GROUPING((SELECT 1 FROM DUAL))=0;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT (SELECT MAX(b) FROM t1) FROM t1 GROUP BY (SELECT MAX(b) FROM t1)
+  WITH ROLLUP HAVING GROUPING((SELECT MAX(b) FROM t1))=0;
+
+# Test GROUPING() with ALL/ANY/EXISTS
+SELECT 1 WHERE EXISTS (SELECT a FROM t1 GROUP BY a WITH ROLLUP);
+SELECT 1 WHERE 2 >
+ALL (SELECT GROUPING(a) FROM t1 GROUP BY a WITH ROLLUP);
+SELECT 1 WHERE 1 =
+ANY (SELECT GROUPING(a) FROM t1 GROUP BY a WITH ROLLUP);
+
+# Test with prepared statements
+PREPARE ps FROM "SELECT a FROM t1 GROUP BY a WITH ROLLUP HAVING GROUPING(a)=0";
+EXECUTE ps;
+DEALLOCATE PREPARE ps;
+PREPARE ps FROM
+"SELECT a FROM t1 GROUP BY a WITH ROLLUP HAVING GROUPING(a)=1";
+EXECUTE ps;
+DEALLOCATE PREPARE ps;
+
+# Test with derived tables with prepared statements
+CREATE VIEW v AS SELECT * FROM t1;
+PREPARE ps FROM "SELECT GROUPING(a) FROM v GROUP BY a WITH ROLLUP";
+EXECUTE ps;
+DEALLOCATE PREPARE ps;
+DROP VIEW v;
+
+# Uncomment with MDEV-40611 resolved
+# Test with view and GROUPING() in having clause
+#CREATE VIEW v AS SELECT (SELECT  MAX(a) FROM t1) as field1 FROM t1
+#GROUP BY field1 WITH ROLLUP HAVING GROUPING(field1)=0;
+#SELECT * FROM v;
+#DROP VIEW v;
+
+# Test with derived tables
+SELECT  MAX(a) FROM t1 WHERE (b) IN (SELECT MIN(t2.b)
+FROM (SELECT b from t1) AS t2 GROUP BY t2.b);
+# With out derived table in where subquery
+SELECT  MAX(a) FROM t1 WHERE (b) IN (SELECT MIN(t2.b)
+FROM t1 AS t2 GROUP BY t2.b WITH
+ROLLUP HAVING GROUPING (t2.b)=0);
+# With derived table in where subquery
+SELECT  MAX(a) FROM t1 WHERE (b) IN (SELECT MIN(t2.b)
+FROM (SELECT b from t1) AS t2 GROUP BY t2.b WITH
+ROLLUP HAVING GROUPING (t2.b)=0);
+# With CTE
+WITH qn AS (SELECT a, b, c, GROUPING(a) as grouping_a FROM t1
+            GROUP BY a,b,c WITH ROLLUP)
+SELECT * FROM qn;
+WITH qn AS (SELECT (SELECT  MAX(a) FROM t1) as field1 FROM t1
+GROUP BY field1 WITH ROLLUP HAVING GROUPING(field1)=0)
+SELECT * FROM qn;
+with qn as (SELECT  MAX(a) FROM t1 WHERE (b) IN (
+SELECT MIN(t2.b) FROM (SELECT b from t1) AS t2 GROUP BY t2.b WITH
+ROLLUP HAVING GROUPING (t2.b)=0))
+SELECT * FROM qn;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+WITH qn AS(SELECT GROUPING((SELECT MAX(b) FROM t1)) as field1
+           FROM t1 GROUP BY (SELECT MAX(b) FROM t1) WITH ROLLUP)
+SELECT qn.field1 FROM qn;
+
+# Usage
+
+# Check for grouping of the two columns
+SELECT a as Department,b as Employees, SUM(c), GROUPING(a) as GP_A,
+       GROUPING(b) as GP_B FROM t1 GROUP BY a,b WITH ROLLUP;
+
+# Check for the rows having only super-aggregates
+SELECT a as Department,b as Employees, SUM(c), GROUPING(a) as GP_A,
+       GROUPING(b) as GP_B FROM t1 GROUP BY a,b WITH ROLLUP
+       HAVING GP_A=1 OR GP_B=1;
+
+# Differentiate Super-Aggregates and Aggregates
+SELECT IF(GROUPING(a)=1,'All Departments', a) as Department,
+       IF(GROUPING(b)=1, 'All Employees', b) as Employees,
+       SUM(c) as SUM
+FROM t1 GROUP BY a,b WITH ROLLUP;
+
+# Use grouping to differentiate between NULLs FROM the table data
+# and NULLs FROM the ROLLUP
+
+INSERT INTO t1 values (1111,NULL,112);
+INSERT INTO t1 values (1111,NULL,NULL);
+INSERT INTO t1 values (NULL,112,NULL);
+
+SELECT a as Department, b as Employees, SUM(c), GROUPING(a) as GP_A,
+       GROUPING(b) as GP_B FROM t1 GROUP BY a,b WITH ROLLUP;
+
+SELECT a as Department, b as Employees, SUM(c), GROUPING(a) as GP_A,
+       GROUPING(b) as GP_B FROM t1 GROUP BY a,b WITH ROLLUP
+       HAVING (GP_A =1 AND GP_B=1) OR (GP_B=1);
+
+DROP TABLE t0,t1;
+
+# End of test for WL#1979
+
+--echo #
+--echo # Bug#26073525: Allow GROUPING function in ORDER BY
+--echo #
+
+CREATE TABLE t0 (i0 INTEGER);
+INSERT INTO t0 VALUES (1), (2), (3), (4), (5);
+
+CREATE TABLE t1 (i INTEGER, j INTEGER, k INTEGER, INDEX k1(i), INDEX k2(j,k));
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0)) % 100,
+    (i0 + (10 * i0) + (100 * i0)) % 100
+  FROM t0;
+
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100,
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100
+  FROM t0;
+
+INSERT INTO t1
+  SELECT i0 + (10 * i0) + (100 * i0),
+    (i0 + (10 * i0) + (100 * i0) + 1) % 100,
+    (i0 + (10 * i0) + (100 * i0) + 2) % 100
+  FROM t0;
+
+ANALYZE TABLE t1;
+
+#GROUPING with DISTINCT
+--sorted_result
+SELECT DISTINCT GROUPING(i), GROUPING(j) FROM t1 GROUP BY i,j WITH ROLLUP;
+--sorted_result
+SELECT DISTINCT j, GROUPING(j) FROM t1 GROUP BY i,j WITH ROLLUP;
+
+#Error case
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT i, j, AVG(k) FROM t1 GROUP BY i,j+GROUPING(i) WITH ROLLUP;
+
+DROP TABLE t0,t1;
+
+--echo #
+--echo # Bug #33149402: SELECT'S GROUPING() NOT TAKEN IN ACCOUNT IN HAVING WHEN JOIN USED
+--echo #
+
+CREATE TABLE t1 (a INTEGER, b INTEGER);
+INSERT INTO t1 VALUES (2020, 2);
+
+CREATE TABLE t2 (b INTEGER);
+INSERT INTO t2 VALUES (2);
+
+SELECT a, GROUPING(a) AS ga
+  FROM t1 JOIN t2 USING (b)
+  GROUP BY a WITH ROLLUP
+  HAVING ga = 0;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#36039905: Assertion `table_num_to_node_num[table_num] != -1' failed
+--echo #
+
+CREATE TABLE t(x INT);
+# Used to fail when running with the hypergraph optimizer and --ps-protocol.
+--disable_view_protocol
+SELECT 1 FROM t AS t1, t AS t2,
+(SELECT DISTINCT GROUPING(t3.x) FROM t AS t3, t AS t4
+GROUP BY t3.x WITH ROLLUP) AS dt;
+--enable_view_protocol
+DROP TABLE t;
+
+--echo #
+--echo # Bug#36514339 ROLLUP misses a summary NULL
+--echo #
+CREATE TABLE t(a INT);
+SELECT GROUPING(a), a, COUNT(*) FROM t GROUP BY a WITH ROLLUP;
+DROP TABLE t;
+
+--echo #
+--echo # Bug#38168051: Support for GROUPING() function with primitive GBY
+--echo #
+
+CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
+INSERT INTO t1 VALUES (1,1), (1,2), (2,1);
+SELECT GROUPING(f1) FROM t1 GROUP BY f1;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT GROUPING(f2) FROM t1 GROUP BY f1;
+--error ER_BAD_FIELD_ERROR
+SELECT GROUPING(f3) FROM t1 GROUP BY f1;
+--error ER_BAD_FIELD_ERROR
+SELECT f1, f2, GROUPING(f3) FROM t1 GROUP BY f1;
+SELECT f1, f1+GROUPING(f1) FROM t1 GROUP BY f1;
+SELECT f1 FROM t1 GROUP BY f1 HAVING GROUPING(f1) = 0;
+--error ER_BAD_FIELD_ERROR
+SELECT f1 FROM t1 GROUP BY f1 HAVING GROUPING(f2) = 0;
+SELECT f1 FROM t1 GROUP BY f1 HAVING f1+GROUPING(f1) = 0;
+SELECT f1 FROM t1 GROUP BY f1 ORDER BY GROUPING(f1),f1;
+SELECT SUM(f1) OVER(PARTITION BY GROUPING(f1)) FROM t1 GROUP BY f1;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT SUM(f1) OVER(PARTITION BY GROUPING(f2)) FROM t1 GROUP BY f1;
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT f1 FROM t1 GROUP BY f1 ORDER BY GROUPING(f2);
+--error ER_FIELD_IN_GROUPING_NOT_GROUP_BY
+SELECT f1 FROM t1 GROUP BY f1 ORDER BY GROUPING(f1+f1);
+SELECT 1 FROM t1 GROUP BY (f1+f1) ORDER BY GROUPING(f1+f1);
+DROP TABLE t1;
+
+# send_row_on_empty_set tests
+CREATE TABLE t0(x INT);
+SELECT x, GROUPING(x) FROM t0 GROUP BY x WITH ROLLUP;
+SELECT * FROM t0 GROUP BY x WITH ROLLUP HAVING GROUPING(x)=1;
+SELECT x FROM t0 WHERE 1=0 GROUP BY x WITH ROLLUP;
+SELECT x, GROUPING(x), ROW_NUMBER() OVER () FROM t0 GROUP BY x WITH ROLLUP;
+
+INSERT INTO t0 VALUES (0);
+SELECT EXISTS (SELECT t0.x FROM t0 a WHERE 1=0 GROUP BY a.x WITH ROLLUP) AS e
+  FROM t0;
+
+SELECT * FROM (SELECT x, GROUPING(x) g FROM t0 GROUP BY x WITH ROLLUP) dt WHERE dt.g=1;
+DROP TABLE t0;
+
+# Check GROUPING works with 64 arguments
+let $query1= CREATE TABLE t0 (;
+let $col_cnt=63;
+while ($col_cnt)
+{
+  let $query1= $query1 i$col_cnt INTEGER,;
+  dec $col_cnt;
+}
+
+let $query1= $query1 i64 INTEGER);
+eval $query1;
+
+let $query= SELECT GROUPING(;
+let col_cnt=63;
+while ($col_cnt)
+{
+let $query= $query i$col_cnt,;
+dec $col_cnt;
+}
+let $query= $query i64) AS g FROM t0 GROUP BY ;
+let col_cnt=63;
+while ($col_cnt)
+{
+let $query= $query i$col_cnt,;
+dec $col_cnt;
+}
+let $query= $query i64 WITH ROLLUP;
+
+eval $query;
+DROP TABLE t0;
+
+CREATE TABLE t1 (a INT PRIMARY KEY); INSERT INTO t1 VALUES (1);
+SELECT a, GROUPING(a) FROM t1 WHERE a=1 AND rand() > 2 GROUP BY a WITH ROLLUP;
+DROP TABLE t1;
+
+--echo # End of 13.2 tests.
