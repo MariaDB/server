@@ -81,7 +81,6 @@ uextra=0
 disver=""
 
 STATDIR=""
-tmpopts=""
 itmpdir=""
 xtmpdir=""
 
@@ -110,6 +109,9 @@ INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
 INNOBACKUPLOG="$DATA/mariabackup.backup.log"
 
+# Where mariadb-backup stderr goes: 'file' (the logs above) or 'logger':
+INNO_LOG_MODE='file'
+
 timeit()
 {
     local stage="$1"
@@ -123,6 +125,31 @@ timeit()
 
     wsrep_log_info "Evaluating $cmd"
     eval $cmd
+    extcode=$?
+
+    if [ $ttime -eq 1 ]; then
+        x2=$(date +%s)
+        took=$(( x2-x1 ))
+        wsrep_log_info "NOTE: $stage took $took seconds"
+        totime=$(( totime+took ))
+    fi
+
+    return $extcode
+}
+
+# Like timeit, but runs a function instead of eval'ing a string.
+run_timed()
+{
+    local stage="$1"
+    shift
+    local x1 x2 took extcode
+
+    if [ $ttime -eq 1 ]; then
+        x1=$(date +%s)
+    fi
+
+    wsrep_log_info "Running $stage"
+    "$@"
     extcode=$?
 
     if [ $ttime -eq 1 ]; then
@@ -549,6 +576,28 @@ adjust_progress()
 bkgroups='sst|xtrabackup|mariabackup'
 encgroups="--mysqld|$bkgroups"
 
+# Split a configuration option string into the named array. Splitting is on
+# whitespace only, so a value containing a space cannot be expressed - warn
+# instead of silently splitting such a value in two.
+split_cnf_opts()
+{
+    local _arr="$1"
+    local _name="$2"
+    local _value="$3"
+
+    [ -z "$_value" ] && return 0
+
+    case "$_value" in
+    *[\'\"]*)
+        wsrep_log_warning "Quotes in '$_name' are not interpreted:" \
+                          "the value is split on whitespace, so an option" \
+                          "value containing a space is not supported."
+        ;;
+    esac
+
+    read -ra "$_arr" <<< "$_value"
+}
+
 read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt 'mbstream')
@@ -630,9 +679,11 @@ read_cnf()
     rlimit=$(parse_cnf sst rlimit)
     uextra=$(parse_cnf sst use-extra 0)
     speciald=$(parse_cnf sst 'sst-special-dirs' 1)
-    iopts=$(parse_cnf "$bkgroups" 'inno-backup-opts')
-    iapts=$(parse_cnf "$bkgroups" 'inno-apply-opts')
-    impts=$(parse_cnf "$bkgroups" 'inno-move-opts')
+    # tokenized into arrays, so that they stay literal argv elements:
+    iopts=(); iapts=(); impts=()
+    split_cnf_opts iopts 'inno-backup-opts' "$(parse_cnf "$bkgroups" 'inno-backup-opts')"
+    split_cnf_opts iapts 'inno-apply-opts'  "$(parse_cnf "$bkgroups" 'inno-apply-opts')"
+    split_cnf_opts impts 'inno-move-opts'   "$(parse_cnf "$bkgroups" 'inno-move-opts')"
     use_memory=$(parse_cnf "$bkgroups" 'use-memory')
     if [ -z "$use_memory" ]; then
         if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
@@ -812,7 +863,7 @@ check_extra()
                 # mariadb-backup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally:
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA="$INNOEXTRA --host=127.0.0.1 --port=$eport"
+                INNOEXTRA+=(--host=127.0.0.1 --port="$eport")
                 use_socket=0
             else
                 wsrep_log_error "Extra port $eport null, failing"
@@ -823,7 +874,7 @@ check_extra()
         fi
     fi
     if [ $use_socket -eq 1 -a -n "$WSREP_SST_OPT_SOCKET" ]; then
-        INNOEXTRA="$INNOEXTRA --socket='$WSREP_SST_OPT_SOCKET'"
+        INNOEXTRA+=(--socket="$WSREP_SST_OPT_SOCKET")
     fi
 }
 
@@ -1010,9 +1061,7 @@ if [ $ssyslog -eq 1 ]; then
     else
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     fi
-    INNOAPPLY="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
-    INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
-    INNOBACKUP="2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
+    INNO_LOG_MODE='logger'
 else
     if [ $sstlogarchive -eq 1 ]
     then
@@ -1068,27 +1117,87 @@ else
                 wsrep_log_warning "Failed to archive log file ('$newfile')"
         fi
     fi
-    INNOAPPLY="> '$INNOAPPLYLOG' 2>&1"
-    INNOMOVE="> '$INNOMOVELOG' 2>&1"
-    INNOBACKUP="2> '$INNOBACKUPLOG'"
+    INNO_LOG_MODE='file'
 fi
 
+# Build the mariadb-backup commands as arrays (globals, run by run_inno*).
+# Every value stays a literal argv element, so nothing is re-parsed.
 setup_commands()
 {
-    local mysqld_args=""
-    if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
-        mysqld_args=" --mysqld-args $WSREP_SST_OPT_MYSQLD"
-    fi
-    local recovery=""
-    if [ -n "$INNODB_FORCE_RECOVERY" ]; then
-        recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
+    local -a mysqld_args=()
+    if [ ${#WSREP_SST_OPT_MYSQLD_ARR[@]} -ne 0 ]; then
+        mysqld_args=(--mysqld-args "${WSREP_SST_OPT_MYSQLD_ARR[@]}")
     fi
     if [ -n "$use_memory" ]; then
-        INNOEXTRA="$INNOEXTRA --use-memory=$use_memory"
+        INNOEXTRA+=(--use-memory="$use_memory")
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
-    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
-    INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
+
+    INNOAPPLY_CMD=("$BACKUP_BIN" --prepare)
+    [ -n "$disver" ] && INNOAPPLY_CMD+=(--no-version-check)
+    [ -n "$INNODB_FORCE_RECOVERY" ] && \
+        INNOAPPLY_CMD+=(--innodb-force-recovery="$INNODB_FORCE_RECOVERY")
+    INNOAPPLY_CMD+=(${iapts[@]+"${iapts[@]}"})
+    INNOAPPLY_CMD+=(${INNOEXTRA[@]+"${INNOEXTRA[@]}"} \
+                    --target-dir="$DATA" --datadir="$DATA" \
+                    ${mysqld_args[@]+"${mysqld_args[@]}"})
+
+    INNOMOVE_CMD=("$BACKUP_BIN" \
+                  ${WSREP_SST_OPT_CONF_ARR[@]+"${WSREP_SST_OPT_CONF_ARR[@]}"})
+    INNOMOVE_CMD+=(--move-back)
+    [ -n "$disver" ] && INNOMOVE_CMD+=(--no-version-check)
+    INNOMOVE_CMD+=(${impts[@]+"${impts[@]}"})
+    INNOMOVE_CMD+=(${INNOEXTRA[@]+"${INNOEXTRA[@]}"} \
+                   --galera-info --force-non-empty-directories \
+                   --target-dir="$DATA" --datadir="${TDATA:-$DATA}")
+
+    INNOBACKUP_CMD=("$BACKUP_BIN" \
+                    ${WSREP_SST_OPT_CONF_ARR[@]+"${WSREP_SST_OPT_CONF_ARR[@]}"})
+    INNOBACKUP_CMD+=(--backup)
+    [ -n "$disver" ] && INNOBACKUP_CMD+=(--no-version-check)
+    INNOBACKUP_CMD+=(${iopts[@]+"${iopts[@]}"})
+    [ -n "$xtmpdir" ] && INNOBACKUP_CMD+=(--tmpdir="$xtmpdir")
+    INNOBACKUP_CMD+=(${INNOEXTRA[@]+"${INNOEXTRA[@]}"} \
+                     --galera-info --stream="$sfmt" \
+                     --target-dir="$itmpdir" --datadir="$DATA" \
+                     ${mysqld_args[@]+"${mysqld_args[@]}"})
+}
+
+# Run the command arrays with real redirection, never through eval.
+run_innoapply()
+{
+    wsrep_log_info "Running: ${INNOAPPLY_CMD[*]}"
+    if [ "$INNO_LOG_MODE" = 'logger' ]; then
+        "${INNOAPPLY_CMD[@]}" 2>&1 | \
+            logger -p daemon.err -t "${ssystag}innobackupex-apply"
+    else
+        "${INNOAPPLY_CMD[@]}" > "$INNOAPPLYLOG" 2>&1
+    fi
+}
+
+run_innomove()
+{
+    wsrep_log_info "Running: ${INNOMOVE_CMD[*]}"
+    if [ "$INNO_LOG_MODE" = 'logger' ]; then
+        "${INNOMOVE_CMD[@]}" 2>&1 | \
+            logger -p daemon.err -t "${ssystag}innobackupex-move"
+    else
+        "${INNOMOVE_CMD[@]}" > "$INNOMOVELOG" 2>&1
+    fi
+}
+
+# Stream the backup to the transfer command. $tcmd carries no path parameter
+# and stays a string; PIPESTATUS still gives [backup, transfer].
+run_innobackup()
+{
+    wsrep_log_info "Running: ${INNOBACKUP_CMD[*]} | $tcmd"
+    if [ "$INNO_LOG_MODE" = 'logger' ]; then
+        "${INNOBACKUP_CMD[@]}" \
+            2> >(logger -p daemon.err -t "${ssystag}innobackupex-backup") | \
+            eval "$tcmd"
+    else
+        "${INNOBACKUP_CMD[@]}" 2> "$INNOBACKUPLOG" | eval "$tcmd"
+    fi
+    RC=( "${PIPESTATUS[@]}" )
 }
 
 send_magic()
@@ -1133,13 +1242,12 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         wsrep_log_info "Using '$xtmpdir' as mariadb-backup temporary directory"
-        tmpopts=" --tmpdir='$xtmpdir'"
 
         wsrep_log_info "Using '$itmpdir' as mariadb-backup working directory"
 
         if [ -n "$WSREP_SST_OPT_USER" ]; then
            WSREP_SST_OPT_USER_SAFE="$(safe WSREP_SST_OPT_USER)"
-           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER_SAFE'"
+           INNOEXTRA+=(--user="$WSREP_SST_OPT_USER_SAFE")
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then
@@ -1203,28 +1311,28 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             tcmd="$ecmd | $tcmd"
         fi
 
-        iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
+        iopts=(--databases-exclude=lost+found ${iopts[@]+"${iopts[@]}"})
 
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariadb-backup command line:
         if [ "$compress" != 'none' ]; then
-            iopts="--compress${compress:+=$compress}${iopts:+ }$iopts"
+            iopts=("--compress${compress:+=$compress}" ${iopts[@]+"${iopts[@]}"})
             if [ -n "$compress_threads" ]; then
-                iopts="--compress-threads=$compress_threads${iopts:+ }$iopts"
+                iopts=("--compress-threads=$compress_threads" ${iopts[@]+"${iopts[@]}"})
             fi
             if [ -n "$compress_chunk" ]; then
-                iopts="--compress-chunk-size=$compress_chunk${iopts:+ }$iopts"
+                iopts=("--compress-chunk-size=$compress_chunk" ${iopts[@]+"${iopts[@]}"})
             fi
         fi
 
         if [ -n "$backup_threads" ]; then
-            iopts="--parallel=$backup_threads${iopts:+ }$iopts"
+            iopts=("--parallel=$backup_threads" ${iopts[@]+"${iopts[@]}"})
         fi
 
         setup_commands
 
         set +e
-        timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
+        run_timed "$stagemsg-SST" run_innobackup
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
@@ -1272,7 +1380,7 @@ else # joiner
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
 
     if [ -n "$backup_threads" ]; then
-        impts="--parallel=$backup_threads${impts:+ }$impts"
+        impts=("--parallel=$backup_threads" ${impts[@]+"${impts[@]}"})
     fi
 
     stagemsg='Joiner-Recv'
@@ -1460,7 +1568,7 @@ else # joiner
 
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
-        timeit 'mariadb-backup prepare stage' "$INNOAPPLY"
+        run_timed 'mariadb-backup prepare stage' run_innoapply
         if [ $? -ne 0 ]; then
             wsrep_log_error "mariadb-backup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
@@ -1522,7 +1630,7 @@ else # joiner
         DONOR_MAGIC_FILE="$TDATA/$DONOR_INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
-        timeit 'mariadb-backup move stage' "$INNOMOVE"
+        run_timed 'mariadb-backup move stage' run_innomove
         if [ $? -eq 0 ]; then
             wsrep_log_info "Move successful, removing $DATA"
             rm -rf "$DATA"
