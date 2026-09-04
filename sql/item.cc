@@ -2880,6 +2880,7 @@ Item_sp::cleanup()
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
+  sp_query_arena->free_items();
   free_root(&sp_mem_root, MYF(0));
   dummy_table->alias.free();
 }
