@@ -2670,6 +2670,7 @@ rec_offs_make_nth_extern(
 }
 #ifdef WITH_WSREP
 # include "ha_prototypes.h"
+# include <mysql/service_wsrep.h>	/* wsrep_protocol_version */
 
 int
 wsrep_rec_get_foreign_key(
@@ -2784,9 +2785,31 @@ wsrep_rec_get_foreign_key(
 					data, len, buf,
 					*buf_len - key_len, false);
 				break;
+			case DATA_FIXBINARY:
+				if (wsrep_protocol_version < 5
+				    && !(col_f->prtype
+					 & DATA_BINARY_TYPE)) {
+					/* A UUID, INET6 or INET4 column is
+					stored as fixed length binary, but
+					below protocol version 5
+					wsrep_store_key_val_for_row() still
+					collates the row key of the parent
+					with the character set of the field.
+					Collate the reference key the same
+					way, so that the two match in a
+					cluster that has not fully upgraded
+					yet. See MDEV-41012. */
+					len = wsrep_normalize_string(
+						(int)(col_f->prtype
+						      & DATA_MYSQL_TYPE_MASK),
+						dtype_get_charset_coll(
+							col_f->prtype),
+						data, buf, len, *buf_len);
+					break;
+				}
+				/* fall through */
 			case DATA_BLOB:
 			case DATA_BINARY:
-			case DATA_FIXBINARY:
 			case DATA_GEOMETRY:
 				memcpy(buf, data, len);
 				break;

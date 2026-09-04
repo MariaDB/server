@@ -6993,10 +6993,31 @@ wsrep_store_key_val_for_row(
 			/* Character set for the field is defined only
 			to fields whose type is string and real field
 			type is not enum or set. For these fields check
-			if character set is multi byte. */
+			if character set is multi byte.
 
+			Fields that InnoDB stores as DATA_BINARY,
+			DATA_FIXBINARY or DATA_BLOB must not be collated
+			here: their bytes are opaque. Note that data types
+			implemented on top of Field_fbt (UUID, INET6, INET4)
+			report type() == MYSQL_TYPE_STRING and charset() ==
+			my_charset_numeric (i.e. latin1), while their values
+			are plain binary and InnoDB maps them to
+			DATA_FIXBINARY. The binary test below mirrors
+			get_innobase_type_from_mysql_type().
+
+			Skipping the collation changes the key bytes on the
+			wire, so it is gated on protocol version 5. Below
+			that version the value is still collated, and
+			wsrep_rec_get_foreign_key() collates the matching
+			reference key the same way, so the two agree in a
+			cluster that has not fully upgraded yet.
+			See MDEV-41012. */
 			if (real_type != MYSQL_TYPE_ENUM
 				&& real_type != MYSQL_TYPE_SET
+				&& (wsrep_protocol_version < 5
+				    || (!field->binary()
+					&& field->key_type()
+					   != HA_KEYTYPE_BINARY))
 				&& ( mysql_type == MYSQL_TYPE_VAR_STRING
 					|| mysql_type == MYSQL_TYPE_STRING)) {
 
