@@ -170,7 +170,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated), invisible(false),
+  generated(rhs.generated),
+  invisible(rhs.invisible),
   without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
   period(rhs.period)
 {

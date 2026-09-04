@@ -2309,6 +2309,18 @@ JOIN::optimize_inner()
       optimize_schema_tables_memory_usage(select_lex->leaf_tables))
     DBUG_RETURN(1);
 
+  if (setup_mvi_quick(this))
+  {
+    error= 1;
+    DBUG_RETURN(1);
+  }
+
+  if (setup_mvi_for_join(this))
+  {
+    error= 1;
+    DBUG_RETURN(1);
+  }
+
   if (setup_ftfuncs(select_lex)) /* should be after having->fix_fields */
     DBUG_RETURN(-1);
 

@@ -116,8 +116,6 @@ static Lex_ident_column make_unique_key_name(THD *,
 static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *,
                                         List<Create_field> *, uint *);
-static Lex_ident_column make_internal_field_name(THD *, const char *,
-                                                 List<Create_field> *);
 static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     bool, uint, ORDER *,
                                     ha_rows *, ha_rows *,
@@ -2775,7 +2773,7 @@ static int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
 
 #define INTERNAL_FIELD_NAME_LENGTH  30
 
-static Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
+Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
                                           List<Create_field> *create_list)
 {
   char buf[INTERNAL_FIELD_NAME_LENGTH]= {0};
