@@ -1173,7 +1173,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 /* Things we don't need in the embedded version of MySQL */
 /* TODO HF add #undef HAVE_VIO if we don't want client in embedded library */
 
-#undef WITH_WSREP
 #else
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT

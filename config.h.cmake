@@ -545,6 +545,7 @@
 
 #ifndef EMBEDDED_LIBRARY
 #cmakedefine WSREP_INTERFACE_VERSION "@WSREP_INTERFACE_VERSION@"
+#cmakedefine WITH_WSREP 1
 #endif
 
 #if !defined(__STDC_FORMAT_MACROS)
