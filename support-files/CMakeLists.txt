@@ -265,4 +265,19 @@ IF(NOT WITHOUT_SERVER)
           DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/ COMPONENT Development)
   INSTALL(EXPORT mariadb-plugin-targets FILE mariadb-plugin-targets.cmake
           DESTINATION ${INSTALL_SHAREDIR}/cmake/mariadb-plugin/ COMPONENT Development)
+
+  # DBUG_OFF/ENABLED_DEBUG_SYNC/SAFE_MUTEX affect THD's ABI. Resolve them
+  # for the config being installed now, not the plugin's config.
+  CMAKE_POLICY(SET CMP0087 NEW) # genex in INSTALL(CODE)
+  IF(WIN32) # SAFE_MUTEX never applies here
+    SET(_safe_mutex_genex "")
+  ELSE()
+    SET(_safe_mutex_genex "$<$<CONFIG:Debug>:SAFE_MUTEX>")
+  ENDIF()
+  INSTALL(CODE
+    "FILE(WRITE \"\${CMAKE_INSTALL_PREFIX}/${INSTALL_SHAREDIR}/cmake/mariadb-plugin/mariadb-plugin-per-config-defines.cmake\"
+          \"SET(MARIADB_DBUG_DEFINE \\\"$<$<NOT:$<CONFIG:Debug>>:DBUG_OFF>\\\")\n\"
+          \"SET(MARIADB_DEBUG_SYNC_DEFINE \\\"$<$<CONFIG:Debug>:ENABLED_DEBUG_SYNC>\\\")\n\"
+          \"SET(MARIADB_SAFE_MUTEX_DEFINE \\\"${_safe_mutex_genex}\\\")\n\")"
+    COMPONENT Development)
 ENDIF()
