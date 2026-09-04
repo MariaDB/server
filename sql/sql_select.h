@@ -1453,6 +1453,9 @@ private:
 };
 
 
+class Mvi_context;
+struct Mvi_access;
+
 class JOIN :public Sql_alloc
 {
 private:
@@ -1788,7 +1791,13 @@ public:
   SELECT_LEX_UNIT *unit;
   /// select that processed
   SELECT_LEX *select_lex;
-  /** 
+  /*
+    The result of the multi-valued index analysis, or NULL if there is no
+    usable MVI access. Produced by setup_mvi_quick(), used by
+    get_best_mvi_access() during range analysis.
+  */
+  Mvi_context *mvi_ctx;
+  /**
     TRUE <=> optimizer must not mark any table as a constant table.
     This is needed for subqueries in form "a IN (SELECT .. UNION SELECT ..):
     when we optimize the select that reads the results of the union from a
@@ -2001,6 +2010,9 @@ public:
 
   void init(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
             select_result *result_arg);
+
+  /* Return the MVI access chosen for `table', or NULL if there is none */
+  Mvi_access *get_mvi_access_for_table(TABLE *table);
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }

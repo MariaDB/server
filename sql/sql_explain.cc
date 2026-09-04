@@ -2524,9 +2524,7 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
 
 void Explain_quick_select::print_extra(String *str)
 {
-  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
-      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  if (is_basic())
   {
     /* print nothing */
   }
@@ -2614,9 +2612,7 @@ const char * Explain_quick_select::get_name_by_type()
 
 void Explain_quick_select::print_key(String *str)
 {
-  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  if (is_basic())
   {
     if (str->length() > 0)
       str->append(',');
@@ -2640,9 +2636,7 @@ void Explain_quick_select::print_key(String *str)
 
 void Explain_quick_select::print_key_len(String *str)
 {
-  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
-      quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  if (is_basic())
   {
     char buf[64];
     size_t length;

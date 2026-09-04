@@ -377,7 +377,6 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
   bool mvi_analyze(void *arg) override;
-  Item *create_ft_for_mvi(THD *thd, List<Mv_index> *indexes) override;
   Mvi_access *get_mvi_access(THD *thd, List<Mv_index> *indexes);
 
 protected:

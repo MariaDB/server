@@ -35,7 +35,7 @@ insert into t1 values (4, '{}');
 explain
 select * from t1 where json_contains(j->'$.tags', '"abcde"');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	fulltext	idx	idx	0		1	Using where
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
 select * from t1 where json_contains(j->'$.tags', '"abcde"');
 c	j
 2	{"tags": ["1", "abcde", "", 34567]}
@@ -51,14 +51,14 @@ c	j
 explain
 select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	fulltext	idx	idx	0		1	Using where
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
 select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
 c	j
 2	{"tags": ["1", "abcde", "", 34567]}
 explain
 select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	fulltext	idx	idx	0		1	Using where
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
 select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
 c	j
 select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
@@ -73,6 +73,96 @@ select * from t1 where json_contains(j1->'$.tags', '"abcde"') or json_contains(j
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
 DROP TABLE t1;
+# MVI access is chosen on cost, and survives the re-optimization
+# that a LIMIT triggers in make_join_select()
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+c	j
+1	{"tags": ["aaa"]}
+# No MATCH() is added to the WHERE clause
+# ("filtered" depends on the engine's row estimate, so hide it)
+explain extended select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	#	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c` AS `c`,`test`.`t1`.`j` AS `j` from `test`.`t1` where json_contains(json_extract(`test`.`t1`.`j`,'$.tags'),'"aaa"')
+# A predicate under a top-level OR cannot use the index: the scan
+# would drop the rows that only match the other branch
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+# The scan is re-initialized for each execution: MVI table on the
+# inner side of a join, and in a correlated subquery
+create table t2 (a int) engine=innodb;
+insert into t2 values (1),(2),(3);
+explain select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where; Using join buffer (flat, BNL join)
+select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+set @@join_cache_level=0;
+select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+set @@join_cache_level=default;
+select a, (select count(*) from t1
+where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a) from t2;
+a	(select count(*) from t1
+where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a)
+1	1
+2	0
+3	1
+drop table t1,t2;
+# Repeated optimization: prepared statements and stored procedures.
+# '"aaa"' can use the index; an object argument cannot, but still
+# matches row 2, which the '"aaa"' index scan would not return.
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [{"a":1}]}');
+Warnings:
+Warning	4204	Invalid vector format at offset: 3 for '[{"a": 1}]'. Must be a valid JSON array of numbers.
+prepare s from 'select * from t1 where json_contains(j->''$.tags'', ?)';
+set @p='"aaa"';
+execute s using @p;
+c	j
+1	{"tags": ["aaa"]}
+set @p='{"a":1}';
+execute s using @p;
+c	j
+2	{"tags": [{"a":1}]}
+set @p='"aaa"';
+execute s using @p;
+c	j
+1	{"tags": ["aaa"]}
+deallocate prepare s;
+create procedure p1(x json) select * from t1 where json_contains(j->'$.tags', x);
+call p1('"aaa"');
+c	j
+1	{"tags": ["aaa"]}
+call p1('{"a":1}');
+c	j
+2	{"tags": [{"a":1}]}
+call p1('"aaa"');
+c	j
+1	{"tags": ["aaa"]}
+drop procedure p1;
+drop table t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

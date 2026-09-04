@@ -2863,10 +2863,6 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
-  virtual Item *create_ft_for_mvi(THD *thd, List<Mv_index> *indexes)
-  {
-    return NULL;
-  }
 
 
 protected:
