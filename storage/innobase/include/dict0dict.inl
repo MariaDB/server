@@ -1076,6 +1076,9 @@ dict_table_is_file_per_table(
 /** Acquire the table handle. */
 inline void dict_table_t::acquire()
 {
+  /* A table whose definition is still being loaded must never be
+  referenced; dict_sys_t::find_table() hides such tables. */
+  ut_ad(!loading);
   ut_d(const auto old=) n_ref_count++;
   ut_ad(old || dict_sys.frozen());
 }
