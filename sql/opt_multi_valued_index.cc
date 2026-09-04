@@ -389,6 +389,21 @@ ok:
 }
 
 
+
+/*
+  @brief
+    Create a fulltext search item that matches this JSON_CONTAINS(...) predicate.
+
+  @detail
+    Check if this item is a
+
+      JSON_CONTAINS(array_indexed_expr, '[foo, bar, ... ]')
+
+    If yes, create and return an Item for searching for matches in the index:
+
+      MATCH vcol AGAINST ('+encoded_foo +encoded_bar ...' IN BOOLEAN MODE)
+*/
+
 Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
                                                  List<Mv_index> *indexes)
 {
@@ -491,6 +506,17 @@ ok:
   ifm_args.push_back(ivcol);
   return new (thd->mem_root) Item_func_match(thd, ifm_args, FT_BOOL);
 }
+
+/*
+  @brief
+    Examine the WHERE clause in (*conds_ref) and add conditions for multi-value
+    index predicates.
+
+    Since we add fulltext predicates, also add them into *ftfunc_list.
+
+  @detail
+    Currently we only walk down into top-level's WHERE clause.
+*/
 
 static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
                            List<Item_func_match> *ftfunc_list)
