@@ -24292,7 +24292,22 @@ do_select(JOIN *join, Procedure *procedure)
       parallel scan, run_worker_side_join() returns < 0 and we fall through
       to ordinary serial execution.
     */
-    if (join->worker_side_parallel)
+    /*
+      PROTOTYPE, behind debug_dbug='+d,pwt_scan_only'. The workers are a
+      parallel reader for the driving table and nothing more: no join runs in
+      them, so nothing here is diverted. The plan below is the one a serial
+      execution would run, and the only difference is where join_tab's first
+      table gets its rows. See pwt_scan_only_enabled().
+    */
+    if (join->worker_side_parallel && pwt_scan_only_enabled())
+    {
+      JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                           WITHOUT_CONST_TABLES);
+      if (run_scan_only_workers(join, scan_tab) > 0)
+        error= NESTED_LOOP_ERROR;
+      join->worker_side_parallel= false;         // this thread runs the plan
+    }
+    else if (join->worker_side_parallel)
     {
       JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
                                            WITHOUT_CONST_TABLES);
