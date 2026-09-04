@@ -78,8 +78,14 @@ INSERT INTO t2 SELECT seq FROM seq_1_to_1000;
 --echo #    The exact result depends on sizeof(TREE_ELEMENT) and the
 --echo #    reclength, so only check that the result came out short.
 --echo #
+--echo #    The row the warning names is how many rows the budget held,
+--echo #    so it depends on the same two things and is masked as well.
+--echo #    It is 88 where a pointer is eight bytes and 127 where it is
+--echo #    four.
+--echo #
 SET SESSION group_concat_max_len= 1024;
 SET SESSION tmp_table_size= 0;
+--replace_regex /Row [0-9]+ was cut/Row # was cut/
 SELECT LENGTH(GROUP_CONCAT(a ORDER BY a)) < 1024 AS cut_by_memory FROM t2;
 SHOW COUNT(*) WARNINGS;
 
