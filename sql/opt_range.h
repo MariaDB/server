@@ -1216,7 +1216,8 @@ public:
     QS_TYPE_FULLTEXT   = 4,
     QS_TYPE_ROR_INTERSECT = 5,
     QS_TYPE_ROR_UNION = 6,
-    QS_TYPE_GROUP_MIN_MAX = 7
+    QS_TYPE_GROUP_MIN_MAX = 7,
+    QS_TYPE_MVI = 8
   };
 
   /* Get type of this quick select - one of the QS_TYPE_* values */
@@ -2039,6 +2040,7 @@ public:
   int get_next() override { return file->ha_ft_read(record); }
   int get_type() override { return QS_TYPE_FULLTEXT; }
 };
+
 
 FT_SELECT *get_ft_select(THD *thd, TABLE *table, uint key);
 QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,

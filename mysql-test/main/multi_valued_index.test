@@ -46,6 +46,119 @@ select * from t1 where json_contains(j1->'$.tags', '"abcde"') or json_contains(j
 
 DROP TABLE t1;
 
+--echo # MVI access is chosen on cost, and survives the re-optimization
+--echo # that a LIMIT triggers in make_join_select()
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+
+--echo # No MATCH() is added to the WHERE clause
+--echo # ("filtered" depends on the engine's row estimate, so hide it)
+--replace_column 9 # 10 #
+explain extended select * from t1 where json_contains(j->'$.tags','"aaa"');
+
+--echo # A predicate under a top-level OR cannot use the index: the scan
+--echo # would drop the rows that only match the other branch
+--replace_column 9 #
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+
+--echo # The scan is re-initialized for each execution: MVI table on the
+--echo # inner side of a join, and in a correlated subquery
+create table t2 (a int) engine=innodb;
+insert into t2 values (1),(2),(3);
+--replace_column 9 #
+explain select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+set @@join_cache_level=0;
+select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+set @@join_cache_level=default;
+select a, (select count(*) from t1
+           where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a) from t2;
+
+drop table t1,t2;
+
+--echo # Repeated optimization: prepared statements and stored procedures.
+--echo # '"aaa"' can use the index; an object argument cannot, but still
+--echo # matches row 2, which the '"aaa"' index scan would not return.
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [{"a":1}]}');
+
+prepare s from 'select * from t1 where json_contains(j->''$.tags'', ?)';
+set @p='"aaa"';
+execute s using @p;
+set @p='{"a":1}';
+execute s using @p;
+set @p='"aaa"';
+execute s using @p;
+deallocate prepare s;
+
+create procedure p1(x json) select * from t1 where json_contains(j->'$.tags', x);
+call p1('"aaa"');
+call p1('{"a":1}');
+call p1('"aaa"');
+drop procedure p1;
+
+drop table t1;
+
+--echo # JSON_OVERLAPS is sargable too. It is true when ANY of the elements
+--echo # has a match, so the keys are ORed, and it is symmetric: the indexed
+--echo # expression can be either argument.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["ccc"]}'),(4,'{"tags": ["aaa","bbb"]}'),
+                      (5,'{"tags": [123]}'),(6,'{}');
+
+explain select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]');
+select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+
+--echo # the indexed expression as the second argument
+explain select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags');
+select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags') order by c;
+
+--echo # a scalar instead of an array
+select * from t1 where json_overlaps(j->'$.tags','"ccc"') order by c;
+
+--echo # 123 cannot be encoded for a CHAR array, so it is not in the index
+--echo # either. Row 5 matches the predicate through it, so an index scan
+--echo # for the remaining key would lose that row: don't use the index.
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]');
+select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+
+--echo # JSON_CONTAINS may skip such an element: dropping a key from an AND
+--echo # only makes the scan less selective, so it stays a superset.
+explain select * from t1 where json_contains(j->'$.tags','[123,"aaa"]');
+select * from t1 where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+
+--echo # Forms that cannot use the index. None of these may change the result.
+select * from t1 where json_overlaps(j->'$.tags', NULL) order by c;
+select * from t1 where json_overlaps(j->'$.tags','[]') order by c;
+select * from t1 where json_overlaps(j->'$.tags','{"a":1}') order by c;
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+--echo # neither argument is a constant
+select * from t1 a, t1 b
+where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
+
+drop table t1;
+
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);

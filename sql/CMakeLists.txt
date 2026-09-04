@@ -200,6 +200,7 @@ SET (SQL_SOURCE
                socketpair.c socketpair.h
                opt_multi_valued_index.h
                opt_multi_valued_index.cc
+               opt_mvi_jsonfuncs.cc
                opt_vcol_substitution.h
                opt_vcol_substitution.cc
                opt_hints_parser.cc opt_hints_parser.h scan_char.h

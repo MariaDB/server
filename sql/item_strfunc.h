@@ -2643,6 +2643,30 @@ protected:
   { return get_item_copy<Item_temptable_rowid>(thd, this); }
 };
 
+
+/*
+  A function to support ARRAY indexes. When the user specifies an ARRAY index:
+
+    CREATE INDEX idx1 ON
+     t1 ((CAST(JSON_EXTRACT(json_col, '$.arr') AS $datatype ARRAY)));
+
+  We create a virtual column and a fulltext index over it:
+
+     mvi_col_1 BLOB AS (MVI_ENCODE(JSON_EXTRACT(json_col, '$.arr'), $datatype)),
+     FULLTEXT INDEX idx (mvi_col_1)
+
+  So, MVI_ENCODE has this signature:
+
+     MVI_ENCODE(json_array, datatype)
+
+  and it returns the JSON array elements represented in a form suitable for
+  putting into the fulltext index (without any custom fulltext parser atm)
+
+  @seealso "multi_valued_key_part:" rule in sql_yacc.yy
+
+  (TODO: move this item to opt_multi_valued_index, too)
+*/
+
 class Item_func_mvi_encode : public Item_str_ascii_func
 {
   Lex_cast_type_st m_cast_type;

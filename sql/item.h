@@ -823,6 +823,7 @@ const item_walk_flags WALK_NO_REF=           (1<<2);
 
 
 struct Mv_index;
+struct Mvi_access;
 
 class Item :public Value_source,
             public Type_all_attributes
@@ -2861,10 +2862,6 @@ public:
   {
     DBUG_ASSERT(fixed());
     return false;
-  }
-  virtual Item *create_ft_for_mvi(THD *thd, List<Mv_index> *indexes)
-  {
-    return NULL;
   }
 
 

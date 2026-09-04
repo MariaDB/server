@@ -17,6 +17,9 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "item_func.h"
+#include "my_json_writer.h"
+
+static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access);
 
 void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
 {
@@ -86,8 +89,8 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
   to[0]= (uchar) (value >> 56) ^ (unsigned_flag ? 0 : 128);
 }
 
-static bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
-                           CHARSET_INFO *cs, String *buf)
+bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
+                    CHARSET_INFO *cs, String *buf)
 {
   enum_field_types cast_ftype= cast_th->field_type();
   bool is_unsigned= cast_th->is_unsigned();
@@ -269,274 +272,266 @@ bool collect_mvi_vcols_for_join(JOIN *join, List<Mv_index> *indexes)
   return FALSE; // Ok
 }
 
-class Mvi_context
+
+/*
+  Add one encoded element key to the access.
+  
+  TODO: String object live on MEM_ROOT and their destructor is never called
+  (fix that or switch to something like LEX_STRINGs)
+*/
+
+bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
 {
- public:
-  THD *thd;
-  /* All MV indexes in the JOIN */
-  List<Mv_index> indexes;
-  /* MVI accesses for all eligible predicates in WHERE */
-  List<Mvi_access> accesses;
-
-  Mvi_context(THD *thd_arg) : thd(thd_arg) {}
-};
-
-bool Item_func_json_contains::mvi_analyze(void *arg)
-{
-  Mvi_context *ctx= (Mvi_context *) arg;
-  List_iterator<Mv_index> it(ctx->indexes);
-  Field *vcol_field;
-  Mv_index *index;
-  CHARSET_INFO *cs= NULL;
-  Item_func_mvi_encode *mvitem= NULL;
-  DBUG_ASSERT(fixed());
-  if (arg_count > 2 || !a2_constant)
-    return false;
-  /* Find the MVI that matches the first argument */
-  while ((index= it++))
-  {
-    vcol_field= index->vcol;
-    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
-    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
-                MVI_ENCODE_FUNC);
-    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
-    if (mvitem->arguments()[0]->eq(args[0], true))
-    {
-      cs= mvitem->arguments()[0]->collation.collation;
-      break;
-    }
-  }
-  if (!index)
-    return false;
-
-  /* Get ready to construct the ft queries from the second argument */
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  const uchar *start, *end;
-  Mvi_access *access= NULL;
-  StringBuffer<256> buf;
-  buf.length(0);
-  buf.set_charset(&my_charset_latin1_bin);
-  DBUG_ASSERT(fixed());
-  if (!a2_parsed)
-  {
-    val= args[1]->val_json(&tmp_val);
-    a2_parsed= true;
-  }
-  if (!val)
-    return false;
-  start= reinterpret_cast<const uchar *>(val->ptr());
-  end= start + val->length();
-
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    return false;
-
-  if (je.value_type == JSON_VALUE_UNINITIALIZED ||
-      je.value_type == JSON_VALUE_OBJECT)
-    return false;
-  if (je.value_type != JSON_VALUE_ARRAY)
-  {
-    /* scalar */
-    if (!encode_mvi_key(&je, cast_th, cs, &buf))
-    {
-      access= new (ctx->thd->mem_root) Mvi_access(index, true);
-      /* TODO: there gotta be a less verbose way to construct s. */
-      String *s= new (ctx->thd->mem_root) String;
-      s->set_charset(&my_charset_latin1_bin);
-      if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
-        return true;
-      access->encoded.push_back(s);
-    }
-    goto ok;
-  }
-
-  /* TODO: deduplicate? */
-  do {
-    buf.length(0);
-    switch (je.state)
-    {
-      /* TODO: nested array? */
-      case JST_ARRAY_START:
-        continue;
-      case JST_ARRAY_END:
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          return false;
-
-        if (!encode_mvi_key(&je, cast_th, cs, &buf))
-        {
-          if (!access)
-            access= new (ctx->thd->mem_root) Mvi_access(index, true);
-          /* TODO: there gotta be a less verbose way to construct s. */
-          String *s= new (ctx->thd->mem_root) String;
-          s->set_charset(&my_charset_latin1_bin);
-          if (s->copy(buf.ptr(), buf.length(), &my_charset_latin1_bin))
-            return true;
-          access->encoded.push_back(s);
-        }
-        break;
-      }
-      default:
-        return false;
-    }
-  } while (json_scan_next(&je) == 0);
-
-ok:
-  if (access)
-    ctx->accesses.push_back(access);
-  return false;
-}
-
-
-Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
-                                                 List<Mv_index> *indexes)
-{
-  List_iterator<Mv_index> it(*indexes);
-  Mv_index *index;
-  Field *vcol_field= NULL;
-  CHARSET_INFO *cs= NULL;
-  Item_func_mvi_encode *mvitem= NULL;
-  DBUG_ASSERT(fixed());
-  if (arg_count > 2 || !a2_constant)
-    return NULL;
-  while ((index= it++))
-  {
-    vcol_field= index->vcol;
-    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
-    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
-                MVI_ENCODE_FUNC);
-    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
-    if (mvitem->arguments()[0]->eq(args[0], true))
-    {
-      cs= mvitem->arguments()[0]->collation.collation;
-      break;
-    }
-  }
-  if (!index)
-    return NULL;
-
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  StringBuffer<256> buf;
-  const uchar *start, *end;
-  List<Item> ifm_args;
-  Item_field *ivcol;
-  Item_string *ift_query;
-  bool at_least_one= false;
-  DBUG_ASSERT(fixed());
-  buf.length(0);
-  buf.set_charset(&my_charset_latin1_bin);
-  if (!a2_parsed)
-  {
-    val= args[1]->val_json(&tmp_val);
-    a2_parsed= true;
-  }
-  if (!val)
-    return NULL;
-  start= reinterpret_cast<const uchar *>(val->ptr());
-  end= start + val->length();
-
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    return NULL;
-
-  if (je.value_type == JSON_VALUE_UNINITIALIZED ||
-      je.value_type == JSON_VALUE_OBJECT)
-    return NULL;
-  if (je.value_type != JSON_VALUE_ARRAY)
-  {
-    /* scalar */
-    if (!encode_mvi_key(&je, cast_th, cs, &buf))
-      at_least_one= true;
-    goto ok;
-  }
-
-  /* TODO: deduplicate? */
-  do {
-    switch (je.state)
-    {
-      /* TODO: nested array? */
-      case JST_ARRAY_START:
-        continue;
-      case JST_ARRAY_END:
-        if (at_least_one)
-          buf.length(buf.length() - 1);
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          return NULL;
-
-        buf.append('+');
-        if (encode_mvi_key(&je, cast_th, cs, &buf))
-          buf.length(buf.length() - 1);
-        else
-        {
-          buf.append(' ');
-          at_least_one= true;
-        }
-        break;
-      }
-      default:
-        return NULL;
-    }
-  } while (json_scan_next(&je) == 0);
-
-ok:
-  if (!at_least_one)
-    return NULL;
-  ift_query= new (thd->mem_root) Item_string(thd, &my_charset_latin1_bin,
-                                             buf.c_ptr(), buf.length());
-  ifm_args.push_back(ift_query);
-  ivcol= new (thd->mem_root) Item_field(thd, vcol_field);
-  ifm_args.push_back(ivcol);
-  return new (thd->mem_root) Item_func_match(thd, ifm_args, FT_BOOL);
-}
-
-static bool add_ft_for_mvi(Mvi_context *ctx, Item **conds_ref,
-                           List<Item_func_match> *ftfunc_list)
-{
-  Item *conds= *conds_ref;
-  Item *cond, *match;
-  List<Item> matches;
-  THD *thd= ctx->thd;
-  if (conds->type() != Item::COND_ITEM)
-  {
-    if ((match= conds->create_ft_for_mvi(thd, &ctx->indexes)))
-    {
-      matches.push_back(match);
-      ftfunc_list->push_back((Item_func_match *) match);
-    }
-  }
-  else if (((Item_cond *) conds)->functype() == Item_func::COND_OR_FUNC)
-    return false;
-  else
-  {
-    List_iterator<Item> it(*((Item_cond *) conds)->argument_list());
-    while ((cond= it++))
-    {
-      if ((match= cond->create_ft_for_mvi(thd, &ctx->indexes)))
-      {
-        matches.push_back(match);
-        ftfunc_list->push_back((Item_func_match *) match);
-      }
-    }
-  }
-  if (matches.elements == 1)
-    cond= matches.pop();
-  else
-    cond= new (thd->mem_root) Item_cond_and(thd, matches);
-  if (cond &&
-      ((cond->fix_fields(thd, &cond) ||
-        !(conds= and_items(thd, conds, cond)) ||
-        conds->fix_fields(thd, &conds))))
+  String *s= new (mem_root) String;
+  const char *copy= (const char *) memdup_root(mem_root, key->ptr(),
+                                               key->length());
+  if (!s || !copy)
     return true;
-  *conds_ref= conds;
+  s->set(copy, key->length(), &my_charset_latin1_bin);
+  return encoded.push_back(s, mem_root);
+}
+
+
+/*
+  @brief
+    Estimate how many records this access will read, and simplify the access
+    if that lets us read fewer.
+
+  @detail
+    The engine gives us an estimate for one element key at a time (the
+    fulltext analogue of records_in_range()). We combine the estimates the
+    way the query combines the keys:
+
+    - Disjunctive access (JSON_OVERLAPS) reads the rows of every key, so the
+      estimates add up. A key the engine cannot estimate leaves us with no
+      idea of what the scan costs, and we cannot leave that key out: dropping
+      it from an OR loses the rows that only have that key. Price the access
+      out of the plan instead.
+
+    - Conjunctive access (JSON_CONTAINS) reads the rows that have all of the
+      keys, so the rarest key alone bounds the result. Use its estimate, and
+      drop the other keys from the query: reading the rarest key and letting
+      the WHERE clause discard the rest is not worse than having the engine
+      intersect the terms. This is the trade-off collect_mvi_keys() already
+      makes for the keys it cannot encode - a shorter AND matches a superset
+      of the rows, and the JSON predicate does the exact filtering.
+      Keys the engine cannot estimate take no part in the choice. If it
+      could not estimate a single one of them we know nothing at all, so the
+      access is priced out just like a disjunctive one.
+
+    TODO: read_time only accounts for reading the rows, not for the fulltext
+    search that produces their rowids.
+*/
+
+void Mvi_access::estimate_records()
+{
+  TABLE *table= index->vcol->table;
+  handler *file= table->file;
+  List_iterator<String> it(encoded);
+  String *key, *rarest= NULL;
+  ha_rows sum= 0, min_rows= 0;
+  bool have_unknown_estimate= false;
+
+  while ((key= it++))
+  {
+    ha_rows rows= file->fulltext_estimate(index->keyno, key->ptr(),
+                                          (uint) key->length());
+    if (rows == HA_POS_ERROR)
+    {
+      have_unknown_estimate= true;
+      continue;
+    }
+    sum+= rows;
+    if (!rarest || rows < min_rows)
+    {
+      min_rows= rows;
+      rarest= key;
+    }
+  }
+
+  if (!conjunctive && have_unknown_estimate)
+  {
+    /* 
+      Disjunctive means we have to read all keys. For at least one, we have no idea
+      how many matches it has.  Fall back to full scan.
+    */
+    records= table->stat_records();
+    read_time= DBL_MAX;
+    return;
+  }
+  if (conjunctive && !rarest)
+  {
+    /* Nothing was estimated. Fall back to full table scan */
+    records= table->stat_records();
+    read_time= DBL_MAX;
+    return;
+  }
+
+  if (conjunctive)
+  {
+    /* Search for the rarest key only */
+    it.rewind();
+    while ((key= it++))
+    {
+      if (key != rarest)
+        it.remove();
+    }
+    records= min_rows;
+  }
+  else
+    records= sum;
+
+  set_if_smaller(records, table->stat_records());
+  set_if_bigger(records, (ha_rows) 1);
+  read_time= file->cost(file->ha_rnd_pos_call_and_compare_time(records));
+}
+
+
+/*
+  @brief
+    Build the boolean-mode fulltext query to find rows of interest.
+    For conjunctive access it is
+
+      '+encoded_foo +encoded_bar ...'
+
+    For disjunctive access, it is
+
+      'encoded_foo encoded_bar'
+*/
+
+bool Mvi_access::build_ft_query(String *out)
+{
+  List_iterator<String> it(encoded);
+  String *key;
+  out->length(0);
+  out->set_charset(&my_charset_latin1_bin);
+  while ((key= it++))
+  {
+    if ((out->length() && out->append(' ')) ||
+        (conjunctive && out->append('+')) ||
+        out->append(key->ptr(), key->length()))
+      return true;
+  }
+  return !out->length();
+}
+
+
+/*
+  @brief
+    Print the index this access uses and the element keys it will search that
+    index for into the optimizer trace.
+
+  @detail
+    The keys are printed in their encoded form. That is what is stored in the
+    index and what we search for, but it is not readable.
+
+    "match" tells whether a row has to have all of the keys (JSON_CONTAINS)
+    or just one of them (JSON_OVERLAPS).
+*/
+
+void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
+{
+  KEY *key_info= index->vcol->table->key_info + index->keyno;
+  List_iterator<String> it(encoded);
+  String *key;
+  trace_object->add("index", key_info->name).
+                 add("match", conjunctive ? "all" : "any");
+  if (cost_is_known())
+    trace_object->add("rows", records).add("cost", read_time);
+  else
+    trace_object->add("usable", false).
+                  add("cause", "the engine cannot estimate one of the keys");
+  Json_writer_array trace_ranges(thd, "ranges");
+  while ((key= it++))
+    trace_ranges.add(key->ptr(), key->length());
+}
+
+
+/*
+  @brief
+    Collect the MVI accesses allowed by the top-level AND-parts of `conds'.
+
+  @detail
+    An MVI access only reads the rows the index scan matches, so we can only
+    use it for a predicate that has to be true for every row of the result.
+    That means the top-level conjuncts and nothing else: for
+
+      json_contains(j1->'$.tags', '"a"') OR json_contains(j2->'$.tags', '"a"')
+
+    a scan of either index would drop the rows that only match the other
+    branch.
+*/
+
+static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
+{
+  Item *cond;
+  if (conds->type() != Item::COND_ITEM)
+    return conds->mvi_analyze(ctx);
+  if (((Item_cond *) conds)->functype() != Item_func::COND_AND_FUNC)
+    return false;
+  List_iterator<Item> it(*((Item_cond *) conds)->argument_list());
+  while ((cond= it++))
+  {
+    /*
+      No recursion: a nested Item_cond is either an already-flattened AND or
+      an OR, and Item::mvi_analyze() ignores both.
+    */
+    if (cond->mvi_analyze(ctx))
+      return true;
+  }
   return false;
 }
 
-static void choose_mvi_access_for_tables(List<Mvi_access> *accesses, Mvi_access **best)
+
+/*
+  @brief
+    Analyze the WHERE clause and find the MVI accesses it allows.
+
+  @detail
+    The accesses are saved in join->mvi_ctx, where setup_mvi_access_for_table()
+    picks them up, one table at a time.
+*/
+
+bool setup_mvi_quick(JOIN *join)
 {
-  List_iterator<Mvi_access> it(*accesses);
+  THD *thd= join->thd;
+  Mvi_context *ctx;
+  /* mvi_ctx must describe this analysis only, including on the early exits */
+  join->mvi_ctx= NULL;
+  if (!join->conds)
+    return false;
+  if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
+    return true;
+  if (collect_mvi_vcols_for_join(join, &ctx->indexes))
+    return true;
+  if (ctx->indexes.is_empty())
+    return false;
+  if (collect_mvi_accesses(ctx, join->conds))
+    return true;
+  if (ctx->accesses.is_empty())
+    return false;
+  join->mvi_ctx= ctx;
+  return false;
+}
+
+
+/*
+  @brief
+    Pick the MVI access `tab' will use out of the ones the WHERE clause
+    allows, and let the range analysis see it.
+
+  @detail
+    A fulltext key never gets a bit in const_keys or keys, so we set them
+    here. The const_keys bit is what makes the range analysis run for this
+    table, where get_best_mvi_access() turns the access into a quick select;
+    the keys bit puts the index into EXPLAIN's possible_keys.
+*/
+
+void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
+{
+  if (!join->mvi_ctx)
+    return;
+  List_iterator<Mvi_access> it(join->mvi_ctx->accesses);
   /* TODO: cost based */
   /*
     TODO: merge
@@ -547,37 +542,201 @@ static void choose_mvi_access_for_tables(List<Mvi_access> *accesses, Mvi_access 
     (+ta +tb)
   */
   while (Mvi_access *access= it++)
-    best[access->index->vcol->table->tablenr] = access;
+  {
+    if (access->index->vcol->table == tab->table)
+      tab->mvi_access= access;
+  }
+  if (tab->mvi_access)
+  {
+    tab->const_keys.set_bit(tab->mvi_access->index->keyno);
+    tab->keys.set_bit(tab->mvi_access->index->keyno);
+  }
 }
 
-/* Build the scan and install it to join */
-bool setup_mvi_quick(JOIN *join)
+
+/*
+  @brief
+    Create a quick select for the MVI access to `tab', if there is one.
+
+  @detail
+    The range optimizer cannot produce this access (it skips fulltext keys),
+    so the caller creates it here and compares its cost with whatever
+    test_quick_select() came up with.
+*/
+
+QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
-  Mvi_context ctx(join->thd);
-  Mvi_access *best[MAX_TABLES];
-  bzero(best, sizeof(best));
-  if (!join->conds)
-    return false;
-  if (collect_mvi_vcols_for_join(join, &ctx.indexes))
-    return true;
-  if (!ctx.indexes.is_empty() &&
-      join->conds->walk(&Item::mvi_analyze, &ctx, WALK_SUBQUERY))
-    return true;
-  choose_mvi_access_for_tables(&ctx.accesses, best);
-  return false;
+  Mvi_access *access= tab->mvi_access;
+  TABLE *table= tab->table;
+  if (!access)
+    return NULL;
+  /*
+    estimate_records() drops element keys from the access, so it must run
+    only once even if we are called again for the same table.
+  */
+  if (access->records == HA_POS_ERROR)
+    access->estimate_records();
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+      We are inside the "rows_estimation" array, so we need an object of our
+      own before we can add anything by name. Without it the writer hits an
+      assertion in Single_line_formatting_helper::on_add_member().
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_mvi(thd, "multi_value_index_use");
+    trace_mvi.add_table_name(table);
+    access->print_json(thd, &trace_mvi);
+  }
+  /*
+    best_access_path() takes a quick select to be cheaper than a table scan
+    without checking (the range optimizer only proposes a quick when it is),
+    so an access we could not put a price on has to be dropped here.
+  */
+  if (!access->cost_is_known())
+    return NULL;
+  return create_quick_mvi_select(thd, table, access);
 }
 
-bool setup_mvi_for_join(JOIN *join)
+
+/****************************************************************************
+  QUICK_MVI_SELECT - reading a multi-valued index
+****************************************************************************/
+struct Mvi_access;
+
+/*
+  Quick select that reads a multi-valued index.
+
+  It runs a boolean-mode fulltext search over the index's hidden vcol, looking
+  for the encoded element keys of the JSON predicate this access was built
+  from. The scan is a necessary, not a sufficient condition: the JSON
+  predicate stays in the WHERE clause and does the exact filtering.
+
+  Unlike FT_SELECT, there is no Item_func_match to have created the FT_INFO
+  for us, so we create it ourselves in reset() and own it.
+
+  The methods are implemented in opt_multi_valued_index.cc.
+*/
+
+class QUICK_MVI_SELECT: public QUICK_SELECT_I
 {
-  Mvi_context ctx(join->thd);
-  if (!join->conds)
-    return false;
-  if (collect_mvi_vcols_for_join(join, &ctx.indexes))
-    return true;
-  if (!ctx.indexes.is_empty())
-    return add_ft_for_mvi(&ctx, &join->conds, join->select_lex->ftfunc_list);
-  return false;
+  Mvi_access *access;
+  FT_INFO *ft_handler;
+  StringBuffer<256> query;              /* the boolean-mode ft query */
+public:
+  QUICK_MVI_SELECT(THD *thd, TABLE *table, Mvi_access *access_arg);
+  ~QUICK_MVI_SELECT();
+  int init() override { return 0; }
+  int reset() override;
+  int get_next() override;
+  bool reverse_sorted() override { return false; }
+  /*
+    Fulltext results come back ordered by relevance, not by key, so there is
+    no sorted output to offer. QS_TYPE_MVI is not one of the types the
+    ORDER BY-by-index code paths consider, so they never ask.
+  */
+  void need_sorted_output() override {}
+  int get_type() override { return QS_TYPE_MVI; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  void add_used_key_part_to_set() override {}
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
+#ifndef DBUG_OFF
+  void dbug_dump(int indent, bool verbose) override;
+#endif
+};
+
+static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access)
+{
+  return new QUICK_MVI_SELECT(thd, table, access);
 }
+
+QUICK_MVI_SELECT::QUICK_MVI_SELECT(THD *thd, TABLE *table,
+                                   Mvi_access *access_arg)
+  : access(access_arg), ft_handler(NULL)
+{
+  head= table;
+  index= access->index->keyno;
+  record= head->record[0];
+  records= access->records;
+  read_time= access->read_time;
+}
+
+
+QUICK_MVI_SELECT::~QUICK_MVI_SELECT()
+{
+  handler *file= head->file;
+  if (ft_handler)
+  {
+    file->ha_ft_end();                /* ft_end() + file->ft_handler= NULL */
+    /*
+      We created the FT_INFO, so we free it. For an Item_func_match this is
+      done by Item_func_match::cleanup().
+    */
+    ft_handler->please->close_search(ft_handler);
+    ft_handler= NULL;
+  }
+  if (file->inited != handler::NONE)
+    file->ha_index_or_rnd_end();
+}
+
+
+int QUICK_MVI_SELECT::reset()
+{
+  handler *file= head->file;
+  int error;
+
+  if (!ft_handler)
+  {
+    if (access->build_ft_query(&query))
+      return HA_ERR_OUT_OF_MEM;
+    if (!(ft_handler= file->ft_init_ext(FT_BOOL, index, &query)))
+      return HA_ERR_WRONG_COMMAND;    /* the error is already reported */
+    /*
+      ft_init() and ha_ft_read() both work off handler::ft_handler (and
+      ha_innobase::ft_init() dereferences it without checking), so it has to
+      be set before we go any further.
+    */
+    file->ft_handler= ft_handler;
+    head->fulltext_searched= 1;
+  }
+  if (!file->inited && (error= file->ha_index_init(index, 1)))
+    return error;
+  /* This rewinds the search, so it is also right for a repeated reset() */
+  return file->ft_init();
+}
+
+
+int QUICK_MVI_SELECT::get_next()
+{
+  return head->file->ha_ft_read(record);
+}
+
+
+void QUICK_MVI_SELECT::add_keys_and_lengths(String *key_names,
+                                            String *used_lengths)
+{
+  bool first= TRUE;
+
+  add_key_and_length(key_names, used_lengths, &first);
+}
+
+
+Explain_quick_select *QUICK_MVI_SELECT::get_explain(MEM_ROOT *local_alloc)
+{
+  Explain_quick_select *res;
+  if ((res= new (local_alloc) Explain_quick_select(QS_TYPE_MVI)))
+    res->range.set(local_alloc, &head->key_info[index], max_used_key_length);
+  return res;
+}
+
+
+#ifndef DBUG_OFF
+void QUICK_MVI_SELECT::dbug_dump(int indent, bool verbose)
+{
+  fprintf(DBUG_FILE, "%*squick_mvi_select: index %s (%d)\n",
+          indent, "", head->key_info[index].name.str, index);
+}
+#endif
 
 enum json_value_types mvi_json_class(enum_field_types ftype)
 {

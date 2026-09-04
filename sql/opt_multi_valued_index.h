@@ -14,6 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+class Json_writer_object;
+
 /* An MVI index */
 struct Mv_index : public Sql_alloc
 {
@@ -29,16 +31,63 @@ struct Mvi_access : public Sql_alloc
   Mv_index *index;
   List<String> encoded;         /* encoded element keys */
   bool conjunctive;             /* CONTAINS -> AND, OVERLAPS -> OR */
-  Mvi_access(Mv_index *idx, bool conj) : index(idx), conjunctive(conj) {}
-};
-/*
-  bool Item_func_json_contains::mvi_analyze(THD *thd, List<Field> *vcol_fields,
-                                            Mvi_access *out);
- */
+  /*
+    The estimate for this access, produced by estimate_records().
+    HA_POS_ERROR means we haven't estimated it yet.
+  */
+  ha_rows records;
+  double read_time;
+  Mvi_access(Mv_index *idx, bool conj)
+    : index(idx), conjunctive(conj), records(HA_POS_ERROR), read_time(0.0) {}
 
-bool setup_mvi_for_join(JOIN *join);
+  /* Build: Add one encoded element key */
+  bool add_key(MEM_ROOT *mem_root, const String *key);
+
+  /* Usage: Estimate how many records this access will read */
+  void estimate_records();
+
+  /*
+    Usage: false when estimate_records() could not put a price on the access.
+    Such an access must not be used: we have no idea what it costs.
+  */
+  bool cost_is_known() const { return read_time != DBL_MAX; }
+
+  /* Usage: Build the fulltext query searching for the element keys */
+  bool build_ft_query(String *out);
+
+  /* Usage: describe this access in the optimizer trace */
+  void print_json(THD *thd, Json_writer_object *trace_object);
+};
+
+
+/* The result of the MVI analysis of one JOIN */
+class Mvi_context : public Sql_alloc
+{
+ public:
+  THD *thd;
+  /* All MV indexes in the JOIN */
+  List<Mv_index> indexes;
+  /* MVI accesses for all eligible predicates in WHERE */
+  List<Mvi_access> accesses;
+
+  Mvi_context(THD *thd_arg) : thd(thd_arg) {}
+};
 
 /* Return the compatible json type */
 enum json_value_types mvi_json_class(enum_field_types ftype);
 
+/*
+  Encode one JSON value into the form it has in the index. Returns true if
+  the value cannot be encoded for this index and has to be skipped.
+  Shared with opt_mvi_jsonfuncs.cc.
+*/
+bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
+                    CHARSET_INFO *cs, String *buf);
+
 bool setup_mvi_quick(JOIN *join);
+
+/* Pick the MVI access `tab' will use, and let the range analysis see it */
+void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab);
+
+/* Create a quick select for the MVI access to `tab', if there is one */
+QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab);
