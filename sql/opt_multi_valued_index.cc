@@ -281,11 +281,34 @@ class Mvi_context
   Mvi_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
+
+/*
+  Find Multi-Value Index created over array_indexed_expr.
+*/
+static Mv_index *get_mvi_index(List<Mv_index> *indexes,
+                               Item *array_indexed_expr)
+{
+  Mv_index *index;
+  List_iterator<Mv_index> it(*indexes);
+  Item_func_mvi_encode *mvitem;
+  while ((index= it++))
+  {
+    Field *vcol_field= index->vcol;
+    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == Item::FUNC_ITEM);
+    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
+                Item_func::MVI_ENCODE_FUNC);
+    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
+    if (mvitem->arguments()[0]->eq(array_indexed_expr, true))
+    {
+      return index;
+    }
+  }
+  return NULL;
+}
+
 bool Item_func_json_contains::mvi_analyze(void *arg)
 {
   Mvi_context *ctx= (Mvi_context *) arg;
-  List_iterator<Mv_index> it(ctx->indexes);
-  Field *vcol_field;
   Mv_index *index;
   CHARSET_INFO *cs= NULL;
   Item_func_mvi_encode *mvitem= NULL;
@@ -293,21 +316,11 @@ bool Item_func_json_contains::mvi_analyze(void *arg)
   if (arg_count > 2 || !a2_constant)
     return false;
   /* Find the MVI that matches the first argument */
-  while ((index= it++))
-  {
-    vcol_field= index->vcol;
-    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
-    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
-                MVI_ENCODE_FUNC);
-    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
-    if (mvitem->arguments()[0]->eq(args[0], true))
-    {
-      cs= mvitem->arguments()[0]->collation.collation;
-      break;
-    }
-  }
-  if (!index)
+  if (!(index= get_mvi_index(&ctx->indexes, args[0])))
     return false;
+
+  cs= args[0]->collation.collation;
+  mvitem= (Item_func_mvi_encode *)index->vcol->vcol_info->expr;
 
   /* Get ready to construct the ft queries from the second argument */
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
@@ -316,7 +329,6 @@ bool Item_func_json_contains::mvi_analyze(void *arg)
   StringBuffer<256> buf;
   buf.length(0);
   buf.set_charset(&my_charset_latin1_bin);
-  DBUG_ASSERT(fixed());
   if (!a2_parsed)
   {
     val= args[1]->val_json(&tmp_val);
@@ -415,21 +427,11 @@ Item *Item_func_json_contains::create_ft_for_mvi(THD *thd,
   DBUG_ASSERT(fixed());
   if (arg_count > 2 || !a2_constant)
     return NULL;
-  while ((index= it++))
-  {
-    vcol_field= index->vcol;
-    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == FUNC_ITEM);
-    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
-                MVI_ENCODE_FUNC);
-    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
-    if (mvitem->arguments()[0]->eq(args[0], true))
-    {
-      cs= mvitem->arguments()[0]->collation.collation;
-      break;
-    }
-  }
-  if (!index)
+  if (!(index= get_mvi_index(indexes, args[0])))
     return NULL;
+  vcol_field= index->vcol;
+  cs= args[0]->collation.collation;
+  mvitem= (Item_func_mvi_encode *)index->vcol->vcol_info->expr;
 
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
   StringBuffer<256> buf;
