@@ -1,0 +1,55 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+--echo # basic test
+SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+SHOW CREATE TABLE t1;
+show index from t1;
+
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set global innodb_ft_aux_table='test/t1';
+
+insert into t1 values (1, '{"tags": [1, 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (2, '{"tags": ["1", "abcde", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (3, '{"tags": ["1.0", "34567", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (4, '{}');
+
+explain
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+select * from t1 where json_contains(j->'$.tags', '1.0');
+select * from t1 where json_contains(j->'$.tags', '1');
+select * from t1 where json_contains(j->'$.tags', '"1"');
+explain
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+explain
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
+
+DROP TABLE t1;
+
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+
+--echo # top level or
+
+create table t1 (c int, j1 json, j2 json, key idx1 ((CAST(j1->'$.tags' AS CHAR(6) ARRAY))), key idx2 ((CAST(j2->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+
+explain
+select * from t1 where json_contains(j1->'$.tags', '"abcde"') or json_contains(j2->'$.tags', '"abcde"');
+
+DROP TABLE t1;
+
+--echo # direct call of mvi_encode
+select mvi_encode('[1, 42, "3"]', int);
+select mvi_encode('[1, 42, "3"]', unsigned);
+select mvi_encode('[1, 42, "3   "]', char(6));
+select mvi_encode('[1, 42, "   "]', char(6));
+select mvi_encode('[1, 42, "3   "]', binary(6));
+select mvi_encode('[1, 42]', char(6));

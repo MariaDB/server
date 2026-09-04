@@ -226,4 +226,6 @@ extern MYSQL_PLUGIN_IMPORT const Lex_ident_column primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
+                                          List<Create_field> *create_list);
 #endif /* SQL_TABLE_INCLUDED */

@@ -2859,6 +2859,11 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
+  virtual Item *create_ft_for_mvi(THD *thd, List<Field> *vcol_fields)
+  {
+    return NULL;
+  }
+
 
 protected:
   /*
