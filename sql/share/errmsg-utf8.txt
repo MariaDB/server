@@ -7611,11 +7611,11 @@ ER_BLOB_FIELD_IN_PART_FUNC_ERROR
         sw "Sehemu ya BLOB hairuhusiwi katika kitendaji cha kizigeu"
         swe "Ett BLOB-fält är inte tillåtet i partitioneringsfunktioner"
 ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF
-        chi "A%-.192s必须包含表的分区功能中的所有列"
-        eng "A %-.192s must include all columns in the table's partitioning function"
-        geo "%-.192s ცხრილის დაყოფის ფუნქციაში ყველა სვეტს უნდა შეიცავდეს"
-        spa "Un %-.192s debe de incluir todas las columnas en la función de particionado de la tabla"
-        sw "Ile %-.192s lazima ijumuishe safu wima zote katika kitendakazi cha kugawanya cha jedwali"
+        chi "A%-.192s必须包含表的分区功能中的所有列（带前缀的列不被考虑）"
+        eng "A %-.192s must include all columns in the table's partitioning function (prefixed columns are not considered)."
+        geo "%-.192s ცხრილის დაყოფის ფუნქციაში ყველა სვეტს უნდა შეიცავდეს (პრეფიქსირებული სვეტები არ განიხილება)"
+        spa "Un %-.192s debe de incluir todas las columnas en la función de particionado de la tabla (las columnas con prefijo no se consideran)"
+        sw "Ile %-.192s lazima ijumuishe safu wima zote katika kitendakazi cha kugawanya cha jedwali (safu wima zilizo na kiambatanisho hazizingatiwi)"
 ER_NO_PARTS_ERROR
         chi "不允许%-.64s = 0"
         eng "Number of %-.64s = 0 is not an allowed value"
