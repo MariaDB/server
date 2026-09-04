@@ -2309,6 +2309,7 @@ public:
   virtual bool get_context_for_vcol_processor(void *arg) { return 0; }
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
+  virtual bool unmark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
   virtual bool view_used_tables_processor(void *arg) { return 0; }
   virtual bool eval_not_null_tables(void *arg) { return 0; }

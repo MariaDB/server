@@ -983,6 +983,7 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  pv,
+ stunnel,
 Conflicts:
  mariadb-galera-server-10.0,
  mariadb-galera-server-5.5,

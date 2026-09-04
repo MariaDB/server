@@ -1,0 +1,46 @@
+--source ../include/have_duckdb.inc
+--source include/not_msan.inc
+
+--echo #
+--echo # MDEV-40610: an unescaped column DEFAULT string must not inject DuckDB SQL
+--echo #
+--echo # get_field_default_for_duckdb() wrapped a string DEFAULT in single quotes
+--echo # without doubling an embedded quote, so a crafted default closed the
+--echo # generated DuckDB literal and the rest was parsed as DuckDB SQL. The gate
+--echo # below fails while the injection works and passes once literals are escaped.
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS injdb CHARACTER SET utf8mb4;
+USE injdb;
+--enable_query_log
+SET NAMES utf8mb4;
+
+--echo # The crafted DEFAULT closes the generated literal and appends a DuckDB COPY
+--echo # that would write a file in the data directory. With the literal escaped the
+--echo # payload is stored as data and no statement is injected.
+--delimiter |
+CREATE TABLE t (id INT PRIMARY KEY, c VARCHAR(200) DEFAULT 'a'');COPY(SELECT 2)TO ''zz_def.csv'';--') ENGINE=DuckDB CHARSET=utf8mb4|
+--delimiter ;
+
+--echo # No injected COPY ran: zz_def.csv must not exist anywhere under the vardir.
+perl;
+  use File::Find;
+  my $found= 0;
+  find(sub { $found= 1 if $_ eq 'zz_def.csv' }, $ENV{MYSQLTEST_VARDIR});
+  die "MDEV-40610: crafted DEFAULT injected a COPY (zz_def.csv written)\n" if $found;
+EOF
+
+--echo # The default round-trips through MariaDB as plain data.
+INSERT INTO t (id) VALUES (1);
+SELECT c FROM t WHERE id = 1;
+
+--echo # A legitimate quote in a DEFAULT is stored and returned verbatim.
+ALTER TABLE t ADD COLUMN d VARCHAR(20) DEFAULT 'a''b';
+INSERT INTO t (id) VALUES (2);
+SELECT d FROM t WHERE id = 2;
+
+DROP TABLE t;
+
+--disable_query_log
+DROP DATABASE injdb;
+--enable_query_log

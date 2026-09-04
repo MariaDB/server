@@ -2509,18 +2509,18 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER
 
 USE `mysqltest1`;
 /*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = koi8r */ ;
+/*!50003 SET character_set_results = koi8r */ ;
+/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;
 DELIMITER ;;
-ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10);
 SELECT
@@ -2532,24 +2532,25 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@character_set_client AS c6;
 END 
 */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
+DELIMITER ;
+/*!50003 SET time_zone             = @saved_time_zone */ ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = koi8r */ ;
+/*!50003 SET character_set_results = koi8r */ ;
+/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;
 DELIMITER ;;
-ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2561,13 +2562,13 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@character_set_client AS c6;
 END 
 */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
+/*!50003 SET time_zone             = @saved_time_zone */ ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 /*!50106 SET TIME_ZONE= @save_time_zone */ ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.events.mysqltest1.sql
@@ -2579,18 +2580,18 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER
 
 USE `mysqltest2`;
 /*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = koi8r */ ;
+/*!50003 SET character_set_results = koi8r */ ;
+/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;
 DELIMITER ;;
-ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2602,24 +2603,25 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@character_set_client AS c6;
 END 
 */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
+DELIMITER ;
+/*!50003 SET time_zone             = @saved_time_zone */ ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = koi8r */ ;
+/*!50003 SET character_set_results = koi8r */ ;
+/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET @saved_time_zone      = @@time_zone */ ;
+/*!50003 SET time_zone             = 'SYSTEM' */ ;
 DELIMITER ;;
-ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev4` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2631,13 +2633,13 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@character_set_client AS c6;
 END 
 */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
-ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
+/*!50003 SET time_zone             = @saved_time_zone */ ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 /*!50106 SET TIME_ZONE= @save_time_zone */ ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.events.mysqltest2.sql

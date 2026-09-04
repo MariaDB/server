@@ -683,7 +683,7 @@ create_table_share_lock_stat()
   pfs_dirty_state dirty_state;
 
   /* Create a new record in table stat array. */
-  pfs= global_table_share_lock_container.allocate(& dirty_state);
+  pfs= global_table_share_lock_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     /* Reset the stats. */
@@ -736,13 +736,11 @@ create_table_share_index_stat(const TABLE_SHARE *server_share, uint server_index
   pfs_dirty_state dirty_state;
 
   /* Create a new record in index stat array. */
-  pfs= global_table_share_index_container.allocate(& dirty_state);
+  pfs= global_table_share_index_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     if (server_index == MAX_INDEXES)
-    {
       pfs->m_key.m_name_length= 0;
-    }
     else
     {
       KEY *key_info= server_share->key_info + server_index;
@@ -1786,7 +1784,7 @@ search:
     */
   }
 
-  pfs= global_table_share_container.allocate(& dirty_state);
+  pfs= global_table_share_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     pfs->m_key= key;
@@ -2050,4 +2048,3 @@ void update_program_share_derived_flags(PFS_thread *thread)
 }
 
 /** @} */
-

@@ -6,7 +6,9 @@
 # connection does not read() from a socket, but returns control to the
 # application. 'mysqltest' does not handle the kill request.
 #
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+--source include/check_ipv6.inc
 
 --echo #
 --echo # MDEV-6896 kill user command cause MariaDB crash!
@@ -55,6 +57,87 @@ kill user b;
 drop user a@'127.0.0.1';
 drop user b@'127.0.0.1';
 
---echo #
 --echo # End of 10.3 tests
+
 --echo #
+--echo # MDEV-40554 KILL checks user (not priv_user) and doesn't verify hostname
+--echo #
+
+create user u1@'::1' identified by 'pw1';
+create user ''@'127.0.0.1';
+
+connect u1_ipv6,::1,u1,pw1;
+select current_user();
+let $cid_sock=`select connection_id()`;
+
+--echo # the reported case: same login name, but an anonymous account
+connect u1_anon,127.0.0.1,u1,;
+select user(), current_user();
+
+--echo # anonymous users don't see the process list at all
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+show processlist;
+select count(*) as `threads visible` from information_schema.processlist;
+evalp select count(*) as `u1@'::1' visible`
+     from information_schema.processlist where id=$cid_sock;
+--replace_regex /thread [0-9]+/thread CID/
+--error ER_KILL_DENIED_ERROR
+evalp kill $cid_sock;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp show explain for $cid_sock;
+
+# killing a non-matching user doesn't report an error to not disclose
+# that the user exists. but doesn't kill either
+kill user u1@'::1';
+connection u1_ipv6;
+select user(), current_user();
+connection u1_anon;
+
+connection default;
+disconnect u1_anon;
+drop user ''@'127.0.0.1';
+
+--echo # same login name, a real account, but a different host
+create user u1@'127.0.0.1' identified by 'pw2';
+connect u1_ipv4,127.0.0.1,u1,pw2;
+select current_user();
+let $cid_tcp=`select connection_id()`;
+
+--echo # u1@127.0.0.1 must not see u1@'::1' - same user name, other account
+--replace_result Execute Query
+--replace_column 1 # 3 # 4 # 6 # 7 # 8 # 9 #
+show processlist;
+evalp select count(*) as `u1@'::1' visible`
+     from information_schema.processlist where id=$cid_sock;
+--replace_regex /thread [0-9]+/thread CID/
+--error ER_KILL_DENIED_ERROR
+evalp kill $cid_sock;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp show explain for $cid_sock;
+
+# doesn't report an error, doesn't kill
+kill user u1@'::1';
+connection u1_ipv6;
+select user(), current_user();
+connection u1_ipv4;
+
+--echo # but another u1@127.0.0.1 connection is the same account, so it may
+connect u1_tcp2,127.0.0.1,u1,pw2;
+evalp select count(*) as `u1@127.0.0.1 visible`
+     from information_schema.processlist where id=$cid_tcp;
+evalp kill $cid_tcp;
+
+--echo # u1@'::1' was not killed
+connection u1_ipv6;
+select 1;
+
+connection default;
+disconnect u1_ipv6;
+#u1_ipv4 was killed, must not be disconnected
+disconnect u1_tcp2;
+--source include/wait_until_count_sessions.inc
+
+drop user u1@'::1';
+drop user u1@'127.0.0.1';
+
+--echo # End of 10.11 tests

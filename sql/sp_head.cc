@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2024, MariaDB
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3020,10 +3020,8 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
                                      1, TRUE) &&
                   (tables.grant.privilege & SELECT_ACL) != NO_ACL) ||
                  /* Check if user owns the routine. */
-                 (!strcmp(sp->m_definer.user.str,
-                          thd->security_ctx->priv_user) &&
-                  !strcmp(sp->m_definer.host.str,
-                          thd->security_ctx->priv_host)) ||
+                 thd->security_ctx->is_priv_user(sp->m_definer.user,
+                                                 sp->m_definer.host) ||
                  /* Check if current role or any of the sub-granted roles
                     own the routine. */
                  (sp->m_definer.host.length == 0 &&

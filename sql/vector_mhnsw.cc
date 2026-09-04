@@ -1033,6 +1033,13 @@ int FVectorNode::load_from_record(TABLE *graph)
   FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
   memcpy(vec_ptr->data(), v->ptr(), v->length());
   vec_ptr->postprocess(ctx->use_subdist, ctx->vec_len);
+  /*
+    For COSINE the vector was normalized in FVector::create(), so abs2 is
+    known to be exactly 0.5. Recomputing it from the quantized int16
+    coordinates only adds rounding noise and degrades the recall (MDEV-39858).
+  */
+  if (ctx->metric == COSINE)
+    vec_ptr->abs2= 0.5f;
 
   longlong layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
@@ -1987,16 +1994,16 @@ maria_declare_plugin(mhnsw)
   mhnsw_sys_vars, "1.0", MariaDB_PLUGIN_MATURITY_STABLE
 },
 {
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,  
-  &vi_descriptor,                  
-  "VECTOR_INDEXES",               
-  "MariaDB plc",                 
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &vi_descriptor,
+  "VECTOR_INDEXES",
+  "MariaDB plc",
   "Information about vector indexes",
   PLUGIN_LICENSE_GPL,
-  vector_indexes_init,              
-  NULL,                            
-  0x0100,                         
+  vector_indexes_init,
+  NULL,
+  0x0100,
   NULL, NULL, "1.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

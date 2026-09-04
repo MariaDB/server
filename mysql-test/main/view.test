@@ -70,7 +70,6 @@ create view v3 (c) as select a+1 from v1;
 -- error ER_BAD_FIELD_ERROR
 create view v3 (c) as select b+1 from v1;
 
-
 # VIEW on VIEW test with mixing different algorithms on different order
 create view v3 (c) as select c+1 from v1;
 select c from v3;
@@ -158,7 +157,6 @@ select * from v2 natural left join v1;
 
 drop view v1, v2;
 drop table t1;
-
 
 #
 # DISTINCT option for VIEW
@@ -757,7 +755,6 @@ show table status;
 show create view v1;
 drop view v1;
 drop table t1;
-
 
 #
 # VIEW with floating point (long number) as column
@@ -1680,10 +1677,6 @@ CHECK TABLE v1, v2, v3, v4, v5, v6;
 drop view v1, v2, v3, v4, v5, v6;
 drop table t2;
 
---disable_warnings
-drop function if exists f1;
-drop function if exists f2;
---enable_warnings
 CREATE TABLE t1 (col1 time);
 CREATE TABLE t2 (col1 time);
 CREATE TABLE t3 (col1 time);
@@ -1737,7 +1730,6 @@ show create view v1;
 drop view v1;
 drop table t1;
 
-
 #
 # Correct inserting data check (absence of default value) for view
 # underlying tables (Bug#6443)
@@ -1756,7 +1748,6 @@ set sql_mode=default;
 drop view v2,v1;
 drop table t1;
 
-
 #
 # Bug#11399 Use an alias in a select statement on a view
 #
@@ -1766,7 +1757,6 @@ create view v1 as select f1 from t1;
 select f1 as alias from v1;
 drop view v1;
 drop table t1;
-
 
 #
 # Test for Bug#6120 SP cache to be invalidated when altering a view
@@ -1788,7 +1778,6 @@ DROP PROCEDURE p1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Test for Bug#11709 View was ordered by wrong column
 #
@@ -1798,7 +1787,6 @@ insert into t1 values (1,3),(2,1),(3,2);
 select * from v1 order by f1;
 drop view v1;
 drop table t1;
-
 
 #
 # Test for Bug#11771 wrong query_id in SELECT * FROM <view>
@@ -1813,7 +1801,6 @@ SELECT * FROM t1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # opening table in correct locking mode (Bug#9597)
@@ -1833,7 +1820,6 @@ DROP PROCEDURE p1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#11760 Typo in Item_func_add_time::print() results in NULLs returned
 #             subtime() in view
@@ -1843,7 +1829,6 @@ create view v1 as select f1, subtime(f1, '1:1:1') as sb from t1;
 select * from v1;
 drop view v1;
 drop table t1;
-
 
 #
 # Test for Bug#11412 query over a multitable view with GROUP_CONCAT
@@ -1869,7 +1854,6 @@ SELECT pid,GROUP_CONCAT(CONCAT(fn,' ',ln) ORDER BY 1) FROM v1 GROUP BY pid;
 DROP VIEW v1;
 DROP TABLE t1,t2;
 
-
 #
 # Test for Bug#12382 SELECT * FROM view after INSERT command
 #
@@ -1886,7 +1870,6 @@ SELECT * FROM v1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Test for Bug#12470 crash for a simple select from a view defined
@@ -1907,7 +1890,6 @@ SELECT a FROM v1;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3,t4,t5;
 
-
 #
 # Bug#12298 Typo in function name results in erroneous view being created.
 #
@@ -1927,7 +1909,6 @@ call p1();
 call p1();
 drop procedure p1;
 
-
 #
 # Bug#10624 Views with multiple UNION and UNION ALL produce incorrect results
 #
@@ -1939,7 +1920,6 @@ create view v1 as select * from t1 union select * from t2 union all select * fro
 select * from v1;
 drop view v1;
 drop table t1,t2;
-
 
 #
 # Test for Bug#10970 view referring a temporary table indirectly
@@ -1953,14 +1933,9 @@ CREATE VIEW v1 AS SELECT f1();
 DROP FUNCTION f1;
 DROP TABLE t1;
 
-
 #
 # Bug#12533 (crash on DESCRIBE <view> after renaming base table column)
 #
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP VIEW  IF EXISTS v1;
---enable_warnings
 
 CREATE TABLE t1 (f4 CHAR(5));
 CREATE VIEW v1 AS SELECT * FROM t1;
@@ -1972,7 +1947,6 @@ DESCRIBE v1;
 DROP TABLE t1;
 DROP VIEW v1;
 
-
 #
 # Bug#12489 wrongly printed strcmp() function results in creation of broken
 #            view
@@ -1981,7 +1955,6 @@ create view v1 as select strcmp(f1,'a') from t1;
 select * from v1;
 drop view v1;
 drop table t1;
-
 
 #
 # Bug#12922 if(sum(),...) with group from view returns wrong results
@@ -1992,7 +1965,6 @@ create view v1 as select * from t1;
 select if(sum(f1)>1,f2,f3) from v1 group by f1;
 drop view v1;
 drop table t1;
-
 
 # Bug#12941
 #
@@ -2025,7 +1997,6 @@ order by users_names;
 
 drop view v1, v2;
 drop table t1, t2;
-
 
 #
 # Bug#6808 Views: CREATE VIEW v ... FROM t AS v fails
@@ -2076,7 +2047,6 @@ create view v1 as SELECT CONVERT_TZ('2004-01-01 12:00:00','GMT','MET');
 select * from v1;
 drop view v1;
 
-
 #
 # Bugs#12963, #13000 wrong creation of VIEW with DAYNAME, DAYOFWEEK, and WEEKDAY
 #
@@ -2108,7 +2078,6 @@ SELECT * FROM v3;
 DROP TABLE t1;
 DROP VIEW  v1, v2, v3;
 
-
 #
 # Bug#13411 crash when using non-qualified view column in HAVING clause
 #
@@ -2121,7 +2090,6 @@ SELECT v1.a FROM v1 GROUP BY v1.a HAVING a > 1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#13410 failed name resolution for qualified view column in HAVING
@@ -2137,7 +2105,6 @@ SELECT v_1.a FROM v1 AS v_1 GROUP BY v_1.a HAVING v_1.a IN (1,2,3);
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#13327 view wasn't using index for const condition
@@ -2157,7 +2124,6 @@ EXPLAIN SELECT * FROM v2 WHERE a=1;
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3;
 
-
 #
 # Bug#13622 Wrong view .frm created if some field's alias contain \n
 #
@@ -2167,7 +2133,6 @@ create view v1 as select t1.f1 as '123
 select * from v1;
 drop view v1;
 drop table t1;
-
 
 # Bug#14466 lost sort order in GROUP_CONCAT() in a view
 #
@@ -2179,7 +2144,6 @@ select * from v1;
 select * from v2;
 drop view v1,v2;
 drop table t1;
-
 
 #
 # Bug#14026 Crash on second PS execution when using views
@@ -2205,7 +2169,6 @@ execute stmt1 using @parm1;
 drop view v1;
 drop table t1,t2,t3,t4;
 
-
 #
 # Bug#14540 OPTIMIZE, ANALYZE, REPAIR applied to not a view
 #
@@ -2224,7 +2187,6 @@ REPAIR TABLE v1;
 
 DROP VIEW v1;
 
-
 #
 # Bug#14719 Views DEFINER grammar is incorrect
 #
@@ -2237,7 +2199,6 @@ create definer = current_user sql security invoker view v1 as select 1;
 show create view v1;
 drop view v1;
 
-
 #
 # Bug#14816 test_if_order_by_key() expected only Item_fields.
 #
@@ -2247,7 +2208,6 @@ create view v1 as select * from t1;
 explain select id from v1 order by id;
 drop view v1;
 drop table t1;
-
 
 #
 # Bug#14850 Item_ref's values wasn't updated
@@ -2260,14 +2220,10 @@ select f1, sum(f2) from v1 group by f1;
 drop view v1;
 drop table t1;
 
-
 #
 # Bug#14885 incorrect SOURCE in view created in a procedure
 # TODO: here SOURCE string must be shown when it will be possible
 #
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 delimiter //;
 create procedure p1 () deterministic
 begin
@@ -2280,14 +2236,10 @@ show create view v1;
 drop view v1;
 drop procedure p1;
 
-
 #
 # Bug#15096 using function with view for view creation
 #
 CREATE VIEW v1 AS SELECT 42 AS Meaning;
---disable_warnings
-DROP FUNCTION IF EXISTS f1;
---enable_warnings
 DELIMITER //;
 --enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
@@ -2303,7 +2255,6 @@ CREATE VIEW v2 AS SELECT f1();
 select * from v2;
 drop view v2,v1;
 drop function f1;
-
 
 #
 # Bug#14861 aliased column names are not preserved.
@@ -2323,7 +2274,6 @@ order by v2.receipt_id;
 
 drop view v2, v1;
 drop table t1;
-
 
 #
 # Bug#16016 MIN/MAX optimization for views
@@ -2349,7 +2299,6 @@ EXPLAIN SELECT MIN(a) FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#16382 grouping name is resolved against a view column name
 #           which coincides with a select column name
@@ -2366,7 +2315,6 @@ SELECT IF(x IS NULL, 'blank', 'not blank') AS x FROM v1 GROUP BY x;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
@@ -2385,7 +2333,6 @@ drop view v1;
 delimiter ;//
 --enable_ps_protocol
 
-
 #
 # Bug#17726 Not checked empty list caused endless loop
 #
@@ -2400,7 +2347,6 @@ select * from v2;
 drop view v2, v1;
 drop table t1;
 
-
 #
 # Bug#18386 select from view over a table with ORDER BY view_col clause
 #           given view_col is not an image of any column from the base table
@@ -2414,7 +2360,6 @@ SELECT my_sqrt FROM v1 ORDER BY my_sqrt;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#18237 invalid count optimization applied to an outer join with a view
@@ -2437,7 +2382,6 @@ DROP VIEW v2;
 
 DROP TABLE t1, t2;
 
-
 #
 # Bug#16069 VIEW does return the same results as underlying SELECT
 #           with WHERE condition containing BETWEEN over dates
@@ -2458,7 +2402,6 @@ SELECT * FROM v1 WHERE td BETWEEN CAST('2005.01.02' AS DATE) AND CAST('2005.01.0
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#14308 Recursive view definitions
@@ -2493,7 +2436,6 @@ select * from v1;
 drop function f1;
 drop view t1, v1;
 
-
 #
 # Bug#15153 CONVERT_TZ() is not allowed in all places in VIEWs
 #
@@ -2521,7 +2463,6 @@ select * from v2;
 drop view v1, v2;
 drop table t1;
 
-
 #
 # Bug#19490 usage of view specified by a query with GROUP BY
 #           an expression containing non-constant interval
@@ -2538,7 +2479,6 @@ SELECT * FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#19077 A nested materialized view is used before being populated.
 #
@@ -2549,7 +2489,6 @@ CREATE VIEW v2 AS SELECT MIN(i) FROM t1 WHERE j = ( SELECT * FROM v1 );
 SELECT * FROM v2;
 DROP VIEW v2, v1;
 DROP TABLE t1;
-
 
 #
 # Bug#19573 VIEW with HAVING that refers an alias name
@@ -2577,7 +2516,6 @@ SELECT * FROM v1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#19089 wrong inherited dafault values in temp table views
@@ -2610,7 +2548,6 @@ SELECT * FROM t2;
 DROP VIEW v1;
 DROP TABLE t1,t2;
 
-
 #
 # Bug#16110 insert permitted into view col w/o default value
 #
@@ -2629,7 +2566,6 @@ SELECT * FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#18243 expression over a view column that with the REVERSE function
 #
@@ -2646,7 +2582,6 @@ SELECT CONCAT(LEFT(name,LENGTH(name)-INSTR(REVERSE(name)," ")),
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#19714 wrong type of a view column specified by an expressions over ints
 #
@@ -2659,7 +2594,6 @@ DESCRIBE t2;
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
-
 
 #
 # Bug#17526 views with TRIM functions
@@ -2685,7 +2619,6 @@ DROP VIEW v1;
 
 DROP TABLE t1;
 
-
 #
 # Bug#21080 ALTER VIEW makes user restate SQL SECURITY mode, and ALGORITHM
 #
@@ -2698,7 +2631,6 @@ SHOW CREATE VIEW v1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 # Bug#21086 server crashes when VIEW defined with a SELECT with COLLATE
 #           clause is called
@@ -2718,7 +2650,6 @@ SELECT s1 FROM t1;
 DROP VIEW v1, v2;
 DROP TABLE t1;
 
-
 #
 # Bug#11551 Asymmetric + undocumented behaviour of DROP VIEW and DROP TABLE
 #
@@ -2737,10 +2668,6 @@ show warnings;
 SHOW TABLES;
 
 DROP TABLE t1;
---disable_warnings
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
 
 #
 # Bug#21261 Wrong access rights was required for an insert to a view
@@ -2789,18 +2716,11 @@ show create view v1;
 drop view v1;
 drop table t1;
 
-
 #
 # Test for Bug#16899 Possible buffer overflow in handling of DEFINER-clause.
 #
 
 # Prepare.
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
-DROP VIEW IF EXISTS v2;
---enable_warnings
 
 CREATE TABLE t1(a INT, b INT);
 
@@ -2816,19 +2736,12 @@ CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890
 
 DROP TABLE t1;
 
-
 #
 # Bug#17591 Updatable view not possible with trigger or stored function
 #
 # During prelocking phase we didn't update lock type of view tables,
 # hence READ lock was always requested.
 #
---disable_warnings
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP VIEW IF EXISTS v1, v2;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1 (i INT);
 
@@ -2862,7 +2775,6 @@ DROP FUNCTION f2;
 DROP VIEW v1, v2;
 DROP TABLE t1;
 
-
 #
 # Bug#5500 wrong select_type in EXPLAIN output for queries over views
 #
@@ -2881,7 +2793,6 @@ EXPLAIN SELECT * FROM v1 t WHERE t.s1+1 < (SELECT MAX(t1.s1) FROM t1);
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#5505 Wrong error message on INSERT into a view
 #
@@ -2892,7 +2803,6 @@ insert into v1 values (1,1);
 update v1 set a = 5;
 drop view v1;
 drop table t1;
-
 
 #
 # Bug#21646 view qith a subquery in ON expression
@@ -2912,19 +2822,12 @@ SHOW CREATE VIEW v1;
 DROP VIEW v1;
 DROP TABLE t1, t2;
 
-
 #
 # Bug#19111 TRIGGERs selecting from a VIEW on the firing base table fail
 #
 # Allow to select from a view on a table being modified in a trigger
 # and stored function, since plain select is allowed there.
 #
---disable_warnings
-DROP FUNCTION IF EXISTS f1;
-DROP VIEW IF EXISTS v1;
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1);
 
@@ -2945,7 +2848,6 @@ DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#16813 (WITH CHECK OPTION doesn't work with UPDATE)
 #
@@ -2960,7 +2862,6 @@ UPDATE v1 SET val=6 WHERE id=2;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#22584 last_insert_id not updated after inserting a record
 # through a updatable view
@@ -2969,11 +2870,6 @@ DROP TABLE t1;
 # not accessible through a view.  However, we do not reset the value
 # of LAST_INSERT_ID, but keep it unchanged.
 #
---disable_warnings
-DROP VIEW IF EXISTS v1, v2;
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY, j INT);
 CREATE VIEW v1 AS SELECT j FROM t1;
 CREATE VIEW v2 AS SELECT * FROM t1;
@@ -2998,7 +2894,6 @@ SELECT * FROM t1;
 DROP VIEW v1, v2;
 DROP TABLE t1;
 
-
 #
 # Bug#25580 !0 as an operand in a select expression of a view
 #
@@ -3011,22 +2906,15 @@ SELECT * FROM v;
 
 DROP VIEW v;
 
-
 #
 # Bug#24293 '\Z' token is not handled correctly in views
 #
-
---disable_warnings
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
 CREATE VIEW v1 AS SELECT 'The\ZEnd';
 SELECT * FROM v1;
 
 SHOW CREATE VIEW v1;
 
 DROP VIEW v1;
-
 
 #
 # Bug#26124 BETWEEN over a view column of the DATETIME type
@@ -3043,7 +2931,6 @@ SELECT * FROM v1 WHERE mydate BETWEEN '2007-01-01' AND '2007-01-31';
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#25931 update of a multi-table view with check option
@@ -3066,7 +2953,6 @@ SELECT * FROM t2;
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
-
 
 #
 # Bug#12122 Views with ORDER BY can't be resolved using MERGE algorithm.
@@ -3104,14 +2990,9 @@ SELECT code, COUNT(DISTINCT country) FROM v1 GROUP BY code ORDER BY MAX(id);
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#25897 Some queries are no longer possible after a CREATE VIEW fails
 #
---disable_warnings
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
 --disable_cursor_protocol
@@ -3127,13 +3008,6 @@ eval $query;
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
 #
-
---disable_warnings
-drop view if exists view_24532_a;
-drop view if exists view_24532_b;
-drop table if exists table_24532;
---enable_warnings
-
 create table table_24532 (
   a int,
   b bigint,
@@ -3210,7 +3084,6 @@ drop view view_24532_a;
 drop view view_24532_b;
 drop table table_24532;
 
-
 #
 # Bug#26560 view using subquery with a reference to an outer alias
 #
@@ -3251,7 +3124,6 @@ SELECT * FROM v1;
 DROP VIEW v1;
 DROP table t1,t2;
 
-
 #
 # Bug#27786 Inconsistent Operation Performing UNION On View With ORDER BY
 #
@@ -3268,7 +3140,6 @@ EXPLAIN SELECT * FROM t1 UNION SELECT * FROM v1 ORDER BY a;
 DROP VIEW v1;
 DROP TABLE t1;
 
-
 #
 # Bug#27921 View ignores precision for CAST()
 #
@@ -3280,7 +3151,6 @@ DROP VIEW v1;
 CREATE VIEW v1 AS SELECT CAST(1.23456789 AS DECIMAL(8,0)) AS col;
 SHOW CREATE VIEW v1;
 DROP VIEW v1;
-
 
 #
 # Bug#28716 CHECK OPTION expression is evaluated over expired record buffers
@@ -3297,7 +3167,6 @@ UPDATE v1 SET c=1 WHERE b=1;
 SELECT * FROM v1;
 DROP VIEW v1;
 DROP TABLE t1,t2;
-
 
 #
 # Bug#28561 update on multi-table view with CHECK OPTION and a subquery
@@ -3317,7 +3186,6 @@ UPDATE v1 SET c=1;
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
-
 
 #
 # Bug#27827 CHECK OPTION ignores ON conditions when updating
@@ -3371,7 +3239,6 @@ SELECT * FROM t1;
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3,t4;
 
-
 #
 # Bug#29104 assertion abort for a query with a view column reference
 #           in the GROUP BY list and a condition requiring the value
@@ -3382,7 +3249,6 @@ CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 VALUES (1,2), (2,2), (1,3), (1,2);
 
 CREATE VIEW v1 AS SELECT a, b+1 as b FROM t1;
-
 
 SELECT b, SUM(a) FROM v1 WHERE b=3 GROUP BY b;
 EXPLAIN SELECT b, SUM(a) FROM v1 WHERE b=3 GROUP BY b;
@@ -3395,7 +3261,6 @@ EXPLAIN SELECT a, SUM(b) FROM v1 WHERE a=1 GROUP BY a;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#29392 SELECT over a multi-table view with ORDER BY
@@ -3450,7 +3315,6 @@ SELECT t.person_id AS a, t.person_id AS b FROM v1 t WHERE t.person_id=6;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 
-
 #
 # Bug#30020 Insufficient check led to a wrong info provided by the
 #           information schema table.
@@ -3463,7 +3327,6 @@ select table_name, is_updatable from information_schema.views
    where table_name = 'v1';
 drop view v1;
 drop table t1;
-
 
 #
 # Bug#28701 SELECTs from VIEWs completely ignore USE/FORCE KEY, allowing
@@ -3482,7 +3345,6 @@ SELECT * FROM v1 IGNORE KEY(non_existant);
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 #
 # Bug#28702 VIEWs defined with USE/FORCE KEY ignore that request
@@ -3505,7 +3367,6 @@ DROP VIEW v2;
 DROP VIEW v3;
 DROP TABLE t1;
 
-
 --echo #
 --echo # Bug#29477 Not all fields of the target table were checked to have
 --echo #           a default value when inserting into a view.
@@ -3520,7 +3381,6 @@ insert into v1 values(1);
 set @@sql_mode=@old_mode;
 drop view v1;
 drop table t1;
-
 
 #
 # Bug#33389 Selecting from a view into a table from within SP or trigger
@@ -3543,7 +3403,6 @@ execute stmt;
 drop view v1, v2;
 drop table t1, t2;
 
-
 #
 # Bug#33049 Assert while running test-as3ap test(mysql-bench suite)
 #
@@ -3562,30 +3421,14 @@ DROP TABLE t1;
 --echo # -----------------------------------------------------------------
 --echo # -- Bug#34337 Server crash when Altering a view using a table name.
 --echo # -----------------------------------------------------------------
---echo
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
---echo
 
 CREATE TABLE t1(c1 INT);
-
---echo
-
 SELECT * FROM t1;
 
 --error ER_WRONG_OBJECT
 ALTER ALGORITHM=TEMPTABLE SQL SECURITY INVOKER VIEW t1 (c2) AS SELECT (1);
 
---echo
-
 DROP TABLE t1;
-
---echo
---echo # -- End of test case for Bug#34337.
---echo
 
 ###########################################################################
 
@@ -3593,22 +3436,13 @@ DROP TABLE t1;
 --echo # -- Bug#35193 VIEW query is rewritten without "FROM DUAL",
 --echo # --           causing syntax error
 --echo # -----------------------------------------------------------------
---echo
 
 CREATE VIEW v1 AS SELECT 1 FROM DUAL WHERE 1;
-
---echo
 
 SELECT * FROM v1;
 SHOW CREATE TABLE v1;
 
---echo
-
 DROP VIEW v1;
-
---echo
---echo # -- End of test case for Bug#35193.
---echo
 
 ###########################################################################
 
@@ -3619,7 +3453,6 @@ DROP VIEW v1;
 # Bug is visible only when running in valgrind with binary logging.
 CREATE VIEW v1 AS SELECT 1;
 DROP VIEW v1;
-
 
 #
 # Bug#33461 SELECT ... FROM <view> USE INDEX (...) throws an error
@@ -3710,9 +3543,6 @@ DROP TABLE t1;
 #
 # Bug#21370 View renaming lacks tablename_to_filename encoding
 #
---disable_warnings
-DROP DATABASE IF EXISTS `d-1`;
---enable_warnings
 CREATE DATABASE `d-1`;
 USE `d-1`;
 CREATE TABLE `t-1` (c1 INT);
@@ -3726,124 +3556,63 @@ DROP VIEW  `v-2`;
 DROP DATABASE `d-1`;
 USE test;
 
---echo
 --echo #
 --echo # Bug#26676 VIEW using old table schema in a session.
 --echo #
---echo
-
---disable_warnings
-DROP VIEW IF EXISTS v1;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(c1 INT, c2 INT);
 INSERT INTO t1 VALUES (1, 2), (3, 4);
 
---echo
-
 SELECT * FROM t1;
-
---echo
 
 CREATE VIEW v1 AS SELECT * FROM t1;
 
---echo
-
 SELECT * FROM v1;
-
---echo
 
 ALTER TABLE t1 ADD COLUMN c3 INT AFTER c2;
 
---echo
-
 SELECT * FROM t1;
-
---echo
 
 SELECT * FROM v1;
 
---echo
-
 SHOW CREATE VIEW v1;
-
---echo
 
 DROP VIEW v1;
 DROP TABLE t1;
-
---echo
---echo # End of test case for Bug#26676.
---echo
 
 ###########################################################################
 
 --echo # -----------------------------------------------------------------
 --echo # -- Bug#32538 View definition picks up character set, but not collation
 --echo # -----------------------------------------------------------------
---echo
-
---disable_warnings
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
---echo
 
 SET collation_connection = latin1_general_ci;
 CREATE VIEW v1 AS SELECT _latin1 'text1' AS c1, 'text2' AS c2;
 
---echo
-
 SELECT COLLATION(c1), COLLATION(c2) FROM v1;
 
---echo
-
 SHOW CREATE VIEW v1;
-
---echo
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT * FROM v1 WHERE c1 = 'text1';
 
---echo
-
 SELECT * FROM v1 WHERE c2 = 'text2';
-
---echo
 
 use test;
 SET names latin1;
 
---echo
-
 SELECT COLLATION(c1), COLLATION(c2) FROM v1;
 
---echo
-
 SELECT * FROM v1 WHERE c1 = 'text1';
-
---echo
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT * FROM v1 WHERE c2 = 'text2';
 
---echo
-
 DROP VIEW v1;
-
---echo
---echo # -- End of test case for Bug#32538.
---echo
 
 #
 # Bug#34587 Creating a view inside a stored procedure leads to a server crash
 #
-
---disable_warnings
-drop view if exists a;
-drop procedure if exists p;
---enable_warnings
 
 delimiter |;
 create procedure p()
@@ -3859,7 +3628,6 @@ drop procedure p;
 
 ###########################################################################
 
-
 --echo #
 --echo # Bug #44860: ALTER TABLE on view crashes server
 --echo #
@@ -3874,12 +3642,6 @@ DROP TABLE t1;
 --echo # Bug#48449: hang on show create view after upgrading when
 --echo #            view contains function of view
 --echo #
-
---disable_warnings
-DROP VIEW IF EXISTS v1,v2;
-DROP TABLE IF EXISTS t1,t2;
-DROP FUNCTION IF EXISTS f1;
---enable_warnings
 
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
@@ -3907,7 +3669,6 @@ disable_prepare_warnings;
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
 DROP FUNCTION f1;
-
 
 #
 # Bug#48294 assertion when creating a view based on some row() construct in select query
@@ -4506,7 +4267,6 @@ SELECT * FROM t3 , t4
   WHERE t4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
                    WHERE t2.b > t4.b);
 
-
 EXPLAIN EXTENDED
 SELECT * FROM t3, v4 
   WHERE v4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
@@ -4522,11 +4282,6 @@ DROP TABLE t1,t2,t3,t4;
 #
 # Bug#9801 (Views: imperfect error message)
 #
-
---disable_warnings
-drop table if exists t_9801;
-drop view if exists v_9801;
---enable_warnings
 
 create table t_9801 (s1 int);
 
@@ -4548,11 +4303,6 @@ drop table t_9801;
 --echo # Bug #47335 assert in get_table_share
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
 CREATE TEMPORARY TABLE t1 (id INT);
 --error ER_NO_SUCH_TABLE
 ALTER VIEW t1 AS SELECT 1 AS f1;
@@ -4565,16 +4315,10 @@ DROP TABLE v1;
 SELECT * FROM v1;
 DROP VIEW v1;
 
-
 --echo #
 --echo # Bug #47635 assert in start_waiting_global_read_lock 
 --echo #            during CREATE VIEW
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
-DROP VIEW IF EXISTS t2;
---enable_warnings
 
 CREATE TABLE t1 (f1 integer);
 CREATE TEMPORARY TABLE IF NOT EXISTS t1 (f1 integer);
@@ -4587,16 +4331,10 @@ CREATE VIEW t2 AS SELECT * FROM t1;
 UNLOCK TABLES;
 DROP TABLE t1, t2;
 
-
 --echo #
 --echo # Bug#48315 Metadata lock is not taken for merged views that
 --echo #           use an INFORMATION_SCHEMA table
 --echo #
-
---disable_warnings
-DROP VIEW IF EXISTS v1;
-DROP PROCEDURE IF EXISTS p1;
---enable_warnings
 
 connect (con2, localhost, root);
 connect (con3, localhost, root);
@@ -4662,18 +4400,13 @@ DROP PROCEDURE p1;
 disconnect con2;
 disconnect con3;
 
-
 --echo #
 --echo # Bug#12626844: WRONG ERROR MESSAGE WHILE CREATING A VIEW ON A
 --echo #               NON EXISTING DATABASE
 --echo #
 
---disable_warnings
-DROP DATABASE IF EXISTS nodb;
---enable_warnings
 --error ER_BAD_DB_ERROR
 CREATE VIEW nodb.a AS SELECT 1;
-
 
 --echo #
 --echo # BUG#14117018 - MYSQL SERVER CREATES INVALID VIEW DEFINITION
@@ -4714,7 +4447,6 @@ SHOW CREATE VIEW v3;
 SHOW CREATE VIEW v4;
 
 DROP VIEW v1, v2, v3, v4, v5;
-
 
 --echo #
 --echo # BUG#19886430: VIEW CREATION WITH NAMED COLUMNS, OVER UNION,
@@ -4953,7 +4685,6 @@ SELECT * FROM (
 
 drop tables t1,t2;
 
-
 --echo #
 --echo # MDEV-3876 Wrong result (extra rows) with ALL subquery
 --echo # from a MERGE view (duplicate of MDEV-3873)
@@ -5062,7 +4793,6 @@ insert into t1 values (1),(2);
 
 create view v1 (a,r) as select a,rand() from t1;
 
-
 create table t2 select a, r as r1, r as r2, r as r3 from v1;
 
 select a, r1 = r2, r2 = r3 from t2;
@@ -5159,7 +4889,6 @@ INSERT INTO t2 VALUES (4),(6);
 CREATE TABLE t3 (c INT) ENGINE=MyISAM;
 INSERT INTO t3 VALUES (1),(2);
 
-
 CREATE ALGORITHM=MERGE VIEW v1 AS SELECT  
 ( SELECT a FROM t1 WHERE ( 1, 1 ) IN ( 
 SELECT b, c FROM t2, t3 HAVING c > 2 ) ) AS field1, 
@@ -5226,7 +4955,6 @@ DECLARE lResult INTEGER UNSIGNED DEFAULT 0;
 END|
 --delimiter ;
 
-
 SELECT `f1`(1);
 SELECT `f1`(1);
 SELECT `f1`(1);
@@ -5235,7 +4963,6 @@ SELECT `f1`(1);
 DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1, t2;
-
 
 create view v1 as select 1;
 
@@ -5346,7 +5073,6 @@ create view v1 as select a+b from t1;
 alter table v1 check partition p1;
 drop view v1;
 drop table t1;
-
 
 --echo #
 --echo # MDEV-10419: crash in mariadb 10.1.16-MariaDB-1~trusty
@@ -5851,7 +5577,6 @@ drop table t1, t2;
 --error ER_BAD_FIELD_ERROR
 SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1; 
 
-
 --echo #
 --echo # MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
 --echo # FOR UPDATE
@@ -6095,7 +5820,6 @@ DROP VIEW v1;
 
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
 --echo #
@@ -6338,7 +6062,6 @@ REPLACE INTO v (f1,f2) VALUES (1,1);
 drop view v;
 drop table t1,t2,t3;
 
-
 --echo #
 --echo # MDEV-12379: Server crashes in TABLE_LIST::is_with_table on
 --echo # SHOW CREATE VIEW
@@ -6538,7 +6261,6 @@ drop view v1;
 
 eval CREATE VIEW v1 AS $definition;
 
-
 drop view v1;
 
 --echo #
@@ -6603,7 +6325,6 @@ set global table_definition_cache= @tdc, table_open_cache= @tc;
 --echo #
 --echo # End of 10.2 tests
 --echo #
-
 
 --echo #
 --echo # Start of 10.3 tests
@@ -6673,10 +6394,7 @@ CREATE VIEW v1 as select b'';
 SELECT * FROM v1;
 DROP VIEW v1;
 
-
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-25206: view specification contains unknown column reference
@@ -6752,7 +6470,6 @@ SHOW CREATE VIEW v1;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
 
 CREATE TABLE t1 (i INT);
 CREATE VIEW v1 AS SELECT 1 FROM t1

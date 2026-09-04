@@ -49,6 +49,16 @@ static inline bool is_uuid_field(const Field *field)
          field->type_handler()->type_collection() == uuid_coll;
 }
 
+/**
+  Name of the DuckDB sequence backing the AUTO_INCREMENT column of a table.
+  MariaDB allows at most one AUTO_INCREMENT column per table, so the table
+  name alone identifies the sequence.
+*/
+std::string autoinc_sequence_name(const std::string &table_name);
+
+/** The AUTO_INCREMENT field of a table, or nullptr if there is none. */
+Field *find_autoinc_field(const TABLE *table);
+
 class BaseConvertor
 {
 public:
@@ -234,6 +244,9 @@ private:
 
   /** Columns to set not null */
   Columns m_columns_to_set_not_null;
+
+  /** Columns whose temporary default must be dropped */
+  Columns m_columns_to_drop_default;
 
   /** Prepare columns to add and set not null. */
   void prepare_columns();

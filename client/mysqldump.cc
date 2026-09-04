@@ -178,16 +178,21 @@ static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
-/**
-  `true` for 11.6 or above servers, `false` otherwise.
-  @deprecated This and its `false` branches are to be removed after 11.4's EOL.
-*/
 static bool have_info_schema_slave_status;
+/// @deprecated For pre-10.7 compatibility, all but 10.6-ES are EOL.
+static bool have_for_channel= true;
 static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
 static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
+
+static struct
+{
+  ptrdiff_t connection_name, slave_sql_running,
+            master_host, master_port,
+            relay_master_log_file, exec_master_log_pos;
+} slave_status_indices;
 
 
 #include <sslopt-vars.h>
@@ -1514,7 +1519,7 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
   RETURN VALUES
     0               query sending and (if res!=0) result reading went ok
     1               error
-    -1              Syntax/parse error (for retry code)
+    -1              Syntax/parse or unknown table error (for retry code)
 */
 
 static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
@@ -1525,8 +1530,13 @@ static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
   if (mysql_query(mysql_con, query) ||
       (res && !((*res)= mysql_store_result(mysql_con))))
   {
-    if (no_parse_error && mysql_errno(mysql_con) == ER_PARSE_ERROR)
-      return -1;
+    if (no_parse_error)
+      switch (mysql_errno(mysql_con)) {
+      case ER_PARSE_ERROR:
+      case ER_UNKNOWN_TABLE:
+        return -1;
+      default: break;
+      }
     maybe_die(EX_MYSQLERR, "Couldn't execute '%s': %s (%d)",
               query, mysql_error(mysql_con), mysql_errno(mysql_con));
     return 1;
@@ -1731,7 +1741,6 @@ static char *my_case_str(const char *str,
 
 static int switch_db_collation(FILE *sql_file,
                                const char *db_name,
-                               const char *delimiter,
                                const char *current_db_cl_name,
                                const char *required_db_cl_name,
                                int *db_cl_altered)
@@ -1747,11 +1756,10 @@ static int switch_db_collation(FILE *sql_file,
       return 1;
 
     fprintf(sql_file,
-            "ALTER DATABASE %s CHARACTER SET %s COLLATE %s %s\n",
+            "ALTER DATABASE %s CHARACTER SET %s COLLATE %s ;\n",
             (const char *) quoted_db_name,
             (const char *) db_cl->cs_name.str,
-            (const char *) db_cl->coll_name.str,
-            (const char *) delimiter);
+            (const char *) db_cl->coll_name.str);
 
     *db_cl_altered= 1;
 
@@ -1766,7 +1774,6 @@ static int switch_db_collation(FILE *sql_file,
 
 static int restore_db_collation(FILE *sql_file,
                                 const char *db_name,
-                                const char *delimiter,
                                 const char *db_cl_name)
 {
   char quoted_db_buf[NAME_LEN * 2 + 3];
@@ -1778,100 +1785,71 @@ static int restore_db_collation(FILE *sql_file,
     return 1;
 
   fprintf(sql_file,
-          "ALTER DATABASE %s CHARACTER SET %s COLLATE %s %s\n",
+          "ALTER DATABASE %s CHARACTER SET %s COLLATE %s ;\n",
           (const char *) quoted_db_name,
           (const char *) db_cl->cs_name.str,
-          (const char *) db_cl->coll_name.str,
-          (const char *) delimiter);
+          (const char *) db_cl->coll_name.str);
 
   return 0;
 }
 
 
 static void switch_cs_variables(FILE *sql_file,
-                                const char *delimiter,
                                 const char *character_set_client,
                                 const char *character_set_results,
                                 const char *collation_connection)
 {
   fprintf(sql_file,
-          "/*!50003 SET @saved_cs_client      = @@character_set_client */ %s\n"
-          "/*!50003 SET @saved_cs_results     = @@character_set_results */ %s\n"
-          "/*!50003 SET @saved_col_connection = @@collation_connection */ %s\n"
-          "/*!50003 SET character_set_client  = %s */ %s\n"
-          "/*!50003 SET character_set_results = %s */ %s\n"
-          "/*!50003 SET collation_connection  = %s */ %s\n",
-          (const char *) delimiter,
-          (const char *) delimiter,
-          (const char *) delimiter,
-
+          "/*!50003 SET @saved_cs_client      = @@character_set_client */ ;\n"
+          "/*!50003 SET @saved_cs_results     = @@character_set_results */ ;\n"
+          "/*!50003 SET @saved_col_connection = @@collation_connection */ ;\n"
+          "/*!50003 SET character_set_client  = %s */ ;\n"
+          "/*!50003 SET character_set_results = %s */ ;\n"
+          "/*!50003 SET collation_connection  = %s */ ;\n",
           (const char *) character_set_client,
-          (const char *) delimiter,
-
           (const char *) character_set_results,
-          (const char *) delimiter,
-
-          (const char *) collation_connection,
-          (const char *) delimiter);
+          (const char *) collation_connection);
 }
 
 
-static void restore_cs_variables(FILE *sql_file,
-                                 const char *delimiter)
+static void restore_cs_variables(FILE *sql_file)
 {
   fprintf(sql_file,
-          "/*!50003 SET character_set_client  = @saved_cs_client */ %s\n"
-          "/*!50003 SET character_set_results = @saved_cs_results */ %s\n"
-          "/*!50003 SET collation_connection  = @saved_col_connection */ %s\n",
-          (const char *) delimiter,
-          (const char *) delimiter,
-          (const char *) delimiter);
+          "/*!50003 SET character_set_client  = @saved_cs_client */ ;\n"
+          "/*!50003 SET character_set_results = @saved_cs_results */ ;\n"
+          "/*!50003 SET collation_connection  = @saved_col_connection */ ;\n");
 }
 
 
-static void switch_sql_mode(FILE *sql_file,
-                            const char *delimiter,
-                            const char *sql_mode)
+static void switch_sql_mode(FILE *sql_file, const char *sql_mode)
 {
   fprintf(sql_file,
-          "/*!50003 SET @saved_sql_mode       = @@sql_mode */ %s\n"
-          "/*!50003 SET sql_mode              = '%s' */ %s\n",
-          (const char *) delimiter,
-
-          (const char *) sql_mode,
-          (const char *) delimiter);
+          "/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;\n"
+          "/*!50003 SET sql_mode              = '%s' */ ;\n",
+          (const char *) sql_mode);
 }
 
 
-static void restore_sql_mode(FILE *sql_file,
-                             const char *delimiter)
+static void restore_sql_mode(FILE *sql_file)
 {
   fprintf(sql_file,
-          "/*!50003 SET sql_mode              = @saved_sql_mode */ %s\n",
-          (const char *) delimiter);
+          "/*!50003 SET sql_mode              = @saved_sql_mode */ ;\n");
 }
 
 
-static void switch_time_zone(FILE *sql_file,
-                             const char *delimiter,
-                             const char *time_zone)
+static void switch_time_zone(FILE *sql_file, const char *time_zone)
 {
   fprintf(sql_file,
-          "/*!50003 SET @saved_time_zone      = @@time_zone */ %s\n"
-          "/*!50003 SET time_zone             = '%s' */ %s\n",
-          (const char *) delimiter,
-
-          (const char *) time_zone,
-          (const char *) delimiter);
+          "/*!50003 SET @saved_time_zone      = @@time_zone */ ;\n"
+          "/*!50003 SET time_zone             = '%s' */ ;\n",
+          (const char *) time_zone);
 }
 
 
-static void restore_time_zone(FILE *sql_file,
-                              const char *delimiter)
+static void restore_time_zone(FILE *sql_file)
 {
   fprintf(sql_file,
-          "/*!50003 SET time_zone             = @saved_time_zone */ %s\n",
-          (const char *) delimiter);
+          "/*!50003 SET time_zone             = @saved_time_zone */ ;\n");
 }
 
 
@@ -2665,44 +2643,6 @@ static void print_comment(FILE *sql_file, my_bool is_error, const char *format,
 }
 
 /*
- create_delimiter
- Generate a new (null-terminated) string that does not exist in  query 
- and is therefore suitable for use as a query delimiter.  Store this
- delimiter in  delimiter_buff .
- 
- This is quite simple in that it doesn't even try to parse statements as an
- interpreter would.  It merely returns a string that is not in the query, which
- is much more than adequate for constructing a delimiter.
-
- RETURN
-   ptr to the delimiter  on Success
-   NULL                  on Failure
-*/
-static char *create_delimiter(char *query, char *delimiter_buff, 
-                              int delimiter_max_size) 
-{
-  int proposed_length;
-  char *presence;
-
-  delimiter_buff[0]= ';';  /* start with one semicolon, and */
-
-  for (proposed_length= 2; proposed_length < delimiter_max_size; 
-      delimiter_max_size++) {
-
-    delimiter_buff[proposed_length-1]= ';';  /* add semicolons, until */
-    delimiter_buff[proposed_length]= '\0';
-
-    presence = strstr(query, delimiter_buff);
-    if (presence == NULL) { /* the proposed delimiter is not in the query. */
-       return delimiter_buff;
-    }
-
-  }
-  return NULL;  /* but if we run out of space, return nothing at all. */
-}
-
-
-/*
   dump_events_for_db
   -- retrieves list of events for a given db, and prints out
   the CREATE EVENT statement into the output (the dump).
@@ -2716,7 +2656,6 @@ static uint dump_events_for_db(char *db)
   char       query_buff[QUERY_LENGTH];
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *event_name;
-  char       delimiter[QUERY_LENGTH];
   FILE       *sql_file= md_result_file;
   MYSQL_RES  *event_res= NULL, *event_list_res= NULL;
   MYSQL_ROW  row, event_list_row;
@@ -2744,7 +2683,6 @@ static uint dump_events_for_db(char *db)
   if (mysql_query_with_error_report(mysql, &event_list_res, "show events"))
     DBUG_RETURN(0);
 
-  safe_strcpy(delimiter, sizeof(delimiter), ";");
   if (mysql_num_rows(event_list_res) > 0)
   {
     if (opt_xml)
@@ -2790,25 +2728,16 @@ static uint dump_events_for_db(char *db)
           char *query_str;
 
           if (opt_drop)
-            fprintf(sql_file, "/*!50106 DROP EVENT IF EXISTS %s */%s\n", 
-                event_name, delimiter);
-
-          if (create_delimiter(row[3], delimiter, sizeof(delimiter)) == NULL)
-          {
-            fprintf(stderr, "%s: Warning: Can't create delimiter for event '%s'\n",
-                    my_progname_short, event_name);
-            goto err;
-          }
-
-          fprintf(sql_file, "DELIMITER %s\n", delimiter);
+            fprintf(sql_file, "/*!50106 DROP EVENT IF EXISTS %s */;\n", 
+                event_name);
 
           if (mysql_num_fields(event_res) >= 7)
           {
-            if (switch_db_collation(sql_file, db_name_buff, delimiter,
+            if (switch_db_collation(sql_file, db_name_buff,
                                     db_cl_name, row[6], &db_cl_altered))
               goto err;
 
-            switch_cs_variables(sql_file, delimiter,
+            switch_cs_variables(sql_file,
                                 row[4],   /* character_set_client */
                                 row[4],   /* character_set_results */
                                 row[5]);  /* collation_connection */
@@ -2831,32 +2760,31 @@ static uint dump_events_for_db(char *db)
                     "--\n");
           }
 
-          switch_sql_mode(sql_file, delimiter, row[1]);
+          switch_sql_mode(sql_file, row[1]);
 
-          switch_time_zone(sql_file, delimiter, row[2]);
+          switch_time_zone(sql_file, row[2]);
 
           query_str= cover_definer_clause(row[3], strlen(row[3]),
                                           C_STRING_WITH_LEN("50117"),
                                           C_STRING_WITH_LEN("50106"),
                                           C_STRING_WITH_LEN(" EVENT"));
 
-          fprintf(sql_file,
-                  "/*!50106 %s \n*/ %s\n",
-                  (const char *) (query_str != NULL ? query_str : row[3]),
-                  (const char *) delimiter);
+          fprintf(sql_file, "DELIMITER ;;\n"
+                  "/*!50106 %s \n*/ ;;\n"
+                  "DELIMITER ;\n",
+                  (const char *) (query_str != NULL ? query_str : row[3]));
 
           my_free(query_str);
-          restore_time_zone(sql_file, delimiter);
-          restore_sql_mode(sql_file, delimiter);
+          restore_time_zone(sql_file);
+          restore_sql_mode(sql_file);
 
           if (mysql_num_fields(event_res) >= 7)
           {
-            restore_cs_variables(sql_file, delimiter);
+            restore_cs_variables(sql_file);
 
             if (db_cl_altered)
             {
-              if (restore_db_collation(sql_file, db_name_buff, delimiter,
-                                       db_cl_name))
+              if (restore_db_collation(sql_file, db_name_buff, db_cl_name))
                 goto err;
             }
           }
@@ -2873,7 +2801,6 @@ static uint dump_events_for_db(char *db)
     }
     else
     {
-      fprintf(sql_file, "DELIMITER ;\n");
       fprintf(sql_file, "/*!50106 SET TIME_ZONE= @save_time_zone */ ;\n");
     }
 
@@ -3043,7 +2970,7 @@ static uint dump_routines_for_db(char *db)
               continue;
             }
 
-            switch_sql_mode(sql_file, ";", row[1]);
+            switch_sql_mode(sql_file, row[1]);
 
             if (opt_drop)
               fprintf(sql_file, "/*!50003 DROP %s IF EXISTS %s */;\n",
@@ -3051,7 +2978,7 @@ static uint dump_routines_for_db(char *db)
 
             if (mysql_num_fields(routine_res) >= 6)
             {
-              if (switch_db_collation(sql_file, db, ";",
+              if (switch_db_collation(sql_file, db,
                                       db_cl_name, row[5], &db_cl_altered))
               {
                 mysql_free_result(routine_res);
@@ -3060,7 +2987,7 @@ static uint dump_routines_for_db(char *db)
                 DBUG_RETURN(1);
               }
 
-              switch_cs_variables(sql_file, ";",
+              switch_cs_variables(sql_file,
                                   row[3],   /* character_set_client */
                                   row[3],   /* character_set_results */
                                   row[4]);  /* collation_connection */
@@ -3091,15 +3018,15 @@ static uint dump_routines_for_db(char *db)
                     "DELIMITER ;\n",
                     (const char *) row[2]);
 
-            restore_sql_mode(sql_file, ";");
+            restore_sql_mode(sql_file);
 
             if (mysql_num_fields(routine_res) >= 6)
             {
-              restore_cs_variables(sql_file, ";");
+              restore_cs_variables(sql_file);
 
               if (db_cl_altered)
               {
-                if (restore_db_collation(sql_file, db, ";", db_cl_name))
+                if (restore_db_collation(sql_file, db, db_cl_name))
                 {
                   mysql_free_result(routine_res);
                   mysql_free_result(routine_list_res);
@@ -3883,16 +3810,16 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
       continue;
     }
 
-    if (switch_db_collation(sql_file, db_name, ";",
+    if (switch_db_collation(sql_file, db_name,
                             db_cl_name, row[5], &db_cl_altered))
       DBUG_RETURN(TRUE);
 
-    switch_cs_variables(sql_file, ";",
+    switch_cs_variables(sql_file,
                         row[3],   /* character_set_client */
                         row[3],   /* character_set_results */
                         row[4]);  /* collation_connection */
 
-    switch_sql_mode(sql_file, ";", row[1]);
+    switch_sql_mode(sql_file, row[1]);
 
     if (opt_drop_trigger)
       fprintf(sql_file, "/*!50032 DROP TRIGGER IF EXISTS %s */;\n",
@@ -3910,12 +3837,12 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
 
     my_free(query_str);
 
-    restore_sql_mode(sql_file, ";");
-    restore_cs_variables(sql_file, ";");
+    restore_sql_mode(sql_file);
+    restore_cs_variables(sql_file);
 
     if (db_cl_altered)
     {
-      if (restore_db_collation(sql_file, db_name, ";", db_cl_name))
+      if (restore_db_collation(sql_file, db_name, db_cl_name))
         DBUG_RETURN(TRUE);
     }
   }
@@ -6425,23 +6352,66 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
   // do_stop_slave_sql() should only be called once
   DBUG_ASSERT(!slave_status_res);
 
-  if (mysql_query_with_error_report(mysql_con, &slave_status_res,
-    have_info_schema_slave_status ?
+  // 11.6 and above
+  switch (mysql_query_with_error_report(mysql_con, &slave_status_res,
       "SELECT Connection_name FROM information_schema.SLAVE_STATUS"
       // If the slave's SQL thread is not running, we don't stop (or start) it.
-      " WHERE Slave_SQL_Running <> 'No'" :
-      "SHOW ALL SLAVES STATUS"
-  ))
-    return(1);
+      " WHERE Slave_SQL_Running <> 'No'", true
+  )) {
+  default: // placing `default` at top and `-1` at bottom for readable chaining
+    return 1;
+  case 0:
+    have_info_schema_slave_status= true;
+    slave_status_indices= {0, /* unused */ -1,
+      // these are actually for the separate query in do_show_slave_status()
+      1, 2, 3, 4};
+    break;
+  case -1:
+    have_info_schema_slave_status= false;
+    // Between 10.0 and 11.5 inclusive
+    switch (mysql_query_with_error_report(mysql_con, &slave_status_res,
+      "SHOW ALL SLAVES STATUS", true
+    )) {
+    default:
+      return 1;
+    case 0:
+      slave_status_indices= {0, 13, 3, 5, 11, 23};
+      break;
+    case -1:
+      // MySQL 8.0.22 and above
+      if (mysql_query_with_error_report(mysql_con, &slave_status_res,
+      "SHOW REPLICA STATUS"
+      ))
+        return 1;
+      slave_status_indices= {55, 11, 1, 3, 9, 21};
+    }
+  }
+
   // Loop over all slaves
   while ((row= mysql_fetch_row(slave_status_res)))
   {
     if ((have_info_schema_slave_status ||
-        strcmp(row[/* Slave_SQL_Running */ 13], "No")))
+        strcmp(row[slave_status_indices.slave_sql_running], "No")))
     {
-      char query[25 + NAME_CHAR_LEN]; // sizeof(snprintf)
-        snprintf(query, sizeof(query), "STOP SLAVE '%.*s' SQL_THREAD",
-          NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+      char query[39 + NAME_CHAR_LEN]; // sizeof(snprintf)
+      if (likely(have_for_channel))
+      {
+        // 10.7+ or MySQL
+        snprintf(query, sizeof(query),
+          "STOP REPLICA SQL_THREAD FOR CHANNEL '%.*s'",
+          NAME_CHAR_LEN, row[slave_status_indices.connection_name]);
+        switch (mysql_query_with_error_report(mysql_con, nullptr, query, true)) {
+        default:
+          return 1;
+        case 0:
+          continue;
+        case -1:; // fall-through to `!have_for_channel`
+        }
+      }
+      // Between 10.0 and 10.6 inclusive
+      have_for_channel= false;
+      snprintf(query, sizeof(query), "STOP SLAVE '%.*s' SQL_THREAD",
+        NAME_CHAR_LEN, row[slave_status_indices.connection_name]);
       if (mysql_query_with_error_report(mysql_con, nullptr, query))
         return 1;
     }
@@ -6467,7 +6437,7 @@ static int add_slave_statements(void)
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con,
+static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                                 int use_gtid, char *set_gtid_pos,
                                 size_t set_gtid_pos_size)
 {
@@ -6477,7 +6447,6 @@ static int do_show_slave_status(MYSQL *mysql_con,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
-  char gtid_pos[MAX_GTID_LENGTH];
   char name_buff[FN_REFLEN*2+3];
 
   if (have_info_schema_slave_status)
@@ -6501,13 +6470,18 @@ static int do_show_slave_status(MYSQL *mysql_con,
     slave= slave_status_res;
   }
 
-  if (get_gtid_pos(gtid_pos, false))
+  if (have_mariadb_gtid)
   {
-    mysql_free_result(slave);
-    return 1;
+    char gtid_pos[MAX_GTID_LENGTH];
+    if (get_gtid_pos(gtid_pos, false))
+    {
+      if (have_info_schema_slave_status)
+        mysql_free_result(slave);
+      return 1;
+    }
+    snprintf(set_gtid_pos, set_gtid_pos_size,
+             fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
   }
-  snprintf(set_gtid_pos, set_gtid_pos_size,
-           fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
 
   print_comment(md_result_file, 0,
     "\n-- The following is the replication SQL position "
@@ -6530,22 +6504,19 @@ static int do_show_slave_status(MYSQL *mysql_con,
     if (use_gtid)
       fprintf(md_result_file,
         "%sCHANGE MASTER %s TO MASTER_USE_GTID=slave_pos;\n",
-        gtid_comment_prefix, quote_for_equal(row[/* Connection_name */ 0],
-                                              name_buff));
+        gtid_comment_prefix,
+        quote_for_equal(row[slave_status_indices.connection_name], name_buff));
     fprintf(md_result_file, "%sCHANGE MASTER %s TO ",
       nogtid_comment_prefix,
-      quote_for_equal(row[/* Connection_name */ 0], name_buff));
+      quote_for_equal(row[slave_status_indices.connection_name], name_buff));
     if (opt_include_master_host_port)
       fprintf(md_result_file, "MASTER_HOST=%s, MASTER_PORT=%llu, ",
-        quote_for_equal(row[have_info_schema_slave_status ? 1
-                             : /* Master_Host */ 3], name_buff),
-        atoll(row[have_info_schema_slave_status ? 2
-                  : /* Master_Port */ 5]));
+        quote_for_equal(row[slave_status_indices.master_host], name_buff),
+        atoll(row[slave_status_indices.master_port]));
     fprintf(md_result_file, "MASTER_LOG_FILE=%s, MASTER_LOG_POS=%llu;\n",
-      quote_for_equal(row[have_info_schema_slave_status ? 3
-                          : /* Relay_Master_Log_File */ 11], name_buff),
-      atoll(row[have_info_schema_slave_status ? 4
-                : /*  Exec_Master_Log_Pos  */ 23]));
+      quote_for_equal(row[slave_status_indices.relay_master_log_file],
+                      name_buff),
+      atoll(row[slave_status_indices.exec_master_log_pos]));
     check_io(md_result_file);
   }
 
@@ -6574,12 +6545,13 @@ static int do_start_slave_sql(MYSQL *mysql_con)
   */
   while ((row= mysql_fetch_row(slave_status_res)))
   {
-    char query[26 + NAME_CHAR_LEN]; // sizeof(snprintf)
+    char query[40 + NAME_CHAR_LEN]; // sizeof(snprintf)
     snprintf(query, sizeof(query),
-                   "START SLAVE '%.*s' SQL_THREAD",
-            NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+    likely(have_for_channel) ? "START REPLICA SQL_THREAD FOR CHANNEL '%.*s'" :
+        "START SLAVE '%.*s' SQL_THREAD",
+      NAME_CHAR_LEN, row[slave_status_indices.connection_name]);
     if ((have_info_schema_slave_status ||
-         strcmp(row[/* Slave_SQL_Running */ 13], "No")
+         strcmp(row[slave_status_indices.slave_sql_running], "No")
         ) && mysql_query_with_error_report(mysql_con, nullptr, query))
     {
       fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
@@ -7570,12 +7542,7 @@ int main(int argc, char **argv)
     init_connection_pool(opt_parallel);
 
   /* Check if the server support multi source */
-  unsigned long server_version= mysql_get_server_version(mysql);
-  if (server_version >= 100000)
-  {
-    have_info_schema_slave_status= server_version >= 110600;
-    have_mariadb_gtid= 1;
-  }
+  have_mariadb_gtid= mysql_get_server_version(mysql) >= 100000;
 
   if (opt_slave_data && do_stop_slave_sql(mysql))
     goto err;
@@ -7642,6 +7609,7 @@ int main(int argc, char **argv)
                                                sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
+                                             have_mariadb_gtid,
                                              opt_use_gtid,
                                              slave_set_gtid_pos,
                                              sizeof(slave_set_gtid_pos)))

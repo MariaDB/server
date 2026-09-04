@@ -17,6 +17,7 @@
 /* Test av isam-databas: stor test */
 
 #include "heapdef.h"		/* Because of hp_find_block */
+#include "my_compare.h"
 #include <signal.h>
 
 #define MAX_RECORDS 100000

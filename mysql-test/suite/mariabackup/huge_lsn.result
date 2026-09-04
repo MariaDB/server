@@ -5,6 +5,7 @@
 FOUND 1 /InnoDB: log sequence number 17596481011216/ in mysqld.1.err
 CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
 INSERT INTO t VALUES(1);
+SET GLOBAL innodb_log_archive=ON, innodb_log_archive=OFF;
 # xtrabackup backup
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t VALUES(2);

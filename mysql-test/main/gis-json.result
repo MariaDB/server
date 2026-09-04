@@ -110,6 +110,8 @@ Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
 SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }") as exp;
 exp
 NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 SELECT ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}')) as exp;
 exp
 NULL
@@ -123,19 +125,125 @@ Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 #
 # End of 10.2 tests
 #
-#
-# MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth
-#
-SELECT ST_GeomFromGeoJSON(
-concat(
-repeat('{"type":"GeometryCollection","geometries":[', 2000),
-'{"type":"Point","coordinates":[0,0]}',
-repeat(']}', 2000)
-)) as exp;
-exp
+# Boundary condition: foreign-member nesting at depth 32
+SET @geom := '{"type":"Point","coordinates":[1,2]}';
+SET @doc := CONCAT(
+REPEAT('{"x":', 29),
+@geom,
+REPEAT('}', 29)
+);
+SELECT ST_ASTEXT( ST_GeomFromGeoJSON(@doc) ) AS expr;
+expr
 NULL
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'st_geomfromgeojson' at position 473
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
+# Foreign-member nesting exceeds depth 32
+SET @geom := '{"type":"Point","coordinates":[1,2]}';
+SET @doc := CONCAT(
+REPEAT('{"x":', 30),
+@geom,
+REPEAT('}', 30)
+);
+SELECT ST_GeomFromGeoJSON(@doc) AS expr;
+expr
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
+# Deep foreign member attached to otherwise valid GeoJSON
+SET @foreign := CONCAT(
+REPEAT('{"x":', 28),
+'{"leaf":1}',
+REPEAT('}', 28)
+);
+SET @doc := CONCAT(
+'{"type":"Point","coordinates":[10,20],"foreign":',
+@foreign,
+'}'
+);
+SELECT ST_ASTEXT(ST_GeomFromGeoJSON(@doc)) AS expr;
+expr
+POINT(10 20)
+# Foreign member exceeds depth limit
+SET @foreign := CONCAT(
+REPEAT('{"x":', 29),
+'{"leaf":1}',
+REPEAT('}', 29)
+);
+SET @doc := CONCAT(
+'{"type":"Point","coordinates":[10,20],"foreign":',
+@foreign,
+'}'
+);
+SELECT ST_ASTEXT(ST_GeomFromGeoJSON(@doc)) AS expr;
+expr
+POINT(10 20)
+# GeometryCollection containing 33 valid GeoJSON Point objects
+SET @point := '{"type":"Point","coordinates":[1,2]}';
+SET @geoms := CONCAT(
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+@point, ',', @point, ',', @point
+);
+SET @doc := CONCAT(
+'{"type":"GeometryCollection","geometries":[',
+@geoms,
+']}'
+);
+SELECT ST_AsText(ST_GeomFromGeoJSON(@doc)) AS expr;
+expr
+GEOMETRYCOLLECTION(POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2),POINT(1 2))
+#
+# MDEV-39981: ST_GEOMFROMGEOJSON returns wrong result with reversed key order
+#
+# GeometryCollection: type before geometries (baseline)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"GeometryCollection","geometries":[]}')) as expr;
+expr
+GEOMETRYCOLLECTION EMPTY
+# GeometryCollection: geometries before type (empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[],"type":"GeometryCollection"}')) as expr;
+expr
+GEOMETRYCOLLECTION EMPTY
+# GeometryCollection: geometries before type (non-empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[0,1]}],"type":"GeometryCollection"}')) as expr;
+expr
+GEOMETRYCOLLECTION(POINT(0 1))
+# GeometryCollection: multiple geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[1,2]},{"type":"Point","coordinates":[3,4]}],"type":"GeometryCollection"}')) as expr;
+expr
+GEOMETRYCOLLECTION(POINT(1 2),POINT(3 4))
+# Point: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[0,1],"type":"Point"}')) as expr;
+expr
+POINT(0 1)
+# LineString: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[0,0],[1,1],[2,2]],"type":"LineString"}')) as expr;
+expr
+LINESTRING(0 0,1 1,2 2)
+# Polygon: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]],"type":"Polygon"}')) as expr;
+expr
+POLYGON((0 0,1 0,1 1,0 1,0 0))
+# FeatureCollection: features before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"features":[{"geometry":{"type":"Point","coordinates":[5,6]},"type":"Feature","properties":{}}],"type":"FeatureCollection"}')) as expr;
+expr
+GEOMETRYCOLLECTION(POINT(5 6))
+# Feature: geometry before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometry":{"coordinates":[7,8],"type":"Point"},"type":"Feature","properties":{}}')) as expr;
+expr
+POINT(7 8)
+# Unknown keys interspersed (should be ignored)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"foo":"bar","geometries":[],"type":"GeometryCollection","extra":123}')) as expr;
+expr
+GEOMETRYCOLLECTION EMPTY
+# Deeply nested geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"geometries":[{"type":"Point","coordinates":[9,10]}],"type":"GeometryCollection"}],"type":"GeometryCollection"}')) as expr;
+expr
+GEOMETRYCOLLECTION(GEOMETRYCOLLECTION(POINT(9 10)))
 # End of 10.6 tests
 #
 # MDEV-34079: ST_AsGeoJSON returns incorrect value for empty geometry
