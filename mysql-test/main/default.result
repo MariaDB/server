@@ -3490,3 +3490,36 @@ prepare stmt from "update t1 set f03 = ?";
 execute stmt using default;
 drop table t1;
 # End of 10.6 test
+#
+# MDEV-40874 Difference in affected row count on UPDATE ... SET col=DEFAULT
+#
+# A NULL row set back to its NULL default is unchanged and must report
+# Changed: 0, identically for every engine.  compare_record() used to
+# compare the undefined data bytes of a NULL field, so stale bytes made
+# the row look changed.
+create table t1 (c decimal(8,3)) engine=InnoDB;
+affected rows: 0
+insert into t1 values (null);
+affected rows: 1
+update t1 set c=default;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+drop table t1;
+affected rows: 0
+create table t1 (c decimal(8,3)) engine=Aria;
+affected rows: 0
+insert into t1 values (null);
+affected rows: 1
+update t1 set c=default;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+# A real change is still detected
+update t1 set c=1.5;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+# Setting DEFAULT (NULL) over a non-NULL value is a change
+update t1 set c=default;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+drop table t1;
+# End of 10.11 test
