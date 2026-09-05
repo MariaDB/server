@@ -24,9 +24,43 @@
 #include <mysql_version.h>
 #include <welcome_copyright_notice.h>
 
+#define STR(s) _STR(s)
+#define _STR(s) #s
+
+/*
+  The build system defines INSTALL_LAYOUT_RPM or INSTALL_LAYOUT_DEB for the
+  packaged builds, and neither of them for a binary tarball.
+*/
+#if defined(INSTALL_LAYOUT_RPM)
+#define INSTALL_METHOD_NAME "rpm"
+#elif defined(INSTALL_LAYOUT_DEB)
+#define INSTALL_METHOD_NAME "deb"
+#else
+#define INSTALL_METHOD_NAME "tarball"
+#endif
+
+/*
+  On rpm and deb installations install/uninstall delegate to the system
+  package manager. Tarball installations manage plugin files themselves,
+  so none of the delegation code applies (and neither do its unix-only
+  process primitives).
+*/
+#if defined(INSTALL_LAYOUT_RPM) || defined(INSTALL_LAYOUT_DEB)
+#define PKG_DELEGATION 1
+#include <sys/wait.h>
+#elif defined(_WIN32)
+#include <direct.h>
+#endif
+
+#ifndef PKG_DELEGATION
+#include <zlib.h>
+#endif
+
 /* Global variables. */
 static uint my_end_arg= 0;
 static uint opt_verbose=0;
+static my_bool opt_dry_run= 0;
+static char *opt_file= 0;
 static uint opt_no_defaults= 0;
 static uint opt_print_defaults= 0;
 static char *opt_datadir=0, *opt_basedir=0,
@@ -58,6 +92,12 @@ static struct my_option my_long_options[] =
   {"plugin-ini", 'i', "Read plugin information from configuration file "
    "specified instead of from <plugin-dir>/<plugin_name>.ini.",
     0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"dry-run", 0, "Print the commands that install and uninstall would run, "
+   "without running them.",
+    &opt_dry_run, &opt_dry_run, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"file", 0, "Install the plugin from this local tarball instead of "
+   "downloading it.",
+    &opt_file, &opt_file, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Do not read values from configuration file.",
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"print-defaults", 'P', "Show default values from configuration file.",
@@ -87,6 +127,14 @@ static int find_plugin(char *tp_path);
 static int build_bootstrap_file(char *operation, char *bootstrap);
 static int dump_bootstrap_file(char *bootstrap_file);
 static int bootstrap_server(char *server_path, char *bootstrap_file);
+static void usage(void);
+static int run_new_command(int argc, char **argv);
+static int validate_plugin_name(const char *name);
+static int is_legacy_syntax(int argc, char **argv);
+static int detect_install_method(char *basedir, size_t basedir_size);
+static int do_search(const char *name, const char *basedir);
+static int do_install(const char *name, const char *basedir);
+static int do_uninstall(const char *name, const char *basedir);
 
 
 int main(int argc,char *argv[])
@@ -99,6 +147,20 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   plugin_data.name= 0; /* initialize name                          */
+
+  /*
+    The new package-manager style commands (search|install|uninstall) are
+    handled in run_new_command(). The legacy "<plugin> ENABLE|DISABLE"
+    syntax is recognized by scanning the raw arguments, before any option
+    parsing, and continues through the original code path below unchanged,
+    for backward compatibility.
+  */
+  if (!is_legacy_syntax(argc, argv))
+  {
+    error= run_new_command(argc, argv);
+    my_end(my_end_arg);
+    exit(error);
+  }
 
   /*
     The following operations comprise the method for enabling or disabling
@@ -416,11 +478,14 @@ exit:
 static void usage(void)
 {
   print_version();
-  puts("Copyright (c) 2011, 2015, Oracle and/or its affiliates. "
-       "All rights reserved.\n");
-  puts("Enable or disable plugins.");
-  printf("\nUsage: %s [options] <plugin> ENABLE|DISABLE\n\nOptions:\n",
-     my_progname);
+  puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2011"));
+  puts("Manage MariaDB plugins across package managers and binary distributions.");
+  printf("\nUsage:\n");
+  printf("  %s search [<plugin_name>]\n", my_progname);
+  printf("  %s install <plugin_name>\n", my_progname);
+  printf("  %s uninstall <plugin_name>\n\n", my_progname);
+  printf("Legacy syntax (deprecated, kept for backward compatibility):\n");
+  printf("  %s [options] <plugin> ENABLE|DISABLE\n\nOptions:\n", my_progname);
   my_print_help(my_long_options);
   puts("\n");
 }
@@ -1238,4 +1303,1627 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
             error);
 
   return error;
+}
+
+
+/**
+  Detect the legacy "<plugin> ENABLE|DISABLE" command line syntax.
+
+  The check is done on the raw arguments, before any option parsing, so
+  that legacy invocations take the original code path unchanged.
+
+  @param[in]  argc  The number of arguments.
+  @param[in]  argv  The arguments.
+
+  @retval int legacy syntax = 1, new syntax = 0
+*/
+
+static int is_legacy_syntax(int argc, char **argv)
+{
+  int i;
+
+  for (i= 1; i < argc; i++)
+  {
+    /*
+      Whichever keyword comes first decides, so that "search enable" is a
+      search for the word enable, while "myplugin ENABLE" stays the
+      deprecated syntax.
+    */
+    if (strcmp(argv[i], "search") == 0 ||
+        strcmp(argv[i], "install") == 0 ||
+        strcmp(argv[i], "uninstall") == 0)
+      return 0;
+    if (strcasecmp(argv[i], "ENABLE") == 0 ||
+        strcasecmp(argv[i], "DISABLE") == 0)
+      return 1;
+  }
+  return 0;
+}
+
+
+/**
+  Check that a plugin name contains only safe characters.
+
+  The name is later used to construct package names and file paths, so
+  only lower case alphanumerics, '_' and '-' are accepted. The name is
+  expected to be normalized to lower case before this check.
+
+  @param[in]  name  The normalized plugin name.
+
+  @retval int error = 1, success = 0
+*/
+
+static int validate_plugin_name(const char *name)
+{
+  const char *p;
+
+  if (*name == '\0')
+  {
+    fprintf(stderr, "ERROR: plugin name cannot be empty.\n");
+    return 1;
+  }
+  for (p= name; *p; p++)
+  {
+    if (!isalnum((unsigned char) *p) && *p != '_' && *p != '-')
+    {
+      fprintf(stderr, "ERROR: invalid character '%c' in plugin name. "
+              "Use only [a-z0-9_-].\n", *p);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+  Verify that the tool is part of the installation it was built for.
+
+  The installation method is known at build time, so only the location has
+  to be checked. It is taken from argv[0] and not from the server, as one
+  machine can have several server installations.
+
+  @param[out]  basedir       The base directory, empty for rpm and deb,
+                             where the package manager owns the files.
+  @param[in]   basedir_size  The size of the basedir buffer.
+
+  @retval int error = 1, success = 0
+*/
+
+static int detect_install_method(char *basedir, size_t basedir_size)
+{
+  char self_path[FN_REFLEN], real_path[FN_REFLEN], real_dir[FN_REFLEN];
+  size_t length;
+#if !defined(INSTALL_LAYOUT_RPM) && !defined(INSTALL_LAYOUT_DEB)
+  char plugin_dir[FN_REFLEN];
+  char *slash;
+#endif
+
+  /*
+    my_path() searches PATH when argv[0] is a bare program name. The path
+    is resolved afterwards, so that a symbolic link, like the one for the
+    old mysql_plugin name, does not hide where the tool is installed.
+  */
+  my_path(self_path, my_progname, "");
+  safe_strcat(self_path, sizeof(self_path), base_name(my_progname));
+  if (my_realpath(real_path, self_path, MYF(0)))
+    safe_strcpy(real_path, sizeof(real_path), self_path);
+
+  dirname_part(real_dir, real_path, &length);
+
+  length= strlen(real_dir);
+  while (length > 1 && (real_dir[length - 1] == FN_LIBCHAR ||
+                        real_dir[length - 1] == FN_LIBCHAR2))
+    real_dir[--length]= '\0';
+
+#if defined(INSTALL_LAYOUT_RPM) || defined(INSTALL_LAYOUT_DEB)
+  if (strcmp(real_dir, STR(INSTALL_BINDIRABS)) != 0)
+  {
+    fprintf(stderr, "ERROR: this is a %s build, but it runs from '%s' "
+            "instead of '%s', so it is not part of a %s installation.\n",
+            INSTALL_METHOD_NAME, real_dir, STR(INSTALL_BINDIRABS),
+            INSTALL_METHOD_NAME);
+    return 1;
+  }
+  basedir[0]= '\0';
+#else
+  /* The base directory is one level above the directory of the tool. */
+  safe_strcpy(basedir, basedir_size, real_dir);
+  slash= strrchr(basedir, FN_LIBCHAR);
+  if (!slash)
+    slash= strrchr(basedir, FN_LIBCHAR2);
+  if (!slash)
+  {
+    fprintf(stderr, "ERROR: cannot determine the MariaDB base directory "
+            "from '%s'.\n", real_dir);
+    return 1;
+  }
+  *slash= '\0';
+
+  safe_strcpy(plugin_dir, sizeof(plugin_dir), basedir);
+  safe_strcat(plugin_dir, sizeof(plugin_dir), "/" STR(INSTALL_PLUGINDIR));
+  if (!file_exists(plugin_dir))
+  {
+    fprintf(stderr, "ERROR: '%s' does not look like a MariaDB installation, "
+            "'%s' not found.\n", basedir, plugin_dir);
+    return 1;
+  }
+#endif
+  return 0;
+}
+
+
+#ifdef PKG_DELEGATION
+
+/**
+  Pick the package manager to delegate to.
+
+  On deb installations it is always apt-get (the script-stable interface,
+  unlike apt). On rpm installations dnf and zypper manage the same rpm
+  database, so whichever is present is usable; dnf is tried first.
+
+  @retval const char*  the program name, or NULL with an error printed
+*/
+
+static const char *get_package_manager(void)
+{
+#if defined(INSTALL_LAYOUT_DEB)
+  return "apt-get";
+#else
+  char dir[FN_REFLEN];
+
+  if (find_file_in_path(dir, "dnf"))
+    return "dnf";
+  if (find_file_in_path(dir, "zypper"))
+    return "zypper";
+  fprintf(stderr, "ERROR: no package manager found: neither dnf nor zypper "
+          "is in PATH.\n");
+  return NULL;
+#endif
+}
+
+
+/**
+  Refuse to continue without root privileges.
+
+  The package manager would fail anyway, but only after a repository
+  refresh, with an error that does not mention this tool.
+
+  @param[in]  verb  The command name, for the error message.
+
+  @retval int error = 1, success = 0
+*/
+
+static int check_root(const char *verb)
+{
+  if (!opt_dry_run && geteuid() != 0)
+  {
+    fprintf(stderr, "ERROR: '%s' requires root privileges. "
+            "Run as root or with sudo.\n", verb);
+    return 1;
+  }
+  return 0;
+}
+
+
+/**
+  Run a command and wait for it to finish.
+
+  The command is executed directly, not through a shell, so the arguments
+  cannot be reinterpreted. The child inherits the standard streams: the
+  package manager talks to the user directly, including its own
+  confirmation prompts and progress output.
+
+  @param[in]  cmd_argv  NULL-terminated argument vector.
+
+  @retval int  the command exit code, 127 if it could not be run
+*/
+
+static int run_argv(char **cmd_argv)
+{
+  pid_t pid;
+  int status;
+
+  /*
+    --dry-run only stops the commands that change the system. The queries
+    that read the package database still run, so that what is printed is
+    what would really be executed, package names resolved and all.
+  */
+  if (opt_dry_run)
+  {
+    int i;
+    for (i= 0; cmd_argv[i]; i++)
+      printf("%s%s", i ? " " : "", cmd_argv[i]);
+    printf("\n");
+    return 0;
+  }
+
+  fflush(stdout);
+  fflush(stderr);
+  if ((pid= fork()) < 0)
+  {
+    fprintf(stderr, "ERROR: cannot fork: %s.\n", strerror(errno));
+    return 127;
+  }
+  if (pid == 0)
+  {
+    execvp(cmd_argv[0], cmd_argv);
+    fprintf(stderr, "ERROR: cannot run '%s': %s.\n", cmd_argv[0],
+            strerror(errno));
+    _exit(127);
+  }
+  while (waitpid(pid, &status, 0) < 0)
+  {
+    if (errno != EINTR)
+    {
+      fprintf(stderr, "ERROR: cannot wait for '%s': %s.\n", cmd_argv[0],
+              strerror(errno));
+      return 127;
+    }
+  }
+  if (WIFSIGNALED(status))
+  {
+    fprintf(stderr, "ERROR: '%s' was terminated by signal %d.\n",
+            cmd_argv[0], WTERMSIG(status));
+    return 127;
+  }
+  return WEXITSTATUS(status);
+}
+
+
+/**
+  Run a command and capture its standard output.
+
+  Standard error stays on the terminal, unless quiet_stderr is set, for
+  commands whose failure is an expected answer and not an error. The pipe
+  is read to the end, so that the child never blocks writing.
+
+  @param[in]   cmd_argv      NULL-terminated argument vector.
+  @param[out]  out           Initialized string, replaced by the output.
+  @param[in]   quiet_stderr  Discard the command's standard error.
+
+  @retval int  the command exit code, 127 if it could not be run
+*/
+
+static int run_argv_capture(char **cmd_argv, DYNAMIC_STRING *out,
+                            int quiet_stderr)
+{
+  char buf[4096];
+  int fds[2];
+  pid_t pid;
+  int status;
+  ssize_t n;
+  my_bool oom= FALSE;
+
+  dynstr_set(out, "");
+  if (pipe(fds))
+  {
+    fprintf(stderr, "ERROR: cannot create a pipe: %s.\n", strerror(errno));
+    return 127;
+  }
+  fflush(stdout);
+  fflush(stderr);
+  if ((pid= fork()) < 0)
+  {
+    fprintf(stderr, "ERROR: cannot fork: %s.\n", strerror(errno));
+    close(fds[0]);
+    close(fds[1]);
+    return 127;
+  }
+  if (pid == 0)
+  {
+    dup2(fds[1], STDOUT_FILENO);
+    if (quiet_stderr)
+    {
+      int devnull= open("/dev/null", O_WRONLY);
+      if (devnull >= 0)
+        dup2(devnull, fileno(stderr));
+    }
+    close(fds[0]);
+    close(fds[1]);
+    execvp(cmd_argv[0], cmd_argv);
+    fprintf(stderr, "ERROR: cannot run '%s': %s.\n", cmd_argv[0],
+            strerror(errno));
+    _exit(127);
+  }
+  close(fds[1]);
+  while ((n= read(fds[0], buf, sizeof(buf))))
+  {
+    if (n < 0)
+    {
+      if (errno == EINTR)
+        continue;
+      break;
+    }
+    /* keep reading after a failed append, so the child can still finish */
+    if (!oom)
+      oom= dynstr_append_mem(out, buf, (size_t) n);
+  }
+  close(fds[0]);
+  while (waitpid(pid, &status, 0) < 0)
+  {
+    if (errno != EINTR)
+    {
+      fprintf(stderr, "ERROR: cannot wait for '%s': %s.\n", cmd_argv[0],
+              strerror(errno));
+      return 127;
+    }
+  }
+  if (oom)
+  {
+    fprintf(stderr, "ERROR: out of memory reading the output of '%s'.\n",
+            cmd_argv[0]);
+    return 127;
+  }
+  if (WIFSIGNALED(status))
+    return 127;
+  return WEXITSTATUS(status);
+}
+
+
+#define PLUGIN_PREFIX "mariadb-plugin-"
+#define PLUGIN_PREFIX_LEN (sizeof(PLUGIN_PREFIX) - 1)
+#define PACKAGE_NAME_SIZE (PLUGIN_PREFIX_LEN + NAME_CHAR_LEN + 1)
+
+
+/**
+  Build the distribution-independent package name (D2): mariadb-plugin-
+  followed by the plugin name, which is already validated and lowercased.
+
+  @param[out]  to    Buffer for the package name.
+  @param[in]   size  Size of the buffer.
+  @param[in]   name  The normalized plugin name.
+*/
+
+static void build_package_name(char *to, size_t size, const char *name)
+{
+  safe_strcpy(to, size, PLUGIN_PREFIX);
+  safe_strcat(to, size, name);
+}
+
+
+/*
+  Search: every backend answers the same two questions - which packages
+  provide mariadb-plugin-* and which of them are installed - through a
+  different query. The results are normalized into plugin_list and
+  printed in one format, so the user sees plugin names as install expects
+  them, never the distribution's own package names.
+*/
+
+struct plugin_entry
+{
+  char name[NAME_CHAR_LEN + 1];  /* uniform name, prefix stripped */
+  char package[NAME_CHAR_LEN + 1];  /* real package name, rpm only */
+  char description[160];
+  int installed;
+};
+
+static DYNAMIC_ARRAY plugin_list;
+static DYNAMIC_STRING search_output;
+
+#define PLUGIN_AT(i) (dynamic_element(&plugin_list, (i), struct plugin_entry *))
+
+
+static struct plugin_entry *find_plugin_entry(const char *name)
+{
+  size_t i;
+
+  for (i= 0; i < plugin_list.elements; i++)
+    if (strcmp(PLUGIN_AT(i)->name, name) == 0)
+      return PLUGIN_AT(i);
+  return NULL;
+}
+
+
+/**
+  Add a plugin to the result list, or return the existing entry with the
+  same uniform name. The prefix is stripped from the stored name.
+
+  The list reallocates, so the entry is only valid until the next one.
+
+  @param[in]  package_name  The uniform package name, mariadb-plugin-x.
+
+  @retval struct plugin_entry*  the entry, NULL when out of memory
+*/
+
+static struct plugin_entry *add_plugin_entry(const char *package_name)
+{
+  struct plugin_entry e, *found;
+  const char *name= package_name + PLUGIN_PREFIX_LEN;
+
+  if ((found= find_plugin_entry(name)))
+    return found;
+  bzero(&e, sizeof(e));
+  safe_strcpy(e.name, sizeof(e.name), name);
+  if (insert_dynamic(&plugin_list, &e))
+    return NULL;
+  return PLUGIN_AT(plugin_list.elements - 1);
+}
+
+
+static int cmp_plugin_entries(const void *a, const void *b)
+{
+  return strcmp(((const struct plugin_entry *) a)->name,
+                ((const struct plugin_entry *) b)->name);
+}
+
+
+/**
+  Print the collected plugins that match the search term.
+
+  @param[in]  term  Substring to match against plugin names, "" for all.
+
+  @retval int  no matches = 1, matches printed = 0
+*/
+
+static int print_search_results(const char *term)
+{
+  size_t i, width= 0, matches= 0;
+
+  sort_dynamic(&plugin_list, cmp_plugin_entries);
+  for (i= 0; i < plugin_list.elements; i++)
+  {
+    if (*term && !strstr(PLUGIN_AT(i)->name, term))
+      continue;
+    matches++;
+    if (strlen(PLUGIN_AT(i)->name) > width)
+      width= strlen(PLUGIN_AT(i)->name);
+  }
+  if (!matches)
+  {
+    if (*term)
+      printf("No plugins matching '%s' found.\n", term);
+    else
+      printf("No plugins found.\n");
+    return 1;
+  }
+  for (i= 0; i < plugin_list.elements; i++)
+  {
+    struct plugin_entry *e= PLUGIN_AT(i);
+
+    if (*term && !strstr(e->name, term))
+      continue;
+    printf("%-*s  %-9s  %s\n", (int) width, e->name,
+           e->installed ? "installed" : "available", e->description);
+  }
+  return 0;
+}
+
+
+#ifndef INSTALL_LAYOUT_DEB
+
+static struct plugin_entry *find_plugin_by_package(const char *package)
+{
+  size_t i;
+
+  for (i= 0; i < plugin_list.elements; i++)
+    if (strcmp(PLUGIN_AT(i)->package, package) == 0)
+      return PLUGIN_AT(i);
+  return NULL;
+}
+
+
+/**
+  Parse dnf repoquery output in the format
+    @@@<package>|<summary>
+    <one provided capability per line>
+  into the result list. The uniform name is one of the capabilities, so
+  no name mapping is needed in the tool.
+
+  @param[in]  output     The captured repoquery output, modified in place.
+  @param[in]  installed  Mark the found plugins as installed.
+*/
+
+static void parse_dnf_records(char *output, int installed)
+{
+  struct plugin_entry *e= NULL;
+  char *line, *next, *sep;
+  char package[NAME_CHAR_LEN + 1], summary[160];
+
+  package[0]= summary[0]= '\0';
+  for (line= output; line && *line; line= next)
+  {
+    if ((next= strchr(line, '\n')))
+      *next++= '\0';
+    if (strncmp(line, "@@@", 3) == 0)
+    {
+      line+= 3;
+      if ((sep= strchr(line, '|')))
+        *sep++= '\0';
+      safe_strcpy(package, sizeof(package), line);
+      safe_strcpy(summary, sizeof(summary), sep ? sep : "");
+      continue;
+    }
+    /* a capability line; the version part after the name is irrelevant */
+    if ((sep= strchr(line, ' ')))
+      *sep= '\0';
+    if (strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) != 0 ||
+        !package[0])
+      continue;
+    if (!(e= add_plugin_entry(line)))
+      return;
+    safe_strcpy(e->package, sizeof(e->package), package);
+    if (!e->description[0])
+      safe_strcpy(e->description, sizeof(e->description), summary);
+    if (installed)
+      e->installed= 1;
+  }
+}
+
+
+static int search_dnf(void)
+{
+  char *repo_argv[]= {
+    (char *) "dnf", (char *) "-q", (char *) "repoquery",
+    (char *) "--whatprovides", (char *) PLUGIN_PREFIX "*",
+    (char *) "--qf", (char *) "@@@%{name}|%{summary}\\n%{provides}\\n", 0 };
+  char *inst_argv[]= {
+    (char *) "dnf", (char *) "-q", (char *) "repoquery",
+    (char *) "--installed", (char *) "--whatprovides",
+    (char *) PLUGIN_PREFIX "*",
+    (char *) "--qf", (char *) "@@@%{name}|%{summary}\\n%{provides}\\n", 0 };
+  int error;
+
+  if ((error= run_argv_capture(repo_argv, &search_output, 0)))
+    return error;
+  parse_dnf_records(search_output.str, 0);
+
+  /* same query against the installed packages only, for the status */
+  if (run_argv_capture(inst_argv, &search_output, 0) == 0)
+    parse_dnf_records(search_output.str, 1);
+  return 0;
+}
+
+
+/**
+  Parse "zypper --xmlout search --provides" solvable lines, e.g.
+  <solvable status="not-installed" name="X" summary="Y" kind="package"/>.
+  zypper never reports which capability matched, so the uniform names are
+  filled in afterwards by search_zypper_names().
+
+  @param[in]  output  The captured zypper output, modified in place.
+*/
+
+static void parse_zypper_solvables(char *output)
+{
+  struct plugin_entry e;
+  char *line, *next, *val, *end;
+
+  for (line= output; line && *line; line= next)
+  {
+    if ((next= strchr(line, '\n')))
+      *next++= '\0';
+    if (!strstr(line, "<solvable ") ||
+        !(val= strstr(line, " name=\"")))
+      continue;
+    /* keyed by the real package name until the uniform name is known */
+    bzero(&e, sizeof(e));
+    val+= 7;
+    if ((end= strchr(val, '"')))
+      *end= '\0';
+    safe_strcpy(e.package, sizeof(e.package), val);
+    if (end)
+      *end= '"';
+    e.installed= (val= strstr(line, " status=\"")) &&
+                 strncmp(val + 9, "installed", 9) == 0;
+    if ((val= strstr(line, " summary=\"")))
+    {
+      val+= 10;
+      if ((end= strchr(val, '"')))
+        *end= '\0';
+      safe_strcpy(e.description, sizeof(e.description), val);
+    }
+    if (insert_dynamic(&plugin_list, &e))
+      return;
+  }
+}
+
+
+/**
+  Fill in the uniform names with one "zypper info --provides" call for
+  all found packages. Output has "Name : X" headers followed by indented
+  capability lines. Packages that end up without a uniform name are
+  dropped from the list.
+*/
+
+static int search_zypper_names(void)
+{
+  struct plugin_entry *e= NULL;
+  char **cmd_argv;
+  char *line, *next, *cap, *sep;
+  size_t i, n= 0;
+  int error;
+
+  if (!(cmd_argv= (char **) my_malloc(PSI_NOT_INSTRUMENTED,
+                                      (plugin_list.elements + 6) *
+                                      sizeof(char *), MYF(MY_WME))))
+    return 1;
+  cmd_argv[n++]= (char *) "zypper";
+  cmd_argv[n++]= (char *) "-n";
+  cmd_argv[n++]= (char *) "-q";
+  cmd_argv[n++]= (char *) "info";
+  cmd_argv[n++]= (char *) "--provides";
+  for (i= 0; i < plugin_list.elements; i++)
+    cmd_argv[n++]= PLUGIN_AT(i)->package;
+  cmd_argv[n]= 0;
+  error= run_argv_capture(cmd_argv, &search_output, 0);
+  my_free(cmd_argv);
+  if (error)
+    return 1;
+
+  /* nothing is added below, so the entry a header selects stays valid */
+  for (line= search_output.str; line && *line; line= next)
+  {
+    if ((next= strchr(line, '\n')))
+      *next++= '\0';
+    if (strncmp(line, "Name", 4) == 0 && (sep= strchr(line, ':')))
+    {
+      for (sep++; *sep == ' '; sep++) ;
+      e= find_plugin_by_package(sep);
+      continue;
+    }
+    for (cap= line; *cap == ' '; cap++) ;
+    if (cap == line || !e ||
+        strncmp(cap, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) != 0)
+      continue;
+    if ((sep= strchr(cap, ' ')))
+      *sep= '\0';
+    safe_strcpy(e->name, sizeof(e->name), cap + PLUGIN_PREFIX_LEN);
+  }
+
+  /* drop packages whose uniform name never showed up */
+  for (i= 0; i < plugin_list.elements; )
+  {
+    if (PLUGIN_AT(i)->name[0])
+      i++;
+    else
+      delete_dynamic_element(&plugin_list, i);
+  }
+  return 0;
+}
+
+
+static int search_zypper(void)
+{
+  char *cmd_argv[7];
+  int error;
+
+  cmd_argv[0]= (char *) "zypper";
+  cmd_argv[1]= (char *) "-n";
+  cmd_argv[2]= (char *) "--xmlout";
+  cmd_argv[3]= (char *) "search";
+  cmd_argv[4]= (char *) "--provides";
+  cmd_argv[5]= (char *) PLUGIN_PREFIX "*";
+  cmd_argv[6]= 0;
+  /* zypper exits with 104 when nothing matches: an answer, not an error */
+  error= run_argv_capture(cmd_argv, &search_output, 0);
+  if (error && error != 104)
+    return error;
+  parse_zypper_solvables(search_output.str);
+  if (plugin_list.elements && search_zypper_names())
+    return 1;
+  return 0;
+}
+
+#else /* INSTALL_LAYOUT_DEB */
+
+/**
+  Parse "apt-cache search" output, "<package> - <description>" per line,
+  into the result list. deb package names are already the uniform names.
+
+  @param[in]  output  The captured apt-cache output, modified in place.
+*/
+
+static void parse_apt_records(char *output)
+{
+  struct plugin_entry *e;
+  char *line, *next, *sep;
+
+  for (line= output; line && *line; line= next)
+  {
+    if ((next= strchr(line, '\n')))
+      *next++= '\0';
+    if ((sep= strstr(line, " - ")))
+      *sep= '\0';
+    if (strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) != 0)
+      continue;
+    if (!(e= add_plugin_entry(line)))
+      return;
+    if (sep && !e->description[0])
+      safe_strcpy(e->description, sizeof(e->description), sep + 3);
+  }
+}
+
+
+static int search_apt(void)
+{
+  char *cmd_argv[6];
+  char *line, *next, *sep;
+  struct plugin_entry *e;
+  int error;
+
+  cmd_argv[0]= (char *) "apt-cache";
+  cmd_argv[1]= (char *) "search";
+  cmd_argv[2]= (char *) "--names-only";
+  cmd_argv[3]= (char *) "^" PLUGIN_PREFIX;
+  cmd_argv[4]= 0;
+  if ((error= run_argv_capture(cmd_argv, &search_output, 0)))
+    return error;
+  parse_apt_records(search_output.str);
+
+  /*
+    dpkg-query prints "no packages found" on stderr and exits nonzero
+    when nothing is installed, which is an answer here, not an error.
+  */
+  cmd_argv[0]= (char *) "dpkg-query";
+  cmd_argv[1]= (char *) "-W";
+  cmd_argv[2]= (char *) "-f=${Package} ${db:Status-Status}\n";
+  cmd_argv[3]= (char *) PLUGIN_PREFIX "*";
+  cmd_argv[4]= 0;
+  if (run_argv_capture(cmd_argv, &search_output, 1))
+    return 0;
+  for (line= search_output.str; line && *line; line= next)
+  {
+    if ((next= strchr(line, '\n')))
+      *next++= '\0';
+    if (!(sep= strchr(line, ' ')))
+      continue;
+    *sep++= '\0';
+    if (strcmp(sep, "installed") == 0 &&
+        strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) == 0 &&
+        (e= add_plugin_entry(line)))
+      e->installed= 1;
+  }
+  return 0;
+}
+
+#endif /* INSTALL_LAYOUT_DEB */
+
+#endif /* PKG_DELEGATION */
+
+
+/**
+  Search for plugins.
+
+  On rpm and deb installations the distribution's package index is the
+  plugin metadata: it is queried for everything providing mariadb-plugin-*
+  and the result is shown uniformly as plugin names, never as the
+  distribution's own package names. Needs no root.
+
+  @param[in]  term     Substring to match, empty to list all plugins.
+  @param[in]  basedir  The base directory, empty for packaged installations.
+
+  @retval int error or no matches = 1, matches printed = 0
+*/
+
+static int do_search(const char *term, const char *basedir)
+{
+#ifdef PKG_DELEGATION
+  int error;
+
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &plugin_list,
+                            sizeof(struct plugin_entry), 32, 32, MYF(MY_WME)))
+    return 1;
+  if (init_dynamic_string(&search_output, "", 16 * 1024, 16 * 1024))
+  {
+    delete_dynamic(&plugin_list);
+    return 1;
+  }
+#ifdef INSTALL_LAYOUT_DEB
+  error= search_apt();
+#else
+  {
+    const char *pm= get_package_manager();
+    error= pm ? (strcmp(pm, "dnf") == 0 ? search_dnf() : search_zypper()) : 1;
+  }
+#endif
+  if (!error)
+    error= print_search_results(term);
+  dynstr_free(&search_output);
+  delete_dynamic(&plugin_list);
+  return error ? 1 : 0;
+#else
+  printf("search: not available for %s installations yet, the plugin "
+         "index does not exist\n", INSTALL_METHOD_NAME);
+  return 1;
+#endif
+}
+
+
+#ifndef PKG_DELEGATION
+
+/*
+  On tarball installations nothing tracks what a plugin put on disk, so
+  install writes a manifest and uninstall acts strictly on it: the header
+  lines describe the plugin, each "file:" or "dir:" line is one path,
+  relative to the basedir, that install created and uninstall removes.
+*/
+
+#define MANIFEST_SUBDIR ".mariadb-plugin"
+
+struct manifest_entry
+{
+  char path[FN_REFLEN];
+  my_bool is_dir;
+};
+
+
+static int build_full_path(char *to, size_t size, const char *basedir,
+                           const char *rel)
+{
+  if (safe_strcpy_truncated(to, size, basedir) ||
+      safe_strcat(to, size, "/") || safe_strcat(to, size, rel))
+  {
+    fprintf(stderr, "ERROR: path is too long: '%s/%s'.\n", basedir, rel);
+    return 1;
+  }
+  return 0;
+}
+
+
+static int build_manifest_path(char *to, size_t size, const char *basedir,
+                               const char *name)
+{
+  if (build_full_path(to, size, basedir, MANIFEST_SUBDIR "/") ||
+      safe_strcat(to, size, name) || safe_strcat(to, size, ".list"))
+    return 1;
+  return 0;
+}
+
+
+/**
+  Check that a relative path stays inside the basedir.
+
+  Used for manifest lines and archive entries alike, neither of which is
+  trusted input: an absolute path or a ".." component would let install
+  write, and uninstall delete, files the plugin never owned.
+
+  @param[in]  path  The path, relative to the basedir.
+
+  @retval int acceptable = 1, not = 0
+*/
+
+static int valid_relative_path(const char *path)
+{
+  /* tar paths use '/', so a backslash only ever comes from hostile input */
+  if (!*path || *path == '/' || strchr(path, '\\') || strstr(path, ".."))
+    return 0;
+  /* a drive letter escapes the basedir on Windows */
+  if (isalpha((uchar) path[0]) && path[1] == ':')
+    return 0;
+  return 1;
+}
+
+
+/**
+  Read and validate a manifest.
+
+  All entries are validated before the caller deletes anything, so that a
+  corrupt manifest results in no deletions at all, not in a partial run.
+
+  @param[in]   manifest  Path of the manifest file.
+  @param[out]  entries   Initialized array, filled with manifest_entry.
+
+  @retval int error = 1, success = 0
+*/
+
+static int read_manifest(const char *manifest, DYNAMIC_ARRAY *entries)
+{
+  FILE *file;
+  char line[FN_REFLEN];
+  struct manifest_entry e;
+  const char *path;
+  size_t len;
+  int error= 0;
+
+  if (!(file= fopen(manifest, "r")))
+  {
+    fprintf(stderr, "ERROR: cannot read '%s': %s.\n", manifest,
+            strerror(errno));
+    return 1;
+  }
+  while (!error && fgets(line, sizeof(line), file))
+  {
+    len= strlen(line);
+    /* a manifest this tool wrote contains no NUL bytes and no oversized
+       lines; either one means the file is not to be trusted */
+    if (!len || (line[len - 1] != '\n' && !feof(file)))
+    {
+      fprintf(stderr, "ERROR: '%s' is corrupt, nothing was removed.\n",
+              manifest);
+      error= 1;
+      break;
+    }
+    while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+      line[--len]= '\0';
+
+    e.is_dir= strncmp(line, "dir: ", 5) == 0;
+    if (e.is_dir)
+      path= line + 5;
+    else if (strncmp(line, "file: ", 6) == 0)
+      path= line + 6;
+    else
+      continue;  /* header lines; uninstall only consumes the paths */
+
+    if (!valid_relative_path(path))
+    {
+      fprintf(stderr, "ERROR: unsafe path '%s' in '%s', nothing was "
+              "removed.\n", path, manifest);
+      error= 1;
+      break;
+    }
+    safe_strcpy(e.path, sizeof(e.path), path);
+    error= insert_dynamic(entries, &e);
+  }
+  fclose(file);
+  return error;
+}
+
+
+/*
+  The tool reads plugin tarballs itself instead of running tar: every entry
+  is judged before anything is written, no tar binary is needed on the
+  machine, and no command line is ever built from a user-chosen path.
+
+  Only what CPack produces is accepted: ustar headers with regular files and
+  directories, plus the two ways a long path is spelled, GNU long-name
+  entries and pax "path" records. Links and devices are refused.
+*/
+
+#define TAR_BLOCK 512
+
+struct tar_reader
+{
+  gzFile gz;
+  const char *file;
+  ulonglong data_left;  /* unread bytes of the current entry, plus padding */
+};
+
+struct tar_entry
+{
+  char path[FN_REFLEN];
+  ulonglong size;
+  uint mode;
+  my_bool is_dir;
+};
+
+
+static int tar_open(struct tar_reader *r, const char *file)
+{
+  r->file= file;
+  r->data_left= 0;
+  if (!(r->gz= gzopen(file, "rb")))
+  {
+    fprintf(stderr, "ERROR: cannot open '%s': %s.\n", file, strerror(errno));
+    return 1;
+  }
+  return 0;
+}
+
+
+static void tar_close(struct tar_reader *r)
+{
+  gzclose(r->gz);
+}
+
+
+static int tar_read_bytes(struct tar_reader *r, void *buf, size_t len)
+{
+  int n= gzread(r->gz, buf, (unsigned) len);
+  if (n != (int) len)
+  {
+    int err;
+    const char *msg= gzerror(r->gz, &err);
+    fprintf(stderr, "ERROR: '%s' is truncated or not a gzip file%s%s.\n",
+            r->file, err == Z_ERRNO || err == Z_OK ? "" : ": ",
+            err == Z_ERRNO || err == Z_OK ? "" : msg);
+    return 1;
+  }
+  return 0;
+}
+
+
+static int tar_skip_data(struct tar_reader *r)
+{
+  if (r->data_left && gzseek(r->gz, (z_off_t) r->data_left, SEEK_CUR) < 0)
+  {
+    fprintf(stderr, "ERROR: '%s' is truncated.\n", r->file);
+    return 1;
+  }
+  r->data_left= 0;
+  return 0;
+}
+
+
+/**
+  Parse a tar numeric field: octal digits, terminated by NUL or space.
+
+  @retval int error = 1, success = 0
+*/
+
+static int tar_number(const uchar *field, size_t len, ulonglong *out)
+{
+  ulonglong v= 0;
+  size_t i;
+
+  /* GNU base-256 encoding is only used past 8 GB; no plugin is that big */
+  if (field[0] & 0x80)
+    return 1;
+  for (i= 0; i < len && field[i] == ' '; i++) ;
+  for (; i < len && field[i] != '\0' && field[i] != ' '; i++)
+  {
+    if (field[i] < '0' || field[i] > '7')
+      return 1;
+    v= v * 8 + (field[i] - '0');
+  }
+  *out= v;
+  return 0;
+}
+
+
+static int tar_checksum_ok(const uchar *block)
+{
+  ulonglong stored;
+  unsigned sum= 0;
+  size_t i;
+
+  if (tar_number(block + 148, 8, &stored))
+    return 0;
+  for (i= 0; i < TAR_BLOCK; i++)
+    sum+= (i >= 148 && i < 156) ? ' ' : block[i];
+  return sum == stored;
+}
+
+
+/**
+  Read the next file or directory entry.
+
+  Long-name and pax entries are consumed here and applied to the entry that
+  follows them, so callers only ever see real files and directories. The
+  entry's data is left unread; call tar_skip_data() before the next entry.
+
+  @param[in]   r  The open reader.
+  @param[out]  e  The entry.
+
+  @retval int  1 = entry returned, 0 = end of archive, -1 = error
+*/
+
+static int tar_next(struct tar_reader *r, struct tar_entry *e)
+{
+  uchar block[TAR_BLOCK];
+  char longname[FN_REFLEN];
+  ulonglong size, mode;
+  size_t len;
+  char type;
+
+  longname[0]= '\0';
+  for (;;)
+  {
+    if (tar_skip_data(r) || tar_read_bytes(r, block, TAR_BLOCK))
+      return -1;
+    if (block[0] == '\0')  /* the end-of-archive marker */
+      return 0;
+    if (memcmp(block + 257, "ustar", 5) != 0 || !tar_checksum_ok(block))
+    {
+      fprintf(stderr, "ERROR: '%s' is not a valid tar archive.\n", r->file);
+      return -1;
+    }
+    if (tar_number(block + 124, 12, &size) || tar_number(block + 100, 8, &mode))
+    {
+      fprintf(stderr, "ERROR: '%s' has a corrupt entry header.\n", r->file);
+      return -1;
+    }
+    r->data_left= (size + TAR_BLOCK - 1) / TAR_BLOCK * TAR_BLOCK;
+    type= block[156];
+
+    if (type == 'L' || type == 'x')
+    {
+      /* the data of these entries names the entry after them */
+      char *buf, *p, *end;
+      if (size >= sizeof(longname) * 4)
+      {
+        fprintf(stderr, "ERROR: '%s' has an entry name that is too long.\n",
+                r->file);
+        return -1;
+      }
+      if (!(buf= (char *) my_malloc(PSI_NOT_INSTRUMENTED, (size_t) size + 1,
+                                    MYF(MY_WME))))
+        return -1;
+      if (tar_read_bytes(r, buf, (size_t) size))
+      {
+        my_free(buf);
+        return -1;
+      }
+      buf[size]= '\0';
+      r->data_left-= size;
+      if (type == 'L')
+        safe_strcpy(longname, sizeof(longname), buf);
+      else
+      {
+        /* pax records: "<len> <key>=<value>\n"; only the path matters */
+        for (p= buf; (end= strchr(p, '\n')); p= end + 1)
+        {
+          char *eq= strchr(p, '=');
+          *end= '\0';
+          if (eq && eq - p >= 5 && strncmp(eq - 5, " path", 5) == 0)
+            safe_strcpy(longname, sizeof(longname), eq + 1);
+        }
+      }
+      my_free(buf);
+      continue;
+    }
+    if (type == 'g')  /* pax global header, carries nothing we use */
+      continue;
+    break;
+  }
+
+  switch (type) {
+  case '0': case '\0': case '7':
+    e->is_dir= FALSE;
+    break;
+  case '5':
+    e->is_dir= TRUE;
+    break;
+  case '1': case '2':
+    fprintf(stderr, "ERROR: '%s' contains a link, which plugin archives "
+            "must not have.\n", r->file);
+    return -1;
+  default:
+    fprintf(stderr, "ERROR: '%s' contains an entry of unsupported type "
+            "'%c'.\n", r->file, type);
+    return -1;
+  }
+
+  if (longname[0])
+    safe_strcpy(e->path, sizeof(e->path), longname);
+  else
+  {
+    /* ustar splits long paths into prefix (155) and name (100) */
+    e->path[0]= '\0';
+    if (block[345])
+    {
+      safe_strcpy_truncated(e->path, MY_MIN(sizeof(e->path), 156),
+                            (char *) block + 345);
+      safe_strcat(e->path, sizeof(e->path), "/");
+    }
+    len= strlen(e->path);
+    safe_strcpy_truncated(e->path + len, MY_MIN(sizeof(e->path) - len, 101),
+                          (char *) block + 0);
+  }
+  /* "./x" and "x/" spell the same thing; normalize before judging */
+  if (strncmp(e->path, "./", 2) == 0)
+    memmove(e->path, e->path + 2, strlen(e->path) - 1);
+  len= strlen(e->path);
+  while (len > 1 && e->path[len - 1] == '/')
+    e->path[--len]= '\0';
+
+  e->size= size;
+  /* setuid and setgid bits from an archive are never honored */
+  e->mode= (uint) mode & 0777;
+  return 1;
+}
+
+
+/**
+  Read a whole archive, judging every entry, without writing anything.
+
+  CPack wraps an archive's contents in one directory named after the
+  archive file. When every entry lives under such a directory it is
+  stripped from the paths and dropped from the list, so the remaining paths
+  are relative to the basedir. Any other layout is taken as is: "lib/x" and
+  "top/lib/x" cannot be told apart by shape, only by that name.
+
+  @param[in]   file     The tarball.
+  @param[out]  entries  Initialized array, filled with tar_entry.
+
+  @retval int error = 1, success = 0
+*/
+
+static int tar_scan(const char *file, DYNAMIC_ARRAY *entries)
+{
+  struct tar_reader r;
+  struct tar_entry e, *p;
+  char topdir[FN_REFLEN];
+  const char *base;
+  my_bool have_topdir= TRUE;
+  size_t i, len;
+  int rc;
+
+  if (tar_open(&r, file))
+    return 1;
+  topdir[0]= '\0';
+  base= file + dirname_length(file);
+  while ((rc= tar_next(&r, &e)) > 0)
+  {
+    const char *slash;
+    if (!valid_relative_path(e.path))
+    {
+      fprintf(stderr, "ERROR: '%s' contains the unsafe path '%s'.\n", file,
+              e.path);
+      rc= -1;
+      break;
+    }
+    /* a top directory exists only if no entry sits beside it at the root */
+    slash= strchr(e.path, '/');
+    len= slash ? (size_t) (slash - e.path) : strlen(e.path);
+    if (!slash && !e.is_dir)
+      have_topdir= FALSE;
+    if (!topdir[0])
+      safe_strcpy_truncated(topdir, MY_MIN(sizeof(topdir), len + 1), e.path);
+    else if (strlen(topdir) != len || strncmp(topdir, e.path, len) != 0)
+      have_topdir= FALSE;
+    if (insert_dynamic(entries, &e))
+    {
+      rc= -1;
+      break;
+    }
+  }
+  tar_close(&r);
+  if (rc < 0)
+    return 1;
+  if (!entries->elements)
+  {
+    fprintf(stderr, "ERROR: '%s' is empty.\n", file);
+    return 1;
+  }
+  len= strlen(topdir);
+  if (!have_topdir || strncmp(base, topdir, len) != 0 ||
+      (base[len] != '\0' && base[len] != '.'))
+    return 0;
+
+  for (i= 0; i < entries->elements; )
+  {
+    p= dynamic_element(entries, i, struct tar_entry *);
+    if (strlen(p->path) == len)  /* the top directory itself */
+      delete_dynamic_element(entries, i);
+    else
+    {
+      memmove(p->path, p->path + len + 1, strlen(p->path) - len);
+      i++;
+    }
+  }
+  if (!entries->elements)
+  {
+    fprintf(stderr, "ERROR: '%s' contains only an empty directory.\n", file);
+    return 1;
+  }
+  return 0;
+}
+
+#endif /* !PKG_DELEGATION */
+
+
+/**
+  Install a plugin.
+
+  On rpm and deb installations the work is delegated to the system package
+  manager, which resolves the uniform package name through its own real
+  package names (via Provides on rpm). Its exit code is passed through.
+
+  @param[in]  name     The normalized plugin name.
+  @param[in]  basedir  The base directory, empty for packaged installations.
+
+  @retval int error = nonzero, success = 0
+*/
+
+static int do_install(const char *name, const char *basedir)
+{
+#ifdef PKG_DELEGATION
+  char package[PACKAGE_NAME_SIZE];
+  const char *pm;
+  char *cmd_argv[4];
+
+  if (check_root("install"))
+    return 1;
+  if (!(pm= get_package_manager()))
+    return 1;
+
+  build_package_name(package, sizeof(package), name);
+  cmd_argv[0]= (char *) pm;
+  cmd_argv[1]= (char *) "install";
+  cmd_argv[2]= package;
+  cmd_argv[3]= 0;
+  return run_argv(cmd_argv);
+#else
+  char manifest[FN_REFLEN], full[FN_REFLEN];
+  DYNAMIC_ARRAY entries;
+  struct tar_entry *e;
+  size_t i;
+  int error= 1;
+
+  if (!opt_file)
+  {
+    fprintf(stderr, "ERROR: downloading plugins is not implemented yet, "
+            "use --file=<tarball>.\n");
+    return 1;
+  }
+  if (build_manifest_path(manifest, sizeof(manifest), basedir, name))
+    return 1;
+  if (file_exists(manifest))
+  {
+    fprintf(stderr, "ERROR: plugin '%s' is already installed, uninstall it "
+            "first.\n", name);
+    return 1;
+  }
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &entries,
+                            sizeof(struct tar_entry), 64, 64, MYF(MY_WME)))
+    return 1;
+  if (tar_scan(opt_file, &entries))
+    goto end;
+
+  /*
+    Everything is judged before anything is written: a file that already
+    exists is refused, as it belongs to the server or to another plugin.
+  */
+  for (i= 0; i < entries.elements; i++)
+  {
+    e= dynamic_element(&entries, i, struct tar_entry *);
+    if (build_full_path(full, sizeof(full), basedir, e->path))
+      goto end;
+    if (!e->is_dir && file_exists(full))
+    {
+      fprintf(stderr, "ERROR: '%s' already exists, refusing to overwrite "
+              "it.\n", full);
+      goto end;
+    }
+  }
+
+  for (i= 0; i < entries.elements; i++)
+  {
+    e= dynamic_element(&entries, i, struct tar_entry *);
+    build_full_path(full, sizeof(full), basedir, e->path);
+    if (e->is_dir && file_exists(full))
+      continue;  /* an existing directory is used, not created or recorded */
+    printf("would %s %s\n", e->is_dir ? "create directory" : "install", full);
+  }
+  printf("would write %s\n", manifest);
+  if (opt_dry_run)
+    error= 0;
+  else
+    fprintf(stderr, "ERROR: extracting is not implemented yet; the archive "
+            "passed validation.\n");
+end:
+  delete_dynamic(&entries);
+  return error;
+#endif
+}
+
+
+/**
+  Uninstall a plugin.
+
+  On deb installations the packages carry the uniform name, so it is passed
+  to apt-get directly. On rpm installations the uniform name is only a
+  Provides alias of the real package name, and dnf 5 does not resolve
+  "remove" arguments through Provides (dnf 4 and zypper do), so the alias
+  is first translated by querying the rpm database. This also gives a
+  clear error when the plugin is not installed.
+
+  @param[in]  name     The normalized plugin name.
+  @param[in]  basedir  The base directory, empty for packaged installations.
+
+  @retval int error = nonzero, success = 0
+*/
+
+static int do_uninstall(const char *name, const char *basedir)
+{
+#ifdef PKG_DELEGATION
+  char package[PACKAGE_NAME_SIZE];
+  const char *pm;
+  const char *target;
+  char *cmd_argv[7];
+  int error;
+#ifdef INSTALL_LAYOUT_RPM
+  DYNAMIC_STRING providers;
+  char *nl;
+#endif
+
+  if (check_root("uninstall"))
+    return 1;
+  if (!(pm= get_package_manager()))
+    return 1;
+
+  build_package_name(package, sizeof(package), name);
+  target= package;
+
+#ifdef INSTALL_LAYOUT_RPM
+  if (init_dynamic_string(&providers, "", 256, 256))
+    return 1;
+  cmd_argv[0]= (char *) "rpm";
+  cmd_argv[1]= (char *) "-q";
+  cmd_argv[2]= (char *) "--whatprovides";
+  cmd_argv[3]= package;
+  cmd_argv[4]= (char *) "--qf";
+  cmd_argv[5]= (char *) "%{NAME}\n";
+  cmd_argv[6]= 0;
+  if (run_argv_capture(cmd_argv, &providers, 0) || !providers.length)
+  {
+    fprintf(stderr, "ERROR: plugin '%s' is not installed.\n", name);
+    dynstr_free(&providers);
+    return 1;
+  }
+  if (!(nl= strchr(providers.str, '\n')))
+    nl= strend(providers.str);
+  if (nl[0] && nl[1])
+  {
+    fprintf(stderr, "ERROR: several packages provide '%s':\n%s"
+            "Remove the right one with the package manager directly.\n",
+            package, providers.str);
+    dynstr_free(&providers);
+    return 1;
+  }
+  *nl= '\0';
+  target= providers.str;
+#endif
+
+  cmd_argv[0]= (char *) pm;
+  cmd_argv[1]= (char *) "remove";
+  cmd_argv[2]= (char *) target;
+  cmd_argv[3]= 0;
+  error= run_argv(cmd_argv);
+#ifdef INSTALL_LAYOUT_RPM
+  dynstr_free(&providers);
+#endif
+  return error;
+#else
+  char manifest[FN_REFLEN], full[FN_REFLEN];
+  DYNAMIC_ARRAY entries;
+  struct manifest_entry *e;
+  size_t i;
+  int failed= 0;
+
+  if (build_manifest_path(manifest, sizeof(manifest), basedir, name))
+    return 1;
+  if (!file_exists(manifest))
+  {
+    fprintf(stderr, "ERROR: plugin '%s' is not installed.\n", name);
+    return 1;
+  }
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &entries,
+                            sizeof(struct manifest_entry), 16, 16,
+                            MYF(MY_WME)))
+    return 1;
+  if (read_manifest(manifest, &entries))
+  {
+    delete_dynamic(&entries);
+    return 1;
+  }
+
+  for (i= 0; i < entries.elements; i++)
+  {
+    e= dynamic_element(&entries, i, struct manifest_entry *);
+    if (e->is_dir)
+      continue;
+    if (build_full_path(full, sizeof(full), basedir, e->path))
+    {
+      /* an undeletable file must keep the manifest, or it is orphaned */
+      failed= 1;
+      continue;
+    }
+    if (opt_dry_run)
+      printf("would delete %s\n", full);
+    else if (my_delete(full, MYF(0)))
+    {
+      /* a file someone already removed by hand must not block uninstall */
+      if (my_errno == ENOENT)
+        fprintf(stderr, "WARNING: '%s' was already gone.\n", full);
+      else
+      {
+        fprintf(stderr, "ERROR: cannot delete '%s': %s.\n", full,
+                strerror(my_errno));
+        failed= 1;
+      }
+    }
+  }
+
+  /* directories in reverse manifest order, so children come before parents */
+  for (i= entries.elements; i-- > 0; )
+  {
+    e= dynamic_element(&entries, i, struct manifest_entry *);
+    if (!e->is_dir || build_full_path(full, sizeof(full), basedir, e->path))
+      continue;
+    if (opt_dry_run)
+      printf("would remove directory %s\n", full);
+    else if (rmdir(full) && errno != ENOENT)
+      fprintf(stderr, "WARNING: directory '%s' was not removed: %s.\n", full,
+              strerror(errno));
+  }
+  delete_dynamic(&entries);
+
+  if (failed)
+  {
+    fprintf(stderr, "ERROR: not all files could be deleted; the manifest "
+            "was kept, so uninstall can be run again.\n");
+    return 1;
+  }
+  if (opt_dry_run)
+  {
+    printf("would delete %s\n", manifest);
+    return 0;
+  }
+  if (my_delete(manifest, MYF(MY_WME)))
+    return 1;
+  /* the manifest directory goes with the last plugin; busy is fine */
+  if (!build_full_path(full, sizeof(full), basedir, MANIFEST_SUBDIR))
+    rmdir(full);
+  printf("Plugin '%s' uninstalled from %s.\n", name, basedir);
+  return 0;
+#endif
+}
+
+
+/**
+  Run the new package-manager style commands.
+
+  Parses the options (--help, --version, etc. are handled by
+  handle_options), then validates the verb and the plugin name and
+  dispatches to the appropriate command handler. The plugin name is
+  normalized to lower case before validation.
+
+  @param[in]  argc  The number of arguments.
+  @param[in]  argv  The arguments.
+
+  @retval int error = 1, success = 0
+*/
+
+static int run_new_command(int argc, char **argv)
+{
+  char name[NAME_CHAR_LEN + 1];
+  char basedir[FN_REFLEN];
+  const char *verb;
+  size_t i, len;
+  int error, is_search;
+
+  if ((error= handle_options(&argc, &argv, my_long_options, get_one_option)))
+    return 1;
+
+  if (argc < 1)
+  {
+    usage();
+    return 1;
+  }
+
+  verb= argv[0];
+  if (strcmp(verb, "search") != 0 && strcmp(verb, "install") != 0 &&
+      strcmp(verb, "uninstall") != 0)
+  {
+    fprintf(stderr, "ERROR: unknown command '%s'.\n", verb);
+    usage();
+    return 1;
+  }
+
+  /* the search term is optional: without it every plugin is listed */
+  is_search= strcmp(verb, "search") == 0;
+  if (is_search ? argc > 2 : argc != 2)
+  {
+    fprintf(stderr, is_search ?
+            "ERROR: '%s' takes at most one search term.\n" :
+            "ERROR: '%s' requires exactly one plugin name.\n", verb);
+    usage();
+    return 1;
+  }
+
+  name[0]= '\0';
+  if (argc == 2)
+  {
+    len= strlen(argv[1]);
+    if (len > NAME_CHAR_LEN)
+    {
+      fprintf(stderr, "ERROR: plugin name is too long (max %d characters).\n",
+              NAME_CHAR_LEN);
+      return 1;
+    }
+    for (i= 0; i <= len; i++)
+      name[i]= (char) tolower((unsigned char) argv[1][i]);
+
+    if (validate_plugin_name(name))
+      return 1;
+  }
+
+  if (detect_install_method(basedir, sizeof(basedir)))
+    return 1;
+
+  if (is_search)
+    return do_search(name, basedir);
+  if (strcmp(verb, "install") == 0)
+    return do_install(name, basedir);
+  return do_uninstall(name, basedir);
 }

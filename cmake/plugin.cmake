@@ -278,6 +278,13 @@ MACRO(MYSQL_ADD_PLUGIN)
         IF (NOT ARG_CLIENT)
           SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server${ver}" PARENT_SCOPE)
         ENDIF()
+
+        # rpm packages have their own names, but plugins are installed
+        # everywhere by the deb-style name, mariadb-plugin-<name>
+        STRING(REGEX REPLACE "-engine(-|$)" "\\1" plugin_package "${ARG_COMPONENT}")
+        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_PROVIDES
+            "mariadb-plugin-${plugin_package}" PARENT_SCOPE)
+
         SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} PARENT_SCOPE)
         IF (ARG_VERSION)
           SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION ${SERVER_VERSION}_${ARG_VERSION} PARENT_SCOPE)
