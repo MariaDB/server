@@ -350,6 +350,9 @@ bool Mvi_access::build_ft_query(String *out)
   @detail
     The keys are printed in their encoded form. That is what is stored in the
     index and what we search for, but it is not readable.
+
+    "match" tells whether a row has to have all of the keys (JSON_CONTAINS)
+    or just one of them (JSON_OVERLAPS).
 */
 
 void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
@@ -357,10 +360,111 @@ void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
   KEY *key_info= index->vcol->table->key_info + index->keyno;
   List_iterator<String> it(encoded);
   String *key;
-  trace_object->add("index", key_info->name);
+  trace_object->add("index", key_info->name).
+                 add("match", conjunctive ? "all" : "any");
   Json_writer_array trace_ranges(thd, "ranges");
   while ((key= it++))
     trace_ranges.add(key->ptr(), key->length());
+}
+
+
+/*
+  @brief
+    Collect the element keys to search `index' for from a JSON literal.
+
+  @param cs           Collation of the indexed expression
+                      TODO why does that matter?
+
+  @param json         The JSON literal: an array, or a single scalar
+  @param conjunctive  true when the keys are ANDed (JSON_CONTAINS),
+                      false when they are ORed (JSON_OVERLAPS)
+  @param je           A json_engine_t to scan with
+
+  @detail
+    An element that cannot be encoded for this index (a type mismatch, say)
+    can only be skipped when the keys are ANDed. Dropping a key from an AND
+    makes the index scan less selective, so it still returns a superset of
+    the rows the predicate matches, and the predicate itself does the exact
+    filtering afterwards.
+
+    For an OR we cannot do that. A row can satisfy the predicate through the
+    very element we failed to encode, and MVI_ENCODE skips such elements too,
+    so that row has no key in the index for us to find it by. Dropping the
+    key would lose it. Give up on the access instead.
+
+  @return
+    The access descriptor, or NULL if the predicate cannot use this MVI.
+*/
+
+static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
+                                    CHARSET_INFO *cs, String *json,
+                                    bool conjunctive, json_engine_t *je)
+{
+  Mvi_access *access= NULL;
+  StringBuffer<256> buf;
+  const uchar *start= reinterpret_cast<const uchar *>(json->ptr());
+  const uchar *end= start + json->length();
+  Item_func_mvi_encode *mvitem=
+    (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
+  const Type_handler *cast_th= mvitem->cast_type().type_handler();
+
+  buf.length(0);
+  buf.set_charset(&my_charset_latin1_bin);
+
+  if (json_scan_start(je, cs, start, end) || json_read_value(je))
+    return NULL;
+
+  if (je->value_type == JSON_VALUE_UNINITIALIZED ||
+      je->value_type == JSON_VALUE_OBJECT)
+    return NULL;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    /* A scalar: JSON_CONTAINS(expr, '123') */
+    if (encode_mvi_key(je, cast_th, cs, &buf))
+      return NULL;
+    if (!(access= new (thd->mem_root) Mvi_access(index, conjunctive)) ||
+        access->add_key(thd->mem_root, &buf))
+      return NULL;
+    return access;
+  }
+  // JSON_VALUE_ARRAY
+
+  /* TODO: deduplicate? */
+  do {
+    buf.length(0);
+    switch (je->state)
+    {
+      /* TODO: nested array? */
+      case JST_ARRAY_START:
+        continue;
+      case JST_ARRAY_END:
+        break;
+      case JST_VALUE:
+      {
+        if (json_read_value(je))
+          return NULL;
+
+        if (encode_mvi_key(je, cast_th, cs, &buf))
+        {
+          /* See above: only an AND of the keys tolerates a missing one */
+          if (!conjunctive)
+            return NULL;
+          break;
+        }
+        if (!access &&
+            !(access= new (thd->mem_root) Mvi_access(index, conjunctive)))
+          return NULL;
+        if (access->add_key(thd->mem_root, &buf))
+          return NULL;
+        break;
+      }
+      default:
+        return NULL;
+    }
+  } while (json_scan_next(je) == 0);
+
+  return access;
 }
 
 
@@ -374,11 +478,8 @@ void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
 
       JSON_CONTAINS(array_indexed_expr, '[foo, bar, ... ]')
 
-    If yes, collect the encoded element keys to search the index for.
-
-    Elements that cannot be encoded for that index (e.g. because of a type
-    mismatch) are skipped: the resulting access is a necessary, not a
-    sufficient condition, and is only ever ANDed with this predicate.
+    which is true when ALL of the elements have a match, so the keys are
+    ANDed.
 
   @return
     The access descriptor, or NULL if the predicate cannot use an MVI.
@@ -388,9 +489,6 @@ Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
                                                     List<Mv_index> *indexes)
 {
   Mv_index *index;
-  Mvi_access *access= NULL;
-  StringBuffer<256> buf;
-  const uchar *start, *end;
   DBUG_ASSERT(fixed());
 
   if (arg_count > 2 || !a2_constant)
@@ -399,14 +497,6 @@ Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
   if (!(index= get_mvi_index(indexes, args[0])))
     return NULL;
 
-  CHARSET_INFO *cs= args[0]->collation.collation;
-  Item_func_mvi_encode *mvitem=
-    (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
-  /* Get ready to encode the element keys from the second argument */
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
-
-  buf.length(0);
-  buf.set_charset(&my_charset_latin1_bin);
   if (!a2_parsed)
   {
     val= args[1]->val_json(&tmp_val);
@@ -414,68 +504,80 @@ Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
   }
   if (!val)
     return NULL;
-  start= reinterpret_cast<const uchar *>(val->ptr());
-  end= start + val->length();
 
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
+  return collect_mvi_keys(thd, index, args[0]->collation.collation, val,
+                          true, &je);
+}
+
+
+/*
+  @brief
+    Check if we can use Multi-Value Index access to read rows for this
+    predicate, if yes create an access descriptor.
+  
+  @detail
+    We can use MVI index when the predicate has either of the forms:
+
+      JSON_OVERLAPS(array_indexed_expr, '[foo, bar, ... ]')
+      JSON_OVERLAPS('[foo, bar, ... ]', array_indexed_expr)
+
+    JSON_OVERLAPS is true when ANY of the elements has a match, so the keys
+    are ORed. 
+
+  @return
+    The access descriptor, or NULL if the predicate cannot use an MVI.
+*/
+
+Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
+                                                    List<Mv_index> *indexes)
+{
+  Mv_index *index;
+  uint literal_arg;
+  String *json;
+  StringBuffer<256> tmp;
+  DBUG_ASSERT(fixed());
+
+  if ((index= get_mvi_index(indexes, args[0])))
+    literal_arg= 1;
+  else if ((index= get_mvi_index(indexes, args[1])))
+    literal_arg= 0;
+  else
     return NULL;
 
-  if (je.value_type == JSON_VALUE_UNINITIALIZED ||
-      je.value_type == JSON_VALUE_OBJECT)
+  if (!args[literal_arg]->const_item())
+    return NULL;
+  if (!(json= args[literal_arg]->val_json(&tmp)))
     return NULL;
 
-  if (je.value_type != JSON_VALUE_ARRAY)
-  {
-    /* A scalar: JSON_CONTAINS(expr, '123') */
-    if (encode_mvi_key(&je, cast_th, cs, &buf))
-      return NULL;
-    if (!(access= new (thd->mem_root) Mvi_access(index, true)) ||
-        access->add_key(thd->mem_root, &buf))
-      return NULL;
-    return access;
-  }
-  // JSON_VALUE_ARRAY
+  /*
+    encode_mvi_key() must see the collation of the indexed expression: that
+    is what decides how MVI_ENCODE built the keys that are in the index.
+  */
+  return collect_mvi_keys(thd, index,
+                          args[1 - literal_arg]->collation.collation, json,
+                          false, &je);
+}
 
-  /* TODO: deduplicate? */
-  do {
-    buf.length(0);
-    switch (je.state)
-    {
-      /* TODO: nested array? */
-      case JST_ARRAY_START:
-        continue;
-      case JST_ARRAY_END:
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          return NULL;
 
-        if (encode_mvi_key(&je, cast_th, cs, &buf))
-          break;                            /* Skip: cannot be encoded */
-        if (!access &&
-            !(access= new (thd->mem_root) Mvi_access(index, true)))
-          return NULL;
-        if (access->add_key(thd->mem_root, &buf))
-          return NULL;
-        break;
-      }
-      default:
-        return NULL;
-    }
-  } while (json_scan_next(&je) == 0);
+/* Add `access' to the context, if there is one. Returns true on error */
 
-  return access;
+static bool add_mvi_access(Mvi_context *ctx, Mvi_access *access)
+{
+  return access && ctx->accesses.push_back(access, ctx->thd->mem_root);
 }
 
 
 bool Item_func_json_contains::mvi_analyze(void *arg)
 {
   Mvi_context *ctx= (Mvi_context *) arg;
-  Mvi_access *access= get_mvi_access(ctx->thd, &ctx->indexes);
-  if (access && ctx->accesses.push_back(access, ctx->thd->mem_root))
-    return true;                                          /* Out of memory */
-  return false;
+  return add_mvi_access(ctx, get_mvi_access(ctx->thd, &ctx->indexes));
+}
+
+
+bool Item_func_json_overlaps::mvi_analyze(void *arg)
+{
+  Mvi_context *ctx= (Mvi_context *) arg;
+  return add_mvi_access(ctx, get_mvi_access(ctx->thd, &ctx->indexes));
 }
 
 

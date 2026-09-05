@@ -23,6 +23,7 @@ jd
     {
         "table": "t1",
         "index": "idx",
+        "match": "all",
         "ranges": 
         ["616161"]
     }
@@ -40,6 +41,7 @@ jd
     {
         "table": "t1",
         "index": "idx",
+        "match": "all",
         "ranges": 
         [
             "626262",
@@ -65,14 +67,37 @@ jd
     {
         "table": "t1",
         "index": "idx",
+        "match": "all",
         "ranges": 
         ["616161"]
     },
     {
         "table": "t2",
         "index": "idx2",
+        "match": "all",
         "ranges": 
         ["7a7a7a"]
+    }
+]
+#
+# JSON_OVERLAPS: the keys are ORed, so "match" is "any"
+#
+explain select * from t1 where json_overlaps(j->'$.tags','["bbb","ccc"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "match": "any",
+        "ranges": 
+        [
+            "626262",
+            "636363"
+        ]
     }
 ]
 #

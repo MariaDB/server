@@ -163,6 +163,85 @@ c	j
 1	{"tags": ["aaa"]}
 drop procedure p1;
 drop table t1;
+# JSON_OVERLAPS is sargable too. It is true when ANY of the elements
+# has a match, so the keys are ORed, and it is symmetric: the indexed
+# expression can be either argument.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["ccc"]}'),(4,'{"tags": ["aaa","bbb"]}'),
+(5,'{"tags": [123]}'),(6,'{}');
+explain select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# the indexed expression as the second argument
+explain select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# a scalar instead of an array
+select * from t1 where json_overlaps(j->'$.tags','"ccc"') order by c;
+c	j
+3	{"tags": ["ccc"]}
+# 123 cannot be encoded for a CHAR array, so it is not in the index
+# either. Row 5 matches the predicate through it, so an index scan
+# for the remaining key would lose that row: don't use the index.
+explain select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+4	{"tags": ["aaa","bbb"]}
+5	{"tags": [123]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+4	{"tags": ["aaa","bbb"]}
+5	{"tags": [123]}
+# JSON_CONTAINS may skip such an element: dropping a key from an AND
+# only makes the scan less selective, so it stays a superset.
+explain select * from t1 where json_contains(j->'$.tags','[123,"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select * from t1 where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+# Forms that cannot use the index. None of these may change the result.
+select * from t1 where json_overlaps(j->'$.tags', NULL) order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','[]') order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','{"a":1}') order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+# neither argument is a constant
+select * from t1 a, t1 b
+where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
+c	j	c	j
+1	{"tags": ["aaa"]}	1	{"tags": ["aaa"]}
+1	{"tags": ["aaa"]}	4	{"tags": ["aaa","bbb"]}
+drop table t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

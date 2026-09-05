@@ -51,6 +51,16 @@ from information_schema.optimizer_trace;
 --enable_view_protocol
 
 --echo #
+--echo # JSON_OVERLAPS: the keys are ORed, so "match" is "any"
+--echo #
+--disable_replay next_query Need to preserve optimizer trace
+explain select * from t1 where json_overlaps(j->'$.tags','["bbb","ccc"]');
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo #
 --echo # A predicate under a top-level OR gives no access, so nothing is printed
 --echo #
 --disable_replay next_query Need to preserve optimizer trace

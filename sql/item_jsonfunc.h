@@ -948,6 +948,8 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
+  bool mvi_analyze(void *arg) override;
+  Mvi_access *get_mvi_access(THD *thd, List<Mv_index> *indexes);
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
 };
