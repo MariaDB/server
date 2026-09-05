@@ -1,0 +1,65 @@
+# MDEV-32947 Async conflicts with semi-sync in multi-source
+#
+# With a async master and a semi-sync master,
+# test replication does not mix async and semi-sync regardless of order
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--let $orig_wait_no_slave= `SELECT @@GLOBAL.rpl_semi_sync_master_wait_no_slave`
+
+--echo # Setup
+# Enable semi-sync on both masters;
+# the slave will disable semi-sync on one of its connections.
+
+--connect (master1, 127.0.0.1, root, , , $SERVER_MYPORT_1)
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+SET @@SESSION.gtid_domain_id= 1;
+RESET MASTER;
+
+--connect (master2, 127.0.0.1, root, , , $SERVER_MYPORT_2)
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+SET @@SESSION.gtid_domain_id= 2;
+RESET MASTER;
+
+--connect (slave, 127.0.0.1, root, , , $SERVER_MYPORT_3)
+--disable_warnings
+  SET @@GLOBAL.gtid_slave_pos= '';
+--enable_warnings
+
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER 'master1' TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_1,
+  master_user='root', master_ssl_verify_server_cert=0;
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER 'master2' TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2,
+  master_user='root', master_ssl_verify_server_cert=0;
+
+
+--echo # Test semi-sync replication during async replication
+--let $mode1= 0
+--let $mode2= 1
+--source mix_semisync_async.inc
+
+--echo # Test the other order
+--let $mode1= 1
+--let $mode2= 0
+--source mix_semisync_async.inc
+
+
+--echo # Cleanup
+
+RESET SLAVE 'master1' ALL;
+RESET SLAVE 'master2' ALL;
+--disconnect slave
+
+--connection master1
+  SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+  --eval SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= $orig_wait_no_slave
+--disconnect master1
+
+--connection master2
+  SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+  --eval SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= $orig_wait_no_slave
+--disconnect master2
