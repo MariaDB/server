@@ -3947,7 +3947,6 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
-        const uchar *rec= key + offset + item->get_null_bytes();
         res= item->get_str_from_field(*arg, field, &tmp, key,
                                       offset + item->get_null_bytes());
         /*
@@ -3959,6 +3958,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         if (table->blob_storage && (field->flags & BLOB_FLAG))
         {
           /* A NULL blob was never stored, so there is no mark to read. */
+          const uchar *rec= key + offset + item->get_null_bytes();
           const uchar *val= ((Field_blob*) field)->get_ptr(rec);
           if (val && Blob_mem_storage::was_cut((const char*) val))
             item->value_cut_in_result= true;
