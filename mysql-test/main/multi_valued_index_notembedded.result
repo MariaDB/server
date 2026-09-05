@@ -1,0 +1,89 @@
+SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb","ccc"]}');
+# The trace prints the element keys in their encoded form, which is not
+# readable. These are the tokens the index is built from, so the values
+# the trace prints below must be found here:
+select c, mvi_encode(j->'$.tags', char(6)) from t1;
+c	mvi_encode(j->'$.tags', char(6))
+1	616161
+2	626262 636363
+set optimizer_trace=1;
+#
+# One element key
+#
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "ranges": 
+        ["616161"]
+    }
+]
+#
+# Several element keys
+#
+explain select * from t1 where json_contains(j->'$.tags','["bbb","ccc"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "ranges": 
+        [
+            "626262",
+            "636363"
+        ]
+    }
+]
+#
+# Two tables: each entry names the table it belongs to
+#
+create table t2 (c int, j json,
+key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t2 values (1,'{"tags": ["zzz"]}');
+explain select * from t1,t2 where json_contains(t1.j->'$.tags','"aaa"')
+and json_contains(t2.j->'$.tags','"zzz"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx2	idx2	0	NULL	10	Using where
+1	SIMPLE	t1	range	idx	idx	0	NULL	10	Using where; Using join buffer (flat, BNL join)
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "ranges": 
+        ["616161"]
+    },
+    {
+        "table": "t2",
+        "index": "idx2",
+        "ranges": 
+        ["7a7a7a"]
+    }
+]
+#
+# A predicate under a top-level OR gives no access, so nothing is printed
+#
+explain select * from t1 where json_contains(t1.j->'$.tags','"aaa"') or c=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+NULL
+set optimizer_trace=default;
+drop table t1,t2;

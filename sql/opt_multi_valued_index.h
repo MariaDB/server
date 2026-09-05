@@ -14,6 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+class Json_writer_object;
+
 /* An MVI index */
 struct Mv_index : public Sql_alloc
 {
@@ -36,6 +38,9 @@ struct Mvi_access : public Sql_alloc
 
   /* Usage: Build the fulltext query searching for the element keys */
   bool build_ft_query(String *out);
+
+  /* Usage: describe this access in the optimizer trace */
+  void print_json(THD *thd, Json_writer_object *trace_object);
 };
 
 

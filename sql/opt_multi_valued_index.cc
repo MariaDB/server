@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "item_func.h"
+#include "my_json_writer.h"
 
 void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
 {
@@ -343,6 +344,28 @@ bool Mvi_access::build_ft_query(String *out)
 
 /*
   @brief
+    Print the index this access uses and the element keys it will search that
+    index for into the optimizer trace.
+
+  @detail
+    The keys are printed in their encoded form. That is what is stored in the
+    index and what we search for, but it is not readable.
+*/
+
+void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
+{
+  KEY *key_info= index->vcol->table->key_info + index->keyno;
+  List_iterator<String> it(encoded);
+  String *key;
+  trace_object->add("index", key_info->name);
+  Json_writer_array trace_ranges(thd, "ranges");
+  while ((key= it++))
+    trace_ranges.add(key->ptr(), key->length());
+}
+
+
+/*
+  @brief
     Check if we can use Multi-Value Index access to read rows for this
     predicate, if yes create an access descriptor.
 
@@ -569,6 +592,18 @@ QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table)
   Mvi_access *access= join->get_mvi_access_for_table(table);
   if (!access)
     return NULL;
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+      We are inside the "rows_estimation" array, so we need an object of our
+      own before we can add anything by name. Without it the writer hits an
+      assertion in Single_line_formatting_helper::on_add_member().
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_mvi(thd, "multi_value_index_use");
+    trace_mvi.add_table_name(table);
+    access->print_json(thd, &trace_mvi);
+  }
   return new QUICK_MVI_SELECT(thd, table, access);
 }
 

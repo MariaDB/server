@@ -1,0 +1,64 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+# The test uses the optimizer trace:
+--source include/not_embedded.inc
+
+SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb","ccc"]}');
+
+--echo # The trace prints the element keys in their encoded form, which is not
+--echo # readable. These are the tokens the index is built from, so the values
+--echo # the trace prints below must be found here:
+select c, mvi_encode(j->'$.tags', char(6)) from t1;
+
+set optimizer_trace=1;
+
+--echo #
+--echo # One element key
+--echo #
+--disable_replay next_query Need to preserve optimizer trace
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo #
+--echo # Several element keys
+--echo #
+--disable_replay next_query Need to preserve optimizer trace
+explain select * from t1 where json_contains(j->'$.tags','["bbb","ccc"]');
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo #
+--echo # Two tables: each entry names the table it belongs to
+--echo #
+create table t2 (c int, j json,
+                 key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t2 values (1,'{"tags": ["zzz"]}');
+--disable_replay next_query Need to preserve optimizer trace
+explain select * from t1,t2 where json_contains(t1.j->'$.tags','"aaa"')
+                              and json_contains(t2.j->'$.tags','"zzz"');
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo #
+--echo # A predicate under a top-level OR gives no access, so nothing is printed
+--echo #
+--disable_replay next_query Need to preserve optimizer trace
+explain select * from t1 where json_contains(t1.j->'$.tags','"aaa"') or c=2;
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+set optimizer_trace=default;
+drop table t1,t2;
