@@ -19,6 +19,7 @@
   (reserve, commit, decommit, release)
 */
 #include <stddef.h> /*size_t*/
+#include <my_global.h> /*myf*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,10 +27,10 @@ extern "C" {
 
 enum my_vmem_prot { MY_VMEM_READONLY= 0, MY_VMEM_READWRITE };
 
-char *my_virtual_mem_reserve(size_t *size);
-char *my_virtual_mem_commit(char *ptr, size_t size);
-void my_virtual_mem_decommit(char *ptr, size_t size);
-void my_virtual_mem_release(char *ptr, size_t size);
+char *my_virtual_mem_reserve(size_t *size, myf my_flags);
+char *my_virtual_mem_commit(char *ptr, size_t size, myf my_flags);
+void my_virtual_mem_decommit(char *ptr, size_t size, myf my_flags);
+void my_virtual_mem_release(char *ptr, size_t size, myf my_flags);
 void my_virtual_mem_protect(void *ptr, size_t size, enum my_vmem_prot prot);
 
 #ifdef __cplusplus
