@@ -162,13 +162,13 @@ collation(@a:=_latin2'test')
 latin2_general_ci
 select coercibility(@a:=_latin2'test');
 coercibility(@a:=_latin2'test')
-6
+5
 select collation(@a:=_latin2'test' collate latin2_bin);
 collation(@a:=_latin2'test' collate latin2_bin)
 latin2_bin
 select coercibility(@a:=_latin2'test' collate latin2_bin);
 coercibility(@a:=_latin2'test' collate latin2_bin)
-6
+5
 select (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST';
 (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST'
 0
