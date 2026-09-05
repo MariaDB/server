@@ -20954,6 +20954,7 @@ static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
 */
 static void test_proxy_header_connect_errors_reset()
 {
+#ifndef DBUG_OFF
   const char *client_ip= "192.0.2.50";
   char query[256];
   unsigned int conn_errno= 0;
@@ -20961,6 +20962,13 @@ static void test_proxy_header_connect_errors_reset()
   MYSQL *m;
 
   myheader("test_proxy_header_connect_errors_reset");
+
+  /* Force a deterministic "unresolvable" outcome; see hostname.cc. */
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,getnameinfo_error_noname'");
+  myquery(rc);
 
   rc= mysql_query(mysql,
                   "SET @saved_max_connect_errors= @@global.max_connect_errors");
@@ -21010,6 +21018,9 @@ static void test_proxy_header_connect_errors_reset()
   myquery(rc);
   rc= mysql_query(mysql, "FLUSH HOSTS");
   myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif /* !DBUG_OFF */
 }
 
 /*
