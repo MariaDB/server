@@ -9947,7 +9947,13 @@ best_access_path(JOIN      *join,
       }
       else
       {
-        type= JT_INDEX_MERGE;
+        if (s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_MVI)
+          type= JT_RANGE;
+        else
+        {
+          type= JT_INDEX_MERGE;
+          force_plan= s->quick->force_index_merge;
+        }
         /*
           We don't know exactly from where the costs comes from.
           Let's store it in copy_cost.
@@ -9956,7 +9962,6 @@ best_access_path(JOIN      *join,
         */
         cost.reset();
         cost.copy_cost= s->quick->read_time;
-        force_plan= s->quick->force_index_merge;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
