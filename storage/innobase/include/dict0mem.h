@@ -1086,7 +1086,7 @@ struct dict_index_t {
 	/*----------------------*/
 	/** Statistics for query optimization */
 	/* @{ */
-	ib_uint64_t*	stat_n_diff_key_vals;
+	uint64_t*	stat_n_diff_key_vals;
 				/*!< approximate number of different
 				key values for this index, for each
 				n-column prefix where 1 <= n <=
@@ -1099,13 +1099,14 @@ struct dict_index_t {
 				to calculate each of stat_n_diff_key_vals[],
 				e.g. stat_n_sample_sizes[3] pages were sampled
 				to get the number stat_n_diff_key_vals[3]. */
-	ib_uint64_t*	stat_n_non_null_key_vals;
+	uint64_t*	stat_n_non_null_key_vals;
 				/* approximate number of non-null key values
 				for this index, for each column where
 				1 <= n <= dict_get_n_unique(index) (the array
-				is indexed from 0 to n_uniq-1); This
-				is used when innodb_stats_method is
-				"nulls_ignored". */
+				is indexed from 0 to n_uniq-1); These are
+				per-column counts, unlike the n-column prefix
+				counts in stat_n_diff_key_vals[]. This is used
+				when innodb_stats_method is "nulls_ignored" */
 	uint32_t	stat_index_size;
 				/*!< approximate index size in
 				database pages */
