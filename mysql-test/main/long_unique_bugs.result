@@ -850,4 +850,18 @@ create table t(c int primary key, c2 blob unique) engine=innodb;
 insert into t values (0, '');
 replace into t values (0, '123');
 drop table t;
+#
+# MDEV-40927 ha_innobase::change_active_index(uint): Assertion
+#            `m_user_thd == ha_thd()' failed
+#
+CREATE TABLE t (a INT AUTO_INCREMENT PRIMARY KEY, b INT, UNIQUE(b) USING HASH)
+ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
+connect  con1,localhost,root,,test;
+SELECT * FROM t;
+a	b
+connection default;
+INSERT INTO t PARTITION (p1) VALUES (1,1);
+disconnect con1;
+connection default;
+DROP TABLE t;
 # End of 10.11 tests
