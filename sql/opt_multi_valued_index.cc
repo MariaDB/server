@@ -19,6 +19,8 @@
 #include "item_func.h"
 #include "my_json_writer.h"
 
+static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access);
+
 void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
 {
   char buf[32];
@@ -584,13 +586,60 @@ QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table)
   */
   if (!access->cost_is_known())
     return NULL;
-  return new QUICK_MVI_SELECT(thd, table, access);
+  return create_quick_mvi_select(thd, table, access);
 }
 
 
 /****************************************************************************
   QUICK_MVI_SELECT - reading a multi-valued index
 ****************************************************************************/
+struct Mvi_access;
+
+/*
+  Quick select that reads a multi-valued index.
+
+  It runs a boolean-mode fulltext search over the index's hidden vcol, looking
+  for the encoded element keys of the JSON predicate this access was built
+  from. The scan is a necessary, not a sufficient condition: the JSON
+  predicate stays in the WHERE clause and does the exact filtering.
+
+  Unlike FT_SELECT, there is no Item_func_match to have created the FT_INFO
+  for us, so we create it ourselves in reset() and own it.
+
+  The methods are implemented in opt_multi_valued_index.cc.
+*/
+
+class QUICK_MVI_SELECT: public QUICK_SELECT_I
+{
+  Mvi_access *access;
+  FT_INFO *ft_handler;
+  StringBuffer<256> query;              /* the boolean-mode ft query */
+public:
+  QUICK_MVI_SELECT(THD *thd, TABLE *table, Mvi_access *access_arg);
+  ~QUICK_MVI_SELECT();
+  int init() override { return 0; }
+  int reset() override;
+  int get_next() override;
+  bool reverse_sorted() override { return false; }
+  /*
+    Fulltext results come back ordered by relevance, not by key, so there is
+    no sorted output to offer. QS_TYPE_MVI is not one of the types the
+    ORDER BY-by-index code paths consider, so they never ask.
+  */
+  void need_sorted_output() override {}
+  int get_type() override { return QS_TYPE_MVI; }
+  void add_keys_and_lengths(String *key_names, String *used_lengths) override;
+  void add_used_key_part_to_set() override {}
+  Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
+#ifndef DBUG_OFF
+  void dbug_dump(int indent, bool verbose) override;
+#endif
+};
+
+static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access)
+{
+  return new QUICK_MVI_SELECT(thd, table, access);
+}
 
 QUICK_MVI_SELECT::QUICK_MVI_SELECT(THD *thd, TABLE *table,
                                    Mvi_access *access_arg)
