@@ -329,7 +329,7 @@ void Mvi_access::estimate_records()
   List_iterator<String> it(encoded);
   String *key, *rarest= NULL;
   ha_rows sum= 0, min_rows= 0;
-  bool unknown= false;
+  bool have_unknown_estimate= false;
 
   while ((key= it++))
   {
@@ -337,7 +337,7 @@ void Mvi_access::estimate_records()
                                           (uint) key->length());
     if (rows == HA_POS_ERROR)
     {
-      unknown= true;
+      have_unknown_estimate= true;
       continue;
     }
     sum+= rows;
@@ -348,18 +348,21 @@ void Mvi_access::estimate_records()
     }
   }
 
-  if (!conjunctive && unknown)
+  if (!conjunctive && have_unknown_estimate)
   {
-    /* We have to read this key and have no idea what that costs */
+    /* 
+      Disjunctive means we have to read all keys. For at least one, we have no idea
+      how many matches it has.  Fall back to full scan.
+    */
     records= table->stat_records();
     read_time= DBL_MAX;
     return;
   }
   if (conjunctive && !rarest)
   {
-    /* Nothing was estimated. Keep the old guess and the query as it is */
-    records= 10;
-    read_time= 0.001;
+    /* Nothing was estimated. Fall back to full table scan */
+    records= table->stat_records();
+    read_time= DBL_MAX;
     return;
   }
 

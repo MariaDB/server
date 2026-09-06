@@ -234,6 +234,7 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
     return NULL;
 
   /*
+    TODO: is this really so:
     encode_mvi_key() must see the collation of the indexed expression: that
     is what decides how MVI_ENCODE built the keys that are in the index.
   */
