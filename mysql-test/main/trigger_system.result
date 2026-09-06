@@ -272,3 +272,14 @@ EXECUTE stmt;
 # Clean up
 DEALLOCATE PREPARE stmt;
 DROP TRIGGER tr1;
+#
+# MDEV-40947: ASAN global-buffer-overflow in events_to_string/reconstruct_create_trigger_stmt
+#
+CREATE TABLE t (a INT);
+CREATE TRIGGER x1 AFTER STARTUP INSERT INTO test.t VALUES (1);
+UPDATE mysql.event SET kind='DDL' WHERE name='x1';
+SHOW CREATE TRIGGER x1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+x1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER x1 AFTER DDL INSERT INTO test.t VALUES (1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+DROP TRIGGER x1;
+DROP TABLE t;

@@ -326,3 +326,17 @@ EXECUTE stmt;
 --echo # Clean up
 DEALLOCATE PREPARE stmt;
 DROP TRIGGER tr1;
+
+--echo #
+--echo # MDEV-40947: ASAN global-buffer-overflow in events_to_string/reconstruct_create_trigger_stmt
+--echo #
+CREATE TABLE t (a INT);
+
+CREATE TRIGGER x1 AFTER STARTUP INSERT INTO test.t VALUES (1);
+UPDATE mysql.event SET kind='DDL' WHERE name='x1';
+
+--replace_column 7 #
+SHOW CREATE TRIGGER x1;
+
+DROP TRIGGER x1;
+DROP TABLE t;

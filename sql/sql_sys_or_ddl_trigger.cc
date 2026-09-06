@@ -827,7 +827,8 @@ static constexpr LEX_CSTRING base_event_names[]= {
   LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
   LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
   LEX_CSTRING{STRING_WITH_LEN("LOGON")},
-  LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
+  LEX_CSTRING{STRING_WITH_LEN("LOGOFF")},
+  LEX_CSTRING{STRING_WITH_LEN("DDL")}
 };
 
 static constexpr size_t max_event_names_length =
@@ -835,7 +836,8 @@ static constexpr size_t max_event_names_length =
   (base_event_names[1].length + 1) +
   (base_event_names[2].length + 1) +
   (base_event_names[3].length + 1) +
-  (base_event_names[4].length + 1);
+  (base_event_names[4].length + 1) +
+  (base_event_names[5].length + 1);
 
 
 /**
